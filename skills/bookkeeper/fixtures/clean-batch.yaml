@@ -1,0 +1,27 @@
+name: bookkeeper-clean-batch
+kind: skill
+target: ..
+runner: reconcile
+inputs:
+  transactions:
+    - { id: fixture-aws, date: "2026-07-05", description: AWS hosting, amount: -100, currency: USD }
+    - { id: fixture-stripe, date: "2026-07-06", description: Stripe sales payout, amount: 500, currency: USD }
+  chart_of_accounts:
+    - { code: "4000", name: Sales Revenue, type: revenue, keywords: [stripe, sales, payout] }
+    - { code: "6100", name: Cloud Hosting, type: expense, keywords: [aws, hosting] }
+  prior_period: { start_date: "2026-07-01", end_date: "2026-07-31" }
+expect:
+  status: sealed
+  output:
+    subset:
+      reconciliation:
+        matched: 2
+        unmatched: 0
+        status: reconciled
+      read_only:
+        ledger_mutation: false
+        write_count: 0
+        writes: []
+        external_effects: []
+  receipt: { schema: runx.receipt.v1 }
+metadata: { public_skill: bookkeeper, source_case: clean-read-only-reconciliation }

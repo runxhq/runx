@@ -1,0 +1,190 @@
+skill: bookkeeper
+version: "0.1.0"
+
+catalog:
+  kind: skill
+  audience: public
+  visibility: public
+  role: context
+  execution: execute
+  completion: runtime_receipt
+  requires_adapter: true
+  approval: none
+
+policy:
+  side_effects: none
+  sends_messages: denied
+  mints_authority: denied
+  persists_state: denied
+  secrets_required: false
+
+harness:
+  cases:
+    - name: sealed_clean_batch_reconciles_read_only
+      runner: reconcile
+      inputs:
+        transactions:
+          - { id: txn-001, date: "2026-07-03", description: AWS monthly cloud hosting, amount: -120, currency: USD }
+          - { id: txn-002, date: "2026-07-08", description: Stripe customer payout, amount: 850, currency: USD }
+          - { id: txn-003, date: "2026-07-12", description: Office Depot supplies, amount: -45, currency: USD }
+        chart_of_accounts:
+          - { code: "4000", name: Sales Revenue, type: revenue, keywords: [stripe, payout, sales] }
+          - { code: "6100", name: Cloud Hosting, type: expense, keywords: [aws, cloud, hosting] }
+          - { code: "6200", name: Office Supplies, type: expense, keywords: [office, depot, supplies] }
+        prior_period: { start_date: "2026-07-01", end_date: "2026-07-31", opening_balance: 1000 }
+      expect:
+        status: sealed
+        output:
+          subset:
+            reconciliation:
+              matched: 3
+              unmatched: 0
+              status: reconciled
+            needs_review:
+              required: false
+              reasons: []
+            read_only:
+              ledger_mutation: false
+              write_count: 0
+              writes: []
+              external_effects: []
+        receipt: { schema: runx.receipt.v1 }
+
+    - name: refused_ambiguous_transactions_return_needs_review
+      runner: reconcile
+      inputs:
+        transactions:
+          - { id: txn-ambiguous, date: "2026-07-15", description: General monthly service, amount: -75, currency: USD }
+        chart_of_accounts:
+          - { code: "6100", name: General Services, type: expense, keywords: [general, service] }
+          - { code: "6200", name: Service Expenses, type: expense, keywords: [general, service] }
+        prior_period: { start_date: "2026-07-01", end_date: "2026-07-31", opening_balance: 0 }
+      expect:
+        status: sealed
+        output:
+          subset:
+            reconciliation:
+              matched: 0
+              unmatched: 1
+              status: needs_review
+            needs_review:
+              required: true
+              reasons: [ambiguous_account_match]
+            read_only:
+              ledger_mutation: false
+              write_count: 0
+              writes: []
+              external_effects: []
+        receipt: { schema: runx.receipt.v1 }
+
+    - name: explicit_existing_account_binding_is_explainable
+      runner: reconcile
+      inputs:
+        transactions:
+          - { id: txn-explicit, date: "2026-07-18", description: Annual service renewal, amount: -300, currency: USD, account_code: "6300" }
+        chart_of_accounts:
+          - { code: "6300", name: Software Subscriptions, type: expense, keywords: [software, subscription] }
+        prior_period: { start_date: "2026-07-01", end_date: "2026-07-31" }
+      expect:
+        status: sealed
+        output:
+          subset:
+            reconciliation:
+              matched: 1
+              unmatched: 0
+              status: reconciled
+            read_only:
+              ledger_mutation: false
+              write_count: 0
+        receipt: { schema: runx.receipt.v1 }
+
+    - name: unknown_explicit_account_never_invents_gl_account
+      runner: reconcile
+      inputs:
+        transactions:
+          - { id: txn-unknown, date: "2026-07-20", description: New vendor charge, amount: -90, currency: USD, account_code: "9999" }
+        chart_of_accounts:
+          - { code: "6100", name: Cloud Hosting, type: expense, keywords: [cloud, hosting] }
+        prior_period: { start_date: "2026-07-01", end_date: "2026-07-31" }
+      expect:
+        status: sealed
+        output:
+          subset:
+            reconciliation:
+              matched: 0
+              unmatched: 1
+              status: needs_review
+            needs_review:
+              required: true
+              reasons: [unknown_explicit_account]
+            read_only:
+              ledger_mutation: false
+              write_count: 0
+              writes: []
+        receipt: { schema: runx.receipt.v1 }
+
+    - name: out_of_period_anomaly_requires_review_without_write
+      runner: reconcile
+      inputs:
+        transactions:
+          - { id: txn-late, date: "2026-08-01", description: AWS cloud hosting, amount: -60, currency: USD }
+        chart_of_accounts:
+          - { code: "6100", name: Cloud Hosting, type: expense, keywords: [aws, cloud, hosting] }
+        prior_period: { start_date: "2026-07-01", end_date: "2026-07-31" }
+      expect:
+        status: sealed
+        output:
+          subset:
+            reconciliation:
+              matched: 1
+              unmatched: 0
+              status: needs_review
+            needs_review:
+              required: true
+              reasons: [out_of_period]
+            read_only:
+              ledger_mutation: false
+              write_count: 0
+              writes: []
+              external_effects: []
+        receipt: { schema: runx.receipt.v1 }
+
+    - name: invalid_amount_refuses_before_reconciliation
+      runner: reconcile
+      inputs:
+        transactions:
+          - { id: txn-zero, date: "2026-07-20", description: Invalid zero line, amount: 0, currency: USD }
+        chart_of_accounts:
+          - { code: "6100", name: Miscellaneous Expense, type: expense, keywords: [invalid] }
+        prior_period: { start_date: "2026-07-01", end_date: "2026-07-31" }
+      expect:
+        status: failure
+
+runners:
+  reconcile:
+    default: true
+    type: cli-tool
+    command: /usr/bin/env
+    args: [node, run.mjs]
+    outputs:
+      categorized: array
+      anomalies: array
+      reconciliation: object
+      needs_review: object
+      read_only: object
+    artifacts:
+      named_emits:
+        reconciliation: reconciliation
+    inputs:
+      transactions:
+        type: array
+        required: true
+        description: Bounded transaction lines to categorize without mutation.
+      chart_of_accounts:
+        type: array
+        required: true
+        description: Complete allowed GL account universe for this run.
+      prior_period:
+        type: object
+        required: true
+        description: Inclusive reconciliation period and optional prior facts.
