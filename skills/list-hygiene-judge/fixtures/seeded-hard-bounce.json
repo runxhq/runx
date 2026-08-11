@@ -1,0 +1,7 @@
+{
+  "type": "contact.hard_bounce_observed",
+  "contact_id": "contact:hard-bounce",
+  "consent_state": "subscribed",
+  "hard_bounces": 1,
+  "source": "public_harness_fixture"
+}

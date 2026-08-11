@@ -1,0 +1,7 @@
+{
+  "type": "contact.engagement_snapshot_recorded",
+  "contact_id": "contact:decay",
+  "consent_state": "subscribed",
+  "recency_days": 121,
+  "source": "public_harness_fixture"
+}

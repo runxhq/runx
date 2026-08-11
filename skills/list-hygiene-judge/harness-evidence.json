@@ -1,0 +1,35 @@
+{
+  "schema": "runx.skill.harness_evidence.v1",
+  "package": "list-hygiene-judge",
+  "runx_version": "runx-cli 0.8.2",
+  "command": "runx harness ./skills/list-hygiene-judge --json",
+  "status": "passed",
+  "case_count": 3,
+  "assertion_error_count": 0,
+  "cases": [
+    {
+      "name": "sealed_decay_re_permission",
+      "status": "sealed"
+    },
+    {
+      "name": "sealed_hard_bounce_suppress",
+      "status": "sealed"
+    },
+    {
+      "name": "stop_missing_or_stale_evidence",
+      "status": "sealed"
+    }
+  ],
+  "fixtures": {
+    "format": "UTF-8 JSON",
+    "runtime_seed": "The non-default harness_judge runner appends each declared bootstrap event to a fresh SQLite-backed data-store before exercising the production decision path.",
+    "binary_sidecars": false
+  },
+  "dependency": {
+    "requested_legacy_ref": "runx/data-store@0.1.2",
+    "requested_legacy_ref_status": "not_found_in_public_registry",
+    "resolved_ref": "runx/data-store@sha-30c9df39e353",
+    "resolved_digest": "sha256:d3d15497ed1b541d779b7286dc5bf26ddfdbd510b27abd9b65465415e98b0365",
+    "reason": "Uses the current immutable first-party data-store contract because the legacy 0.1.2 ref no longer resolves publicly."
+  }
+}

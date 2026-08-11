@@ -1,0 +1,7 @@
+{
+  "type": "contact.engagement_snapshot_recorded",
+  "contact_id": "contact:stale",
+  "consent_state": "subscribed",
+  "recency_days": 180,
+  "source": "public_harness_fixture"
+}
