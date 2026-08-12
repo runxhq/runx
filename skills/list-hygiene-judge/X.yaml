@@ -1,0 +1,163 @@
+skill: list-hygiene-judge
+version: "0.1.0"
+
+catalog:
+  kind: skill
+  audience: public
+  visibility: public
+  role: canonical
+  execution: execute
+  completion: runtime_receipt
+  requires_adapter: true
+  approval: none
+
+policy:
+  allow:
+    - provider: data-source
+      method: READ
+      scope: runx:data:read
+    - provider: data-source
+      method: APPEND
+      scope: runx:data:append
+  deny:
+    - dispatch
+    - send
+    - raw_sql_from_model
+    - secret_material
+
+harness:
+  cases:
+    - name: sealed_decay_re_permission
+      inputs:
+        data_source_ref: local://list-hygiene-judge/decay
+        resource: contacts
+        aggregate_id: contact:decay
+        expected_version: 1
+        idempotency_key: contact:decay:consent:v1
+        engagement_history: { opens_count: 2, clicks_count: 1, hard_bounces: 0, recency_days: 91 }
+        bounce_policy: { hard_bounce_action: suppress, decay_threshold_days: 90 }
+        current_consent_state: { state: subscribed, unsubscribe_active: false }
+      expect: { status: sealed, receipt: { schema: runx.receipt.v1 } }
+    - name: sealed_hard_bounce_suppress
+      inputs:
+        data_source_ref: local://list-hygiene-judge/hard-bounce
+        resource: contacts
+        aggregate_id: contact:hard-bounce
+        expected_version: 1
+        idempotency_key: contact:hard-bounce:consent:v1
+        engagement_history: { opens_count: 0, clicks_count: 0, hard_bounces: 1, recency_days: 4 }
+        bounce_policy: { hard_bounce_action: suppress, decay_threshold_days: 90 }
+        current_consent_state: { state: subscribed, unsubscribe_active: false }
+      expect: { status: sealed, receipt: { schema: runx.receipt.v1 } }
+    - name: stop_missing_or_stale_evidence
+      inputs:
+        data_source_ref: local://list-hygiene-judge/missing
+        resource: contacts
+        aggregate_id: contact:missing
+        expected_version: 8
+        idempotency_key: contact:missing:consent:v1
+        engagement_history: { opens_count: 1, clicks_count: 0, hard_bounces: 0, recency_days: 5 }
+        bounce_policy: { hard_bounce_action: suppress, decay_threshold_days: 90 }
+        current_consent_state: { state: subscribed, unsubscribe_active: false }
+      expect: { status: sealed, receipt: { schema: runx.receipt.v1 } }
+
+runners:
+  judge:
+    default: true
+    type: graph
+    inputs:
+      data_source_ref: { type: string, required: true }
+      resource: { type: string, required: true }
+      aggregate_id: { type: string, required: true }
+      expected_version: { type: number, required: true }
+      idempotency_key: { type: string, required: true }
+      engagement_history: { type: json, required: true }
+      bounce_policy: { type: json, required: true }
+      current_consent_state: { type: json, required: true }
+    graph:
+      name: list-hygiene-judge
+      result_from: [finalize]
+      steps:
+        - id: read-contact
+          label: read the contact projection before judging
+          tool: data.read_projection
+          scopes: [runx:data:read]
+          inputs:
+            data_source_ref: "$input.data_source_ref"
+            resource: "$input.resource"
+            aggregate_id: "$input.aggregate_id"
+        - id: decide
+          label: decide only from the read projection
+          inputs:
+            engagement_history: "$input.engagement_history"
+            bounce_policy: "$input.bounce_policy"
+            current_consent_state: "$input.current_consent_state"
+            aggregate_id: "$input.aggregate_id"
+            expected_version: "$input.expected_version"
+            idempotency_key: "$input.idempotency_key"
+          run:
+            type: javascript
+            module: judge.mjs
+            export: decide
+            outputs: { decision: object, append: boolean, event: object }
+          context:
+            projection_result: read-contact.data_operation_result.data
+          artifacts:
+            named_emits: { decision: decision }
+        - id: append-re-permission
+          when: { field: decide.decision.data.decision.state, equals: re_permission }
+          tool: data.append_event
+          mutation: true
+          scopes: [runx:data:append]
+          inputs:
+            data_source_ref: "$input.data_source_ref"
+            resource: "$input.resource"
+            aggregate_id: "$input.aggregate_id"
+            expected_version: "$input.expected_version"
+            idempotency_key: "$input.idempotency_key"
+          context: { event: decide.event.data }
+        - id: append-suppress
+          when: { field: decide.decision.data.decision.state, equals: suppress }
+          tool: data.append_event
+          mutation: true
+          scopes: [runx:data:append]
+          inputs:
+            data_source_ref: "$input.data_source_ref"
+            resource: "$input.resource"
+            aggregate_id: "$input.aggregate_id"
+            expected_version: "$input.expected_version"
+            idempotency_key: "$input.idempotency_key"
+          context: { event: decide.event.data }
+        - id: readback
+          tool: data.read_projection
+          scopes: [runx:data:read]
+          inputs:
+            data_source_ref: "$input.data_source_ref"
+            resource: "$input.resource"
+            aggregate_id: "$input.aggregate_id"
+        - id: finalize
+          inputs:
+            idempotency_key: "$input.idempotency_key"
+          run:
+            type: javascript
+            module: judge.mjs
+            export: finalize
+            outputs:
+              judge_result:
+                type: object
+                schema:
+                  required: [schema, decision, append_emitted, idempotency_key]
+                  properties:
+                    schema: { const: runx.list_hygiene_judge.v1 }
+                    decision: { type: object }
+                    transition: { type: [object, "null"] }
+                    recorded_projection: { type: [object, "null"] }
+                    append_emitted: { type: boolean }
+                    idempotency_key: { type: string }
+          context:
+            decision: decide.decision.data.decision
+            append_repermission: append-re-permission.data_operation_result.data
+            append_suppress: append-suppress.data_operation_result.data
+            projection_result: readback.data_operation_result.data
+          artifacts:
+            named_emits: { judge_result: judge_result }
