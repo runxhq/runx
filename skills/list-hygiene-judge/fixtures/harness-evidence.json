@@ -1,0 +1,17 @@
+{
+  "status": "passed",
+  "case_count": 3,
+  "assertion_error_count": 0,
+  "assertion_errors": [],
+  "case_names": [
+    "sealed_decay_re_permission",
+    "sealed_hard_bounce_suppress",
+    "stop_missing_or_stale_evidence"
+  ],
+  "receipt_ids": [
+    "sha256:8c9ef4bb1c05b6ac58e0e384b416ac5483cec48a4bbf1cd31583ab5261935b50",
+    "sha256:709a9d20519dce91124a02f7c4af8c3511136d3b8aa7260553ba33a5995654d1",
+    "sha256:21cc64b88d0d3977efcfe0d310f404c0ad3ec015da6a2101aaa494c49d4efac7"
+  ],
+  "graph_case_count": 3
+}
