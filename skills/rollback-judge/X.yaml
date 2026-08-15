@@ -1,0 +1,274 @@
+skill: rollback-judge
+version: "0.2.0"
+
+catalog:
+  kind: skill
+  audience: operator
+  visibility: public
+  role: canonical
+
+harness:
+  cases:
+    - name: critical-signal-rollback
+      runner: agent_review
+      inputs:
+        deploy_signal:
+          severity: critical
+          kind: error_rate_spike
+          evidence:
+            source_type: github_actions_run
+            source_url: https://api.github.com/repos/RYDE-PLAY/frantic-102-rollback-judge/actions/runs/29393017505
+            workflow_name: Rollback Judge Deployment Monitor
+        current_version:
+          service: rollback-judge-demo
+          marker_path: public/deploy-target.json
+          source_url: https://api.github.com/repos/RYDE-PLAY/frantic-102-rollback-judge/actions/runs/29393017505
+        monitor_run_ref: https://github.com/RYDE-PLAY/frantic-102-rollback-judge/actions/runs/29393017505
+        prior_version:
+          service: rollback-judge-demo
+          marker_path: public/deploy-target.json
+          source_url: https://api.github.com/repos/RYDE-PLAY/frantic-102-rollback-judge/actions/runs/29392993457
+        forward_fix_evidence:
+          test_runs: []
+          review_signoff: null
+      caller:
+        answers:
+          agent_task.rollback-judge.output:
+            act_decision: approve
+            act_reason: action=rollback reason=error_rate_critical target=2026.07.15.3 source=github-actions:29393017505
+            act_target_ref: runx:release:rollback-judge-demo@2026.07.15.3
+            decision:
+              action: rollback
+              reason: error_rate_critical
+              version_target:
+                version: "2026.07.15.3"
+                digest: git:ab4d82d0f136bd4e5d3d9c7b2e1811e9a17005c9
+                source: prior_version.source_url
+                source_url: https://api.github.com/repos/RYDE-PLAY/frantic-102-rollback-judge/actions/runs/29392993457
+            escalation:
+              required: false
+              reason: null
+              missing_evidence: []
+            release_publish_approval:
+              gate_id: release.publish.approval
+              approved: true
+              reason: error_rate_critical
+              answer:
+                approved: true
+                reason: error_rate_critical
+              dispatch:
+                skill: release
+                answer_key: release.publish.approval
+            review_record:
+              form: review
+              signal:
+                severity: critical
+                kind: error_rate_spike
+              evidence_used:
+                - source_read.current
+                - source_read.prior
+              refused:
+                reason: null
+            source_read:
+              current:
+                run_id: 29393017505
+                run_url: https://github.com/RYDE-PLAY/frantic-102-rollback-judge/actions/runs/29393017505
+                conclusion: failure
+                head_sha: d118cae3bfbe30e1d65d021f8b3ae163166e6041
+                deployment_marker:
+                  version: "2026.07.15.4"
+                  health: degraded
+                  metric:
+                    name: http_5xx_rate
+                    observed_percent: 18.4
+                    threshold_percent: 2
+              prior:
+                run_id: 29392993457
+                run_url: https://github.com/RYDE-PLAY/frantic-102-rollback-judge/actions/runs/29392993457
+                conclusion: success
+                head_sha: ab4d82d0f136bd4e5d3d9c7b2e1811e9a17005c9
+                deployment_marker:
+                  version: "2026.07.15.3"
+                  health: healthy
+                  metric:
+                    name: http_5xx_rate
+                    observed_percent: 0.4
+                    threshold_percent: 2
+      expect:
+        status: sealed
+        receipt:
+          schema: runx.receipt.v1
+
+    - name: signal-contradictory-block
+      runner: agent_review
+      inputs:
+        deploy_signal:
+          severity: critical
+          kind: error_rate_spike
+          evidence:
+            source_type: github_actions_run
+            source_url: https://api.github.com/repos/RYDE-PLAY/frantic-102-rollback-judge/actions/runs/29392993457
+            workflow_name: Rollback Judge Deployment Monitor
+            observed_conclusion: success
+            contradiction: critical label conflicts with a successful monitor run
+        current_version:
+          service: rollback-judge-demo
+          marker_path: public/deploy-target.json
+          source_url: https://api.github.com/repos/RYDE-PLAY/frantic-102-rollback-judge/actions/runs/29392993457
+        monitor_run_ref: https://github.com/RYDE-PLAY/frantic-102-rollback-judge/actions/runs/29392993457
+        prior_version:
+          service: rollback-judge-demo
+          marker_path: public/deploy-target.json
+          source_url: https://api.github.com/repos/RYDE-PLAY/frantic-102-rollback-judge/actions/runs/29392993457
+        forward_fix_evidence:
+          test_runs: []
+          review_signoff: null
+      expect:
+        status: needs_agent
+
+runners:
+  judge:
+    default: true
+    type: graph
+    act:
+      form: review
+      purpose: Read a public deployment monitor run and record a bounded rollback or escalation decision.
+      legitimacy: The operator supplied public monitoring references; release owns any downstream consequence.
+      reason_step: decide
+      reason_from: act_reason
+      target_from: monitor_run_ref
+      effect_step: release
+      effect_from: release_effect_ref
+      effect_type: tracking_item
+    inputs:
+      deploy_signal:
+        type: object
+        required: true
+        description: "Deploy signal with severity, kind, and evidence.source_url pointing to a public GitHub Actions monitor run."
+      current_version:
+        type: object
+        required: true
+        description: "Current deployment subject with service and repository-relative marker_path."
+      monitor_run_ref:
+        type: string
+        required: true
+        description: "Public HTML URL for the monitored run; the judge verifies it against the API response before sealing."
+      prior_version:
+        type: object
+        required: false
+        description: "Rollback candidate whose source_url points to a completed, successful monitor run."
+      forward_fix_evidence:
+        type: object
+        required: false
+        description: "Roll-forward evidence with test_runs and review_signoff."
+    graph:
+      name: rollback-judge
+      steps:
+        - id: decide
+          label: read monitor and judge deploy signal
+          run:
+            type: cli-tool
+            command: node
+            args:
+              - run.mjs
+            outputs:
+              act_decision: string
+              act_reason: string
+              act_target_ref: string
+              decision: object
+              escalation: object
+              release_publish_approval: object
+              review_record: object
+              source_read: object
+          inputs:
+            deploy_signal: "$input.deploy_signal"
+            current_version: "$input.current_version"
+            monitor_run_ref: "$input.monitor_run_ref"
+            prior_version: "$input.prior_version"
+            forward_fix_evidence: "$input.forward_fix_evidence"
+          artifacts:
+            wrap_as: rollback_decision_packet
+        - id: release
+          label: consume release.publish.approval in mock release rail
+          run:
+            type: cli-tool
+            command: node
+            args:
+              - release.mjs
+            outputs:
+              release_execution_result: object
+              release_effect_ref: string
+              release_advanced: boolean
+              consumed_gate: object
+          inputs:
+            monitor_run_ref: "$input.monitor_run_ref"
+          context:
+            release_publish_approval: decide.release_publish_approval
+            decision: decide.decision
+            act_target_ref: decide.act_target_ref
+            rollback_decision_packet: decide.rollback_decision_packet.data
+          artifacts:
+            wrap_as: release_execution_packet
+      policy:
+        guards:
+          - step: release
+            field: decide.release_publish_approval.approved
+            equals: true
+
+  agent_review:
+    type: agent-task
+    act:
+      form: review
+      purpose: Stop on contradictory or thin deploy evidence before any release approval is emitted.
+      legitimacy: The operator supplied public monitoring references; release owns any downstream consequence.
+      reason_from: act_reason
+      target_from: monitor_run_ref
+    agent: reviewer
+    task: rollback-judge
+    outputs:
+      act_decision: string
+      act_reason: string
+      act_target_ref: string
+      decision: object
+      escalation: object
+      release_publish_approval: object
+      review_record: object
+      source_read: object
+    artifacts:
+      wrap_as: rollback_decision_packet
+    runx:
+      category: ops
+    instructions: >
+      Review deploy_signal, current_version, prior_version, and
+      forward_fix_evidence without deploying, publishing, minting authority, or
+      creating a universal proposal envelope. Treat evidence.source_url as a
+      reference that must be read and verified before approving. If the
+      supplied signal is contradictory, thin, nonfailing, lacks a readable
+      source, lacks a proven healthy prior version, or lacks tested forward-fix
+      evidence, stop and name the missing or conflicting evidence. Do not emit
+      a decision or release.publish.approval answer when blocked. A valid
+      rollback answer must cite the failing monitor run, derive the current and
+      prior versions from source reads, set reason error_rate_critical, and seed
+      release.publish.approval with approved true. The release skill, not this
+      judge, owns any downstream effect.
+    inputs:
+      deploy_signal:
+        type: object
+        required: true
+        description: "Deploy signal with severity, kind, and public source evidence."
+      current_version:
+        type: object
+        required: true
+        description: "Current deployment subject and monitor reference."
+      monitor_run_ref:
+        type: string
+        required: true
+        description: "Public HTML URL for the monitored run."
+      prior_version:
+        type: object
+        required: false
+        description: "Candidate prior deployment and monitor reference."
+      forward_fix_evidence:
+        type: object
+        required: false
+        description: "Roll-forward evidence with test_runs and review_signoff."

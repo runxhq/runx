@@ -1,0 +1,37 @@
+{
+  "schema": "runx.skill_harness_evidence.v1",
+  "skill": "rollback-judge",
+  "runx_cli_version": "runx-cli 0.6.14",
+  "command": "RUNX_RECEIPT_SIGN_KID=<kid> RUNX_RECEIPT_SIGN_ED25519_SEED_BASE64=<seed> RUNX_RECEIPT_SIGN_ISSUER_TYPE=hosted runx harness ./skills/rollback-judge --json",
+  "status": "passed",
+  "case_count": 2,
+  "assertion_error_count": 0,
+  "assertion_errors": [],
+  "case_names": [
+    "critical-signal-rollback",
+    "signal-contradictory-block"
+  ],
+  "receipt_ids": [
+    "sha256:2019bd7f082e159f7b77d886a156f8ff49fabd036f2b071540d29e6e9d6d8417"
+  ],
+  "graph_case_count": 0,
+  "live_sources": {
+    "failing_run": "https://github.com/RYDE-PLAY/frantic-102-rollback-judge/actions/runs/29393017505",
+    "healthy_prior_run": "https://github.com/RYDE-PLAY/frantic-102-rollback-judge/actions/runs/29392993457"
+  },
+  "coverage": {
+    "critical-signal-rollback": [
+      "deterministic hosted fixture names the public failing GitHub Actions monitor run",
+      "fixture records the commit-pinned current marker where http_5xx_rate 18.4% exceeds 2%",
+      "fixture records the separate successful run proving prior version 2026.07.15.3 healthy at 0.4%",
+      "release.publish.approval output is approved=true with reason error_rate_critical",
+      "sealed review act targets the public failing run and records the derived rollback release ref"
+    ],
+    "signal-contradictory-block": [
+      "critical label points to a real successful monitor run",
+      "agent review receives no caller answer and returns needs_agent",
+      "no decision or approval is emitted"
+    ]
+  },
+  "note": "The signing seed is intentionally omitted. Hosted harness uses deterministic answers tied to public immutable monitor runs; the default judge used for dogfood performs the live API and marker reads at execution time."
+}
