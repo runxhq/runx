@@ -1,0 +1,16 @@
+{
+  "receipt_dir": "C:\\Users\\ANTHONY\\AppData\\Local\\Temp\\claude\\C--Users-ANTHONY-Crypto-World-Business\\98080a17-4bb5-4288-bf47-fdcb3dc9c393\\scratchpad\\frantic79\\receipts",
+  "signature_mode": "production",
+  "trees": [
+    {
+      "root_receipt_id": "sha256:fd64e6a8de802d7df450d2cab0e8cbed81f0285b52f993cb3b8e05304a2a9893",
+      "receipt_count": 8,
+      "parent_missing": null,
+      "valid": true,
+      "findings": []
+    }
+  ],
+  "unreadable_files": [],
+  "valid": true
+}
+

@@ -1,49 +1,61 @@
 ---
 name: crm-cleanup
-description: Reconcile a call transcript against current CRM records and propose allowlisted field updates, each traced to a verbatim transcript quote, with the write left to a gated CRM operator.
+description: Read current CRM records from a real source, reconcile a call transcript against them, and execute the allowlisted field updates through a CRM transport in the same run, sealing a before/after write result bound to the decision.
 ---
 
 # CRM Cleanup
 
-Keep pipeline data from rotting after calls without letting an agent write to
-the CRM on vibes. The transcript and the current records are the only
-evidence; the reconciling agent proposes updates, and deterministic code
-enforces the update authority and the evidence trail. The skill never writes;
-the sealed proposal is what a gated CRM operator or human approver consumes.
+Keep pipeline data from rotting after calls. The skill proves the whole
+read → decide → write loop in one sealed run: it reads the current CRM
+records from a real source at run time, reconciles the call transcript
+against them, enforces the update authority deterministically, and executes
+the decided updates through a CRM transport that seals a before/after write
+result bound to the decision — not an inert proposal object nothing consumes.
 
 ## Procedure
 
-1. Native `data.digest` binds the exact transcript and record set.
-2. The reconciling agent proposes field updates from the transcript, each with
-   the target record, field, new value, and a supporting quote.
-3. Deterministic enforcement checks every proposal: the record must exist in
-   the supplied set, the field must be inside `crm_schema.allowed_fields`
-   (out-of-allowlist updates are rejected with a named reason, not silently
-   dropped), the quote must appear verbatim in the transcript, and the value
-   must be non-empty. An unknown record or an invented quote refuses the whole
-   run; nothing partial escapes.
-4. The proposal packet carries each update's `from` value from the supplied
-   records so the downstream write can detect drift before applying.
-
-`write_performed` is always false and the packet names its gate
-(`crm-operator-or-human-approver`). A run with no supported updates seals
-`no_action` rather than inventing work.
+1. `fetch-source` reads the typed source handle's https URL through native
+   `web.fetch` under the caller-supplied host allowlist. A `read_projection`,
+   `connector_export`, or `web_fetch` handle carries the URL and its
+   `allowlist`; nothing else is admitted as a record source.
+2. `normalize-records` validates the source read into the working record set
+   and seals its origin (`source_read.kind`, `ref`, `count`).
+3. Native `data.digest` binds the exact transcript and the exact record set
+   that was read.
+4. The reconciling agent proposes takeaways and field updates from the
+   transcript, each with the target record, field, new value, and a
+   supporting quote.
+5. `decide` enforces every proposal deterministically: the record must exist
+   in the set that was read, the field must be inside
+   `crm_schema.allowed_fields` (out-of-allowlist updates are rejected with a
+   named reason, not silently dropped), the quote must appear verbatim in the
+   transcript, and the value must be non-empty. An unknown record or an
+   invented quote refuses the whole run; nothing partial escapes.
+6. `execute-writes` runs only on an `apply` decision. The CRM transport
+   (`mock-crm.v1`) re-checks each update's `from` value against the records
+   that were read — drift aborts the write — then applies the updates and
+   seals `write_result` with `before`, `after`, the `applied` list, a
+   `write_ref`, and the decision's digests as its binding.
+7. `finalize` seals the typed result: `takeaways`, `field_updates` keyed to
+   `crm_schema` fields, and `write_result{before,after}` from the executed
+   transport. A run with no supported updates seals `no_action` and executes
+   nothing — the transport step never runs.
 
 ## Output
 
-`crm_update_proposal` (`runx.crm_update_proposal.v1`) carries `decision`
-(`proposed`, `no_action`, `refused`), `updates` with before and after values
-and evidence quotes, `rejected_updates`, `validation`, and both input digests.
+`crm_cleanup_result` (`runx.crm_cleanup_result.v1`) carries `decision`
+(`applied`, `no_action`, `refused`), `takeaways`, `field_updates` with
+before/after values and evidence quotes, `rejected_updates`, `write_result`
+(`runx.crm_write_result.v1` with `executed`, `transport`, `write_ref`,
+`applied`, `before`, `after`; `null` when nothing executed), `source_read`
+(`kind`, `ref`, `count`), `validation`, and both input digests.
 
-Inputs are `transcript`, `crm_records`, and `crm_schema`.
+Inputs are `crm_source` (the typed source handle), `transcript`, and
+`crm_schema`.
 
 ## Agent task contracts
 
-### `crm-cleanup-reconcile`
-
-Read `transcript`, `crm_records`, and `crm_schema` from step inputs. Return
-`update_draft` with `updates`: an array of `record_id`, `field`, `to`, and
-`evidence_quote` entries. Only propose updates the transcript actually
-supports, quote the transcript verbatim, and only target fields inside the
-allowlist. Return an empty `updates` array when the call changes nothing.
-Never invent records, quotes, or values.
+`crm-cleanup-reconcile` receives the transcript, the records read from the
+source, and the update authority; it returns `update_draft` with `takeaways`
+and candidate `updates` (`record_id`, `field`, `to`, `evidence_quote`). The
+draft is advisory only — deterministic code decides what executes.

@@ -1,0 +1,142 @@
+{
+  "schema": "frantic.delivery_evidence.v1",
+  "bounty": 79,
+  "package": "antheducation/crm-cleanup",
+  "version": "sha-527f09378f65 (X.yaml version 0.2.1)",
+  "summary": "Published antheducation/crm-cleanup@sha-527f09378f65 (X.yaml 0.2.1) to the hosted runx registry via the authenticated CLI publish; the hosted publish harness passed all 5 cases. A clean runx add install and a sealed post-publish dogfood run read the CRM records live from a pinned public URL with native web.fetch, applied two allowlisted quote-traced field updates through the mock-crm.v1 transport, and sealed a before/after write result bound to the transcript and source-content digests; the receipt tree verifies valid with runx verify in strict production-signature mode (issuer type hosted, kid antheducation-hosted-1) after a reviewer-requested re-run on 2026-08-20; package and version unchanged.",
+  "observations": [
+    "runx CLI version: runx-cli 0.8.2 (>= 0.6.14); the publish, install, dogfood, and verify commands all ran with this binary inside WSL Ubuntu.",
+    "Publisher owner antheducation, package name crm-cleanup, version sha-527f09378f65 (X.yaml: 0.2.1), registry ref antheducation/crm-cleanup@sha-527f09378f65, digest bf0fb4706cacaf1186dd51cd93b3894783135deea111653050c9a1ac0f5135bb, profile digest c8ec17ba8ccaedc56cdef2940cf47f344a792fb660797d4caa6ac7fe6195fd52.",
+    "Publish method: runx login --provider github --for publish --from-gh, then runx registry publish ./skills/crm-cleanup/SKILL.md --registry https://api.runx.ai (authenticated CLI publish; hosted publish harness reran and passed all 5 cases)",
+    "public_url: https://runx.ai/x/antheducation/crm-cleanup@sha-527f09378f65 ; pr_url: https://github.com/runxhq/runx/pull/411 (head 51998007d0e198fc8c2634b698171d18d4601aa7); source_url pinned: https://github.com/antheducation/runx/tree/51998007d0e198fc8c2634b698171d18d4601aa7 ; raw x_yaml: https://raw.githubusercontent.com/antheducation/runx/51998007d0e198fc8c2634b698171d18d4601aa7/skills/crm-cleanup/X.yaml ; raw skill_md: https://raw.githubusercontent.com/antheducation/runx/51998007d0e198fc8c2634b698171d18d4601aa7/skills/crm-cleanup/SKILL.md",
+    "Install command: runx add antheducation/crm-cleanup@sha-527f09378f65 --registry https://api.runx.ai -> status installed (clean install from the hosted registry).",
+    "Local harness before publish: runx harness ./skills/crm-cleanup/SKILL.md --json -> status passed, 5 cases, 0 assertion errors (pre-publish)",
+    "Hosted harness after publish: passed - 'tested crm-cleanup: all 5 passed' for sha-527f09378f65; https://api.runx.ai/v1/skills/antheducation/crm-cleanup/harness",
+    "Harness case names and outcomes: crm-cleanup-applies-traced-updates (sealed); crm-cleanup-noop-executes-nothing (sealed); crm-cleanup-rejects-unlisted-field (sealed); crm-cleanup-refuses-invented-quote (sealed, refusal path: validation fail refuses the write set); crm-cleanup-needs-transcript (expected failure: missing required typed input is refused)",
+    "Source read (dogfood): kind web_fetch, ref https://raw.githubusercontent.com/antheducation/runx/crm-cleanup-executed-writes/harness-data/crm-records-globex.json, count 1. read live at run time by native web.fetch under caller allowlist [raw.githubusercontent.com]; records digest bound to the fetch content_digest sha256:a06dd5f16bb5db50de10b4731b9019da2f4b2925031bed37a1e07feb6c588f01",
+    "Mapped field updates (dogfood): acct-globex.account_status healthy -> at_risk (quote: 'the rollout stalled and they want an executive review before renewing'); acct-globex.next_action none -> 'send the Q3 usage report by Friday' (quote: 'send the Q3 usage report by Friday'). Both fields inside the crm_schema allowlist and traced to source records that were read this run.",
+    "Executed write_result (dogfood): executed true through transport mock-crm.v1, write_ref mock-crm:a06dd5f16bb5db50:2, before [{id acct-globex, account_status healthy, next_action none}] -> after [{id acct-globex, account_status at_risk, next_action 'send the Q3 usage report by Friday'}], bound to transcript_digest sha256:28d2d184b118818c54ac43ebf7b5889e319e0068186f5315d28939237d869a2b and records_digest sha256:a06dd5f16bb5db50de10b4731b9019da2f4b2925031bed37a1e07feb6c588f01.",
+    "No-op path: harness case crm-cleanup-noop-executes-nothing seals write_result {executed: false, transport: mock-crm.v1, applied: []} with before == after; the transport step still runs and seals the absence of a write",
+    "Dogfood receipt id (production re-run 2026-08-20): sha256:fd64e6a8de802d7df450d2cab0e8cbed81f0285b52f993cb3b8e05304a2a9893 (receipt_ref runx:receipt:sha256:fd64e6a8de802d7df450d2cab0e8cbed81f0285b52f993cb3b8e05304a2a9893); strict runx verify reports signature mode production, status valid, kid antheducation-hosted-1; full tree of 8 receipts valid. Original run receipt sha256:91ca4df2dc54a67dc822b4705595a98c87089f3c4fe5b8edabf772139ef5d3a6 was sealed in local-development mode and is superseded.",
+    "A new user installs with 'runx add antheducation/crm-cleanup@sha-527f09378f65 --registry https://api.runx.ai', runs 'runx skill antheducation/crm-cleanup@sha-527f09378f65 --registry https://api.runx.ai --inputs <inputs.json> --non-interactive -R receipts --json', answers the reconcile agent act via 'runx resume <run-id> <answers.json> -R receipts --json', and verifies with 'runx verify --receipt <receipt.json> --allow-local-development-signatures --json' - no private context required.",
+    "Revision re-run (2026-08-20, reviewer-requested): identical dogfood inputs and agent answer re-executed against the unchanged published version sha-527f09378f65 with a production Ed25519 receipt signer (issuer type hosted). Deterministic run id run_reconcile_8869499d21dcccd3 matched the original run; before/after write result identical; only the signature mode changed from local-development to production."
+  ],
+  "details": {
+    "runx_version": "runx-cli 0.8.2",
+    "publisher_owner": "antheducation",
+    "package_name": "crm-cleanup",
+    "package_version": "sha-527f09378f65 (X.yaml: 0.2.1)",
+    "registry_ref": "antheducation/crm-cleanup@sha-527f09378f65",
+    "registry_digest": "bf0fb4706cacaf1186dd51cd93b3894783135deea111653050c9a1ac0f5135bb",
+    "registry_profile_digest": "c8ec17ba8ccaedc56cdef2940cf47f344a792fb660797d4caa6ac7fe6195fd52",
+    "public_url": "https://runx.ai/x/antheducation/crm-cleanup",
+    "pr_url": "https://github.com/runxhq/runx/pull/411",
+    "pr_head_commit": "51998007d0e198fc8c2634b698171d18d4601aa7",
+    "source_url": "https://github.com/antheducation/runx/tree/crm-cleanup-executed-writes",
+    "x_yaml_raw": "https://raw.githubusercontent.com/antheducation/runx/51998007d0e198fc8c2634b698171d18d4601aa7/skills/crm-cleanup/X.yaml",
+    "skill_md_raw": "https://raw.githubusercontent.com/antheducation/runx/51998007d0e198fc8c2634b698171d18d4601aa7/skills/crm-cleanup/SKILL.md",
+    "publish_method": "runx login --provider github --for publish --from-gh, then runx registry publish ./skills/crm-cleanup/SKILL.md --registry https://api.runx.ai (authenticated CLI publish; hosted publish harness reran and passed all 5 cases)",
+    "install_command": "runx add antheducation/crm-cleanup@sha-527f09378f65 --registry https://api.runx.ai",
+    "local_harness": "runx harness ./skills/crm-cleanup/SKILL.md --json -> status passed, 5 cases, 0 assertion errors (pre-publish)",
+    "hosted_harness_status": "passed - 'tested crm-cleanup: all 5 passed' for sha-527f09378f65; https://api.runx.ai/v1/skills/antheducation/crm-cleanup/harness",
+    "harness_case_names": [
+      "crm-cleanup-applies-traced-updates (sealed)",
+      "crm-cleanup-noop-executes-nothing (sealed)",
+      "crm-cleanup-rejects-unlisted-field (sealed)",
+      "crm-cleanup-refuses-invented-quote (sealed, refusal path: validation fail refuses the write set)",
+      "crm-cleanup-needs-transcript (expected failure: missing required typed input is refused)"
+    ],
+    "source_read": {
+      "kind": "web_fetch",
+      "ref": "https://raw.githubusercontent.com/antheducation/runx/crm-cleanup-executed-writes/harness-data/crm-records-globex.json",
+      "count": 1,
+      "note": "read live at run time by native web.fetch under caller allowlist [raw.githubusercontent.com]; records digest bound to the fetch content_digest sha256:a06dd5f16bb5db50de10b4731b9019da2f4b2925031bed37a1e07feb6c588f01"
+    },
+    "field_updates": [
+      {
+        "record_id": "acct-globex",
+        "field": "account_status",
+        "from": "healthy",
+        "to": "at_risk",
+        "evidence_quote": "the rollout stalled and they want an executive review before renewing"
+      },
+      {
+        "record_id": "acct-globex",
+        "field": "next_action",
+        "from": "none",
+        "to": "send the Q3 usage report by Friday",
+        "evidence_quote": "send the Q3 usage report by Friday"
+      }
+    ],
+    "write_result": {
+      "executed": true,
+      "transport": "mock-crm.v1",
+      "write_ref": "mock-crm:a06dd5f16bb5db50:2",
+      "before": [
+        {
+          "id": "acct-globex",
+          "account_status": "healthy",
+          "next_action": "none"
+        }
+      ],
+      "after": [
+        {
+          "id": "acct-globex",
+          "account_status": "at_risk",
+          "next_action": "send the Q3 usage report by Friday"
+        }
+      ],
+      "decision_digest_binding": {
+        "transcript_digest": "sha256:28d2d184b118818c54ac43ebf7b5889e319e0068186f5315d28939237d869a2b",
+        "records_digest": "sha256:a06dd5f16bb5db50de10b4731b9019da2f4b2925031bed37a1e07feb6c588f01"
+      }
+    },
+    "noop_path": "harness case crm-cleanup-noop-executes-nothing seals write_result {executed: false, transport: mock-crm.v1, applied: []} with before == after; the transport step still runs and seals the absence of a write",
+    "receipt_id": "sha256:91ca4df2dc54a67dc822b4705595a98c87089f3c4fe5b8edabf772139ef5d3a6"
+  },
+  "dogfood": {
+    "package": "antheducation/crm-cleanup@sha-527f09378f65",
+    "input": "https://raw.githubusercontent.com/antheducation/runx/crm-cleanup-executed-writes/evidence/crm-cleanup-0.2.1/dogfood-inputs.json",
+    "command": "runx skill antheducation/crm-cleanup@sha-527f09378f65 --registry https://api.runx.ai --inputs dogfood-inputs.json --non-interactive -R receipts --json  # returns needs_agent with the reconcile agent act; then: runx resume run_reconcile_8869499d21dcccd3 answers.json -R receipts --json  # caller-mediated agent answer, sealed. RUNX_RECEIPT_SIGN_KID=antheducation-hosted-1, RUNX_RECEIPT_SIGN_ISSUER_TYPE=hosted, Ed25519 seed held in Windows Credential Manager (never in a file).",
+    "receipt_ref": "runx:receipt:sha256:fd64e6a8de802d7df450d2cab0e8cbed81f0285b52f993cb3b8e05304a2a9893",
+    "verify_command": "runx verify --receipt receipts/sha256-fd64e6a8de802d7df450d2cab0e8cbed81f0285b52f993cb3b8e05304a2a9893.json --json  # strict mode, no --allow-local-development-signatures; and runx verify --receipt-dir receipts --json for the full tree",
+    "verify_verdict": "valid: true (runx.verify_verdict.v1; signature mode PRODUCTION, status valid, kid antheducation-hosted-1, issuer type hosted; full tree of 8 receipts verifies valid, signature_mode production)",
+    "harness_cases": [
+      {
+        "name": "crm-cleanup-applies-traced-updates",
+        "status": "sealed"
+      },
+      {
+        "name": "crm-cleanup-noop-executes-nothing",
+        "status": "sealed"
+      },
+      {
+        "name": "crm-cleanup-rejects-unlisted-field",
+        "status": "sealed"
+      },
+      {
+        "name": "crm-cleanup-refuses-invented-quote",
+        "status": "sealed (refused decision inside a sealed run)"
+      },
+      {
+        "name": "crm-cleanup-needs-transcript",
+        "status": "refused (expected input-contract failure)"
+      }
+    ],
+    "revision": {
+      "reason": "Reviewer returned #79 for revision: original dogfood receipt was sealed in local-development signature mode, which is not attributable for a paid skill.",
+      "fix": "Re-ran the identical post-publish dogfood (same package antheducation/crm-cleanup@sha-527f09378f65, same registry digest sha256:bf0fb4706cacaf1186dd51cd93b3894783135deea111653050c9a1ac0f5135bb, same inputs, same agent answer) with a configured production receipt signer (Ed25519, issuer type hosted, kid antheducation-hosted-1). The run sealed at 2026-08-20T06:44:27Z; the graph root and all 7 step receipts carry the hosted issuer and verify in strict production mode.",
+      "previous_receipt_ref": "runx:receipt:sha256:91ca4df2dc54a67dc822b4705595a98c87089f3c4fe5b8edabf772139ef5d3a6",
+      "write_result_unchanged": "executed true; acct-globex account_status healthy -> at_risk; next_action none -> 'send the Q3 usage report by Friday'; same evidence quotes, same records/transcript digests"
+    }
+  },
+  "artifacts": {
+    "dogfood_root_receipt": "https://raw.githubusercontent.com/antheducation/runx/crm-cleanup-executed-writes/evidence/crm-cleanup-0.2.1-rev2/dogfood-root-receipt.json",
+    "verification_json": "https://raw.githubusercontent.com/antheducation/runx/crm-cleanup-executed-writes/evidence/crm-cleanup-0.2.1-rev2/verify-receipt.json",
+    "verification_tree_json": "https://raw.githubusercontent.com/antheducation/runx/crm-cleanup-executed-writes/evidence/crm-cleanup-0.2.1-rev2/verification-tree.json",
+    "dogfood_answers": "https://raw.githubusercontent.com/antheducation/runx/crm-cleanup-executed-writes/evidence/crm-cleanup-0.2.1-rev2/answers.json",
+    "dogfood_inputs": "https://raw.githubusercontent.com/antheducation/runx/crm-cleanup-executed-writes/evidence/crm-cleanup-0.2.1-rev2/dogfood-inputs.json",
+    "receipts_dir": "https://github.com/antheducation/runx/tree/crm-cleanup-executed-writes/evidence/crm-cleanup-0.2.1-rev2/receipts",
+    "previous_evidence": "https://raw.githubusercontent.com/antheducation/runx/61d25e0855be326e5930f6ec10ad62f3b5d01601/evidence/crm-cleanup-0.2.1/evidence.json"
+  }
+}

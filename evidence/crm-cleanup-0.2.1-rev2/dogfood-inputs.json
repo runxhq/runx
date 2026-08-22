@@ -1,0 +1,9 @@
+{
+  "crm_source": {
+    "kind": "web_fetch",
+    "allowlist": ["raw.githubusercontent.com"],
+    "url": "https://raw.githubusercontent.com/antheducation/runx/crm-cleanup-executed-writes/harness-data/crm-records-globex.json"
+  },
+  "transcript": "Call with Globex on renewal. Dana said the rollout stalled and they want an executive review before renewing. Next step agreed: send the Q3 usage report by Friday.",
+  "crm_schema": { "allowed_fields": ["account_status", "next_action", "health_score"] }
+}

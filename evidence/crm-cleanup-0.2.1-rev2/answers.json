@@ -1,0 +1,24 @@
+{
+  "agent_task.crm-cleanup-reconcile.output": {
+    "update_draft": {
+      "takeaways": [
+        "Globex rollout stalled; renewal is at risk pending an executive review.",
+        "Next step is sending the Q3 usage report by Friday."
+      ],
+      "updates": [
+        {
+          "record_id": "acct-globex",
+          "field": "account_status",
+          "to": "at_risk",
+          "evidence_quote": "the rollout stalled and they want an executive review before renewing"
+        },
+        {
+          "record_id": "acct-globex",
+          "field": "next_action",
+          "to": "send the Q3 usage report by Friday",
+          "evidence_quote": "send the Q3 usage report by Friday"
+        }
+      ]
+    }
+  }
+}
