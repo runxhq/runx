@@ -1,0 +1,1867 @@
+{
+  "schema": "runx.graph_skill_state.v1",
+  "run_id": "run_judge_3bdddd2735740428",
+  "runner_name": "judge",
+  "package_digest": "sha256:b48ef10809037fe2f02340f566898135034d0f83d2019d7969b7a0d2f602f1ad",
+  "execution_closure_digest": "sha256:00017813ed346363361284a10e0e88d682e6cb26015e87d096ff42ae1e8d27cd",
+  "graph_inputs": {
+    "aggregate_id": "contact:dana@example.co",
+    "bounce_policy": {
+      "decay_threshold_days": 90,
+      "hard_bounce_action": "suppress"
+    },
+    "current_consent_state": "subscribed",
+    "data_source_ref": "local://list-hygiene/prod-contacts",
+    "engagement_history": {
+      "clicks_count": 0,
+      "hard_bounces": 0,
+      "opens_count": 0,
+      "recency_days": 140
+    },
+    "expected_version": 0,
+    "idempotency_key": "contact:dana:re-permission:v1",
+    "resource": "contact_events"
+  },
+  "checkpoint": {
+    "graph_name": "list-hygiene-judge",
+    "state": {
+      "graphId": "list-hygiene-judge",
+      "status": "succeeded",
+      "steps": [
+        {
+          "stepId": "read-contact",
+          "status": "succeeded",
+          "attempts": 1,
+          "startedAt": "2026-08-20T12:46:54.370Z",
+          "completedAt": "2026-08-20T12:46:54.370Z",
+          "receiptId": "sha256:0f0e470d1ae05d21c9e0389af4a1d7e1d365944a0d88359da56be6c1cef325d9",
+          "outputs": {
+            "data_operation_result": {
+              "data": {
+                "after_version": 0,
+                "aggregate_id": "contact:dana@example.co",
+                "before_version": 0,
+                "data_source_ref": "local://list-hygiene/prod-contacts",
+                "event_digest": null,
+                "event_ref": null,
+                "events": [],
+                "idempotency_key": null,
+                "operation": "read_projection",
+                "projection": {
+                  "aggregate_id": "contact:dana@example.co",
+                  "event_count": 0,
+                  "last_event_digest": null,
+                  "last_event_ref": null,
+                  "last_event_type": null,
+                  "resource": "contact_events",
+                  "version": 0
+                },
+                "projection_digest": "sha256:b4a3df3ffd6300954be3ce95ed8f9b3d1683f72e9f15b925a3d6b3b505c88b5a",
+                "provider": "sqlite-event-store",
+                "provider_evidence": {
+                  "adapter": "data.sqlite",
+                  "aggregate_id": "contact:dana@example.co",
+                  "data_source_ref_digest": "sha256:b7ac0394896f104061eb5b8955fa95a9f2c8a264ebbf2921a78129caa3b05dd4",
+                  "provider": "sqlite-event-store",
+                  "resource": "contact_events",
+                  "storage_class": "sqlite"
+                },
+                "redactions": [],
+                "resource": "contact_events",
+                "result_digest": "sha256:e1858c7aa658a779a05affccaa3a9acc213d6e01f78c7db1fb5609ff910268b9",
+                "rows": [],
+                "schema": "runx.data.operation_result.v1",
+                "status": "read",
+                "stop_conditions": []
+              }
+            }
+          }
+        },
+        {
+          "stepId": "digest-evidence",
+          "status": "succeeded",
+          "attempts": 1,
+          "startedAt": "2026-08-20T12:46:54.370Z",
+          "completedAt": "2026-08-20T12:46:54.370Z",
+          "receiptId": "sha256:52a7d4f2bf4849f584cdd19da1a28f1b905a209c0d4be5e0b7da94651ef5e222",
+          "outputs": {
+            "digest_result": {
+              "data": {
+                "algorithm": "sha256",
+                "digest": "sha256:8b271c6a9abba61d91ed7622874b1694728192d747071eab8da183d76ac8fc39"
+              }
+            }
+          }
+        },
+        {
+          "stepId": "judge",
+          "status": "succeeded",
+          "attempts": 1,
+          "startedAt": "2026-08-20T12:46:54.370Z",
+          "completedAt": "2026-08-20T12:46:54.370Z",
+          "receiptId": "sha256:717a5e2c7fa5655d6d451870ae6dd741be7130be6c3f6f2c7b893510ed7c9b18",
+          "outputs": {
+            "judgment": {
+              "data": {
+                "decision": {
+                  "reason": "recency_days=140 exceeds decay_threshold_days=90 with no unsubscribe marker in the input state or the sealed stream read",
+                  "state": "re_permission"
+                },
+                "escalation": {
+                  "lane": "none",
+                  "reason": "decay threshold exceeded with clean consent evidence",
+                  "required": false
+                },
+                "event": {
+                  "effect_family": "consent",
+                  "operation": "re_permission",
+                  "payload": {
+                    "aggregate_id": "contact:dana@example.co",
+                    "decided_by": "list-hygiene-judge",
+                    "from_state": "subscribed",
+                    "idempotency_key": "contact:dana:re-permission:v1",
+                    "recency_days": 140,
+                    "to_state": "re_permission_pending"
+                  },
+                  "type": "consent.re_permission_requested"
+                },
+                "evidence_basis": {
+                  "input_metrics": {
+                    "clicks_count": 0,
+                    "hard_bounces": 0,
+                    "opens_count": 0,
+                    "recency_days": 140
+                  },
+                  "projection_digest": "sha256:b4a3df3ffd6300954be3ce95ed8f9b3d1683f72e9f15b925a3d6b3b505c88b5a",
+                  "result_digest": "sha256:e1858c7aa658a779a05affccaa3a9acc213d6e01f78c7db1fb5609ff910268b9",
+                  "store_read_status": "read",
+                  "store_version": 0
+                },
+                "write": {
+                  "should_append": true
+                }
+              }
+            }
+          }
+        },
+        {
+          "stepId": "persist-transition",
+          "status": "succeeded",
+          "attempts": 1,
+          "startedAt": "2026-08-20T12:46:54.370Z",
+          "completedAt": "2026-08-20T12:46:54.370Z",
+          "receiptId": "sha256:e99530c0673461811dda8de0d1ba3be2a96465589ee510505aeb0b47278f0d66",
+          "outputs": {
+            "data_operation_result": {
+              "data": {
+                "after_version": 1,
+                "aggregate_id": "contact:dana@example.co",
+                "before_version": 0,
+                "data_source_ref": "local://list-hygiene/prod-contacts",
+                "event_digest": "sha256:5ddb11918e26b87d05c47569d4070081fa5d0c1d038b8cb0dea559c32e344e94",
+                "event_ref": "contact_events:contact:dana@example.co:1",
+                "events": [],
+                "idempotency_key": "contact:dana:re-permission:v1",
+                "operation": "append_event",
+                "projection": null,
+                "projection_digest": "sha256:e78b5e738293aaa84c657686710be8a1237be4e38c5db5b15112e0dc46b99eaf",
+                "provider": "sqlite-event-store",
+                "provider_evidence": {
+                  "adapter": "data.sqlite",
+                  "aggregate_id": "contact:dana@example.co",
+                  "data_source_ref_digest": "sha256:b7ac0394896f104061eb5b8955fa95a9f2c8a264ebbf2921a78129caa3b05dd4",
+                  "provider": "sqlite-event-store",
+                  "resource": "contact_events",
+                  "storage_class": "sqlite"
+                },
+                "redactions": [],
+                "resource": "contact_events",
+                "result_digest": "sha256:167f928a724774f2cfa30992efc2b13e52194d11868dc2492bc9f3407e9bcd85",
+                "rows": [],
+                "schema": "runx.data.operation_result.v1",
+                "status": "committed",
+                "stop_conditions": []
+              }
+            }
+          }
+        },
+        {
+          "stepId": "readback-transition",
+          "status": "succeeded",
+          "attempts": 1,
+          "startedAt": "2026-08-20T12:46:54.370Z",
+          "completedAt": "2026-08-20T12:46:54.370Z",
+          "receiptId": "sha256:e826fe22a6aebdb0d67575f5def4acdb652a734493069130a195244ee8f933c9",
+          "outputs": {
+            "data_operation_result": {
+              "data": {
+                "after_version": 1,
+                "aggregate_id": "contact:dana@example.co",
+                "before_version": 1,
+                "data_source_ref": "local://list-hygiene/prod-contacts",
+                "event_digest": null,
+                "event_ref": null,
+                "events": [],
+                "idempotency_key": null,
+                "operation": "read_projection",
+                "projection": {
+                  "aggregate_id": "contact:dana@example.co",
+                  "event_count": 1,
+                  "last_event_digest": "sha256:5ddb11918e26b87d05c47569d4070081fa5d0c1d038b8cb0dea559c32e344e94",
+                  "last_event_ref": "contact_events:contact:dana@example.co:1",
+                  "last_event_type": "consent.re_permission_requested",
+                  "resource": "contact_events",
+                  "version": 1
+                },
+                "projection_digest": "sha256:e78b5e738293aaa84c657686710be8a1237be4e38c5db5b15112e0dc46b99eaf",
+                "provider": "sqlite-event-store",
+                "provider_evidence": {
+                  "adapter": "data.sqlite",
+                  "aggregate_id": "contact:dana@example.co",
+                  "data_source_ref_digest": "sha256:b7ac0394896f104061eb5b8955fa95a9f2c8a264ebbf2921a78129caa3b05dd4",
+                  "provider": "sqlite-event-store",
+                  "resource": "contact_events",
+                  "storage_class": "sqlite"
+                },
+                "redactions": [],
+                "resource": "contact_events",
+                "result_digest": "sha256:9b55f2fa0107ba8ae457b942bf280b0052d998ba4cca5c9abdf210dda27ce022",
+                "rows": [],
+                "schema": "runx.data.operation_result.v1",
+                "status": "read",
+                "stop_conditions": []
+              }
+            }
+          }
+        },
+        {
+          "stepId": "finalize-committed",
+          "status": "succeeded",
+          "attempts": 1,
+          "startedAt": "2026-08-20T12:46:54.370Z",
+          "completedAt": "2026-08-20T12:46:54.370Z",
+          "receiptId": "sha256:0b5ae81286e8bfb6f7fb270c89cdc6e0e19a8cddd24b2cfd328ba792e755ed96",
+          "outputs": {
+            "list_hygiene_result": {
+              "data": {
+                "contact": {
+                  "aggregate_id": "contact:dana@example.co",
+                  "current_consent_state": "subscribed",
+                  "data_source_ref": "local://list-hygiene/prod-contacts",
+                  "resource": "contact_events"
+                },
+                "decision": {
+                  "reason": "recency_days=140 exceeds decay_threshold_days=90 with no unsubscribe marker in the input state or the sealed stream read",
+                  "state": "re_permission"
+                },
+                "downstream_send_performed": false,
+                "escalation": {
+                  "lane": "none",
+                  "reason": "decay threshold exceeded with clean consent evidence",
+                  "required": false
+                },
+                "evidence": {
+                  "basis": {
+                    "input_metrics": {
+                      "clicks_count": 0,
+                      "hard_bounces": 0,
+                      "opens_count": 0,
+                      "recency_days": 140
+                    },
+                    "projection_digest": "sha256:b4a3df3ffd6300954be3ce95ed8f9b3d1683f72e9f15b925a3d6b3b505c88b5a",
+                    "result_digest": "sha256:e1858c7aa658a779a05affccaa3a9acc213d6e01f78c7db1fb5609ff910268b9",
+                    "store_read_status": "read",
+                    "store_version": 0
+                  },
+                  "evidence_digest": "sha256:8b271c6a9abba61d91ed7622874b1694728192d747071eab8da183d76ac8fc39"
+                },
+                "persistence": {
+                  "after_version": 1,
+                  "aggregate_id": "contact:dana@example.co",
+                  "append_status": "committed",
+                  "event_ref": "contact_events:contact:dana@example.co:1",
+                  "expected_version": 0,
+                  "idempotency_key": "contact:dana:re-permission:v1"
+                },
+                "recorded_transition": {
+                  "latest_events": [],
+                  "projection_digest": "sha256:e78b5e738293aaa84c657686710be8a1237be4e38c5db5b15112e0dc46b99eaf",
+                  "read_back": true,
+                  "store_version": 1
+                },
+                "schema": "runx.list_hygiene_result.v1"
+              }
+            }
+          }
+        },
+        {
+          "stepId": "finalize-skipped",
+          "status": "skipped",
+          "attempts": 0,
+          "completedAt": "2026-08-20T12:46:54.370Z"
+        }
+      ]
+    },
+    "steps": [
+      {
+        "step_id": "read-contact",
+        "attempt": 1,
+        "skill": "tool:data.read_projection",
+        "runner": null,
+        "fanout_group": null,
+        "contract": {
+          "data_operation_result": {
+            "data": {
+              "after_version": 0,
+              "aggregate_id": "contact:dana@example.co",
+              "before_version": 0,
+              "data_source_ref": "local://list-hygiene/prod-contacts",
+              "event_digest": null,
+              "event_ref": null,
+              "events": [],
+              "idempotency_key": null,
+              "operation": "read_projection",
+              "projection": {
+                "aggregate_id": "contact:dana@example.co",
+                "event_count": 0,
+                "last_event_digest": null,
+                "last_event_ref": null,
+                "last_event_type": null,
+                "resource": "contact_events",
+                "version": 0
+              },
+              "projection_digest": "sha256:b4a3df3ffd6300954be3ce95ed8f9b3d1683f72e9f15b925a3d6b3b505c88b5a",
+              "provider": "sqlite-event-store",
+              "provider_evidence": {
+                "adapter": "data.sqlite",
+                "aggregate_id": "contact:dana@example.co",
+                "data_source_ref_digest": "sha256:b7ac0394896f104061eb5b8955fa95a9f2c8a264ebbf2921a78129caa3b05dd4",
+                "provider": "sqlite-event-store",
+                "resource": "contact_events",
+                "storage_class": "sqlite"
+              },
+              "redactions": [],
+              "resource": "contact_events",
+              "result_digest": "sha256:e1858c7aa658a779a05affccaa3a9acc213d6e01f78c7db1fb5609ff910268b9",
+              "rows": [],
+              "schema": "runx.data.operation_result.v1",
+              "status": "read",
+              "stop_conditions": []
+            }
+          }
+        },
+        "outcome": {
+          "status": "Success",
+          "diagnostics": {
+            "kind": "runtime",
+            "duration_ms": 18
+          },
+          "metadata": {}
+        },
+        "receipt": {
+          "schema": "runx.receipt.v1",
+          "id": "sha256:0f0e470d1ae05d21c9e0389af4a1d7e1d365944a0d88359da56be6c1cef325d9",
+          "created_at": "2026-08-20T12:46:54.370Z",
+          "canonicalization": "runx.receipt.c14n.v1",
+          "issuer": {
+            "type": "hosted",
+            "kid": "antheducation-hosted-1",
+            "public_key_sha256": "sha256:cddb71c9877fc3034483e96eaa20812e93cd40645f7387af0b933397f082e6f7"
+          },
+          "signature": {
+            "alg": "Ed25519",
+            "value": "base64:kWQccp_qaPi346kozPXHAp6xmvynUJN4i8YNPuiu3StbhCfKDx2zTKZqlYTKzq8noczbq9pZcurD9IuEmLWiDA"
+          },
+          "digest": "sha256:fbe8c5d8cbfc290138ef36cdc06b76253a1406c4326e98d5e2bf4382ad29d5c0",
+          "idempotency": {
+            "intent_key": "sha256:list-hygiene-judge-read-contact-intent",
+            "trigger_fingerprint": "sha256:list-hygiene-judge-read-contact-trigger",
+            "content_hash": "sha256:list-hygiene-judge-read-contact-content"
+          },
+          "subject": {
+            "kind": "skill",
+            "ref": {
+              "type": "harness",
+              "uri": "hrn_list-hygiene-judge_read-contact",
+              "locator": "sha256:5bb5dc7502ea78da6f4894145badd182a42703fa4b9d06d7d7ab432a8523ee20"
+            },
+            "commitments": []
+          },
+          "authority": {
+            "actor_ref": {
+              "type": "principal",
+              "uri": "runx:principal:local_runtime"
+            },
+            "grant_refs": [],
+            "scope_refs": [],
+            "authority_proof_refs": [],
+            "attenuation": {
+              "parent_authority_ref": null,
+              "subset_proof": null
+            },
+            "terms": [],
+            "enforcement": {
+              "profile_hash": "sha256:635fdb0a7eef93911e3c6bd0b25b5e635edba32e0259133042b3a5f1fb19394e",
+              "redaction_refs": [],
+              "setup_refs": [],
+              "teardown_refs": []
+            }
+          },
+          "signals": [],
+          "decisions": [
+            {
+              "decision_id": "dec_read-contact",
+              "choice": "open",
+              "inputs": {
+                "signal_refs": [],
+                "target_ref": null,
+                "opportunity_refs": [],
+                "selection_ref": null
+              },
+              "proposed_intent": {
+                "purpose": "Open runtime node read-contact",
+                "legitimacy": "Local graph execution requested this node",
+                "success_criteria": [],
+                "constraints": [],
+                "derived_from": []
+              },
+              "selected_act_id": "act_read-contact",
+              "selected_harness_ref": null,
+              "justification": {
+                "summary": "runtime graph planner selected this node",
+                "evidence_refs": []
+              },
+              "closure": null,
+              "artifact_refs": [
+                {
+                  "type": "artifact",
+                  "uri": "runx:artifact:operator_context:3766eaffc890cd3c9a7187dfbff24cf25d53c47a122538e8a66e26e23ea47ae9",
+                  "provider": "runx",
+                  "locator": "sha256:3766eaffc890cd3c9a7187dfbff24cf25d53c47a122538e8a66e26e23ea47ae9",
+                  "label": "prepared operator context"
+                }
+              ]
+            }
+          ],
+          "acts": [
+            {
+              "id": "act_read-contact",
+              "form": "observation",
+              "intent": {
+                "purpose": "Run graph step read-contact",
+                "legitimacy": "Runtime graph execution was admitted by the local harness",
+                "success_criteria": [
+                  {
+                    "criterion_id": "step_outcome",
+                    "statement": "runtime step completes successfully",
+                    "required": true
+                  }
+                ],
+                "constraints": [],
+                "derived_from": []
+              },
+              "summary": "Executed graph step read-contact",
+              "criterion_bindings": [
+                {
+                  "criterion_id": "step_outcome",
+                  "status": "verified",
+                  "evidence_refs": [
+                    {
+                      "type": "artifact",
+                      "uri": "runx:artifact:operator_context:3766eaffc890cd3c9a7187dfbff24cf25d53c47a122538e8a66e26e23ea47ae9",
+                      "provider": "runx",
+                      "locator": "sha256:3766eaffc890cd3c9a7187dfbff24cf25d53c47a122538e8a66e26e23ea47ae9",
+                      "label": "prepared operator context"
+                    }
+                  ],
+                  "verification_refs": [],
+                  "summary": "step completed successfully"
+                }
+              ],
+              "source_refs": [],
+              "target_refs": [],
+              "artifact_refs": [
+                {
+                  "type": "artifact",
+                  "uri": "runx:artifact:operator_context:3766eaffc890cd3c9a7187dfbff24cf25d53c47a122538e8a66e26e23ea47ae9",
+                  "provider": "runx",
+                  "locator": "sha256:3766eaffc890cd3c9a7187dfbff24cf25d53c47a122538e8a66e26e23ea47ae9",
+                  "label": "prepared operator context"
+                }
+              ],
+              "closure": {
+                "disposition": "closed",
+                "reason_code": "step_outcome",
+                "summary": "step completed successfully",
+                "closed_at": "2026-08-20T12:46:54.370Z"
+              }
+            }
+          ],
+          "seal": {
+            "disposition": "closed",
+            "reason_code": "step_closed",
+            "summary": "step read-contact completed",
+            "closed_at": "2026-08-20T12:46:54.370Z",
+            "last_observed_at": "2026-08-20T12:46:54.370Z",
+            "criteria": [
+              {
+                "criterion_id": "step_outcome",
+                "status": "verified",
+                "evidence_refs": [
+                  {
+                    "type": "artifact",
+                    "uri": "runx:artifact:operator_context:3766eaffc890cd3c9a7187dfbff24cf25d53c47a122538e8a66e26e23ea47ae9",
+                    "provider": "runx",
+                    "locator": "sha256:3766eaffc890cd3c9a7187dfbff24cf25d53c47a122538e8a66e26e23ea47ae9",
+                    "label": "prepared operator context"
+                  }
+                ],
+                "verification_refs": [],
+                "summary": "step completed successfully"
+              }
+            ]
+          },
+          "lineage": {
+            "children": [],
+            "sync": []
+          }
+        },
+        "nested_receipts": [],
+        "admission_witness": {
+          "stepId": "read-contact",
+          "receiptId": "sha256:0f0e470d1ae05d21c9e0389af4a1d7e1d365944a0d88359da56be6c1cef325d9"
+        }
+      },
+      {
+        "step_id": "digest-evidence",
+        "attempt": 1,
+        "skill": "tool:data.digest",
+        "runner": null,
+        "fanout_group": null,
+        "contract": {
+          "digest_result": {
+            "data": {
+              "algorithm": "sha256",
+              "digest": "sha256:8b271c6a9abba61d91ed7622874b1694728192d747071eab8da183d76ac8fc39"
+            }
+          }
+        },
+        "outcome": {
+          "status": "Success",
+          "diagnostics": {
+            "kind": "runtime",
+            "duration_ms": 0
+          },
+          "metadata": {}
+        },
+        "receipt": {
+          "schema": "runx.receipt.v1",
+          "id": "sha256:52a7d4f2bf4849f584cdd19da1a28f1b905a209c0d4be5e0b7da94651ef5e222",
+          "created_at": "2026-08-20T12:46:54.370Z",
+          "canonicalization": "runx.receipt.c14n.v1",
+          "issuer": {
+            "type": "hosted",
+            "kid": "antheducation-hosted-1",
+            "public_key_sha256": "sha256:cddb71c9877fc3034483e96eaa20812e93cd40645f7387af0b933397f082e6f7"
+          },
+          "signature": {
+            "alg": "Ed25519",
+            "value": "base64:R3bLaQ0HCpM9MEuwNJFp8fJ4nfMDhZjbAgbcLSSsK8-t7sdugOpzyzuxOwAxd5Kz3E6Y7SFew9zcicXZ9TRxAg"
+          },
+          "digest": "sha256:b13d1b05e518ab7c1fb2896a6229517db7931883b37fa21cd5a418cf1f6649fb",
+          "idempotency": {
+            "intent_key": "sha256:list-hygiene-judge-digest-evidence-intent",
+            "trigger_fingerprint": "sha256:list-hygiene-judge-digest-evidence-trigger",
+            "content_hash": "sha256:list-hygiene-judge-digest-evidence-content"
+          },
+          "subject": {
+            "kind": "skill",
+            "ref": {
+              "type": "harness",
+              "uri": "hrn_list-hygiene-judge_digest-evidence",
+              "locator": "sha256:b0707d1475c1ef9743b6ad0a5e87fb71a602b3f7f60fcf36cca0f93fbdf7cda4"
+            },
+            "commitments": []
+          },
+          "authority": {
+            "actor_ref": {
+              "type": "principal",
+              "uri": "runx:principal:local_runtime"
+            },
+            "grant_refs": [],
+            "scope_refs": [],
+            "authority_proof_refs": [],
+            "attenuation": {
+              "parent_authority_ref": null,
+              "subset_proof": null
+            },
+            "terms": [],
+            "enforcement": {
+              "profile_hash": "sha256:635fdb0a7eef93911e3c6bd0b25b5e635edba32e0259133042b3a5f1fb19394e",
+              "redaction_refs": [],
+              "setup_refs": [],
+              "teardown_refs": []
+            }
+          },
+          "signals": [],
+          "decisions": [
+            {
+              "decision_id": "dec_digest-evidence",
+              "choice": "open",
+              "inputs": {
+                "signal_refs": [],
+                "target_ref": null,
+                "opportunity_refs": [],
+                "selection_ref": null
+              },
+              "proposed_intent": {
+                "purpose": "Open runtime node digest-evidence",
+                "legitimacy": "Local graph execution requested this node",
+                "success_criteria": [],
+                "constraints": [],
+                "derived_from": []
+              },
+              "selected_act_id": "act_digest-evidence",
+              "selected_harness_ref": null,
+              "justification": {
+                "summary": "runtime graph planner selected this node",
+                "evidence_refs": []
+              },
+              "closure": null,
+              "artifact_refs": [
+                {
+                  "type": "artifact",
+                  "uri": "runx:artifact:operator_context:3766eaffc890cd3c9a7187dfbff24cf25d53c47a122538e8a66e26e23ea47ae9",
+                  "provider": "runx",
+                  "locator": "sha256:3766eaffc890cd3c9a7187dfbff24cf25d53c47a122538e8a66e26e23ea47ae9",
+                  "label": "prepared operator context"
+                }
+              ]
+            }
+          ],
+          "acts": [
+            {
+              "id": "act_digest-evidence",
+              "form": "observation",
+              "intent": {
+                "purpose": "Run graph step digest-evidence",
+                "legitimacy": "Runtime graph execution was admitted by the local harness",
+                "success_criteria": [
+                  {
+                    "criterion_id": "step_outcome",
+                    "statement": "runtime step completes successfully",
+                    "required": true
+                  }
+                ],
+                "constraints": [],
+                "derived_from": []
+              },
+              "summary": "Executed graph step digest-evidence",
+              "criterion_bindings": [
+                {
+                  "criterion_id": "step_outcome",
+                  "status": "verified",
+                  "evidence_refs": [
+                    {
+                      "type": "artifact",
+                      "uri": "runx:artifact:operator_context:3766eaffc890cd3c9a7187dfbff24cf25d53c47a122538e8a66e26e23ea47ae9",
+                      "provider": "runx",
+                      "locator": "sha256:3766eaffc890cd3c9a7187dfbff24cf25d53c47a122538e8a66e26e23ea47ae9",
+                      "label": "prepared operator context"
+                    }
+                  ],
+                  "verification_refs": [],
+                  "summary": "step completed successfully"
+                }
+              ],
+              "source_refs": [],
+              "target_refs": [],
+              "artifact_refs": [
+                {
+                  "type": "artifact",
+                  "uri": "runx:artifact:operator_context:3766eaffc890cd3c9a7187dfbff24cf25d53c47a122538e8a66e26e23ea47ae9",
+                  "provider": "runx",
+                  "locator": "sha256:3766eaffc890cd3c9a7187dfbff24cf25d53c47a122538e8a66e26e23ea47ae9",
+                  "label": "prepared operator context"
+                }
+              ],
+              "closure": {
+                "disposition": "closed",
+                "reason_code": "step_outcome",
+                "summary": "step completed successfully",
+                "closed_at": "2026-08-20T12:46:54.370Z"
+              }
+            }
+          ],
+          "seal": {
+            "disposition": "closed",
+            "reason_code": "step_closed",
+            "summary": "step digest-evidence completed",
+            "closed_at": "2026-08-20T12:46:54.370Z",
+            "last_observed_at": "2026-08-20T12:46:54.370Z",
+            "criteria": [
+              {
+                "criterion_id": "step_outcome",
+                "status": "verified",
+                "evidence_refs": [
+                  {
+                    "type": "artifact",
+                    "uri": "runx:artifact:operator_context:3766eaffc890cd3c9a7187dfbff24cf25d53c47a122538e8a66e26e23ea47ae9",
+                    "provider": "runx",
+                    "locator": "sha256:3766eaffc890cd3c9a7187dfbff24cf25d53c47a122538e8a66e26e23ea47ae9",
+                    "label": "prepared operator context"
+                  }
+                ],
+                "verification_refs": [],
+                "summary": "step completed successfully"
+              }
+            ]
+          },
+          "lineage": {
+            "children": [],
+            "sync": []
+          }
+        },
+        "nested_receipts": [],
+        "admission_witness": {
+          "stepId": "digest-evidence",
+          "receiptId": "sha256:52a7d4f2bf4849f584cdd19da1a28f1b905a209c0d4be5e0b7da94651ef5e222"
+        }
+      },
+      {
+        "step_id": "judge",
+        "attempt": 1,
+        "skill": "judge",
+        "runner": null,
+        "fanout_group": null,
+        "contract": {
+          "judgment": {
+            "data": {
+              "decision": {
+                "reason": "recency_days=140 exceeds decay_threshold_days=90 with no unsubscribe marker in the input state or the sealed stream read",
+                "state": "re_permission"
+              },
+              "escalation": {
+                "lane": "none",
+                "reason": "decay threshold exceeded with clean consent evidence",
+                "required": false
+              },
+              "event": {
+                "effect_family": "consent",
+                "operation": "re_permission",
+                "payload": {
+                  "aggregate_id": "contact:dana@example.co",
+                  "decided_by": "list-hygiene-judge",
+                  "from_state": "subscribed",
+                  "idempotency_key": "contact:dana:re-permission:v1",
+                  "recency_days": 140,
+                  "to_state": "re_permission_pending"
+                },
+                "type": "consent.re_permission_requested"
+              },
+              "evidence_basis": {
+                "input_metrics": {
+                  "clicks_count": 0,
+                  "hard_bounces": 0,
+                  "opens_count": 0,
+                  "recency_days": 140
+                },
+                "projection_digest": "sha256:b4a3df3ffd6300954be3ce95ed8f9b3d1683f72e9f15b925a3d6b3b505c88b5a",
+                "result_digest": "sha256:e1858c7aa658a779a05affccaa3a9acc213d6e01f78c7db1fb5609ff910268b9",
+                "store_read_status": "read",
+                "store_version": 0
+              },
+              "write": {
+                "should_append": true
+              }
+            }
+          }
+        },
+        "outcome": {
+          "status": "Success",
+          "diagnostics": {
+            "kind": "process",
+            "duration_ms": 135,
+            "exit_code": 0,
+            "stderr": ""
+          },
+          "metadata": {
+            "contract_verification": {
+              "output_contract_sha256": "sha256:5ec06397a301f63c233b8937058e5566722c7e4f1d67f4c6706fc602edaf1e07"
+            }
+          }
+        },
+        "receipt": {
+          "schema": "runx.receipt.v1",
+          "id": "sha256:717a5e2c7fa5655d6d451870ae6dd741be7130be6c3f6f2c7b893510ed7c9b18",
+          "created_at": "2026-08-20T12:46:54.370Z",
+          "canonicalization": "runx.receipt.c14n.v1",
+          "issuer": {
+            "type": "hosted",
+            "kid": "antheducation-hosted-1",
+            "public_key_sha256": "sha256:cddb71c9877fc3034483e96eaa20812e93cd40645f7387af0b933397f082e6f7"
+          },
+          "signature": {
+            "alg": "Ed25519",
+            "value": "base64:zFcRuqku6B5UONa9GO-3c5Utr6URynPLvEGmlHU_GGJ5Vys1gP4P0xIlqKtEmBqLwaz_Fe-4E8Yfjc0B9Dp3CQ"
+          },
+          "digest": "sha256:704031bccae516000a80378a234b13628b922a4c3962068f7f17411df480820b",
+          "idempotency": {
+            "intent_key": "sha256:list-hygiene-judge-judge-intent",
+            "trigger_fingerprint": "sha256:list-hygiene-judge-judge-trigger",
+            "content_hash": "sha256:list-hygiene-judge-judge-content"
+          },
+          "subject": {
+            "kind": "skill",
+            "ref": {
+              "type": "harness",
+              "uri": "hrn_list-hygiene-judge_judge",
+              "locator": "sha256:bd644497772b4483d70b96cafa61b4fd96d236f9fdb906ea9cabb01e97e8adb6"
+            },
+            "commitments": []
+          },
+          "authority": {
+            "actor_ref": {
+              "type": "principal",
+              "uri": "runx:principal:local_runtime"
+            },
+            "grant_refs": [],
+            "scope_refs": [],
+            "authority_proof_refs": [],
+            "attenuation": {
+              "parent_authority_ref": null,
+              "subset_proof": null
+            },
+            "terms": [],
+            "enforcement": {
+              "profile_hash": "sha256:635fdb0a7eef93911e3c6bd0b25b5e635edba32e0259133042b3a5f1fb19394e",
+              "redaction_refs": [],
+              "setup_refs": [],
+              "teardown_refs": []
+            }
+          },
+          "signals": [],
+          "decisions": [
+            {
+              "decision_id": "dec_judge",
+              "choice": "open",
+              "inputs": {
+                "signal_refs": [],
+                "target_ref": null,
+                "opportunity_refs": [],
+                "selection_ref": null
+              },
+              "proposed_intent": {
+                "purpose": "Open runtime node judge",
+                "legitimacy": "Local graph execution requested this node",
+                "success_criteria": [],
+                "constraints": [],
+                "derived_from": []
+              },
+              "selected_act_id": "act_judge",
+              "selected_harness_ref": null,
+              "justification": {
+                "summary": "runtime graph planner selected this node",
+                "evidence_refs": []
+              },
+              "closure": null,
+              "artifact_refs": [
+                {
+                  "type": "artifact",
+                  "uri": "runx:artifact:operator_context:3766eaffc890cd3c9a7187dfbff24cf25d53c47a122538e8a66e26e23ea47ae9",
+                  "provider": "runx",
+                  "locator": "sha256:3766eaffc890cd3c9a7187dfbff24cf25d53c47a122538e8a66e26e23ea47ae9",
+                  "label": "prepared operator context"
+                }
+              ]
+            }
+          ],
+          "acts": [
+            {
+              "id": "act_judge",
+              "form": "observation",
+              "intent": {
+                "purpose": "Run graph step judge",
+                "legitimacy": "Runtime graph execution was admitted by the local harness",
+                "success_criteria": [
+                  {
+                    "criterion_id": "step_outcome",
+                    "statement": "runtime step completes successfully",
+                    "required": true
+                  },
+                  {
+                    "criterion_id": "output_contract_verified",
+                    "statement": "Runner result satisfies its declared output contract",
+                    "required": true
+                  }
+                ],
+                "constraints": [],
+                "derived_from": []
+              },
+              "summary": "Executed graph step judge",
+              "criterion_bindings": [
+                {
+                  "criterion_id": "step_outcome",
+                  "status": "verified",
+                  "evidence_refs": [
+                    {
+                      "type": "artifact",
+                      "uri": "runx:artifact:operator_context:3766eaffc890cd3c9a7187dfbff24cf25d53c47a122538e8a66e26e23ea47ae9",
+                      "provider": "runx",
+                      "locator": "sha256:3766eaffc890cd3c9a7187dfbff24cf25d53c47a122538e8a66e26e23ea47ae9",
+                      "label": "prepared operator context"
+                    }
+                  ],
+                  "verification_refs": [],
+                  "summary": "step completed successfully"
+                },
+                {
+                  "criterion_id": "output_contract_verified",
+                  "status": "verified",
+                  "evidence_refs": [],
+                  "verification_refs": [
+                    {
+                      "type": "verification",
+                      "uri": "runx:verification:output_contract_verified:sha256:5ec06397a301f63c233b8937058e5566722c7e4f1d67f4c6706fc602edaf1e07"
+                    }
+                  ],
+                  "summary": "Runner result satisfies its declared output contract"
+                }
+              ],
+              "source_refs": [],
+              "target_refs": [],
+              "artifact_refs": [
+                {
+                  "type": "artifact",
+                  "uri": "runx:artifact:operator_context:3766eaffc890cd3c9a7187dfbff24cf25d53c47a122538e8a66e26e23ea47ae9",
+                  "provider": "runx",
+                  "locator": "sha256:3766eaffc890cd3c9a7187dfbff24cf25d53c47a122538e8a66e26e23ea47ae9",
+                  "label": "prepared operator context"
+                }
+              ],
+              "closure": {
+                "disposition": "closed",
+                "reason_code": "step_outcome",
+                "summary": "step completed successfully",
+                "closed_at": "2026-08-20T12:46:54.370Z"
+              }
+            }
+          ],
+          "seal": {
+            "disposition": "closed",
+            "reason_code": "step_closed",
+            "summary": "step judge completed",
+            "closed_at": "2026-08-20T12:46:54.370Z",
+            "last_observed_at": "2026-08-20T12:46:54.370Z",
+            "criteria": [
+              {
+                "criterion_id": "step_outcome",
+                "status": "verified",
+                "evidence_refs": [
+                  {
+                    "type": "artifact",
+                    "uri": "runx:artifact:operator_context:3766eaffc890cd3c9a7187dfbff24cf25d53c47a122538e8a66e26e23ea47ae9",
+                    "provider": "runx",
+                    "locator": "sha256:3766eaffc890cd3c9a7187dfbff24cf25d53c47a122538e8a66e26e23ea47ae9",
+                    "label": "prepared operator context"
+                  }
+                ],
+                "verification_refs": [],
+                "summary": "step completed successfully"
+              },
+              {
+                "criterion_id": "output_contract_verified",
+                "status": "verified",
+                "evidence_refs": [],
+                "verification_refs": [
+                  {
+                    "type": "verification",
+                    "uri": "runx:verification:output_contract_verified:sha256:5ec06397a301f63c233b8937058e5566722c7e4f1d67f4c6706fc602edaf1e07"
+                  }
+                ],
+                "summary": "Runner result satisfies its declared output contract"
+              }
+            ]
+          },
+          "lineage": {
+            "children": [],
+            "sync": []
+          }
+        },
+        "nested_receipts": [],
+        "admission_witness": {
+          "stepId": "judge",
+          "receiptId": "sha256:717a5e2c7fa5655d6d451870ae6dd741be7130be6c3f6f2c7b893510ed7c9b18"
+        }
+      },
+      {
+        "step_id": "persist-transition",
+        "attempt": 1,
+        "skill": "tool:data.append_event",
+        "runner": null,
+        "fanout_group": null,
+        "contract": {
+          "data_operation_result": {
+            "data": {
+              "after_version": 1,
+              "aggregate_id": "contact:dana@example.co",
+              "before_version": 0,
+              "data_source_ref": "local://list-hygiene/prod-contacts",
+              "event_digest": "sha256:5ddb11918e26b87d05c47569d4070081fa5d0c1d038b8cb0dea559c32e344e94",
+              "event_ref": "contact_events:contact:dana@example.co:1",
+              "events": [],
+              "idempotency_key": "contact:dana:re-permission:v1",
+              "operation": "append_event",
+              "projection": null,
+              "projection_digest": "sha256:e78b5e738293aaa84c657686710be8a1237be4e38c5db5b15112e0dc46b99eaf",
+              "provider": "sqlite-event-store",
+              "provider_evidence": {
+                "adapter": "data.sqlite",
+                "aggregate_id": "contact:dana@example.co",
+                "data_source_ref_digest": "sha256:b7ac0394896f104061eb5b8955fa95a9f2c8a264ebbf2921a78129caa3b05dd4",
+                "provider": "sqlite-event-store",
+                "resource": "contact_events",
+                "storage_class": "sqlite"
+              },
+              "redactions": [],
+              "resource": "contact_events",
+              "result_digest": "sha256:167f928a724774f2cfa30992efc2b13e52194d11868dc2492bc9f3407e9bcd85",
+              "rows": [],
+              "schema": "runx.data.operation_result.v1",
+              "status": "committed",
+              "stop_conditions": []
+            }
+          }
+        },
+        "outcome": {
+          "status": "Success",
+          "diagnostics": {
+            "kind": "runtime",
+            "duration_ms": 11
+          },
+          "metadata": {}
+        },
+        "receipt": {
+          "schema": "runx.receipt.v1",
+          "id": "sha256:e99530c0673461811dda8de0d1ba3be2a96465589ee510505aeb0b47278f0d66",
+          "created_at": "2026-08-20T12:46:54.370Z",
+          "canonicalization": "runx.receipt.c14n.v1",
+          "issuer": {
+            "type": "hosted",
+            "kid": "antheducation-hosted-1",
+            "public_key_sha256": "sha256:cddb71c9877fc3034483e96eaa20812e93cd40645f7387af0b933397f082e6f7"
+          },
+          "signature": {
+            "alg": "Ed25519",
+            "value": "base64:JaJlkr-InAe93TkhcF_BZyeRQ9kozi0ZuXlIHkWyfUnRGnbn6BHCkIXgR88I7lGo2Xne_na90MmeyAu-DgkCCQ"
+          },
+          "digest": "sha256:bfcc6858a6616a613c6de3c9513fbaeab8ded4f1083200a44863da1b286c5ebc",
+          "idempotency": {
+            "intent_key": "sha256:list-hygiene-judge-persist-transition-intent",
+            "trigger_fingerprint": "sha256:list-hygiene-judge-persist-transition-trigger",
+            "content_hash": "sha256:list-hygiene-judge-persist-transition-content"
+          },
+          "subject": {
+            "kind": "skill",
+            "ref": {
+              "type": "harness",
+              "uri": "hrn_list-hygiene-judge_persist-transition",
+              "locator": "sha256:7c51133402ba9bc7b546916c4358801c2e4bbf271973f1adaf2b2868681d5045"
+            },
+            "commitments": []
+          },
+          "authority": {
+            "actor_ref": {
+              "type": "principal",
+              "uri": "runx:principal:local_runtime"
+            },
+            "grant_refs": [],
+            "scope_refs": [],
+            "authority_proof_refs": [],
+            "attenuation": {
+              "parent_authority_ref": null,
+              "subset_proof": null
+            },
+            "terms": [],
+            "enforcement": {
+              "profile_hash": "sha256:635fdb0a7eef93911e3c6bd0b25b5e635edba32e0259133042b3a5f1fb19394e",
+              "redaction_refs": [],
+              "setup_refs": [],
+              "teardown_refs": []
+            }
+          },
+          "signals": [],
+          "decisions": [
+            {
+              "decision_id": "dec_persist-transition",
+              "choice": "open",
+              "inputs": {
+                "signal_refs": [],
+                "target_ref": null,
+                "opportunity_refs": [],
+                "selection_ref": null
+              },
+              "proposed_intent": {
+                "purpose": "Open runtime node persist-transition",
+                "legitimacy": "Local graph execution requested this node",
+                "success_criteria": [],
+                "constraints": [],
+                "derived_from": []
+              },
+              "selected_act_id": "act_persist-transition",
+              "selected_harness_ref": null,
+              "justification": {
+                "summary": "runtime graph planner selected this node",
+                "evidence_refs": []
+              },
+              "closure": null,
+              "artifact_refs": [
+                {
+                  "type": "artifact",
+                  "uri": "runx:artifact:operator_context:3766eaffc890cd3c9a7187dfbff24cf25d53c47a122538e8a66e26e23ea47ae9",
+                  "provider": "runx",
+                  "locator": "sha256:3766eaffc890cd3c9a7187dfbff24cf25d53c47a122538e8a66e26e23ea47ae9",
+                  "label": "prepared operator context"
+                }
+              ]
+            }
+          ],
+          "acts": [
+            {
+              "id": "act_persist-transition",
+              "form": "observation",
+              "intent": {
+                "purpose": "Run graph step persist-transition",
+                "legitimacy": "Runtime graph execution was admitted by the local harness",
+                "success_criteria": [
+                  {
+                    "criterion_id": "step_outcome",
+                    "statement": "runtime step completes successfully",
+                    "required": true
+                  }
+                ],
+                "constraints": [],
+                "derived_from": []
+              },
+              "summary": "Executed graph step persist-transition",
+              "criterion_bindings": [
+                {
+                  "criterion_id": "step_outcome",
+                  "status": "verified",
+                  "evidence_refs": [
+                    {
+                      "type": "artifact",
+                      "uri": "runx:artifact:operator_context:3766eaffc890cd3c9a7187dfbff24cf25d53c47a122538e8a66e26e23ea47ae9",
+                      "provider": "runx",
+                      "locator": "sha256:3766eaffc890cd3c9a7187dfbff24cf25d53c47a122538e8a66e26e23ea47ae9",
+                      "label": "prepared operator context"
+                    }
+                  ],
+                  "verification_refs": [],
+                  "summary": "step completed successfully"
+                }
+              ],
+              "source_refs": [],
+              "target_refs": [],
+              "artifact_refs": [
+                {
+                  "type": "artifact",
+                  "uri": "runx:artifact:operator_context:3766eaffc890cd3c9a7187dfbff24cf25d53c47a122538e8a66e26e23ea47ae9",
+                  "provider": "runx",
+                  "locator": "sha256:3766eaffc890cd3c9a7187dfbff24cf25d53c47a122538e8a66e26e23ea47ae9",
+                  "label": "prepared operator context"
+                }
+              ],
+              "closure": {
+                "disposition": "closed",
+                "reason_code": "step_outcome",
+                "summary": "step completed successfully",
+                "closed_at": "2026-08-20T12:46:54.370Z"
+              }
+            }
+          ],
+          "seal": {
+            "disposition": "closed",
+            "reason_code": "step_closed",
+            "summary": "step persist-transition completed",
+            "closed_at": "2026-08-20T12:46:54.370Z",
+            "last_observed_at": "2026-08-20T12:46:54.370Z",
+            "criteria": [
+              {
+                "criterion_id": "step_outcome",
+                "status": "verified",
+                "evidence_refs": [
+                  {
+                    "type": "artifact",
+                    "uri": "runx:artifact:operator_context:3766eaffc890cd3c9a7187dfbff24cf25d53c47a122538e8a66e26e23ea47ae9",
+                    "provider": "runx",
+                    "locator": "sha256:3766eaffc890cd3c9a7187dfbff24cf25d53c47a122538e8a66e26e23ea47ae9",
+                    "label": "prepared operator context"
+                  }
+                ],
+                "verification_refs": [],
+                "summary": "step completed successfully"
+              }
+            ]
+          },
+          "lineage": {
+            "children": [],
+            "sync": []
+          }
+        },
+        "nested_receipts": [],
+        "admission_witness": {
+          "stepId": "persist-transition",
+          "receiptId": "sha256:e99530c0673461811dda8de0d1ba3be2a96465589ee510505aeb0b47278f0d66"
+        }
+      },
+      {
+        "step_id": "readback-transition",
+        "attempt": 1,
+        "skill": "tool:data.read_projection",
+        "runner": null,
+        "fanout_group": null,
+        "contract": {
+          "data_operation_result": {
+            "data": {
+              "after_version": 1,
+              "aggregate_id": "contact:dana@example.co",
+              "before_version": 1,
+              "data_source_ref": "local://list-hygiene/prod-contacts",
+              "event_digest": null,
+              "event_ref": null,
+              "events": [],
+              "idempotency_key": null,
+              "operation": "read_projection",
+              "projection": {
+                "aggregate_id": "contact:dana@example.co",
+                "event_count": 1,
+                "last_event_digest": "sha256:5ddb11918e26b87d05c47569d4070081fa5d0c1d038b8cb0dea559c32e344e94",
+                "last_event_ref": "contact_events:contact:dana@example.co:1",
+                "last_event_type": "consent.re_permission_requested",
+                "resource": "contact_events",
+                "version": 1
+              },
+              "projection_digest": "sha256:e78b5e738293aaa84c657686710be8a1237be4e38c5db5b15112e0dc46b99eaf",
+              "provider": "sqlite-event-store",
+              "provider_evidence": {
+                "adapter": "data.sqlite",
+                "aggregate_id": "contact:dana@example.co",
+                "data_source_ref_digest": "sha256:b7ac0394896f104061eb5b8955fa95a9f2c8a264ebbf2921a78129caa3b05dd4",
+                "provider": "sqlite-event-store",
+                "resource": "contact_events",
+                "storage_class": "sqlite"
+              },
+              "redactions": [],
+              "resource": "contact_events",
+              "result_digest": "sha256:9b55f2fa0107ba8ae457b942bf280b0052d998ba4cca5c9abdf210dda27ce022",
+              "rows": [],
+              "schema": "runx.data.operation_result.v1",
+              "status": "read",
+              "stop_conditions": []
+            }
+          }
+        },
+        "outcome": {
+          "status": "Success",
+          "diagnostics": {
+            "kind": "runtime",
+            "duration_ms": 6
+          },
+          "metadata": {}
+        },
+        "receipt": {
+          "schema": "runx.receipt.v1",
+          "id": "sha256:e826fe22a6aebdb0d67575f5def4acdb652a734493069130a195244ee8f933c9",
+          "created_at": "2026-08-20T12:46:54.370Z",
+          "canonicalization": "runx.receipt.c14n.v1",
+          "issuer": {
+            "type": "hosted",
+            "kid": "antheducation-hosted-1",
+            "public_key_sha256": "sha256:cddb71c9877fc3034483e96eaa20812e93cd40645f7387af0b933397f082e6f7"
+          },
+          "signature": {
+            "alg": "Ed25519",
+            "value": "base64:mcPkLvdSCZxCng0wd61kjDsk9crC1P2ESYuVVqJFzN3rhMDvvy4Ke1HtlH5FZaBgLjta-mWxdJ8UHzIT6WwjCA"
+          },
+          "digest": "sha256:741654416828bf3431cf3fa527e1ef1e50f0597d5e01502c83e40c22ffbd8c66",
+          "idempotency": {
+            "intent_key": "sha256:list-hygiene-judge-readback-transition-intent",
+            "trigger_fingerprint": "sha256:list-hygiene-judge-readback-transition-trigger",
+            "content_hash": "sha256:list-hygiene-judge-readback-transition-content"
+          },
+          "subject": {
+            "kind": "skill",
+            "ref": {
+              "type": "harness",
+              "uri": "hrn_list-hygiene-judge_readback-transition",
+              "locator": "sha256:c4c7ba4bc59c34e9776f624b2441727a355fa1442892ddbc3210636cc7390f01"
+            },
+            "commitments": []
+          },
+          "authority": {
+            "actor_ref": {
+              "type": "principal",
+              "uri": "runx:principal:local_runtime"
+            },
+            "grant_refs": [],
+            "scope_refs": [],
+            "authority_proof_refs": [],
+            "attenuation": {
+              "parent_authority_ref": null,
+              "subset_proof": null
+            },
+            "terms": [],
+            "enforcement": {
+              "profile_hash": "sha256:635fdb0a7eef93911e3c6bd0b25b5e635edba32e0259133042b3a5f1fb19394e",
+              "redaction_refs": [],
+              "setup_refs": [],
+              "teardown_refs": []
+            }
+          },
+          "signals": [],
+          "decisions": [
+            {
+              "decision_id": "dec_readback-transition",
+              "choice": "open",
+              "inputs": {
+                "signal_refs": [],
+                "target_ref": null,
+                "opportunity_refs": [],
+                "selection_ref": null
+              },
+              "proposed_intent": {
+                "purpose": "Open runtime node readback-transition",
+                "legitimacy": "Local graph execution requested this node",
+                "success_criteria": [],
+                "constraints": [],
+                "derived_from": []
+              },
+              "selected_act_id": "act_readback-transition",
+              "selected_harness_ref": null,
+              "justification": {
+                "summary": "runtime graph planner selected this node",
+                "evidence_refs": []
+              },
+              "closure": null,
+              "artifact_refs": [
+                {
+                  "type": "artifact",
+                  "uri": "runx:artifact:operator_context:3766eaffc890cd3c9a7187dfbff24cf25d53c47a122538e8a66e26e23ea47ae9",
+                  "provider": "runx",
+                  "locator": "sha256:3766eaffc890cd3c9a7187dfbff24cf25d53c47a122538e8a66e26e23ea47ae9",
+                  "label": "prepared operator context"
+                }
+              ]
+            }
+          ],
+          "acts": [
+            {
+              "id": "act_readback-transition",
+              "form": "observation",
+              "intent": {
+                "purpose": "Run graph step readback-transition",
+                "legitimacy": "Runtime graph execution was admitted by the local harness",
+                "success_criteria": [
+                  {
+                    "criterion_id": "step_outcome",
+                    "statement": "runtime step completes successfully",
+                    "required": true
+                  }
+                ],
+                "constraints": [],
+                "derived_from": []
+              },
+              "summary": "Executed graph step readback-transition",
+              "criterion_bindings": [
+                {
+                  "criterion_id": "step_outcome",
+                  "status": "verified",
+                  "evidence_refs": [
+                    {
+                      "type": "artifact",
+                      "uri": "runx:artifact:operator_context:3766eaffc890cd3c9a7187dfbff24cf25d53c47a122538e8a66e26e23ea47ae9",
+                      "provider": "runx",
+                      "locator": "sha256:3766eaffc890cd3c9a7187dfbff24cf25d53c47a122538e8a66e26e23ea47ae9",
+                      "label": "prepared operator context"
+                    }
+                  ],
+                  "verification_refs": [],
+                  "summary": "step completed successfully"
+                }
+              ],
+              "source_refs": [],
+              "target_refs": [],
+              "artifact_refs": [
+                {
+                  "type": "artifact",
+                  "uri": "runx:artifact:operator_context:3766eaffc890cd3c9a7187dfbff24cf25d53c47a122538e8a66e26e23ea47ae9",
+                  "provider": "runx",
+                  "locator": "sha256:3766eaffc890cd3c9a7187dfbff24cf25d53c47a122538e8a66e26e23ea47ae9",
+                  "label": "prepared operator context"
+                }
+              ],
+              "closure": {
+                "disposition": "closed",
+                "reason_code": "step_outcome",
+                "summary": "step completed successfully",
+                "closed_at": "2026-08-20T12:46:54.370Z"
+              }
+            }
+          ],
+          "seal": {
+            "disposition": "closed",
+            "reason_code": "step_closed",
+            "summary": "step readback-transition completed",
+            "closed_at": "2026-08-20T12:46:54.370Z",
+            "last_observed_at": "2026-08-20T12:46:54.370Z",
+            "criteria": [
+              {
+                "criterion_id": "step_outcome",
+                "status": "verified",
+                "evidence_refs": [
+                  {
+                    "type": "artifact",
+                    "uri": "runx:artifact:operator_context:3766eaffc890cd3c9a7187dfbff24cf25d53c47a122538e8a66e26e23ea47ae9",
+                    "provider": "runx",
+                    "locator": "sha256:3766eaffc890cd3c9a7187dfbff24cf25d53c47a122538e8a66e26e23ea47ae9",
+                    "label": "prepared operator context"
+                  }
+                ],
+                "verification_refs": [],
+                "summary": "step completed successfully"
+              }
+            ]
+          },
+          "lineage": {
+            "children": [],
+            "sync": []
+          }
+        },
+        "nested_receipts": [],
+        "admission_witness": {
+          "stepId": "readback-transition",
+          "receiptId": "sha256:e826fe22a6aebdb0d67575f5def4acdb652a734493069130a195244ee8f933c9"
+        }
+      },
+      {
+        "step_id": "finalize-committed",
+        "attempt": 1,
+        "skill": "finalize-committed",
+        "runner": null,
+        "fanout_group": null,
+        "contract": {
+          "list_hygiene_result": {
+            "data": {
+              "contact": {
+                "aggregate_id": "contact:dana@example.co",
+                "current_consent_state": "subscribed",
+                "data_source_ref": "local://list-hygiene/prod-contacts",
+                "resource": "contact_events"
+              },
+              "decision": {
+                "reason": "recency_days=140 exceeds decay_threshold_days=90 with no unsubscribe marker in the input state or the sealed stream read",
+                "state": "re_permission"
+              },
+              "downstream_send_performed": false,
+              "escalation": {
+                "lane": "none",
+                "reason": "decay threshold exceeded with clean consent evidence",
+                "required": false
+              },
+              "evidence": {
+                "basis": {
+                  "input_metrics": {
+                    "clicks_count": 0,
+                    "hard_bounces": 0,
+                    "opens_count": 0,
+                    "recency_days": 140
+                  },
+                  "projection_digest": "sha256:b4a3df3ffd6300954be3ce95ed8f9b3d1683f72e9f15b925a3d6b3b505c88b5a",
+                  "result_digest": "sha256:e1858c7aa658a779a05affccaa3a9acc213d6e01f78c7db1fb5609ff910268b9",
+                  "store_read_status": "read",
+                  "store_version": 0
+                },
+                "evidence_digest": "sha256:8b271c6a9abba61d91ed7622874b1694728192d747071eab8da183d76ac8fc39"
+              },
+              "persistence": {
+                "after_version": 1,
+                "aggregate_id": "contact:dana@example.co",
+                "append_status": "committed",
+                "event_ref": "contact_events:contact:dana@example.co:1",
+                "expected_version": 0,
+                "idempotency_key": "contact:dana:re-permission:v1"
+              },
+              "recorded_transition": {
+                "latest_events": [],
+                "projection_digest": "sha256:e78b5e738293aaa84c657686710be8a1237be4e38c5db5b15112e0dc46b99eaf",
+                "read_back": true,
+                "store_version": 1
+              },
+              "schema": "runx.list_hygiene_result.v1"
+            }
+          }
+        },
+        "outcome": {
+          "status": "Success",
+          "diagnostics": {
+            "kind": "process",
+            "duration_ms": 150,
+            "exit_code": 0,
+            "stderr": ""
+          },
+          "metadata": {
+            "contract_verification": {
+              "output_contract_sha256": "sha256:c5b8803ed754c6971b26a8d37b968ab0a51d953b938103a1fc10bca08e9e57a6"
+            }
+          }
+        },
+        "receipt": {
+          "schema": "runx.receipt.v1",
+          "id": "sha256:0b5ae81286e8bfb6f7fb270c89cdc6e0e19a8cddd24b2cfd328ba792e755ed96",
+          "created_at": "2026-08-20T12:46:54.370Z",
+          "canonicalization": "runx.receipt.c14n.v1",
+          "issuer": {
+            "type": "hosted",
+            "kid": "antheducation-hosted-1",
+            "public_key_sha256": "sha256:cddb71c9877fc3034483e96eaa20812e93cd40645f7387af0b933397f082e6f7"
+          },
+          "signature": {
+            "alg": "Ed25519",
+            "value": "base64:r7Id_pzkyNsJamls4EX7Cx8TDrc9ai5vzswX72FIIfa1CnMsxl38ncQhDbNojkK75QZB2Oc7xZxDC8rOxXVfDA"
+          },
+          "digest": "sha256:852802437f721b5d2590b77511e22ed6f2a4cf634e17762432ef04375607be03",
+          "idempotency": {
+            "intent_key": "sha256:list-hygiene-judge-finalize-committed-intent",
+            "trigger_fingerprint": "sha256:list-hygiene-judge-finalize-committed-trigger",
+            "content_hash": "sha256:list-hygiene-judge-finalize-committed-content"
+          },
+          "subject": {
+            "kind": "skill",
+            "ref": {
+              "type": "harness",
+              "uri": "hrn_list-hygiene-judge_finalize-committed",
+              "locator": "sha256:f942422eab65f8d7c344eb77c8d8d554ffcbc8ced4eada1b112a0218fa5cf141"
+            },
+            "commitments": []
+          },
+          "authority": {
+            "actor_ref": {
+              "type": "principal",
+              "uri": "runx:principal:local_runtime"
+            },
+            "grant_refs": [],
+            "scope_refs": [],
+            "authority_proof_refs": [],
+            "attenuation": {
+              "parent_authority_ref": null,
+              "subset_proof": null
+            },
+            "terms": [],
+            "enforcement": {
+              "profile_hash": "sha256:635fdb0a7eef93911e3c6bd0b25b5e635edba32e0259133042b3a5f1fb19394e",
+              "redaction_refs": [],
+              "setup_refs": [],
+              "teardown_refs": []
+            }
+          },
+          "signals": [],
+          "decisions": [
+            {
+              "decision_id": "dec_finalize-committed",
+              "choice": "open",
+              "inputs": {
+                "signal_refs": [],
+                "target_ref": null,
+                "opportunity_refs": [],
+                "selection_ref": null
+              },
+              "proposed_intent": {
+                "purpose": "Open runtime node finalize-committed",
+                "legitimacy": "Local graph execution requested this node",
+                "success_criteria": [],
+                "constraints": [],
+                "derived_from": []
+              },
+              "selected_act_id": "act_finalize-committed",
+              "selected_harness_ref": null,
+              "justification": {
+                "summary": "runtime graph planner selected this node",
+                "evidence_refs": []
+              },
+              "closure": null,
+              "artifact_refs": [
+                {
+                  "type": "artifact",
+                  "uri": "runx:artifact:operator_context:3766eaffc890cd3c9a7187dfbff24cf25d53c47a122538e8a66e26e23ea47ae9",
+                  "provider": "runx",
+                  "locator": "sha256:3766eaffc890cd3c9a7187dfbff24cf25d53c47a122538e8a66e26e23ea47ae9",
+                  "label": "prepared operator context"
+                }
+              ]
+            }
+          ],
+          "acts": [
+            {
+              "id": "act_finalize-committed",
+              "form": "observation",
+              "intent": {
+                "purpose": "Run graph step finalize-committed",
+                "legitimacy": "Runtime graph execution was admitted by the local harness",
+                "success_criteria": [
+                  {
+                    "criterion_id": "step_outcome",
+                    "statement": "runtime step completes successfully",
+                    "required": true
+                  },
+                  {
+                    "criterion_id": "output_contract_verified",
+                    "statement": "Runner result satisfies its declared output contract",
+                    "required": true
+                  }
+                ],
+                "constraints": [],
+                "derived_from": []
+              },
+              "summary": "Executed graph step finalize-committed",
+              "criterion_bindings": [
+                {
+                  "criterion_id": "step_outcome",
+                  "status": "verified",
+                  "evidence_refs": [
+                    {
+                      "type": "artifact",
+                      "uri": "runx:artifact:operator_context:3766eaffc890cd3c9a7187dfbff24cf25d53c47a122538e8a66e26e23ea47ae9",
+                      "provider": "runx",
+                      "locator": "sha256:3766eaffc890cd3c9a7187dfbff24cf25d53c47a122538e8a66e26e23ea47ae9",
+                      "label": "prepared operator context"
+                    }
+                  ],
+                  "verification_refs": [],
+                  "summary": "step completed successfully"
+                },
+                {
+                  "criterion_id": "output_contract_verified",
+                  "status": "verified",
+                  "evidence_refs": [],
+                  "verification_refs": [
+                    {
+                      "type": "verification",
+                      "uri": "runx:verification:output_contract_verified:sha256:c5b8803ed754c6971b26a8d37b968ab0a51d953b938103a1fc10bca08e9e57a6"
+                    }
+                  ],
+                  "summary": "Runner result satisfies its declared output contract"
+                }
+              ],
+              "source_refs": [],
+              "target_refs": [],
+              "artifact_refs": [
+                {
+                  "type": "artifact",
+                  "uri": "runx:artifact:operator_context:3766eaffc890cd3c9a7187dfbff24cf25d53c47a122538e8a66e26e23ea47ae9",
+                  "provider": "runx",
+                  "locator": "sha256:3766eaffc890cd3c9a7187dfbff24cf25d53c47a122538e8a66e26e23ea47ae9",
+                  "label": "prepared operator context"
+                }
+              ],
+              "closure": {
+                "disposition": "closed",
+                "reason_code": "step_outcome",
+                "summary": "step completed successfully",
+                "closed_at": "2026-08-20T12:46:54.370Z"
+              }
+            }
+          ],
+          "seal": {
+            "disposition": "closed",
+            "reason_code": "step_closed",
+            "summary": "step finalize-committed completed",
+            "closed_at": "2026-08-20T12:46:54.370Z",
+            "last_observed_at": "2026-08-20T12:46:54.370Z",
+            "criteria": [
+              {
+                "criterion_id": "step_outcome",
+                "status": "verified",
+                "evidence_refs": [
+                  {
+                    "type": "artifact",
+                    "uri": "runx:artifact:operator_context:3766eaffc890cd3c9a7187dfbff24cf25d53c47a122538e8a66e26e23ea47ae9",
+                    "provider": "runx",
+                    "locator": "sha256:3766eaffc890cd3c9a7187dfbff24cf25d53c47a122538e8a66e26e23ea47ae9",
+                    "label": "prepared operator context"
+                  }
+                ],
+                "verification_refs": [],
+                "summary": "step completed successfully"
+              },
+              {
+                "criterion_id": "output_contract_verified",
+                "status": "verified",
+                "evidence_refs": [],
+                "verification_refs": [
+                  {
+                    "type": "verification",
+                    "uri": "runx:verification:output_contract_verified:sha256:c5b8803ed754c6971b26a8d37b968ab0a51d953b938103a1fc10bca08e9e57a6"
+                  }
+                ],
+                "summary": "Runner result satisfies its declared output contract"
+              }
+            ]
+          },
+          "lineage": {
+            "children": [],
+            "sync": []
+          }
+        },
+        "nested_receipts": [],
+        "admission_witness": {
+          "stepId": "finalize-committed",
+          "receiptId": "sha256:0b5ae81286e8bfb6f7fb270c89cdc6e0e19a8cddd24b2cfd328ba792e755ed96"
+        }
+      }
+    ],
+    "sync_points": [],
+    "journal": {
+      "entries": [
+        {
+          "event": {
+            "type": "step_started",
+            "message": "step read-contact started",
+            "data": {
+              "act_id": "act_read-contact",
+              "kind": "act_started",
+              "step_id": "read-contact"
+            }
+          }
+        },
+        {
+          "event": {
+            "type": "step_completed",
+            "message": "step read-contact completed",
+            "data": {
+              "act_id": "act_read-contact",
+              "disposition": "closed",
+              "kind": "act_closed",
+              "step_id": "read-contact"
+            }
+          }
+        },
+        {
+          "event": {
+            "type": "step_started",
+            "message": "step digest-evidence started",
+            "data": {
+              "act_id": "act_digest-evidence",
+              "kind": "act_started",
+              "step_id": "digest-evidence"
+            }
+          }
+        },
+        {
+          "event": {
+            "type": "step_completed",
+            "message": "step digest-evidence completed",
+            "data": {
+              "act_id": "act_digest-evidence",
+              "disposition": "closed",
+              "kind": "act_closed",
+              "step_id": "digest-evidence"
+            }
+          }
+        },
+        {
+          "event": {
+            "type": "step_started",
+            "message": "step judge started",
+            "data": {
+              "act_id": "act_judge",
+              "kind": "act_started",
+              "step_id": "judge"
+            }
+          }
+        },
+        {
+          "event": {
+            "type": "step_completed",
+            "message": "step judge completed",
+            "data": {
+              "act_id": "act_judge",
+              "disposition": "closed",
+              "kind": "act_closed",
+              "step_id": "judge"
+            }
+          }
+        },
+        {
+          "event": {
+            "type": "step_started",
+            "message": "step persist-transition started",
+            "data": {
+              "act_id": "act_persist-transition",
+              "kind": "act_started",
+              "step_id": "persist-transition"
+            }
+          }
+        },
+        {
+          "event": {
+            "type": "step_completed",
+            "message": "step persist-transition completed",
+            "data": {
+              "act_id": "act_persist-transition",
+              "disposition": "closed",
+              "kind": "act_closed",
+              "step_id": "persist-transition"
+            }
+          }
+        },
+        {
+          "event": {
+            "type": "step_started",
+            "message": "step readback-transition started",
+            "data": {
+              "act_id": "act_readback-transition",
+              "kind": "act_started",
+              "step_id": "readback-transition"
+            }
+          }
+        },
+        {
+          "event": {
+            "type": "step_completed",
+            "message": "step readback-transition completed",
+            "data": {
+              "act_id": "act_readback-transition",
+              "disposition": "closed",
+              "kind": "act_closed",
+              "step_id": "readback-transition"
+            }
+          }
+        },
+        {
+          "event": {
+            "type": "step_started",
+            "message": "step finalize-committed started",
+            "data": {
+              "act_id": "act_finalize-committed",
+              "kind": "act_started",
+              "step_id": "finalize-committed"
+            }
+          }
+        },
+        {
+          "event": {
+            "type": "step_completed",
+            "message": "step finalize-committed completed",
+            "data": {
+              "act_id": "act_finalize-committed",
+              "disposition": "closed",
+              "kind": "act_closed",
+              "step_id": "finalize-committed"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

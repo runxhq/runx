@@ -1,0 +1,16 @@
+{
+  "receipt_dir": "C:\\Users\\ANTHONY\\AppData\\Local\\Temp\\claude\\C--Users-ANTHONY-Crypto-World-Business\\98080a17-4bb5-4288-bf47-fdcb3dc9c393\\scratchpad\\f68\\dogfood\\receipts",
+  "signature_mode": "production",
+  "trees": [
+    {
+      "root_receipt_id": "sha256:fe371df690d45826806023848743dc191f677a3902d135ae0ae5e2efdc10ef19",
+      "receipt_count": 7,
+      "parent_missing": null,
+      "valid": true,
+      "findings": []
+    }
+  ],
+  "unreadable_files": [],
+  "valid": true
+}
+
