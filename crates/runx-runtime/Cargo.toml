@@ -63,7 +63,7 @@ reqwest = { version = "=0.13.4", default-features = false, features = ["rustls-n
 ring = "0.17.14"
 regex.workspace = true
 rusqlite = { version = "0.40.1", default-features = false, features = ["backup", "bundled"] }
-jsonschema = { version = "0.49.9", default-features = false }
+jsonschema = { version = "0.51.0", default-features = false }
 # Drive rustls with the ring provider (already linked via `ring`) instead of
 # reqwest's default aws-lc-rs, so the vendored aws-lc-sys C crypto blob is not
 # compiled in. ring is then the single, unambiguous process-default provider.
