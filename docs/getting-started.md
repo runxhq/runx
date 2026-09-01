@@ -98,3 +98,4 @@ crates/target/debug/runx history <receipt-id> --json
   `crates/target/debug/runx registry publish ... --registry https://api.runx.ai`.
   See [Publishing](./publishing.md) for the full local and hosted paths.
 - See [API Surface](./api-surface.md) for public package exports.
+- Connect runx to real-world bounty work with [Frantic Bounty Guide](./frantic-bounty-guide.md).
