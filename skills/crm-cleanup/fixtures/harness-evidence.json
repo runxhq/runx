@@ -1,0 +1,59 @@
+{
+  "schema": "runx.crm_cleanup.harness_evidence.v1",
+  "package_version": "0.3.0",
+  "generated_at": "2026-08-12T16:44:32Z",
+  "runtime": "runx-cli 0.8.2",
+  "runtime_distribution": "@runxhq/cli@0.8.2",
+  "command": "runx harness ./skills/crm-cleanup --json",
+  "status": "passed",
+  "case_count": 9,
+  "assertion_error_count": 0,
+  "cases": [
+    "crm-cleanup-fetches-and-writes-changed-fields",
+    "crm-cleanup-no-op-does-not-write",
+    "crm-cleanup-refuses-field-outside-schema",
+    "crm-cleanup-refuses-malformed-directive",
+    "crm-cleanup-routes-hedged-change-to-review",
+    "crm-cleanup-routes-actionable-unmapped-prose-to-review",
+    "crm-cleanup-routes-conflicting-values-to-review",
+    "crm-cleanup-refuses-unsuccessful-source-read",
+    "crm-cleanup-needs-all-typed-inputs"
+  ],
+  "happy_path": {
+    "case": "crm-cleanup-fetches-and-writes-changed-fields",
+    "decision": "updated",
+    "natural_transcript_without_update_dsl": true,
+    "schema_keyed_fields": ["account_status", "health_score", "next_action"],
+    "separate_transport_step": true,
+    "write_executed": true,
+    "writes_attempted": 1,
+    "writes_completed": 1
+  },
+  "no_op_path": {
+    "case": "crm-cleanup-no-op-does-not-write",
+    "decision": "no_action",
+    "natural_transcript_without_update_dsl": true,
+    "write_executed": false,
+    "writes_attempted": 0,
+    "writes_completed": 0,
+    "before_equals_after": true
+  },
+  "safety_paths": {
+    "out_of_schema_field_refused": true,
+    "malformed_directive_refused": true,
+    "hedged_change_routed_to_review_without_write": true,
+    "actionable_unmapped_prose_routed_to_review_without_write": true,
+    "conflicting_values_routed_to_review_without_write": true,
+    "unsuccessful_source_read_failed_closed": true,
+    "missing_typed_inputs_failed_preflight": true
+  },
+  "public_source": {
+    "kind": "connector_export",
+    "url": "https://gist.githubusercontent.com/SQbal1/b4d40911bc08c261fbedcdebcf069a96/raw/62c45933ebb94ba01a18b9eb0ffc76c4ed47eb12/current-records.json",
+    "content_digest": "sha256:489ff9fbdde5a885525a5ca0a0573bcd27136f4314684d28c87f01e0c5be3024",
+    "read_at_runtime": true,
+    "harness_transport": "explicit deterministic HTTP response",
+    "live_dogfood_required": true
+  },
+  "receipt_binding": "Receipt IDs are generated from the final immutable package revision and published in the external verification report to avoid a self-referential package digest."
+}

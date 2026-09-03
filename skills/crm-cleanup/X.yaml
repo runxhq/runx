@@ -1,175 +1,585 @@
 skill: crm-cleanup
-version: "0.1.0"
+version: "0.3.0"
 
 catalog:
   kind: graph
   audience: operator
   visibility: public
   role: canonical
-  execution: plan
+  execution: execute
   completion: runtime_receipt
   requires_adapter: false
   approval: none
 
 harness:
   cases:
-    - name: crm-cleanup-proposes-traced-updates
+    - name: crm-cleanup-fetches-and-writes-changed-fields
       operator_journeys:
         - mode: standalone
           confusors: [lead-enrichment, lead-router]
-          request: Reconcile this call transcript against the CRM records and propose the field updates.
-          expected_outcome: Return allowlisted field updates, each traced to a verbatim transcript quote, with no CRM write performed.
+          request: Read the current Globex record, reconcile these high-confidence call updates, and execute the changed CRM fields.
+          expected_outcome: Fetch current state at runtime, execute three schema-authorized changes through the mock CRM transport, and seal before/after evidence.
         - mode: composed
-          request: Continue from this sealed update proposal into the CRM write step.
-          expected_outcome: Hand the sealed proposal to the gated CRM operator without re-deriving updates.
+          request: Continue from this sealed CRM cleanup result into an operator-controlled production connector.
+          expected_outcome: Reuse the sealed source and update evidence without re-deriving or claiming another write.
           prior_evidence:
-            - The transcript, records, and sealed proposal supplied by the prior step.
+            - The connector source digest, schema digest, field-keyed update map, and mock-transport before/after result.
           must_not_repeat:
-            - Do not re-reconcile updates already sealed.
+            - Do not fetch the same source or re-run the mock transport when the sealed result is already supplied.
       inputs:
-        transcript: "Call with Globex on renewal. Dana said the rollout stalled and they want an executive review before renewing. Next step agreed: send the Q3 usage report by Friday."
-        crm_records:
-          - id: acct-globex
-            account_status: healthy
-            next_action: none
+        source_handle:
+          kind: connector_export
+          url: https://gist.githubusercontent.com/SQbal1/b4d40911bc08c261fbedcdebcf069a96/raw/62c45933ebb94ba01a18b9eb0ffc76c4ed47eb12/current-records.json
+          allowlist: [gist.githubusercontent.com]
+          record_id: acct-globex
+        transcript: |-
+          Dana confirmed the rollout has stalled and the account is now at risk.
+          We agreed to send the Q3 usage report by Friday.
+          The health score dropped to 48.
         crm_schema:
-          allowed_fields: [account_status, next_action, health_score]
+          record_id_field: id
+          fields:
+            account_status: { type: string, enum: [healthy, at_risk, churned], aliases: [account status, account], semantic_role: status }
+            next_action: { type: string, max_length: 500, aliases: [next action, next step, follow up], semantic_role: next_action }
+            health_score: { type: number, minimum: 0, maximum: 100, aliases: [health score], semantic_role: score }
       caller:
+        http_responses:
+          "https://gist.githubusercontent.com/SQbal1/b4d40911bc08c261fbedcdebcf069a96/raw/62c45933ebb94ba01a18b9eb0ffc76c4ed47eb12/current-records.json":
+            status: 200
+            headers: { content-type: application/json }
+            body: |
+              {
+                "exported_at": "2026-08-12T00:00:00Z",
+                "source": "synthetic-crm-connector-export",
+                "records": [
+                  {
+                    "id": "acct-globex",
+                    "account_status": "healthy",
+                    "next_action": "none",
+                    "health_score": 82
+                  },
+                  {
+                    "id": "acct-initech",
+                    "account_status": "healthy",
+                    "next_action": "renewal review",
+                    "health_score": 91
+                  }
+                ]
+              }
         answers:
-          agent_task.crm-cleanup-reconcile.output:
-            update_draft:
-              updates:
-                - record_id: acct-globex
-                  field: account_status
+          agent_task.crm-cleanup-extract.output:
+            extraction_draft:
+              takeaways: [Dana confirmed the rollout has stalled and the account is now at risk.]
+              candidates:
+                - field: account_status
                   to: at_risk
-                  evidence_quote: the rollout stalled and they want an executive review before renewing
-                - record_id: acct-globex
-                  field: next_action
+                  evidence_quote: Dana confirmed the rollout has stalled and the account is now at risk.
+                - field: next_action
                   to: send the Q3 usage report by Friday
-                  evidence_quote: "send the Q3 usage report by Friday"
+                  evidence_quote: We agreed to send the Q3 usage report by Friday.
+                - field: health_score
+                  to: 48
+                  evidence_quote: The health score dropped to 48.
+              review_items: []
       expect:
         status: sealed
-        steps: [digest-transcript, digest-records, reconcile, finalize]
+        steps: [digest-transcript, digest-schema, read-current, extract, reconcile, write-through-transport, finalize]
         step_outputs:
           finalize:
             subset:
-              crm_update_proposal:
+              crm_cleanup_result:
                 data:
-                  schema: runx.crm_update_proposal.v1
-                  decision: proposed
-                  write_performed: false
-                  gate: crm-operator-or-human-approver
-                  rejected_updates: []
+                  decision: updated
+                  takeaways: [Dana confirmed the rollout has stalled and the account is now at risk.]
+                  field_updates:
+                    account_status:
+                      from: healthy
+                      to: at_risk
+                      evidence_quote: Dana confirmed the rollout has stalled and the account is now at risk.
+                    health_score:
+                      from: 82
+                      to: 48
+                      evidence_quote: The health score dropped to 48.
+                    next_action:
+                      from: none
+                      to: send the Q3 usage report by Friday
+                      evidence_quote: We agreed to send the Q3 usage report by Friday.
+                  write_result:
+                    transport: mock-crm
+                    status: applied
+                    executed: true
+                    record_id: acct-globex
+                    applied_fields: [account_status, health_score, next_action]
+                    writes_attempted: 1
+                    writes_completed: 1
+                    before:
+                      id: acct-globex
+                      account_status: healthy
+                      next_action: none
+                      health_score: 82
+                    after:
+                      id: acct-globex
+                      account_status: at_risk
+                      next_action: send the Q3 usage report by Friday
+                      health_score: 48
                   validation: { status: pass, findings: [] }
         receipt: { schema: runx.receipt.v1 }
 
-    - name: crm-cleanup-rejects-unlisted-field
+    - name: crm-cleanup-no-op-does-not-write
       inputs:
-        transcript: "Owner said move the account to Kim."
-        crm_records:
-          - id: acct-1
-            owner: lee
+        source_handle:
+          kind: connector_export
+          url: https://gist.githubusercontent.com/SQbal1/b4d40911bc08c261fbedcdebcf069a96/raw/62c45933ebb94ba01a18b9eb0ffc76c4ed47eb12/current-records.json
+          allowlist: [gist.githubusercontent.com]
+          record_id: acct-globex
+        transcript: Dana confirmed the account remains healthy and no CRM changes are needed.
         crm_schema:
-          allowed_fields: [next_action]
+          record_id_field: id
+          fields:
+            account_status: { type: string, enum: [healthy, at_risk, churned], aliases: [account status], semantic_role: status }
       caller:
+        http_responses:
+          "https://gist.githubusercontent.com/SQbal1/b4d40911bc08c261fbedcdebcf069a96/raw/62c45933ebb94ba01a18b9eb0ffc76c4ed47eb12/current-records.json":
+            status: 200
+            headers: { content-type: application/json }
+            body: |
+              {
+                "exported_at": "2026-08-12T00:00:00Z",
+                "source": "synthetic-crm-connector-export",
+                "records": [
+                  {
+                    "id": "acct-globex",
+                    "account_status": "healthy",
+                    "next_action": "none",
+                    "health_score": 82
+                  },
+                  {
+                    "id": "acct-initech",
+                    "account_status": "healthy",
+                    "next_action": "renewal review",
+                    "health_score": 91
+                  }
+                ]
+              }
         answers:
-          agent_task.crm-cleanup-reconcile.output:
-            update_draft:
-              updates:
-                - record_id: acct-1
-                  field: owner
-                  to: kim
-                  evidence_quote: move the account to Kim
+          agent_task.crm-cleanup-extract.output:
+            extraction_draft:
+              takeaways: [Dana confirmed the account remains healthy and no CRM changes are needed.]
+              candidates: []
+              review_items: []
       expect:
         status: sealed
-        steps: [digest-transcript, digest-records, reconcile, finalize]
+        steps: [digest-transcript, digest-schema, read-current, extract, reconcile, write-through-transport, finalize]
         step_outputs:
           finalize:
             subset:
-              crm_update_proposal:
+              crm_cleanup_result:
                 data:
                   decision: no_action
-                  updates: []
-                  rejected_updates:
-                    - record_id: acct-1
-                      field: owner
-                      reason: field is outside the crm_schema allowlist
+                  field_updates: {}
+                  write_result:
+                    status: no_op
+                    executed: false
+                    applied_fields: []
+                    writes_attempted: 0
+                    writes_completed: 0
+                    before: { id: acct-globex, account_status: healthy }
+                    after: { id: acct-globex, account_status: healthy }
                   validation: { status: pass, findings: [] }
         receipt: { schema: runx.receipt.v1 }
 
-    - name: crm-cleanup-refuses-invented-quote
+    - name: crm-cleanup-refuses-field-outside-schema
       inputs:
-        transcript: "Short call, no changes discussed."
-        crm_records:
-          - id: acct-1
-            account_status: healthy
+        source_handle:
+          kind: connector_export
+          url: https://gist.githubusercontent.com/SQbal1/b4d40911bc08c261fbedcdebcf069a96/raw/62c45933ebb94ba01a18b9eb0ffc76c4ed47eb12/current-records.json
+          allowlist: [gist.githubusercontent.com]
+          record_id: acct-globex
+        transcript: "CRM update: owner=kim"
         crm_schema:
-          allowed_fields: [account_status]
+          record_id_field: id
+          fields:
+            account_status: { type: string }
       caller:
+        http_responses:
+          "https://gist.githubusercontent.com/SQbal1/b4d40911bc08c261fbedcdebcf069a96/raw/62c45933ebb94ba01a18b9eb0ffc76c4ed47eb12/current-records.json":
+            status: 200
+            headers: { content-type: application/json }
+            body: |
+              {
+                "exported_at": "2026-08-12T00:00:00Z",
+                "source": "synthetic-crm-connector-export",
+                "records": [
+                  {
+                    "id": "acct-globex",
+                    "account_status": "healthy",
+                    "next_action": "none",
+                    "health_score": 82
+                  },
+                  {
+                    "id": "acct-initech",
+                    "account_status": "healthy",
+                    "next_action": "renewal review",
+                    "health_score": 91
+                  }
+                ]
+              }
         answers:
-          agent_task.crm-cleanup-reconcile.output:
-            update_draft:
-              updates:
-                - record_id: acct-1
-                  field: account_status
-                  to: at_risk
-                  evidence_quote: customer threatened to churn immediately
+          agent_task.crm-cleanup-extract.output:
+            extraction_draft:
+              takeaways: []
+              candidates:
+                - field: owner
+                  to: kim
+                  evidence_quote: "CRM update: owner=kim"
+              review_items: []
       expect:
         status: sealed
-        steps: [digest-transcript, digest-records, reconcile, finalize]
+        steps: [digest-transcript, digest-schema, read-current, extract, reconcile, write-through-transport, finalize]
         step_outputs:
           finalize:
             subset:
-              crm_update_proposal:
+              crm_cleanup_result:
                 data:
                   decision: refused
-                  updates: []
-                  validation: { status: fail }
+                  field_updates: {}
+                  write_result:
+                    status: no_op
+                    executed: false
+                    writes_attempted: 0
+                    writes_completed: 0
+                  validation:
+                    status: fail
+                    findings:
+                      - code: extraction.field_not_allowed
+                        message: owner is not declared in crm_schema.fields.
         receipt: { schema: runx.receipt.v1 }
 
-    - name: crm-cleanup-needs-transcript
+    - name: crm-cleanup-refuses-malformed-directive
       inputs:
-        crm_records:
-          - id: acct-1
+        source_handle:
+          kind: connector_export
+          url: https://gist.githubusercontent.com/SQbal1/b4d40911bc08c261fbedcdebcf069a96/raw/62c45933ebb94ba01a18b9eb0ffc76c4ed47eb12/current-records.json
+          allowlist: [gist.githubusercontent.com]
+          record_id: acct-globex
+        transcript: "CRM update: account_status="
         crm_schema:
-          allowed_fields: [next_action]
+          record_id_field: id
+          fields:
+            account_status: { type: string }
+      caller:
+        http_responses:
+          "https://gist.githubusercontent.com/SQbal1/b4d40911bc08c261fbedcdebcf069a96/raw/62c45933ebb94ba01a18b9eb0ffc76c4ed47eb12/current-records.json":
+            status: 200
+            headers: { content-type: application/json }
+            body: |
+              {
+                "exported_at": "2026-08-12T00:00:00Z",
+                "source": "synthetic-crm-connector-export",
+                "records": [
+                  {
+                    "id": "acct-globex",
+                    "account_status": "healthy",
+                    "next_action": "none",
+                    "health_score": 82
+                  },
+                  {
+                    "id": "acct-initech",
+                    "account_status": "healthy",
+                    "next_action": "renewal review",
+                    "health_score": 91
+                  }
+                ]
+              }
+        answers:
+          agent_task.crm-cleanup-extract.output:
+            extraction_draft:
+              takeaways: []
+              candidates: []
+              review_items:
+                - field: account_status
+                  evidence_quote: "CRM update: account_status="
+                  reason: The directive has no value.
+      expect:
+        status: sealed
+        steps: [digest-transcript, digest-schema, read-current, extract, reconcile, write-through-transport, finalize]
+        step_outputs:
+          finalize:
+            subset:
+              crm_cleanup_result:
+                data:
+                  decision: refused
+                  field_updates: {}
+                  write_result:
+                    executed: false
+                    writes_attempted: 0
+                    writes_completed: 0
+                  validation:
+                    status: fail
+                    findings:
+                      - code: transcript.needs_review
+                        field: account_status
+                        evidence_quote: "CRM update: account_status="
+        receipt: { schema: runx.receipt.v1 }
+
+    - name: crm-cleanup-routes-hedged-change-to-review
+      inputs:
+        source_handle:
+          kind: connector_export
+          url: https://gist.githubusercontent.com/SQbal1/b4d40911bc08c261fbedcdebcf069a96/raw/62c45933ebb94ba01a18b9eb0ffc76c4ed47eb12/current-records.json
+          allowlist: [gist.githubusercontent.com]
+          record_id: acct-globex
+        transcript: "The account status is probably at risk, but I am not sure."
+        crm_schema:
+          record_id_field: id
+          fields:
+            account_status: { type: string, enum: [healthy, at_risk, churned], aliases: [account status], semantic_role: status }
+      caller:
+        http_responses:
+          "https://gist.githubusercontent.com/SQbal1/b4d40911bc08c261fbedcdebcf069a96/raw/62c45933ebb94ba01a18b9eb0ffc76c4ed47eb12/current-records.json":
+            status: 200
+            headers: { content-type: application/json }
+            body: |
+              {
+                "exported_at": "2026-08-12T00:00:00Z",
+                "source": "synthetic-crm-connector-export",
+                "records": [
+                  {
+                    "id": "acct-globex",
+                    "account_status": "healthy",
+                    "next_action": "none",
+                    "health_score": 82
+                  }
+                ]
+              }
+        answers:
+          agent_task.crm-cleanup-extract.output:
+            extraction_draft:
+              takeaways: []
+              candidates: []
+              review_items:
+                - field: account_status
+                  evidence_quote: "The account status is probably at risk, but I am not sure."
+                  reason: The statement is hedged and requires confirmation.
+      expect:
+        status: sealed
+        steps: [digest-transcript, digest-schema, read-current, extract, reconcile, write-through-transport, finalize]
+        step_outputs:
+          finalize:
+            subset:
+              crm_cleanup_result:
+                data:
+                  decision: refused
+                  needs_review:
+                    - field: account_status
+                      evidence_quote: "The account status is probably at risk, but I am not sure."
+                  field_updates: {}
+                  write_result:
+                    status: no_op
+                    executed: false
+                    writes_attempted: 0
+                    writes_completed: 0
+                  validation:
+                    status: fail
+                    findings:
+                      - code: transcript.needs_review
+                        field: account_status
+                        evidence_quote: "The account status is probably at risk, but I am not sure."
+        receipt: { schema: runx.receipt.v1 }
+
+    - name: crm-cleanup-routes-actionable-unmapped-prose-to-review
+      inputs:
+        source_handle:
+          kind: connector_export
+          url: https://gist.githubusercontent.com/SQbal1/b4d40911bc08c261fbedcdebcf069a96/raw/62c45933ebb94ba01a18b9eb0ffc76c4ed47eb12/current-records.json
+          allowlist: [gist.githubusercontent.com]
+          record_id: acct-globex
+        transcript: "Please update the CRM after Dana confirms the changed plan."
+        crm_schema:
+          record_id_field: id
+          fields:
+            account_status: { type: string, enum: [healthy, at_risk, churned], aliases: [account status], semantic_role: status }
+            next_action: { type: string, max_length: 500, aliases: [next action, next step, follow up], semantic_role: next_action }
+      caller:
+        http_responses:
+          "https://gist.githubusercontent.com/SQbal1/b4d40911bc08c261fbedcdebcf069a96/raw/62c45933ebb94ba01a18b9eb0ffc76c4ed47eb12/current-records.json":
+            status: 200
+            headers: { content-type: application/json }
+            body: |
+              {
+                "exported_at": "2026-08-12T00:00:00Z",
+                "source": "synthetic-crm-connector-export",
+                "records": [
+                  {
+                    "id": "acct-globex",
+                    "account_status": "healthy",
+                    "next_action": "none",
+                    "health_score": 82
+                  }
+                ]
+              }
+        answers:
+          agent_task.crm-cleanup-extract.output:
+            extraction_draft:
+              takeaways: []
+              candidates: []
+              review_items:
+                - field: unmapped
+                  evidence_quote: "Please update the CRM after Dana confirms the changed plan."
+                  reason: The requested CRM action cannot be mapped confidently to one declared field.
+      expect:
+        status: sealed
+        steps: [digest-transcript, digest-schema, read-current, extract, reconcile, write-through-transport, finalize]
+        step_outputs:
+          finalize:
+            subset:
+              crm_cleanup_result:
+                data:
+                  decision: refused
+                  needs_review:
+                    - field: unmapped
+                      evidence_quote: "Please update the CRM after Dana confirms the changed plan."
+                  field_updates: {}
+                  write_result:
+                    status: no_op
+                    executed: false
+                    writes_attempted: 0
+                    writes_completed: 0
+                    before: { id: acct-globex, account_status: healthy, next_action: none, health_score: 82 }
+                    after: { id: acct-globex, account_status: healthy, next_action: none, health_score: 82 }
+                  validation:
+                    status: fail
+                    findings:
+                      - code: transcript.needs_review
+                        field: unmapped
+                        evidence_quote: "Please update the CRM after Dana confirms the changed plan."
+        receipt: { schema: runx.receipt.v1 }
+
+    - name: crm-cleanup-routes-conflicting-values-to-review
+      inputs:
+        source_handle:
+          kind: connector_export
+          url: https://gist.githubusercontent.com/SQbal1/b4d40911bc08c261fbedcdebcf069a96/raw/62c45933ebb94ba01a18b9eb0ffc76c4ed47eb12/current-records.json
+          allowlist: [gist.githubusercontent.com]
+          record_id: acct-globex
+        transcript: "Dana confirmed the account status is healthy. Later she confirmed the account status is at risk."
+        crm_schema:
+          record_id_field: id
+          fields:
+            account_status: { type: string, enum: [healthy, at_risk, churned], aliases: [account status], semantic_role: status }
+      caller:
+        http_responses:
+          "https://gist.githubusercontent.com/SQbal1/b4d40911bc08c261fbedcdebcf069a96/raw/62c45933ebb94ba01a18b9eb0ffc76c4ed47eb12/current-records.json":
+            status: 200
+            headers: { content-type: application/json }
+            body: |
+              {
+                "exported_at": "2026-08-12T00:00:00Z",
+                "source": "synthetic-crm-connector-export",
+                "records": [
+                  {
+                    "id": "acct-globex",
+                    "account_status": "healthy",
+                    "next_action": "none",
+                    "health_score": 82
+                  }
+                ]
+              }
+        answers:
+          agent_task.crm-cleanup-extract.output:
+            extraction_draft:
+              takeaways: []
+              candidates:
+                - field: account_status
+                  to: healthy
+                  evidence_quote: "Dana confirmed the account status is healthy."
+                - field: account_status
+                  to: at_risk
+                  evidence_quote: "Later she confirmed the account status is at risk."
+              review_items: []
+      expect:
+        status: sealed
+        steps: [digest-transcript, digest-schema, read-current, extract, reconcile, write-through-transport, finalize]
+        step_outputs:
+          finalize:
+            subset:
+              crm_cleanup_result:
+                data:
+                  decision: refused
+                  needs_review:
+                    - field: account_status
+                      evidence_quote: "Later she confirmed the account status is at risk."
+                  field_updates: {}
+                  write_result:
+                    status: no_op
+                    executed: false
+                    writes_attempted: 0
+                    writes_completed: 0
+                    before: { id: acct-globex, account_status: healthy, next_action: none, health_score: 82 }
+                    after: { id: acct-globex, account_status: healthy, next_action: none, health_score: 82 }
+                  validation:
+                    status: fail
+                    findings:
+                      - code: transcript.needs_review
+                        field: account_status
+                        evidence_quote: "Later she confirmed the account status is at risk."
+        receipt: { schema: runx.receipt.v1 }
+
+    - name: crm-cleanup-refuses-unsuccessful-source-read
+      inputs:
+        source_handle:
+          kind: connector_export
+          url: https://gist.githubusercontent.com/SQbal1/00000000000000000000000000000000/raw/current-records.json
+          allowlist: [gist.githubusercontent.com]
+          record_id: acct-globex
+        transcript: "CRM update: account_status=at_risk"
+        crm_schema:
+          record_id_field: id
+          fields:
+            account_status: { type: string }
+      caller:
+        http_responses:
+          "https://gist.githubusercontent.com/SQbal1/00000000000000000000000000000000/raw/current-records.json":
+            status: 503
+            headers: { content-type: text/plain }
+            body: source unavailable
+        answers:
+          agent_task.crm-cleanup-extract.output:
+            extraction_draft:
+              takeaways: []
+              candidates:
+                - field: account_status
+                  to: at_risk
+                  evidence_quote: "CRM update: account_status=at_risk"
+              review_items: []
+      expect:
+        status: failure
+
+    - name: crm-cleanup-needs-all-typed-inputs
+      inputs:
+        transcript: "Takeaway: Nothing changed."
       expect:
         status: failure
 
 runners:
-  reconcile:
+  reconcile-and-write:
     default: true
     type: graph
     inputs:
+      source_handle:
+        type: object
+        required: true
+        description: Public connector-export handle with kind, HTTPS url, host allowlist, and record_id; record payloads are rejected.
       transcript:
         type: string
         required: true
-        description: Call transcript that is the only evidence for proposed updates.
-      crm_records:
-        type: json
-        required: true
-        description: Current CRM records read from the caller's source of truth.
+        description: Natural call transcript with optional Takeaway or explicit CRM update lines; semantic candidates require exact evidence and ambiguous, hedged, conflicting, or unmappable actions route to needs_review without writing.
       crm_schema:
         type: object
         required: true
-        description: Explicit update authority; fields outside allowed_fields are rejected.
-        schema:
-          additionalProperties: false
-          properties:
-            allowed_fields:
-              type: array
-              minItems: 1
-              maxItems: 100
-              items: { type: string, minLength: 1, maxLength: 200 }
-    examples:
-      - transcript: "Dana said the rollout stalled."
-        crm_records:
-          - id: acct-globex
-            account_status: healthy
-        crm_schema:
-          allowed_fields: [account_status]
+        description: Record ID field and typed string, number, or boolean definitions for each writable CRM field; closed and bounded at runtime.
     graph:
-      name: crm-cleanup-reconcile
+      name: crm-cleanup-reconcile-and-write
       result_from: [finalize]
       steps:
         - id: digest-transcript
@@ -178,96 +588,94 @@ runners:
             value: $input.transcript
             encoding: utf8_text
 
-        - id: digest-records
+        - id: digest-schema
           tool: data.digest
           inputs:
-            value: $input.crm_records
+            value: $input.crm_schema
 
-        - id: reconcile
-          label: derive candidate field updates from the transcript
+        - id: read-current
+          label: read current records from the connector export
+          tool: web.fetch
+          scopes:
+            - net:allowlist
+          inputs:
+            url: $input.source_handle.url
+            allowlist: $input.source_handle.allowlist
+            extract: text
+            max_bytes: 1000000
+
+        - id: extract
+          label: extract schema-keyed candidates and unresolved review items from natural transcript prose
+          inputs:
+            transcript: $input.transcript
+            crm_schema: $input.crm_schema
           run:
             type: agent-task
-            agent: reviewer
-            task: crm-cleanup-reconcile
+            agent: growth
+            task: crm-cleanup-extract
             outputs:
-              update_draft: object
-          inputs:
-            transcript: $input.transcript
-            crm_records: $input.crm_records
-            crm_schema: $input.crm_schema
-          allowed_tools: []
+              extraction_draft: object
           artifacts:
             named_emits:
-              update_draft: update_draft
+              extraction_draft: extraction_draft
 
-        - id: finalize
-          label: enforce allowlist and transcript traceability deterministically
+        - id: reconcile
+          label: validate the semantic extraction and prepare the schema-keyed update plan
           inputs:
+            source_handle: $input.source_handle
             transcript: $input.transcript
-            crm_records: $input.crm_records
             crm_schema: $input.crm_schema
           context:
-            update_draft: reconcile.update_draft.data
+            source_read: read-current.fetch_result.data
             transcript_digest: digest-transcript.digest_result.data.digest
-            records_digest: digest-records.digest_result.data.digest
+            crm_schema_digest: digest-schema.digest_result.data.digest
+            extraction_draft: extract.extraction_draft.data
           run:
-            type: javascript
-            module: crm-cleanup.mjs
-            export: finalizeUpdates
+            type: cli-tool
+            command: node
+            args: [crm-cleanup.mjs, reconcile]
+            input_mode: none
             outputs:
-              crm_update_proposal:
-                type: object
-                schema:
-                  required: [schema, decision, reason, updates, rejected_updates, write_performed, gate, transcript_digest, records_digest, validation]
-                  additionalProperties: false
-                  properties:
-                    schema: { const: runx.crm_update_proposal.v1 }
-                    decision: { type: string, enum: [proposed, no_action, refused] }
-                    reason: { type: string, minLength: 1, maxLength: 2000 }
-                    updates:
-                      type: array
-                      maxItems: 200
-                      items:
-                        type: object
-                        required: [record_id, field, from, to, evidence_quote]
-                        additionalProperties: false
-                        properties:
-                          record_id: { type: string, minLength: 1, maxLength: 500 }
-                          field: { type: string, minLength: 1, maxLength: 200 }
-                          from: {}
-                          to: {}
-                          evidence_quote: { type: string, minLength: 1, maxLength: 4000 }
-                    rejected_updates:
-                      type: array
-                      maxItems: 200
-                      items:
-                        type: object
-                        required: [record_id, field, reason]
-                        additionalProperties: false
-                        properties:
-                          record_id: { type: [string, "null"], maxLength: 500 }
-                          field: { type: string, maxLength: 200 }
-                          reason: { type: string, minLength: 1, maxLength: 500 }
-                    write_performed: { const: false }
-                    gate: { const: crm-operator-or-human-approver }
-                    transcript_digest: { type: string, pattern: "^sha256:[0-9a-f]{64}$" }
-                    records_digest: { type: string, pattern: "^sha256:[0-9a-f]{64}$" }
-                    validation:
-                      type: object
-                      required: [status, findings]
-                      additionalProperties: false
-                      properties:
-                        status: { type: string, enum: [pass, fail] }
-                        findings:
-                          type: array
-                          maxItems: 100
-                          items:
-                            type: object
-                            required: [code, message]
-                            additionalProperties: false
-                            properties:
-                              code: { type: string, minLength: 1, maxLength: 200 }
-                              message: { type: string, minLength: 1, maxLength: 2000 }
+              cleanup_plan: object
           artifacts:
             named_emits:
-              crm_update_proposal: crm_update_proposal
+              cleanup_plan: cleanup_plan
+
+        - id: write-through-transport
+          label: consume the update plan through the mock CRM transport
+          context:
+            cleanup_plan: reconcile.cleanup_plan.data
+          run:
+            type: cli-tool
+            command: node
+            args: [crm-cleanup.mjs, transport]
+            input_mode: none
+            outputs:
+              write_result: object
+          artifacts:
+            named_emits:
+              write_result: write_result
+
+        - id: finalize
+          label: verify and seal the reconciliation and transport evidence
+          context:
+            cleanup_plan: reconcile.cleanup_plan.data
+            write_result: write-through-transport.write_result.data
+          run:
+            type: cli-tool
+            command: node
+            args: [crm-cleanup.mjs, finalize]
+            input_mode: none
+            outputs:
+              crm_cleanup_result: object
+              takeaways: array
+              needs_review: array
+              field_updates: object
+              write_result: object
+          artifacts:
+            named_emits:
+              crm_cleanup_result: crm_cleanup_result
+              takeaways: takeaways
+              needs_review: needs_review
+              field_updates: field_updates
+              write_result: write_result

@@ -1,0 +1,18 @@
+{
+  "exported_at": "2026-08-12T00:00:00Z",
+  "source": "synthetic-crm-connector-export",
+  "records": [
+    {
+      "id": "acct-globex",
+      "account_status": "healthy",
+      "next_action": "none",
+      "health_score": 82
+    },
+    {
+      "id": "acct-initech",
+      "account_status": "healthy",
+      "next_action": "renewal review",
+      "health_score": 91
+    }
+  ]
+}
