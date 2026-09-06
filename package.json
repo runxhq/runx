@@ -105,13 +105,13 @@
     "lint": "pnpm typecheck"
   },
   "devDependencies": {
-    "@x402/core": "2.23.0",
+    "@x402/core": "2.24.0",
     "@runxhq/extension-sdk": "workspace:^0.1.0",
     "@runxhq/contracts": "workspace:^0.3.0",
     "@runxhq/host-adapters": "workspace:^0.1.1",
-    "@types/node": "^26.2.0",
+    "@types/node": "^26.4.1",
     "ajv": "^8.20.0",
-    "tsx": "^4.23.12",
+    "tsx": "^4.23.13",
     "typescript": "^7.0.2",
     "vitest": "^4.1.10"
   }
