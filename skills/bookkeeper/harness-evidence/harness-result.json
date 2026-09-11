@@ -1,0 +1,19 @@
+{
+  "status": "passed",
+  "case_count": 4,
+  "assertion_error_count": 0,
+  "assertion_errors": [],
+  "case_names": [
+    "sealed_clean_batch_reconciles_read_only",
+    "refused_ambiguous_transactions_return_needs_review",
+    "bookkeeper-ambiguous-needs-review",
+    "bookkeeper-clean-batch"
+  ],
+  "receipt_ids": [
+    "sha256:e27848aa236f7f65233fe8012a8fb56ba1c6873e62b24e1016b6ebc0c38ac203",
+    "sha256:48031f4fcb8dae0508f6b8890f0a041b16beb5d273d9a7e8c25fbedc730913a4",
+    "sha256:b633b3538605f01557894f5267a6f45e8712c5a8f0887f4dc527307ddb11c861",
+    "sha256:9b49bfd4c047134b174647c62f6c749c18e340c70a222eb8251dd9c38e86a30f"
+  ],
+  "graph_case_count": 0
+}
