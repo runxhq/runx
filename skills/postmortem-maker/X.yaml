@@ -13,46 +13,64 @@ catalog:
 
 harness:
   cases:
-    - name: postmortem-maker-publishable-seals
+    - name: postmortem-maker-publishable-executes-send
       operator_journeys:
         - mode: standalone
           confusors: [incident-commander, answer-from-docs]
-          request: Produce the postmortem for this resolved incident from the collected fragments.
-          expected_outcome: Return a fragment-cited postmortem with a supported root cause and a gated publish proposal, publishing nothing.
+          request: Read the incident thread at this URL and produce the postmortem, publishing it if the evidence is complete.
+          expected_outcome: Fetch the thread, derive fragments from the fetched text, return a fragment-cited postmortem with a supported root cause, and record an executed send.
         - mode: composed
           request: Continue from this sealed postmortem into the governed comms send.
-          expected_outcome: Reuse the sealed postmortem and its publish proposal without re-deriving the timeline.
+          expected_outcome: Reuse the sealed postmortem and its executed send result without re-deriving the timeline.
           prior_evidence:
-            - The incident fragments and sealed postmortem supplied by the prior step.
+            - The incident source read and sealed postmortem supplied by the prior step.
           must_not_repeat:
-            - Do not re-derive timeline entries or the root cause already sealed.
+            - Do not re-fetch the incident source or re-derive timeline entries already sealed.
       inputs:
-        incident_ref: inc-checkout-2026-08-09
-        incident_fragments:
-          - id: frag-1
-            source: pagerduty
-            text: "03:12 UTC alert fired: checkout 5xx rate crossed 8 percent."
-          - id: frag-2
-            source: deploy-log
-            text: "03:02 UTC deploy 2026.08.09.3 rolled out a connection pool change to checkout-api."
-          - id: frag-3
-            source: slack-incident
-            text: "03:40 UTC rollback of 2026.08.09.3 completed and 5xx rate returned to baseline."
+        source_url: https://raw.githubusercontent.com/NidhalxMRR/postmortem-maker-fixtures/main/incident-checkout.txt
+        postmortem_policy:
+          publish: true
+          channel: status-page
+          audience: customers
+          transport_ref: local:status-page
       caller:
         answers:
+          tool.web.fetch.output:
+            fetch_result:
+              data:
+                decision: ready
+                status: 200
+                final_url: https://raw.githubusercontent.com/NidhalxMRR/postmortem-maker-fixtures/main/incident-checkout.txt
+                extract_mode: text
+                content_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+                extracted: |
+                  Incident thread inc-checkout-2026-08-09
+                  03:02 UTC deploy 2026.08.09.3 rolled out a connection pool change to checkout-api.
+                  03:12 UTC alert fired: checkout 5xx rate crossed 8 percent.
+                  03:40 UTC rollback of 2026.08.09.3 completed and 5xx rate returned to baseline.
+                provenance:
+                  bytes: 512
+                  fetched_at: "2026-09-11T13:40:00.000Z"
+                  redirects: []
+                  truncated: false
+                policy:
+                  allowlist_checked: ["*"]
+                  allowlist_decision: allowed
+                  attempted_host: raw.githubusercontent.com
+                blockers: []
           agent_task.postmortem-maker-draft.output:
             postmortem_draft:
               summary: A connection pool change in deploy 2026.08.09.3 degraded checkout until rollback.
               timeline:
                 - entry: Deploy 2026.08.09.3 shipped a connection pool change.
                   fragment_id: frag-2
-                  quote: "deploy 2026.08.09.3 rolled out a connection pool change"
+                  quote: "connection pool change to checkout-api"
                 - entry: Checkout 5xx rate crossed the alert threshold.
-                  fragment_id: frag-1
+                  fragment_id: frag-3
                   quote: "checkout 5xx rate crossed 8 percent"
                 - entry: Rollback restored baseline.
-                  fragment_id: frag-3
-                  quote: "rollback of 2026.08.09.3 completed and 5xx rate returned to baseline"
+                  fragment_id: frag-4
+                  quote: "5xx rate returned to baseline"
               root_cause:
                 status: known
                 statement: The connection pool change in 2026.08.09.3 exhausted checkout database connections.
@@ -64,7 +82,7 @@ harness:
                   owner: platform-oncall
       expect:
         status: sealed
-        steps: [digest-fragments, draft, finalize]
+        steps: [read-source, build-fragments, digest-fragments, draft, finalize]
         step_outputs:
           finalize:
             subset:
@@ -72,23 +90,43 @@ harness:
                 data:
                   schema: runx.postmortem.v1
                   decision: publishable
-                  publish_proposal:
-                    gate: human-approver
+                  publish_performed: true
+                  publish_result:
+                    executed: true
+                    channel: status-page
                     delivery_skill: send-as
-                    sent: false
-                  publish_performed: false
                   validation: { status: pass, findings: [] }
         receipt: { schema: runx.receipt.v1 }
 
-    - name: postmortem-maker-unknowns-block-publish
+    - name: postmortem-maker-unknowns-publish-nothing
       inputs:
-        incident_ref: inc-batch-2026-08-10
-        incident_fragments:
-          - id: frag-1
-            source: cron-log
-            text: "Nightly batch failed at step export with exit 1."
+        source_url: https://raw.githubusercontent.com/NidhalxMRR/postmortem-maker-fixtures/main/incident-batch.txt
+        postmortem_policy:
+          publish: true
+          channel: status-page
+          audience: customers
       caller:
         answers:
+          tool.web.fetch.output:
+            fetch_result:
+              data:
+                decision: ready
+                status: 200
+                final_url: https://raw.githubusercontent.com/NidhalxMRR/postmortem-maker-fixtures/main/incident-batch.txt
+                extract_mode: text
+                content_digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+                extracted: |
+                  Nightly batch failed at step export with exit 1.
+                provenance:
+                  bytes: 512
+                  fetched_at: "2026-09-11T13:40:00.000Z"
+                  redirects: []
+                  truncated: false
+                policy:
+                  allowlist_checked: ["*"]
+                  allowlist_decision: allowed
+                  attempted_host: raw.githubusercontent.com
+                blockers: []
           agent_task.postmortem-maker-draft.output:
             postmortem_draft:
               summary: The nightly batch failed at the export step; cause not yet established.
@@ -105,27 +143,46 @@ harness:
                   owner: data-oncall
       expect:
         status: sealed
-        steps: [digest-fragments, draft, finalize]
+        steps: [read-source, build-fragments, digest-fragments, draft, finalize]
         step_outputs:
           finalize:
             subset:
               postmortem:
                 data:
                   decision: needs_more_evidence
-                  publish_proposal: null
+                  publish_result: null
                   publish_performed: false
                   validation: { status: pass, findings: [] }
         receipt: { schema: runx.receipt.v1 }
 
     - name: postmortem-maker-invented-citation-refuses
       inputs:
-        incident_ref: inc-x
-        incident_fragments:
-          - id: frag-1
-            source: log
-            text: "Service restarted at 09:00."
+        source_url: https://raw.githubusercontent.com/NidhalxMRR/postmortem-maker-fixtures/main/incident-restart.txt
+        postmortem_policy:
+          publish: true
+          channel: status-page
       caller:
         answers:
+          tool.web.fetch.output:
+            fetch_result:
+              data:
+                decision: ready
+                status: 200
+                final_url: https://raw.githubusercontent.com/NidhalxMRR/postmortem-maker-fixtures/main/incident-restart.txt
+                extract_mode: text
+                content_digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                extracted: |
+                  Service restarted at 09:00 UTC after an operator action.
+                provenance:
+                  bytes: 512
+                  fetched_at: "2026-09-11T13:40:00.000Z"
+                  redirects: []
+                  truncated: false
+                policy:
+                  allowlist_checked: ["*"]
+                  allowlist_decision: allowed
+                  attempted_host: raw.githubusercontent.com
+                blockers: []
           agent_task.postmortem-maker-draft.output:
             postmortem_draft:
               summary: Total outage caused by database corruption.
@@ -142,7 +199,7 @@ harness:
               action_items: []
       expect:
         status: sealed
-        steps: [digest-fragments, draft, finalize]
+        steps: [read-source, build-fragments, digest-fragments, draft, finalize]
         step_outputs:
           finalize:
             subset:
@@ -150,13 +207,15 @@ harness:
                 data:
                   decision: refused
                   timeline: []
-                  publish_proposal: null
+                  publish_result: null
+                  publish_performed: false
                   validation: { status: fail }
         receipt: { schema: runx.receipt.v1 }
 
-    - name: postmortem-maker-needs-fragments
+    - name: postmortem-maker-needs-source
       inputs:
-        incident_ref: inc-y
+        postmortem_policy:
+          publish: false
       expect:
         status: failure
 
@@ -165,28 +224,65 @@ runners:
     default: true
     type: graph
     inputs:
-      incident_ref:
+      source_url:
         type: string
         required: true
-        description: Identifier of the resolved incident this postmortem covers.
-      incident_fragments:
+        description: Public URL of the incident thread, ticket export, or status page that holds the incident record; it is fetched at run time and its text becomes the only evidence.
+        schema:
+          format: uri
+          pattern: '^https?://'
+      postmortem_policy:
         type: json
         required: true
-        description: Collected incident evidence fragments with stable id, source, and text; compose web-fetch or data-store reads to gather them.
+        description: Publication policy with publish (boolean), channel, audience, and optional transport_ref; publishing happens only when the postmortem is complete and publish is true.
+      incident_ref:
+        type: string
+        required: false
+        description: Optional identifier for the incident; defaults to the source URL.
     examples:
-      - incident_ref: inc-checkout-2026-08-09
-        incident_fragments:
-          - id: frag-1
-            source: pagerduty
-            text: "03:12 UTC alert fired."
+      - source_url: https://raw.githubusercontent.com/NidhalxMRR/postmortem-maker-fixtures/main/incident-checkout.txt
+        postmortem_policy:
+          publish: true
+          channel: status-page
+          audience: customers
     graph:
       name: postmortem-maker-make
       result_from: [finalize]
       steps:
+        - id: read-source
+          label: read the incident record from its real source
+          tool: web.fetch
+          scopes:
+            - net:allowlist
+          inputs:
+            url: $input.source_url
+            extract: text
+            max_bytes: 1000000
+
+        - id: build-fragments
+          label: derive incident fragments from the fetched source text
+          inputs:
+            source_url: $input.source_url
+            incident_ref: $input.incident_ref
+          context:
+            source_content: read-source.fetch_result.data.extracted
+            source_digest: read-source.fetch_result.data.content_digest
+            read_at: read-source.fetch_result.data.provenance.fetched_at
+          run:
+            type: javascript
+            module: postmortem-maker.mjs
+            export: buildFragments
+            outputs:
+              fragment_set:
+                type: object
+          artifacts:
+            named_emits:
+              fragment_set: fragment_set
+
         - id: digest-fragments
           tool: data.digest
-          inputs:
-            value: $input.incident_fragments
+          context:
+            value: build-fragments.fragment_set.data.fragments
 
         - id: draft
           label: separate facts from hypotheses across the fragments
@@ -198,17 +294,19 @@ runners:
               postmortem_draft: object
           inputs:
             incident_ref: $input.incident_ref
-            incident_fragments: $input.incident_fragments
+          context:
+            fragment_set: build-fragments.fragment_set.data
           allowed_tools: []
           artifacts:
             named_emits:
               postmortem_draft: postmortem_draft
 
         - id: finalize
-          label: enforce fragment citations deterministically
+          label: enforce fragment citations and execute the authorised send
           inputs:
-            incident_fragments: $input.incident_fragments
+            postmortem_policy: $input.postmortem_policy
           context:
+            fragment_set: build-fragments.fragment_set.data
             postmortem_draft: draft.postmortem_draft.data
             fragments_digest: digest-fragments.digest_result.data.digest
           run:
@@ -219,7 +317,7 @@ runners:
               postmortem:
                 type: object
                 schema:
-                  required: [schema, decision, reason, summary, timeline, root_cause, unknowns, action_items, publish_proposal, publish_performed, fragments_digest, validation]
+                  required: [schema, decision, reason, summary, timeline, root_cause, unknowns, action_items, source, publish_result, publish_performed, fragments_digest, validation]
                   additionalProperties: false
                   properties:
                     schema: { const: runx.postmortem.v1 }
@@ -259,15 +357,29 @@ runners:
                         properties:
                           action: { type: string, minLength: 1, maxLength: 2000 }
                           owner: { type: string, minLength: 1, maxLength: 500 }
-                    publish_proposal:
-                      type: [object, "null"]
-                      required: [gate, delivery_skill, sent]
+                    source:
+                      type: object
+                      required: [url, digest, fragment_count, read_at]
                       additionalProperties: false
                       properties:
-                        gate: { const: human-approver }
+                        url: { type: [string, "null"], maxLength: 2000 }
+                        digest: { type: [string, "null"], maxLength: 200 }
+                        fragment_count: { type: number }
+                        read_at: { type: [string, "null"], maxLength: 100 }
+                    publish_result:
+                      type: [object, "null"]
+                      required: [executed, channel, audience, delivery_skill, subject, body_digest, body_chars, transport_ref]
+                      additionalProperties: false
+                      properties:
+                        executed: { const: true }
+                        channel: { type: string, minLength: 1, maxLength: 200 }
+                        audience: { type: string, minLength: 1, maxLength: 200 }
                         delivery_skill: { const: send-as }
-                        sent: { const: false }
-                    publish_performed: { const: false }
+                        subject: { type: string, minLength: 1, maxLength: 500 }
+                        body_digest: { type: string, minLength: 1, maxLength: 200 }
+                        body_chars: { type: number }
+                        transport_ref: { type: string, minLength: 1, maxLength: 300 }
+                    publish_performed: { type: boolean }
                     fragments_digest: { type: string, pattern: "^sha256:[0-9a-f]{64}$" }
                     validation:
                       type: object
