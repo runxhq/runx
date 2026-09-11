@@ -1,0 +1,70 @@
+{
+  "schema": "frantic.bounty_evidence.v1",
+  "bounty": 68,
+  "package": "list-hygiene-judge",
+  "version": "sha-bcb77b9828ed",
+  "summary": "Published antheducation/list-hygiene-judge@sha-bcb77b9828ed (X.yaml 0.1.0) to the hosted runx registry via the authenticated CLI publish; the hosted publish harness passed all 3 cases (sealed_decay_re_permission, sealed_hard_bounce_suppress, stop_missing_or_stale_evidence). A clean runx add install and a sealed post-publish dogfood run read the contact projection from the pinned data-store first, decided re_permission deterministically, recorded the consent transition with one ungated compare-and-set append_event (idempotency_key + expected_version, version 0 -> 1, event_ref contact_events:contact:dana@example.co:1), and read the recorded transition back from the projection. The receipt tree of 7 verifies valid with runx verify in strict production-signature mode (issuer type hosted, kid antheducation-hosted-1). The skill never sends; send-as gates downstream on the recorded state.",
+  "observations": [
+    "runx CLI version: runx-cli 0.8.2 (>= 0.6.14); the publish, install, dogfood, and verify commands all ran with this binary.",
+    "Publisher owner antheducation, package name list-hygiene-judge (exact bounty name), version sha-bcb77b9828ed (X.yaml: 0.1.0), registry ref antheducation/list-hygiene-judge@sha-bcb77b9828ed on https://api.runx.ai, trust tier community, digest sha256:5b93ebdc63f33894b200bae4b35e33b6cc7e4f37f522787a9639f5f3444db205.",
+    "Publish method: runx login --provider github --for publish (--from-gh), then runx registry publish ./skills/list-hygiene-judge/SKILL.md --registry https://api.runx.ai -> status published. No tokens or secrets appear in any artifact; the receipt-signing Ed25519 seed lives only in Windows Credential Manager.",
+    "public_url: https://runx.ai/x/antheducation/list-hygiene-judge@sha-bcb77b9828ed ; pr_url: https://github.com/runxhq/runx/pull/423 ; source_url: the fork branch tree at the PR head commit containing skills/list-hygiene-judge/{X.yaml,SKILL.md,list-hygiene-judge.mjs}.",
+    "Install command: runx add antheducation/list-hygiene-judge@sha-bcb77b9828ed --registry https://api.runx.ai -> status success (clean install).",
+    "Local harness before publish: runx harness ./skills/list-hygiene-judge --json -> status passed, 3 cases, 0 assertion errors, 3 sealed receipts.",
+    "Hosted harness after publish: passed 3/3 for sha-bcb77b9828ed; https://api.runx.ai/v1/skills/antheducation/list-hygiene-judge/harness reports checks_passed 3, checks_failed 0; evidence https://runx.ai/x/antheducation/list-hygiene-judge@sha-bcb77b9828ed#harness.",
+    "Harness case names and outcomes: sealed_decay_re_permission (sealed; decision.state re_permission, one append_event, after_version 1), sealed_hard_bounce_suppress (sealed; hard_bounces=2 -> decision.state suppress, one append_event, after_version 1), stop_missing_or_stale_evidence (sealed; expected_version 3 against a version-0 stream -> decision.state stop, append_status skipped, no append emitted).",
+    "Dogfood consent-state verdict: decision.state re_permission, reason 'recency_days=140 exceeds decay_threshold_days=90 with no unsubscribe marker in the input state or the sealed stream read'; escalation.required false.",
+    "Dogfood recorded new_state binding: aggregate_id contact:dana@example.co, idempotency_key contact:dana:re-permission:v1, append_status committed, expected_version 0 -> after_version 1, event_ref contact_events:contact:dana@example.co:1; recorded transition read back from the projection with store_version 1 and projection_digest sha256:e78b5e738293aaa84c657686710be8a1237be4e38c5db5b15112e0dc46b99eaf.",
+    "Suppress path evidence (harness case sealed_hard_bounce_suppress): decision.state suppress with the data-store resource ref contact_events on data_source_ref local://list-hygiene/contacts; the judgment refuses to decide suppression without hard-bounce evidence and refuses when recent opens/clicks contradict the bounce (ambiguous recovery escalates to human_list_hygiene_review with no append).",
+    "Stop path evidence (harness case stop_missing_or_stale_evidence): stale expected_version emits no append; reason recorded as 'stale expected_version: caller expected 3 but the contact stream reads version 0; no append was emitted'; escalation lane human_list_hygiene_review.",
+    "Unsubscribe guard: a contact whose current_consent_state is unsubscribed (or whose stream carries an unsubscribe event) is never re-permissioned; the judgment escalates to the human approval lane and writes nothing. The skill performs no send in any path: downstream_send_performed is sealed false, and the live send is dispatch-by-naming to the separate governed send-as run, which reads the recorded state at send time and gates delivery.",
+    "Dogfood receipt id: sha256:fe371df690d45826806023848743dc191f677a3902d135ae0ae5e2efdc10ef19 (receipt_ref runx:receipt:sha256:fe371df690d45826806023848743dc191f677a3902d135ae0ae5e2efdc10ef19); strict runx verify (no development allowance) reports valid true, signature mode production, kid antheducation-hosted-1; runx verify --receipt-dir over the full tree of 7 receipts reports valid true, signature_mode production.",
+    "A new user installs with 'runx add antheducation/list-hygiene-judge@sha-bcb77b9828ed --registry https://api.runx.ai', runs the dogfood command recorded in this evidence (any unbound local:// data_source_ref defaults to durable native SQLite under .runx/data/local-sources/), and verifies the returned receipt with 'runx verify --receipt <receipt.json> --json' plus 'runx registry read antheducation/list-hygiene-judge@sha-bcb77b9828ed --registry https://api.runx.ai --json' for the published metadata and digests - no private context needed."
+  ],
+  "details": {
+    "registry_provenance": {
+      "skill_id": "antheducation/list-hygiene-judge",
+      "version": "sha-bcb77b9828ed",
+      "digest": "sha256:5b93ebdc63f33894b200bae4b35e33b6cc7e4f37f522787a9639f5f3444db205",
+      "profile_digest": "sha256:f5f1287b8aebb3b325a1e0b248fbfba3827fc8787a25377f7623fdb166238ff2",
+      "registry": "https://api.runx.ai",
+      "trust_tier": "community"
+    },
+    "graph_steps": [
+      "read-contact (data.read_projection)",
+      "digest-evidence (data.digest)",
+      "judge (deterministic cli-tool)",
+      "persist-transition (data.append_event, conditional on should_append)",
+      "readback-transition (data.read_projection, conditional)",
+      "finalize-committed / finalize-skipped (conditional seal)"
+    ]
+  },
+  "dogfood": {
+    "package": "antheducation/list-hygiene-judge@sha-bcb77b9828ed",
+    "input": "https://raw.githubusercontent.com/antheducation/runx/list-hygiene-judge-skill/evidence/list-hygiene-judge-0.1.0/dogfood-inputs.json",
+    "command": "runx skill antheducation/list-hygiene-judge@sha-bcb77b9828ed --registry https://api.runx.ai -i data_source_ref=local://list-hygiene/prod-contacts -i resource=contact_events -i aggregate_id=contact:dana@example.co --input-json expected_version=0 -i idempotency_key=contact:dana:re-permission:v1 --input-json engagement_history='{\"opens_count\":0,\"clicks_count\":0,\"hard_bounces\":0,\"recency_days\":140}' --input-json bounce_policy='{\"hard_bounce_action\":\"suppress\",\"decay_threshold_days\":90}' -i current_consent_state=subscribed --non-interactive -R receipts --json  # RUNX_RECEIPT_SIGN_KID=antheducation-hosted-1, RUNX_RECEIPT_SIGN_ISSUER_TYPE=hosted, Ed25519 seed held in Windows Credential Manager (never in a file)",
+    "receipt_ref": "runx:receipt:sha256:fe371df690d45826806023848743dc191f677a3902d135ae0ae5e2efdc10ef19",
+    "verify_verdict": "valid: true (runx.verify_verdict.v1; signature mode PRODUCTION, status valid, kid antheducation-hosted-1, issuer type hosted; full tree of 7 receipts verifies valid, signature_mode production)",
+    "harness_cases": [
+      {
+        "name": "sealed_decay_re_permission",
+        "status": "sealed"
+      },
+      {
+        "name": "sealed_hard_bounce_suppress",
+        "status": "sealed"
+      },
+      {
+        "name": "stop_missing_or_stale_evidence",
+        "status": "sealed (stop decision with no append inside a sealed run)"
+      }
+    ]
+  },
+  "artifacts": {
+    "dogfood_root_receipt": "https://raw.githubusercontent.com/antheducation/runx/list-hygiene-judge-skill/evidence/list-hygiene-judge-0.1.0/dogfood-root-receipt.json",
+    "verification_json": "https://raw.githubusercontent.com/antheducation/runx/list-hygiene-judge-skill/evidence/list-hygiene-judge-0.1.0/verify-receipt.json",
+    "verification_tree_json": "https://raw.githubusercontent.com/antheducation/runx/list-hygiene-judge-skill/evidence/list-hygiene-judge-0.1.0/verification-tree.json",
+    "dogfood_inputs": "https://raw.githubusercontent.com/antheducation/runx/list-hygiene-judge-skill/evidence/list-hygiene-judge-0.1.0/dogfood-inputs.json",
+    "receipts_dir": "https://github.com/antheducation/runx/tree/list-hygiene-judge-skill/evidence/list-hygiene-judge-0.1.0/receipts"
+  }
+}
