@@ -1,0 +1,15 @@
+{
+  "receipt_dir": "/root/dogfood2/receipts",
+  "signature_mode": "local-development",
+  "trees": [
+    {
+      "root_receipt_id": "sha256:91ca4df2dc54a67dc822b4705595a98c87089f3c4fe5b8edabf772139ef5d3a6",
+      "receipt_count": 8,
+      "parent_missing": null,
+      "valid": true,
+      "findings": []
+    }
+  ],
+  "unreadable_files": [],
+  "valid": true
+}
