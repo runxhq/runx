@@ -82,3 +82,14 @@ change from `incident_ref` + `incident_fragments` to `source_url` +
 `postmortem_policy` (with `incident_ref` optional). Maintainers may prefer to
 land this as a sibling skill rather than a replacement — happy to reshape it
 either way.
+
+## What a reviewer should check
+
+- **The skill reads its own evidence.** `web.fetch` pulls `source_url` at run time and `buildFragments` derives fragments from that fetched text; the caller passes a URL, never the evidence itself.
+- **The publish actually happened.** The dogfood receipt carries `publish_result.executed: true` with `body_digest` and `body_chars`, not a proposal the operator still has to carry.
+- **An invented citation refuses the whole run.** `postmortem-maker-invented-citation-refuses` quotes text absent from the fragment it cites; the run seals `refused` with an empty timeline and nothing published.
+- **Unknowns block publication.** `postmortem-maker-unknowns-publish-nothing` seals `needs_more_evidence` with `publish_result: null`, so an incomplete postmortem cannot leak to customers.
+- **The harness fetches for real.** Cases hit live fixture URLs; when those URLs 404 the run refuses, which is how the newline-flattening bug below was caught.
+- **`web.fetch` flattens newlines.** `extract: text` returns a three-line incident as one line, so a naive `\n` split yields one unciteable fragment; `segmentSource` splits ahead of embedded clock times to keep each event citable.
+- **The receipt verifies.** `runx verify` returns `"valid": true` with digest and content-address both valid.
+- **Reproducible from a clean machine.** Published to the registry, installed into an empty directory, and run there — commands and digests are in `evidence.json`.

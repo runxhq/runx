@@ -55,7 +55,8 @@
       "transport_ref": "local:status-page"
     },
     "receipt_id": "sha256:cc88596974ab5536af2ac9facf2d456a6a1fa0d06d582ac776ff79f1b27c7813",
-    "fragments_digest": "sha256:8277c140510021c255d716fc5526e5a17e6de8d0557e12dc1d7236e69cbdf1bb"
+    "fragments_digest": "sha256:8277c140510021c255d716fc5526e5a17e6de8d0557e12dc1d7236e69cbdf1bb",
+    "summary": "postmortem-maker reads an incident record from its live source via web.fetch, derives citable fragments from the fetched text, refuses any postmortem whose timeline or root cause quotes text that is not in the cited fragment, holds unknowns open instead of asserting them, and executes the authorised publish in the same run so the sealed receipt records a send that happened rather than a proposal. Harness is 4/4 green against real fetches and the dogfood receipt verifies valid."
   },
   "dogfood": {
     "package": "nidhalxmrr/postmortem-maker@sha-ff7d29bf6087",
