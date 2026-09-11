@@ -1,7 +1,99 @@
 {
   "schema": "postmortem-maker.evidence.v1",
   "package": "nidhalxmrr/postmortem-maker@sha-ff7d29bf6087",
-  "observations": {
+  "summary": "postmortem-maker reads an incident record from its live source via web.fetch, derives citable fragments from the fetched text, refuses any postmortem whose timeline or root cause quotes text that is not in the cited fragment, holds unknowns open instead of asserting them, and executes the authorised publish in the same run so the sealed receipt records a send that happened rather than a proposal. Harness is 4/4 green against real fetches and the dogfood receipt verifies valid.",
+  "runx_cli_version": "runx-cli 0.9.0",
+  "observations": [
+    {
+      "claim": "Published to the runx registry as a community-tier package.",
+      "evidence": "nidhalxmrr/postmortem-maker@sha-ff7d29bf6087, digest sha256:1da66ed7951993e90a9ee0cc5b49871d5872d95ddd1e1d90b5dc0b2e140a6711, profile_digest sha256:5803a95933f1aeb2443c1554ad03fa2aaadb048018e5b3cf3aa5820c1a648e90",
+      "command": "runx registry publish ./skills/postmortem-maker --registry https://api.runx.ai --json"
+    },
+    {
+      "claim": "Installs clean from the registry into an empty directory.",
+      "evidence": "status=installed, runner_names=[make], destination /tmp/cleaninstall/skills/nidhalxmrr/postmortem-maker/sha-ff7d29bf6087/SKILL.md",
+      "command": "runx add nidhalxmrr/postmortem-maker@sha-ff7d29bf6087 --registry https://api.runx.ai --json"
+    },
+    {
+      "claim": "Package harness passes all four cases with zero assertion errors against real web.fetch calls.",
+      "evidence": "status=passed, case_count=4, assertion_error_count=0, cases: publishable-executes-send, unknowns-publish-nothing, invented-citation-refuses, needs-source",
+      "command": "runx harness ./skills/postmortem-maker --json"
+    },
+    {
+      "claim": "The skill reads the incident from a live source rather than accepting pasted fragments.",
+      "evidence": "web.fetch of https://raw.githubusercontent.com/NidhalxMRR/postmortem-maker-fixtures/main/incident-checkout.txt at 2026-09-11T13:47:36.949Z, source_digest sha256:73528990f99b196e626f5f14f830933d912129e2a9e91655c6105eabc53bbad2, 4 fragments derived at run time",
+      "command": "runx skill nidhalxmrr/postmortem-maker@sha-ff7d29bf6087 --registry https://api.runx.ai -i source_url=<url> --json"
+    },
+    {
+      "claim": "An authorised publish is executed in the same run, not merely proposed.",
+      "evidence": "publish_performed=true, publish_result.executed=true, channel=status-page, audience=customers, delivery_skill=send-as, body_chars=1251, body_digest=fnv1a:dd96ccabeac9a5f6",
+      "command": "see dogfood.command"
+    },
+    {
+      "claim": "The dogfood run produced a sealed receipt that verifies valid.",
+      "evidence": "receipt sha256:cc88596974ab5536af2ac9facf2d456a6a1fa0d06d582ac776ff79f1b27c7813; verify verdict valid=true, digest valid, content_address valid, signature valid",
+      "command": "runx verify --receipt .runx/receipts/sha256-cc88...7813.json --allow-local-development-signatures --json"
+    },
+    {
+      "claim": "An invented citation refuses the whole run instead of publishing an unsupported claim.",
+      "evidence": "harness case postmortem-maker-invented-citation-refuses seals decision=refused with an empty timeline and publish_result=null",
+      "command": "runx harness ./skills/postmortem-maker --json"
+    },
+    {
+      "claim": "Open unknowns block publication.",
+      "evidence": "harness case postmortem-maker-unknowns-publish-nothing seals decision=needs_more_evidence with publish_result=null",
+      "command": "runx harness ./skills/postmortem-maker --json"
+    },
+    {
+      "claim": "runx CLI version used exceeds the required minimum of 0.6.14.",
+      "evidence": "runx-cli 0.9.0",
+      "command": "runx --version"
+    },
+    {
+      "claim": "web.fetch text extraction flattens newlines, which the harness caught as a real defect.",
+      "evidence": "extract=text returned the 3-line incident as one line; a naive newline split produced a single unciteable fragment and the run refused. segmentSource now splits ahead of embedded clock times so each event stays citable.",
+      "command": "runx skill runx/web-fetch --registry https://api.runx.ai -i url=<fixture> -i extract=text --json"
+    }
+  ],
+  "dogfood": {
+    "package": "nidhalxmrr/postmortem-maker@sha-ff7d29bf6087",
+    "input": {
+      "source_url": "https://raw.githubusercontent.com/NidhalxMRR/postmortem-maker-fixtures/main/incident-checkout.txt",
+      "postmortem_policy": {
+        "publish": true,
+        "channel": "status-page",
+        "audience": "customers",
+        "transport_ref": "local:status-page"
+      }
+    },
+    "command": "runx skill nidhalxmrr/postmortem-maker@sha-ff7d29bf6087 --registry https://api.runx.ai -i source_url=<url> --input-json postmortem_policy='<policy>' --json",
+    "receipt_ref": "runx:receipt:sha256:cc88596974ab5536af2ac9facf2d456a6a1fa0d06d582ac776ff79f1b27c7813",
+    "verify_verdict": "valid",
+    "harness_cases": [
+      {
+        "name": "postmortem-maker-publishable-executes-send",
+        "status": "sealed"
+      },
+      {
+        "name": "postmortem-maker-unknowns-publish-nothing",
+        "status": "sealed"
+      },
+      {
+        "name": "postmortem-maker-invented-citation-refuses",
+        "status": "sealed (refused decision)"
+      },
+      {
+        "name": "postmortem-maker-needs-source",
+        "status": "refused (missing source_url)"
+      }
+    ]
+  },
+  "how_to_use": {
+    "install": "runx add nidhalxmrr/postmortem-maker@sha-ff7d29bf6087 --registry https://api.runx.ai",
+    "run": "runx skill nidhalxmrr/postmortem-maker@sha-ff7d29bf6087 --registry https://api.runx.ai -i source_url=https://your/incident/thread --input-json postmortem_policy='{\"publish\":true,\"channel\":\"status-page\",\"audience\":\"customers\"}' --json",
+    "verify": "runx verify --receipt <receipt.json> --json"
+  },
+  "details": {
     "runx_version": "runx-cli 0.9.0",
     "publisher_owner": "nidhalxmrr",
     "package_name": "postmortem-maker",
@@ -55,45 +147,6 @@
       "transport_ref": "local:status-page"
     },
     "receipt_id": "sha256:cc88596974ab5536af2ac9facf2d456a6a1fa0d06d582ac776ff79f1b27c7813",
-    "fragments_digest": "sha256:8277c140510021c255d716fc5526e5a17e6de8d0557e12dc1d7236e69cbdf1bb",
-    "summary": "postmortem-maker reads an incident record from its live source via web.fetch, derives citable fragments from the fetched text, refuses any postmortem whose timeline or root cause quotes text that is not in the cited fragment, holds unknowns open instead of asserting them, and executes the authorised publish in the same run so the sealed receipt records a send that happened rather than a proposal. Harness is 4/4 green against real fetches and the dogfood receipt verifies valid."
-  },
-  "dogfood": {
-    "package": "nidhalxmrr/postmortem-maker@sha-ff7d29bf6087",
-    "input": {
-      "source_url": "https://raw.githubusercontent.com/NidhalxMRR/postmortem-maker-fixtures/main/incident-checkout.txt",
-      "postmortem_policy": {
-        "publish": true,
-        "channel": "status-page",
-        "audience": "customers",
-        "transport_ref": "local:status-page"
-      }
-    },
-    "command": "runx skill nidhalxmrr/postmortem-maker@sha-ff7d29bf6087 --registry https://api.runx.ai -i source_url=<url> --input-json postmortem_policy='<policy>' --json",
-    "receipt_ref": "runx:receipt:sha256:cc88596974ab5536af2ac9facf2d456a6a1fa0d06d582ac776ff79f1b27c7813",
-    "verify_verdict": "valid",
-    "harness_cases": [
-      {
-        "name": "postmortem-maker-publishable-executes-send",
-        "status": "sealed"
-      },
-      {
-        "name": "postmortem-maker-unknowns-publish-nothing",
-        "status": "sealed"
-      },
-      {
-        "name": "postmortem-maker-invented-citation-refuses",
-        "status": "sealed (refused decision)"
-      },
-      {
-        "name": "postmortem-maker-needs-source",
-        "status": "refused (missing source_url)"
-      }
-    ]
-  },
-  "how_to_use": {
-    "install": "runx add nidhalxmrr/postmortem-maker@sha-ff7d29bf6087 --registry https://api.runx.ai",
-    "run": "runx skill nidhalxmrr/postmortem-maker@sha-ff7d29bf6087 --registry https://api.runx.ai -i source_url=https://your/incident/thread --input-json postmortem_policy='{\"publish\":true,\"channel\":\"status-page\",\"audience\":\"customers\"}' --json",
-    "verify": "runx verify --receipt <receipt.json> --json"
+    "fragments_digest": "sha256:8277c140510021c255d716fc5526e5a17e6de8d0557e12dc1d7236e69cbdf1bb"
   }
 }
