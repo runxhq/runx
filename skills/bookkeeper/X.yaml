@@ -1,0 +1,155 @@
+skill: bookkeeper
+version: "0.1.0"
+
+catalog:
+  kind: skill
+  audience: public
+  visibility: public
+  role: canonical
+  execution: read
+  completion: runtime_receipt
+  requires_adapter: false
+  approval: none
+
+policy:
+  side_effects: none
+  sends_messages: denied
+  mints_authority: denied
+  persists_state: denied
+  secrets_required: false
+
+harness:
+  cases:
+    - name: sealed_clean_batch_reconciles_read_only
+      operator_journeys:
+        - mode: standalone
+          confusors: [ledger, sql-analyst]
+          request: Categorize this bank batch against the existing chart of accounts and return a read-only reconciliation.
+          expected_outcome: Bind each unique match to a chart account with confidence and reason, leave anomalies unmatched, and prove no ledger write occurred.
+        - mode: composed
+          request: Continue from this sealed reconciliation into a human review of unmatched lines.
+          expected_outcome: Reuse the sealed categorized lines and unmatched reasons without recategorizing the same batch.
+          prior_evidence:
+            - The transactions, chart of accounts, prior period, and sealed reconciliation supplied by the prior step.
+          must_not_repeat:
+            - Do not recategorize transactions already sealed.
+            - Do not invent a GL account or post a journal.
+      runner: reconcile
+      inputs:
+        transactions:
+          - { id: txn-001, date: "2026-07-03", description: AWS monthly cloud hosting, amount: -120, currency: USD }
+          - { id: txn-002, date: "2026-07-08", description: Stripe customer payout, amount: 850, currency: USD }
+          - { id: txn-003, date: "2026-07-12", description: Office Depot supplies, amount: -45, currency: USD }
+        chart_of_accounts:
+          - { code: "4000", name: Sales Revenue, type: revenue, keywords: [stripe, payout, sales] }
+          - { code: "6100", name: Cloud Hosting, type: expense, keywords: [aws, cloud, hosting] }
+          - { code: "6200", name: Office Supplies, type: expense, keywords: [office, depot, supplies] }
+        prior_period: { start_date: "2026-07-01", end_date: "2026-07-31", opening_balance: 1000 }
+      expect:
+        status: sealed
+        output:
+          subset:
+            reconciliation:
+              matched: 3
+              unmatched: 0
+              status: reconciled
+            needs_review:
+              required: false
+              reasons: []
+            read_only:
+              ledger_mutation: false
+              write_count: 0
+              writes: []
+              external_effects: []
+        receipt: { schema: runx.receipt.v1 }
+    - name: refused_ambiguous_transactions_return_needs_review
+      operator_journeys:
+        - mode: standalone
+          confusors: [ledger, crm-cleanup]
+          request: This transaction description matches two chart accounts. Return needs_review instead of guessing.
+          expected_outcome: Leave the line unmatched, set needs_review, and prove no ledger write occurred.
+        - mode: composed
+          request: Hand this ambiguous batch to a reviewer without forcing an account.
+          expected_outcome: Reuse the sealed needs_review reasons without picking a winner.
+          prior_evidence:
+            - The ambiguous transaction, tied chart accounts, and sealed needs_review packet.
+          must_not_repeat:
+            - Do not break the tie by inventing or preferring an account.
+            - Do not post a journal from a needs_review result.
+      runner: reconcile
+      inputs:
+        transactions:
+          - { id: txn-ambiguous, date: "2026-07-15", description: General monthly service, amount: -75, currency: USD }
+        chart_of_accounts:
+          - { code: "6100", name: General Services, type: expense, keywords: [general, service] }
+          - { code: "6200", name: Service Expenses, type: expense, keywords: [general, service] }
+        prior_period: { start_date: "2026-07-01", end_date: "2026-07-31", opening_balance: 0 }
+      expect:
+        status: sealed
+        output:
+          subset:
+            reconciliation:
+              matched: 0
+              unmatched: 1
+              status: needs_review
+            needs_review:
+              required: true
+              reasons: [ambiguous_account_match]
+            read_only:
+              ledger_mutation: false
+              write_count: 0
+              writes: []
+              external_effects: []
+        receipt: { schema: runx.receipt.v1 }
+
+runners:
+  reconcile:
+    default: true
+    type: javascript
+    module: bookkeeper.mjs
+    outputs:
+      categorized: array
+      anomalies: array
+      reconciliation:
+        type: object
+        schema:
+          required: [matched, unmatched, status]
+          additionalProperties: true
+          properties:
+            matched: { type: integer, minimum: 0 }
+            unmatched: { type: integer, minimum: 0 }
+            status: { type: string, enum: [reconciled, needs_review] }
+      needs_review:
+        type: object
+        schema:
+          required: [required, reasons]
+          additionalProperties: true
+          properties:
+            required: { type: boolean }
+            reasons: { type: array, items: { type: string } }
+      read_only:
+        type: object
+        schema:
+          required: [ledger_mutation, write_count, writes, external_effects]
+          additionalProperties: true
+          properties:
+            ledger_mutation: { const: false }
+            write_count: { const: 0 }
+            writes: { type: array, maxItems: 0 }
+            external_effects: { type: array, maxItems: 0 }
+    artifacts:
+      named_emits:
+        reconciliation: reconciliation
+    inputs:
+      transactions:
+        type: array
+        required: true
+        description: Bounded transaction lines to categorize without mutation.
+      chart_of_accounts:
+        type: array
+        required: true
+        description: Complete allowed GL account universe for this run.
+      prior_period:
+        type: object
+        required: true
+        description: Inclusive reconciliation period used only as a date bound.
