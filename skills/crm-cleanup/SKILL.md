@@ -1,49 +1,40 @@
 ---
 name: crm-cleanup
-description: Reconcile a call transcript against current CRM records and propose allowlisted field updates, each traced to a verbatim transcript quote, with the write left to a gated CRM operator.
+description: Read current CRM records from a live source handle, reconcile a call transcript into allowlisted field updates, and execute them through a mock CRM transport that seals a before/after write result.
 ---
 
 # CRM Cleanup
 
-Keep pipeline data from rotting after calls without letting an agent write to
-the CRM on vibes. The transcript and the current records are the only
-evidence; the reconciling agent proposes updates, and deterministic code
-enforces the update authority and the evidence trail. The skill never writes;
-the sealed proposal is what a gated CRM operator or human approver consumes.
+Keep pipeline data from rotting after calls without writing on vibes. The
+skill reads the current records from a real source at run time (a data-store
+read_projection URL, a connector export, or a web-fetch), treats the
+transcript as the only evidence, decides allowlisted field updates, and
+executes them through a CRM transport in the same sealed run.
 
 ## Procedure
 
-1. Native `data.digest` binds the exact transcript and record set.
-2. The reconciling agent proposes field updates from the transcript, each with
-   the target record, field, new value, and a supporting quote.
-3. Deterministic enforcement checks every proposal: the record must exist in
-   the supplied set, the field must be inside `crm_schema.allowed_fields`
-   (out-of-allowlist updates are rejected with a named reason, not silently
-   dropped), the quote must appear verbatim in the transcript, and the value
-   must be non-empty. An unknown record or an invented quote refuses the whole
-   run; nothing partial escapes.
-4. The proposal packet carries each update's `from` value from the supplied
-   records so the downstream write can detect drift before applying.
-
-`write_performed` is always false and the packet names its gate
-(`crm-operator-or-human-approver`). A run with no supported updates seals
-`no_action` rather than inventing work.
+1. Native `web.fetch` reads `crm_source.url` against `crm_source.allowlist`.
+   The handle kind must be `read_projection`, `connector_export`, or
+   `web_fetch`. Records are never accepted as a pasted fixture argument.
+2. Native `data.digest` binds the exact transcript and the fetched record
+   body.
+3. Deterministic code proposes field updates only when a verbatim transcript
+   quote supports them: stalled-renewal language sets `account_status` to
+   `at_risk`, `Next step agreed:` sets `next_action`, and `move the account
+   to` sets `owner`.
+4. Fields outside `crm_schema.allowed_fields` are rejected with a named
+   reason, not silently dropped. An invented quote or unknown record refuses
+   the whole run.
+5. The mock CRM transport (`mock-crm.v1`) applies the decided updates in the
+   same run and seals `write_result{before,after}`. A no-op transcript
+   executes nothing (`executed: false`) instead of inventing work.
 
 ## Output
 
-`crm_update_proposal` (`runx.crm_update_proposal.v1`) carries `decision`
-(`proposed`, `no_action`, `refused`), `updates` with before and after values
-and evidence quotes, `rejected_updates`, `validation`, and both input digests.
+Typed outputs are `takeaways`, `field_updates` keyed to `crm_schema` fields,
+and `write_result` from the executed transport. `crm_cleanup_result`
+(`runx.crm_cleanup_result.v1`) also carries `decision` (`applied`,
+`no_action`, `refused`), `rejected_updates`, `source_read`, both input
+digests, and validation findings.
 
-Inputs are `transcript`, `crm_records`, and `crm_schema`.
-
-## Agent task contracts
-
-### `crm-cleanup-reconcile`
-
-Read `transcript`, `crm_records`, and `crm_schema` from step inputs. Return
-`update_draft` with `updates`: an array of `record_id`, `field`, `to`, and
-`evidence_quote` entries. Only propose updates the transcript actually
-supports, quote the transcript verbatim, and only target fields inside the
-allowlist. Return an empty `updates` array when the call changes nothing.
-Never invent records, quotes, or values.
+Inputs are `crm_source`, `transcript`, and `crm_schema`.
