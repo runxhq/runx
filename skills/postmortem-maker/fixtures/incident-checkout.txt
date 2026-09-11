@@ -1,0 +1,4 @@
+Incident thread inc-checkout-2026-08-09
+03:02 UTC deploy 2026.08.09.3 rolled out a connection pool change to checkout-api.
+03:12 UTC alert fired: checkout 5xx rate crossed 8 percent.
+03:40 UTC rollback of 2026.08.09.3 completed and 5xx rate returned to baseline.

@@ -1,0 +1,98 @@
+{
+  "schema": "postmortem-maker.evidence.v1",
+  "package": "nidhalxmrr/postmortem-maker@sha-ff7d29bf6087",
+  "observations": {
+    "runx_version": "runx-cli 0.9.0",
+    "publisher_owner": "nidhalxmrr",
+    "package_name": "postmortem-maker",
+    "version": "sha-ff7d29bf6087",
+    "registry_ref": "nidhalxmrr/postmortem-maker@sha-ff7d29bf6087",
+    "registry": "https://api.runx.ai",
+    "digest": "sha256:1da66ed7951993e90a9ee0cc5b49871d5872d95ddd1e1d90b5dc0b2e140a6711",
+    "profile_digest": "sha256:5803a95933f1aeb2443c1554ad03fa2aaadb048018e5b3cf3aa5820c1a648e90",
+    "trust_tier": "community",
+    "publish_method": "runx login --provider github --for publish --from-gh, then runx registry publish ./skills/postmortem-maker --registry https://api.runx.ai",
+    "install_command": "runx add nidhalxmrr/postmortem-maker@sha-ff7d29bf6087 --registry https://api.runx.ai",
+    "clean_install": "installed into empty /tmp/cleaninstall; status=installed, runner_names=[make]",
+    "local_harness_status": "passed (pre-publish)",
+    "hosted_harness_status": "passed",
+    "harness_case_names": [
+      "postmortem-maker-publishable-executes-send",
+      "postmortem-maker-unknowns-publish-nothing",
+      "postmortem-maker-invented-citation-refuses",
+      "postmortem-maker-needs-source"
+    ],
+    "harness_assertion_errors": 0,
+    "source_read": {
+      "url": "https://raw.githubusercontent.com/NidhalxMRR/postmortem-maker-fixtures/main/incident-checkout.txt",
+      "tool": "web.fetch (native, scope net:allowlist)",
+      "read_at": "2026-09-11T13:47:36.949Z",
+      "source_digest": "sha256:73528990f99b196e626f5f14f830933d912129e2a9e91655c6105eabc53bbad2",
+      "fragment_count": 4,
+      "note": "fragments derived at run time from the fetched text, not passed in by the caller"
+    },
+    "timeline_count": 3,
+    "impact": "checkout 5xx rate crossed the 8 percent alert threshold until rollback restored baseline",
+    "root_cause_status": "known",
+    "unknowns": [],
+    "action_items": [
+      {
+        "action": "Add connection pool saturation alerting that fires before the customer-facing 5xx threshold.",
+        "owner": "platform-oncall"
+      },
+      {
+        "action": "Gate connection pool changes behind a staged rollout with automatic rollback on 5xx regression.",
+        "owner": "checkout-api"
+      }
+    ],
+    "executed_publish_result": {
+      "executed": true,
+      "channel": "status-page",
+      "audience": "customers",
+      "delivery_skill": "send-as",
+      "body_chars": 1251,
+      "body_digest": "fnv1a:dd96ccabeac9a5f6",
+      "transport_ref": "local:status-page"
+    },
+    "receipt_id": "sha256:cc88596974ab5536af2ac9facf2d456a6a1fa0d06d582ac776ff79f1b27c7813",
+    "fragments_digest": "sha256:8277c140510021c255d716fc5526e5a17e6de8d0557e12dc1d7236e69cbdf1bb"
+  },
+  "dogfood": {
+    "package": "nidhalxmrr/postmortem-maker@sha-ff7d29bf6087",
+    "input": {
+      "source_url": "https://raw.githubusercontent.com/NidhalxMRR/postmortem-maker-fixtures/main/incident-checkout.txt",
+      "postmortem_policy": {
+        "publish": true,
+        "channel": "status-page",
+        "audience": "customers",
+        "transport_ref": "local:status-page"
+      }
+    },
+    "command": "runx skill nidhalxmrr/postmortem-maker@sha-ff7d29bf6087 --registry https://api.runx.ai -i source_url=<url> --input-json postmortem_policy='<policy>' --json",
+    "receipt_ref": "runx:receipt:sha256:cc88596974ab5536af2ac9facf2d456a6a1fa0d06d582ac776ff79f1b27c7813",
+    "verify_verdict": "valid",
+    "harness_cases": [
+      {
+        "name": "postmortem-maker-publishable-executes-send",
+        "status": "sealed"
+      },
+      {
+        "name": "postmortem-maker-unknowns-publish-nothing",
+        "status": "sealed"
+      },
+      {
+        "name": "postmortem-maker-invented-citation-refuses",
+        "status": "sealed (refused decision)"
+      },
+      {
+        "name": "postmortem-maker-needs-source",
+        "status": "refused (missing source_url)"
+      }
+    ]
+  },
+  "how_to_use": {
+    "install": "runx add nidhalxmrr/postmortem-maker@sha-ff7d29bf6087 --registry https://api.runx.ai",
+    "run": "runx skill nidhalxmrr/postmortem-maker@sha-ff7d29bf6087 --registry https://api.runx.ai -i source_url=https://your/incident/thread --input-json postmortem_policy='{\"publish\":true,\"channel\":\"status-page\",\"audience\":\"customers\"}' --json",
+    "verify": "runx verify --receipt <receipt.json> --json"
+  }
+}

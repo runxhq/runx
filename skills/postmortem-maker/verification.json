@@ -1,0 +1,40 @@
+{
+  "schema": "postmortem-maker.verification.v1",
+  "package": "nidhalxmrr/postmortem-maker@sha-ff7d29bf6087",
+  "harness": {
+    "status": "passed",
+    "case_count": 4,
+    "assertion_error_count": 0,
+    "assertion_errors": [],
+    "case_names": [
+      "postmortem-maker-publishable-executes-send",
+      "postmortem-maker-unknowns-publish-nothing",
+      "postmortem-maker-invented-citation-refuses",
+      "postmortem-maker-needs-source"
+    ],
+    "receipt_ids": [
+      "sha256:17315a0199ba4ce7f46410f1fe32a77190ad30831e853aa7a35b0d7b826301cd",
+      "sha256:cba8af9a29057793e2d873a0f7936ccc8bedf0d94f48fe51a7a6927ea874d5db",
+      "sha256:12d6f7ec384875509f00f644b5ed334ddf681d22f88025d6caa0e08059f9effc"
+    ],
+    "graph_case_count": 4
+  },
+  "receipt_verify": {
+    "receipt_id": "sha256:cc88596974ab5536af2ac9facf2d456a6a1fa0d06d582ac776ff79f1b27c7813",
+    "valid": true,
+    "digest_status": "valid",
+    "content_address_status": "valid",
+    "signature": {
+      "mode": "local-development",
+      "status": "valid",
+      "kid": "runtime-skeleton"
+    },
+    "command": "runx verify --receipt .runx/receipts/sha256-cc88...7813.json --allow-local-development-signatures --json"
+  },
+  "registry_read": {
+    "skill_id": "nidhalxmrr/postmortem-maker",
+    "version": "sha-ff7d29bf6087",
+    "digest": "1da66ed7951993e90a9ee0cc5b49871d5872d95ddd1e1d90b5dc0b2e140a6711",
+    "trust_tier": "community"
+  }
+}
