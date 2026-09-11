@@ -1,0 +1,228 @@
+{
+  "schema": "postmortem-maker.delivery-draft.v1",
+  "draft_status": "blocked_for_external_release",
+  "package": {
+    "name": "postmortem-maker",
+    "version": "0.1.0",
+    "draft_package_manifest_digest": "sha256:3a3239dbeaf28cbe1f7ba1c6ef6e02f31754b566a1a53c611021842f27bf5ced",
+    "registry_ref": null,
+    "publisher_owner": null
+  },
+  "public_url": null,
+  "source_url": null,
+  "pr_url": null,
+  "x_yaml": null,
+  "skill_md": null,
+  "verification_json": "evidence/verification.json",
+  "report": "evidence/report.md",
+  "receipt_ref": null,
+  "observations": [
+    {
+      "name": "runx_cli_version",
+      "command": "runx --version",
+      "exit_code": 0,
+      "exact_output": "runx-cli 0.6.15",
+      "status": "passed",
+      "note": "The pinned @runxhq/cli 0.6.15 binary is installed and satisfies the required 0.6.14-or-newer minimum."
+    },
+    {
+      "name": "package_identity",
+      "package_name": "postmortem-maker",
+      "version": "0.1.0",
+      "status": "passed_locally"
+    },
+    {
+      "name": "source_read_contract",
+      "status": "passed_locally",
+      "details": "The step accepts HTTPS GitHub issue/thread handles, upstream read_projection objects, and fixture-only harness handles. Both checked-in fixtures and a public GitHub issue were read at runtime in local prepublish checks."
+    },
+    {
+      "name": "long_event_body_regression",
+      "status": "passed_locally",
+      "command": "node tests/postmortem-maker-smoke.mjs",
+      "details": "A 2,500-character inline event body is accepted and preserved. GitHub issue bodies are bounded by clampText after non-empty validation instead of being rejected by the shorter scalar-field limit."
+    },
+    {
+      "name": "timeline_citations",
+      "status": "passed_locally",
+      "details": "Every local timeline entry and root-cause citation points to an event id and preserves the event text verbatim."
+    },
+    {
+      "name": "consistent_case",
+      "status": "passed_locally",
+      "details": "The direct smoke test and native runx harness both passed: four source events produced a confirmed root cause, zero unknowns, an authorized send plan, an executed local-outbox publish result, and digest-matching readback."
+    },
+    {
+      "name": "conflicting_case",
+      "status": "passed_locally",
+      "details": "The direct smoke test and native runx harness both passed: two hedged competing causal candidates produced an unconfirmed root cause, two unknowns, no publish result, and an absence readback."
+    },
+    {
+      "name": "idempotent_replay",
+      "status": "passed_locally",
+      "details": "A second consistent-case execution replayed the same message without incrementing the outbox version."
+    },
+    {
+      "name": "fixture_boundary",
+      "status": "passed_locally",
+      "details": "A fixture reference containing .. was refused before file access."
+    },
+    {
+      "name": "yaml_contract",
+      "status": "passed_locally",
+      "details": "X.yaml parsed with PyYAML and contains the exact package name, version, graph runner, and both required case names."
+    },
+    {
+      "name": "runx_harness",
+      "status": "passed_locally",
+      "command": "runx harness ./skills/postmortem-maker --json",
+      "cli_version": "runx-cli 0.6.15",
+      "case_names": [
+        "consistent-incident-published",
+        "conflicting-evidence-withheld"
+      ],
+      "receipt_refs": [
+        "sha256:c32a641142a378bcf2fc64b39615813a4ad6c271bc5ce3cece072bbc4dbb2514",
+        "sha256:1e8d6add7aa953f096acc5811e5d157a0e50b241cafc2ff688e33ce3dc0c6608"
+      ],
+      "details": "Native runx graph harness passed both fixture cases with zero assertion errors. These are local fixture receipts, not the required post-publish real-source dogfood receipt."
+    },
+    {
+      "name": "publish_flow",
+      "status": "not_run",
+      "required_commands": [
+        "runx login --provider github --for publish",
+        "runx registry publish ./skills/postmortem-maker/SKILL.md --registry https://api.runx.ai"
+      ],
+      "note": "Not executed: it requires an authorized publisher identity and an external registry write."
+    },
+    {
+      "name": "install_flow",
+      "status": "not_run",
+      "command_template": "runx add <owner>/postmortem-maker@0.1.0 --registry https://api.runx.ai"
+    },
+    {
+      "name": "hosted_harness",
+      "status": "not_run",
+      "note": "No publish or registry admission was attempted."
+    },
+    {
+      "name": "real_dogfood",
+      "status": "prepublish_only",
+      "input": {
+        "incident_source": {
+          "kind": "thread_url",
+          "url": "https://github.com/kubernetes/kubernetes/issues/141080"
+        },
+        "postmortem_policy": {
+          "require_confirmed_root_cause": true,
+          "require_action_items": false,
+          "allow_publish": true
+        },
+        "publish_target": {
+          "data_source_ref": "local://runx-postmortem-maker/dogfood/k8s-141080-verified",
+          "channel": "incident-review",
+          "aggregate_id": "k8s-141080",
+          "principal": "postmortem-maker",
+          "audience": "incident-review"
+        }
+      },
+      "command": "runx skill ./skills/postmortem-maker --json",
+      "receipt_ref": "sha256:70b368ab108417b19092cb77e2f50b98d29f1f9623f87c426af2fbc48e73bb44",
+      "verify_command": "runx verify sha256:70b368ab108417b19092cb77e2f50b98d29f1f9623f87c426af2fbc48e73bb44 --receipt-dir /tmp/ajp-83-audit.rekpyc/receipts --json",
+      "verify_verdict": "valid",
+      "details": "A real public GitHub issue was fetched at runtime with the local package. The graph sealed with a confirmed root cause, zero unknowns, an executed local-outbox send-as-equivalent action, provider_act_performed=true, and digest-matching readback. This is prepublish evidence only; it is not the required post-publish registry dogfood."
+    },
+    {
+      "name": "receipt_verification",
+      "status": "passed_locally",
+      "command_template": "runx verify --receipt <receipt.json> --json",
+      "command": "runx verify sha256:2e25f56d3599c4769d331b68b35b861e7ec51011dead694237434850a9dc4af9 --receipt-dir .runx/receipts --json",
+      "receipt_ref": "sha256:2e25f56d3599c4769d331b68b35b861e7ec51011dead694237434850a9dc4af9",
+      "verify_verdict": "valid",
+      "details": "Local fixture receipt tree verified with the matching temporary public key; this is not the required post-publish real-source receipt."
+    }
+  ],
+  "local_validation": {
+    "command": "node tests/postmortem-maker-smoke.mjs",
+    "status": "passed",
+    "output": {
+      "status": "passed",
+      "cases": [
+        {"name": "consistent-incident-published", "status": "sealed", "publishable": true, "delivery": "executed"},
+        {"name": "conflicting-evidence-withheld", "status": "sealed", "publishable": false, "unknowns": 2, "delivery": null},
+        {"name": "idempotent-replay", "status": "passed", "replayed": true},
+        {"name": "fixture-traversal-refused", "status": "refused"},
+        {"name": "source-allowlist-refused", "status": "refused"},
+        {"name": "long-event-body-accepted", "status": "passed"}
+      ]
+    },
+    "scope": "Direct step-handler smoke test; the native runx harness result is recorded separately and covers the same two fixture cases.",
+    "native_harness": {
+      "command": "runx harness ./skills/postmortem-maker --json",
+      "status": "passed",
+      "case_count": 2,
+      "assertion_error_count": 0,
+      "receipt_refs": [
+        "sha256:c32a641142a378bcf2fc64b39615813a4ad6c271bc5ce3cece072bbc4dbb2514",
+        "sha256:1e8d6add7aa953f096acc5811e5d157a0e50b241cafc2ff688e33ce3dc0c6608"
+      ]
+    }
+  },
+  "dogfood": {
+    "status": "prepublish_only",
+    "package": "./skills/postmortem-maker",
+    "version": "0.1.0",
+    "input": {
+      "incident_source": {
+        "kind": "thread_url",
+        "url": "https://github.com/kubernetes/kubernetes/issues/141080"
+      },
+      "postmortem_policy": {
+        "require_confirmed_root_cause": true,
+        "require_action_items": false,
+        "allow_publish": true
+      },
+      "publish_target": {
+        "data_source_ref": "local://runx-postmortem-maker/dogfood/k8s-141080-verified",
+        "channel": "incident-review",
+        "aggregate_id": "k8s-141080",
+        "principal": "postmortem-maker",
+        "audience": "incident-review"
+      }
+    },
+    "command": "runx skill ./skills/postmortem-maker --json",
+    "receipt_ref": "sha256:70b368ab108417b19092cb77e2f50b98d29f1f9623f87c426af2fbc48e73bb44",
+    "verify_command": "runx verify sha256:70b368ab108417b19092cb77e2f50b98d29f1f9623f87c426af2fbc48e73bb44 --receipt-dir /tmp/ajp-83-audit.rekpyc/receipts --json",
+    "verify_verdict": "valid",
+    "result": {
+      "status": "sealed",
+      "publishable": true,
+      "root_cause_status": "confirmed",
+      "timeline_count": 2,
+      "unknowns": 0,
+      "publish_result_status": "executed",
+      "delivery_status": "delivered",
+      "provider_act_performed": true,
+      "readback_digest_match": true,
+      "outbox_version_after": 1
+    },
+    "harness_cases": [
+      {"name": "consistent-incident-published", "status": "local_harness_passed"},
+      {"name": "conflicting-evidence-withheld", "status": "local_harness_passed"}
+    ],
+    "reason": "The real-source run and receipt verification passed against the local prepublish package. The required post-publish registry dogfood still requires the authenticated release and must be rerun against the published owner/version."
+  },
+  "security": {
+    "secrets_in_artifacts": false,
+    "credentials_used": false,
+    "external_writes_attempted": false,
+    "notes": "No login, registry publish, PR, remote push, provider send, or funds operation was attempted."
+  },
+  "completion_blockers": [
+    "A human publisher must perform the authenticated registry publish and record owner, version, public_url, and registry metadata digest.",
+    "A public source repository and PR head commit must be created by an authorized operator; raw X.yaml and SKILL.md URLs are still unknown.",
+    "A post-publish real-source dogfood run must produce a sealed receipt and a passing runx verify result.",
+    "Hosted harness admission and the preflight POST must be performed outside this restricted workspace."
+  ]
+}

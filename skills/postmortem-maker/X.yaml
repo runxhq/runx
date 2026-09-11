@@ -3,288 +3,291 @@ version: "0.1.0"
 
 catalog:
   kind: graph
-  audience: operator
+  audience: public
   visibility: public
   role: canonical
-  execution: plan
-  completion: runtime_receipt
-  requires_adapter: false
-  approval: none
 
 harness:
   cases:
-    - name: postmortem-maker-publishable-seals
-      operator_journeys:
-        - mode: standalone
-          confusors: [incident-commander, answer-from-docs]
-          request: Produce the postmortem for this resolved incident from the collected fragments.
-          expected_outcome: Return a fragment-cited postmortem with a supported root cause and a gated publish proposal, publishing nothing.
-        - mode: composed
-          request: Continue from this sealed postmortem into the governed comms send.
-          expected_outcome: Reuse the sealed postmortem and its publish proposal without re-deriving the timeline.
-          prior_evidence:
-            - The incident fragments and sealed postmortem supplied by the prior step.
-          must_not_repeat:
-            - Do not re-derive timeline entries or the root cause already sealed.
+    - name: consistent-incident-published
+      runner: default
       inputs:
-        incident_ref: inc-checkout-2026-08-09
-        incident_fragments:
-          - id: frag-1
-            source: pagerduty
-            text: "03:12 UTC alert fired: checkout 5xx rate crossed 8 percent."
-          - id: frag-2
-            source: deploy-log
-            text: "03:02 UTC deploy 2026.08.09.3 rolled out a connection pool change to checkout-api."
-          - id: frag-3
-            source: slack-incident
-            text: "03:40 UTC rollback of 2026.08.09.3 completed and 5xx rate returned to baseline."
-      caller:
-        answers:
-          agent_task.postmortem-maker-draft.output:
-            postmortem_draft:
-              summary: A connection pool change in deploy 2026.08.09.3 degraded checkout until rollback.
-              timeline:
-                - entry: Deploy 2026.08.09.3 shipped a connection pool change.
-                  fragment_id: frag-2
-                  quote: "deploy 2026.08.09.3 rolled out a connection pool change"
-                - entry: Checkout 5xx rate crossed the alert threshold.
-                  fragment_id: frag-1
-                  quote: "checkout 5xx rate crossed 8 percent"
-                - entry: Rollback restored baseline.
-                  fragment_id: frag-3
-                  quote: "rollback of 2026.08.09.3 completed and 5xx rate returned to baseline"
-              root_cause:
-                status: known
-                statement: The connection pool change in 2026.08.09.3 exhausted checkout database connections.
-                fragment_id: frag-2
-                quote: "connection pool change to checkout-api"
-              unknowns: []
-              action_items:
-                - action: Add pool saturation alerting before the next pool change ships.
-                  owner: platform-oncall
+        incident_source:
+          kind: fixture
+          ref: fixtures/consistent-incident/thread.json
+        postmortem_policy:
+          require_confirmed_root_cause: true
+          require_action_items: true
+          allow_publish: true
+        publish_target:
+          data_source_ref: local://runx-postmortem-maker/harness/consistent
+          channel: incident-review
+          aggregate_id: consistent-incident
+          principal: incident-review-bot
+          audience: incident-review
       expect:
         status: sealed
-        steps: [digest-fragments, draft, finalize]
+        steps: [read_incident, read_outbox, compose, deliver, verify]
+        receipt:
+          schema: runx.receipt.v1
+          state: sealed
+          disposition: closed
         step_outputs:
-          finalize:
+          compose:
             subset:
-              postmortem:
-                data:
-                  schema: runx.postmortem.v1
-                  decision: publishable
-                  publish_proposal:
-                    gate: human-approver
-                    delivery_skill: send-as
-                    sent: false
-                  publish_performed: false
-                  validation: { status: pass, findings: [] }
-        receipt: { schema: runx.receipt.v1 }
+              publishable: true
+              root_cause_status: confirmed
+              timeline_count: 4
+          deliver:
+            subset:
+              delivery_result:
+                status: executed
+                delivery_status: delivered
+                operation: send
+                before_version: 0
+                after_version: 1
+                replayed: false
+          verify:
+            subset:
+              publish_result:
+                status: executed
+                operation: send
+              readback:
+                delivered: true
+                digest_match: true
+                delivery_exists: true
+                provider_act_performed: true
+                outbox_version_after: 1
+              evidence:
+                root_cause_status: confirmed
+                timeline_count: 4
 
-    - name: postmortem-maker-unknowns-block-publish
+    - name: conflicting-evidence-withheld
+      runner: default
       inputs:
-        incident_ref: inc-batch-2026-08-10
-        incident_fragments:
-          - id: frag-1
-            source: cron-log
-            text: "Nightly batch failed at step export with exit 1."
-      caller:
-        answers:
-          agent_task.postmortem-maker-draft.output:
-            postmortem_draft:
-              summary: The nightly batch failed at the export step; cause not yet established.
-              timeline:
-                - entry: The nightly batch failed at the export step.
-                  fragment_id: frag-1
-                  quote: "Nightly batch failed at step export"
-              root_cause:
-                status: unknown
-              unknowns:
-                - Which upstream input changed before the export step failed.
-              action_items:
-                - action: Capture export step inputs on failure.
-                  owner: data-oncall
+        incident_source:
+          kind: fixture
+          ref: fixtures/conflicting-incident/thread.json
+        postmortem_policy:
+          require_confirmed_root_cause: true
+          allow_publish: true
+        publish_target:
+          data_source_ref: local://runx-postmortem-maker/harness/conflicting
+          channel: incident-review
+          aggregate_id: conflicting-incident
+          principal: incident-review-bot
+          audience: incident-review
       expect:
         status: sealed
-        steps: [digest-fragments, draft, finalize]
+        steps: [read_incident, read_outbox, compose, verify]
+        receipt:
+          schema: runx.receipt.v1
+          state: sealed
+          disposition: closed
         step_outputs:
-          finalize:
+          compose:
             subset:
-              postmortem:
-                data:
-                  decision: needs_more_evidence
-                  publish_proposal: null
-                  publish_performed: false
-                  validation: { status: pass, findings: [] }
-        receipt: { schema: runx.receipt.v1 }
-
-    - name: postmortem-maker-invented-citation-refuses
-      inputs:
-        incident_ref: inc-x
-        incident_fragments:
-          - id: frag-1
-            source: log
-            text: "Service restarted at 09:00."
-      caller:
-        answers:
-          agent_task.postmortem-maker-draft.output:
-            postmortem_draft:
-              summary: Total outage caused by database corruption.
-              timeline:
-                - entry: The database corrupted.
-                  fragment_id: frag-1
-                  quote: "database corruption detected"
-              root_cause:
-                status: known
-                statement: Database corruption.
-                fragment_id: frag-1
-                quote: "database corruption detected"
-              unknowns: []
-              action_items: []
-      expect:
-        status: sealed
-        steps: [digest-fragments, draft, finalize]
-        step_outputs:
-          finalize:
+              publishable: false
+              root_cause_status: unconfirmed
+          verify:
             subset:
-              postmortem:
-                data:
-                  decision: refused
-                  timeline: []
-                  publish_proposal: null
-                  validation: { status: fail }
-        receipt: { schema: runx.receipt.v1 }
-
-    - name: postmortem-maker-needs-fragments
-      inputs:
-        incident_ref: inc-y
-      expect:
-        status: failure
+              publish_result: null
+              readback:
+                delivered: false
+                digest_match: false
+                delivery_exists: false
+                provider_act_performed: false
+                send_plan_created: false
+                outbox_unchanged: true
+              evidence:
+                root_cause_status: unconfirmed
 
 runners:
-  make:
+  default:
     default: true
     type: graph
     inputs:
-      incident_ref:
-        type: string
-        required: true
-        description: Identifier of the resolved incident this postmortem covers.
-      incident_fragments:
+      incident_source:
         type: json
         required: true
-        description: Collected incident evidence fragments with stable id, source, and text; compose web-fetch or data-store reads to gather them.
-    examples:
-      - incident_ref: inc-checkout-2026-08-09
-        incident_fragments:
-          - id: frag-1
-            source: pagerduty
-            text: "03:12 UTC alert fired."
+        description: >-
+          Runtime source handle. Use {kind: thread_url, url: HTTPS GitHub issue}
+          for a real read, or {kind: read_projection, ref, projection} when a
+          governed upstream incident/ticket read has already materialized the
+          projection. Fixture and inline forms are harness-only.
+      postmortem_policy:
+        type: json
+        required: true
+        description: >-
+          Evidence and publication policy. Set allow_publish explicitly to true
+          to authorize the bundled send-as-equivalent local outbox transport.
+      publish_target:
+        type: json
+        required: false
+        description: >-
+          Optional bounded local target with data_source_ref, channel, and
+          aggregate_id, plus optional principal and audience.
     graph:
-      name: postmortem-maker-make
-      result_from: [finalize]
+      name: postmortem-maker
+      result_from: [verify]
       steps:
-        - id: digest-fragments
-          tool: data.digest
+        - id: read_incident
+          label: read the incident record from its source handle at run time
           inputs:
-            value: $input.incident_fragments
-
-        - id: draft
-          label: separate facts from hypotheses across the fragments
+            incident_source: $input.incident_source
           run:
-            type: agent-task
-            agent: reviewer
-            task: postmortem-maker-draft
+            type: cli-tool
+            command: node
+            args: [steps/read_incident.mjs]
+            input_mode: stdin
             outputs:
-              postmortem_draft: object
-          inputs:
-            incident_ref: $input.incident_ref
-            incident_fragments: $input.incident_fragments
-          allowed_tools: []
-          artifacts:
-            named_emits:
-              postmortem_draft: postmortem_draft
+              incident:
+                type: object
 
-        - id: finalize
-          label: enforce fragment citations deterministically
+        - id: read_outbox
+          label: read the selected publication outbox and its version
           inputs:
-            incident_fragments: $input.incident_fragments
-          context:
-            postmortem_draft: draft.postmortem_draft.data
-            fragments_digest: digest-fragments.digest_result.data.digest
+            publish_target: $input.publish_target
           run:
-            type: javascript
-            module: postmortem-maker.mjs
-            export: finalizePostmortem
+            type: cli-tool
+            command: node
+            args: [steps/read_outbox.mjs]
+            input_mode: stdin
+            outputs:
+              outbox:
+                type: object
+
+        - id: compose
+          label: reconstruct cited evidence and decide whether publication is allowed
+          inputs:
+            postmortem_policy: $input.postmortem_policy
+            publish_target: $input.publish_target
+          context:
+            incident: read_incident.incident
+            outbox: read_outbox.outbox
+          run:
+            type: cli-tool
+            command: node
+            args: [steps/compose.mjs]
+            input_mode: stdin
             outputs:
               postmortem:
                 type: object
                 schema:
-                  required: [schema, decision, reason, summary, timeline, root_cause, unknowns, action_items, publish_proposal, publish_performed, fragments_digest, validation]
+                  type: object
+                  required: [summary, timeline, impact, root_cause, status]
                   additionalProperties: false
                   properties:
-                    schema: { const: runx.postmortem.v1 }
-                    decision: { type: string, enum: [publishable, needs_more_evidence, refused] }
-                    reason: { type: string, minLength: 1, maxLength: 2000 }
-                    summary: { type: [string, "null"], maxLength: 8000 }
+                    summary: {type: string, minLength: 1}
                     timeline:
                       type: array
-                      maxItems: 500
+                      minItems: 1
                       items:
                         type: object
-                        required: [entry, fragment_id, quote]
+                        required: [at, statement, kind, confidence, evidence]
                         additionalProperties: false
                         properties:
-                          entry: { type: string, minLength: 1, maxLength: 4000 }
-                          fragment_id: { type: string, minLength: 1, maxLength: 200 }
-                          quote: { type: string, minLength: 1, maxLength: 4000 }
-                    root_cause:
-                      type: [object, "null"]
-                      required: [status, statement, fragment_id]
-                      additionalProperties: false
-                      properties:
-                        status: { type: string, enum: [known, suspected, unknown] }
-                        statement: { type: [string, "null"], maxLength: 4000 }
-                        fragment_id: { type: [string, "null"], maxLength: 200 }
-                    unknowns:
-                      type: array
-                      maxItems: 100
-                      items: { type: string, minLength: 1, maxLength: 2000 }
-                    action_items:
-                      type: array
-                      maxItems: 100
-                      items:
-                        type: object
-                        required: [action, owner]
-                        additionalProperties: false
-                        properties:
-                          action: { type: string, minLength: 1, maxLength: 2000 }
-                          owner: { type: string, minLength: 1, maxLength: 500 }
-                    publish_proposal:
-                      type: [object, "null"]
-                      required: [gate, delivery_skill, sent]
-                      additionalProperties: false
-                      properties:
-                        gate: { const: human-approver }
-                        delivery_skill: { const: send-as }
-                        sent: { const: false }
-                    publish_performed: { const: false }
-                    fragments_digest: { type: string, pattern: "^sha256:[0-9a-f]{64}$" }
-                    validation:
-                      type: object
-                      required: [status, findings]
-                      additionalProperties: false
-                      properties:
-                        status: { type: string, enum: [pass, fail] }
-                        findings:
-                          type: array
-                          maxItems: 100
-                          items:
-                            type: object
-                            required: [code, message]
-                            additionalProperties: false
-                            properties:
-                              code: { type: string, minLength: 1, maxLength: 200 }
-                              message: { type: string, minLength: 1, maxLength: 2000 }
-          artifacts:
-            named_emits:
-              postmortem: postmortem
+                          at: {type: [string, "null"]}
+                          statement: {type: string, minLength: 1}
+                          kind: {type: string, minLength: 1}
+                          confidence: {type: string, minLength: 1}
+                          evidence: {type: object}
+                    impact: {type: object}
+                    root_cause: {type: object}
+                    status: {type: string, enum: [publishable, needs_more_evidence]}
+              fetched_at: {type: string}
+              unknowns: {type: array}
+              action_items: {type: array}
+              root_cause_status: {type: string, enum: [confirmed, unconfirmed]}
+              timeline_count: {type: number}
+              publishable: {type: boolean}
+              decision: {type: string, enum: [publishable, needs_more_evidence]}
+              send_plan: {type: object}
+              content_digest: {type: string}
+              postmortem_digest: {type: string}
+              source_digest: {type: string}
+              idempotency_key: {type: string}
+              expected_version: {type: number}
+              message: {type: [object, "null"]}
+              delivery_result: {type: [object, "null"]}
+
+        - id: deliver
+          label: execute the authorized send-as-equivalent append with CAS and idempotency
+          when:
+            field: compose.publishable
+            equals: true
+          inputs:
+            publish_target: $input.publish_target
+          context:
+            send_plan: compose.send_plan
+            message: compose.message
+            idempotency_key: compose.idempotency_key
+            expected_version: compose.expected_version
+            content_digest: compose.content_digest
+            postmortem_digest: compose.postmortem_digest
+          run:
+            type: cli-tool
+            command: node
+            args: [steps/deliver.mjs]
+            input_mode: stdin
+            outputs:
+              delivery_result:
+                type: object
+                schema:
+                  type: object
+                  required: [schema, status, delivery_status, provider, operation, message_id, content_digest, postmortem_digest, before_version, after_version, replayed, idempotency_key]
+                  properties:
+                    schema: {const: runx.postmortem-maker.publish-result.v1}
+                    status: {const: executed}
+                    delivery_status: {const: delivered}
+                    provider: {const: local-outbox}
+                    operation: {const: send}
+                    message_id: {type: string}
+                    message_ref: {type: string}
+                    content_digest: {type: string}
+                    postmortem_digest: {type: string}
+                    before_version: {type: number}
+                    after_version: {type: number}
+                    replayed: {type: boolean}
+                    idempotency_key: {type: string}
+
+        - id: verify
+          label: independently read back the outbox and seal evidence for send or absence
+          inputs:
+            publish_target: $input.publish_target
+          context:
+            incident: read_incident.incident
+            postmortem: compose.postmortem
+            unknowns: compose.unknowns
+            action_items: compose.action_items
+            publishable: compose.publishable
+            send_plan: compose.send_plan
+            content_digest: compose.content_digest
+            postmortem_digest: compose.postmortem_digest
+            idempotency_key: compose.idempotency_key
+            expected_version: compose.expected_version
+            delivery_result: compose.delivery_result
+          run:
+            type: cli-tool
+            command: node
+            args: [steps/verify.mjs]
+            input_mode: stdin
+            outputs:
+              schema: {type: string}
+              skill: {type: string}
+              version: {type: string}
+              source: {type: object}
+              postmortem: {type: object}
+              unknowns: {type: array}
+              action_items: {type: array}
+              publishable: {type: boolean}
+              root_cause_status: {type: string}
+              timeline_count: {type: number}
+              content_digest: {type: string}
+              idempotency_key: {type: string}
+              expected_version: {type: number}
+              send_plan: {type: object}
+              publish_result: {type: [object, "null"]}
+              readback: {type: object}
+              verification: {type: object}
+              evidence: {type: object}

@@ -1,0 +1,34 @@
+{
+  "title": "Checkout error rate spike",
+  "url": "fixture://postmortem-maker/consistent-incident",
+  "events": [
+    {
+      "id": "evt-1",
+      "at": "2026-08-01T10:02:00Z",
+      "author": "monitoring",
+      "url": "fixture://postmortem-maker/consistent-incident#evt-1",
+      "text": "At 10:02 the checkout error rate spiked to 40 percent and roughly 1200 users saw failed checkouts over 18 minutes."
+    },
+    {
+      "id": "evt-2",
+      "at": "2026-08-01T10:10:00Z",
+      "author": "oncall",
+      "url": "fixture://postmortem-maker/consistent-incident#evt-2",
+      "text": "The 09:58 checkout-api v2.4.1 deploy introduced a null pointer in the payment path, so the failures are caused by that release."
+    },
+    {
+      "id": "evt-3",
+      "at": "2026-08-01T10:21:00Z",
+      "author": "oncall",
+      "url": "fixture://postmortem-maker/consistent-incident#evt-3",
+      "text": "Rolled back checkout-api and at 10:20 the error rate returned to baseline."
+    },
+    {
+      "id": "evt-4",
+      "at": "2026-08-01T10:40:00Z",
+      "author": "eng-lead",
+      "url": "fixture://postmortem-maker/consistent-incident#evt-4",
+      "text": "Action item: add a payment path contract test before the next release. Owner: platform-oncall."
+    }
+  ]
+}
