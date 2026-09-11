@@ -1,0 +1,18 @@
+{
+  "status": "passed",
+  "case_count": 4,
+  "assertion_error_count": 0,
+  "assertion_errors": [],
+  "case_names": [
+    "crm-cleanup-applies-traced-updates",
+    "crm-cleanup-noop-executes-nothing",
+    "crm-cleanup-rejects-unlisted-field",
+    "crm-cleanup-needs-transcript"
+  ],
+  "receipt_ids": [
+    "sha256:9a8e09cfd75d597f56d53b53d72e0511afc9e9922724cc2b15dc98149169ebb6",
+    "sha256:fe42ce9aef9264c559e7dff078345866adad56309c9192e21aa56ae14304a13b",
+    "sha256:0a3400d7edc629b5d46b999f3a4ba74c3dade6a75dd4093c26b6421a6d4f09c7"
+  ],
+  "graph_case_count": 4
+}
