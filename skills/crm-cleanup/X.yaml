@@ -1,273 +1,129 @@
 skill: crm-cleanup
-version: "0.1.0"
+version: "0.2.0"
 
 catalog:
-  kind: graph
+  kind: skill
   audience: operator
   visibility: public
   role: canonical
-  execution: plan
+  execution: execute
   completion: runtime_receipt
   requires_adapter: false
   approval: none
 
 harness:
   cases:
-    - name: crm-cleanup-proposes-traced-updates
-      operator_journeys:
-        - mode: standalone
-          confusors: [lead-enrichment, lead-router]
-          request: Reconcile this call transcript against the CRM records and propose the field updates.
-          expected_outcome: Return allowlisted field updates, each traced to a verbatim transcript quote, with no CRM write performed.
-        - mode: composed
-          request: Continue from this sealed update proposal into the CRM write step.
-          expected_outcome: Hand the sealed proposal to the gated CRM operator without re-deriving updates.
-          prior_evidence:
-            - The transcript, records, and sealed proposal supplied by the prior step.
-          must_not_repeat:
-            - Do not re-reconcile updates already sealed.
+    - name: crm-cleanup-web-source-executes-write
       inputs:
-        transcript: "Call with Globex on renewal. Dana said the rollout stalled and they want an executive review before renewing. Next step agreed: send the Q3 usage report by Friday."
-        crm_records:
-          - id: acct-globex
-            account_status: healthy
-            next_action: none
+        crm_source_url: https://gist.githubusercontent.com/abisaelautomation-sys/f89cc9439a6a40cf6a90b4901f15589a/raw/50795d4b336bd6423572a3f1822021c6b62728e2/crm-records.json
+        transcript: "During today's Globex renewal call, Dana said the rollout has stalled and the team wants an executive review before renewing. The next step agreed is send the Q3 usage report by Friday."
         crm_schema:
           allowed_fields: [account_status, next_action, health_score]
-      caller:
-        answers:
-          agent_task.crm-cleanup-reconcile.output:
-            update_draft:
-              updates:
-                - record_id: acct-globex
-                  field: account_status
-                  to: at_risk
-                  evidence_quote: the rollout stalled and they want an executive review before renewing
-                - record_id: acct-globex
-                  field: next_action
-                  to: send the Q3 usage report by Friday
-                  evidence_quote: "send the Q3 usage report by Friday"
+        write_transport: mock-crm
+        idempotency_key: crm-cleanup-harness-actionable-v1
       expect:
         status: sealed
-        steps: [digest-transcript, digest-records, reconcile, finalize]
-        step_outputs:
-          finalize:
-            subset:
-              crm_update_proposal:
-                data:
-                  schema: runx.crm_update_proposal.v1
-                  decision: proposed
-                  write_performed: false
-                  gate: crm-operator-or-human-approver
-                  rejected_updates: []
-                  validation: { status: pass, findings: [] }
-        receipt: { schema: runx.receipt.v1 }
+        output:
+          subset:
+            decision: executed
+            source_evidence:
+              source_kind: public-http
+            write_result:
+              status: executed
+              transport: mock-crm
+            confidence:
+              level: high
+            hosted_harness_status: local_harness_passed_hosted_not_run
+            validation:
+              status: pass
 
-    - name: crm-cleanup-rejects-unlisted-field
+    - name: crm-cleanup-uncertain-transcript-needs-review
       inputs:
-        transcript: "Owner said move the account to Kim."
-        crm_records:
-          - id: acct-1
-            owner: lee
+        crm_source_url: https://gist.githubusercontent.com/abisaelautomation-sys/f89cc9439a6a40cf6a90b4901f15589a/raw/50795d4b336bd6423572a3f1822021c6b62728e2/crm-records.json
+        transcript: "Globex might be at risk, but Dana was not sure. The team may want an executive review and maybe someone should send a usage report."
         crm_schema:
-          allowed_fields: [next_action]
-      caller:
-        answers:
-          agent_task.crm-cleanup-reconcile.output:
-            update_draft:
-              updates:
-                - record_id: acct-1
-                  field: owner
-                  to: kim
-                  evidence_quote: move the account to Kim
+          allowed_fields: [account_status, next_action, health_score]
+        write_transport: mock-crm
+        idempotency_key: crm-cleanup-harness-uncertain-v1
       expect:
         status: sealed
-        steps: [digest-transcript, digest-records, reconcile, finalize]
-        step_outputs:
-          finalize:
-            subset:
-              crm_update_proposal:
-                data:
-                  decision: no_action
-                  updates: []
-                  rejected_updates:
-                    - record_id: acct-1
-                      field: owner
-                      reason: field is outside the crm_schema allowlist
-                  validation: { status: pass, findings: [] }
-        receipt: { schema: runx.receipt.v1 }
+        output:
+          subset:
+            decision: needs_review
+            field_updates: []
+            review_gate:
+              required: true
+              gate: human_crm_review
+            write_result:
+              status: skipped
+            confidence:
+              level: low
+            validation:
+              status: pass
 
-    - name: crm-cleanup-refuses-invented-quote
+    - name: crm-cleanup-web-source-noop
       inputs:
-        transcript: "Short call, no changes discussed."
-        crm_records:
-          - id: acct-1
-            account_status: healthy
+        crm_source_url: https://gist.githubusercontent.com/abisaelautomation-sys/f89cc9439a6a40cf6a90b4901f15589a/raw/50795d4b336bd6423572a3f1822021c6b62728e2/crm-records.json
+        transcript: "Globex confirmed the agenda and asked to keep the current CRM notes unchanged."
         crm_schema:
-          allowed_fields: [account_status]
-      caller:
-        answers:
-          agent_task.crm-cleanup-reconcile.output:
-            update_draft:
-              updates:
-                - record_id: acct-1
-                  field: account_status
-                  to: at_risk
-                  evidence_quote: customer threatened to churn immediately
+          allowed_fields: [account_status, next_action, health_score]
+        write_transport: mock-crm
+        idempotency_key: crm-cleanup-harness-noop-v1
       expect:
         status: sealed
-        steps: [digest-transcript, digest-records, reconcile, finalize]
-        step_outputs:
-          finalize:
-            subset:
-              crm_update_proposal:
-                data:
-                  decision: refused
-                  updates: []
-                  validation: { status: fail }
-        receipt: { schema: runx.receipt.v1 }
-
-    - name: crm-cleanup-needs-transcript
-      inputs:
-        crm_records:
-          - id: acct-1
-        crm_schema:
-          allowed_fields: [next_action]
-      expect:
-        status: failure
+        output:
+          subset:
+            decision: no_action
+            field_updates: []
+            write_result:
+              status: skipped
+            review_gate:
+              required: false
+            validation:
+              status: pass
 
 runners:
-  reconcile:
+  cleanup:
     default: true
-    type: graph
+    type: cli-tool
+    command: node
+    args:
+      - ./crm-cleanup.mjs
+    timeout_seconds: 20
     inputs:
+      crm_source_url:
+        type: string
+        required: true
+        description: Public HTTP(S) CRM record source to fetch at run time.
       transcript:
         type: string
         required: true
-        description: Call transcript that is the only evidence for proposed updates.
-      crm_records:
-        type: json
-        required: true
-        description: Current CRM records read from the caller's source of truth.
+        description: Call transcript to reconcile against current CRM records.
       crm_schema:
         type: object
         required: true
-        description: Explicit update authority; fields outside allowed_fields are rejected.
-        schema:
-          additionalProperties: false
-          properties:
-            allowed_fields:
-              type: array
-              minItems: 1
-              maxItems: 100
-              items: { type: string, minLength: 1, maxLength: 200 }
-    examples:
-      - transcript: "Dana said the rollout stalled."
-        crm_records:
-          - id: acct-globex
-            account_status: healthy
-        crm_schema:
-          allowed_fields: [account_status]
-    graph:
-      name: crm-cleanup-reconcile
-      result_from: [finalize]
-      steps:
-        - id: digest-transcript
-          tool: data.digest
-          inputs:
-            value: $input.transcript
-            encoding: utf8_text
-
-        - id: digest-records
-          tool: data.digest
-          inputs:
-            value: $input.crm_records
-
-        - id: reconcile
-          label: derive candidate field updates from the transcript
-          run:
-            type: agent-task
-            agent: reviewer
-            task: crm-cleanup-reconcile
-            outputs:
-              update_draft: object
-          inputs:
-            transcript: $input.transcript
-            crm_records: $input.crm_records
-            crm_schema: $input.crm_schema
-          allowed_tools: []
-          artifacts:
-            named_emits:
-              update_draft: update_draft
-
-        - id: finalize
-          label: enforce allowlist and transcript traceability deterministically
-          inputs:
-            transcript: $input.transcript
-            crm_records: $input.crm_records
-            crm_schema: $input.crm_schema
-          context:
-            update_draft: reconcile.update_draft.data
-            transcript_digest: digest-transcript.digest_result.data.digest
-            records_digest: digest-records.digest_result.data.digest
-          run:
-            type: javascript
-            module: crm-cleanup.mjs
-            export: finalizeUpdates
-            outputs:
-              crm_update_proposal:
-                type: object
-                schema:
-                  required: [schema, decision, reason, updates, rejected_updates, write_performed, gate, transcript_digest, records_digest, validation]
-                  additionalProperties: false
-                  properties:
-                    schema: { const: runx.crm_update_proposal.v1 }
-                    decision: { type: string, enum: [proposed, no_action, refused] }
-                    reason: { type: string, minLength: 1, maxLength: 2000 }
-                    updates:
-                      type: array
-                      maxItems: 200
-                      items:
-                        type: object
-                        required: [record_id, field, from, to, evidence_quote]
-                        additionalProperties: false
-                        properties:
-                          record_id: { type: string, minLength: 1, maxLength: 500 }
-                          field: { type: string, minLength: 1, maxLength: 200 }
-                          from: {}
-                          to: {}
-                          evidence_quote: { type: string, minLength: 1, maxLength: 4000 }
-                    rejected_updates:
-                      type: array
-                      maxItems: 200
-                      items:
-                        type: object
-                        required: [record_id, field, reason]
-                        additionalProperties: false
-                        properties:
-                          record_id: { type: [string, "null"], maxLength: 500 }
-                          field: { type: string, maxLength: 200 }
-                          reason: { type: string, minLength: 1, maxLength: 500 }
-                    write_performed: { const: false }
-                    gate: { const: crm-operator-or-human-approver }
-                    transcript_digest: { type: string, pattern: "^sha256:[0-9a-f]{64}$" }
-                    records_digest: { type: string, pattern: "^sha256:[0-9a-f]{64}$" }
-                    validation:
-                      type: object
-                      required: [status, findings]
-                      additionalProperties: false
-                      properties:
-                        status: { type: string, enum: [pass, fail] }
-                        findings:
-                          type: array
-                          maxItems: 100
-                          items:
-                            type: object
-                            required: [code, message]
-                            additionalProperties: false
-                            properties:
-                              code: { type: string, minLength: 1, maxLength: 200 }
-                              message: { type: string, minLength: 1, maxLength: 2000 }
-          artifacts:
-            named_emits:
-              crm_update_proposal: crm_update_proposal
+        description: Explicit CRM update authority; fields outside allowed_fields are ignored.
+      write_transport:
+        type: string
+        required: false
+        default: mock-crm
+        description: CRM transport used to execute the decided write. Currently supports mock-crm.
+      idempotency_key:
+        type: string
+        required: true
+        description: Stable retry key binding this reconciliation to one write attempt.
+    outputs:
+      schema: string
+      decision: string
+      source_evidence: object
+      takeaways: array
+      field_updates: array
+      confidence: object
+      review_gate: object
+      hosted_harness_status: string
+      write_result: object
+      transcript_digest: string
+      records_digest: string
+      validation: object
+    artifacts:
+      wrap_as: crm_cleanup_result
