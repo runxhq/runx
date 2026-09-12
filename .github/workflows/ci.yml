@@ -147,7 +147,7 @@ jobs:
         if: >-
           needs.classify.outputs.full == 'true' &&
           steps.rust-ci-tools.outputs.cache-hit != 'true'
-        uses: taiki-e/install-action@v2.85.5
+        uses: taiki-e/install-action@v2.87.4
         with:
           # Prebuilt binaries avoid compiling CI-only tools on cache misses.
           # Keep cargo-public-api aligned with check-rust-kernel-parity.mjs.
