@@ -1,0 +1,86 @@
+{
+  "schema": "postmortem-maker.verification-draft.v1",
+  "status": "blocked",
+  "package": "postmortem-maker",
+  "version": "0.1.0",
+  "draft_package_manifest_digest": "sha256:3a3239dbeaf28cbe1f7ba1c6ef6e02f31754b566a1a53c611021842f27bf5ced",
+  "runx_cli": {
+    "command": "runx --version",
+    "exit_code": 0,
+    "exact_output": "runx-cli 0.6.15",
+    "meets_minimum": true
+  },
+  "checks": {
+    "skill_md_frontmatter": "passed",
+    "x_yaml_parse": "passed",
+    "local_consistent_case": "passed",
+    "local_conflicting_case": "passed",
+    "local_idempotent_replay": "passed",
+    "local_fixture_boundary": "passed",
+    "long_event_body_regression": "passed",
+    "runx_harness": "passed",
+    "registry_publish": "not_run",
+    "clean_install": "not_run",
+    "hosted_harness": "not_run",
+    "real_source_dogfood": "pending_post_publish",
+    "prepublish_real_source_dogfood": "passed_local_pre_publish",
+    "receipt_verify": "not_run_external",
+    "prepublish_receipt_verify": "passed",
+    "delivery_preflight": "not_run"
+  },
+  "native_harness": {
+    "command": "runx harness ./skills/postmortem-maker --json",
+    "status": "passed",
+    "case_count": 2,
+    "assertion_error_count": 0,
+    "receipt_refs": [
+      "sha256:c32a641142a378bcf2fc64b39615813a4ad6c271bc5ce3cece072bbc4dbb2514",
+      "sha256:1e8d6add7aa953f096acc5811e5d157a0e50b241cafc2ff688e33ce3dc0c6608"
+    ],
+    "note": "Local fixture harness receipts only; no external publication or post-publish real-source dogfood is claimed. The separate prepublish real-source run is recorded below."
+  },
+  "local_receipt_verification": {
+    "command": "runx verify sha256:2e25f56d3599c4769d331b68b35b861e7ec51011dead694237434850a9dc4af9 --receipt-dir .runx/receipts --json",
+    "status": "passed",
+    "valid": true,
+    "note": "Local fixture receipt tree only; external real-source receipt verification remains pending."
+  },
+  "prepublish_real_source_dogfood": {
+    "package": "./skills/postmortem-maker",
+    "version": "0.1.0",
+    "source_url": "https://github.com/kubernetes/kubernetes/issues/141080",
+    "command": "runx skill ./skills/postmortem-maker --json",
+    "receipt_ref": "sha256:70b368ab108417b19092cb77e2f50b98d29f1f9623f87c426af2fbc48e73bb44",
+    "verify_command": "runx verify sha256:70b368ab108417b19092cb77e2f50b98d29f1f9623f87c426af2fbc48e73bb44 --receipt-dir /tmp/ajp-83-audit.rekpyc/receipts --json",
+    "verify_status": "passed",
+    "verify_valid": true,
+    "result": {
+      "graph_status": "Succeeded",
+      "root_cause_status": "confirmed",
+      "timeline_count": 2,
+      "unknowns": 0,
+      "publish_result_status": "executed",
+      "delivery_status": "delivered",
+      "provider_act_performed": true,
+      "readback_digest_match": true,
+      "outbox_version_after": 1
+    },
+    "boundary": "This is a local prepublish package run. It does not satisfy the required post-publish owner/version dogfood."
+  },
+  "receipt": {
+    "receipt_ref": null,
+    "status": "not_available_post_publish",
+    "verify_verdict": null
+  },
+  "external_artifacts": {
+    "publisher_owner": null,
+    "registry_ref": null,
+    "public_url": null,
+    "source_url": null,
+    "pr_url": null,
+    "x_yaml": null,
+    "skill_md": null,
+    "report": "evidence/report.md"
+  },
+  "honesty_boundary": "This file records local implementation checks and a separately labeled prepublish real-source dogfood. It does not attest to registry publication, clean install, hosted harness admission, post-publish owner/version dogfood, the required final receipt, or online verification."
+}

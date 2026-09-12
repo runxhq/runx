@@ -1,0 +1,27 @@
+{
+  "title": "API latency above SLO",
+  "url": "fixture://postmortem-maker/conflicting-incident",
+  "events": [
+    {
+      "id": "evt-1",
+      "at": "2026-08-02T14:05:00Z",
+      "author": "monitoring",
+      "url": "fixture://postmortem-maker/conflicting-incident#evt-1",
+      "text": "At 14:05 API latency degraded above the SLO and the error rate rose."
+    },
+    {
+      "id": "evt-2",
+      "at": "2026-08-02T14:15:00Z",
+      "author": "dev1",
+      "url": "fixture://postmortem-maker/conflicting-incident#evt-2",
+      "text": "Might be the api-gateway v1.2.0 deploy that caused it?"
+    },
+    {
+      "id": "evt-3",
+      "at": "2026-08-02T14:17:00Z",
+      "author": "dev2",
+      "url": "fixture://postmortem-maker/conflicting-incident#evt-3",
+      "text": "I suspect the search v3.1.0 change instead, not sure."
+    }
+  ]
+}

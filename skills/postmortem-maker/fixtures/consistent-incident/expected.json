@@ -1,0 +1,15 @@
+{
+  "case": "consistent-incident-published",
+  "expected": {
+    "publishable": true,
+    "root_cause_status": "confirmed",
+    "timeline_count": 4,
+    "publish_result_status": "executed",
+    "readback": {
+      "delivered": true,
+      "digest_match": true,
+      "delivery_exists": true,
+      "provider_act_performed": true
+    }
+  }
+}

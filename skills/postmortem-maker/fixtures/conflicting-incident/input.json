@@ -1,0 +1,17 @@
+{
+  "incident_source": {
+    "kind": "fixture",
+    "ref": "fixtures/conflicting-incident/thread.json"
+  },
+  "postmortem_policy": {
+    "require_confirmed_root_cause": true,
+    "allow_publish": true
+  },
+  "publish_target": {
+    "data_source_ref": "local://runx-postmortem-maker/harness/conflicting",
+    "channel": "incident-review",
+    "aggregate_id": "conflicting-incident",
+    "principal": "incident-review-bot",
+    "audience": "incident-review"
+  }
+}
