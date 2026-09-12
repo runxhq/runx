@@ -1,0 +1,29 @@
+name: bookkeeper-ambiguous-needs-review
+kind: skill
+target: ..
+runner: reconcile
+inputs:
+  transactions:
+    - { id: fixture-ambiguous, date: "2026-07-15", description: General service, amount: -80, currency: USD }
+  chart_of_accounts:
+    - { code: "6100", name: General Services, type: expense, keywords: [general, service] }
+    - { code: "6200", name: Service Expenses, type: expense, keywords: [general, service] }
+  prior_period: { start_date: "2026-07-01", end_date: "2026-07-31" }
+expect:
+  status: sealed
+  output:
+    subset:
+      reconciliation:
+        matched: 0
+        unmatched: 1
+        status: needs_review
+      needs_review:
+        required: true
+        reasons: [ambiguous_account_match]
+      read_only:
+        ledger_mutation: false
+        write_count: 0
+        writes: []
+        external_effects: []
+  receipt: { schema: runx.receipt.v1 }
+metadata: { public_skill: bookkeeper, source_case: ambiguous-needs-review-no-write }
