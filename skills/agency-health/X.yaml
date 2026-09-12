@@ -1,0 +1,221 @@
+skill: agency-health
+version: "0.1.0"
+
+catalog:
+  kind: graph
+  audience: operator
+  visibility: public
+  role: canonical
+  execution: read
+  completion: review
+  requires_adapter: false
+  approval: none
+
+runners:
+  assess:
+    default: true
+    type: graph
+    inputs:
+      data_source_ref:
+        type: string
+        required: true
+        description: Provider reference, e.g. registry-pinned/0.6.14.
+      store_id:
+        type: string
+        required: true
+        description: Registry store id (the pinned data-store).
+      agency_ref:
+        type: json
+        required: true
+        description: Agency reference containing case_id, driver_id, agency_charter_id, and period.
+      period:
+        type: json
+        required: false
+        description: Optional period with start_turn, end_turn, allow_partial.
+      case_id:
+        type: string
+        required: false
+        description: Optional override, defaults to agency_ref.case_id.
+      health_baseline:
+        type: json
+        required: false
+        description: Optional thresholds (threshold_days_stuck, cap_pressure_pct, refusal_spike_rate).
+    graph:
+      name: agency-health
+      result_from: [seal]
+      steps:
+        - id: inspect-case
+          label: read the agency case projection in folded turn order
+          tool: runx.data_store.read_projection
+          scopes:
+            - data_store:read
+          inputs:
+            store_id: $input.store_id
+            case_id: $input.agency_ref.case_id
+            period: $input.period
+            projection: agency-case-event-stream
+          artifacts:
+            wrap_as: case_projection
+            packet: runx.data_store.case_projection.v1
+        - id: aggregate-ledger
+          label: read cross-run aggregates by receipt id-stub
+          tool: runx.ledger.read_aggregates
+          scopes:
+            - ledger:read_aggregates
+          inputs:
+            data_source_ref: $input.data_source_ref
+            filter: agency=$input.agency_ref.case_id
+            metrics: [seal_rate, refusal_count]
+          artifacts:
+            wrap_as: ledger_aggregates
+            packet: runx.ledger.aggregates.v1
+        - id: grade
+          label: grade the four canonical signals against the baseline
+          run:
+            type: agent-task
+            agent: health-grader
+            task: agency-health-grade
+            outputs:
+              health_verdict: object
+          allowed_tools:
+            - data_store.read
+            - ledger.read_aggregates
+          context:
+            case_projection: inspect-case.case_projection.data
+            ledger_aggregates: aggregate-ledger.ledger_aggregates.data
+          inputs:
+            health_baseline: $input.health_baseline
+            agency_charter_id: $input.agency_ref.agency_charter_id
+            case_id: $input.agency_ref.case_id
+            period: $input.period
+          artifacts:
+            wrap_as: health_verdict
+            packet: runx.agency.health_verdict.v1
+        - id: name-lane
+          label: attach a target lane to each warranted intervention
+          run:
+            type: agent-task
+            agent: lane-namer
+            task: agency-health-name-lane
+            outputs:
+              intervention_findings: object
+          allowed_tools:
+            - data_store.read
+          context:
+            health_verdict: grade.health_verdict.data
+          inputs:
+            agency_ref: $input.agency_ref
+            case_id: $input.agency_ref.case_id
+          artifacts:
+            wrap_as: intervention_findings
+            packet: runx.agency.intervention_findings.v1
+        - id: seal
+          label: seal the assessment verdict without case-stream mutation
+          tool: runx.receipt.seal_review
+          scopes:
+            - receipt:seal
+          inputs:
+            packet_kind: runx.agency.assessment.v1
+            seal_kind: review
+          context:
+            health_verdict: grade.health_verdict.data
+            intervention_findings: name-lane.intervention_findings.data
+
+harness:
+  cases:
+    - name: concerning-agency-sealed
+      runner: assess
+      inputs:
+        data_source_ref: registry-pinned/0.6.14
+        store_id: store-agency-runa-001
+        agency_ref: |
+          {
+            "case_id": "agc-001",
+            "driver_id": "drv-001",
+            "agency_charter_id": "charter-agc-001",
+            "period": {"start_turn": 1, "end_turn": 12}
+          }
+        period: {"start_turn": 1, "end_turn": 12, "allow_partial": false}
+        health_baseline: {"threshold_days_stuck": 3, "cap_pressure_pct": 80, "refusal_spike_rate": 0.10}
+      caller:
+        answers:
+          agent_task.agency-health-grade.output:
+            health_verdict:
+              schema: runx.agency.health_verdict.v1
+              status: degraded
+              period: {"start_turn": 1, "end_turn": 12}
+              findings:
+                - signal: stuck_case_count
+                  assessment: warn
+                  measured: 4
+                  baseline: 3
+                  grounded_in: {"case_id": "agc-001", "turn": 8, "ledger_id_stub": "r/le-77d1ab"}
+                  reason: 4 turns parked awaiting_approval over 3-day baseline.
+                - signal: cap_usage_pct
+                  assessment: warn
+                  measured: 78
+                  baseline: 80
+                  grounded_in: {"case_id": "agc-001", "turn": 11, "ledger_id_stub": "r/cap-77d1ab"}
+                  reason: payment_ceiling reached 78 percent of charter cap.
+                - signal: seal_rate
+                  assessment: pass
+                  measured: 0.92
+                  baseline: 0.85
+                  grounded_in: {"case_id": "agc-001", "turn": 12, "ledger_id_stub": "r/seal-77d1ab"}
+                  reason: 92 percent of sealed turns in period vs 85 baseline.
+                - signal: escalation_backlog
+                  assessment: pass
+                  measured: 0
+                  baseline: 0
+                  grounded_in: {"case_id": "agc-001", "turn": 12, "ledger_id_stub": "r/esc-77d1ab"}
+                  reason: zero escalations pending.
+          agent_task.agency-health-name-lane.output:
+            intervention_findings:
+              schema: runx.agency.intervention_findings.v1
+              findings:
+                - target_lane: improve-skill
+                  reason: A member is behind a refusal spike on await-input.
+                  grounded_in: {"case_id": "agc-001", "turn": 8}
+                  severity: warn
+                - target_lane: policy-author
+                  reason: Tighten the timeout for awaiting_approval on charter-agc-001.
+                  grounded_in: {"case_id": "agc-001", "turn": 11}
+                  severity: warn
+                - target_lane: human ops
+                  reason: Flag the cap-usage trend for charter review.
+                  grounded_in: {"case_id": "agc-001", "turn": 12}
+                  severity: warn
+      expect:
+        status: sealed
+
+    - name: no-case-events-stop
+      runner: assess
+      inputs:
+        data_source_ref: registry-pinned/0.6.14
+        store_id: store-agency-runa-001
+        agency_ref: |
+          {
+            "case_id": "agc-empty",
+            "driver_id": "drv-empty",
+            "agency_charter_id": "charter-agc-empty",
+            "period": {"start_turn": 1, "end_turn": 30}
+          }
+        period: {"start_turn": 1, "end_turn": 30, "allow_partial": false}
+        health_baseline: {"threshold_days_stuck": 3, "cap_pressure_pct": 80, "refusal_spike_rate": 0.10}
+      caller:
+        answers:
+          agent_task.agency-health-grade.output:
+            health_verdict:
+              schema: runx.agency.health_verdict.v1
+              status: healthy
+              period: {"start_turn": 1, "end_turn": 30}
+              findings: []
+              reason: No readable case events over the period, nothing to grade.
+          agent_task.agency-health-name-lane.output:
+            intervention_findings:
+              schema: runx.agency.intervention_findings.v1
+              findings: []
+      expect:
+        status: sealed
+        refusal:
+          contains: "no case events readable over the period"
