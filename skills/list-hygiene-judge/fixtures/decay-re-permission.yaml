@@ -1,0 +1,25 @@
+name: list-hygiene-decay-re-permission
+kind: skill
+target: ..
+runner: judge
+inputs:
+  data_source_ref: local://list-hygiene-judge/fixture-decay
+  resource: contact_consent_events
+  aggregate_id: contact:fixture-decay
+  expected_version: 0
+  idempotency_key: contact:fixture-decay:consent:v1
+  engagement_history: { opens_count: 1, clicks_count: 0, hard_bounces: 0, recency_days: 121 }
+  bounce_policy: { hard_bounce_action: suppress, decay_threshold_days: 90 }
+  current_consent_state: { state: subscribed, active_unsubscribe_marker: false, evidence_status: read, evidence_version: 0 }
+expect:
+  status: sealed
+  steps: [read_contact, decide, append_transition, readback, finalize]
+  step_outputs:
+    finalize:
+      subset:
+        list_hygiene_result:
+          data:
+            decision: { state: re_permission }
+            recorded_transition: { recorded: true, after_version: 1 }
+  receipt: { schema: runx.receipt.v1 }
+metadata: { public_skill: list-hygiene-judge, source_case: decay-re-permission, source: skills-fixture }
