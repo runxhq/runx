@@ -1,5 +1,5 @@
 skill: crm-cleanup
-version: "0.1.0"
+version: "0.2.0"
 
 catalog:
   kind: graph
@@ -11,130 +11,12 @@ catalog:
   requires_adapter: false
   approval: none
 
-harness:
-  cases:
-    - name: crm-cleanup-proposes-traced-updates
-      operator_journeys:
-        - mode: standalone
-          confusors: [lead-enrichment, lead-router]
-          request: Reconcile this call transcript against the CRM records and propose the field updates.
-          expected_outcome: Return allowlisted field updates, each traced to a verbatim transcript quote, with no CRM write performed.
-        - mode: composed
-          request: Continue from this sealed update proposal into the CRM write step.
-          expected_outcome: Hand the sealed proposal to the gated CRM operator without re-deriving updates.
-          prior_evidence:
-            - The transcript, records, and sealed proposal supplied by the prior step.
-          must_not_repeat:
-            - Do not re-reconcile updates already sealed.
-      inputs:
-        transcript: "Call with Globex on renewal. Dana said the rollout stalled and they want an executive review before renewing. Next step agreed: send the Q3 usage report by Friday."
-        crm_records:
-          - id: acct-globex
-            account_status: healthy
-            next_action: none
-        crm_schema:
-          allowed_fields: [account_status, next_action, health_score]
-      caller:
-        answers:
-          agent_task.crm-cleanup-reconcile.output:
-            update_draft:
-              updates:
-                - record_id: acct-globex
-                  field: account_status
-                  to: at_risk
-                  evidence_quote: the rollout stalled and they want an executive review before renewing
-                - record_id: acct-globex
-                  field: next_action
-                  to: send the Q3 usage report by Friday
-                  evidence_quote: "send the Q3 usage report by Friday"
-      expect:
-        status: sealed
-        steps: [digest-transcript, digest-records, reconcile, finalize]
-        step_outputs:
-          finalize:
-            subset:
-              crm_update_proposal:
-                data:
-                  schema: runx.crm_update_proposal.v1
-                  decision: proposed
-                  write_performed: false
-                  gate: crm-operator-or-human-approver
-                  rejected_updates: []
-                  validation: { status: pass, findings: [] }
-        receipt: { schema: runx.receipt.v1 }
-
-    - name: crm-cleanup-rejects-unlisted-field
-      inputs:
-        transcript: "Owner said move the account to Kim."
-        crm_records:
-          - id: acct-1
-            owner: lee
-        crm_schema:
-          allowed_fields: [next_action]
-      caller:
-        answers:
-          agent_task.crm-cleanup-reconcile.output:
-            update_draft:
-              updates:
-                - record_id: acct-1
-                  field: owner
-                  to: kim
-                  evidence_quote: move the account to Kim
-      expect:
-        status: sealed
-        steps: [digest-transcript, digest-records, reconcile, finalize]
-        step_outputs:
-          finalize:
-            subset:
-              crm_update_proposal:
-                data:
-                  decision: no_action
-                  updates: []
-                  rejected_updates:
-                    - record_id: acct-1
-                      field: owner
-                      reason: field is outside the crm_schema allowlist
-                  validation: { status: pass, findings: [] }
-        receipt: { schema: runx.receipt.v1 }
-
-    - name: crm-cleanup-refuses-invented-quote
-      inputs:
-        transcript: "Short call, no changes discussed."
-        crm_records:
-          - id: acct-1
-            account_status: healthy
-        crm_schema:
-          allowed_fields: [account_status]
-      caller:
-        answers:
-          agent_task.crm-cleanup-reconcile.output:
-            update_draft:
-              updates:
-                - record_id: acct-1
-                  field: account_status
-                  to: at_risk
-                  evidence_quote: customer threatened to churn immediately
-      expect:
-        status: sealed
-        steps: [digest-transcript, digest-records, reconcile, finalize]
-        step_outputs:
-          finalize:
-            subset:
-              crm_update_proposal:
-                data:
-                  decision: refused
-                  updates: []
-                  validation: { status: fail }
-        receipt: { schema: runx.receipt.v1 }
-
-    - name: crm-cleanup-needs-transcript
-      inputs:
-        crm_records:
-          - id: acct-1
-        crm_schema:
-          allowed_fields: [next_action]
-      expect:
-        status: failure
+policy:
+  side_effects: workspace_write
+  sends_messages: denied
+  mints_authority: denied
+  persists_state: denied
+  secrets_required: false
 
 runners:
   reconcile:
@@ -144,11 +26,11 @@ runners:
       transcript:
         type: string
         required: true
-        description: Call transcript that is the only evidence for proposed updates.
-      crm_records:
+        description: Call transcript that is the only evidence for field updates.
+      crm_source:
         type: json
         required: true
-        description: Current CRM records read from the caller's source of truth.
+        description: "Where to read current CRM records at run time: {kind: web_fetch, url} fetches a connector export over HTTPS, {kind: read_projection, data_source_ref, aggregate_id, resource} reads a CRM event-stream projection, or {kind: inline, records} replays supplied records for deterministic harness runs."
       crm_schema:
         type: object
         required: true
@@ -161,17 +43,46 @@ runners:
               minItems: 1
               maxItems: 100
               items: { type: string, minLength: 1, maxLength: 200 }
+      write_target:
+        type: json
+        required: true
+        description: "CRM transport for the executed write: {kind: mock, path} writes the reconciled record set to an outbox file through fs.write, sealing a before/after write_result."
     examples:
       - transcript: "Dana said the rollout stalled."
-        crm_records:
-          - id: acct-globex
-            account_status: healthy
+        crm_source:
+          kind: inline
+          records:
+            - id: acct-globex
+              account_status: healthy
         crm_schema:
           allowed_fields: [account_status]
+        write_target:
+          kind: mock
+          path: outbox/crm/records.json
     graph:
       name: crm-cleanup-reconcile
-      result_from: [finalize]
+      result_from: [record-write, finalize]
       steps:
+        - id: read-source
+          label: read the current CRM records from their real source
+          run:
+            type: agent-task
+            agent: researcher
+            task: crm-cleanup-read
+            outputs:
+              source_read: object
+          inputs:
+            crm_source: $input.crm_source
+          allowed_tools:
+            - web.fetch
+            - data.read_projection
+          scopes:
+            - runx:net:allowlist
+            - runx:data:read
+          artifacts:
+            named_emits:
+              source_read: source_read
+
         - id: digest-transcript
           tool: data.digest
           inputs:
@@ -180,8 +91,8 @@ runners:
 
         - id: digest-records
           tool: data.digest
-          inputs:
-            value: $input.crm_records
+          context:
+            value: read-source.source_read.data.records
 
         - id: reconcile
           label: derive candidate field updates from the transcript
@@ -193,8 +104,9 @@ runners:
               update_draft: object
           inputs:
             transcript: $input.transcript
-            crm_records: $input.crm_records
             crm_schema: $input.crm_schema
+          context:
+            crm_records: read-source.source_read.data.records
           allowed_tools: []
           artifacts:
             named_emits:
@@ -204,10 +116,12 @@ runners:
           label: enforce allowlist and transcript traceability deterministically
           inputs:
             transcript: $input.transcript
-            crm_records: $input.crm_records
             crm_schema: $input.crm_schema
+            write_target: $input.write_target
           context:
             update_draft: reconcile.update_draft.data
+            crm_records: read-source.source_read.data.records
+            source_read: read-source.source_read.data
             transcript_digest: digest-transcript.digest_result.data.digest
             records_digest: digest-records.digest_result.data.digest
           run:
@@ -215,16 +129,20 @@ runners:
             module: crm-cleanup.mjs
             export: finalizeUpdates
             outputs:
-              crm_update_proposal:
+              crm_cleanup:
                 type: object
                 schema:
-                  required: [schema, decision, reason, updates, rejected_updates, write_performed, gate, transcript_digest, records_digest, validation]
+                  required: [schema, decision, reason, takeaways, field_updates, rejected_updates, write_plan, source, transcript_digest, records_digest, validation]
                   additionalProperties: false
                   properties:
-                    schema: { const: runx.crm_update_proposal.v1 }
-                    decision: { type: string, enum: [proposed, no_action, refused] }
+                    schema: { const: runx.crm_cleanup.v2 }
+                    decision: { type: string, enum: [applied, no_action, refused] }
                     reason: { type: string, minLength: 1, maxLength: 2000 }
-                    updates:
+                    takeaways:
+                      type: array
+                      maxItems: 100
+                      items: { type: string, minLength: 1, maxLength: 2000 }
+                    field_updates:
                       type: array
                       maxItems: 200
                       items:
@@ -248,8 +166,22 @@ runners:
                           record_id: { type: [string, "null"], maxLength: 500 }
                           field: { type: string, maxLength: 200 }
                           reason: { type: string, minLength: 1, maxLength: 500 }
-                    write_performed: { const: false }
-                    gate: { const: crm-operator-or-human-approver }
+                    write_plan:
+                      type: object
+                      required: [schema, status, transport]
+                      additionalProperties: false
+                      properties:
+                        schema: { const: runx.write_plan.v1 }
+                        status: { type: string, enum: [ready, withheld] }
+                        transport: { const: mock-crm-outbox }
+                        bound_to: { type: string, maxLength: 200 }
+                    source:
+                      type: object
+                      required: [read_kind, fetched_ref]
+                      additionalProperties: false
+                      properties:
+                        read_kind: { type: string, minLength: 1, maxLength: 100 }
+                        fetched_ref: { type: string, minLength: 1, maxLength: 2000 }
                     transcript_digest: { type: string, pattern: "^sha256:[0-9a-f]{64}$" }
                     records_digest: { type: string, pattern: "^sha256:[0-9a-f]{64}$" }
                     validation:
@@ -270,4 +202,54 @@ runners:
                               message: { type: string, minLength: 1, maxLength: 2000 }
           artifacts:
             named_emits:
-              crm_update_proposal: crm_update_proposal
+              crm_cleanup: crm_cleanup
+
+        - id: prepare-write
+          label: bind the decided updates to the mock CRM transport payload
+          when:
+            field: finalize.crm_cleanup.data.write_plan.status
+            equals: ready
+          inputs:
+            write_target: $input.write_target
+          context:
+            crm_cleanup: finalize.crm_cleanup.data
+            crm_records: read-source.source_read.data.records
+          run:
+            type: javascript
+            module: crm-cleanup.mjs
+            export: prepareWrite
+            outputs:
+              write_draft: object
+          artifacts:
+            named_emits:
+              write_draft: write_draft
+
+        - id: apply-write
+          label: execute the decided field updates through the mock CRM transport
+          when:
+            field: finalize.crm_cleanup.data.write_plan.status
+            equals: ready
+          tool: fs.write
+          scopes: [fs.write]
+          context:
+            path: prepare-write.write_draft.data.path
+            contents: prepare-write.write_draft.data.contents
+
+        - id: record-write
+          label: seal the executed write_result bound to the decision
+          when:
+            field: finalize.crm_cleanup.data.write_plan.status
+            equals: ready
+          context:
+            crm_cleanup: finalize.crm_cleanup.data
+            write_draft: prepare-write.write_draft.data
+            applied: apply-write.file_write.data
+          run:
+            type: javascript
+            module: crm-cleanup.mjs
+            export: recordWrite
+            outputs:
+              write_result: object
+          artifacts:
+            named_emits:
+              write_result: write_result

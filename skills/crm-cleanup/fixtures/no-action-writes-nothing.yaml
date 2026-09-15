@@ -1,0 +1,48 @@
+name: crm-cleanup-no-action-writes-nothing
+kind: skill
+target: ..
+runner: reconcile
+inputs:
+  transcript: "Quick check-in with Acme. Everything is on track, no changes needed. They will ping us if anything comes up."
+  crm_source:
+    kind: inline
+    records:
+      - id: acct-acme
+        account_status: healthy
+        next_action: quarterly review scheduled
+  crm_schema:
+    allowed_fields: [account_status, next_action]
+  write_target:
+    kind: mock
+    path: outbox/crm/records.json
+caller:
+  answers:
+    agent_task.crm-cleanup-read.output:
+      source_read:
+        read_kind: inline
+        fetched_ref: inline:fixture
+        records:
+          - id: acct-acme
+            account_status: healthy
+            next_action: quarterly review scheduled
+    agent_task.crm-cleanup-reconcile.output:
+      update_draft:
+        takeaways:
+          - Acme is on track; no changes needed.
+        updates: []
+expect:
+  status: sealed
+  steps: [read-source, digest-transcript, digest-records, reconcile, finalize]
+  step_outputs:
+    finalize:
+      subset:
+        crm_cleanup:
+          data:
+            schema: runx.crm_cleanup.v2
+            decision: no_action
+            field_updates: []
+            write_plan:
+              status: withheld
+              transport: mock-crm-outbox
+            validation: { status: pass, findings: [] }
+  receipt: { schema: runx.receipt.v1 }
