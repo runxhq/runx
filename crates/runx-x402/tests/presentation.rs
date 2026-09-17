@@ -1,7 +1,7 @@
 use std::error::Error;
 use std::io;
 
-use runx_contracts::schema::{IsoDateTime, NonEmptyString};
+use runx_contracts::schema::{IsoDateTime, NonEmptyString, RunxSchema};
 use runx_contracts::{
     JsonObject, OfferRevisionRef, PaidInvocationCanonicalizerVersion, PaymentIdempotencyBinding,
     RUNX_INVOCATION_EXTENSION_KEY, Reference, ReferenceType, RunxX402InvocationExtensionInfo,
@@ -13,7 +13,7 @@ use runx_x402::{
     decode_payment_required_header, decode_payment_response_header,
     decode_payment_signature_header, encode_payment_required_header,
     encode_payment_response_header, encode_payment_signature_header,
-    payment_required_from_challenge, validate_payment_retry,
+    payment_required_from_challenge, runx_invocation_schema_reference, validate_payment_retry,
 };
 use serde_json::json;
 
@@ -137,6 +137,74 @@ fn assembler_owns_runx_extension_and_retry_requires_exact_commitments() -> Resul
     assert_eq!(
         validate_payment_retry(&challenge, &changed_extension),
         Err(X402PresentationError::RunxInvocationMismatch)
+    );
+    Ok(())
+}
+
+#[test]
+fn declaration_advertises_the_published_schema_by_reference() -> Result<(), Box<dyn Error>> {
+    let invocation = invocation('4', '7', '1')?;
+    let challenge = assemble_payment_required(
+        resource(),
+        accepts(requirement()?)?,
+        invocation.clone(),
+        None,
+        JsonObject::new(),
+    )?;
+    let declared = challenge
+        .extensions
+        .as_ref()
+        .and_then(|extensions| extensions.get(RUNX_INVOCATION_EXTENSION_KEY))
+        .cloned()
+        .ok_or_else(|| io::Error::other("runx.invocation"))?;
+    let published_id = RunxX402InvocationExtensionInfo::json_schema()["$id"].clone();
+    assert_eq!(
+        declared,
+        json_value(json!({ "info": invocation, "schema": { "$ref": published_id } }))?
+    );
+    assert_eq!(
+        runx_invocation_schema_reference()?,
+        json_object(
+            json!({ "$ref": "https://schemas.runx.ai/runx/x402/invocation-extension/v1.json" })
+        )?
+    );
+
+    // A challenge assembled before the reference form carried the whole
+    // document; an echo of it names the same schema and still validates.
+    let mut inline_extensions = JsonObject::new();
+    inline_extensions.insert(
+        RUNX_INVOCATION_EXTENSION_KEY.to_owned(),
+        json_value(json!({
+            "info": invocation,
+            "schema": RunxX402InvocationExtensionInfo::json_schema(),
+        }))?,
+    );
+    let inline_retry = X402PaymentPayload {
+        x402_version: X402Version2,
+        resource: Some(resource()),
+        accepted: requirement()?,
+        payload: json_object(json!({ "signature": "opaque" }))?,
+        extensions: Some(inline_extensions),
+        additional: JsonObject::new(),
+    };
+    let validated = validate_payment_retry(&challenge, &inline_retry)?;
+    assert_eq!(validated.invocation, invocation);
+
+    let mut foreign_reference = JsonObject::new();
+    foreign_reference.insert(
+        RUNX_INVOCATION_EXTENSION_KEY.to_owned(),
+        json_value(json!({
+            "info": invocation,
+            "schema": { "$ref": "https://schemas.runx.ai/runx/x402/invocation-extension/v2.json" },
+        }))?,
+    );
+    let foreign_retry = X402PaymentPayload {
+        extensions: Some(foreign_reference),
+        ..inline_retry
+    };
+    assert_eq!(
+        validate_payment_retry(&challenge, &foreign_retry),
+        Err(X402PresentationError::RunxInvocationSchemaMismatch)
     );
     Ok(())
 }

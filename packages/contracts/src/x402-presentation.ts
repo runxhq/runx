@@ -8,6 +8,7 @@ import {
 } from "./schemas/paid-invocation.js";
 import type { ReferenceContract } from "./schemas/spine.js";
 import {
+  X402_SCHEMA_IDS,
   runxX402InvocationExtensionInfoV1Schema,
   validateRunxX402InvocationExtensionInfoContract,
   validateX402PaymentPayloadContract,
@@ -206,6 +207,16 @@ export function assembleExternalX402PaymentRequired(input: Readonly<{
   return validateX402PaymentRequiredContract(value);
 }
 
+/**
+ * The schema a `runx.invocation` declaration advertises: the published v1
+ * document by its resolvable `$id`. The external `{ info, schema }` form is
+ * kept, the five-kilobyte document is not; a challenge has to fit one
+ * portable HTTP header next to the vendor's own discovery declaration.
+ */
+export const RUNX_X402_INVOCATION_SCHEMA_REFERENCE: Readonly<Record<string, unknown>> = Object.freeze({
+  $ref: X402_SCHEMA_IDS.runxInvocationExtension,
+});
+
 export function assembleX402PaymentRequired(input: Readonly<{
   resource: X402ResourceInfoContract;
   accepts: readonly X402PaymentRequirementsContract[];
@@ -220,7 +231,7 @@ export function assembleX402PaymentRequired(input: Readonly<{
   }
   const declaration: RunxX402InvocationExtensionContract = {
     info: input.invocation,
-    schema: runxX402InvocationExtensionInfoV1Schema,
+    schema: RUNX_X402_INVOCATION_SCHEMA_REFERENCE,
   };
   return assembleExternalX402PaymentRequired({
     resource: input.resource,
@@ -339,8 +350,8 @@ export function validateX402PaymentRetry(
   if (requirementIndex < 0) {
     throw new X402PresentationError("requirement_mismatch");
   }
-  const declared = runxDeclaration(challenge.extensions);
-  const echoed = runxDeclaration(retry.extensions);
+  const declared = parseRunxX402InvocationDeclaration(challenge.extensions);
+  const echoed = parseRunxX402InvocationDeclaration(retry.extensions);
   if (!jsonEquals(echoed, declared)) {
     throw new X402PresentationError("runx_invocation_mismatch");
   }
@@ -413,7 +424,16 @@ function decodeHeader<T>(value: string, validate: (value: unknown) => T): T {
   }
 }
 
-function runxDeclaration(
+/**
+ * Read and normalize the `runx.invocation` declaration under `extensions`.
+ * The advertised schema must be the published v1 schema, by reference or as
+ * the inline document challenges carried before the reference form; both
+ * name the same schema, so the declaration comes back in the reference form
+ * and two echoes of one challenge compare equal whichever way it was
+ * assembled. Inline acceptance retires once every emitter is on the
+ * reference form.
+ */
+export function parseRunxX402InvocationDeclaration(
   extensions: Readonly<Record<string, unknown>> | null | undefined,
 ): RunxX402InvocationExtensionContract {
   const value = extensions?.[RUNX_X402_INVOCATION_EXTENSION_KEY];
@@ -431,10 +451,13 @@ function runxDeclaration(
   } catch {
     throw new X402PresentationError("invalid_payload");
   }
-  if (!jsonEquals(record.schema, runxX402InvocationExtensionInfoV1Schema)) {
+  if (
+    !jsonEquals(record.schema, RUNX_X402_INVOCATION_SCHEMA_REFERENCE)
+    && !jsonEquals(record.schema, runxX402InvocationExtensionInfoV1Schema)
+  ) {
     throw new X402PresentationError("runx_invocation_schema_mismatch");
   }
-  return { info, schema: runxX402InvocationExtensionInfoV1Schema };
+  return { info, schema: RUNX_X402_INVOCATION_SCHEMA_REFERENCE };
 }
 
 function assertBazaarDiscoveryExtension(extensions: Readonly<Record<string, unknown>>): void {

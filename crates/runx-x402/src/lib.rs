@@ -70,6 +70,19 @@ pub struct ValidatedX402Retry {
     pub invocation: RunxX402InvocationExtensionInfo,
 }
 
+/// The schema a `runx.invocation` declaration advertises: the published v1
+/// document by its resolvable `$id`. The external `{ info, schema }` form is
+/// kept, the five-kilobyte document is not; a challenge has to fit one
+/// portable HTTP header next to the vendor's own discovery declaration.
+pub fn runx_invocation_schema_reference() -> Result<JsonObject, X402PresentationError> {
+    let schema = RunxX402InvocationExtensionInfo::json_schema();
+    let id = schema
+        .get("$id")
+        .and_then(serde_json::Value::as_str)
+        .ok_or(X402PresentationError::EncodingFailed)?;
+    json_object_from_serializable(&serde_json::json!({ "$ref": id }))
+}
+
 /// Assemble the whole external challenge. Vendors may supply other declared
 /// extensions as data, but cannot supply or overwrite `runx.invocation`.
 pub fn assemble_payment_required(
@@ -82,10 +95,9 @@ pub fn assemble_payment_required(
     if extensions.contains_key(RUNX_INVOCATION_EXTENSION_KEY) {
         return Err(X402PresentationError::ReservedExtension);
     }
-    let schema = json_object_from_serializable(&RunxX402InvocationExtensionInfo::json_schema())?;
     let declaration = RunxX402InvocationExtension {
         info: invocation,
-        schema,
+        schema: runx_invocation_schema_reference()?,
     };
     let extension_value = runx_invocation_extension_value(&declaration)
         .map_err(|_| X402PresentationError::EncodingFailed)?;
@@ -169,8 +181,8 @@ pub fn validate_payment_retry(
         .position(|candidate| candidate == &retry.accepted)
         .ok_or(X402PresentationError::RequirementMismatch)?;
 
-    let declared = runx_declaration(challenge.extensions.as_ref())?;
-    let echoed = runx_declaration(retry.extensions.as_ref())?;
+    let declared = parse_runx_invocation_declaration(challenge.extensions.as_ref())?;
+    let echoed = parse_runx_invocation_declaration(retry.extensions.as_ref())?;
     if echoed != declared {
         return Err(X402PresentationError::RunxInvocationMismatch);
     }
@@ -278,7 +290,14 @@ fn padded_base64(value: &str) -> String {
     normalized
 }
 
-fn runx_declaration(
+/// Read and normalize the `runx.invocation` declaration under `extensions`.
+/// The advertised schema must be the published v1 schema, by reference or as
+/// the inline document challenges carried before the reference form; both
+/// name the same schema, so the declaration is returned in the reference
+/// form and two echoes of one challenge compare equal whichever way it was
+/// assembled. Inline acceptance retires once every emitter is on the
+/// reference form.
+pub fn parse_runx_invocation_declaration(
     extensions: Option<&JsonObject>,
 ) -> Result<RunxX402InvocationExtension, X402PresentationError> {
     let value = extensions
@@ -287,11 +306,17 @@ fn runx_declaration(
         .ok_or(X402PresentationError::MissingRunxInvocation)?;
     let declaration = parse_runx_invocation_extension(value)
         .map_err(|_| X402PresentationError::InvalidPayload)?;
-    let expected = json_object_from_serializable(&RunxX402InvocationExtensionInfo::json_schema())?;
-    if declaration.schema != expected {
+    let reference = runx_invocation_schema_reference()?;
+    if declaration.schema != reference
+        && declaration.schema
+            != json_object_from_serializable(&RunxX402InvocationExtensionInfo::json_schema())?
+    {
         return Err(X402PresentationError::RunxInvocationSchemaMismatch);
     }
-    Ok(declaration)
+    Ok(RunxX402InvocationExtension {
+        info: declaration.info,
+        schema: reference,
+    })
 }
 
 fn json_object_from_serializable<T: Serialize>(

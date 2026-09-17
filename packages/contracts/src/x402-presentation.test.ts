@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   RUNX_X402_INVOCATION_EXTENSION_KEY,
+  RUNX_X402_INVOCATION_SCHEMA_REFERENCE,
   X402_BAZAAR_EXTENSION_KEY,
   X402_PAYMENT_REQUIRED_HEADER,
   X402PresentationError,
@@ -20,6 +21,7 @@ import {
   declareExternalX402JsonPostDiscovery,
   encodeX402PaymentRequiredHeader,
   encodeX402PaymentResponseHeader,
+  parseRunxX402InvocationDeclaration,
   encodeX402PaymentSignatureHeader,
   runxGeneratedSchemaArtifacts,
   runxX402InvocationExtensionInfoV1Schema,
@@ -147,7 +149,10 @@ describe("x402 v2 TypeScript facade", () => {
     expect(challenge.extensions?.["vendor.example"]).toEqual({ future: true });
     expect(challenge.extensions?.[RUNX_X402_INVOCATION_EXTENSION_KEY]).toEqual({
       info: invocation,
-      schema: runxX402InvocationExtensionInfoV1Schema,
+      schema: { $ref: "https://schemas.runx.ai/runx/x402/invocation-extension/v1.json" },
+    });
+    expect(RUNX_X402_INVOCATION_SCHEMA_REFERENCE).toEqual({
+      $ref: runxX402InvocationExtensionInfoV1Schema.$id,
     });
 
     const retry: X402PaymentPayloadContract = {
@@ -161,6 +166,38 @@ describe("x402 v2 TypeScript facade", () => {
       requirementIndex: 0,
       invocation,
     });
+
+    // A challenge assembled before the reference form carried the whole
+    // document; an echo of it names the same schema and still validates.
+    const inlineEcho: X402PaymentPayloadContract = {
+      ...structuredClone(retry),
+      extensions: {
+        [RUNX_X402_INVOCATION_EXTENSION_KEY]: {
+          info: invocation,
+          schema: runxX402InvocationExtensionInfoV1Schema,
+        },
+      },
+    };
+    expect(validateX402PaymentRetry(challenge, inlineEcho)).toEqual({
+      requirementIndex: 0,
+      invocation,
+    });
+    expect(parseRunxX402InvocationDeclaration(inlineEcho.extensions)).toEqual({
+      info: invocation,
+      schema: RUNX_X402_INVOCATION_SCHEMA_REFERENCE,
+    });
+
+    const foreignReference: X402PaymentPayloadContract = {
+      ...structuredClone(retry),
+      extensions: {
+        [RUNX_X402_INVOCATION_EXTENSION_KEY]: {
+          info: invocation,
+          schema: { $ref: "https://schemas.runx.ai/runx/x402/invocation-extension/v2.json" },
+        },
+      },
+    };
+    expect(presentationErrorCode(() => validateX402PaymentRetry(challenge, foreignReference)))
+      .toBe("runx_invocation_schema_mismatch");
 
     const changedAmount = structuredClone(retry);
     (changedAmount.accepted as { amount: string }).amount = "10001";
@@ -300,7 +337,7 @@ describe("x402 v2 TypeScript facade", () => {
     expect(projection.body.extensions?.[X402_BAZAAR_EXTENSION_KEY]).toEqual(bazaar);
     expect(projection.body.extensions?.[RUNX_X402_INVOCATION_EXTENSION_KEY]).toEqual({
       info: discovery,
-      schema: runxX402InvocationExtensionInfoV1Schema,
+      schema: RUNX_X402_INVOCATION_SCHEMA_REFERENCE,
     });
   });
 

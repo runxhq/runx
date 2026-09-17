@@ -22,7 +22,7 @@ runx-core = { path = "runx-core", version = "0.1.0" }
 runx-parser = { path = "runx-parser", version = "0.1.0" }
 runx-receipts = { path = "runx-receipts", version = "0.0.2" }
 runx-runtime = { path = "runx-runtime", version = "0.1.0" }
-runx-x402 = { path = "runx-x402", version = "0.1.0" }
+runx-x402 = { path = "runx-x402", version = "0.2.0" }
 regex = "1.13.1"
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.149"
