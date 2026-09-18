@@ -230,6 +230,7 @@ pub use paid_invocation::{
 pub use paid_invocation_fingerprint::{
     PAID_INVOCATION_REQUEST_FINGERPRINT_SCHEMA, fingerprint_cancel_paid_invocation_request,
     fingerprint_execute_paid_invocation_request, fingerprint_quote_paid_invocation_request,
+    quote_paid_invocation_binding,
 };
 pub use paid_skill_listing::{
     PAID_SKILL_LISTING_SCHEMA, PaidSkillExecutorBinding, PaidSkillFixedOfferTerms,

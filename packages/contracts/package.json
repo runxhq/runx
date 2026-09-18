@@ -1,6 +1,6 @@
 {
   "name": "@runxhq/contracts",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Runx machine-facing JSON contracts: doctor, dev, list, receipt, fixture, tool manifest, packet index.",
   "private": false,
   "license": "Apache-2.0",

@@ -11,10 +11,27 @@ use crate::{
 
 pub const PAID_INVOCATION_REQUEST_FINGERPRINT_SCHEMA: &str = "runx.payment.request_fingerprint.v1";
 
+/// The part of a quote request its fingerprint binds: everything the quote
+/// commits to. The vendor presentation is what a buyer sees, never what binds
+/// the quote, so a replay that omits or restates it names the same quote.
+/// Hosted admission replays a paid run's quote from the durable invocation,
+/// which carries no presentation, under the caller's idempotency key.
+pub fn quote_paid_invocation_binding(
+    request: &QuotePaidInvocationRequest,
+) -> QuotePaidInvocationRequest {
+    QuotePaidInvocationRequest {
+        presentation: None,
+        ..request.clone()
+    }
+}
+
 pub fn fingerprint_quote_paid_invocation_request(
     request: &QuotePaidInvocationRequest,
 ) -> Result<String, CanonicalJsonError> {
-    fingerprint_request(QUOTE_PAID_INVOCATION, request)
+    fingerprint_request(
+        QUOTE_PAID_INVOCATION,
+        &quote_paid_invocation_binding(request),
+    )
 }
 
 pub fn fingerprint_execute_paid_invocation_request(
@@ -136,13 +153,32 @@ mod tests {
     -> Result<(), CanonicalJsonError> {
         let oracle: Oracle = serde_json::from_str(ORACLE).map_err(serialization_error)?;
 
+        // Every case names a distinct binding except the presentation case,
+        // which restates the base quote's binding under a vendor presentation
+        // and must therefore digest exactly as the base does.
         let distinct_digests = oracle
             .cases
             .iter()
+            .filter(|case| case.name != "quote-presentation")
             .map(|case| case.expected_sha256.as_str())
             .collect::<BTreeSet<_>>();
-        assert_eq!(distinct_digests.len(), oracle.cases.len());
+        assert_eq!(distinct_digests.len(), oracle.cases.len() - 1);
+        let presentation_case = oracle
+            .cases
+            .iter()
+            .find(|case| case.name == "quote-presentation")
+            .ok_or_else(|| test_error("oracle is missing quote-presentation"))?;
+        let base_case = oracle
+            .cases
+            .iter()
+            .find(|case| case.name == "quote-base")
+            .ok_or_else(|| test_error("oracle is missing quote-base"))?;
+        assert!(presentation_case.request.get("presentation").is_some());
+        assert_eq!(presentation_case.expected_sha256, base_case.expected_sha256);
+        assert_eq!(presentation_case.canonical_json, base_case.canonical_json);
 
+        // Every request member has a case: the binding members each move the
+        // digest, the advisory presentation (asserted above) does not.
         assert_changed_members(
             &oracle.cases,
             QUOTE_PAID_INVOCATION,
@@ -156,6 +192,7 @@ mod tests {
                 "offer_revision",
                 "package_digest",
                 "parent",
+                "presentation",
                 "principal",
                 "vendor_ref",
             ],

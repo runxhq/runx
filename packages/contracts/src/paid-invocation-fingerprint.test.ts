@@ -57,6 +57,20 @@ describe("paid invocation request fingerprints", () => {
     },
   );
 
+  it("binds a quote without its vendor presentation", () => {
+    const base = oracle.cases.find(({ name }) => name === "quote-base");
+    const presented = oracle.cases.find(({ name }) => name === "quote-presentation");
+    expect(base).toBeDefined();
+    expect(presented).toBeDefined();
+    expect((presented?.request as { presentation?: unknown }).presentation).toBeDefined();
+    // The presentation is what a buyer sees, never what binds the quote: a
+    // replay that omits it (hosted admission rebuilds the quote from the
+    // durable invocation) names the same quote.
+    expect(presented?.expected_sha256).toBe(base?.expected_sha256);
+    expect(fingerprintQuotePaidInvocationRequest(presented?.request as QuotePaidInvocationRequestContract))
+      .toBe(fingerprintQuotePaidInvocationRequest(base?.request as QuotePaidInvocationRequestContract));
+  });
+
   it("rejects amounts outside the shared portable integer contract", () => {
     const base = oracle.cases.find(({ name }) => name === "quote-base");
     expect(base).toBeDefined();

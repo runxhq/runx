@@ -15,14 +15,21 @@ import {
 export const PAID_INVOCATION_REQUEST_FINGERPRINT_SCHEMA =
   "runx.payment.request_fingerprint.v1" as const;
 
+/**
+ * The quote fingerprint covers the binding request: everything the quote
+ * commits to. The vendor presentation is what a buyer sees, never what binds
+ * the quote, so a replay that omits or restates it names the same quote.
+ * Hosted admission replays a paid run's quote from the durable invocation,
+ * which carries no presentation, under the caller's idempotency key.
+ */
 export function fingerprintQuotePaidInvocationRequest(
   request: QuotePaidInvocationRequestContract,
 ): string {
-  const validated = validateQuotePaidInvocationRequestContract(request);
-  assertRustRequestShape(validated);
+  const { presentation: _presentation, ...binding } = validateQuotePaidInvocationRequestContract(request);
+  assertRustRequestShape(binding);
   return fingerprintRequest(
     "QuotePaidInvocation",
-    validated,
+    binding,
   );
 }
 
