@@ -1,0 +1,36 @@
+name: postmortem-maker-needs-source-refuses
+kind: skill
+target: ..
+runner: make
+inputs:
+  incident_ref: inc-y
+  incident_source:
+    kind: inline
+    fragments: []
+  postmortem_policy:
+    allow_publish: false
+caller:
+  answers:
+    agent_task.postmortem-maker-read.output:
+      source_read:
+        read_kind: inline
+        fetched_ref: inline:inc-y
+        fragments: []
+    agent_task.postmortem-maker-draft.output:
+      postmortem_draft:
+        summary: Nothing to report.
+        timeline: []
+        root_cause: { status: unknown }
+        unknowns: [No incident evidence was supplied.]
+        action_items: []
+expect:
+  status: sealed
+  steps: [read-source, digest-source, draft, finalize]
+  step_outputs:
+    finalize:
+      subset:
+        postmortem:
+          data:
+            decision: refused
+            validation: { status: fail }
+  receipt: { schema: runx.receipt.v1 }

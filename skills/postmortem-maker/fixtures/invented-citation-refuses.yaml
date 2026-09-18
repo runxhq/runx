@@ -1,0 +1,52 @@
+name: postmortem-maker-invented-citation-refuses
+kind: skill
+target: ..
+runner: make
+inputs:
+  incident_ref: inc-x
+  incident_source:
+    kind: inline
+    fragments:
+      - id: frag-1
+        source: log
+        text: "Service restarted at 09:00."
+  postmortem_policy:
+    allow_publish: false
+caller:
+  answers:
+    agent_task.postmortem-maker-read.output:
+      source_read:
+        read_kind: inline
+        fetched_ref: inline:inc-x
+        fragments:
+          - id: frag-1
+            source: log
+            text: "Service restarted at 09:00."
+    agent_task.postmortem-maker-draft.output:
+      postmortem_draft:
+        summary: Total outage caused by database corruption.
+        timeline:
+          - entry: The database corrupted.
+            fragment_id: frag-1
+            quote: "database corruption detected"
+        root_cause:
+          status: known
+          statement: Database corruption.
+          fragment_id: frag-1
+          quote: "database corruption detected"
+        unknowns: []
+        action_items: []
+expect:
+  status: sealed
+  steps: [read-source, digest-source, draft, finalize]
+  step_outputs:
+    finalize:
+      subset:
+        postmortem:
+          data:
+            decision: refused
+            timeline: []
+            send_plan:
+              status: withheld
+            validation: { status: fail }
+  receipt: { schema: runx.receipt.v1 }
