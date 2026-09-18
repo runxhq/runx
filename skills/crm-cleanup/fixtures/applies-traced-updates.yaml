@@ -1,0 +1,77 @@
+name: crm-cleanup-applies-traced-updates
+kind: skill
+target: ..
+runner: reconcile
+operator_journeys:
+  - mode: standalone
+    confusors: [lead-enrichment, lead-router]
+    request: Reconcile this call transcript against the live CRM records and apply the field updates.
+    expected_outcome: Read the records from the source, return allowlisted field updates traced to verbatim transcript quotes, and execute them through the CRM transport with a sealed before/after write_result.
+  - mode: composed
+    request: Continue from this sealed cleanup result into the next pipeline step.
+    expected_outcome: Reuse the sealed field updates and executed write_result without re-reconciling.
+    prior_evidence:
+      - The source read, sealed cleanup decision, and executed write_result supplied by the prior step.
+    must_not_repeat:
+      - Do not re-derive updates already sealed and applied.
+inputs:
+  transcript: "Call with Globex on renewal. Dana said the rollout stalled and they want an executive review before renewing. Next step agreed: send the Q3 usage report by Friday."
+  crm_source:
+    kind: inline
+    records:
+      - id: acct-globex
+        account_status: healthy
+        next_action: none
+  crm_schema:
+    allowed_fields: [account_status, next_action, health_score]
+  write_target:
+    kind: mock
+    path: outbox/crm/records.json
+caller:
+  answers:
+    agent_task.crm-cleanup-read.output:
+      source_read:
+        read_kind: inline
+        fetched_ref: inline:fixture
+        records:
+          - id: acct-globex
+            account_status: healthy
+            next_action: none
+    agent_task.crm-cleanup-reconcile.output:
+      update_draft:
+        takeaways:
+          - Globex rollout stalled; executive review required before renewal.
+          - Next step: send the Q3 usage report by Friday.
+        updates:
+          - record_id: acct-globex
+            field: account_status
+            to: at_risk
+            evidence_quote: the rollout stalled and they want an executive review before renewing
+          - record_id: acct-globex
+            field: next_action
+            to: send the Q3 usage report by Friday
+            evidence_quote: "send the Q3 usage report by Friday"
+expect:
+  status: sealed
+  steps: [read-source, digest-transcript, digest-records, reconcile, finalize, prepare-write, apply-write, record-write]
+  step_outputs:
+    finalize:
+      subset:
+        crm_cleanup:
+          data:
+            schema: runx.crm_cleanup.v2
+            decision: applied
+            write_plan:
+              status: ready
+              transport: mock-crm-outbox
+            rejected_updates: []
+            validation: { status: pass, findings: [] }
+    record-write:
+      subset:
+        write_result:
+          data:
+            schema: runx.write_result.v1
+            executed: true
+            transport: mock-crm-outbox
+            applied_updates: 2
+  receipt: { schema: runx.receipt.v1 }
