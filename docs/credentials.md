@@ -80,6 +80,11 @@ runx skill ./skills/nitrosend status --profile account-one --json
 ```
 
 `runx credential set` makes the stored profile the provider's global default.
+Reusing a profile name for another provider removes the previous provider's
+default only when it still points at that profile. Other defaults are preserved.
+Explicit profile selections and project bindings are not rewritten; a provider
+mismatch in either remains an error. Without a provider default, resolution
+continues through the remaining sources in the order documented below.
 `--audience` binds material to one canonical HTTPS host. Use it for providers
 whose destination is selected at runtime, such as a self-hosted n8n instance.
 When both a skill and a profile declare an audience, their normalized hosts
