@@ -3980,9 +3980,37 @@ runners:
 
 #[test]
 fn native_graph_when_skips_unselected_branch() -> Result<(), Box<dyn std::error::Error>> {
+    graph_when_selection_journey(false)
+}
+
+#[test]
+fn native_graph_when_skips_unselected_fanout_branch() -> Result<(), Box<dyn std::error::Error>> {
+    graph_when_selection_journey(true)
+}
+
+fn graph_when_selection_journey(fanout: bool) -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;
     let skill_dir = write_graph_when_branch_skill(temp.path())?;
     let receipt_dir = temp.path().join("receipts");
+    if fanout {
+        let profile_path = skill_dir.join("X.yaml");
+        let profile = fs::read_to_string(&profile_path)?
+            .replace(
+                "      name: graph-when-branch\n",
+                "      name: graph-when-branch\n      fanout:\n        groups:\n          workers:\n            strategy: all\n            on_branch_failure: halt\n",
+            )
+            .replace(
+                "        - id: branch_go\n",
+                "        - id: branch_go\n          mode: fanout\n          fanout_group: workers\n",
+            )
+            .replace(
+                "        - id: branch_stop\n",
+                "        - id: branch_stop\n          mode: fanout\n          fanout_group: workers\n",
+            );
+        assert_eq!(profile.matches("fanout_group: workers").count(), 2);
+        assert!(profile.contains("strategy: all"));
+        fs::write(profile_path, profile)?;
+    }
 
     let initial = run_skill(SkillRunRequest {
         skill_path: skill_dir.clone(),
