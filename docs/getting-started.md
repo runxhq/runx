@@ -66,6 +66,47 @@ The `runx.receipt_inspection.v1` projection should show the receipt status,
 authority, decisions, acts, seal summary, and local issuer verification. It
 does not reproduce the execution input or output body.
 
+The receipt you just sealed was signed by the local runtime, so its
+`verification` block reports:
+
+```json
+"verification": {
+  "status": "unverified"
+}
+```
+
+That is the expected starting point rather than a failure. No trusted verifier
+is configured yet, and `runx verify` does not choose a trust level for you. Ask
+it to verify the id from the previous command and it stops with:
+
+```text
+runx: runx verify requires a trusted receipt verifier. Set both
+RUNX_RECEIPT_VERIFY_KID and RUNX_RECEIPT_VERIFY_ED25519_PUBLIC_KEY_BASE64,
+configure a complete RUNX_RECEIPT_SIGN_* identity, or pass
+--allow-local-development-signatures for local fixture receipts only.
+```
+
+To check the receipt you just sealed, accept the local-development signature
+explicitly:
+
+```bash
+runx verify <receipt-id> --allow-local-development-signatures
+```
+
+```text
+signature mode: local-development
+note: local-development signatures were accepted only because --allow-local-development-signatures was set; set RUNX_RECEIPT_VERIFY_KID and RUNX_RECEIPT_VERIFY_ED25519_PUBLIC_KEY_BASE64 to verify production signatures
+tree sha256:<receipt-id> (1 receipt): ok
+verification: ok
+```
+
+Read that verdict as scoped: `verification: ok` covers the receipt tree, the
+signature, and the digests under the local-development trust level. The flag
+only accepts local-development signatures. A trusted verdict for a production
+receipt comes from the verification key in
+[Production Receipt Signing](#production-receipt-signing), which is the only
+path to a production-trusted verdict.
+
 ## Production Receipt Signing
 
 For production-trusted receipts, replace the demo key with an Ed25519 signing
