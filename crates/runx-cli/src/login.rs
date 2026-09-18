@@ -356,25 +356,44 @@ fn wait_for_login_completion<T: Transport>(
     started: &HostedLoginStartResponse,
     sleep: &impl Fn(Duration),
 ) -> Result<HostedLoginCompleteResponse, LoginCliError> {
-    let deadline = Instant::now() + Duration::from_secs(DEFAULT_LOGIN_TIMEOUT_SECONDS);
+    let now = Instant::now;
+    let deadline = now() + Duration::from_secs(DEFAULT_LOGIN_TIMEOUT_SECONDS);
+    wait_for_login_completion_until(transport, base_url, started, sleep, &now, deadline)
+}
+
+// Bound scheduling to a monotonic deadline. An in-flight transport request still
+// owns its request timeout; this helper does not cancel or detach HTTP work.
+fn wait_for_login_completion_until<T: Transport>(
+    transport: &T,
+    base_url: &str,
+    started: &HostedLoginStartResponse,
+    sleep: &impl Fn(Duration),
+    now: &impl Fn() -> Instant,
+    deadline: Instant,
+) -> Result<HostedLoginCompleteResponse, LoginCliError> {
     let mut poll_after = Duration::from_millis(started.poll_after_ms.unwrap_or(1000));
     loop {
+        if now() >= deadline {
+            return Err(LoginCliError::LoginTimedOut);
+        }
         let completed = runx_runtime::complete_hosted_login(
             transport,
             base_url,
             &started.session_id,
             &started.login_token,
         )?;
+        // Preserve the existing treatment of an already-completed request.
         if completed.status == "success" {
             return Ok(completed);
         }
-        if Instant::now() >= deadline {
+        let remaining = deadline.saturating_duration_since(now());
+        if remaining.is_zero() {
             return Err(LoginCliError::LoginTimedOut);
         }
         if let Some(next_poll_after) = completed.poll_after_ms {
             poll_after = Duration::from_millis(next_poll_after);
         }
-        sleep(poll_after);
+        sleep(poll_after.min(remaining));
     }
 }
 
@@ -397,3 +416,7 @@ fn render_login_result(json: bool, result: &LoginResult) -> Result<String, Login
 #[cfg(test)]
 #[path = "login_tests.rs"]
 mod login_tests;
+
+#[cfg(test)]
+#[path = "login_poll_tests.rs"]
+mod login_poll_tests;
