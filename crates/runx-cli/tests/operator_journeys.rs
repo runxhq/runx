@@ -81,7 +81,27 @@ fn skill_author_journey_discovers_harnesses_runs_verifies_and_reads_history() ->
     let receipt_id = json_string(&run, "receipt_id")?;
 
     assert_receipt_verifies(&root, &receipt_dir, receipt_id)?;
-    assert_history_contains_local_receipt(&root, &receipt_dir, receipt_id)?;
+    let history = assert_history_contains_local_receipt(&root, &receipt_dir, receipt_id)?;
+    let short_history = command(&root)
+        .args(["history", receipt_id, "-j"])
+        .arg("--receipt-dir")
+        .arg(&receipt_dir)
+        .output()?;
+    assert_eq!(assert_json(&short_history, 0)?, history);
+    let short_detail = command(&root)
+        .args(["history", "-j", receipt_id, "--detail"])
+        .arg("--receipt-dir")
+        .arg(&receipt_dir)
+        .output()?;
+    let long_detail = command(&root)
+        .args(["history", receipt_id, "--detail", "--json"])
+        .arg("--receipt-dir")
+        .arg(&receipt_dir)
+        .output()?;
+    assert_eq!(
+        assert_json(&short_detail, 0)?,
+        assert_json(&long_detail, 0)?
+    );
 
     Ok(())
 }
