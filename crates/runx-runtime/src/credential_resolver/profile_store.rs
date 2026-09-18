@@ -54,6 +54,14 @@ pub fn set_local_credential_profile(
             secret_ref,
         },
     );
+    // Refresh provider-default pointers for this profile name. A pointer for
+    // its previous provider would otherwise resolve to an incompatible profile.
+    // Explicit project bindings and profile selection remain unchanged.
+    credentials
+        .defaults
+        .retain(|default_provider, default_profile| {
+            default_profile != name || default_provider == provider
+        });
     credentials
         .defaults
         .insert(provider.to_owned(), name.to_owned());
@@ -226,4 +234,191 @@ fn required(value: &str, error: SkillCredentialError) -> Result<&str, SkillCrede
         return Err(error);
     }
     Ok(value)
+}
+
+#[cfg(test)]
+mod tests {
+    use runx_parser::CredentialRequirement;
+
+    use crate::credential_resolver::{
+        SkillCredentialRequest, SkillCredentialResolution, SkillCredentialSource,
+        resolve_skill_credential,
+    };
+
+    use super::{
+        BTreeMap, WorkspaceEnv, load_runx_config_file, resolve_runx_home_dir,
+        set_local_credential_profile,
+    };
+
+    fn github_request() -> SkillCredentialRequest {
+        SkillCredentialRequest {
+            skill_name: "audit-repo".to_owned(),
+            requirement_name: "github".to_owned(),
+            requirement: CredentialRequirement {
+                provider: "github".to_owned(),
+                audience: None,
+                deliveries: BTreeMap::from([("token".to_owned(), "GITHUB_TOKEN".to_owned())]),
+            },
+            scopes: Vec::new(),
+            explicit_profile: None,
+        }
+    }
+
+    #[test]
+    fn rebinding_a_profile_to_another_provider_drops_the_stale_default()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let temp = tempfile::tempdir()?;
+        let home = temp.path().join("home");
+        let env = BTreeMap::from([
+            ("RUNX_HOME".to_owned(), home.to_string_lossy().into_owned()),
+            (
+                "GITHUB_TOKEN".to_owned(),
+                "github-environment-secret-sentinel".to_owned(),
+            ),
+        ]);
+        let workspace = WorkspaceEnv::new(env, temp.path().to_path_buf())?;
+
+        set_local_credential_profile(
+            &workspace,
+            "shared",
+            "github",
+            "token",
+            None,
+            "github-profile-secret-sentinel",
+        )?;
+        set_local_credential_profile(
+            &workspace,
+            "shared",
+            "linear",
+            "token",
+            None,
+            "linear-profile-secret-sentinel",
+        )?;
+
+        let config_dir = resolve_runx_home_dir(workspace.env(), workspace.cwd());
+        let config = load_runx_config_file(&config_dir.join("config.json"))?;
+        let defaults = config.credentials.unwrap_or_default().defaults;
+        assert_eq!(defaults.get("linear").map(String::as_str), Some("shared"));
+        assert_eq!(defaults.get("github"), None);
+
+        let resolution = resolve_skill_credential(&github_request(), &workspace)?;
+        let SkillCredentialResolution::Ready(resolved) = resolution else {
+            return Err("github credential resolved to Missing".into());
+        };
+        assert_eq!(resolved.source, SkillCredentialSource::Environment);
+        let descriptor = resolved
+            .descriptor
+            .ok_or("github environment credential has no descriptor")?;
+        assert_eq!(descriptor.secret, "github-environment-secret-sentinel");
+
+        let mut explicit = github_request();
+        explicit.explicit_profile = Some("shared".to_owned());
+        assert!(matches!(
+            resolve_skill_credential(&explicit, &workspace),
+            Err(crate::credential_resolver::SkillCredentialError::ProviderMismatch { .. })
+        ));
+        super::bind_project_credential(&workspace, "provider:github", "shared")?;
+        assert!(matches!(
+            resolve_skill_credential(&github_request(), &workspace),
+            Err(crate::credential_resolver::SkillCredentialError::ProviderMismatch { .. })
+        ));
+        Ok(())
+    }
+
+    #[test]
+    fn profile_refresh_preserves_other_defaults_and_new_provider_resolution()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let temp = tempfile::tempdir()?;
+        let workspace = WorkspaceEnv::new(
+            BTreeMap::from([(
+                "RUNX_HOME".to_owned(),
+                temp.path().join("home").to_string_lossy().into_owned(),
+            )]),
+            temp.path().to_path_buf(),
+        )?;
+        set_local_credential_profile(
+            &workspace,
+            "shared",
+            "github",
+            "token",
+            None,
+            "first-sentinel",
+        )?;
+        set_local_credential_profile(
+            &workspace,
+            "shared",
+            "github",
+            "token",
+            None,
+            "rotated-sentinel",
+        )?;
+        let github = resolve_skill_credential(&github_request(), &workspace)?;
+        assert!(
+            matches!(github, SkillCredentialResolution::Ready(ref resolved)
+            if resolved.source == SkillCredentialSource::GlobalDefault)
+        );
+        set_local_credential_profile(
+            &workspace,
+            "other",
+            "github",
+            "token",
+            None,
+            "other-sentinel",
+        )?;
+        set_local_credential_profile(
+            &workspace,
+            "shared",
+            "linear",
+            "token",
+            None,
+            "linear-sentinel",
+        )?;
+        let config_dir = resolve_runx_home_dir(workspace.env(), workspace.cwd());
+        let config = load_runx_config_file(&config_dir.join("config.json"))?;
+        let defaults = config.credentials.unwrap_or_default().defaults;
+        assert_eq!(defaults.get("github").map(String::as_str), Some("other"));
+        assert_eq!(defaults.get("linear").map(String::as_str), Some("shared"));
+        let mut linear = github_request();
+        linear.requirement.provider = "linear".to_owned();
+        linear.requirement.deliveries =
+            BTreeMap::from([("token".to_owned(), "LINEAR_TOKEN".to_owned())]);
+        assert!(matches!(resolve_skill_credential(&linear, &workspace)?,
+            SkillCredentialResolution::Ready(ref resolved)
+                if resolved.source == SkillCredentialSource::GlobalDefault));
+        Ok(())
+    }
+
+    #[test]
+    fn rebound_profile_does_not_invent_a_missing_provider_credential()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let temp = tempfile::tempdir()?;
+        let workspace = WorkspaceEnv::new(
+            BTreeMap::from([(
+                "RUNX_HOME".to_owned(),
+                temp.path().join("home").to_string_lossy().into_owned(),
+            )]),
+            temp.path().to_path_buf(),
+        )?;
+        set_local_credential_profile(
+            &workspace,
+            "shared",
+            "github",
+            "token",
+            None,
+            "first-sentinel",
+        )?;
+        set_local_credential_profile(
+            &workspace,
+            "shared",
+            "linear",
+            "token",
+            None,
+            "second-sentinel",
+        )?;
+        assert!(matches!(
+            resolve_skill_credential(&github_request(), &workspace)?,
+            SkillCredentialResolution::Missing
+        ));
+        Ok(())
+    }
 }
