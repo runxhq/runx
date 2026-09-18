@@ -2,6 +2,8 @@ use std::fs;
 use std::io::{self, Write};
 use std::path::Path;
 
+use tempfile::Builder;
+
 pub(super) use crate::time::now_iso8601;
 
 use runx_contracts::operational_policy_source_provider;
@@ -84,6 +86,25 @@ pub(super) fn safe_read_dir_names(path: &Path) -> Result<Vec<String>, LocalRegis
     }
 }
 
+// The temporary file lives inside a version directory. Its non-JSON suffix
+// keeps incomplete bytes out of list_versions while publication is staged.
+const STAGING_PREFIX: &str = ".registry-version-";
+const STAGING_SUFFIX: &str = ".tmp";
+
+/// Writes a registry version record so readers only ever observe a complete
+/// record.
+///
+/// The serialized bytes are staged in the destination's own directory and then
+/// published with a single directory operation. An interrupted or failed write
+/// therefore leaves the previous record, including its version metadata, fully
+/// intact, and a reader never resolves the destination name to partial bytes.
+/// `create_new` keeps its no-clobber promise: the publish fails with
+/// `AlreadyExists` rather than replacing a record that another writer created
+/// after the caller's existence check.
+///
+/// Publishing replaces the destination entry, not the contents of a retained
+/// reader's file handle. Existing records must still be writable: staging must
+/// not silently replace a record that the old writer could not open.
 pub(super) fn write_registry_json(
     path: &Path,
     version: &RegistrySkillVersion,
@@ -96,23 +117,52 @@ pub(super) fn write_registry_json(
         })?;
     contents.push('\n');
 
-    let mut options = fs::OpenOptions::new();
-    options.write(true);
-    if create_new {
-        options.create_new(true);
-    } else {
-        options.create(true).truncate(true);
+    if !create_new {
+        match fs::OpenOptions::new().write(true).open(path) {
+            Ok(_existing) => {}
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+            Err(error) => return Err(io_error("writing", path, error)),
+        }
     }
+
+    let directory = match path.parent() {
+        Some(parent) if !parent.as_os_str().is_empty() => parent,
+        _ => Path::new("."),
+    };
+    // A dropped `NamedTempFile` removes its staged file, so every failure below
+    // cleans up the partial bytes without a separate error path.
+    let staged = Builder::new()
+        .prefix(STAGING_PREFIX)
+        .suffix(STAGING_SUFFIX)
+        .tempfile_in(directory)
+        .map_err(|source| io_error("writing", path, source))?;
     #[cfg(unix)]
     {
-        use std::os::unix::fs::OpenOptionsExt;
-        options.mode(0o600);
+        use std::os::unix::fs::PermissionsExt;
+        staged
+            .as_file()
+            .set_permissions(fs::Permissions::from_mode(0o600))
+            .map_err(|source| io_error("writing", path, source))?;
     }
-    let mut file = options
-        .open(path)
+    write_staged_record(staged.as_file(), contents.as_bytes())
         .map_err(|source| io_error("writing", path, source))?;
-    file.write_all(contents.as_bytes())
-        .map_err(|source| io_error("writing", path, source))
+
+    let published = if create_new {
+        staged.persist_noclobber(path)
+    } else {
+        staged.persist(path)
+    };
+    published
+        .map(|_file| ())
+        .map_err(|error| io_error("writing", path, error.error))
+}
+
+fn write_staged_record(mut file: &fs::File, contents: &[u8]) -> Result<(), io::Error> {
+    file.write_all(contents)?;
+    file.flush()?;
+    // Flush the complete staged bytes before publication. Directory metadata
+    // is not synced here, so this is not a full power-loss durability guarantee.
+    file.sync_all()
 }
 
 pub(super) fn io_error(action: &'static str, path: &Path, source: io::Error) -> LocalRegistryError {
@@ -217,3 +267,6 @@ pub(super) fn trust_tier_string(value: &TrustTier) -> &'static str {
         TrustTier::Community => "community",
     }
 }
+
+#[cfg(test)]
+mod tests;
