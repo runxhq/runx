@@ -100,7 +100,7 @@ class RunxClient:
     ) -> dict[str, Any]:
         args = ["skill", skill_path]
         for key, value in (inputs or {}).items():
-            args.extend([f"--{key}", str(value)])
+            args.extend([f"--{key}", _cli_input_value(value)])
         return self.run_json(args)
 
     def continue_run(
@@ -115,6 +115,19 @@ class RunxClient:
             raise ValueError("runx resume reads answers from the answers file; pass fresh inputs only on a new skill run.")
         args = ["resume", run_id, answers_file]
         return self.run_json(args)
+
+
+def _cli_input_value(value: Any) -> str:
+    """Encode one skill input for the `runx skill --name <value>` contract.
+
+    The CLI parses each value as JSON and falls back to the literal string, so
+    non-string values must be JSON text to survive the boundary. Values outside
+    the JSON model keep their string projection.
+    """
+    if isinstance(value, str):
+        return value
+    return json.dumps(value, default=str)
+
 
 def _optional_str(value: Any) -> str | None:
     return None if value is None else str(value)

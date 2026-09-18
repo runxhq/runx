@@ -44,6 +44,13 @@ continued = client.continue_run("skills/sourcey", run_id="run_123", answers_file
 print(continued["status"])
 ```
 
+Non-string JSON values are encoded as JSON text rather than Python `str()`
+representations, including booleans, `None`, objects, and arrays. Ordinary
+strings remain verbatim for compatibility: a string that itself contains valid
+JSON, such as `"true"` or `"42"`, is still interpreted by the CLI's JSON-first
+parser. Non-JSON objects use their string projection; non-finite floats and
+integers outside the CLI's numeric range are not guaranteed to round-trip.
+
 ## Framework adapters
 
 Bridge runx into an existing agent framework (OpenAI, Anthropic, CrewAI, LangChain, Vercel AI):
