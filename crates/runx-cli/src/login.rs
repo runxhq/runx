@@ -316,11 +316,11 @@ fn run_login_command_with_transport<T: Transport>(
         .as_deref()
         .filter(|value| !value.trim().is_empty())
         .ok_or(LoginCliError::MissingSigninUrl)?;
-    if !plan.json {
-        let _ignored = crate::cli_io::write_stderr(&format!(
-            "Open this URL to sign in to runx:\n{signin_url}\n\nWaiting for public API login...\n"
-        ));
-    }
+    // The browser challenge is required even when the final result is JSON.
+    // Keep it on stderr so stdout remains a single machine-readable result.
+    let _ignored = crate::cli_io::write_stderr(&format!(
+        "Open this URL to sign in to runx:\n{signin_url}\n\nWaiting for public API login...\n"
+    ));
     let completed = wait_for_login_completion(transport, base_url, &started, &sleep)?;
     let token = completed
         .token
