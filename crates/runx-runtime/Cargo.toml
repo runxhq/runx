@@ -70,7 +70,7 @@ jsonschema = { version = "0.56.0", default-features = false }
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"], optional = true }
 webpki-root-certs = { version = "1.0.9", optional = true }
 rustix = { version = "1.1.4", features = ["process"] }
-rmcp = { version = "=3.3.0", default-features = false, features = ["client", "server"], optional = true }
+rmcp = { version = "=3.4.0", default-features = false, features = ["client", "server"], optional = true }
 # Drive rmcp's StreamableHttpService (a tower service) over a TCP listener for the
 # MCP-over-HTTP server. Both crates are already in the tree via reqwest/rmcp.
 hyper = { version = "=1.11.1", default-features = false, features = ["server", "http1"], optional = true }
