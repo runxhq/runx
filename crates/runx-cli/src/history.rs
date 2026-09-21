@@ -176,6 +176,11 @@ fn parse_history_args(args: &[OsString]) -> Result<ParsedHistoryArgs, HistoryCli
     let mut index = 1;
     while index < args.len() {
         let token = cli_args::os_arg(args, index, "history").map_err(invalid_args)?;
+        if token == "-j" {
+            parsed.json = true;
+            index += 1;
+            continue;
+        }
         if !token.starts_with("--") {
             positionals.push(token.to_owned());
             index += 1;
@@ -477,6 +482,32 @@ mod tests {
         assert_eq!(parsed.filter.status.as_deref(), Some("needs_agent"));
         assert_eq!(parsed.filter.artifact_type.as_deref(), Some("artifact"));
         assert!(parsed.json);
+        Ok(())
+    }
+
+    #[test]
+    fn documented_short_json_flag_is_not_swallowed_as_a_history_query() -> Result<(), io::Error> {
+        let parsed = parse_history_args(&["history".into(), "-j".into(), "sourcey".into()])
+            .map_err(|error| io::Error::other(error.to_string()))?;
+
+        assert!(parsed.json);
+        assert_eq!(parsed.query.as_deref(), Some("sourcey"));
+        assert_eq!(parsed.filter.query.as_deref(), Some("sourcey"));
+        assert!(crate::router::json_requested(&[
+            "history".into(),
+            "-j".into()
+        ]));
+
+        let detail = parse_history_args(&[
+            "history".into(),
+            "-j".into(),
+            "sha256:receipt".into(),
+            "--detail".into(),
+        ])
+        .map_err(|error| io::Error::other(error.to_string()))?;
+        assert!(detail.json);
+        assert!(detail.detail);
+        assert_eq!(detail.query.as_deref(), Some("sha256:receipt"));
         Ok(())
     }
 
