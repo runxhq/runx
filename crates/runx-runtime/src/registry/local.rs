@@ -157,16 +157,12 @@ impl FileRegistryStore {
         skill_id: &str,
         version: Option<&str>,
     ) -> Result<Option<RegistrySkillVersion>, LocalRegistryError> {
-        let versions = self.list_versions(skill_id)?;
-        if versions.is_empty() {
-            return Ok(None);
+        if let Some(version) = version {
+            return self.read_version(skill_id, version);
         }
-        let Some(version) = version else {
-            return Ok(versions.last().cloned());
-        };
-        Ok(versions
-            .into_iter()
-            .find(|candidate| candidate.version == version))
+
+        let versions = self.list_versions(skill_id)?;
+        Ok(versions.last().cloned())
     }
 
     pub fn list_versions(
@@ -180,15 +176,7 @@ impl FileRegistryStore {
         let mut versions = Vec::new();
         for file in files.into_iter().filter(|file| file.ends_with(".json")) {
             let path = skill_dir.join(file);
-            let contents =
-                fs::read_to_string(&path).map_err(|source| io_error("reading", &path, source))?;
-            let payload = serde_json::from_str::<RegistrySkillVersionPayload>(&contents).map_err(
-                |source| LocalRegistryError::JsonRead {
-                    path: path.clone(),
-                    source,
-                },
-            )?;
-            versions.push(normalize_registry_skill_version(payload)?);
+            versions.push(read_registry_version(&path)?);
         }
         versions.sort_by(|left, right| {
             left.created_at
@@ -232,10 +220,55 @@ impl FileRegistryStore {
             .join(format!("{}.json", encode_part(version))))
     }
 
+    fn read_version(
+        &self,
+        skill_id: &str,
+        version: &str,
+    ) -> Result<Option<RegistrySkillVersion>, LocalRegistryError> {
+        let path = self.version_path(skill_id, version)?;
+        let record = match read_registry_version(&path) {
+            Ok(record) => record,
+            Err(LocalRegistryError::Io { source, .. })
+                if source.kind() == io::ErrorKind::NotFound =>
+            {
+                return Ok(None);
+            }
+            Err(error) => return Err(error),
+        };
+        if record.skill_id != skill_id {
+            return Err(LocalRegistryError::InvalidVersionPayload {
+                field: "registry_version.skill_id".to_owned(),
+                message: format!(
+                    "{} does not match registry path {skill_id}",
+                    record.skill_id
+                ),
+            });
+        }
+        if record.version != version {
+            return Err(LocalRegistryError::InvalidVersionPayload {
+                field: "registry_version.version".to_owned(),
+                message: format!("{} does not match registry path {version}", record.version),
+            });
+        }
+        Ok(Some(record))
+    }
+
     fn skill_dir(&self, skill_id: &str) -> Result<PathBuf, LocalRegistryError> {
         let (owner, name) = split_skill_id(skill_id)?;
         Ok(self.root.join(encode_part(owner)).join(encode_part(name)))
     }
+}
+
+fn read_registry_version(path: &Path) -> Result<RegistrySkillVersion, LocalRegistryError> {
+    let contents = fs::read_to_string(path).map_err(|source| io_error("reading", path, source))?;
+    let payload =
+        serde_json::from_str::<RegistrySkillVersionPayload>(&contents).map_err(|source| {
+            LocalRegistryError::JsonRead {
+                path: path.to_path_buf(),
+                source,
+            }
+        })?;
+    normalize_registry_skill_version(payload)
 }
 
 pub fn ingest_skill_markdown(

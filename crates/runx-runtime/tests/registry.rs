@@ -238,6 +238,68 @@ runners:
 }
 
 #[test]
+fn pinned_registry_lookup_ignores_invalid_siblings() -> Result<(), Box<dyn std::error::Error>> {
+    let temp = tempdir()?;
+    let store = FileRegistryStore::new(temp.path());
+    let current = ingest_skill_markdown(
+        &store,
+        include_str!("../../../fixtures/skills/echo/SKILL.md"),
+        IngestSkillOptions {
+            owner: Some("acme".to_owned()),
+            version: Some("1.0.0".to_owned()),
+            ..IngestSkillOptions::default()
+        },
+    )?;
+    let invalid_sibling = temp.path().join("acme/echo/0.9.0.json");
+    let mut historic = serde_json::to_value(&current)?;
+    historic["version"] = serde_json::Value::String("0.9.0".to_owned());
+    historic["profile_document"] = serde_json::Value::String(
+        r#"skill: echo
+version: "0.9.0"
+
+catalog:
+  kind: skill
+  audience: public
+  visibility: public
+  role: context
+
+runners:
+  echo:
+    default: true
+    type: graph
+    graph:
+      name: echo
+      result_from: [digest]
+      steps:
+        - id: digest
+          tool: data.digest
+          inputs:
+            value: "{{message}}"
+"#
+        .to_owned(),
+    );
+    historic["profile_digest"] = serde_json::Value::Null;
+    std::fs::write(&invalid_sibling, serde_json::to_vec_pretty(&historic)?)?;
+
+    let resolved = store
+        .get_version("acme/echo", Some("1.0.0"))?
+        .ok_or_else(|| std::io::Error::other("missing pinned registry version"))?;
+    assert_eq!(resolved.digest, current.digest);
+    assert!(
+        store
+            .get_version("acme/echo", Some("0.9.0"))
+            .is_err_and(|error| error.to_string().contains("retired graph input binding"))
+    );
+    assert!(
+        store
+            .list_versions("acme/echo")
+            .is_err_and(|error| error.to_string().contains("retired graph input binding"))
+    );
+
+    Ok(())
+}
+
+#[test]
 fn local_registry_owner_runx_defaults_to_community_trust() -> Result<(), Box<dyn std::error::Error>>
 {
     let temp = tempdir()?;
