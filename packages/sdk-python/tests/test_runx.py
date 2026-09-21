@@ -4,6 +4,7 @@ import textwrap
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from typing import Sequence
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -15,6 +16,37 @@ from runx import (
     normalize_host_result,
     normalize_host_state,
 )
+
+
+def _write_echo_runx(directory: str) -> Path:
+    fake_runx = Path(directory) / "echo_runx.py"
+    fake_runx.write_text(
+        textwrap.dedent(
+            """
+            import json
+            import sys
+
+            print(json.dumps({"status": "success", "args": sys.argv[1:]}))
+            """
+        ).strip()
+    )
+    return fake_runx
+
+
+def _decode_cli_value(raw: str) -> object:
+    """Mirror parse_cli_value in crates/runx-cli/src/skill/inputs.rs."""
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        return raw
+
+
+def _decode_cli_inputs(args: Sequence[str]) -> dict[str, object]:
+    """Mirror the CLI --name value input parse for one skill invocation."""
+    return {
+        str(flag).removeprefix("--").replace("-", "_"): _decode_cli_value(str(value))
+        for flag, value in zip(args[::2], args[1::2], strict=True)
+    }
 
 
 class RunxClientTests(unittest.TestCase):
@@ -77,6 +109,57 @@ class RunxClientTests(unittest.TestCase):
             self.assertEqual(
                 run_report["args"],
                 ["skill", "skills/example", "--message", "hi", "--json"],
+            )
+
+    def test_run_skill_encodes_non_string_inputs_as_cli_json(self) -> None:
+        inputs = {
+            "dry_run": True,
+            "verbose": False,
+            "limit": 3,
+            "ratio": 0.5,
+            "config": {"mode": "fast"},
+            "tags": ["a", "b"],
+            "note": None,
+            "message": "hi",
+        }
+
+        with TemporaryDirectory() as tmp:
+            client = RunxClient(command=(sys.executable, str(_write_echo_runx(tmp))))
+            report = client.run_skill("skills/example", inputs=inputs)
+
+            args = report["args"]
+            self.assertEqual(args[:2], ["skill", "skills/example"])
+            self.assertEqual(
+                args[2:-1],
+                [
+                    "--dry_run",
+                    "true",
+                    "--verbose",
+                    "false",
+                    "--limit",
+                    "3",
+                    "--ratio",
+                    "0.5",
+                    "--config",
+                    '{"mode": "fast"}',
+                    "--tags",
+                    '["a", "b"]',
+                    "--note",
+                    "null",
+                    "--message",
+                    "hi",
+                ],
+            )
+            self.assertEqual(_decode_cli_inputs(args[2:-1]), inputs)
+
+    def test_run_skill_encodes_non_json_input_values_as_strings(self) -> None:
+        with TemporaryDirectory() as tmp:
+            client = RunxClient(command=(sys.executable, str(_write_echo_runx(tmp))))
+            report = client.run_skill("skills/example", inputs={"project": Path("/tmp/project")})
+
+            self.assertEqual(
+                _decode_cli_inputs(report["args"][2:-1]),
+                {"project": "/tmp/project"},
             )
 
     def test_continue_run_invokes_skill_with_run_id_and_answers_file(self) -> None:
