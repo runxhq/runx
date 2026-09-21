@@ -110,8 +110,13 @@ fn plan_fanout_candidates(
                 sync_decision: None,
             }));
         }
-        if step_state.status == GraphStepStatus::Succeeded
-            || retry_budget_exhausted(step_state, step_definition)
+        // A succeeded branch is done and a `when`-skipped branch is selected
+        // out. Both are terminal for the group, exactly as the non-fanout
+        // walker treats them, so neither is re-planned as a live branch.
+        if matches!(
+            step_state.status,
+            GraphStepStatus::Succeeded | GraphStepStatus::Skipped
+        ) || retry_budget_exhausted(step_state, step_definition)
         {
             continue;
         }
@@ -199,5 +204,86 @@ fn default_fanout_policy(group_id: &str) -> FanoutGroupPolicy {
         on_branch_failure: FanoutBranchFailurePolicy::Halt,
         threshold_gates: Some(Vec::new()),
         conflict_gates: Some(Vec::new()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeMap;
+
+    use crate::state_machine::{
+        GraphStepStatus, SequentialGraphPlan, SequentialGraphState, SequentialGraphStepDefinition,
+        create_sequential_graph_state, plan_sequential_graph_transition,
+    };
+
+    fn branch(id: &str, context_from: Option<Vec<String>>) -> SequentialGraphStepDefinition {
+        SequentialGraphStepDefinition {
+            id: id.to_owned(),
+            context_from,
+            retry: None,
+            fanout_group: Some("workers".to_owned()),
+        }
+    }
+
+    fn plain(id: &str) -> SequentialGraphStepDefinition {
+        SequentialGraphStepDefinition {
+            id: id.to_owned(),
+            context_from: None,
+            retry: None,
+            fanout_group: None,
+        }
+    }
+
+    fn state_with(
+        definitions: &[SequentialGraphStepDefinition],
+        statuses: &[GraphStepStatus],
+    ) -> SequentialGraphState {
+        let mut state = create_sequential_graph_state("graph", definitions);
+        for (step, status) in state.steps.iter_mut().zip(statuses) {
+            step.status = status.clone();
+        }
+        state
+    }
+
+    #[test]
+    fn selected_out_fanout_branch_is_not_replanned() {
+        let definitions = vec![
+            plain("router"),
+            branch("branch_a", None),
+            branch("branch_b", None),
+        ];
+        let state = state_with(
+            &definitions,
+            &[
+                GraphStepStatus::Succeeded,
+                GraphStepStatus::Succeeded,
+                GraphStepStatus::Skipped,
+            ],
+        );
+
+        let plan = plan_sequential_graph_transition(&state, &definitions, &BTreeMap::new(), None);
+
+        assert_eq!(plan, SequentialGraphPlan::Complete);
+    }
+
+    #[test]
+    fn selected_out_branch_is_not_replanned_for_its_context() {
+        let definitions = vec![
+            plain("router"),
+            branch("branch_a", None),
+            branch("branch_b", Some(vec!["router".to_owned()])),
+        ];
+        let state = state_with(
+            &definitions,
+            &[
+                GraphStepStatus::Skipped,
+                GraphStepStatus::Succeeded,
+                GraphStepStatus::Skipped,
+            ],
+        );
+
+        let plan = plan_sequential_graph_transition(&state, &definitions, &BTreeMap::new(), None);
+
+        assert_eq!(plan, SequentialGraphPlan::Complete);
     }
 }
