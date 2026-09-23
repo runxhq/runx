@@ -25,7 +25,11 @@ export const PAID_INVOCATION_REQUEST_FINGERPRINT_SCHEMA =
 export function fingerprintQuotePaidInvocationRequest(
   request: QuotePaidInvocationRequestContract,
 ): string {
-  const { presentation: _presentation, ...binding } = validateQuotePaidInvocationRequestContract(request);
+  const {
+    attribution: _attribution,
+    presentation: _presentation,
+    ...binding
+  } = validateQuotePaidInvocationRequestContract(request);
   assertRustRequestShape(binding);
   return fingerprintRequest(
     "QuotePaidInvocation",

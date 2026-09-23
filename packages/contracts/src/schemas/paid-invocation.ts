@@ -203,6 +203,17 @@ export type ParentInvocationBindingContract = DeepReadonly<{
   execution_digest: Sha256DigestContract;
 }>;
 
+export type QuotePaidInvocationAttributionContract = DeepReadonly<{
+  source: string;
+  campaign?: string;
+}>;
+
+export type PaidInvocationAttributionContract = DeepReadonly<{
+  source: string;
+  campaign?: string;
+  confidence: "self_reported" | "trusted";
+}>;
+
 export type PaidInvocationContract = DeepReadonly<{
   invocation_id: string;
   principal: PrincipalReferenceContract;
@@ -220,6 +231,7 @@ export type PaidInvocationContract = DeepReadonly<{
   idempotency: PaymentIdempotencyBindingContract;
   expires_at: string;
   parent?: ParentInvocationBindingContract;
+  attribution?: PaidInvocationAttributionContract;
   payment_state: PaidInvocationPaymentStateContract;
   execution_state: PaidInvocationExecutionStateContract;
   outcome_gate: PaidInvocationOutcomeGateContract;
@@ -254,6 +266,7 @@ export type QuotePaidInvocationRequestContract = DeepReadonly<{
   mediation?: PaidInvocationMediationContract;
   idempotency: PaymentIdempotencyBindingContract;
   parent?: ParentInvocationBindingContract;
+  attribution?: QuotePaidInvocationAttributionContract;
   presentation?: PaidInvocationPresentationContract;
 }>;
 

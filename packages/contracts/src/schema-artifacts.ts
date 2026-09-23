@@ -17054,6 +17054,38 @@ export const runxSchemaArtifacts = {
                     "minimum": 1,
                     "type": "integer"
                   },
+                  "attribution": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "campaign": {
+                        "maxLength": 128,
+                        "pattern": "^[a-z0-9][a-z0-9._-]{0,127}$",
+                        "type": "string"
+                      },
+                      "confidence": {
+                        "anyOf": [
+                          {
+                            "const": "self_reported",
+                            "type": "string"
+                          },
+                          {
+                            "const": "trusted",
+                            "type": "string"
+                          }
+                        ]
+                      },
+                      "source": {
+                        "maxLength": 64,
+                        "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "source",
+                      "confidence"
+                    ],
+                    "type": "object"
+                  },
                   "canonicalizer_version": {
                     "anyOf": [
                       {
@@ -25345,6 +25377,38 @@ export const runxSchemaArtifacts = {
                     "maximum": 9007199254740991,
                     "minimum": 1,
                     "type": "integer"
+                  },
+                  "attribution": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "campaign": {
+                        "maxLength": 128,
+                        "pattern": "^[a-z0-9][a-z0-9._-]{0,127}$",
+                        "type": "string"
+                      },
+                      "confidence": {
+                        "anyOf": [
+                          {
+                            "const": "self_reported",
+                            "type": "string"
+                          },
+                          {
+                            "const": "trusted",
+                            "type": "string"
+                          }
+                        ]
+                      },
+                      "source": {
+                        "maxLength": 64,
+                        "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "source",
+                      "confidence"
+                    ],
+                    "type": "object"
                   },
                   "canonicalizer_version": {
                     "anyOf": [
@@ -35420,6 +35484,38 @@ export const runxSchemaArtifacts = {
                     "minimum": 1,
                     "type": "integer"
                   },
+                  "attribution": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "campaign": {
+                        "maxLength": 128,
+                        "pattern": "^[a-z0-9][a-z0-9._-]{0,127}$",
+                        "type": "string"
+                      },
+                      "confidence": {
+                        "anyOf": [
+                          {
+                            "const": "self_reported",
+                            "type": "string"
+                          },
+                          {
+                            "const": "trusted",
+                            "type": "string"
+                          }
+                        ]
+                      },
+                      "source": {
+                        "maxLength": 64,
+                        "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "source",
+                      "confidence"
+                    ],
+                    "type": "object"
+                  },
                   "canonicalizer_version": {
                     "anyOf": [
                       {
@@ -42098,6 +42194,38 @@ export const runxSchemaArtifacts = {
         "minimum": 1,
         "type": "integer"
       },
+      "attribution": {
+        "additionalProperties": false,
+        "properties": {
+          "campaign": {
+            "maxLength": 128,
+            "pattern": "^[a-z0-9][a-z0-9._-]{0,127}$",
+            "type": "string"
+          },
+          "confidence": {
+            "anyOf": [
+              {
+                "const": "self_reported",
+                "type": "string"
+              },
+              {
+                "const": "trusted",
+                "type": "string"
+              }
+            ]
+          },
+          "source": {
+            "maxLength": 64,
+            "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source",
+          "confidence"
+        ],
+        "type": "object"
+      },
       "canonicalizer_version": {
         "anyOf": [
           {
@@ -44235,6 +44363,25 @@ export const runxSchemaArtifacts = {
         "minimum": 1,
         "type": "integer"
       },
+      "attribution": {
+        "additionalProperties": false,
+        "properties": {
+          "campaign": {
+            "maxLength": 128,
+            "pattern": "^[a-z0-9][a-z0-9._-]{0,127}$",
+            "type": "string"
+          },
+          "source": {
+            "maxLength": 64,
+            "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source"
+        ],
+        "type": "object"
+      },
       "canonicalizer_version": {
         "anyOf": [
           {
@@ -45173,6 +45320,38 @@ export const runxSchemaArtifacts = {
                     "maximum": 9007199254740991,
                     "minimum": 1,
                     "type": "integer"
+                  },
+                  "attribution": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "campaign": {
+                        "maxLength": 128,
+                        "pattern": "^[a-z0-9][a-z0-9._-]{0,127}$",
+                        "type": "string"
+                      },
+                      "confidence": {
+                        "anyOf": [
+                          {
+                            "const": "self_reported",
+                            "type": "string"
+                          },
+                          {
+                            "const": "trusted",
+                            "type": "string"
+                          }
+                        ]
+                      },
+                      "source": {
+                        "maxLength": 64,
+                        "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "source",
+                      "confidence"
+                    ],
+                    "type": "object"
                   },
                   "canonicalizer_version": {
                     "anyOf": [

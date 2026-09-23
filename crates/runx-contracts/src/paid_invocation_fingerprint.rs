@@ -21,6 +21,7 @@ pub fn quote_paid_invocation_binding(
 ) -> QuotePaidInvocationRequest {
     QuotePaidInvocationRequest {
         presentation: None,
+        attribution: None,
         ..request.clone()
     }
 }
@@ -153,16 +154,21 @@ mod tests {
     -> Result<(), CanonicalJsonError> {
         let oracle: Oracle = serde_json::from_str(ORACLE).map_err(serialization_error)?;
 
-        // Every case names a distinct binding except the presentation case,
-        // which restates the base quote's binding under a vendor presentation
-        // and must therefore digest exactly as the base does.
+        // Every case names a distinct binding except presentation and
+        // attribution, which are non-commercial context and must therefore
+        // digest exactly as the base quote.
         let distinct_digests = oracle
             .cases
             .iter()
-            .filter(|case| case.name != "quote-presentation")
+            .filter(|case| {
+                !matches!(
+                    case.name.as_str(),
+                    "quote-presentation" | "quote-attribution"
+                )
+            })
             .map(|case| case.expected_sha256.as_str())
             .collect::<BTreeSet<_>>();
-        assert_eq!(distinct_digests.len(), oracle.cases.len() - 1);
+        assert_eq!(distinct_digests.len(), oracle.cases.len() - 2);
         let presentation_case = oracle
             .cases
             .iter()
@@ -176,6 +182,14 @@ mod tests {
         assert!(presentation_case.request.get("presentation").is_some());
         assert_eq!(presentation_case.expected_sha256, base_case.expected_sha256);
         assert_eq!(presentation_case.canonical_json, base_case.canonical_json);
+        let attribution_case = oracle
+            .cases
+            .iter()
+            .find(|case| case.name == "quote-attribution")
+            .ok_or_else(|| test_error("oracle is missing quote-attribution"))?;
+        assert!(attribution_case.request.get("attribution").is_some());
+        assert_eq!(attribution_case.expected_sha256, base_case.expected_sha256);
+        assert_eq!(attribution_case.canonical_json, base_case.canonical_json);
 
         // Every request member has a case: the binding members each move the
         // digest, the advisory presentation (asserted above) does not.
@@ -185,6 +199,7 @@ mod tests {
             &[
                 "accepted_settlement_families",
                 "amount_minor",
+                "attribution",
                 "counterparty",
                 "currency",
                 "idempotency",

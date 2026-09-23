@@ -605,6 +605,13 @@ fn presentation() -> Value {
     })
 }
 
+fn attribution() -> Value {
+    json!({
+        "source": "frantic",
+        "campaign": "bounty-135"
+    })
+}
+
 fn fingerprint_oracle() -> io::Result<Value> {
     let quote = quote_request("fingerprint_quote", None);
     let quote_cases = [
@@ -677,8 +684,12 @@ fn fingerprint_oracle() -> io::Result<Value> {
             "quote-parent",
             with_field(quote.clone(), "parent", parent_binding())?,
         ),
-        // The presentation never enters quote identity: this case must digest
-        // exactly as quote-base does.
+        // Presentation and acquisition attribution never enter quote identity:
+        // these cases must digest exactly as quote-base does.
+        (
+            "quote-attribution",
+            with_field(quote.clone(), "attribution", attribution())?,
+        ),
         (
             "quote-presentation",
             with_field(quote, "presentation", presentation())?,
