@@ -2,6 +2,8 @@ const API_URL = "https://api.nitrosend.com/mcp";
 const API_HOST = "api.nitrosend.com";
 const READ_OPERATIONS = new Map([
   ["status", "nitro_get_status"],
+  ["query", "nitro_query"],
+  ["inbox", "nitro_inbox"],
   ["sender_settings", "nitro_configure_account"],
   ["insights", "nitro_get_insights"],
   ["review_delivery", "nitro_review_delivery"],
@@ -14,6 +16,7 @@ const READ_OPERATIONS = new Map([
 ]);
 const ACT_OPERATIONS = new Map([
   ["plan_checkout", "nitro_manage_billing"],
+  ["send_test_message", "nitro_send_test_message"],
   ["send_transactional", "nitro_send_message"],
   ["configure_sender", "nitro_configure_account"],
   ["control_delivery", "nitro_control_delivery"],
@@ -41,6 +44,26 @@ const BILLING_PROVIDER_OPERATIONS = new Map([
 const DELIVERY_OPERATIONS = new Set([
   "approve", "reject", "live", "schedule", "pause", "resume", "cancel",
   "archive", "restore", "delete",
+]);
+const QUERY_FILTERS = new Map([
+  ["flows", new Set(["id", "status", "campaign_id", "trigger_event", "search"])],
+  ["campaigns", new Set(["id", "status", "search"])],
+  ["templates", new Set(["id", "subject"])],
+  ["segments", new Set(["id", "name"])],
+  ["contacts", new Set(["id", "query", "subscribed_email", "subscribed_phone", "list_id"])],
+  ["lists", new Set(["id", "name"])],
+  ["events", new Set(["id", "name", "from", "to"])],
+  ["imports", new Set(["id", "status"])],
+  ["messages", new Set(["id", "channel", "status", "to"])],
+  ["suppressions", new Set(["id", "email", "reason", "source_provider", "active"])],
+  ["history", new Set(["id", "source", "event_type", "tool", "actor", "correlation_id", "resource_uri", "from", "to"])],
+  ["products", new Set(["id", "status", "query"])],
+]);
+const INBOX_ARGUMENTS = new Map([
+  ["list_mailbox", new Set(["status", "query", "inbox_id", "view", "include_counts", "page", "per"])],
+  ["get_thread", new Set(["conversation_id"])],
+  ["get_thread_page", new Set(["conversation_id", "before_occurred_at", "before_message_id"])],
+  ["get_message_body", new Set(["conversation_id", "message_id", "offset"])],
 ]);
 const SENSITIVE_KEYS = /authorization|api[_-]?key|bearer|credential|secret|token/iu;
 const SECRET_VALUE = /\b(?:nskey|wpkey)_(?:live|test)_[A-Za-z0-9_-]+\b/gu;
@@ -208,6 +231,100 @@ function validate(mode, operation, args, brandSid) {
       return [`refused:${operation} does not accept provider arguments`];
     }
   }
+  if (mode === "read" && operation === "query") {
+    if (!brandSid) {
+      return ["refused:query requires an explicit brand_sid"];
+    }
+    const allowed = new Set(["entity", "filters", "page", "per"]);
+    const unexpected = Object.keys(args).filter((key) => !allowed.has(key));
+    const entityFilters = QUERY_FILTERS.get(args.entity);
+    if (unexpected.length > 0) {
+      return [`refused:query received unsupported fields: ${unexpected.join(", ")}`];
+    }
+    if (!entityFilters) {
+      return [`query requires arguments.entity to be one of: ${[...QUERY_FILTERS.keys()].join(", ")}`];
+    }
+    if (args.filters !== undefined && !isRecord(args.filters)) {
+      return ["query requires arguments.filters as a JSON object"];
+    }
+    const unsupportedFilters = Object.keys(record(args.filters)).filter((key) => !entityFilters.has(key));
+    if (unsupportedFilters.length > 0) {
+      return [`refused:query received unsupported ${args.entity} filters: ${unsupportedFilters.join(", ")}`];
+    }
+    if (args.page !== undefined && !positiveInteger(args.page)) {
+      return ["query requires a positive integer arguments.page when supplied"];
+    }
+    if (args.per !== undefined && (!positiveInteger(args.per) || Number(args.per) > 50)) {
+      return ["query requires arguments.per between 1 and 50 when supplied"];
+    }
+    const oversizedFilter = Object.values(record(args.filters)).find(
+      (value) => typeof value === "string" && value.length > 100,
+    );
+    if (oversizedFilter !== undefined) {
+      return ["query filter strings must be at most 100 characters"];
+    }
+  }
+  if (mode === "read" && operation === "inbox") {
+    if (!brandSid) {
+      return ["refused:inbox requires an explicit brand_sid"];
+    }
+    const allowed = new Set(["command", "arguments"]);
+    const unexpected = Object.keys(args).filter((key) => !allowed.has(key));
+    const commandArguments = INBOX_ARGUMENTS.get(args.command);
+    if (unexpected.length > 0) {
+      return [`refused:inbox received unsupported fields: ${unexpected.join(", ")}`];
+    }
+    if (!commandArguments) {
+      return [`inbox requires arguments.command to be one of: ${[...INBOX_ARGUMENTS.keys()].join(", ")}`];
+    }
+    if (args.arguments !== undefined && !isRecord(args.arguments)) {
+      return ["inbox requires arguments.arguments as a JSON object"];
+    }
+    const details = record(args.arguments);
+    const unsupported = Object.keys(details).filter((key) => !commandArguments.has(key));
+    if (unsupported.length > 0) {
+      return [`refused:inbox ${args.command} received unsupported fields: ${unsupported.join(", ")}`];
+    }
+    if (args.command === "list_mailbox") {
+      if (details.status !== undefined && !["open", "closed", "archived"].includes(details.status)) {
+        return ["inbox list_mailbox status must be open, closed, or archived"];
+      }
+      if (details.view !== undefined && !["compact", "full"].includes(details.view)) {
+        return ["inbox list_mailbox view must be compact or full"];
+      }
+      if (details.query !== undefined && (typeof details.query !== "string" || details.query.length > 100)) {
+        return ["inbox list_mailbox query must be a string up to 100 characters"];
+      }
+      if (details.inbox_id !== undefined && !positiveInteger(details.inbox_id)) {
+        return ["inbox list_mailbox inbox_id must be a positive integer"];
+      }
+      if (details.include_counts !== undefined && typeof details.include_counts !== "boolean") {
+        return ["inbox list_mailbox include_counts must be boolean"];
+      }
+      if (details.page !== undefined && !positiveInteger(details.page)) {
+        return ["inbox list_mailbox page must be a positive integer"];
+      }
+      const maxPer = details.view === "compact" || details.view === undefined ? 100 : 50;
+      if (details.per !== undefined && (!positiveInteger(details.per) || Number(details.per) > maxPer)) {
+        return [`inbox list_mailbox per must be between 1 and ${maxPer}`];
+      }
+    }
+    if (["get_thread", "get_thread_page", "get_message_body"].includes(args.command) &&
+        !positiveInteger(details.conversation_id)) {
+      return [`inbox ${args.command} requires a positive integer conversation_id`];
+    }
+    if (args.command === "get_thread_page" &&
+        (!text(details.before_occurred_at) || !positiveInteger(details.before_message_id))) {
+      return ["inbox get_thread_page requires before_occurred_at and a positive integer before_message_id"];
+    }
+    if (args.command === "get_message_body" && !positiveInteger(details.message_id)) {
+      return ["inbox get_message_body requires a positive integer message_id"];
+    }
+    if (args.command === "get_message_body" &&
+        details.offset !== undefined && (!Number.isInteger(Number(details.offset)) || Number(details.offset) < 0)) {
+      return ["inbox get_message_body offset must be a non-negative integer"];
+    }
+  }
   if (mode === "read" && operation === "plan_checkout_status") {
     const allowed = new Set(["purchase_id"]);
     const unexpected = Object.keys(args).filter((key) => !allowed.has(key));
@@ -324,6 +441,61 @@ function validate(mode, operation, args, brandSid) {
       return ["refused:a real transactional send requires arguments.idempotency_key"];
     }
   }
+  if (mode === "act" && operation === "send_test_message") {
+    const allowed = new Set([
+      "target_type", "target_id", "template_id", "action_id", "revision_id",
+      "channel", "to", "data", "dry_run", "idempotency_key",
+    ]);
+    const unexpected = Object.keys(args).filter((key) => !allowed.has(key));
+    if (unexpected.length > 0) {
+      return [`refused:send_test_message received unsupported fields: ${unexpected.join(", ")}`];
+    }
+    if (!brandSid) {
+      return ["refused:send_test_message requires an explicit brand_sid"];
+    }
+    if (!["template", "flow", "campaign"].includes(args.target_type) || !positiveInteger(args.target_id)) {
+      return ["send_test_message requires an exact target_type and integer target_id"];
+    }
+    if (args.target_type === "flow" && !positiveInteger(args.revision_id)) {
+      return ["send_test_message requires arguments.revision_id for flows"];
+    }
+    if (args.target_type !== "flow" && args.revision_id !== undefined) {
+      return ["refused:send_test_message revision_id is valid only for flow targets"];
+    }
+    if (args.template_id !== undefined && !positiveInteger(args.template_id)) {
+      return ["send_test_message requires a positive integer template_id when supplied"];
+    }
+    if (args.action_id !== undefined && (!positiveInteger(args.action_id) || args.target_type !== "flow")) {
+      return ["send_test_message action_id must be a positive integer on a flow target"];
+    }
+    if (!["auto", "email", "sms"].includes(args.channel)) {
+      return ["send_test_message requires channel auto, email, or sms"];
+    }
+    if (!Array.isArray(args.to) || args.to.length < 1 || args.to.length > 5 ||
+        args.to.some((recipient) => !text(recipient))) {
+      return ["send_test_message requires between one and five explicit recipients"];
+    }
+    if (args.channel === "email" && args.to.some((recipient) => !email(recipient))) {
+      return ["send_test_message email recipients must be valid email addresses"];
+    }
+    if (args.channel === "sms" && args.to.some((recipient) => !/^\+[1-9]\d{7,14}$/u.test(text(recipient)))) {
+      return ["send_test_message SMS recipients must use E.164 format"];
+    }
+    if (args.channel === "auto" && args.to.some(
+      (recipient) => !email(recipient) && !/^\+[1-9]\d{7,14}$/u.test(text(recipient)),
+    )) {
+      return ["send_test_message auto recipients must be valid email addresses or E.164 phone numbers"];
+    }
+    if (args.data !== undefined && !isRecord(args.data)) {
+      return ["send_test_message requires arguments.data as a JSON object when supplied"];
+    }
+    if (typeof args.dry_run !== "boolean") {
+      return ["send_test_message requires an explicit boolean dry_run"];
+    }
+    if (args.dry_run !== true && (!text(args.idempotency_key) || text(args.idempotency_key).length > 128)) {
+      return ["refused:a live test send requires arguments.idempotency_key up to 128 characters"];
+    }
+  }
   if (mode === "act" && operation === "control_delivery") {
     if (!["flow", "campaign"].includes(args.target_type) || !positiveInteger(args.target_id) || !DELIVERY_OPERATIONS.has(args.operation)) {
       return ["control_delivery requires a valid target_type, integer target_id, and lifecycle operation"];
@@ -399,6 +571,13 @@ function providerArguments(operation, args) {
     };
   }
   if (operation === "sender_settings") return {};
+  if (operation === "inbox") {
+    return {
+      command: args.command,
+      ...record(args.arguments),
+      ...(args.command === "get_thread" ? { purpose: "read" } : {}),
+    };
+  }
   if (operation === "compose_email") {
     const compositionArguments = { ...record(args.arguments) };
     delete compositionArguments.composition_mode;
@@ -521,6 +700,10 @@ function evidence(plan, decision, response, result, blockers) {
 
 function providerReference(operation, result) {
   const data = result?.data ?? result;
+  if (operation === "send_test_message" && isRecord(data?.target) && data.target.id !== undefined) {
+    const revision = positiveInteger(data.revision_id) ? `:revision:${Number(data.revision_id)}` : "";
+    return `nitrosend:send_test_message:${text(data.target.type) || "target"}:${data.target.id}${revision}`;
+  }
   if (data?.purchase_id !== undefined && data?.purchase_id !== null) {
     return `nitrosend:plan_purchase:${data.purchase_id}`;
   }

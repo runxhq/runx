@@ -1,5 +1,5 @@
 skill: nitrosend
-version: "0.4.7"
+version: "0.4.8"
 catalog:
   kind: skill
   audience: public
@@ -211,6 +211,97 @@ runners:
             operation: status
             arguments: {}
             brand_sid: "$input.brand_sid"
+  query:
+    type: graph
+    credential: nitrosend
+    inputs:
+      entity:
+        type: string
+        required: true
+        description: Exact Nitrosend entity collection to read.
+        schema:
+          enum: [flows, campaigns, templates, segments, contacts, lists, events, imports, messages, suppressions, history, products]
+      filters:
+        type: object
+        required: false
+        description: Entity-specific allowlisted filters; unsupported fields are refused before transport.
+        schema:
+          maxProperties: 10
+          additionalProperties: true
+      page:
+        type: integer
+        required: false
+        default: 1
+        description: Positive result page.
+        schema: { minimum: 1 }
+      per:
+        type: integer
+        required: false
+        default: 25
+        description: Results per page, from 1 to 50.
+        schema: { minimum: 1, maximum: 50 }
+      brand_sid:
+        type: string
+        required: true
+        description: Public Nitrosend brand SID; account-default selection is forbidden.
+    examples:
+      - entity: flows
+        filters: { status: draft }
+        page: 1
+        per: 25
+        brand_sid: brnd_demo123
+    graph:
+      name: nitrosend-query
+      result_from: [query]
+      steps:
+        - id: query
+          skill: graph/provider-operation
+          runner: read
+          inputs:
+            operation: query
+            arguments:
+              entity: "$input.entity"
+              filters: "$input.filters"
+              page: "$input.page"
+              per: "$input.per"
+            brand_sid: "$input.brand_sid"
+  inbox:
+    type: graph
+    credential: nitrosend
+    inputs:
+      command:
+        type: string
+        required: true
+        description: Read-only mailbox operation.
+        schema: { enum: [list_mailbox, get_thread, get_thread_page, get_message_body] }
+      arguments:
+        type: object
+        required: false
+        description: Command-specific bounded identifiers, filters, pagination, or body offset.
+        schema:
+          maxProperties: 8
+          additionalProperties: true
+      brand_sid:
+        type: string
+        required: true
+        description: Public Nitrosend brand SID; account-default selection is forbidden.
+    examples:
+      - command: list_mailbox
+        arguments: { query: 'MailSchema Content Review', view: full, page: 1, per: 25 }
+        brand_sid: brnd_demo123
+    graph:
+      name: nitrosend-inbox
+      result_from: [inbox]
+      steps:
+        - id: inbox
+          skill: graph/provider-operation
+          runner: read
+          inputs:
+            operation: inbox
+            arguments:
+              command: "$input.command"
+              arguments: "$input.arguments"
+            brand_sid: "$input.brand_sid"
   configure-sender:
     type: graph
     credential: nitrosend
@@ -363,6 +454,129 @@ runners:
               target_id: "$input.target_id"
               revision_id: "$input.revision_id"
             brand_sid: "$input.brand_sid"
+  send-test-message:
+    type: graph
+    credential: nitrosend
+    act:
+      purpose: Send or dry-run one reviewed test message to one to five explicit recipients without approving or activating the target.
+    inputs:
+      target_type:
+        type: string
+        required: true
+        description: Exact template, flow, or campaign target.
+        schema: { enum: [template, flow, campaign] }
+      target_id:
+        type: integer
+        required: true
+        description: Exact Nitrosend target ID.
+        schema: { minimum: 1 }
+      revision_id:
+        type: integer
+        required: false
+        description: Required for flows; exact immutable flow revision to review and test.
+        schema: { minimum: 1 }
+      action_id:
+        type: integer
+        required: false
+        description: Exact flow action to test when the revision has multiple message steps.
+        schema: { minimum: 1 }
+      template_id:
+        type: integer
+        required: false
+        description: Exact target-owned template to test when a target has multiple templates.
+        schema: { minimum: 1 }
+      channel:
+        type: string
+        required: false
+        default: auto
+        description: auto, email, or sms.
+        schema: { enum: [auto, email, sms] }
+      to:
+        type: array
+        required: true
+        description: One to five exact email addresses or E.164 phone numbers; saved account defaults are never inferred.
+        schema:
+          minItems: 1
+          maxItems: 5
+          items: { type: string, minLength: 1 }
+      data:
+        type: object
+        required: false
+        description: Sample values for required data merge fields.
+        schema:
+          additionalProperties: true
+      dry_run:
+        type: boolean
+        required: false
+        default: true
+        description: Validate the exact target and recipients without dispatch when true.
+      idempotency_key:
+        type: string
+        required: false
+        description: Stable retry identity; mandatory for a live test send.
+        schema: { minLength: 1, maxLength: 128, pattern: '\S' }
+      brand_sid:
+        type: string
+        required: true
+        description: Public Nitrosend brand SID; account-default selection is forbidden.
+    examples:
+      - target_type: flow
+        target_id: 42
+        revision_id: 3
+        action_id: 7
+        channel: email
+        to: [operator@example.com]
+        data: { review_url: 'https://example.com/reviews/42' }
+        dry_run: true
+        brand_sid: brnd_demo123
+    graph:
+      name: nitrosend-send-test-message
+      result_from: [send]
+      steps:
+        - id: review
+          skill: graph/provider-operation
+          runner: read
+          inputs:
+            operation: review_delivery
+            arguments:
+              target_type: "$input.target_type"
+              target_id: "$input.target_id"
+              revision_id: "$input.revision_id"
+            brand_sid: "$input.brand_sid"
+        - id: approve
+          run:
+            type: approval
+          inputs:
+            gate_id: nitrosend.send_test_message.approval
+            reason: Run this exact reviewed test message for the named recipients. A dry run validates without dispatch.
+          context:
+            review: review.provider_evidence.data
+        - id: send
+          skill: graph/provider-operation
+          runner: act
+          idempotency_key: "$input.idempotency_key"
+          inputs:
+            operation: send_test_message
+            arguments:
+              target_type: "$input.target_type"
+              target_id: "$input.target_id"
+              revision_id: "$input.revision_id"
+              action_id: "$input.action_id"
+              template_id: "$input.template_id"
+              channel: "$input.channel"
+              to: "$input.to"
+              data: "$input.data"
+              dry_run: "$input.dry_run"
+              idempotency_key: "$input.idempotency_key"
+            brand_sid: "$input.brand_sid"
+    policy:
+      guards:
+        - step: approve
+          field: review.provider_evidence.data.decision
+          equals: ok
+        - step: send
+          field: approve.approval_decision.data.approved
+          equals: true
   review-content:
     type: graph
     inputs:

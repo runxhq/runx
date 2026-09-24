@@ -1,0 +1,87 @@
+name: nitrosend-send-test-message-approved
+kind: skill
+target: ..
+runner: send-test-message
+operator_journeys:
+  - mode: standalone
+    request: Approve and send this exact reviewed flow revision to the named test recipient.
+    expected_outcome: Review, approve, dispatch once with stable idempotency, and return provider send evidence without activating the flow.
+env:
+  NITROSEND_API_KEY: harness-nitrosend-token
+inputs:
+  target_type: flow
+  target_id: 42
+  revision_id: 3
+  action_id: 7
+  channel: email
+  to: [operator@example.com]
+  data: {}
+  dry_run: false
+  idempotency_key: mailschema-flow-42-revision-3-test-1
+  brand_sid: br_sourcey
+caller:
+  approvals:
+    nitrosend.send_test_message.approval: true
+  http_exchanges:
+    - request:
+        method: POST
+        url: https://api.nitrosend.com/mcp
+        body:
+          json:
+            jsonrpc: "2.0"
+            id: nitrosend-review_delivery
+            method: tools/call
+            params:
+              name: nitro_review_delivery
+              arguments:
+                target_type: flow
+                target_id: 42
+                revision_id: 3
+      response:
+        status: 200
+        headers: { content-type: application/json }
+        body: >-
+          {"jsonrpc":"2.0","id":"nitrosend-review_delivery","result":{"content":[{"type":"text","text":"{\"meta\":{\"tool\":\"nitro_review_delivery\"},\"result\":{\"target_type\":\"flow\",\"target_id\":42,\"revision_id\":3,\"decision\":\"ready\",\"review_steps\":[{\"action_id\":7,\"channel\":\"email\"}]}}"}]}}
+    - request:
+        method: POST
+        url: https://api.nitrosend.com/mcp
+        body:
+          json:
+            jsonrpc: "2.0"
+            id: nitrosend-send_test_message
+            method: tools/call
+            params:
+              name: nitro_send_test_message
+              arguments:
+                target_type: flow
+                target_id: 42
+                revision_id: 3
+                action_id: 7
+                channel: email
+                to: [operator@example.com]
+                data: {}
+                dry_run: false
+                idempotency_key: mailschema-flow-42-revision-3-test-1
+      response:
+        status: 200
+        headers: { content-type: application/json }
+        body: >-
+          {"jsonrpc":"2.0","id":"nitrosend-send_test_message","result":{"content":[{"type":"text","text":"{\"meta\":{\"tool\":\"nitro_send_test_message\"},\"result\":{\"channel\":\"email\",\"target\":{\"type\":\"flow\",\"id\":42,\"source\":\"target\"},\"revision_id\":3,\"revision_digest\":\"sha256:revision\",\"recipients\":[{\"to\":\"operator@example.com\",\"source\":\"explicit\"}],\"recipient_count\":1,\"test_send\":{\"sent\":1,\"failed\":0,\"outcome\":\"sent\"}}}"}]}}
+expect:
+  status: sealed
+  steps: [review, approve, send]
+  step_outputs:
+    send:
+      subset:
+        provider_evidence:
+          data:
+            decision: ok
+            provider: nitrosend
+            operation: send_test_message
+            tool: nitro_send_test_message
+            provider_ref: nitrosend:send_test_message:flow:42:revision:3
+  receipt: { schema: runx.receipt.v1, state: sealed, disposition: closed }
+metadata:
+  public_skill: nitrosend
+  source_case: send-test-message-approved
+  source: operator-journey

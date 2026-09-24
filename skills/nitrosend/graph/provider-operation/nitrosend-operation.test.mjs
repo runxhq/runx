@@ -79,6 +79,116 @@ test("prepares a bounded read through native authenticated HTTP", () => {
   assert.equal(JSON.stringify(plan).includes("nskey_"), false);
 });
 
+test("prepares allowlisted brand-scoped entity queries", () => {
+  const { operation_plan: plan } = prepareOperation({
+    mode: "read",
+    operation: "query",
+    arguments: {
+      entity: "flows",
+      filters: { status: "draft", search: "MailSchema" },
+      page: 1,
+      per: 25,
+    },
+    brand_sid: "br_sourcey",
+  });
+
+  assert.equal(plan.decision, "ready");
+  assert.equal(plan.tool, "nitro_query");
+  assert.equal(plan.requests[0].headers["x-brand-sid"], "br_sourcey");
+  assert.deepEqual(plan.requests[0].body.params.arguments, {
+    entity: "flows",
+    filters: { status: "draft", search: "MailSchema" },
+    page: 1,
+    per: 25,
+  });
+
+  for (const arguments_ of [
+    { entity: "flows", filters: { recipient: "outside@example.com" } },
+    { entity: "unknown" },
+    { entity: "flows", per: 51 },
+  ]) {
+    const refused = prepareOperation({
+      mode: "read",
+      operation: "query",
+      arguments: arguments_,
+      brand_sid: "br_sourcey",
+    }).operation_plan;
+    assert.notEqual(refused.decision, "ready");
+    assert.deepEqual(refused.requests, []);
+  }
+
+  const missingBrand = prepareOperation({
+    mode: "read",
+    operation: "query",
+    arguments: { entity: "flows" },
+  }).operation_plan;
+  assert.equal(missingBrand.decision, "refused");
+  assert.deepEqual(missingBrand.requests, []);
+});
+
+test("prepares bounded read-only mailbox operations", () => {
+  const list = prepareOperation({
+    mode: "read",
+    operation: "inbox",
+    arguments: {
+      command: "list_mailbox",
+      arguments: { query: "MailSchema Content Review", view: "full", page: 1, per: 25 },
+    },
+    brand_sid: "br_sourcey",
+  }).operation_plan;
+  assert.equal(list.decision, "ready");
+  assert.equal(list.tool, "nitro_inbox");
+  assert.equal(list.requests[0].headers["x-brand-sid"], "br_sourcey");
+  assert.deepEqual(list.requests[0].body.params.arguments, {
+    command: "list_mailbox",
+    query: "MailSchema Content Review",
+    view: "full",
+    page: 1,
+    per: 25,
+  });
+
+  const thread = prepareOperation({
+    mode: "read",
+    operation: "inbox",
+    arguments: { command: "get_thread", arguments: { conversation_id: 77 } },
+    brand_sid: "br_sourcey",
+  }).operation_plan;
+  assert.equal(thread.decision, "ready");
+  assert.deepEqual(thread.requests[0].body.params.arguments, {
+    command: "get_thread",
+    conversation_id: 77,
+    purpose: "read",
+  });
+});
+
+test("refuses mailbox writes, ambiguous targets, and widened reads", () => {
+  for (const input of [
+    { command: "send_reply", arguments: { conversation_id: 77 } },
+    { command: "get_attachment", arguments: { conversation_id: 77, message_id: 2, attachment_id: 3 } },
+    { command: "get_thread", arguments: {} },
+    { command: "list_mailbox", arguments: { view: "raw" } },
+    { command: "list_mailbox", arguments: { query: "x".repeat(101) } },
+    { command: "get_message_body", arguments: { conversation_id: 77, message_id: 2, offset: -1 } },
+  ]) {
+    const refused = prepareOperation({
+      mode: "read",
+      operation: "inbox",
+      arguments: input,
+      brand_sid: "br_sourcey",
+    }).operation_plan;
+    assert.notEqual(refused.decision, "ready");
+    assert.deepEqual(refused.requests, []);
+  }
+
+  const missingBrand = prepareOperation({
+    mode: "read",
+    operation: "inbox",
+    arguments: { command: "list_mailbox", arguments: {} },
+  }).operation_plan;
+  assert.equal(missingBrand.decision, "refused");
+  assert.deepEqual(missingBrand.requests, []);
+});
+
 test("blocks malformed arguments and non-positive provider ids before HTTP", () => {
   const malformed = prepareOperation({ mode: "read", operation: "status", arguments: [] }).operation_plan;
   assert.equal(malformed.decision, "needs_input");
@@ -115,6 +225,86 @@ test("requires exact flow revisions before review or publish transport", () => {
       assert.deepEqual(control.requests, []);
     }
   }
+});
+
+test("binds an exact flow revision and recipients for a test message", () => {
+  const requested = {
+    target_type: "flow",
+    target_id: 12334,
+    revision_id: 7,
+    action_id: 99,
+    channel: "email",
+    to: ["operator@example.com"],
+    data: { review_url: "https://example.com/reviews/12334" },
+    dry_run: false,
+    idempotency_key: "map-flow-12334-revision-7-test-1",
+  };
+  const { operation_plan: plan } = prepareOperation({
+    mode: "act",
+    operation: "send_test_message",
+    arguments: requested,
+    brand_sid: "br_sourcey",
+  });
+
+  assert.equal(plan.decision, "ready");
+  assert.equal(plan.tool, "nitro_send_test_message");
+  assert.equal(plan.requests[0].headers["x-brand-sid"], "br_sourcey");
+  assert.deepEqual(plan.requests[0].body.params.arguments, requested);
+
+  const normalized = normalizedEvidence(plan, {
+    channel: "email",
+    target: { type: "flow", id: 12334, source: "target" },
+    revision_id: 7,
+    revision_digest: "sha256:revision",
+    recipients: [{ to: "operator@example.com", source: "explicit" }],
+    recipient_count: 1,
+    test_send: { sent: 1, outcome: "sent" },
+  });
+  assert.equal(normalized.decision, "ok");
+  assert.equal(normalized.operation, "send_test_message");
+  assert.equal(normalized.provider_ref, "nitrosend:send_test_message:flow:12334:revision:7");
+  assert.equal(normalized.result.revision_id, 7);
+});
+
+test("refuses ambiguous, unpinned, or non-idempotent test messages", () => {
+  for (const arguments_ of [
+    {
+      target_type: "flow", target_id: 12334, channel: "email",
+      to: ["operator@example.com"], dry_run: false, idempotency_key: "test-1",
+    },
+    {
+      target_type: "campaign", target_id: 42, revision_id: 7, channel: "email",
+      to: ["operator@example.com"], dry_run: false, idempotency_key: "test-2",
+    },
+    {
+      target_type: "campaign", target_id: 42, channel: "email",
+      to: [], dry_run: false, idempotency_key: "test-3",
+    },
+    {
+      target_type: "campaign", target_id: 42, channel: "email",
+      to: ["operator@example.com"], dry_run: false,
+    },
+  ]) {
+    const refused = prepareOperation({
+      mode: "act",
+      operation: "send_test_message",
+      arguments: arguments_,
+      brand_sid: "br_sourcey",
+    }).operation_plan;
+    assert.notEqual(refused.decision, "ready");
+    assert.deepEqual(refused.requests, []);
+  }
+
+  const missingBrand = prepareOperation({
+    mode: "act",
+    operation: "send_test_message",
+    arguments: {
+      target_type: "flow", target_id: 12334, revision_id: 7, channel: "email",
+      to: ["operator@example.com"], dry_run: false, idempotency_key: "test-4",
+    },
+  }).operation_plan;
+  assert.equal(missingBrand.decision, "refused");
+  assert.deepEqual(missingBrand.requests, []);
 });
 
 test("threads exact flow revisions and preserves campaign lifecycle behavior", () => {
