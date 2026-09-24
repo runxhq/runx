@@ -1,0 +1,58 @@
+name: nitrosend-inbox-list-mailbox-ready
+kind: skill
+target: ..
+runner: inbox
+operator_journeys:
+  - mode: standalone
+    request: Find the MailSchema test thread in this exact Nitrosend brand inbox.
+    expected_outcome: Return bounded mailbox evidence without issuing reply authority or changing the thread.
+env:
+  NITROSEND_API_KEY: harness-nitrosend-token
+inputs:
+  command: list_mailbox
+  arguments:
+    query: MailSchema Content Review
+    view: full
+    page: 1
+    per: 25
+  brand_sid: br_sourcey
+caller:
+  http_exchanges:
+    - request:
+        method: POST
+        url: https://api.nitrosend.com/mcp
+        body:
+          json:
+            jsonrpc: "2.0"
+            id: nitrosend-inbox
+            method: tools/call
+            params:
+              name: nitro_inbox
+              arguments:
+                command: list_mailbox
+                query: MailSchema Content Review
+                view: full
+                page: 1
+                per: 25
+      response:
+        status: 200
+        headers: { content-type: application/json }
+        body: >-
+          {"jsonrpc":"2.0","id":"nitrosend-inbox","result":{"content":[{"type":"text","text":"{\"meta\":{\"tool\":\"nitro_inbox\"},\"result\":{\"command\":\"list_mailbox\",\"status\":\"ok\",\"view\":\"full\",\"items\":[{\"conversation_id\":77,\"status\":\"open\",\"subject\":\"MailSchema Content Review\",\"inbox\":{\"address\":\"review@example.com\"}}],\"pagination\":{\"page\":1,\"per\":25,\"total\":1,\"total_pages\":1},\"next_actions\":[\"get_thread\"]}}"}]}}
+expect:
+  status: sealed
+  steps: [inbox]
+  step_outputs:
+    inbox:
+      subset:
+        provider_evidence:
+          data:
+            decision: ok
+            provider: nitrosend
+            operation: inbox
+            tool: nitro_inbox
+  receipt: { schema: runx.receipt.v1, state: sealed, disposition: closed }
+metadata:
+  public_skill: nitrosend
+  source_case: inbox-list-mailbox-ready
+  source: operator-journey

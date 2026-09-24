@@ -1,0 +1,55 @@
+name: nitrosend-query-flows-ready
+kind: skill
+target: ..
+runner: query
+operator_journeys:
+  - mode: standalone
+    request: List the draft flows for this exact Nitrosend brand.
+    expected_outcome: Return bounded provider evidence for the selected brand without mutating the account.
+env:
+  NITROSEND_API_KEY: harness-nitrosend-token
+inputs:
+  entity: flows
+  filters: { status: draft }
+  page: 1
+  per: 25
+  brand_sid: br_sourcey
+caller:
+  http_exchanges:
+    - request:
+        method: POST
+        url: https://api.nitrosend.com/mcp
+        body:
+          json:
+            jsonrpc: "2.0"
+            id: nitrosend-query
+            method: tools/call
+            params:
+              name: nitro_query
+              arguments:
+                entity: flows
+                filters: { status: draft }
+                page: 1
+                per: 25
+      response:
+        status: 200
+        headers: { content-type: application/json }
+        body: >-
+          {"jsonrpc":"2.0","id":"nitrosend-query","result":{"content":[{"type":"text","text":"{\"meta\":{\"tool\":\"nitro_query\"},\"result\":{\"entity\":\"flows\",\"items\":[{\"id\":42,\"name\":\"MailSchema content review\",\"status\":\"draft\",\"draft_revision_id\":3}],\"pagination\":{\"page\":1,\"per\":25,\"total\":1,\"total_pages\":1}}}"}]}}
+expect:
+  status: sealed
+  steps: [query]
+  step_outputs:
+    query:
+      subset:
+        provider_evidence:
+          data:
+            decision: ok
+            provider: nitrosend
+            operation: query
+            tool: nitro_query
+  receipt: { schema: runx.receipt.v1, state: sealed, disposition: closed }
+metadata:
+  public_skill: nitrosend
+  source_case: query-flows-ready
+  source: operator-journey
