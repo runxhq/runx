@@ -70,13 +70,13 @@ jsonschema = { version = "0.56.0", default-features = false }
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"], optional = true }
 webpki-root-certs = { version = "1.0.9", optional = true }
 rustix = { version = "1.1.4", features = ["process"] }
-rmcp = { version = "=3.3.0", default-features = false, features = ["client", "server"], optional = true }
+rmcp = { version = "=3.4.1", default-features = false, features = ["client", "server"], optional = true }
 # Drive rmcp's StreamableHttpService (a tower service) over a TCP listener for the
 # MCP-over-HTTP server. Both crates are already in the tree via reqwest/rmcp.
 hyper = { version = "=1.11.1", default-features = false, features = ["server", "http1"], optional = true }
 # http1 only (MCP streamable-http is http1.1 + SSE); avoids pulling http2/h2 into
 # the inbound server. service = TowerToHyperService, tokio = TokioIo.
-hyper-util = { version = "=0.1.20", default-features = false, features = ["service", "tokio"], optional = true }
+hyper-util = { version = "=0.1.21", default-features = false, features = ["service", "tokio"], optional = true }
 serde.workspace = true
 serde_json.workspace = true
 serde_path_to_error.workspace = true
@@ -94,7 +94,7 @@ zeroize.workspace = true
 # std::process does not expose race-free Job Object assignment. process-wrap
 # creates children suspended, assigns them to a per-execution job, then resumes
 # them; win32job owns the outer kill-on-close job that covers abrupt Runx exit.
-process-wrap = { version = "=10.0.0", default-features = false, features = ["std", "tokio1", "job-object"] }
+process-wrap = { version = "=10.0.1", default-features = false, features = ["std", "tokio1", "job-object"] }
 win32job = "2.0.3"
 
 [dev-dependencies]
