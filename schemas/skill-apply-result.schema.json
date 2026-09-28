@@ -15,24 +15,13 @@
       "type": "array"
     },
     "decision": {
-      "anyOf": [
-        {
-          "const": "write",
-          "type": "string"
-        },
-        {
-          "const": "no_skill",
-          "type": "string"
-        },
-        {
-          "const": "no_change",
-          "type": "string"
-        },
-        {
-          "const": "needs_core",
-          "type": "string"
-        }
-      ]
+      "enum": [
+        "write",
+        "no_skill",
+        "no_change",
+        "needs_core"
+      ],
+      "type": "string"
     },
     "deleted_paths": {
       "items": {
@@ -57,12 +46,10 @@
       "type": "array"
     },
     "schema": {
-      "anyOf": [
-        {
-          "const": "runx.skill.apply_result.v1",
-          "type": "string"
-        }
-      ]
+      "enum": [
+        "runx.skill.apply_result.v1"
+      ],
+      "type": "string"
     },
     "target_dir": {
       "minLength": 1,
@@ -166,16 +153,11 @@
                 "type": "string"
               },
               "status": {
-                "anyOf": [
-                  {
-                    "const": "passed",
-                    "type": "string"
-                  },
-                  {
-                    "const": "skipped",
-                    "type": "string"
-                  }
-                ]
+                "enum": [
+                  "passed",
+                  "skipped"
+                ],
+                "type": "string"
               }
             },
             "required": [
@@ -235,12 +217,10 @@
           "type": "array"
         },
         "schema": {
-          "anyOf": [
-            {
-              "const": "runx.skill.validation_result.v1",
-              "type": "string"
-            }
-          ]
+          "enum": [
+            "runx.skill.validation_result.v1"
+          ],
+          "type": "string"
         },
         "target_dir": {
           "minLength": 1,
@@ -263,20 +243,12 @@
       "x-runx-schema": "runx.skill.validation_result.v1"
     },
     "verdict": {
-      "anyOf": [
-        {
-          "const": "unchanged",
-          "type": "string"
-        },
-        {
-          "const": "needs_core",
-          "type": "string"
-        },
-        {
-          "const": "validated_and_applied",
-          "type": "string"
-        }
-      ]
+      "enum": [
+        "unchanged",
+        "needs_core",
+        "validated_and_applied"
+      ],
+      "type": "string"
     }
   },
   "required": [

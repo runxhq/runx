@@ -6,16 +6,11 @@
   "additionalProperties": false,
   "properties": {
     "actor": {
-      "anyOf": [
-        {
-          "const": "human",
-          "type": "string"
-        },
-        {
-          "const": "agent",
-          "type": "string"
-        }
-      ]
+      "enum": [
+        "human",
+        "agent"
+      ],
+      "type": "string"
     },
     "approved": {
       "anyOf": [
@@ -44,20 +39,12 @@
       "type": "string"
     },
     "status": {
-      "anyOf": [
-        {
-          "const": "approved",
-          "type": "string"
-        },
-        {
-          "const": "denied",
-          "type": "string"
-        },
-        {
-          "const": "pending",
-          "type": "string"
-        }
-      ]
+      "enum": [
+        "approved",
+        "denied",
+        "pending"
+      ],
+      "type": "string"
     }
   },
   "required": [

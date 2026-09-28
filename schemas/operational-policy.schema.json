@@ -20,36 +20,20 @@
           "type": "array"
         },
         "on_duplicate": {
-          "anyOf": [
-            {
-              "const": "reuse",
-              "type": "string"
-            },
-            {
-              "const": "comment",
-              "type": "string"
-            },
-            {
-              "const": "block",
-              "type": "string"
-            }
-          ]
+          "enum": [
+            "reuse",
+            "comment",
+            "block"
+          ],
+          "type": "string"
         },
         "strategy": {
-          "anyOf": [
-            {
-              "const": "source_fingerprint",
-              "type": "string"
-            },
-            {
-              "const": "provider_search",
-              "type": "string"
-            },
-            {
-              "const": "branch",
-              "type": "string"
-            }
-          ]
+          "enum": [
+            "source_fingerprint",
+            "provider_search",
+            "branch"
+          ],
+          "type": "string"
         }
       },
       "required": [
@@ -63,20 +47,12 @@
       "additionalProperties": false,
       "properties": {
         "close_source_issue": {
-          "anyOf": [
-            {
-              "const": "never",
-              "type": "string"
-            },
-            {
-              "const": "when_verified",
-              "type": "string"
-            },
-            {
-              "const": "when_terminal",
-              "type": "string"
-            }
-          ]
+          "enum": [
+            "never",
+            "when_verified",
+            "when_terminal"
+          ],
+          "type": "string"
         },
         "observe_provider": {
           "type": "boolean"
@@ -177,40 +153,17 @@
         "properties": {
           "allowed_actions": {
             "items": {
-              "anyOf": [
-                {
-                  "const": "reply-only",
-                  "type": "string"
-                },
-                {
-                  "const": "issue-intake",
-                  "type": "string"
-                },
-                {
-                  "const": "work-plan",
-                  "type": "string"
-                },
-                {
-                  "const": "issue-to-pr",
-                  "type": "string"
-                },
-                {
-                  "const": "manual-review",
-                  "type": "string"
-                },
-                {
-                  "const": "pr-review",
-                  "type": "string"
-                },
-                {
-                  "const": "pr-fix-up",
-                  "type": "string"
-                },
-                {
-                  "const": "merge-assist",
-                  "type": "string"
-                }
-              ]
+              "enum": [
+                "reply-only",
+                "issue-intake",
+                "work-plan",
+                "issue-to-pr",
+                "manual-review",
+                "pr-review",
+                "pr-fix-up",
+                "merge-assist"
+              ],
+              "type": "string"
             },
             "minItems": 1,
             "type": "array"
@@ -228,20 +181,12 @@
             "type": "boolean"
           },
           "state": {
-            "anyOf": [
-              {
-                "const": "available",
-                "type": "string"
-              },
-              {
-                "const": "disabled",
-                "type": "string"
-              },
-              {
-                "const": "maintenance",
-                "type": "string"
-              }
-            ]
+            "enum": [
+              "available",
+              "disabled",
+              "maintenance"
+            ],
+            "type": "string"
           },
           "target_repos": {
             "items": {
@@ -267,20 +212,16 @@
       "type": "array"
     },
     "schema": {
-      "anyOf": [
-        {
-          "const": "runx.operational_policy.v1",
-          "type": "string"
-        }
-      ]
+      "enum": [
+        "runx.operational_policy.v1"
+      ],
+      "type": "string"
     },
     "schema_version": {
-      "anyOf": [
-        {
-          "const": "runx.operational_policy.v1",
-          "type": "string"
-        }
-      ]
+      "enum": [
+        "runx.operational_policy.v1"
+      ],
+      "type": "string"
     },
     "sources": {
       "items": {
@@ -296,40 +237,17 @@
           },
           "allowed_actions": {
             "items": {
-              "anyOf": [
-                {
-                  "const": "reply-only",
-                  "type": "string"
-                },
-                {
-                  "const": "issue-intake",
-                  "type": "string"
-                },
-                {
-                  "const": "work-plan",
-                  "type": "string"
-                },
-                {
-                  "const": "issue-to-pr",
-                  "type": "string"
-                },
-                {
-                  "const": "manual-review",
-                  "type": "string"
-                },
-                {
-                  "const": "pr-review",
-                  "type": "string"
-                },
-                {
-                  "const": "pr-fix-up",
-                  "type": "string"
-                },
-                {
-                  "const": "merge-assist",
-                  "type": "string"
-                }
-              ]
+              "enum": [
+                "reply-only",
+                "issue-intake",
+                "work-plan",
+                "issue-to-pr",
+                "manual-review",
+                "pr-review",
+                "pr-fix-up",
+                "merge-assist"
+              ],
+              "type": "string"
             },
             "minItems": 1,
             "type": "array"
@@ -360,28 +278,18 @@
             "additionalProperties": false,
             "properties": {
               "missing_behavior": {
-                "anyOf": [
-                  {
-                    "const": "fail_closed",
-                    "type": "string"
-                  }
-                ]
+                "enum": [
+                  "fail_closed"
+                ],
+                "type": "string"
               },
               "publish_mode": {
-                "anyOf": [
-                  {
-                    "const": "reply",
-                    "type": "string"
-                  },
-                  {
-                    "const": "comment",
-                    "type": "string"
-                  },
-                  {
-                    "const": "none",
-                    "type": "string"
-                  }
-                ]
+                "enum": [
+                  "reply",
+                  "comment",
+                  "none"
+                ],
+                "type": "string"
               },
               "required": {
                 "type": "boolean"
@@ -413,40 +321,17 @@
         "properties": {
           "allowed_actions": {
             "items": {
-              "anyOf": [
-                {
-                  "const": "reply-only",
-                  "type": "string"
-                },
-                {
-                  "const": "issue-intake",
-                  "type": "string"
-                },
-                {
-                  "const": "work-plan",
-                  "type": "string"
-                },
-                {
-                  "const": "issue-to-pr",
-                  "type": "string"
-                },
-                {
-                  "const": "manual-review",
-                  "type": "string"
-                },
-                {
-                  "const": "pr-review",
-                  "type": "string"
-                },
-                {
-                  "const": "pr-fix-up",
-                  "type": "string"
-                },
-                {
-                  "const": "merge-assist",
-                  "type": "string"
-                }
-              ]
+              "enum": [
+                "reply-only",
+                "issue-intake",
+                "work-plan",
+                "issue-to-pr",
+                "manual-review",
+                "pr-review",
+                "pr-fix-up",
+                "merge-assist"
+              ],
+              "type": "string"
             },
             "minItems": 1,
             "type": "array"

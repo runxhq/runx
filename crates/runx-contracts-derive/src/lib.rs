@@ -9,7 +9,7 @@
 //! `#[serde(flatten)]` (the flattened type's properties merge into the parent;
 //! a flattened map opens the parent to additional properties), and
 //! `#[serde(deny_unknown_fields)]`), unit-only enums (rendered
-//! as `anyOf` of `const`), and data-carrying enums under serde's default
+//! as `type: string` with `enum`), and data-carrying enums under serde's default
 //! (externally-tagged), internally-tagged (`#[serde(tag = "...")]`), and
 //! `#[serde(untagged)]` representations (each rendered as an `anyOf` of variant
 //! subschemas). Multi-field tuple variants are not modeled.
@@ -279,8 +279,9 @@ fn enum_body(
     // object under internal tagging (serde rejects unknown fields per variant).
     let container_deny = serde_deny_unknown_fields(&input.attrs);
 
-    // The simple, fast path: an all-unit enum is a closed string enum. A
-    // top-level identity (when present) wraps the `anyOf` of consts.
+    // The simple, fast path: an all-unit enum is a closed string enum, one
+    // `enum` keyword over its wire names. A top-level identity (when present)
+    // sits alongside it.
     let all_unit = data
         .variants
         .iter()
@@ -295,10 +296,8 @@ fn enum_body(
             names.push(wire_name);
         }
         return Ok(quote! {
-            ::runx_contracts::schema::any_of_with_identity(
-                ::std::vec![
-                    #(::runx_contracts::schema::const_string(#names)),*
-                ],
+            ::runx_contracts::schema::string_enum(
+                &[#(#names),*],
                 #identity_expr,
             )
         });

@@ -71,12 +71,10 @@
                     "type": "string"
                   },
                   "expected_receipt_class": {
-                    "anyOf": [
-                      {
-                        "const": "executed",
-                        "type": "string"
-                      }
-                    ]
+                    "enum": [
+                      "executed"
+                    ],
+                    "type": "string"
                   },
                   "listing_ref": {
                     "maxLength": 512,
@@ -334,12 +332,10 @@
                     "type": "string"
                   },
                   "expected_receipt_class": {
-                    "anyOf": [
-                      {
-                        "const": "executed",
-                        "type": "string"
-                      }
-                    ]
+                    "enum": [
+                      "executed"
+                    ],
+                    "type": "string"
                   },
                   "listing_ref": {
                     "maxLength": 512,
@@ -582,20 +578,12 @@
           "type": "string"
         },
         "proof_kind": {
-          "anyOf": [
-            {
-              "const": "effect_evidence",
-              "type": "string"
-            },
-            {
-              "const": "effect_finality",
-              "type": "string"
-            },
-            {
-              "const": "credential_resolution",
-              "type": "string"
-            }
-          ]
+          "enum": [
+            "effect_evidence",
+            "effect_finality",
+            "credential_resolution"
+          ],
+          "type": "string"
         },
         "provider": {
           "minLength": 1,

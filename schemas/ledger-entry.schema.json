@@ -7,20 +7,16 @@
       "additionalProperties": false,
       "properties": {
         "algorithm": {
-          "anyOf": [
-            {
-              "const": "sha256",
-              "type": "string"
-            }
-          ]
+          "enum": [
+            "sha256"
+          ],
+          "type": "string"
         },
         "canonicalization": {
-          "anyOf": [
-            {
-              "const": "runx.stable-json.v1",
-              "type": "string"
-            }
-          ]
+          "enum": [
+            "runx.stable-json.v1"
+          ],
+          "type": "string"
         },
         "entry_hash": {
           "pattern": "^[a-f0-9]{64}$",
@@ -41,12 +37,10 @@
           ]
         },
         "version": {
-          "anyOf": [
-            {
-              "const": "runx.ledger.chain.v1",
-              "type": "string"
-            }
-          ]
+          "enum": [
+            "runx.ledger.chain.v1"
+          ],
+          "type": "string"
         }
       },
       "required": [
@@ -169,12 +163,10 @@
           ]
         },
         "version": {
-          "anyOf": [
-            {
-              "const": "1",
-              "type": "string"
-            }
-          ]
+          "enum": [
+            "1"
+          ],
+          "type": "string"
         }
       },
       "required": [
@@ -186,12 +178,10 @@
       "type": "object"
     },
     "schema_version": {
-      "anyOf": [
-        {
-          "const": "runx.ledger.entry.v1",
-          "type": "string"
-        }
-      ]
+      "enum": [
+        "runx.ledger.entry.v1"
+      ],
+      "type": "string"
     }
   },
   "required": [

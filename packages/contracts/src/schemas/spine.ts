@@ -18,15 +18,15 @@ function schemaAt<TStatic>(
 }
 
 function enumValues(schema: JsonSchema, label: string): readonly string[] {
-  const anyOf = schema.anyOf;
-  if (!Array.isArray(anyOf)) {
-    throw new Error(`generated enum fragment is not anyOf: ${label}`);
+  const values = schema.enum;
+  if (schema.type !== "string" || !Array.isArray(values)) {
+    throw new Error(`generated enum fragment is not a string enum: ${label}`);
   }
-  return anyOf.map((entry, index) => {
-    if (!entry || typeof entry !== "object" || typeof (entry as { const?: unknown }).const !== "string") {
-      throw new Error(`generated enum fragment has no string const: ${label}[${index}]`);
+  return values.map((value, index) => {
+    if (typeof value !== "string") {
+      throw new Error(`generated enum fragment has a non-string value: ${label}[${index}]`);
     }
-    return (entry as { const: string }).const;
+    return value;
   });
 }
 

@@ -19,35 +19,22 @@
       "type": "string"
     },
     "schema": {
-      "anyOf": [
-        {
-          "const": "runx.run-summary.v1",
-          "type": "string"
-        }
-      ]
+      "enum": [
+        "runx.run-summary.v1"
+      ],
+      "type": "string"
     },
     "started_at": {
       "type": "string"
     },
     "status": {
-      "anyOf": [
-        {
-          "const": "success",
-          "type": "string"
-        },
-        {
-          "const": "failure",
-          "type": "string"
-        },
-        {
-          "const": "skipped",
-          "type": "string"
-        },
-        {
-          "const": "needs_approval",
-          "type": "string"
-        }
-      ]
+      "enum": [
+        "success",
+        "failure",
+        "skipped",
+        "needs_approval"
+      ],
+      "type": "string"
     },
     "steps": {
       "items": {

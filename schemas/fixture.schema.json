@@ -24,20 +24,12 @@
       "type": "object"
     },
     "lane": {
-      "anyOf": [
-        {
-          "const": "deterministic",
-          "type": "string"
-        },
-        {
-          "const": "agent",
-          "type": "string"
-        },
-        {
-          "const": "repo-integration",
-          "type": "string"
-        }
-      ]
+      "enum": [
+        "deterministic",
+        "agent",
+        "repo-integration"
+      ],
+      "type": "string"
     },
     "name": {
       "type": "string"

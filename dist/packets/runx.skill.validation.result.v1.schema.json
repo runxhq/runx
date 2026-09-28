@@ -98,16 +98,11 @@
             "type": "string"
           },
           "status": {
-            "anyOf": [
-              {
-                "const": "passed",
-                "type": "string"
-              },
-              {
-                "const": "skipped",
-                "type": "string"
-              }
-            ]
+            "enum": [
+              "passed",
+              "skipped"
+            ],
+            "type": "string"
           }
         },
         "required": [
@@ -167,12 +162,10 @@
       "type": "array"
     },
     "schema": {
-      "anyOf": [
-        {
-          "const": "runx.skill.validation_result.v1",
-          "type": "string"
-        }
-      ]
+      "enum": [
+        "runx.skill.validation_result.v1"
+      ],
+      "type": "string"
     },
     "target_dir": {
       "minLength": 1,

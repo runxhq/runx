@@ -95,12 +95,10 @@
     },
     "risk": {},
     "schema": {
-      "anyOf": [
-        {
-          "const": "runx.tool.manifest.v1",
-          "type": "string"
-        }
-      ]
+      "enum": [
+        "runx.tool.manifest.v1"
+      ],
+      "type": "string"
     },
     "scopes": {
       "items": {
@@ -155,20 +153,12 @@
           "type": "string"
         },
         "input_mode": {
-          "anyOf": [
-            {
-              "const": "args",
-              "type": "string"
-            },
-            {
-              "const": "stdin",
-              "type": "string"
-            },
-            {
-              "const": "none",
-              "type": "string"
-            }
-          ]
+          "enum": [
+            "args",
+            "stdin",
+            "none"
+          ],
+          "type": "string"
         },
         "module": {
           "type": "string"
@@ -201,24 +191,13 @@
           "type": "string"
         },
         "type": {
-          "anyOf": [
-            {
-              "const": "cli-tool",
-              "type": "string"
-            },
-            {
-              "const": "javascript",
-              "type": "string"
-            },
-            {
-              "const": "mcp",
-              "type": "string"
-            },
-            {
-              "const": "a2a",
-              "type": "string"
-            }
-          ]
+          "enum": [
+            "cli-tool",
+            "javascript",
+            "mcp",
+            "a2a"
+          ],
+          "type": "string"
         }
       },
       "required": [

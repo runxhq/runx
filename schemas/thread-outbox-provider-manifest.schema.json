@@ -12,12 +12,10 @@
         "additionalProperties": false,
         "properties": {
           "delivery_mode": {
-            "anyOf": [
-              {
-                "const": "process_env",
-                "type": "string"
-              }
-            ]
+            "enum": [
+              "process_env"
+            ],
+            "type": "string"
           },
           "profile_id": {
             "minLength": 1,
@@ -28,24 +26,13 @@
             "type": "string"
           },
           "purpose": {
-            "anyOf": [
-              {
-                "const": "provider_api",
-                "type": "string"
-              },
-              {
-                "const": "registry",
-                "type": "string"
-              },
-              {
-                "const": "artifact_store",
-                "type": "string"
-              },
-              {
-                "const": "webhook_verification",
-                "type": "string"
-              }
-            ]
+            "enum": [
+              "provider_api",
+              "registry",
+              "artifact_store",
+              "webhook_verification"
+            ],
+            "type": "string"
           },
           "required": {
             "type": "boolean"
@@ -70,20 +57,12 @@
                   "type": "string"
                 },
                 "proof_kind": {
-                  "anyOf": [
-                    {
-                      "const": "effect_evidence",
-                      "type": "string"
-                    },
-                    {
-                      "const": "effect_finality",
-                      "type": "string"
-                    },
-                    {
-                      "const": "credential_resolution",
-                      "type": "string"
-                    }
-                  ]
+                  "enum": [
+                    "effect_evidence",
+                    "effect_finality",
+                    "credential_resolution"
+                  ],
+                  "type": "string"
                 },
                 "provider": {
                   "minLength": 1,
@@ -94,172 +73,50 @@
                   "type": "string"
                 },
                 "type": {
-                  "anyOf": [
-                    {
-                      "const": "github_issue",
-                      "type": "string"
-                    },
-                    {
-                      "const": "github_pull_request",
-                      "type": "string"
-                    },
-                    {
-                      "const": "github_repo",
-                      "type": "string"
-                    },
-                    {
-                      "const": "slack_thread",
-                      "type": "string"
-                    },
-                    {
-                      "const": "sentry_event",
-                      "type": "string"
-                    },
-                    {
-                      "const": "provider_thread",
-                      "type": "string"
-                    },
-                    {
-                      "const": "provider_event",
-                      "type": "string"
-                    },
-                    {
-                      "const": "provider_comment",
-                      "type": "string"
-                    },
-                    {
-                      "const": "tracking_item",
-                      "type": "string"
-                    },
-                    {
-                      "const": "change_request",
-                      "type": "string"
-                    },
-                    {
-                      "const": "repository",
-                      "type": "string"
-                    },
-                    {
-                      "const": "support_ticket",
-                      "type": "string"
-                    },
-                    {
-                      "const": "signal",
-                      "type": "string"
-                    },
-                    {
-                      "const": "act",
-                      "type": "string"
-                    },
-                    {
-                      "const": "receipt",
-                      "type": "string"
-                    },
-                    {
-                      "const": "graph_receipt",
-                      "type": "string"
-                    },
-                    {
-                      "const": "artifact",
-                      "type": "string"
-                    },
-                    {
-                      "const": "verification",
-                      "type": "string"
-                    },
-                    {
-                      "const": "harness",
-                      "type": "string"
-                    },
-                    {
-                      "const": "host",
-                      "type": "string"
-                    },
-                    {
-                      "const": "deployment",
-                      "type": "string"
-                    },
-                    {
-                      "const": "surface",
-                      "type": "string"
-                    },
-                    {
-                      "const": "target",
-                      "type": "string"
-                    },
-                    {
-                      "const": "opportunity",
-                      "type": "string"
-                    },
-                    {
-                      "const": "thesis_assessment",
-                      "type": "string"
-                    },
-                    {
-                      "const": "selection",
-                      "type": "string"
-                    },
-                    {
-                      "const": "skill_binding",
-                      "type": "string"
-                    },
-                    {
-                      "const": "target_transition_entry",
-                      "type": "string"
-                    },
-                    {
-                      "const": "selection_cycle",
-                      "type": "string"
-                    },
-                    {
-                      "const": "decision",
-                      "type": "string"
-                    },
-                    {
-                      "const": "reflection_entry",
-                      "type": "string"
-                    },
-                    {
-                      "const": "feed_entry",
-                      "type": "string"
-                    },
-                    {
-                      "const": "principal",
-                      "type": "string"
-                    },
-                    {
-                      "const": "authority_proof",
-                      "type": "string"
-                    },
-                    {
-                      "const": "scope_admission",
-                      "type": "string"
-                    },
-                    {
-                      "const": "grant",
-                      "type": "string"
-                    },
-                    {
-                      "const": "mandate",
-                      "type": "string"
-                    },
-                    {
-                      "const": "credential",
-                      "type": "string"
-                    },
-                    {
-                      "const": "webhook_delivery",
-                      "type": "string"
-                    },
-                    {
-                      "const": "redaction_policy",
-                      "type": "string"
-                    },
-                    {
-                      "const": "external_url",
-                      "type": "string"
-                    }
-                  ]
+                  "enum": [
+                    "github_issue",
+                    "github_pull_request",
+                    "github_repo",
+                    "slack_thread",
+                    "sentry_event",
+                    "provider_thread",
+                    "provider_event",
+                    "provider_comment",
+                    "tracking_item",
+                    "change_request",
+                    "repository",
+                    "support_ticket",
+                    "signal",
+                    "act",
+                    "receipt",
+                    "graph_receipt",
+                    "artifact",
+                    "verification",
+                    "harness",
+                    "host",
+                    "deployment",
+                    "surface",
+                    "target",
+                    "opportunity",
+                    "thesis_assessment",
+                    "selection",
+                    "skill_binding",
+                    "target_transition_entry",
+                    "selection_cycle",
+                    "decision",
+                    "reflection_entry",
+                    "feed_entry",
+                    "principal",
+                    "authority_proof",
+                    "scope_admission",
+                    "grant",
+                    "mandate",
+                    "credential",
+                    "webhook_delivery",
+                    "redaction_policy",
+                    "external_url"
+                  ],
+                  "type": "string"
                 },
                 "uri": {
                   "minLength": 1,
@@ -292,12 +149,10 @@
       "type": "string"
     },
     "protocol_version": {
-      "anyOf": [
-        {
-          "const": "runx.thread_outbox_provider.v1",
-          "type": "string"
-        }
-      ]
+      "enum": [
+        "runx.thread_outbox_provider.v1"
+      ],
+      "type": "string"
     },
     "provider": {
       "minLength": 1,
@@ -344,25 +199,18 @@
       "type": "object"
     },
     "schema": {
-      "anyOf": [
-        {
-          "const": "runx.thread_outbox_provider.manifest.v1",
-          "type": "string"
-        }
-      ]
+      "enum": [
+        "runx.thread_outbox_provider.manifest.v1"
+      ],
+      "type": "string"
     },
     "supported_operations": {
       "items": {
-        "anyOf": [
-          {
-            "const": "push",
-            "type": "string"
-          },
-          {
-            "const": "fetch",
-            "type": "string"
-          }
-        ]
+        "enum": [
+          "push",
+          "fetch"
+        ],
+        "type": "string"
       },
       "type": "array"
     },
@@ -384,12 +232,10 @@
           "type": "string"
         },
         "kind": {
-          "anyOf": [
-            {
-              "const": "process",
-              "type": "string"
-            }
-          ]
+          "enum": [
+            "process"
+          ],
+          "type": "string"
         }
       },
       "required": [

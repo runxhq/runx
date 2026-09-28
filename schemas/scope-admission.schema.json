@@ -32,16 +32,11 @@
       "type": "array"
     },
     "status": {
-      "anyOf": [
-        {
-          "const": "allow",
-          "type": "string"
-        },
-        {
-          "const": "deny",
-          "type": "string"
-        }
-      ]
+      "enum": [
+        "allow",
+        "deny"
+      ],
+      "type": "string"
     }
   },
   "required": [

@@ -19,20 +19,12 @@
           "type": "array"
         },
         "status": {
-          "anyOf": [
-            {
-              "const": "pending",
-              "type": "string"
-            },
-            {
-              "const": "failed",
-              "type": "string"
-            },
-            {
-              "const": "harness_verified",
-              "type": "string"
-            }
-          ]
+          "enum": [
+            "pending",
+            "failed",
+            "harness_verified"
+          ],
+          "type": "string"
         }
       },
       "required": [
@@ -60,20 +52,12 @@
           "type": "string"
         },
         "trust_tier": {
-          "anyOf": [
-            {
-              "const": "first_party",
-              "type": "string"
-            },
-            {
-              "const": "verified",
-              "type": "string"
-            },
-            {
-              "const": "community",
-              "type": "string"
-            }
-          ]
+          "enum": [
+            "first_party",
+            "verified",
+            "community"
+          ],
+          "type": "string"
         },
         "version": {
           "type": "string"
@@ -89,12 +73,10 @@
       "type": "object"
     },
     "schema": {
-      "anyOf": [
-        {
-          "const": "runx.registry_binding.v1",
-          "type": "string"
-        }
-      ]
+      "enum": [
+        "runx.registry_binding.v1"
+      ],
+      "type": "string"
     },
     "skill": {
       "additionalProperties": true,
@@ -117,24 +99,13 @@
       "type": "object"
     },
     "state": {
-      "anyOf": [
-        {
-          "const": "registry_binding_drafted",
-          "type": "string"
-        },
-        {
-          "const": "registry_bound",
-          "type": "string"
-        },
-        {
-          "const": "harness_verified",
-          "type": "string"
-        },
-        {
-          "const": "published",
-          "type": "string"
-        }
-      ]
+      "enum": [
+        "registry_binding_drafted",
+        "registry_bound",
+        "harness_verified",
+        "published"
+      ],
+      "type": "string"
     },
     "upstream": {
       "additionalProperties": true,

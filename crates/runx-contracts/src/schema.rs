@@ -5,7 +5,7 @@
 //! JSON Schema document, so the Rust type is the single source of truth and the
 //! parallel TypeScript schema sources stay deleted. The emitted document
 //! reproduces the committed shape: fully inlined, closed string enums as
-//! `anyOf` of `const`, `additionalProperties: false`, and the `$id` /
+//! `type: string` with `enum`, `additionalProperties: false`, and the `$id` /
 //! `x-runx-schema` identity.
 // Module rationale: the schema emitter keeps shared JSON Schema
 // construction helpers and primitive type impls together so generated contract
@@ -100,6 +100,35 @@ pub enum Identity<'a> {
     BareId { url: &'a str },
 }
 
+/// Start a document with its top-level identity envelope, if any: `$schema`,
+/// `$id`, and for [`Identity::Runx`] also `x-runx-schema`. Returns the logical
+/// name of a [`Identity::Runx`] identity so object documents can inject their
+/// optional `schema` discriminant; nested schemas pass `None` and start empty.
+fn identity_envelope(identity: Option<Identity<'_>>) -> (Map<String, Value>, Option<&str>) {
+    let mut schema = Map::new();
+    let Some(identity) = identity else {
+        return (schema, None);
+    };
+    schema.insert(
+        "$schema".to_owned(),
+        json!("https://json-schema.org/draft/2020-12/schema"),
+    );
+    match identity {
+        Identity::Runx { logical, url } => {
+            let id = url
+                .map(str::to_owned)
+                .unwrap_or_else(|| schema_id_url(logical));
+            schema.insert("$id".to_owned(), json!(id));
+            schema.insert("x-runx-schema".to_owned(), json!(logical));
+            (schema, Some(logical))
+        }
+        Identity::BareId { url } => {
+            schema.insert("$id".to_owned(), json!(url));
+            (schema, None)
+        }
+    }
+}
+
 /// Assemble an object schema in the committed shape. When `identity` is set the
 /// document carries the top-level envelope; nested objects pass `None`.
 pub fn object_schema(
@@ -116,30 +145,14 @@ pub fn object_schema(
         props.insert(property.name.to_owned(), property.schema);
     }
 
-    let mut schema = Map::new();
-    if let Some(identity) = identity {
-        schema.insert(
-            "$schema".to_owned(),
-            json!("https://json-schema.org/draft/2020-12/schema"),
-        );
-        match identity {
-            Identity::Runx { logical, url } => {
-                let id = url
-                    .map(str::to_owned)
-                    .unwrap_or_else(|| schema_id_url(logical));
-                schema.insert("$id".to_owned(), json!(id));
-                schema.insert("x-runx-schema".to_owned(), json!(logical));
-                // Every top-level contract carries an optional `schema`
-                // discriminant whose const equals its logical name. Emit it
-                // from the identity so no type needs a redundant marker field.
-                props
-                    .entry("schema".to_owned())
-                    .or_insert_with(|| const_string(logical));
-            }
-            Identity::BareId { url } => {
-                schema.insert("$id".to_owned(), json!(url));
-            }
-        }
+    let (mut schema, logical) = identity_envelope(identity);
+    if let Some(logical) = logical {
+        // Every top-level contract carries an optional `schema` discriminant
+        // whose const equals its logical name. Emit it from the identity so no
+        // type needs a redundant marker field.
+        props
+            .entry("schema".to_owned())
+            .or_insert_with(|| const_string(logical));
     }
     schema.insert("additionalProperties".to_owned(), json!(!deny_unknown));
     schema.insert("type".to_owned(), json!("object"));
@@ -202,27 +215,11 @@ pub fn object_schema_with_flatten(
         }
     }
 
-    let mut schema = Map::new();
-    if let Some(identity) = identity {
-        schema.insert(
-            "$schema".to_owned(),
-            json!("https://json-schema.org/draft/2020-12/schema"),
-        );
-        match identity {
-            Identity::Runx { logical, url } => {
-                let id = url
-                    .map(str::to_owned)
-                    .unwrap_or_else(|| schema_id_url(logical));
-                schema.insert("$id".to_owned(), json!(id));
-                schema.insert("x-runx-schema".to_owned(), json!(logical));
-                props
-                    .entry("schema".to_owned())
-                    .or_insert_with(|| const_string(logical));
-            }
-            Identity::BareId { url } => {
-                schema.insert("$id".to_owned(), json!(url));
-            }
-        }
+    let (mut schema, logical) = identity_envelope(identity);
+    if let Some(logical) = logical {
+        props
+            .entry("schema".to_owned())
+            .or_insert_with(|| const_string(logical));
     }
     schema.insert("additionalProperties".to_owned(), json!(!deny_unknown));
     schema.insert("type".to_owned(), json!("object"));
@@ -241,25 +238,7 @@ pub fn object_schema_with_flatten(
 /// injected `schema` discriminant are emitted; the pattern alone constrains the
 /// values.
 pub fn object_map_schema(value_schema: Value, identity: Option<Identity<'_>>) -> Value {
-    let mut schema = Map::new();
-    if let Some(identity) = identity {
-        schema.insert(
-            "$schema".to_owned(),
-            json!("https://json-schema.org/draft/2020-12/schema"),
-        );
-        match identity {
-            Identity::Runx { logical, url } => {
-                let id = url
-                    .map(str::to_owned)
-                    .unwrap_or_else(|| schema_id_url(logical));
-                schema.insert("$id".to_owned(), json!(id));
-                schema.insert("x-runx-schema".to_owned(), json!(logical));
-            }
-            Identity::BareId { url } => {
-                schema.insert("$id".to_owned(), json!(url));
-            }
-        }
-    }
+    let (mut schema, _) = identity_envelope(identity);
     schema.insert("type".to_owned(), json!("object"));
     schema.insert(
         "patternProperties".to_owned(),
@@ -268,14 +247,16 @@ pub fn object_map_schema(value_schema: Value, identity: Option<Identity<'_>>) ->
     Value::Object(schema)
 }
 
-/// A closed string enum rendered as `anyOf` of `const` leaves, the committed
-/// shape (the schemas never use JSON Schema `enum`).
-pub fn string_enum(variants: &[&str]) -> Value {
-    let any_of: Vec<Value> = variants
-        .iter()
-        .map(|variant| const_string(variant))
-        .collect();
-    json!({ "anyOf": any_of })
+/// A closed string enum: `{ "enum": [...], "type": "string" }`, optionally
+/// carrying a top-level identity envelope (the `$schema`, `$id`, and for
+/// [`Identity::Runx`] also `x-runx-schema` keys). One `enum` keyword names the
+/// whole value set, so code generators read a typed enum instead of a union of
+/// single-value subschemas.
+pub fn string_enum(variants: &[&str], identity: Option<Identity<'_>>) -> Value {
+    let (mut schema, _) = identity_envelope(identity);
+    schema.insert("type".to_owned(), json!("string"));
+    schema.insert("enum".to_owned(), json!(variants));
+    Value::Object(schema)
 }
 
 /// A union of subschemas rendered as `{ "anyOf": [...] }`, the committed shape
@@ -293,25 +274,7 @@ pub fn any_of(variants: Vec<Value>) -> Value {
 /// no injected `schema` discriminant property is added: the union variants own
 /// their own shape.
 pub fn any_of_with_identity(variants: Vec<Value>, identity: Option<Identity<'_>>) -> Value {
-    let mut schema = Map::new();
-    if let Some(identity) = identity {
-        schema.insert(
-            "$schema".to_owned(),
-            json!("https://json-schema.org/draft/2020-12/schema"),
-        );
-        match identity {
-            Identity::Runx { logical, url } => {
-                let id = url
-                    .map(str::to_owned)
-                    .unwrap_or_else(|| schema_id_url(logical));
-                schema.insert("$id".to_owned(), json!(id));
-                schema.insert("x-runx-schema".to_owned(), json!(logical));
-            }
-            Identity::BareId { url } => {
-                schema.insert("$id".to_owned(), json!(url));
-            }
-        }
-    }
+    let (mut schema, _) = identity_envelope(identity);
     schema.insert("anyOf".to_owned(), Value::Array(variants));
     Value::Object(schema)
 }

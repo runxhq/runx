@@ -28,156 +28,46 @@
         "signal": {
           "anyOf": [
             {
-              "anyOf": [
-                {
-                  "const": "SIGABRT",
-                  "type": "string"
-                },
-                {
-                  "const": "SIGALRM",
-                  "type": "string"
-                },
-                {
-                  "const": "SIGBUS",
-                  "type": "string"
-                },
-                {
-                  "const": "SIGCHLD",
-                  "type": "string"
-                },
-                {
-                  "const": "SIGCONT",
-                  "type": "string"
-                },
-                {
-                  "const": "SIGFPE",
-                  "type": "string"
-                },
-                {
-                  "const": "SIGHUP",
-                  "type": "string"
-                },
-                {
-                  "const": "SIGILL",
-                  "type": "string"
-                },
-                {
-                  "const": "SIGINT",
-                  "type": "string"
-                },
-                {
-                  "const": "SIGIO",
-                  "type": "string"
-                },
-                {
-                  "const": "SIGIOT",
-                  "type": "string"
-                },
-                {
-                  "const": "SIGKILL",
-                  "type": "string"
-                },
-                {
-                  "const": "SIGPIPE",
-                  "type": "string"
-                },
-                {
-                  "const": "SIGPOLL",
-                  "type": "string"
-                },
-                {
-                  "const": "SIGPROF",
-                  "type": "string"
-                },
-                {
-                  "const": "SIGPWR",
-                  "type": "string"
-                },
-                {
-                  "const": "SIGQUIT",
-                  "type": "string"
-                },
-                {
-                  "const": "SIGSEGV",
-                  "type": "string"
-                },
-                {
-                  "const": "SIGSTKFLT",
-                  "type": "string"
-                },
-                {
-                  "const": "SIGSTOP",
-                  "type": "string"
-                },
-                {
-                  "const": "SIGSYS",
-                  "type": "string"
-                },
-                {
-                  "const": "SIGTERM",
-                  "type": "string"
-                },
-                {
-                  "const": "SIGTRAP",
-                  "type": "string"
-                },
-                {
-                  "const": "SIGTSTP",
-                  "type": "string"
-                },
-                {
-                  "const": "SIGTTIN",
-                  "type": "string"
-                },
-                {
-                  "const": "SIGTTOU",
-                  "type": "string"
-                },
-                {
-                  "const": "SIGUNUSED",
-                  "type": "string"
-                },
-                {
-                  "const": "SIGURG",
-                  "type": "string"
-                },
-                {
-                  "const": "SIGUSR1",
-                  "type": "string"
-                },
-                {
-                  "const": "SIGUSR2",
-                  "type": "string"
-                },
-                {
-                  "const": "SIGVTALRM",
-                  "type": "string"
-                },
-                {
-                  "const": "SIGWINCH",
-                  "type": "string"
-                },
-                {
-                  "const": "SIGXCPU",
-                  "type": "string"
-                },
-                {
-                  "const": "SIGXFSZ",
-                  "type": "string"
-                },
-                {
-                  "const": "SIGBREAK",
-                  "type": "string"
-                },
-                {
-                  "const": "SIGLOST",
-                  "type": "string"
-                },
-                {
-                  "const": "SIGINFO",
-                  "type": "string"
-                }
-              ]
+              "enum": [
+                "SIGABRT",
+                "SIGALRM",
+                "SIGBUS",
+                "SIGCHLD",
+                "SIGCONT",
+                "SIGFPE",
+                "SIGHUP",
+                "SIGILL",
+                "SIGINT",
+                "SIGIO",
+                "SIGIOT",
+                "SIGKILL",
+                "SIGPIPE",
+                "SIGPOLL",
+                "SIGPROF",
+                "SIGPWR",
+                "SIGQUIT",
+                "SIGSEGV",
+                "SIGSTKFLT",
+                "SIGSTOP",
+                "SIGSYS",
+                "SIGTERM",
+                "SIGTRAP",
+                "SIGTSTP",
+                "SIGTTIN",
+                "SIGTTOU",
+                "SIGUNUSED",
+                "SIGURG",
+                "SIGUSR1",
+                "SIGUSR2",
+                "SIGVTALRM",
+                "SIGWINCH",
+                "SIGXCPU",
+                "SIGXFSZ",
+                "SIGBREAK",
+                "SIGLOST",
+                "SIGINFO"
+              ],
+              "type": "string"
             },
             {
               "type": "null"
@@ -185,16 +75,11 @@
           ]
         },
         "status": {
-          "anyOf": [
-            {
-              "const": "sealed",
-              "type": "string"
-            },
-            {
-              "const": "failure",
-              "type": "string"
-            }
-          ]
+          "enum": [
+            "sealed",
+            "failure"
+          ],
+          "type": "string"
         },
         "stderr": {
           "type": "string"
@@ -532,12 +417,10 @@
                                 ]
                               },
                               "version": {
-                                "anyOf": [
-                                  {
-                                    "const": "1",
-                                    "type": "string"
-                                  }
-                                ]
+                                "enum": [
+                                  "1"
+                                ],
+                                "type": "string"
                               }
                             },
                             "required": [
@@ -681,12 +564,10 @@
                                 ]
                               },
                               "version": {
-                                "anyOf": [
-                                  {
-                                    "const": "1",
-                                    "type": "string"
-                                  }
-                                ]
+                                "enum": [
+                                  "1"
+                                ],
+                                "type": "string"
                               }
                             },
                             "required": [
@@ -715,36 +596,16 @@
                           "additionalProperties": {
                             "anyOf": [
                               {
-                                "anyOf": [
-                                  {
-                                    "const": "string",
-                                    "type": "string"
-                                  },
-                                  {
-                                    "const": "number",
-                                    "type": "string"
-                                  },
-                                  {
-                                    "const": "integer",
-                                    "type": "string"
-                                  },
-                                  {
-                                    "const": "boolean",
-                                    "type": "string"
-                                  },
-                                  {
-                                    "const": "array",
-                                    "type": "string"
-                                  },
-                                  {
-                                    "const": "object",
-                                    "type": "string"
-                                  },
-                                  {
-                                    "const": "null",
-                                    "type": "string"
-                                  }
-                                ]
+                                "enum": [
+                                  "string",
+                                  "number",
+                                  "integer",
+                                  "boolean",
+                                  "array",
+                                  "object",
+                                  "null"
+                                ],
+                                "type": "string"
                               },
                               {
                                 "additionalProperties": false,
@@ -766,36 +627,16 @@
                                     "type": "object"
                                   },
                                   "type": {
-                                    "anyOf": [
-                                      {
-                                        "const": "string",
-                                        "type": "string"
-                                      },
-                                      {
-                                        "const": "number",
-                                        "type": "string"
-                                      },
-                                      {
-                                        "const": "integer",
-                                        "type": "string"
-                                      },
-                                      {
-                                        "const": "boolean",
-                                        "type": "string"
-                                      },
-                                      {
-                                        "const": "array",
-                                        "type": "string"
-                                      },
-                                      {
-                                        "const": "object",
-                                        "type": "string"
-                                      },
-                                      {
-                                        "const": "null",
-                                        "type": "string"
-                                      }
-                                    ]
+                                    "enum": [
+                                      "string",
+                                      "number",
+                                      "integer",
+                                      "boolean",
+                                      "array",
+                                      "object",
+                                      "null"
+                                    ],
+                                    "type": "string"
                                   },
                                   "wrap_as": {
                                     "minLength": 1,
@@ -927,24 +768,13 @@
                               "additionalProperties": false,
                               "properties": {
                                 "kind": {
-                                  "anyOf": [
-                                    {
-                                      "const": "trusted_host_process",
-                                      "type": "string"
-                                    },
-                                    {
-                                      "const": "deterministic_worker",
-                                      "type": "string"
-                                    },
-                                    {
-                                      "const": "native_capability",
-                                      "type": "string"
-                                    },
-                                    {
-                                      "const": "remote_provider",
-                                      "type": "string"
-                                    }
-                                  ]
+                                  "enum": [
+                                    "trusted_host_process",
+                                    "deterministic_worker",
+                                    "native_capability",
+                                    "remote_provider"
+                                  ],
+                                  "type": "string"
                                 }
                               },
                               "required": [
@@ -1023,16 +853,11 @@
                       "type": "string"
                     },
                     "source_type": {
-                      "anyOf": [
-                        {
-                          "const": "agent",
-                          "type": "string"
-                        },
-                        {
-                          "const": "agent-task",
-                          "type": "string"
-                        }
-                      ]
+                      "enum": [
+                        "agent",
+                        "agent-task"
+                      ],
+                      "type": "string"
                     },
                     "task": {
                       "minLength": 1,
@@ -1064,12 +889,10 @@
           "type": "null"
         },
         "status": {
-          "anyOf": [
-            {
-              "const": "needs_agent",
-              "type": "string"
-            }
-          ]
+          "enum": [
+            "needs_agent"
+          ],
+          "type": "string"
         },
         "stderr": {
           "type": "string"

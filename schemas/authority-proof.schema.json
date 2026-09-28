@@ -7,16 +7,11 @@
       "additionalProperties": false,
       "properties": {
         "decision": {
-          "anyOf": [
-            {
-              "const": "approved",
-              "type": "string"
-            },
-            {
-              "const": "denied",
-              "type": "string"
-            }
-          ]
+          "enum": [
+            "approved",
+            "denied"
+          ],
+          "type": "string"
         },
         "gate_id": {
           "minLength": 1,
@@ -42,20 +37,12 @@
       "additionalProperties": false,
       "properties": {
         "authority_kind": {
-          "anyOf": [
-            {
-              "const": "read_only",
-              "type": "string"
-            },
-            {
-              "const": "constructive",
-              "type": "string"
-            },
-            {
-              "const": "destructive",
-              "type": "string"
-            }
-          ]
+          "enum": [
+            "read_only",
+            "constructive",
+            "destructive"
+          ],
+          "type": "string"
         },
         "grant_id": {
           "minLength": 1,
@@ -65,20 +52,12 @@
           "additionalProperties": false,
           "properties": {
             "authority_kind": {
-              "anyOf": [
-                {
-                  "const": "read_only",
-                  "type": "string"
-                },
-                {
-                  "const": "constructive",
-                  "type": "string"
-                },
-                {
-                  "const": "destructive",
-                  "type": "string"
-                }
-              ]
+              "enum": [
+                "read_only",
+                "constructive",
+                "destructive"
+              ],
+              "type": "string"
             },
             "grant_id": {
               "minLength": 1,
@@ -128,24 +107,13 @@
           "type": "array"
         },
         "status": {
-          "anyOf": [
-            {
-              "const": "not_requested",
-              "type": "string"
-            },
-            {
-              "const": "not_resolved",
-              "type": "string"
-            },
-            {
-              "const": "resolved",
-              "type": "string"
-            },
-            {
-              "const": "denied",
-              "type": "string"
-            }
-          ]
+          "enum": [
+            "not_requested",
+            "not_resolved",
+            "resolved",
+            "denied"
+          ],
+          "type": "string"
         },
         "target_locator": {
           "minLength": 1,
@@ -165,24 +133,13 @@
       "additionalProperties": false,
       "properties": {
         "kind": {
-          "anyOf": [
-            {
-              "const": "trusted_host_process",
-              "type": "string"
-            },
-            {
-              "const": "deterministic_worker",
-              "type": "string"
-            },
-            {
-              "const": "native_capability",
-              "type": "string"
-            },
-            {
-              "const": "remote_provider",
-              "type": "string"
-            }
-          ]
+          "enum": [
+            "trusted_host_process",
+            "deterministic_worker",
+            "native_capability",
+            "remote_provider"
+          ],
+          "type": "string"
         }
       },
       "required": [
@@ -201,36 +158,28 @@
           "type": "array"
         },
         "secret_material": {
-          "anyOf": [
-            {
-              "const": "omitted",
-              "type": "string"
-            }
-          ]
+          "enum": [
+            "omitted"
+          ],
+          "type": "string"
         },
         "status": {
-          "anyOf": [
-            {
-              "const": "applied",
-              "type": "string"
-            }
-          ]
+          "enum": [
+            "applied"
+          ],
+          "type": "string"
         },
         "stderr": {
-          "anyOf": [
-            {
-              "const": "hashed",
-              "type": "string"
-            }
-          ]
+          "enum": [
+            "hashed"
+          ],
+          "type": "string"
         },
         "stdout": {
-          "anyOf": [
-            {
-              "const": "hashed",
-              "type": "string"
-            }
-          ]
+          "enum": [
+            "hashed"
+          ],
+          "type": "string"
         }
       },
       "required": [
@@ -246,20 +195,12 @@
       "additionalProperties": false,
       "properties": {
         "authority_kind": {
-          "anyOf": [
-            {
-              "const": "read_only",
-              "type": "string"
-            },
-            {
-              "const": "constructive",
-              "type": "string"
-            },
-            {
-              "const": "destructive",
-              "type": "string"
-            }
-          ]
+          "enum": [
+            "read_only",
+            "constructive",
+            "destructive"
+          ],
+          "type": "string"
         },
         "connected_auth": {
           "type": "boolean"
@@ -295,12 +236,10 @@
       "type": "string"
     },
     "schema_version": {
-      "anyOf": [
-        {
-          "const": "runx.authority-proof.v1",
-          "type": "string"
-        }
-      ]
+      "enum": [
+        "runx.authority-proof.v1"
+      ],
+      "type": "string"
     },
     "scope_admission": {
       "$id": "https://runx.ai/spec/scope-admission.schema.json",
@@ -336,16 +275,11 @@
           "type": "array"
         },
         "status": {
-          "anyOf": [
-            {
-              "const": "allow",
-              "type": "string"
-            },
-            {
-              "const": "deny",
-              "type": "string"
-            }
-          ]
+          "enum": [
+            "allow",
+            "deny"
+          ],
+          "type": "string"
         }
       },
       "required": [

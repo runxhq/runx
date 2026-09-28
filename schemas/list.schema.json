@@ -38,28 +38,14 @@
             "type": "integer"
           },
           "kind": {
-            "anyOf": [
-              {
-                "const": "tool",
-                "type": "string"
-              },
-              {
-                "const": "skill",
-                "type": "string"
-              },
-              {
-                "const": "graph",
-                "type": "string"
-              },
-              {
-                "const": "packet",
-                "type": "string"
-              },
-              {
-                "const": "overlay",
-                "type": "string"
-              }
-            ]
+            "enum": [
+              "tool",
+              "skill",
+              "graph",
+              "packet",
+              "overlay"
+            ],
+            "type": "string"
           },
           "name": {
             "type": "string"
@@ -74,36 +60,20 @@
             "type": "array"
           },
           "source": {
-            "anyOf": [
-              {
-                "const": "local",
-                "type": "string"
-              },
-              {
-                "const": "workspace",
-                "type": "string"
-              },
-              {
-                "const": "dependencies",
-                "type": "string"
-              },
-              {
-                "const": "built-in",
-                "type": "string"
-              }
-            ]
+            "enum": [
+              "local",
+              "workspace",
+              "dependencies",
+              "built-in"
+            ],
+            "type": "string"
           },
           "status": {
-            "anyOf": [
-              {
-                "const": "ok",
-                "type": "string"
-              },
-              {
-                "const": "invalid",
-                "type": "string"
-              }
-            ]
+            "enum": [
+              "ok",
+              "invalid"
+            ],
+            "type": "string"
           },
           "steps": {
             "type": "integer"
@@ -124,43 +94,24 @@
       "type": "array"
     },
     "requested_kind": {
-      "anyOf": [
-        {
-          "const": "all",
-          "type": "string"
-        },
-        {
-          "const": "tools",
-          "type": "string"
-        },
-        {
-          "const": "skills",
-          "type": "string"
-        },
-        {
-          "const": "graphs",
-          "type": "string"
-        },
-        {
-          "const": "packets",
-          "type": "string"
-        },
-        {
-          "const": "overlays",
-          "type": "string"
-        }
-      ]
+      "enum": [
+        "all",
+        "tools",
+        "skills",
+        "graphs",
+        "packets",
+        "overlays"
+      ],
+      "type": "string"
     },
     "root": {
       "type": "string"
     },
     "schema": {
-      "anyOf": [
-        {
-          "const": "runx.list.v1",
-          "type": "string"
-        }
-      ]
+      "enum": [
+        "runx.list.v1"
+      ],
+      "type": "string"
     }
   },
   "required": [

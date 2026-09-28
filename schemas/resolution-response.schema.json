@@ -4,16 +4,11 @@
   "additionalProperties": false,
   "properties": {
     "actor": {
-      "anyOf": [
-        {
-          "const": "human",
-          "type": "string"
-        },
-        {
-          "const": "agent",
-          "type": "string"
-        }
-      ]
+      "enum": [
+        "human",
+        "agent"
+      ],
+      "type": "string"
     },
     "payload": {}
   },

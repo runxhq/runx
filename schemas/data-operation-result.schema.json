@@ -100,28 +100,14 @@
       "type": "string"
     },
     "status": {
-      "anyOf": [
-        {
-          "const": "committed",
-          "type": "string"
-        },
-        {
-          "const": "idempotent_replay",
-          "type": "string"
-        },
-        {
-          "const": "read",
-          "type": "string"
-        },
-        {
-          "const": "conflict",
-          "type": "string"
-        },
-        {
-          "const": "provider_unavailable",
-          "type": "string"
-        }
-      ]
+      "enum": [
+        "committed",
+        "idempotent_replay",
+        "read",
+        "conflict",
+        "provider_unavailable"
+      ],
+      "type": "string"
     },
     "stop_conditions": {
       "items": {

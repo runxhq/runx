@@ -16,12 +16,10 @@
       "type": "string"
     },
     "protocol_version": {
-      "anyOf": [
-        {
-          "const": "runx.external_adapter.v1",
-          "type": "string"
-        }
-      ]
+      "enum": [
+        "runx.external_adapter.v1"
+      ],
+      "type": "string"
     },
     "reason": {
       "minLength": 1,
@@ -33,12 +31,10 @@
       "type": "string"
     },
     "schema": {
-      "anyOf": [
-        {
-          "const": "runx.external_adapter.cancellation.v1",
-          "type": "string"
-        }
-      ]
+      "enum": [
+        "runx.external_adapter.cancellation.v1"
+      ],
+      "type": "string"
     }
   },
   "required": [

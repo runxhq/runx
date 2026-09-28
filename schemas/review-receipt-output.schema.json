@@ -38,20 +38,12 @@
       "type": "array"
     },
     "verdict": {
-      "anyOf": [
-        {
-          "const": "pass",
-          "type": "string"
-        },
-        {
-          "const": "needs_update",
-          "type": "string"
-        },
-        {
-          "const": "blocked",
-          "type": "string"
-        }
-      ]
+      "enum": [
+        "pass",
+        "needs_update",
+        "blocked"
+      ],
+      "type": "string"
     }
   },
   "required": [

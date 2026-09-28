@@ -33,44 +33,18 @@
       "type": "string"
     },
     "disposition": {
-      "anyOf": [
-        {
-          "const": "acknowledged",
-          "type": "string"
-        },
-        {
-          "const": "interested",
-          "type": "string"
-        },
-        {
-          "const": "requested_changes",
-          "type": "string"
-        },
-        {
-          "const": "accepted",
-          "type": "string"
-        },
-        {
-          "const": "approved_to_send",
-          "type": "string"
-        },
-        {
-          "const": "merged",
-          "type": "string"
-        },
-        {
-          "const": "declined",
-          "type": "string"
-        },
-        {
-          "const": "requested_no_contact",
-          "type": "string"
-        },
-        {
-          "const": "rerouted",
-          "type": "string"
-        }
-      ]
+      "enum": [
+        "acknowledged",
+        "interested",
+        "requested_changes",
+        "accepted",
+        "approved_to_send",
+        "merged",
+        "declined",
+        "requested_no_contact",
+        "rerouted"
+      ],
+      "type": "string"
     },
     "handoff_id": {
       "minLength": 1,
@@ -100,56 +74,28 @@
       "type": "string"
     },
     "schema": {
-      "anyOf": [
-        {
-          "const": "runx.handoff_signal.v1",
-          "type": "string"
-        }
-      ]
+      "enum": [
+        "runx.handoff_signal.v1"
+      ],
+      "type": "string"
     },
     "signal_id": {
       "minLength": 1,
       "type": "string"
     },
     "source": {
-      "anyOf": [
-        {
-          "const": "pull_request_comment",
-          "type": "string"
-        },
-        {
-          "const": "pull_request_review",
-          "type": "string"
-        },
-        {
-          "const": "pull_request_state",
-          "type": "string"
-        },
-        {
-          "const": "issue_comment",
-          "type": "string"
-        },
-        {
-          "const": "discussion_reply",
-          "type": "string"
-        },
-        {
-          "const": "email_reply",
-          "type": "string"
-        },
-        {
-          "const": "direct_message_reply",
-          "type": "string"
-        },
-        {
-          "const": "manual_note",
-          "type": "string"
-        },
-        {
-          "const": "system_event",
-          "type": "string"
-        }
-      ]
+      "enum": [
+        "pull_request_comment",
+        "pull_request_review",
+        "pull_request_state",
+        "issue_comment",
+        "discussion_reply",
+        "email_reply",
+        "direct_message_reply",
+        "manual_note",
+        "system_event"
+      ],
+      "type": "string"
     },
     "source_ref": {
       "additionalProperties": false,

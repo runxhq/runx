@@ -301,12 +301,10 @@
                         ]
                       },
                       "version": {
-                        "anyOf": [
-                          {
-                            "const": "1",
-                            "type": "string"
-                          }
-                        ]
+                        "enum": [
+                          "1"
+                        ],
+                        "type": "string"
                       }
                     },
                     "required": [
@@ -450,12 +448,10 @@
                         ]
                       },
                       "version": {
-                        "anyOf": [
-                          {
-                            "const": "1",
-                            "type": "string"
-                          }
-                        ]
+                        "enum": [
+                          "1"
+                        ],
+                        "type": "string"
                       }
                     },
                     "required": [
@@ -484,36 +480,16 @@
                   "additionalProperties": {
                     "anyOf": [
                       {
-                        "anyOf": [
-                          {
-                            "const": "string",
-                            "type": "string"
-                          },
-                          {
-                            "const": "number",
-                            "type": "string"
-                          },
-                          {
-                            "const": "integer",
-                            "type": "string"
-                          },
-                          {
-                            "const": "boolean",
-                            "type": "string"
-                          },
-                          {
-                            "const": "array",
-                            "type": "string"
-                          },
-                          {
-                            "const": "object",
-                            "type": "string"
-                          },
-                          {
-                            "const": "null",
-                            "type": "string"
-                          }
-                        ]
+                        "enum": [
+                          "string",
+                          "number",
+                          "integer",
+                          "boolean",
+                          "array",
+                          "object",
+                          "null"
+                        ],
+                        "type": "string"
                       },
                       {
                         "additionalProperties": false,
@@ -535,36 +511,16 @@
                             "type": "object"
                           },
                           "type": {
-                            "anyOf": [
-                              {
-                                "const": "string",
-                                "type": "string"
-                              },
-                              {
-                                "const": "number",
-                                "type": "string"
-                              },
-                              {
-                                "const": "integer",
-                                "type": "string"
-                              },
-                              {
-                                "const": "boolean",
-                                "type": "string"
-                              },
-                              {
-                                "const": "array",
-                                "type": "string"
-                              },
-                              {
-                                "const": "object",
-                                "type": "string"
-                              },
-                              {
-                                "const": "null",
-                                "type": "string"
-                              }
-                            ]
+                            "enum": [
+                              "string",
+                              "number",
+                              "integer",
+                              "boolean",
+                              "array",
+                              "object",
+                              "null"
+                            ],
+                            "type": "string"
                           },
                           "wrap_as": {
                             "minLength": 1,
@@ -696,24 +652,13 @@
                       "additionalProperties": false,
                       "properties": {
                         "kind": {
-                          "anyOf": [
-                            {
-                              "const": "trusted_host_process",
-                              "type": "string"
-                            },
-                            {
-                              "const": "deterministic_worker",
-                              "type": "string"
-                            },
-                            {
-                              "const": "native_capability",
-                              "type": "string"
-                            },
-                            {
-                              "const": "remote_provider",
-                              "type": "string"
-                            }
-                          ]
+                          "enum": [
+                            "trusted_host_process",
+                            "deterministic_worker",
+                            "native_capability",
+                            "remote_provider"
+                          ],
+                          "type": "string"
                         }
                       },
                       "required": [
@@ -792,16 +737,11 @@
               "type": "string"
             },
             "source_type": {
-              "anyOf": [
-                {
-                  "const": "agent",
-                  "type": "string"
-                },
-                {
-                  "const": "agent-task",
-                  "type": "string"
-                }
-              ]
+              "enum": [
+                "agent",
+                "agent-task"
+              ],
+              "type": "string"
             },
             "task": {
               "minLength": 1,

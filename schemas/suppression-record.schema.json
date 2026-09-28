@@ -16,24 +16,13 @@
       "type": "string"
     },
     "reason": {
-      "anyOf": [
-        {
-          "const": "requested_no_contact",
-          "type": "string"
-        },
-        {
-          "const": "remove_request",
-          "type": "string"
-        },
-        {
-          "const": "operator_block",
-          "type": "string"
-        },
-        {
-          "const": "legal_request",
-          "type": "string"
-        }
-      ]
+      "enum": [
+        "requested_no_contact",
+        "remove_request",
+        "operator_block",
+        "legal_request"
+      ],
+      "type": "string"
     },
     "record_id": {
       "minLength": 1,
@@ -45,32 +34,19 @@
       "type": "string"
     },
     "schema": {
-      "anyOf": [
-        {
-          "const": "runx.suppression_record.v1",
-          "type": "string"
-        }
-      ]
+      "enum": [
+        "runx.suppression_record.v1"
+      ],
+      "type": "string"
     },
     "scope": {
-      "anyOf": [
-        {
-          "const": "handoff",
-          "type": "string"
-        },
-        {
-          "const": "target",
-          "type": "string"
-        },
-        {
-          "const": "repo",
-          "type": "string"
-        },
-        {
-          "const": "contact",
-          "type": "string"
-        }
-      ]
+      "enum": [
+        "handoff",
+        "target",
+        "repo",
+        "contact"
+      ],
+      "type": "string"
     },
     "source_signal_id": {
       "minLength": 1,

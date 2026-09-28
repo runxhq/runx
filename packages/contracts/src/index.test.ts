@@ -173,12 +173,10 @@ describe("@runxhq/contracts", () => {
 
   it("keeps fixture lanes aligned with authoring plan", () => {
     const fixtureProperties = runxContractSchemas.fixture.properties as Record<string, unknown> | undefined;
-    const lane = fixtureProperties?.lane as { readonly anyOf?: readonly { readonly const?: string }[] } | undefined;
-    expect((lane?.anyOf as readonly { readonly const?: string }[] | undefined)?.map((entry) => entry.const)).toEqual([
-      "deterministic",
-      "agent",
-      "repo-integration",
-    ]);
+    expect(fixtureProperties?.lane).toEqual({
+      type: "string",
+      enum: ["deterministic", "agent", "repo-integration"],
+    });
   });
 
   it("validates governed data operation result packets", () => {
@@ -247,12 +245,9 @@ describe("@runxhq/contracts", () => {
 
   it("accepts typed proof kinds on references", () => {
     expect(proofKinds).toEqual(["effect_evidence", "effect_finality", "credential_resolution"]);
-    expect(proofKindSchema).toMatchObject({
-      anyOf: [
-        expect.objectContaining({ const: "effect_evidence", type: "string" }),
-        expect.objectContaining({ const: "effect_finality", type: "string" }),
-        expect.objectContaining({ const: "credential_resolution", type: "string" }),
-      ],
+    expect(proofKindSchema).toEqual({
+      type: "string",
+      enum: ["effect_evidence", "effect_finality", "credential_resolution"],
     });
     expect(validateReferenceContract({
       type: "verification",

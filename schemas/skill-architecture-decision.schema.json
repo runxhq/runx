@@ -113,44 +113,25 @@
       "type": "object"
     },
     "disposition": {
-      "anyOf": [
-        {
-          "const": "build",
-          "type": "string"
-        },
-        {
-          "const": "extend_existing",
-          "type": "string"
-        },
-        {
-          "const": "no_skill",
-          "type": "string"
-        },
-        {
-          "const": "needs_core",
-          "type": "string"
-        }
-      ]
+      "enum": [
+        "build",
+        "extend_existing",
+        "no_skill",
+        "needs_core"
+      ],
+      "type": "string"
     },
     "effects": {
       "items": {
         "additionalProperties": false,
         "properties": {
           "approval": {
-            "anyOf": [
-              {
-                "const": "none",
-                "type": "string"
-              },
-              {
-                "const": "policy",
-                "type": "string"
-              },
-              {
-                "const": "human",
-                "type": "string"
-              }
-            ]
+            "enum": [
+              "none",
+              "policy",
+              "human"
+            ],
+            "type": "string"
           },
           "authority_scopes": {
             "items": {
@@ -160,28 +141,14 @@
             "type": "array"
           },
           "effect": {
-            "anyOf": [
-              {
-                "const": "none",
-                "type": "string"
-              },
-              {
-                "const": "read",
-                "type": "string"
-              },
-              {
-                "const": "draft",
-                "type": "string"
-              },
-              {
-                "const": "mutate",
-                "type": "string"
-              },
-              {
-                "const": "financial",
-                "type": "string"
-              }
-            ]
+            "enum": [
+              "none",
+              "read",
+              "draft",
+              "mutate",
+              "financial"
+            ],
+            "type": "string"
           },
           "provider_boundary": {
             "type": "boolean"
@@ -201,24 +168,13 @@
       "additionalProperties": false,
       "properties": {
         "action": {
-          "anyOf": [
-            {
-              "const": "keep",
-              "type": "string"
-            },
-            {
-              "const": "rename",
-              "type": "string"
-            },
-            {
-              "const": "create",
-              "type": "string"
-            },
-            {
-              "const": "internalize",
-              "type": "string"
-            }
-          ]
+          "enum": [
+            "keep",
+            "rename",
+            "create",
+            "internalize"
+          ],
+          "type": "string"
         },
         "current_name": {
           "minLength": 1,
@@ -233,16 +189,11 @@
           "type": "string"
         },
         "visibility": {
-          "anyOf": [
-            {
-              "const": "public",
-              "type": "string"
-            },
-            {
-              "const": "internal",
-              "type": "string"
-            }
-          ]
+          "enum": [
+            "public",
+            "internal"
+          ],
+          "type": "string"
         }
       },
       "required": [
@@ -353,40 +304,17 @@
             "type": "string"
           },
           "kind": {
-            "anyOf": [
-              {
-                "const": "contract",
-                "type": "string"
-              },
-              {
-                "const": "harness",
-                "type": "string"
-              },
-              {
-                "const": "regression",
-                "type": "string"
-              },
-              {
-                "const": "security",
-                "type": "string"
-              },
-              {
-                "const": "performance",
-                "type": "string"
-              },
-              {
-                "const": "selection_trial",
-                "type": "string"
-              },
-              {
-                "const": "standalone_operator_journey",
-                "type": "string"
-              },
-              {
-                "const": "composed_operator_journey",
-                "type": "string"
-              }
-            ]
+            "enum": [
+              "contract",
+              "harness",
+              "regression",
+              "security",
+              "performance",
+              "selection_trial",
+              "standalone_operator_journey",
+              "composed_operator_journey"
+            ],
+            "type": "string"
           },
           "name": {
             "minLength": 1,
@@ -415,36 +343,16 @@
             "type": "string"
           },
           "lane": {
-            "anyOf": [
-              {
-                "const": "manual",
-                "type": "string"
-              },
-              {
-                "const": "graph",
-                "type": "string"
-              },
-              {
-                "const": "agent_task",
-                "type": "string"
-              },
-              {
-                "const": "native_capability",
-                "type": "string"
-              },
-              {
-                "const": "domain_module",
-                "type": "string"
-              },
-              {
-                "const": "cli_tool",
-                "type": "string"
-              },
-              {
-                "const": "provider_adapter",
-                "type": "string"
-              }
-            ]
+            "enum": [
+              "manual",
+              "graph",
+              "agent_task",
+              "native_capability",
+              "domain_module",
+              "cli_tool",
+              "provider_adapter"
+            ],
+            "type": "string"
           },
           "outcome": {
             "minLength": 1,
@@ -493,12 +401,10 @@
       "type": "object"
     },
     "schema": {
-      "anyOf": [
-        {
-          "const": "runx.skill.architecture_decision.v1",
-          "type": "string"
-        }
-      ]
+      "enum": [
+        "runx.skill.architecture_decision.v1"
+      ],
+      "type": "string"
     },
     "skill_chain": {
       "additionalProperties": false,

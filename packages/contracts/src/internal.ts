@@ -313,7 +313,8 @@ export const Type = {
       throw new Error("KeyOf requires an object schema with properties.");
     }
     return schemaWith(options, {
-      anyOf: Object.keys(properties).map((value) => ({ const: value, type: "string" })),
+      type: "string",
+      enum: Object.keys(properties),
     });
   },
 } as const;

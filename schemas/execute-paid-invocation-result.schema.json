@@ -43,16 +43,11 @@
                       "type": "string"
                     },
                     "confidence": {
-                      "anyOf": [
-                        {
-                          "const": "self_reported",
-                          "type": "string"
-                        },
-                        {
-                          "const": "trusted",
-                          "type": "string"
-                        }
-                      ]
+                      "enum": [
+                        "self_reported",
+                        "trusted"
+                      ],
+                      "type": "string"
                     },
                     "source": {
                       "maxLength": 64,
@@ -67,12 +62,10 @@
                   "type": "object"
                 },
                 "canonicalizer_version": {
-                  "anyOf": [
-                    {
-                      "const": "runx.receipt.c14n.v1",
-                      "type": "string"
-                    }
-                  ]
+                  "enum": [
+                    "runx.receipt.c14n.v1"
+                  ],
+                  "type": "string"
                 },
                 "counterparty": {
                   "$id": "https://schemas.runx.ai/runx/reference/v1.json",
@@ -93,20 +86,12 @@
                       "type": "string"
                     },
                     "proof_kind": {
-                      "anyOf": [
-                        {
-                          "const": "effect_evidence",
-                          "type": "string"
-                        },
-                        {
-                          "const": "effect_finality",
-                          "type": "string"
-                        },
-                        {
-                          "const": "credential_resolution",
-                          "type": "string"
-                        }
-                      ]
+                      "enum": [
+                        "effect_evidence",
+                        "effect_finality",
+                        "credential_resolution"
+                      ],
+                      "type": "string"
                     },
                     "provider": {
                       "minLength": 1,
@@ -117,172 +102,50 @@
                       "type": "string"
                     },
                     "type": {
-                      "anyOf": [
-                        {
-                          "const": "github_issue",
-                          "type": "string"
-                        },
-                        {
-                          "const": "github_pull_request",
-                          "type": "string"
-                        },
-                        {
-                          "const": "github_repo",
-                          "type": "string"
-                        },
-                        {
-                          "const": "slack_thread",
-                          "type": "string"
-                        },
-                        {
-                          "const": "sentry_event",
-                          "type": "string"
-                        },
-                        {
-                          "const": "provider_thread",
-                          "type": "string"
-                        },
-                        {
-                          "const": "provider_event",
-                          "type": "string"
-                        },
-                        {
-                          "const": "provider_comment",
-                          "type": "string"
-                        },
-                        {
-                          "const": "tracking_item",
-                          "type": "string"
-                        },
-                        {
-                          "const": "change_request",
-                          "type": "string"
-                        },
-                        {
-                          "const": "repository",
-                          "type": "string"
-                        },
-                        {
-                          "const": "support_ticket",
-                          "type": "string"
-                        },
-                        {
-                          "const": "signal",
-                          "type": "string"
-                        },
-                        {
-                          "const": "act",
-                          "type": "string"
-                        },
-                        {
-                          "const": "receipt",
-                          "type": "string"
-                        },
-                        {
-                          "const": "graph_receipt",
-                          "type": "string"
-                        },
-                        {
-                          "const": "artifact",
-                          "type": "string"
-                        },
-                        {
-                          "const": "verification",
-                          "type": "string"
-                        },
-                        {
-                          "const": "harness",
-                          "type": "string"
-                        },
-                        {
-                          "const": "host",
-                          "type": "string"
-                        },
-                        {
-                          "const": "deployment",
-                          "type": "string"
-                        },
-                        {
-                          "const": "surface",
-                          "type": "string"
-                        },
-                        {
-                          "const": "target",
-                          "type": "string"
-                        },
-                        {
-                          "const": "opportunity",
-                          "type": "string"
-                        },
-                        {
-                          "const": "thesis_assessment",
-                          "type": "string"
-                        },
-                        {
-                          "const": "selection",
-                          "type": "string"
-                        },
-                        {
-                          "const": "skill_binding",
-                          "type": "string"
-                        },
-                        {
-                          "const": "target_transition_entry",
-                          "type": "string"
-                        },
-                        {
-                          "const": "selection_cycle",
-                          "type": "string"
-                        },
-                        {
-                          "const": "decision",
-                          "type": "string"
-                        },
-                        {
-                          "const": "reflection_entry",
-                          "type": "string"
-                        },
-                        {
-                          "const": "feed_entry",
-                          "type": "string"
-                        },
-                        {
-                          "const": "principal",
-                          "type": "string"
-                        },
-                        {
-                          "const": "authority_proof",
-                          "type": "string"
-                        },
-                        {
-                          "const": "scope_admission",
-                          "type": "string"
-                        },
-                        {
-                          "const": "grant",
-                          "type": "string"
-                        },
-                        {
-                          "const": "mandate",
-                          "type": "string"
-                        },
-                        {
-                          "const": "credential",
-                          "type": "string"
-                        },
-                        {
-                          "const": "webhook_delivery",
-                          "type": "string"
-                        },
-                        {
-                          "const": "redaction_policy",
-                          "type": "string"
-                        },
-                        {
-                          "const": "external_url",
-                          "type": "string"
-                        }
-                      ]
+                      "enum": [
+                        "github_issue",
+                        "github_pull_request",
+                        "github_repo",
+                        "slack_thread",
+                        "sentry_event",
+                        "provider_thread",
+                        "provider_event",
+                        "provider_comment",
+                        "tracking_item",
+                        "change_request",
+                        "repository",
+                        "support_ticket",
+                        "signal",
+                        "act",
+                        "receipt",
+                        "graph_receipt",
+                        "artifact",
+                        "verification",
+                        "harness",
+                        "host",
+                        "deployment",
+                        "surface",
+                        "target",
+                        "opportunity",
+                        "thesis_assessment",
+                        "selection",
+                        "skill_binding",
+                        "target_transition_entry",
+                        "selection_cycle",
+                        "decision",
+                        "reflection_entry",
+                        "feed_entry",
+                        "principal",
+                        "authority_proof",
+                        "scope_admission",
+                        "grant",
+                        "mandate",
+                        "credential",
+                        "webhook_delivery",
+                        "redaction_policy",
+                        "external_url"
+                      ],
+                      "type": "string"
                     },
                     "uri": {
                       "minLength": 1,
@@ -324,20 +187,12 @@
                       "type": "string"
                     },
                     "proof_kind": {
-                      "anyOf": [
-                        {
-                          "const": "effect_evidence",
-                          "type": "string"
-                        },
-                        {
-                          "const": "effect_finality",
-                          "type": "string"
-                        },
-                        {
-                          "const": "credential_resolution",
-                          "type": "string"
-                        }
-                      ]
+                      "enum": [
+                        "effect_evidence",
+                        "effect_finality",
+                        "credential_resolution"
+                      ],
+                      "type": "string"
                     },
                     "provider": {
                       "minLength": 1,
@@ -348,172 +203,50 @@
                       "type": "string"
                     },
                     "type": {
-                      "anyOf": [
-                        {
-                          "const": "github_issue",
-                          "type": "string"
-                        },
-                        {
-                          "const": "github_pull_request",
-                          "type": "string"
-                        },
-                        {
-                          "const": "github_repo",
-                          "type": "string"
-                        },
-                        {
-                          "const": "slack_thread",
-                          "type": "string"
-                        },
-                        {
-                          "const": "sentry_event",
-                          "type": "string"
-                        },
-                        {
-                          "const": "provider_thread",
-                          "type": "string"
-                        },
-                        {
-                          "const": "provider_event",
-                          "type": "string"
-                        },
-                        {
-                          "const": "provider_comment",
-                          "type": "string"
-                        },
-                        {
-                          "const": "tracking_item",
-                          "type": "string"
-                        },
-                        {
-                          "const": "change_request",
-                          "type": "string"
-                        },
-                        {
-                          "const": "repository",
-                          "type": "string"
-                        },
-                        {
-                          "const": "support_ticket",
-                          "type": "string"
-                        },
-                        {
-                          "const": "signal",
-                          "type": "string"
-                        },
-                        {
-                          "const": "act",
-                          "type": "string"
-                        },
-                        {
-                          "const": "receipt",
-                          "type": "string"
-                        },
-                        {
-                          "const": "graph_receipt",
-                          "type": "string"
-                        },
-                        {
-                          "const": "artifact",
-                          "type": "string"
-                        },
-                        {
-                          "const": "verification",
-                          "type": "string"
-                        },
-                        {
-                          "const": "harness",
-                          "type": "string"
-                        },
-                        {
-                          "const": "host",
-                          "type": "string"
-                        },
-                        {
-                          "const": "deployment",
-                          "type": "string"
-                        },
-                        {
-                          "const": "surface",
-                          "type": "string"
-                        },
-                        {
-                          "const": "target",
-                          "type": "string"
-                        },
-                        {
-                          "const": "opportunity",
-                          "type": "string"
-                        },
-                        {
-                          "const": "thesis_assessment",
-                          "type": "string"
-                        },
-                        {
-                          "const": "selection",
-                          "type": "string"
-                        },
-                        {
-                          "const": "skill_binding",
-                          "type": "string"
-                        },
-                        {
-                          "const": "target_transition_entry",
-                          "type": "string"
-                        },
-                        {
-                          "const": "selection_cycle",
-                          "type": "string"
-                        },
-                        {
-                          "const": "decision",
-                          "type": "string"
-                        },
-                        {
-                          "const": "reflection_entry",
-                          "type": "string"
-                        },
-                        {
-                          "const": "feed_entry",
-                          "type": "string"
-                        },
-                        {
-                          "const": "principal",
-                          "type": "string"
-                        },
-                        {
-                          "const": "authority_proof",
-                          "type": "string"
-                        },
-                        {
-                          "const": "scope_admission",
-                          "type": "string"
-                        },
-                        {
-                          "const": "grant",
-                          "type": "string"
-                        },
-                        {
-                          "const": "mandate",
-                          "type": "string"
-                        },
-                        {
-                          "const": "credential",
-                          "type": "string"
-                        },
-                        {
-                          "const": "webhook_delivery",
-                          "type": "string"
-                        },
-                        {
-                          "const": "redaction_policy",
-                          "type": "string"
-                        },
-                        {
-                          "const": "external_url",
-                          "type": "string"
-                        }
-                      ]
+                      "enum": [
+                        "github_issue",
+                        "github_pull_request",
+                        "github_repo",
+                        "slack_thread",
+                        "sentry_event",
+                        "provider_thread",
+                        "provider_event",
+                        "provider_comment",
+                        "tracking_item",
+                        "change_request",
+                        "repository",
+                        "support_ticket",
+                        "signal",
+                        "act",
+                        "receipt",
+                        "graph_receipt",
+                        "artifact",
+                        "verification",
+                        "harness",
+                        "host",
+                        "deployment",
+                        "surface",
+                        "target",
+                        "opportunity",
+                        "thesis_assessment",
+                        "selection",
+                        "skill_binding",
+                        "target_transition_entry",
+                        "selection_cycle",
+                        "decision",
+                        "reflection_entry",
+                        "feed_entry",
+                        "principal",
+                        "authority_proof",
+                        "scope_admission",
+                        "grant",
+                        "mandate",
+                        "credential",
+                        "webhook_delivery",
+                        "redaction_policy",
+                        "external_url"
+                      ],
+                      "type": "string"
                     },
                     "uri": {
                       "minLength": 1,
@@ -528,40 +261,17 @@
                   "x-runx-schema": "runx.reference.v1"
                 },
                 "execution_state": {
-                  "anyOf": [
-                    {
-                      "const": "unstarted",
-                      "type": "string"
-                    },
-                    {
-                      "const": "queued",
-                      "type": "string"
-                    },
-                    {
-                      "const": "running",
-                      "type": "string"
-                    },
-                    {
-                      "const": "waiting_external",
-                      "type": "string"
-                    },
-                    {
-                      "const": "cancelling",
-                      "type": "string"
-                    },
-                    {
-                      "const": "succeeded",
-                      "type": "string"
-                    },
-                    {
-                      "const": "failed",
-                      "type": "string"
-                    },
-                    {
-                      "const": "cancelled",
-                      "type": "string"
-                    }
-                  ]
+                  "enum": [
+                    "unstarted",
+                    "queued",
+                    "running",
+                    "waiting_external",
+                    "cancelling",
+                    "succeeded",
+                    "failed",
+                    "cancelled"
+                  ],
+                  "type": "string"
                 },
                 "expires_at": {
                   "minLength": 1,
@@ -587,20 +297,12 @@
                       "type": "string"
                     },
                     "proof_kind": {
-                      "anyOf": [
-                        {
-                          "const": "effect_evidence",
-                          "type": "string"
-                        },
-                        {
-                          "const": "effect_finality",
-                          "type": "string"
-                        },
-                        {
-                          "const": "credential_resolution",
-                          "type": "string"
-                        }
-                      ]
+                      "enum": [
+                        "effect_evidence",
+                        "effect_finality",
+                        "credential_resolution"
+                      ],
+                      "type": "string"
                     },
                     "provider": {
                       "minLength": 1,
@@ -611,172 +313,50 @@
                       "type": "string"
                     },
                     "type": {
-                      "anyOf": [
-                        {
-                          "const": "github_issue",
-                          "type": "string"
-                        },
-                        {
-                          "const": "github_pull_request",
-                          "type": "string"
-                        },
-                        {
-                          "const": "github_repo",
-                          "type": "string"
-                        },
-                        {
-                          "const": "slack_thread",
-                          "type": "string"
-                        },
-                        {
-                          "const": "sentry_event",
-                          "type": "string"
-                        },
-                        {
-                          "const": "provider_thread",
-                          "type": "string"
-                        },
-                        {
-                          "const": "provider_event",
-                          "type": "string"
-                        },
-                        {
-                          "const": "provider_comment",
-                          "type": "string"
-                        },
-                        {
-                          "const": "tracking_item",
-                          "type": "string"
-                        },
-                        {
-                          "const": "change_request",
-                          "type": "string"
-                        },
-                        {
-                          "const": "repository",
-                          "type": "string"
-                        },
-                        {
-                          "const": "support_ticket",
-                          "type": "string"
-                        },
-                        {
-                          "const": "signal",
-                          "type": "string"
-                        },
-                        {
-                          "const": "act",
-                          "type": "string"
-                        },
-                        {
-                          "const": "receipt",
-                          "type": "string"
-                        },
-                        {
-                          "const": "graph_receipt",
-                          "type": "string"
-                        },
-                        {
-                          "const": "artifact",
-                          "type": "string"
-                        },
-                        {
-                          "const": "verification",
-                          "type": "string"
-                        },
-                        {
-                          "const": "harness",
-                          "type": "string"
-                        },
-                        {
-                          "const": "host",
-                          "type": "string"
-                        },
-                        {
-                          "const": "deployment",
-                          "type": "string"
-                        },
-                        {
-                          "const": "surface",
-                          "type": "string"
-                        },
-                        {
-                          "const": "target",
-                          "type": "string"
-                        },
-                        {
-                          "const": "opportunity",
-                          "type": "string"
-                        },
-                        {
-                          "const": "thesis_assessment",
-                          "type": "string"
-                        },
-                        {
-                          "const": "selection",
-                          "type": "string"
-                        },
-                        {
-                          "const": "skill_binding",
-                          "type": "string"
-                        },
-                        {
-                          "const": "target_transition_entry",
-                          "type": "string"
-                        },
-                        {
-                          "const": "selection_cycle",
-                          "type": "string"
-                        },
-                        {
-                          "const": "decision",
-                          "type": "string"
-                        },
-                        {
-                          "const": "reflection_entry",
-                          "type": "string"
-                        },
-                        {
-                          "const": "feed_entry",
-                          "type": "string"
-                        },
-                        {
-                          "const": "principal",
-                          "type": "string"
-                        },
-                        {
-                          "const": "authority_proof",
-                          "type": "string"
-                        },
-                        {
-                          "const": "scope_admission",
-                          "type": "string"
-                        },
-                        {
-                          "const": "grant",
-                          "type": "string"
-                        },
-                        {
-                          "const": "mandate",
-                          "type": "string"
-                        },
-                        {
-                          "const": "credential",
-                          "type": "string"
-                        },
-                        {
-                          "const": "webhook_delivery",
-                          "type": "string"
-                        },
-                        {
-                          "const": "redaction_policy",
-                          "type": "string"
-                        },
-                        {
-                          "const": "external_url",
-                          "type": "string"
-                        }
-                      ]
+                      "enum": [
+                        "github_issue",
+                        "github_pull_request",
+                        "github_repo",
+                        "slack_thread",
+                        "sentry_event",
+                        "provider_thread",
+                        "provider_event",
+                        "provider_comment",
+                        "tracking_item",
+                        "change_request",
+                        "repository",
+                        "support_ticket",
+                        "signal",
+                        "act",
+                        "receipt",
+                        "graph_receipt",
+                        "artifact",
+                        "verification",
+                        "harness",
+                        "host",
+                        "deployment",
+                        "surface",
+                        "target",
+                        "opportunity",
+                        "thesis_assessment",
+                        "selection",
+                        "skill_binding",
+                        "target_transition_entry",
+                        "selection_cycle",
+                        "decision",
+                        "reflection_entry",
+                        "feed_entry",
+                        "principal",
+                        "authority_proof",
+                        "scope_admission",
+                        "grant",
+                        "mandate",
+                        "credential",
+                        "webhook_delivery",
+                        "redaction_policy",
+                        "external_url"
+                      ],
+                      "type": "string"
                     },
                     "uri": {
                       "minLength": 1,
@@ -829,12 +409,10 @@
                       "type": "string"
                     },
                     "expected_receipt_class": {
-                      "anyOf": [
-                        {
-                          "const": "executed",
-                          "type": "string"
-                        }
-                      ]
+                      "enum": [
+                        "executed"
+                      ],
+                      "type": "string"
                     },
                     "listing_ref": {
                       "maxLength": 512,
@@ -968,20 +546,12 @@
                   "x-runx-schema": "runx.payment.offer_revision_ref.v1"
                 },
                 "outcome_gate": {
-                  "anyOf": [
-                    {
-                      "const": "open",
-                      "type": "string"
-                    },
-                    {
-                      "const": "fulfilment_won",
-                      "type": "string"
-                    },
-                    {
-                      "const": "refund_won",
-                      "type": "string"
-                    }
-                  ]
+                  "enum": [
+                    "open",
+                    "fulfilment_won",
+                    "refund_won"
+                  ],
+                  "type": "string"
                 },
                 "package_digest": {
                   "pattern": "^sha256:[0-9a-f]{64}$",
@@ -1031,20 +601,12 @@
                       "type": "string"
                     },
                     "proof_kind": {
-                      "anyOf": [
-                        {
-                          "const": "effect_evidence",
-                          "type": "string"
-                        },
-                        {
-                          "const": "effect_finality",
-                          "type": "string"
-                        },
-                        {
-                          "const": "credential_resolution",
-                          "type": "string"
-                        }
-                      ]
+                      "enum": [
+                        "effect_evidence",
+                        "effect_finality",
+                        "credential_resolution"
+                      ],
+                      "type": "string"
                     },
                     "provider": {
                       "minLength": 1,
@@ -1055,172 +617,50 @@
                       "type": "string"
                     },
                     "type": {
-                      "anyOf": [
-                        {
-                          "const": "github_issue",
-                          "type": "string"
-                        },
-                        {
-                          "const": "github_pull_request",
-                          "type": "string"
-                        },
-                        {
-                          "const": "github_repo",
-                          "type": "string"
-                        },
-                        {
-                          "const": "slack_thread",
-                          "type": "string"
-                        },
-                        {
-                          "const": "sentry_event",
-                          "type": "string"
-                        },
-                        {
-                          "const": "provider_thread",
-                          "type": "string"
-                        },
-                        {
-                          "const": "provider_event",
-                          "type": "string"
-                        },
-                        {
-                          "const": "provider_comment",
-                          "type": "string"
-                        },
-                        {
-                          "const": "tracking_item",
-                          "type": "string"
-                        },
-                        {
-                          "const": "change_request",
-                          "type": "string"
-                        },
-                        {
-                          "const": "repository",
-                          "type": "string"
-                        },
-                        {
-                          "const": "support_ticket",
-                          "type": "string"
-                        },
-                        {
-                          "const": "signal",
-                          "type": "string"
-                        },
-                        {
-                          "const": "act",
-                          "type": "string"
-                        },
-                        {
-                          "const": "receipt",
-                          "type": "string"
-                        },
-                        {
-                          "const": "graph_receipt",
-                          "type": "string"
-                        },
-                        {
-                          "const": "artifact",
-                          "type": "string"
-                        },
-                        {
-                          "const": "verification",
-                          "type": "string"
-                        },
-                        {
-                          "const": "harness",
-                          "type": "string"
-                        },
-                        {
-                          "const": "host",
-                          "type": "string"
-                        },
-                        {
-                          "const": "deployment",
-                          "type": "string"
-                        },
-                        {
-                          "const": "surface",
-                          "type": "string"
-                        },
-                        {
-                          "const": "target",
-                          "type": "string"
-                        },
-                        {
-                          "const": "opportunity",
-                          "type": "string"
-                        },
-                        {
-                          "const": "thesis_assessment",
-                          "type": "string"
-                        },
-                        {
-                          "const": "selection",
-                          "type": "string"
-                        },
-                        {
-                          "const": "skill_binding",
-                          "type": "string"
-                        },
-                        {
-                          "const": "target_transition_entry",
-                          "type": "string"
-                        },
-                        {
-                          "const": "selection_cycle",
-                          "type": "string"
-                        },
-                        {
-                          "const": "decision",
-                          "type": "string"
-                        },
-                        {
-                          "const": "reflection_entry",
-                          "type": "string"
-                        },
-                        {
-                          "const": "feed_entry",
-                          "type": "string"
-                        },
-                        {
-                          "const": "principal",
-                          "type": "string"
-                        },
-                        {
-                          "const": "authority_proof",
-                          "type": "string"
-                        },
-                        {
-                          "const": "scope_admission",
-                          "type": "string"
-                        },
-                        {
-                          "const": "grant",
-                          "type": "string"
-                        },
-                        {
-                          "const": "mandate",
-                          "type": "string"
-                        },
-                        {
-                          "const": "credential",
-                          "type": "string"
-                        },
-                        {
-                          "const": "webhook_delivery",
-                          "type": "string"
-                        },
-                        {
-                          "const": "redaction_policy",
-                          "type": "string"
-                        },
-                        {
-                          "const": "external_url",
-                          "type": "string"
-                        }
-                      ]
+                      "enum": [
+                        "github_issue",
+                        "github_pull_request",
+                        "github_repo",
+                        "slack_thread",
+                        "sentry_event",
+                        "provider_thread",
+                        "provider_event",
+                        "provider_comment",
+                        "tracking_item",
+                        "change_request",
+                        "repository",
+                        "support_ticket",
+                        "signal",
+                        "act",
+                        "receipt",
+                        "graph_receipt",
+                        "artifact",
+                        "verification",
+                        "harness",
+                        "host",
+                        "deployment",
+                        "surface",
+                        "target",
+                        "opportunity",
+                        "thesis_assessment",
+                        "selection",
+                        "skill_binding",
+                        "target_transition_entry",
+                        "selection_cycle",
+                        "decision",
+                        "reflection_entry",
+                        "feed_entry",
+                        "principal",
+                        "authority_proof",
+                        "scope_admission",
+                        "grant",
+                        "mandate",
+                        "credential",
+                        "webhook_delivery",
+                        "redaction_policy",
+                        "external_url"
+                      ],
+                      "type": "string"
                     },
                     "uri": {
                       "minLength": 1,
@@ -1235,24 +675,13 @@
                   "x-runx-schema": "runx.reference.v1"
                 },
                 "payment_state": {
-                  "anyOf": [
-                    {
-                      "const": "unpaid",
-                      "type": "string"
-                    },
-                    {
-                      "const": "settling",
-                      "type": "string"
-                    },
-                    {
-                      "const": "settled",
-                      "type": "string"
-                    },
-                    {
-                      "const": "refunded",
-                      "type": "string"
-                    }
-                  ]
+                  "enum": [
+                    "unpaid",
+                    "settling",
+                    "settled",
+                    "refunded"
+                  ],
+                  "type": "string"
                 },
                 "principal": {
                   "$id": "https://schemas.runx.ai/runx/reference/v1.json",
@@ -1273,20 +702,12 @@
                       "type": "string"
                     },
                     "proof_kind": {
-                      "anyOf": [
-                        {
-                          "const": "effect_evidence",
-                          "type": "string"
-                        },
-                        {
-                          "const": "effect_finality",
-                          "type": "string"
-                        },
-                        {
-                          "const": "credential_resolution",
-                          "type": "string"
-                        }
-                      ]
+                      "enum": [
+                        "effect_evidence",
+                        "effect_finality",
+                        "credential_resolution"
+                      ],
+                      "type": "string"
                     },
                     "provider": {
                       "minLength": 1,
@@ -1346,20 +767,12 @@
                       "type": "string"
                     },
                     "proof_kind": {
-                      "anyOf": [
-                        {
-                          "const": "effect_evidence",
-                          "type": "string"
-                        },
-                        {
-                          "const": "effect_finality",
-                          "type": "string"
-                        },
-                        {
-                          "const": "credential_resolution",
-                          "type": "string"
-                        }
-                      ]
+                      "enum": [
+                        "effect_evidence",
+                        "effect_finality",
+                        "credential_resolution"
+                      ],
+                      "type": "string"
                     },
                     "provider": {
                       "minLength": 1,
@@ -1426,40 +839,17 @@
       "additionalProperties": false,
       "properties": {
         "code": {
-          "anyOf": [
-            {
-              "const": "offer_unavailable",
-              "type": "string"
-            },
-            {
-              "const": "quote_expired",
-              "type": "string"
-            },
-            {
-              "const": "terms_changed",
-              "type": "string"
-            },
-            {
-              "const": "replay_conflict",
-              "type": "string"
-            },
-            {
-              "const": "payment_not_authorized",
-              "type": "string"
-            },
-            {
-              "const": "capacity_unavailable",
-              "type": "string"
-            },
-            {
-              "const": "not_found",
-              "type": "string"
-            },
-            {
-              "const": "cancellation_not_available",
-              "type": "string"
-            }
-          ]
+          "enum": [
+            "offer_unavailable",
+            "quote_expired",
+            "terms_changed",
+            "replay_conflict",
+            "payment_not_authorized",
+            "capacity_unavailable",
+            "not_found",
+            "cancellation_not_available"
+          ],
+          "type": "string"
         },
         "reason": {
           "maxLength": 512,

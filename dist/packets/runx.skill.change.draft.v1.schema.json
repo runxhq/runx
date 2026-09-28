@@ -6,24 +6,13 @@
   "additionalProperties": false,
   "properties": {
     "decision": {
-      "anyOf": [
-        {
-          "const": "write",
-          "type": "string"
-        },
-        {
-          "const": "no_skill",
-          "type": "string"
-        },
-        {
-          "const": "no_change",
-          "type": "string"
-        },
-        {
-          "const": "needs_core",
-          "type": "string"
-        }
-      ]
+      "enum": [
+        "write",
+        "no_skill",
+        "no_change",
+        "needs_core"
+      ],
+      "type": "string"
     },
     "deletes": {
       "items": {
@@ -65,12 +54,10 @@
       "type": "array"
     },
     "schema": {
-      "anyOf": [
-        {
-          "const": "runx.skill.change_draft.v1",
-          "type": "string"
-        }
-      ]
+      "enum": [
+        "runx.skill.change_draft.v1"
+      ],
+      "type": "string"
     },
     "summary": {
       "minLength": 1,

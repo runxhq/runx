@@ -25,24 +25,13 @@
           "type": "object"
         },
         "kind": {
-          "anyOf": [
-            {
-              "const": "cli",
-              "type": "string"
-            },
-            {
-              "const": "api",
-              "type": "string"
-            },
-            {
-              "const": "github_issue_comment",
-              "type": "string"
-            },
-            {
-              "const": "system",
-              "type": "string"
-            }
-          ]
+          "enum": [
+            "cli",
+            "api",
+            "github_issue_comment",
+            "system"
+          ],
+          "type": "string"
         },
         "scope_set": {
           "items": {
@@ -99,12 +88,10 @@
       "type": "string"
     },
     "schema": {
-      "anyOf": [
-        {
-          "const": "runx.act_assignment.v1",
-          "type": "string"
-        }
-      ]
+      "enum": [
+        "runx.act_assignment.v1"
+      ],
+      "type": "string"
     },
     "skill_ref": {
       "minLength": 1,

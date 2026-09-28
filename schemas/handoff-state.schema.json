@@ -21,122 +21,57 @@
       "type": "string"
     },
     "last_signal_disposition": {
-      "anyOf": [
-        {
-          "const": "acknowledged",
-          "type": "string"
-        },
-        {
-          "const": "interested",
-          "type": "string"
-        },
-        {
-          "const": "requested_changes",
-          "type": "string"
-        },
-        {
-          "const": "accepted",
-          "type": "string"
-        },
-        {
-          "const": "approved_to_send",
-          "type": "string"
-        },
-        {
-          "const": "merged",
-          "type": "string"
-        },
-        {
-          "const": "declined",
-          "type": "string"
-        },
-        {
-          "const": "requested_no_contact",
-          "type": "string"
-        },
-        {
-          "const": "rerouted",
-          "type": "string"
-        }
-      ]
+      "enum": [
+        "acknowledged",
+        "interested",
+        "requested_changes",
+        "accepted",
+        "approved_to_send",
+        "merged",
+        "declined",
+        "requested_no_contact",
+        "rerouted"
+      ],
+      "type": "string"
     },
     "last_signal_id": {
       "minLength": 1,
       "type": "string"
     },
     "schema": {
-      "anyOf": [
-        {
-          "const": "runx.handoff_state.v1",
-          "type": "string"
-        }
-      ]
+      "enum": [
+        "runx.handoff_state.v1"
+      ],
+      "type": "string"
     },
     "signal_count": {
       "type": "integer"
     },
     "status": {
-      "anyOf": [
-        {
-          "const": "awaiting_response",
-          "type": "string"
-        },
-        {
-          "const": "engaged",
-          "type": "string"
-        },
-        {
-          "const": "needs_revision",
-          "type": "string"
-        },
-        {
-          "const": "accepted",
-          "type": "string"
-        },
-        {
-          "const": "approved_to_send",
-          "type": "string"
-        },
-        {
-          "const": "completed",
-          "type": "string"
-        },
-        {
-          "const": "declined",
-          "type": "string"
-        },
-        {
-          "const": "rerouted",
-          "type": "string"
-        },
-        {
-          "const": "suppressed",
-          "type": "string"
-        }
-      ]
+      "enum": [
+        "awaiting_response",
+        "engaged",
+        "needs_revision",
+        "accepted",
+        "approved_to_send",
+        "completed",
+        "declined",
+        "rerouted",
+        "suppressed"
+      ],
+      "type": "string"
     },
     "summary": {
       "type": "string"
     },
     "suppression_reason": {
-      "anyOf": [
-        {
-          "const": "requested_no_contact",
-          "type": "string"
-        },
-        {
-          "const": "remove_request",
-          "type": "string"
-        },
-        {
-          "const": "operator_block",
-          "type": "string"
-        },
-        {
-          "const": "legal_request",
-          "type": "string"
-        }
-      ]
+      "enum": [
+        "requested_no_contact",
+        "remove_request",
+        "operator_block",
+        "legal_request"
+      ],
+      "type": "string"
     },
     "suppression_record_id": {
       "minLength": 1,

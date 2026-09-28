@@ -23,12 +23,10 @@
       "type": "integer"
     },
     "schema": {
-      "anyOf": [
-        {
-          "const": "runx.external_job_schedule_intent.v1",
-          "type": "string"
-        }
-      ]
+      "enum": [
+        "runx.external_job_schedule_intent.v1"
+      ],
+      "type": "string"
     },
     "stage_runner": {
       "maxLength": 128,

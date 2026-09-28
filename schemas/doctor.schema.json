@@ -43,20 +43,12 @@
                   "type": "string"
                 },
                 "confidence": {
-                  "anyOf": [
-                    {
-                      "const": "low",
-                      "type": "string"
-                    },
-                    {
-                      "const": "medium",
-                      "type": "string"
-                    },
-                    {
-                      "const": "high",
-                      "type": "string"
-                    }
-                  ]
+                  "enum": [
+                    "low",
+                    "medium",
+                    "high"
+                  ],
+                  "type": "string"
                 },
                 "contents": {
                   "type": "string"
@@ -68,36 +60,16 @@
                   "type": "string"
                 },
                 "kind": {
-                  "anyOf": [
-                    {
-                      "const": "create_file",
-                      "type": "string"
-                    },
-                    {
-                      "const": "replace_file",
-                      "type": "string"
-                    },
-                    {
-                      "const": "edit_yaml",
-                      "type": "string"
-                    },
-                    {
-                      "const": "edit_json",
-                      "type": "string"
-                    },
-                    {
-                      "const": "add_fixture",
-                      "type": "string"
-                    },
-                    {
-                      "const": "run_command",
-                      "type": "string"
-                    },
-                    {
-                      "const": "manual",
-                      "type": "string"
-                    }
-                  ]
+                  "enum": [
+                    "create_file",
+                    "replace_file",
+                    "edit_yaml",
+                    "edit_json",
+                    "add_fixture",
+                    "run_command",
+                    "manual"
+                  ],
+                  "type": "string"
                 },
                 "patch": {
                   "type": "string"
@@ -109,24 +81,13 @@
                   "type": "boolean"
                 },
                 "risk": {
-                  "anyOf": [
-                    {
-                      "const": "low",
-                      "type": "string"
-                    },
-                    {
-                      "const": "medium",
-                      "type": "string"
-                    },
-                    {
-                      "const": "high",
-                      "type": "string"
-                    },
-                    {
-                      "const": "sensitive",
-                      "type": "string"
-                    }
-                  ]
+                  "enum": [
+                    "low",
+                    "medium",
+                    "high",
+                    "sensitive"
+                  ],
+                  "type": "string"
                 }
               },
               "required": [
@@ -141,20 +102,12 @@
             "type": "array"
           },
           "severity": {
-            "anyOf": [
-              {
-                "const": "error",
-                "type": "string"
-              },
-              {
-                "const": "warning",
-                "type": "string"
-              },
-              {
-                "const": "info",
-                "type": "string"
-              }
-            ]
+            "enum": [
+              "error",
+              "warning",
+              "info"
+            ],
+            "type": "string"
           },
           "target": {
             "additionalProperties": {},
@@ -179,24 +132,17 @@
       "type": "array"
     },
     "schema": {
-      "anyOf": [
-        {
-          "const": "runx.doctor.v1",
-          "type": "string"
-        }
-      ]
+      "enum": [
+        "runx.doctor.v1"
+      ],
+      "type": "string"
     },
     "status": {
-      "anyOf": [
-        {
-          "const": "success",
-          "type": "string"
-        },
-        {
-          "const": "failure",
-          "type": "string"
-        }
-      ]
+      "enum": [
+        "success",
+        "failure"
+      ],
+      "type": "string"
     },
     "summary": {
       "additionalProperties": false,
