@@ -13,7 +13,5 @@ storage, settlement, or provider behavior.
 The `runx.invocation` declaration keeps the external `{ info, schema }` form
 and advertises its schema by reference, `{ "$ref": <published v1 $id> }`,
 so a challenge fits one portable HTTP header next to the vendor's own
-discovery declaration. Retry validation accepts the reference or the inline
-v1 document (challenges assembled before the reference form) and compares the
-two normalized; inline acceptance retires once every emitter is on the
-reference form.
+discovery declaration. Retry validation accepts only that reference; an
+inline schema document is refused.

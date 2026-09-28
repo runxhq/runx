@@ -9,7 +9,6 @@ import {
 import type { ReferenceContract } from "./schemas/spine.js";
 import {
   X402_SCHEMA_IDS,
-  runxX402InvocationExtensionInfoV1Schema,
   validateRunxX402InvocationExtensionInfoContract,
   validateX402PaymentPayloadContract,
   validateX402PaymentRequiredContract,
@@ -425,13 +424,9 @@ function decodeHeader<T>(value: string, validate: (value: unknown) => T): T {
 }
 
 /**
- * Read and normalize the `runx.invocation` declaration under `extensions`.
- * The advertised schema must be the published v1 schema, by reference or as
- * the inline document challenges carried before the reference form; both
- * name the same schema, so the declaration comes back in the reference form
- * and two echoes of one challenge compare equal whichever way it was
- * assembled. Inline acceptance retires once every emitter is on the
- * reference form.
+ * Read the `runx.invocation` declaration under `extensions`. The advertised
+ * schema must be exactly the published v1 schema by reference, the only form
+ * any emitter assembles; an inline document or any other schema is refused.
  */
 export function parseRunxX402InvocationDeclaration(
   extensions: Readonly<Record<string, unknown>> | null | undefined,
@@ -451,10 +446,7 @@ export function parseRunxX402InvocationDeclaration(
   } catch {
     throw new X402PresentationError("invalid_payload");
   }
-  if (
-    !jsonEquals(record.schema, RUNX_X402_INVOCATION_SCHEMA_REFERENCE)
-    && !jsonEquals(record.schema, runxX402InvocationExtensionInfoV1Schema)
-  ) {
+  if (!jsonEquals(record.schema, RUNX_X402_INVOCATION_SCHEMA_REFERENCE)) {
     throw new X402PresentationError("runx_invocation_schema_mismatch");
   }
   return { info, schema: RUNX_X402_INVOCATION_SCHEMA_REFERENCE };

@@ -167,8 +167,13 @@ describe("x402 v2 TypeScript facade", () => {
       invocation,
     });
 
-    // A challenge assembled before the reference form carried the whole
-    // document; an echo of it names the same schema and still validates.
+    expect(parseRunxX402InvocationDeclaration(retry.extensions)).toEqual({
+      info: invocation,
+      schema: RUNX_X402_INVOCATION_SCHEMA_REFERENCE,
+    });
+
+    // Every emitter advertises the reference, so an echo carrying the whole
+    // document is not an echo of this challenge.
     const inlineEcho: X402PaymentPayloadContract = {
       ...structuredClone(retry),
       extensions: {
@@ -178,14 +183,10 @@ describe("x402 v2 TypeScript facade", () => {
         },
       },
     };
-    expect(validateX402PaymentRetry(challenge, inlineEcho)).toEqual({
-      requirementIndex: 0,
-      invocation,
-    });
-    expect(parseRunxX402InvocationDeclaration(inlineEcho.extensions)).toEqual({
-      info: invocation,
-      schema: RUNX_X402_INVOCATION_SCHEMA_REFERENCE,
-    });
+    expect(presentationErrorCode(() => validateX402PaymentRetry(challenge, inlineEcho)))
+      .toBe("runx_invocation_schema_mismatch");
+    expect(presentationErrorCode(() => parseRunxX402InvocationDeclaration(inlineEcho.extensions)))
+      .toBe("runx_invocation_schema_mismatch");
 
     const foreignReference: X402PaymentPayloadContract = {
       ...structuredClone(retry),

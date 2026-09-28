@@ -290,13 +290,9 @@ fn padded_base64(value: &str) -> String {
     normalized
 }
 
-/// Read and normalize the `runx.invocation` declaration under `extensions`.
-/// The advertised schema must be the published v1 schema, by reference or as
-/// the inline document challenges carried before the reference form; both
-/// name the same schema, so the declaration is returned in the reference
-/// form and two echoes of one challenge compare equal whichever way it was
-/// assembled. Inline acceptance retires once every emitter is on the
-/// reference form.
+/// Read the `runx.invocation` declaration under `extensions`. The advertised
+/// schema must be exactly the published v1 schema by reference, the only form
+/// any emitter assembles; an inline document or any other schema is refused.
 pub fn parse_runx_invocation_declaration(
     extensions: Option<&JsonObject>,
 ) -> Result<RunxX402InvocationExtension, X402PresentationError> {
@@ -306,17 +302,10 @@ pub fn parse_runx_invocation_declaration(
         .ok_or(X402PresentationError::MissingRunxInvocation)?;
     let declaration = parse_runx_invocation_extension(value)
         .map_err(|_| X402PresentationError::InvalidPayload)?;
-    let reference = runx_invocation_schema_reference()?;
-    if declaration.schema != reference
-        && declaration.schema
-            != json_object_from_serializable(&RunxX402InvocationExtensionInfo::json_schema())?
-    {
+    if declaration.schema != runx_invocation_schema_reference()? {
         return Err(X402PresentationError::RunxInvocationSchemaMismatch);
     }
-    Ok(RunxX402InvocationExtension {
-        info: declaration.info,
-        schema: reference,
-    })
+    Ok(declaration)
 }
 
 fn json_object_from_serializable<T: Serialize>(

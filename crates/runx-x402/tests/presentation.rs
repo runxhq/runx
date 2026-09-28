@@ -169,8 +169,8 @@ fn declaration_advertises_the_published_schema_by_reference() -> Result<(), Box<
         )?
     );
 
-    // A challenge assembled before the reference form carried the whole
-    // document; an echo of it names the same schema and still validates.
+    // Every emitter advertises the reference, so an echo carrying the whole
+    // document is not an echo of this challenge.
     let mut inline_extensions = JsonObject::new();
     inline_extensions.insert(
         RUNX_INVOCATION_EXTENSION_KEY.to_owned(),
@@ -187,8 +187,10 @@ fn declaration_advertises_the_published_schema_by_reference() -> Result<(), Box<
         extensions: Some(inline_extensions),
         additional: JsonObject::new(),
     };
-    let validated = validate_payment_retry(&challenge, &inline_retry)?;
-    assert_eq!(validated.invocation, invocation);
+    assert_eq!(
+        validate_payment_retry(&challenge, &inline_retry),
+        Err(X402PresentationError::RunxInvocationSchemaMismatch)
+    );
 
     let mut foreign_reference = JsonObject::new();
     foreign_reference.insert(
