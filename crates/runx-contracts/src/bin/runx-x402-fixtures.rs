@@ -68,6 +68,10 @@ const SOURCES: &[(&str, &str)] = &[
         "specs/transports-v2/http.md",
         "sha256:4f0298aaa23ac75de0eb49b1e96e6e67a5b910d7527b3a71c63e426b3bf5bdfb",
     ),
+    (
+        "specs/transports-v2/mcp.md",
+        "sha256:4f1e0bb50c60e3fe384142f589cd6323b8a9ec4432335ef29053d1220f9e2146",
+    ),
 ];
 
 struct Options {

@@ -35,7 +35,7 @@ assert(
   pin.source_verification?.command === "pnpm x402:conformance -- --upstream-dir <pinned-checkout>",
   "upstream source verification command drifted",
 );
-assert(Array.isArray(pin.sources) && pin.sources.length === 6, "upstream source provenance is incomplete");
+assert(Array.isArray(pin.sources) && pin.sources.length === 7, "upstream source provenance is incomplete");
 for (const source of pin.sources) {
   assert(typeof source.path === "string" && source.path.length > 0, "upstream source path is missing");
   assert(/^sha256:[0-9a-f]{64}$/u.test(source.digest), "upstream source digest is malformed");

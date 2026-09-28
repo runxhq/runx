@@ -92,8 +92,8 @@ export type RunxX402InvocationExtensionContract = DeepReadonly<{
 
 export const X402_PROTOCOL_VERSION = 2 as const;
 export const X402_UPSTREAM_PACKAGE = "@x402/core" as const;
-export const X402_UPSTREAM_PACKAGE_VERSION = "2.25.0" as const;
-export const X402_UPSTREAM_COMMIT = "2cc7e9a6880c08433b692666032862bcbea51187" as const;
+export const X402_UPSTREAM_PACKAGE_VERSION = "2.27.0" as const;
+export const X402_UPSTREAM_COMMIT = "71eb9a55e081e7b81ba3046d0bd17c3eb9c7bf81" as const;
 
 export const X402_SCHEMA_IDS = {
   resourceInfo: "https://schemas.runx.ai/external/x402/v2/resource-info.schema.json",

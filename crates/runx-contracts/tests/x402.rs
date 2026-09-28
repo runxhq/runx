@@ -80,7 +80,7 @@ fn manifest_and_pin_bind_exact_repository_bytes() -> Result<(), Box<dyn std::err
         pin.pointer("/package/version").and_then(Value::as_str),
         Some(X402_UPSTREAM_PACKAGE_VERSION)
     );
-    assert_eq!(array_field(&pin, "sources")?.len(), 6);
+    assert_eq!(array_field(&pin, "sources")?.len(), 7);
     Ok(())
 }
 

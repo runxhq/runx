@@ -25,8 +25,8 @@ importers:
         specifier: ^26.5.1
         version: 26.5.1
       '@x402/core':
-        specifier: 2.25.0
-        version: 2.25.0
+        specifier: 2.27.0
+        version: 2.27.0
       ajv:
         specifier: ^8.20.0
         version: 8.20.0
@@ -514,8 +514,8 @@ packages:
   '@vitest/utils@4.1.11':
     resolution: {integrity: sha512-zTCVGpyFsGWBhllOyKlTw/vnr6D9qxsfSDyfbyZmTyjHw5N/VuvzHpHoQjm2ZJzn4RJgx5w4r7V0er69CmLgPQ==}
 
-  '@x402/core@2.25.0':
-    resolution: {integrity: sha512-5Ys0XYz3FKutxVKoXC46R/XPT/oaAbuj7ahzrlVHwQxZJPH9u6u91IOh0ztz+7G/zYGsaXR8l3ety205QtEnUw==}
+  '@x402/core@2.27.0':
+    resolution: {integrity: sha512-UbxCKnoTsg5nQX9fYER3g9tt5l80jHm1IZOmDczQRqE0cwskls5r+VAAj0iUQfHVshnpv0qo/rLFI7UntqL96g==}
 
   ajv@8.20.0:
     resolution: {integrity: sha512-Thbli+OlOj+iMPYFBVBfJ3OmCAnaSyNn4M1vz9T6Gka5Jt9ba/HIR56joy65tY6kx/FCF5VXNB819Y7/GUrBGA==}
@@ -1164,7 +1164,7 @@ snapshots:
       convert-source-map: 2.0.0
       tinyrainbow: 3.1.0
 
-  '@x402/core@2.25.0':
+  '@x402/core@2.27.0':
     dependencies:
       zod: 3.25.76
 

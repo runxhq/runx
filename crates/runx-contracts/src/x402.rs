@@ -19,9 +19,9 @@ use crate::{
 };
 
 pub const X402_PROTOCOL_VERSION: u8 = 2;
-pub const X402_UPSTREAM_COMMIT: &str = "2cc7e9a6880c08433b692666032862bcbea51187";
+pub const X402_UPSTREAM_COMMIT: &str = "71eb9a55e081e7b81ba3046d0bd17c3eb9c7bf81";
 pub const X402_UPSTREAM_PACKAGE: &str = "@x402/core";
-pub const X402_UPSTREAM_PACKAGE_VERSION: &str = "2.25.0";
+pub const X402_UPSTREAM_PACKAGE_VERSION: &str = "2.27.0";
 
 pub const X402_PAYMENT_REQUIRED_HEADER: &str = "PAYMENT-REQUIRED";
 pub const X402_PAYMENT_SIGNATURE_HEADER: &str = "PAYMENT-SIGNATURE";
