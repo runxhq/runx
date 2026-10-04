@@ -358,6 +358,9 @@ fn load_profile(path: &Path, workspace: &WorkspaceEnv) -> Result<LoadedProfile, 
                 "source_intake" => {
                     names.insert("issue-intake");
                 }
+                "work_plan" => {
+                    names.insert("work-plan");
+                }
                 _ => {}
             }
         }
@@ -486,6 +489,26 @@ fn validate_profile(profile: &AssistantProfile) -> Result<(), String> {
     if profile.work_routes.len() > 4 {
         return Err("assistant work route roster exceeds four".to_owned());
     }
+    if profile
+        .work_routes
+        .iter()
+        .filter(|route| route.kind == "work_plan")
+        .count()
+        > 1
+    {
+        return Err("assistant may configure only one work_plan route".to_owned());
+    }
+    if profile
+        .work_routes
+        .iter()
+        .any(|route| route.kind == "work_plan")
+        && !profile
+            .work_routes
+            .iter()
+            .any(|route| route.kind == "source_intake")
+    {
+        return Err("assistant work_plan requires a source_intake route".to_owned());
+    }
     let mut route_ids = BTreeSet::new();
     for route in &profile.work_routes {
         if !valid_identifier(&route.route_id) || !route_ids.insert(&route.route_id) {
@@ -493,8 +516,8 @@ fn validate_profile(profile: &AssistantProfile) -> Result<(), String> {
         }
         match route.kind.as_str() {
             "github_pr_status" if !route.repositories.is_empty() && route.repositories.len() <= 8 => {}
-            "source_intake" if route.repositories.is_empty() && route.credential_profile.is_none() => {}
-            _ => return Err("assistant work route must be github_pr_status with 1-8 repositories or source_intake with no repository or credential override".to_owned()),
+            "source_intake" | "work_plan" if route.repositories.is_empty() && route.credential_profile.is_none() => {}
+            _ => return Err("assistant work route must be github_pr_status with 1-8 repositories or source_intake/work_plan with no repository or credential override".to_owned()),
         }
         let mut repositories = BTreeSet::new();
         for repository in &route.repositories {

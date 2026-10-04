@@ -27,6 +27,7 @@ const CONTROL_SCHEMA: &str = "runx.assistant.control.v1";
 const MAX_OBSERVATIONS: usize = 20;
 const MAX_DEFERRED_TURNS: usize = 16;
 const MAX_MAIL_CONTEXT_CHARS: usize = 20_000;
+const MAX_WORK_ARTIFACT_BYTES: usize = 32 * 1024;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -71,6 +72,8 @@ struct Control {
 #[serde(deny_unknown_fields)]
 struct WorkAssignment {
     id: String,
+    #[serde(default)]
+    parent_work_id: Option<String>,
     source_ref: String,
     source_digest: String,
     thread_locator: String,
@@ -80,7 +83,7 @@ struct WorkAssignment {
     #[serde(default)]
     retry_after_unix_seconds: u64,
     receipt: Option<String>,
-    result: Option<Value>,
+    result_ref: Option<Value>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -178,6 +181,17 @@ fn next_work_due(work: &[WorkAssignment]) -> Option<u64> {
 fn due_work_index(work: &[WorkAssignment], now: u64) -> Option<usize> {
     work.iter()
         .position(|item| item.status == "pending" && item.retry_after_unix_seconds <= now)
+}
+
+fn evictable_work_index(work: &[WorkAssignment], protected_id: Option<&str>) -> Option<usize> {
+    work.iter().position(|item| {
+        item.status != "pending"
+            && protected_id != Some(item.id.as_str())
+            && !work.iter().any(|child| {
+                child.status == "pending"
+                    && child.parent_work_id.as_deref() == Some(item.id.as_str())
+            })
+    })
 }
 
 fn now_seconds() -> u64 {
@@ -500,6 +514,7 @@ fn read_control(loaded: &LoadedProfile, workspace: &WorkspaceEnv) -> Result<Cont
         || state.work.iter().any(|item| {
             !matches!(item.status.as_str(), "pending" | "completed" | "held")
                 || item.id.len() > 80
+                || item.parent_work_id.as_ref().is_some_and(|id| id.len() > 80)
                 || item.source_ref.len() > 300
                 || item.target_ref.len() > 300
         })
@@ -507,6 +522,42 @@ fn read_control(loaded: &LoadedProfile, workspace: &WorkspaceEnv) -> Result<Cont
         return Err("assistant work state is invalid".to_owned());
     }
     Ok(ControlRecord { version, state })
+}
+
+fn persist_work_result(
+    workspace: &WorkspaceEnv,
+    item: &WorkAssignment,
+    result: &Value,
+) -> Result<Value, String> {
+    let value = serde_json::from_value(result.clone())
+        .map_err(|error| format!("encoding assistant work result: {error}"))?;
+    let reference = crate::skill::output::persist_json_artifact(
+        &project_runx_dir(workspace),
+        &format!(
+            "run_assistant_work_{}",
+            item.id.trim_start_matches("sha256:")
+        ),
+        "assistant-work",
+        "result",
+        &value,
+    )?;
+    serde_json::to_value(reference)
+        .map_err(|error| format!("encoding assistant work result reference: {error}"))
+}
+
+fn read_work_result(
+    workspace: &WorkspaceEnv,
+    item: &WorkAssignment,
+) -> Result<Option<Value>, String> {
+    let Some(reference) = item.result_ref.as_ref() else {
+        return Ok(None);
+    };
+    let reference = serde_json::from_value(reference.clone())
+        .map_err(|error| format!("decoding assistant work result reference: {error}"))?;
+    let value = crate::skill::output::read_json_artifact(&project_runx_dir(workspace), &reference)?;
+    serde_json::to_value(value)
+        .map(Some)
+        .map_err(|error| format!("decoding assistant work result: {error}"))
 }
 
 fn write_control(
@@ -726,7 +777,21 @@ pub(super) fn work(
     workspace: &WorkspaceEnv,
     cursor: Option<&str>,
 ) -> Result<Value, String> {
-    let assignments = read_control(loaded, workspace)?.state.work;
+    let assignments = read_control(loaded, workspace)?
+        .state
+        .work
+        .iter()
+        .map(|item| {
+            let mut projection = serde_json::to_value(item)
+                .map_err(|error| format!("encoding assistant work item: {error}"))?;
+            projection
+                .as_object_mut()
+                .ok_or("assistant work item is not an object")?
+                .remove("result_ref");
+            projection["result"] = json!(read_work_result(workspace, item)?);
+            Ok::<Value, String>(projection)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
     let mut inputs = json!({"data_source_ref":loaded.profile.inbox_data_source_ref,"limit":20});
     if let Some(cursor) = cursor {
         inputs["cursor"] = json!(cursor);
@@ -1323,17 +1388,22 @@ fn review_observations(
                     .iter()
                     .any(|item| item["source_digest"] == work.source_digest)
         })
-        .filter_map(|work| {
-            let result = work.result.as_ref()?;
-            let receipt = work.receipt.as_ref()?;
+        .take(20)
+        .map(|work| -> Result<Option<Value>, String> {
+            let Some(result) = read_work_result(workspace, work)? else {
+                return Ok(None);
+            };
+            let Some(receipt) = work.receipt.as_ref() else {
+                return Ok(None);
+            };
             if result["kind"] == "source_intake" {
                 if result["summary"].as_str().is_none()
                     || result["recommended_lane"].as_str().is_none()
                     || result["checked_at"].as_str().is_none()
                 {
-                    return None;
+                    return Ok(None);
                 }
-                return Some(json!({
+                return Ok(Some(json!({
                     "source_ref":work.source_ref,
                     "source_digest":work.source_digest,
                     "route_id":work.route_id,
@@ -1344,15 +1414,33 @@ fn review_observations(
                     "source_complete":result["source_complete"],
                     "checked_at":result["checked_at"],
                     "receipt":receipt,
-                }));
+                })));
+            }
+            if result["kind"] == "work_plan" {
+                if result["change_set_id"].as_str().is_none()
+                    || !matches!(result["decision"].as_str(), Some("ready" | "blocked"))
+                {
+                    return Ok(None);
+                }
+                return Ok(Some(json!({
+                    "source_ref":work.source_ref,
+                    "source_digest":work.source_digest,
+                    "route_id":work.route_id,
+                    "target_ref":work.target_ref,
+                    "kind":"work_plan",
+                    "decision":result["decision"],
+                    "change_set_id":result["change_set_id"],
+                    "checked_at":result["checked_at"],
+                    "receipt":receipt,
+                })));
             }
             if !matches!(result["state"].as_str(), Some("open" | "closed"))
                 || result["title"].as_str().is_none()
                 || result["checked_at"].as_str().is_none()
             {
-                return None;
+                return Ok(None);
             }
-            Some(json!({
+            Ok(Some(json!({
                 "source_ref":work.source_ref,
                 "source_digest":work.source_digest,
                 "route_id":work.route_id,
@@ -1361,9 +1449,11 @@ fn review_observations(
                 "title":result["title"],
                 "checked_at":result["checked_at"],
                 "receipt":receipt
-            }))
+            })))
         })
-        .take(20)
+        .collect::<Result<Vec<_>, _>>()?
+        .into_iter()
+        .flatten()
         .collect::<Vec<_>>();
     let mut candidates = work_candidates(loaded, observations);
     candidates.retain(|candidate| {
@@ -1695,16 +1785,13 @@ fn admit_work(
             continue;
         }
         while record.state.work.len() >= 40 {
-            let index = record
-                .state
-                .work
-                .iter()
-                .position(|item| item.status != "pending")
+            let index = evictable_work_index(&record.state.work, None)
                 .ok_or("assistant work ledger is full of pending assignments")?;
             record.state.work.remove(index);
         }
         record.state.work.push(WorkAssignment {
             id,
+            parent_work_id: None,
             source_ref: source_ref.to_owned(),
             source_digest: source_digest.to_owned(),
             thread_locator: observation["thread_locator"]
@@ -1716,7 +1803,7 @@ fn admit_work(
             status: "pending".to_owned(),
             retry_after_unix_seconds: 0,
             receipt: None,
-            result: None,
+            result_ref: None,
         });
         changed = true;
     }
@@ -1767,16 +1854,39 @@ fn dispatch_pending_work(
         "source_intake" => {
             run_source_intake(loaded, workspace, &item, &record.state.confirmed_memory)?
         }
+        "work_plan" => run_work_plan(loaded, workspace, &item, &record.state.work)?,
         _ => return Err("pending work has an unsupported route".to_owned()),
+    };
+    let child = if route.kind == "source_intake" {
+        plan_child_assignment(
+            &loaded.profile.instance_id,
+            loaded
+                .profile
+                .work_routes
+                .iter()
+                .find(|route| route.kind == "work_plan"),
+            &item,
+            &result,
+        )?
+    } else {
+        None
     };
     record.state.work[index].status = "completed".to_owned();
     record.state.work[index].receipt = Some(receipt.clone());
-    record.state.work[index].result = Some(result);
+    record.state.work[index].result_ref = Some(persist_work_result(workspace, &item, &result)?);
+    if let Some(child) = child
+        && !record.state.work.iter().any(|entry| entry.id == child.id)
+    {
+        while record.state.work.len() >= 40 {
+            let evict = evictable_work_index(&record.state.work, Some(&item.id))
+                .ok_or("assistant work ledger cannot retain planning parent")?;
+            record.state.work.remove(evict);
+        }
+        record.state.work.push(child);
+    }
     record.state.last_blocker = None;
     write_control(loaded, workspace, record, "work_completed")?;
-    Ok(
-        json!({"status":"work_completed","work_id":item.id,"receipt":receipt,"result":record.state.work[index].result}),
-    )
+    Ok(json!({"status":"work_completed","work_id":item.id,"receipt":receipt,"result":result}))
 }
 
 fn run_pr_status(
@@ -1835,6 +1945,138 @@ fn run_pr_status(
             "url":pr["url"],
             "checked_at":now_iso8601(),
             "result_digest":sha256_prefixed(&bytes)
+        }),
+        receipt,
+    ))
+}
+
+fn bounded_work_artifact(value: &Value) -> Result<(), String> {
+    let size = serde_json::to_vec(value)
+        .map_err(|error| error.to_string())?
+        .len();
+    if size > MAX_WORK_ARTIFACT_BYTES {
+        return Err("assistant work artifact exceeds 32 KiB".to_owned());
+    }
+    Ok(())
+}
+
+fn plannable_change_set<'a>(item: &WorkAssignment, result: &'a Value) -> Option<&'a Value> {
+    let change_set = result.get("change_set")?;
+    if result["kind"] != "source_intake"
+        || result["source_complete"] != true
+        || result["needs_human"] != false
+        || result["recommended_lane"] != "work-plan"
+        || result["commence_decision"] != "approve"
+        || result["action_decision"] != "proceed_to_plan"
+        || change_set["thread_locator"] != item.thread_locator
+        || change_set["change_set_id"] != result["change_set_id"]
+        || change_set["recommended_lane"] != "work-plan"
+        || change_set["commence_decision"] != "approve"
+        || change_set["action_decision"] != "proceed_to_plan"
+    {
+        return None;
+    }
+    Some(change_set)
+}
+
+fn plan_child_assignment(
+    instance_id: &str,
+    route: Option<&WorkRoute>,
+    parent: &WorkAssignment,
+    result: &Value,
+) -> Result<Option<WorkAssignment>, String> {
+    let Some(route) = route else {
+        return Ok(None);
+    };
+    let Some(change_set) = plannable_change_set(parent, result) else {
+        return Ok(None);
+    };
+    let target_ref = change_set["change_set_id"]
+        .as_str()
+        .filter(|id| !id.is_empty() && id.len() <= 200)
+        .ok_or("plannable change set has no bounded identity")?;
+    let id = sha256_prefixed(
+        &serde_json::to_vec(&json!([instance_id, parent.id, route.route_id, target_ref]))
+            .map_err(|error| error.to_string())?,
+    );
+    Ok(Some(WorkAssignment {
+        id,
+        parent_work_id: Some(parent.id.clone()),
+        source_ref: parent.source_ref.clone(),
+        source_digest: parent.source_digest.clone(),
+        thread_locator: parent.thread_locator.clone(),
+        route_id: route.route_id.clone(),
+        target_ref: target_ref.to_owned(),
+        status: "pending".to_owned(),
+        retry_after_unix_seconds: 0,
+        receipt: None,
+        result_ref: None,
+    }))
+}
+
+fn run_work_plan(
+    loaded: &LoadedProfile,
+    workspace: &WorkspaceEnv,
+    item: &WorkAssignment,
+    work: &[WorkAssignment],
+) -> Result<(Value, String), String> {
+    let parent = item
+        .parent_work_id
+        .as_deref()
+        .and_then(|id| work.iter().find(|entry| entry.id == id))
+        .filter(|entry| {
+            entry.status == "completed"
+                && entry.receipt.is_some()
+                && entry.source_ref == item.source_ref
+                && entry.source_digest == item.source_digest
+                && entry.thread_locator == item.thread_locator
+        })
+        .ok_or("work plan lacks a completed source-intake parent")?;
+    let source_result =
+        read_work_result(workspace, parent)?.ok_or("work plan parent has no intake result")?;
+    let change_set = plannable_change_set(parent, &source_result)
+        .filter(|set| set["change_set_id"] == item.target_ref)
+        .ok_or("work plan parent does not authorize this exact planning target")?;
+    bounded_work_artifact(change_set)?;
+    let objective = change_set["summary"]
+        .as_str()
+        .filter(|summary| !summary.is_empty() && summary.len() <= 2000)
+        .ok_or("work plan parent lacks a bounded objective")?;
+    let (output, receipt) = run_skill(
+        loaded,
+        workspace,
+        "work-plan",
+        "work-plan",
+        json!({
+            "objective":objective,
+            "project_context":loaded.profile.charter,
+            "thread_locator":item.thread_locator,
+            "change_set":change_set,
+        }),
+        true,
+        None,
+        false,
+    )?;
+    let plan = result_data(&output, "work_plan")?;
+    if plan["change_set"] != *change_set
+        || plan["evidence"]["source_change_set_preserved"] != true
+        || plan["evidence"]["source_thread_locator_preserved"] != true
+        || !matches!(plan["decision"].as_str(), Some("ready" | "blocked"))
+        || (plan["decision"] == "ready" && plan["validation"]["status"] != "pass")
+    {
+        return Err("work plan did not preserve the admitted parent change set".to_owned());
+    }
+    bounded_work_artifact(plan)?;
+    Ok((
+        json!({
+            "kind":"work_plan",
+            "effect_status":"plan_only",
+            "parent_work_id":parent.id,
+            "parent_receipt":parent.receipt,
+            "change_set_id":item.target_ref,
+            "decision":plan["decision"],
+            "plan":plan,
+            "checked_at":now_iso8601(),
         }),
         receipt,
     ))
@@ -1944,6 +2186,7 @@ fn run_source_intake(
     {
         return Err("intake change set differs from its source or decision".to_owned());
     }
+    bounded_work_artifact(change_set)?;
     if summary.len() > 1000
         || reply.len() > 4000
         || !matches!(
@@ -1961,6 +2204,7 @@ fn run_source_intake(
         "suggested_reply":reply,
         "recommended_lane":if source.complete { lane } else { "manual-review" },
         "change_set_id":change_set_id,
+        "change_set":change_set,
         "commence_decision":if needs_human { json!("needs_human") } else { change_set["commence_decision"].clone() },
         "action_decision":if needs_human { json!("stop") } else { change_set["action_decision"].clone() },
         "needs_human":needs_human,
@@ -3061,12 +3305,48 @@ mod tests {
 
     use super::{
         DeferredTurn, PendingTurn, WorkAssignment, WorkerLane, bounded_mail_context,
-        due_work_index, due_worker_lane, message_for_queue, next_work_due,
-        normalize_mail_observation, notification_uuid, page_cursor, parse_pr_target,
-        private_notification_text, private_text_is_safe, quiet_hour, scan_continuation_from_value,
-        unreviewed_digests, verified_notification_readback,
+        bounded_work_artifact, due_work_index, due_worker_lane, evictable_work_index,
+        message_for_queue, next_work_due, normalize_mail_observation, notification_uuid,
+        page_cursor, parse_pr_target, persist_work_result, plan_child_assignment,
+        plannable_change_set, private_notification_text, private_text_is_safe, quiet_hour,
+        read_work_result, scan_continuation_from_value, unreviewed_digests,
+        verified_notification_readback,
     };
-    use crate::assistant::QuietHours;
+    use crate::assistant::{QuietHours, WorkRoute};
+
+    #[test]
+    fn work_result_is_exact_private_artifact_and_tampering_blocks_read() -> Result<(), String> {
+        let root = std::env::temp_dir().join(format!(
+            "runx-assistant-work-result-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map_err(|error| error.to_string())?
+                .as_nanos()
+        ));
+        std::fs::create_dir(&root).map_err(|error| error.to_string())?;
+        let workspace = runx_runtime::WorkspaceEnv::load_process(root.clone())
+            .map_err(|error| error.to_string())?;
+        let mut item: WorkAssignment = serde_json::from_value(json!({
+            "id":"work-1", "source_ref":"slack://message", "source_digest":"digest",
+            "thread_locator":"slack://thread", "route_id":"intake",
+            "target_ref":"slack://thread", "status":"completed",
+            "receipt":"sha256:receipt", "result_ref":null
+        }))
+        .map_err(|error| error.to_string())?;
+        let result = json!({"kind":"source_intake","change_set":{"summary":"private context"}});
+        item.result_ref = Some(persist_work_result(&workspace, &item, &result)?);
+        assert_eq!(read_work_result(&workspace, &item)?, Some(result));
+        let path = item
+            .result_ref
+            .as_ref()
+            .and_then(|reference| reference["path"].as_str())
+            .ok_or("work result reference lacks path")?;
+        std::fs::write(path, b"{}").map_err(|error| error.to_string())?;
+        assert!(read_work_result(&workspace, &item).is_err());
+        std::fs::remove_dir_all(root).map_err(|error| error.to_string())?;
+        Ok(())
+    }
 
     #[test]
     fn held_delivery_does_not_starve_due_assignment() {
@@ -3088,7 +3368,7 @@ mod tests {
             "id":"first", "source_ref":"slack://one", "source_digest":"digest",
             "thread_locator":"slack://thread", "route_id":"intake",
             "target_ref":"slack://thread", "status":"pending",
-            "receipt":null, "result":null
+            "receipt":null, "result_ref":null
         }))
         .map_err(|error| error.to_string())?;
         assert_eq!(old.retry_after_unix_seconds, 0);
@@ -3106,6 +3386,81 @@ mod tests {
         assert_eq!(next_work_due(&work), Some(120));
         assert_eq!(due_work_index(&work, 60), None);
         assert_eq!(due_work_index(&work, 120), Some(0));
+        Ok(())
+    }
+
+    #[test]
+    fn planning_requires_exact_completed_intake_authority() -> Result<(), String> {
+        let parent: WorkAssignment = serde_json::from_value(json!({
+            "id":"intake", "source_ref":"slack://message", "source_digest":"digest",
+            "thread_locator":"slack://thread", "route_id":"intake",
+            "target_ref":"slack://thread", "status":"completed",
+            "receipt":"sha256:receipt", "result_ref":null
+        }))
+        .map_err(|error| error.to_string())?;
+        let approved = json!({
+            "kind":"source_intake", "source_complete":true, "needs_human":false,
+            "recommended_lane":"work-plan", "commence_decision":"approve",
+            "action_decision":"proceed_to_plan", "change_set_id":"change-1",
+            "change_set":{
+                "change_set_id":"change-1", "thread_locator":"slack://thread",
+                "recommended_lane":"work-plan", "commence_decision":"approve",
+                "action_decision":"proceed_to_plan", "summary":"Plan a bounded fix"
+            }
+        });
+        assert_eq!(
+            plannable_change_set(&parent, &approved),
+            Some(&approved["change_set"])
+        );
+        let route = WorkRoute {
+            route_id: "planning".to_owned(),
+            kind: "work_plan".to_owned(),
+            repositories: Vec::new(),
+            credential_profile: None,
+        };
+        let planned = plan_child_assignment("test-instance", Some(&route), &parent, &approved)?
+            .ok_or("approved intake did not enqueue planning")?;
+        assert_eq!(planned.parent_work_id.as_deref(), Some("intake"));
+        assert_eq!(planned.target_ref, "change-1");
+        assert_eq!(planned.status, "pending");
+        assert_eq!(
+            planned.id,
+            plan_child_assignment("test-instance", Some(&route), &parent, &approved)?
+                .ok_or("repeated planning proposal vanished")?
+                .id
+        );
+        assert!(plan_child_assignment("test-instance", None, &parent, &approved)?.is_none());
+        for (path, denied) in [
+            ("source_complete", json!(false)),
+            ("needs_human", json!(true)),
+            ("action_decision", json!("proceed_to_build")),
+            ("recommended_lane", json!("issue-to-pr")),
+            ("change_set_id", json!("another")),
+        ] {
+            let mut candidate = approved.clone();
+            candidate[path] = denied;
+            assert!(plannable_change_set(&parent, &candidate).is_none());
+        }
+        let mut drifted = approved.clone();
+        drifted["change_set"]["thread_locator"] = json!("slack://other");
+        assert!(plannable_change_set(&parent, &drifted).is_none());
+        let mut drifted = approved.clone();
+        drifted["change_set"]["action_decision"] = json!("stop");
+        assert!(plannable_change_set(&parent, &drifted).is_none());
+        assert!(bounded_work_artifact(&json!({"text":"x".repeat(33 * 1024)})).is_err());
+
+        let child = WorkAssignment {
+            id: "plan".to_owned(),
+            parent_work_id: Some(parent.id.clone()),
+            status: "pending".to_owned(),
+            ..parent.clone()
+        };
+        let older = WorkAssignment {
+            id: "older".to_owned(),
+            parent_work_id: None,
+            ..parent.clone()
+        };
+        assert_eq!(evictable_work_index(&[parent, child, older], None), Some(2));
         Ok(())
     }
 

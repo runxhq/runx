@@ -47,6 +47,12 @@ the exact audience there, outside the OSS skill package:
       "kind": "source_intake",
       "repositories": [],
       "credential_profile": null
+    },
+    {
+      "route_id": "planning",
+      "kind": "work_plan",
+      "repositories": [],
+      "credential_profile": null
     }
   ],
   "charter": "Prioritize direct requests requiring a decision; keep routine status low priority.",
@@ -139,7 +145,7 @@ after a crash; they cannot post or mutate the PR. Intake continues while the
 worker is busy. `source_intake` rereads one exact recorded Slack or Nitrosend
 thread through its owning skill, checks its identity against the current open
 operator-inbox action, and calls `issue-intake` with the private charter and
-confirmed context. The source and intake receipts, bounded summary, and
+confirmed context. The source and intake receipts, bounded summary, exact change set, and
 suggested reply appear in `assistant work`; recent work appears in `report`.
 Slack context retains message order, authors, and timestamps across up to three
 bounded thread pages. Slack search and thread previews can render markup differently, so the live
@@ -148,8 +154,14 @@ canonical inbox action rather than by comparing the preview strings. An
 incomplete bounded thread, truncated mail body, older omitted mail messages, or
 unread attachments are forced to `manual-review` with a stopped action decision.
 The available mail window is passed as bounded conversation context, with its
-omission count retained. Intake is a draft and routing decision; it does not
-start coding or deliver a reply. Completed assignments are deduplicated by
+omission count retained. An optional `work_plan` route queues one child of a
+completed intake when the source is complete and the exact change set says
+`recommended_lane: work-plan`, `commence_decision: approve`, and
+`action_decision: proceed_to_plan`. The next finite worker turn invokes the
+existing `work-plan` skill with that unchanged parent change set and the pinned
+model. It checks preservation evidence and retains the bounded plan and receipts
+in `assistant work`. This is planning only; repository edits, publication, and
+replies remain separate governed host work. Completed assignments are deduplicated by
 source occurrence, route, and target. `assistant work` shows
 both canonical inbox actions and these bounded execution assignments.
 
