@@ -28,7 +28,7 @@
     }
   },
   "dependencies": {
-    "@langchain/core": "^1.2.10",
+    "@langchain/core": "^1.2.14",
     "zod": "^4.6.1"
   }
 }
