@@ -3,9 +3,10 @@
 `runx assistant` runs one finite, bounded turn in Runx OSS. The CLI hosts the
 schedule and pins configuration; existing skills own Slack and Nitrosend reads,
 the operator inbox, data-store state, attention judgment, and notification
-delivery. It uses an OpenAI-compatible **loopback** text endpoint (for example,
-an MLX server running Qwen 2.5 or Qwen 3.5). Runx does not start or download a
-model. No resident Runx process is needed: an optional macOS launchd job invokes
+delivery. The operator pins one exact model and OpenAI-compatible endpoint in
+the private profile, either a loopback server or an HTTPS API. The assistant
+never selects a model or falls back to another one. Runx does not start or
+download a model. No resident Runx process is needed: an optional macOS launchd job invokes
 `tick`, and the persisted next-due time prevents unnecessary provider or model
 calls.
 
@@ -40,13 +41,20 @@ the exact audience there, outside the OSS skill package:
       "kind": "github_pr_status",
       "repositories": ["example/project"],
       "credential_profile": null
+    },
+    {
+      "route_id": "intake",
+      "kind": "source_intake",
+      "repositories": [],
+      "credential_profile": null
     }
   ],
   "charter": "Prioritize direct requests requiring a decision; keep routine status low priority.",
   "confidential_terms": [],
   "model": {
     "model": "your-served-qwen2.5-id",
-    "endpoint_url": "http://127.0.0.1:1234/v1",
+    "endpoint_url": "http://127.0.0.1:1234/v1/chat/completions",
+    "auth_mode": "local_none",
     "max_rounds": 8
   },
   "notification": null,
@@ -56,6 +64,16 @@ the exact audience there, outside the OSS skill package:
   "quiet_hours": { "start_hour": 22, "end_hour": 8 }
 }
 ```
+
+`auth_mode` defaults to `local_none` for existing profiles. That mode requires
+an exact loopback chat-completions URL and sends no model API key. To use a
+remote OpenAI-compatible model, set the exact model ID, its HTTPS
+chat-completions URL, and `"auth_mode": "api_key"`; supply the key explicitly
+through `RUNX_AGENT_API_KEY`, never in the profile. The assistant does not
+infer a remote model key from the general Runx agent credential store. The
+same assistant queue, skills, grants, and receipts run with either
+mode. Changing the configured model or endpoint changes the profile revision
+and requires an explicit resume before another turn.
 
 The source-page limits must total at most 20. Nitrosend sources require
 `view: "full"`: each mailbox row is followed by a bounded `get_thread` read,
@@ -72,8 +90,9 @@ continuation holds the turn for inspection. Independent cross-source checks
 are still needed before autonomous follow-up actions.
 
 Use `runx assistant check --profile <path>` to validate the profile and installed
-skill packages. `profile_valid` does not certify credentials, notification
-authority, or the model server. `runx assistant resume --profile <path>` enables
+skill packages. `profile_valid` checks model configuration and remote key
+presence, but cannot certify credential validity, notification authority, or
+endpoint health. `runx assistant resume --profile <path>` enables
 turns; `tick` runs one due turn, and `status` reports control and timer state.
 `pause` prevents future turns. A profile or skill-package change stops active
 ticks until an explicit resume. A pending exact notification cannot be resumed
@@ -108,8 +127,8 @@ The assistant does not create a parallel source-action database or infer
 completion from email text. The model proposes a bounded next check and the
 local control stream persists its due time; the heartbeat invokes finite `tick`
 and `execute` roles. A turn with changed evidence may also select up to
-three exact read-only work candidates. V1 supports `github_pr_status`: the host
-extracts canonical PR links from observed summaries, intersects them with the
+three exact read-only work candidates. `github_pr_status` makes an exact
+provider read: the host extracts canonical PR links from observed summaries, intersects them with the
 private repository allowlist, and asks the model to select exact
 source/route/target triples. The finalizer rejects invented targets and
 non-open source actions. The host records a stable assignment in `data-store`
@@ -117,8 +136,21 @@ before `assistant execute` runs one due `github-sync#pull`. It verifies the exac
 identity in provider readback, records state and receipt, and supplies that
 bounded result to later reviews. Read retries reuse the same native run identity
 after a crash; they cannot post or mutate the PR. Intake continues while the
-worker is busy. Completed assignments are
-deduplicated by source occurrence, route, and target. `assistant work` shows
+worker is busy. `source_intake` rereads one exact recorded Slack or Nitrosend
+thread through its owning skill, checks its identity against the current open
+operator-inbox action, and calls `issue-intake` with the private charter and
+confirmed context. The source and intake receipts, bounded summary, and
+suggested reply appear in `assistant work`; recent work appears in `report`.
+Slack context retains message order, authors, and timestamps across up to three
+bounded thread pages. Slack search and thread previews can render markup differently, so the live
+read is matched by tenant, message locator, occurrence time, author, and the
+canonical inbox action rather than by comparing the preview strings. An
+incomplete bounded thread, truncated mail body, older omitted mail messages, or
+unread attachments are forced to `manual-review` with a stopped action decision.
+The available mail window is passed as bounded conversation context, with its
+omission count retained. Intake is a draft and routing decision; it does not
+start coding or deliver a reply. Completed assignments are deduplicated by
+source occurrence, route, and target. `assistant work` shows
 both canonical inbox actions and these bounded execution assignments.
 
 Additional unattended routes require an explicit typed target mapping and
@@ -127,6 +159,10 @@ creates a provider write. `work_routes: []` disables delegated work.
 Two distinct source occurrences that link the same PR can currently produce
 two reads. Both are bounded and read-only; deduplicating them across occurrences
 requires a freshness rule so a later request can still trigger a new check.
+Delivery and assignments have separate persisted due times. A blocked or quiet
+private notification does not prevent a due read-only assignment from running
+on the next finite worker wake. A failed assignment receives its own bounded
+retry time, so a different due assignment can run first.
 
 Notification is off when `allowed_action_ids` is empty and `notification` is
 `null`; in that mode a useful brief closes as `ready_undelivered` and is not

@@ -21,11 +21,12 @@ use runx_runtime::{
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
-use super::{LoadedProfile, QuietHours, SourceProfile, model_environment};
+use super::{LoadedProfile, QuietHours, SourceProfile, WorkRoute, model_environment};
 
 const CONTROL_SCHEMA: &str = "runx.assistant.control.v1";
 const MAX_OBSERVATIONS: usize = 20;
 const MAX_DEFERRED_TURNS: usize = 16;
+const MAX_MAIL_CONTEXT_CHARS: usize = 20_000;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -35,6 +36,8 @@ struct Control {
     profile_revision: String,
     paused: bool,
     next_due_unix_seconds: u64,
+    #[serde(default)]
+    next_delivery_due_unix_seconds: u64,
     #[serde(default)]
     next_worker_due_unix_seconds: u64,
     active_run_id: Option<String>,
@@ -74,6 +77,8 @@ struct WorkAssignment {
     route_id: String,
     target_ref: String,
     status: String,
+    #[serde(default)]
+    retry_after_unix_seconds: u64,
     receipt: Option<String>,
     result: Option<Value>,
 }
@@ -141,6 +146,38 @@ struct ReviewPacket {
 struct ControlRecord {
     version: u64,
     state: Control,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum WorkerLane {
+    Delivery,
+    Assignment,
+}
+
+fn due_worker_lane(
+    delivery_due: Option<u64>,
+    assignment_due: Option<u64>,
+    now: u64,
+) -> Option<WorkerLane> {
+    if delivery_due.is_some_and(|due| now >= due) {
+        Some(WorkerLane::Delivery)
+    } else if assignment_due.is_some_and(|due| now >= due) {
+        Some(WorkerLane::Assignment)
+    } else {
+        None
+    }
+}
+
+fn next_work_due(work: &[WorkAssignment]) -> Option<u64> {
+    work.iter()
+        .filter(|item| item.status == "pending")
+        .map(|item| item.retry_after_unix_seconds)
+        .min()
+}
+
+fn due_work_index(work: &[WorkAssignment], now: u64) -> Option<usize> {
+    work.iter()
+        .position(|item| item.status == "pending" && item.retry_after_unix_seconds <= now)
 }
 
 fn now_seconds() -> u64 {
@@ -229,6 +266,7 @@ fn control_default(loaded: &LoadedProfile) -> Control {
         profile_revision: loaded.revision.clone(),
         paused: true,
         next_due_unix_seconds: 0,
+        next_delivery_due_unix_seconds: 0,
         next_worker_due_unix_seconds: 0,
         active_run_id: None,
         pending_turn: None,
@@ -292,7 +330,7 @@ fn run_skill_with_id(
 ) -> Result<(Value, String), String> {
     let path = loaded.profile.skills_root.join(name);
     let mut env = if model {
-        model_environment(&loaded.profile, workspace)
+        model_environment(&loaded.profile, workspace)?
     } else {
         workspace.env().clone()
     };
@@ -477,6 +515,7 @@ fn write_control(
     record: &mut ControlRecord,
     reason: &str,
 ) -> Result<(), String> {
+    record.state.next_worker_due_unix_seconds = next_work_due(&record.state.work).unwrap_or(0);
     let event = json!({
         "type": "assistant.control.snapshot",
         "payload": {"state": record.state, "reason": reason}
@@ -569,7 +608,8 @@ pub(super) fn status(loaded: &LoadedProfile, workspace: &WorkspaceEnv) -> Result
         "current_profile_revision": loaded.revision,
         "paused": record.state.paused,
         "next_due_unix_seconds": record.state.next_due_unix_seconds,
-        "next_worker_due_unix_seconds": record.state.next_worker_due_unix_seconds,
+        "next_delivery_due_unix_seconds": record.state.next_delivery_due_unix_seconds,
+        "next_worker_due_unix_seconds": next_work_due(&record.state.work).unwrap_or(0),
         "active_run_id": record.state.active_run_id,
         "pending_page_count": record.state.pending_turn.as_ref().map_or(0, |turn| turn.pages.len()),
         "pending_review": record.state.pending_turn.as_ref().is_some_and(|turn| turn.review_ref.is_some()),
@@ -659,6 +699,7 @@ pub(super) fn discard_notification(
         );
     }
     record.state.pending_intent = None;
+    record.state.next_delivery_due_unix_seconds = 0;
     record.state.active_run_id = None;
     record.state.pending_turn = None;
     record.state.scan_retry_from_first_page = true;
@@ -814,6 +855,11 @@ fn memory_edit_allowed(loaded: &LoadedProfile, record: &ControlRecord) -> Result
         || record.state.active_run_id.is_some()
         || record.state.pending_turn.is_some()
         || record.state.pending_intent.is_some()
+        || record
+            .state
+            .work
+            .iter()
+            .any(|item| item.status == "pending")
     {
         return Err(
             "assistant memory cannot change during pending work or profile drift".to_owned(),
@@ -860,7 +906,12 @@ pub(super) fn set_paused(
         }
         record.state.profile_revision = loaded.revision.clone();
         record.state.next_due_unix_seconds = 0;
-        record.state.next_worker_due_unix_seconds = 0;
+        record.state.next_delivery_due_unix_seconds = 0;
+        for item in &mut record.state.work {
+            if item.status == "pending" {
+                item.retry_after_unix_seconds = 0;
+            }
+        }
     }
     write_control(
         loaded,
@@ -1034,23 +1085,30 @@ pub(super) fn execute(loaded: &LoadedProfile, workspace: &WorkspaceEnv) -> Resul
     if record.state.profile_revision != loaded.revision {
         return Err("assistant profile changed; inspect and resume explicitly".to_owned());
     }
-    if now_seconds() < record.state.next_worker_due_unix_seconds {
+    let now = now_seconds();
+    let delivery_due = record
+        .state
+        .pending_intent
+        .as_ref()
+        .map(|_| record.state.next_delivery_due_unix_seconds);
+    let assignment_due = next_work_due(&record.state.work);
+    let lane = due_worker_lane(delivery_due, assignment_due, now);
+    if lane.is_none() {
         return Ok(json!({
-            "status":"worker_not_due",
-            "next_worker_due_unix_seconds":record.state.next_worker_due_unix_seconds
+            "status":if delivery_due.is_some() || assignment_due.is_some() { "worker_not_due" } else { "worker_idle" },
+            "next_delivery_due_unix_seconds":record.state.next_delivery_due_unix_seconds,
+            "next_worker_due_unix_seconds":assignment_due.unwrap_or(0)
         }));
     }
-    let result = if record.state.pending_intent.is_some() {
-        deliver_pending(loaded, workspace, &mut record)
-    } else if record
-        .state
-        .work
-        .iter()
-        .any(|item| item.status == "pending")
-    {
-        dispatch_pending_work(loaded, workspace, &mut record)
+    let attempted_work_id = if lane == Some(WorkerLane::Assignment) {
+        due_work_index(&record.state.work, now).map(|index| record.state.work[index].id.clone())
     } else {
-        Ok(json!({"status":"worker_idle"}))
+        None
+    };
+    let result = match lane {
+        Some(WorkerLane::Delivery) => deliver_pending(loaded, workspace, &mut record),
+        Some(WorkerLane::Assignment) => dispatch_pending_work(loaded, workspace, &mut record),
+        None => unreachable!(),
     };
     if let Err(error) = &result {
         // A concurrent intake may have advanced the control version. Never
@@ -1059,8 +1117,18 @@ pub(super) fn execute(loaded: &LoadedProfile, workspace: &WorkspaceEnv) -> Resul
         let _control_lock = lock(loaded, workspace)?;
         let mut current = read_control(loaded, workspace)?;
         current.state.last_blocker = Some(error.chars().take(500).collect());
-        current.state.next_worker_due_unix_seconds =
-            scheduled_due(loaded.profile.min_check_minutes);
+        if lane == Some(WorkerLane::Delivery) {
+            current.state.next_delivery_due_unix_seconds =
+                scheduled_due(loaded.profile.min_check_minutes);
+        } else if let Some(work_id) = attempted_work_id.as_deref()
+            && let Some(item) = current
+                .state
+                .work
+                .iter_mut()
+                .find(|item| item.id == work_id && item.status == "pending")
+        {
+            item.retry_after_unix_seconds = scheduled_due(loaded.profile.min_check_minutes);
+        }
         write_control(loaded, workspace, &mut current, "worker_held")?;
     }
     result
@@ -1203,14 +1271,6 @@ fn run_turn(
         record.state.active_run_id = None;
         record.state.pending_turn = None;
         record.state.next_due_unix_seconds = scheduled_due(loaded.profile.min_check_minutes);
-        if record
-            .state
-            .work
-            .iter()
-            .any(|item| item.status == "pending")
-        {
-            record.state.next_worker_due_unix_seconds = 0;
-        }
         write_control(loaded, workspace, record, "ready_undelivered")?;
         return Ok(
             json!({"status":"ready_undelivered","receipt":review.receipt,"observation_count":observations.len(),"coverage_incomplete":coverage_incomplete}),
@@ -1265,10 +1325,30 @@ fn review_observations(
         })
         .filter_map(|work| {
             let result = work.result.as_ref()?;
+            let receipt = work.receipt.as_ref()?;
+            if result["kind"] == "source_intake" {
+                if result["summary"].as_str().is_none()
+                    || result["recommended_lane"].as_str().is_none()
+                    || result["checked_at"].as_str().is_none()
+                {
+                    return None;
+                }
+                return Some(json!({
+                    "source_ref":work.source_ref,
+                    "source_digest":work.source_digest,
+                    "route_id":work.route_id,
+                    "target_ref":work.target_ref,
+                    "kind":"source_intake",
+                    "summary":result["summary"],
+                    "recommended_lane":result["recommended_lane"],
+                    "source_complete":result["source_complete"],
+                    "checked_at":result["checked_at"],
+                    "receipt":receipt,
+                }));
+            }
             if !matches!(result["state"].as_str(), Some("open" | "closed"))
                 || result["title"].as_str().is_none()
                 || result["checked_at"].as_str().is_none()
-                || work.receipt.is_none()
             {
                 return None;
             }
@@ -1280,7 +1360,7 @@ fn review_observations(
                 "state":result["state"],
                 "title":result["title"],
                 "checked_at":result["checked_at"],
-                "receipt":work.receipt
+                "receipt":receipt
             }))
         })
         .take(20)
@@ -1417,31 +1497,42 @@ fn current_dispositions(
         let Some(thread) = observation["thread_locator"].as_str() else {
             continue;
         };
-        let action_id = format!(
-            "action-{}",
-            sha256_prefixed(thread.as_bytes()).trim_start_matches("sha256:")
-        );
-        let (output, _) = run_skill(
-            loaded,
-            workspace,
-            "operator-inbox",
-            "read_action",
-            json!({"data_source_ref":loaded.profile.inbox_data_source_ref,"action_id":action_id}),
-            false,
-            None,
-            false,
-        )?;
-        let rows = result_data(&output, "data_operation_result")?["rows"]
-            .as_array()
-            .ok_or("operator-inbox action read lacks rows")?;
-        if let Some(row) = rows.first() {
-            let status = row["event"]["payload"]["action"]["status"]
+        if let Some(action) = read_action_state(loaded, workspace, thread)? {
+            let status = action["status"]
                 .as_str()
                 .ok_or("operator-inbox action lacks status")?;
             answer.push(json!({"source_ref":observation["source_ref"],"disposition":status}));
         }
     }
     Ok(answer)
+}
+
+fn read_action_state(
+    loaded: &LoadedProfile,
+    workspace: &WorkspaceEnv,
+    thread: &str,
+) -> Result<Option<Value>, String> {
+    let action_id = format!(
+        "action-{}",
+        sha256_prefixed(thread.as_bytes()).trim_start_matches("sha256:")
+    );
+    let (output, _) = run_skill(
+        loaded,
+        workspace,
+        "operator-inbox",
+        "read_action",
+        json!({"data_source_ref":loaded.profile.inbox_data_source_ref,"action_id":action_id}),
+        false,
+        None,
+        false,
+    )?;
+    let rows = result_data(&output, "data_operation_result")?["rows"]
+        .as_array()
+        .filter(|rows| rows.len() <= 1)
+        .ok_or("operator-inbox action read lacks bounded rows")?;
+    Ok(rows
+        .first()
+        .map(|row| row["event"]["payload"]["action"].clone()))
 }
 
 fn parse_pr_target(target: &str) -> Option<(String, u64)> {
@@ -1480,6 +1571,29 @@ fn work_candidates(loaded: &LoadedProfile, observations: &[Value]) -> Vec<Value>
         let Some(summary) = observation["summary"].as_str() else {
             continue;
         };
+        if matches!(observation["source_kind"].as_str(), Some("chat" | "mail"))
+            && let Some(thread) = observation["thread_locator"].as_str()
+        {
+            for route in &loaded.profile.work_routes {
+                if route.kind == "source_intake"
+                    && seen.insert((
+                        observation["source_ref"].to_string(),
+                        route.route_id.clone(),
+                        thread.to_owned(),
+                    ))
+                {
+                    candidates.push(json!({
+                        "source_ref":observation["source_ref"],
+                        "source_digest":observation["source_digest"],
+                        "route_id":route.route_id,
+                        "target_ref":thread
+                    }));
+                    if candidates.len() == 20 {
+                        return candidates;
+                    }
+                }
+            }
+        }
         for (start, _) in summary.match_indices("https://github.com/") {
             let raw = summary[start..]
                 .split(|ch: char| ch.is_whitespace() || "<>|#?".contains(ch))
@@ -1600,6 +1714,7 @@ fn admit_work(
             route_id: route_id.to_owned(),
             target_ref: target_ref.to_owned(),
             status: "pending".to_owned(),
+            retry_after_unix_seconds: 0,
             receipt: None,
             result: None,
         });
@@ -1616,12 +1731,7 @@ fn dispatch_pending_work(
     workspace: &WorkspaceEnv,
     record: &mut ControlRecord,
 ) -> Result<Value, String> {
-    let index = record
-        .state
-        .work
-        .iter()
-        .position(|item| item.status == "pending")
-        .ok_or("no pending assistant work")?;
+    let index = due_work_index(&record.state.work, now_seconds()).ok_or("no due assistant work")?;
     let item = record.state.work[index].clone();
     let route = loaded
         .profile
@@ -1629,16 +1739,6 @@ fn dispatch_pending_work(
         .iter()
         .find(|route| route.route_id == item.route_id)
         .ok_or("pending work route is no longer configured")?;
-    let (repository, number) = parse_pr_target(&item.target_ref)
-        .ok_or("pending work target is not a canonical GitHub pull request")?;
-    if route.kind != "github_pr_status"
-        || !route
-            .repositories
-            .iter()
-            .any(|allowed| allowed == &repository)
-    {
-        return Err("pending work target is outside its configured route".to_owned());
-    }
     let dispositions = current_dispositions(
         loaded,
         workspace,
@@ -1651,16 +1751,50 @@ fn dispatch_pending_work(
         .any(|state| state["disposition"] == "open")
     {
         record.state.work[index].status = "held".to_owned();
-        record.state.next_worker_due_unix_seconds = 0;
         write_control(loaded, workspace, record, "work_source_closed")?;
         return Ok(
             json!({"status":"work_held","work_id":item.id,"reason":"source action is no longer open"}),
         );
     }
-    let run_id = format!(
-        "run_assistant_work_{}",
-        item.id.trim_start_matches("sha256:")
-    );
+    let (result, receipt) = match route.kind.as_str() {
+        "github_pr_status" => {
+            let run_id = format!(
+                "run_assistant_work_{}",
+                item.id.trim_start_matches("sha256:")
+            );
+            run_pr_status(loaded, workspace, &item, route, &run_id)?
+        }
+        "source_intake" => {
+            run_source_intake(loaded, workspace, &item, &record.state.confirmed_memory)?
+        }
+        _ => return Err("pending work has an unsupported route".to_owned()),
+    };
+    record.state.work[index].status = "completed".to_owned();
+    record.state.work[index].receipt = Some(receipt.clone());
+    record.state.work[index].result = Some(result);
+    record.state.last_blocker = None;
+    write_control(loaded, workspace, record, "work_completed")?;
+    Ok(
+        json!({"status":"work_completed","work_id":item.id,"receipt":receipt,"result":record.state.work[index].result}),
+    )
+}
+
+fn run_pr_status(
+    loaded: &LoadedProfile,
+    workspace: &WorkspaceEnv,
+    item: &WorkAssignment,
+    route: &WorkRoute,
+    run_id: &str,
+) -> Result<(Value, String), String> {
+    let (repository, number) = parse_pr_target(&item.target_ref)
+        .ok_or("pending work target is not a canonical GitHub pull request")?;
+    if !route
+        .repositories
+        .iter()
+        .any(|allowed| allowed == &repository)
+    {
+        return Err("pending work target is outside its configured route".to_owned());
+    }
     let (output, receipt) = run_skill_with_id(
         loaded,
         workspace,
@@ -1670,7 +1804,7 @@ fn dispatch_pending_work(
         false,
         route.credential_profile.as_deref(),
         false,
-        Some(&run_id),
+        Some(run_id),
     )?;
     let result = &result_data(&output, "provider_operation")?["result"];
     let items = result["items"]
@@ -1692,32 +1826,383 @@ fn dispatch_pending_work(
         return Err("GitHub PR check lacks bounded repository readback".to_owned());
     }
     let bytes = serde_json::to_vec(result).map_err(|error| error.to_string())?;
-    record.state.work[index].status = "completed".to_owned();
-    record.state.work[index].receipt = Some(receipt.clone());
-    record.state.work[index].result = Some(json!({
-        "repository":repository,
-        "pull_ref":format!("pulls/{number}"),
-        "state":pr["state"],
-        "title":pr["title"],
-        "url":pr["url"],
-        "checked_at":now_iso8601(),
-        "result_digest":sha256_prefixed(&bytes)
-    }));
-    record.state.last_blocker = None;
-    record.state.next_worker_due_unix_seconds = if record
-        .state
-        .work
-        .iter()
-        .any(|work| work.status == "pending")
-    {
-        0
+    Ok((
+        json!({
+            "repository":repository,
+            "pull_ref":format!("pulls/{number}"),
+            "state":pr["state"],
+            "title":pr["title"],
+            "url":pr["url"],
+            "checked_at":now_iso8601(),
+            "result_digest":sha256_prefixed(&bytes)
+        }),
+        receipt,
+    ))
+}
+
+struct HydratedSource {
+    title: String,
+    body: String,
+    context: Value,
+    complete: bool,
+    receipts: Vec<String>,
+}
+
+fn bounded_mail_context(grounding: &Value) -> Result<(Vec<Value>, bool), String> {
+    let messages = grounding["messages"]
+        .as_array()
+        .filter(|messages| messages.len() <= 25)
+        .ok_or("mail intake returned an unbounded grounding window")?;
+    let mut complete = grounding["omitted_before"]["count"] == 0
+        && grounding["returned_count"].as_u64() == Some(messages.len() as u64);
+    let mut remaining = MAX_MAIL_CONTEXT_CHARS;
+    let mut context = Vec::with_capacity(messages.len());
+    for message in messages {
+        let body = message["text_body"].as_str().unwrap_or("");
+        let limit = remaining.min(4000);
+        let excerpt = body.chars().take(limit).collect::<String>();
+        remaining -= excerpt.chars().count();
+        if body.is_empty()
+            || body.chars().nth(limit).is_some()
+            || message["body_truncated"] != false
+            || !matches!(message["attachments"].as_array(), Some(attachments) if attachments.is_empty())
+        {
+            complete = false;
+        }
+        context.push(json!({
+            "id":message["id"],
+            "direction":message["direction"],
+            "occurred_at":message["occurred_at"],
+            "text_body":excerpt,
+        }));
+    }
+    Ok((context, complete))
+}
+
+fn run_source_intake(
+    loaded: &LoadedProfile,
+    workspace: &WorkspaceEnv,
+    item: &WorkAssignment,
+    memory: &[ConfirmedMemory],
+) -> Result<(Value, String), String> {
+    if item.target_ref != item.thread_locator {
+        return Err("source intake target differs from its recorded thread".to_owned());
+    }
+    let source = if item.source_ref.starts_with("slack://") {
+        hydrate_slack_source(loaded, workspace, item)?
+    } else if item.source_ref.starts_with("nitrosend://") {
+        hydrate_mail_source(loaded, workspace, item)?
     } else {
-        scheduled_due(loaded.profile.min_check_minutes)
+        return Err("source intake has an unsupported source locator".to_owned());
     };
-    write_control(loaded, workspace, record, "work_completed")?;
-    Ok(
-        json!({"status":"work_completed","work_id":item.id,"receipt":receipt,"result":record.state.work[index].result}),
-    )
+    let mut operator_context = loaded.profile.charter.clone();
+    for entry in memory {
+        operator_context.push_str("\nConfirmed operator context: ");
+        operator_context.push_str(&entry.text);
+    }
+    let (output, receipt) = run_skill(
+        loaded,
+        workspace,
+        "issue-intake",
+        "intake",
+        json!({
+            "thread_title":source.title,
+            "thread_body":source.body,
+            "thread_locator":item.thread_locator,
+            "thread":source.context,
+            "operator_context":operator_context,
+        }),
+        true,
+        None,
+        false,
+    )?;
+    let report = output
+        .pointer("/result/intake_report")
+        .filter(|value| value.is_object())
+        .ok_or("issue-intake did not return a validated intake report")?;
+    let summary = report["summary"]
+        .as_str()
+        .ok_or("intake report lacks summary")?;
+    let reply = report["suggested_reply"]
+        .as_str()
+        .ok_or("intake report lacks suggested reply")?;
+    let lane = report["recommended_lane"]
+        .as_str()
+        .ok_or("intake report lacks a lane")?;
+    let change_set = output
+        .pointer("/result/change_set")
+        .filter(|value| value.is_object())
+        .ok_or("issue-intake did not return its parent change set")?;
+    let change_set_id = change_set["change_set_id"]
+        .as_str()
+        .filter(|value| !value.is_empty() && value.len() <= 200)
+        .ok_or("intake change set lacks a bounded identity")?;
+    if change_set["thread_locator"] != item.thread_locator
+        || change_set["recommended_lane"] != lane
+        || change_set["category"] != report["category"]
+        || change_set["severity"] != report["severity"]
+    {
+        return Err("intake change set differs from its source or decision".to_owned());
+    }
+    if summary.len() > 1000
+        || reply.len() > 4000
+        || !matches!(
+            lane,
+            "issue-to-pr" | "work-plan" | "reply-only" | "manual-review"
+        )
+    {
+        return Err("intake report exceeds assistant's bounded handoff".to_owned());
+    }
+    let needs_human = report["needs_human"] == true || !source.complete;
+    let result = json!({
+        "kind":"source_intake",
+        "effect_status":"draft_only",
+        "summary":summary,
+        "suggested_reply":reply,
+        "recommended_lane":if source.complete { lane } else { "manual-review" },
+        "change_set_id":change_set_id,
+        "commence_decision":if needs_human { json!("needs_human") } else { change_set["commence_decision"].clone() },
+        "action_decision":if needs_human { json!("stop") } else { change_set["action_decision"].clone() },
+        "needs_human":needs_human,
+        "source_complete":source.complete,
+        "source_receipts":source.receipts,
+        "checked_at":now_iso8601(),
+    });
+    Ok((result, receipt))
+}
+
+fn hydrate_slack_source(
+    loaded: &LoadedProfile,
+    workspace: &WorkspaceEnv,
+    item: &WorkAssignment,
+) -> Result<HydratedSource, String> {
+    let tenant = item
+        .thread_locator
+        .strip_prefix("slack://")
+        .and_then(|rest| rest.split('/').next())
+        .filter(|value| !value.is_empty())
+        .ok_or("source intake has an invalid Slack thread locator")?;
+    let action = read_action_state(loaded, workspace, &item.thread_locator)?
+        .ok_or("Slack intake has no canonical operator-inbox action")?;
+    let latest = &action["latest_message"];
+    if action["status"] != "open"
+        || action["thread_locator"] != item.thread_locator
+        || latest["message_locator"] != item.source_ref
+    {
+        return Err("Slack intake source differs from its canonical open action".to_owned());
+    }
+    let mut cursor: Option<String> = None;
+    let mut receipts = Vec::new();
+    let mut messages_context = Vec::new();
+    let mut source: Option<String> = None;
+    let mut connected_subject = None;
+    let mut complete = false;
+    let mut truncated = false;
+    for _ in 0..3 {
+        let mut inputs = json!({"thread_locator":item.thread_locator,"limit":15});
+        if let Some(value) = cursor.as_ref() {
+            inputs["cursor"] = json!(value);
+        }
+        let (output, receipt) = run_skill(
+            loaded,
+            workspace,
+            "slack",
+            "read_thread",
+            inputs,
+            false,
+            None,
+            false,
+        )?;
+        let page = &result_data(&output, "provider_operation")?["result"];
+        let observed_tenant = page["external_tenant_ref"].as_str();
+        if page["thread_locator"] != item.thread_locator
+            || !matches!(observed_tenant, Some(value) if value == tenant || value == format!("slack:workspace:{tenant}"))
+            || action["external_tenant_ref"] != page["external_tenant_ref"]
+        {
+            return Err(
+                "Slack intake readback differs from the recorded thread or tenant".to_owned(),
+            );
+        }
+        let subject = page["connected_subject_ref"]
+            .as_str()
+            .filter(|value| !value.is_empty())
+            .ok_or("Slack intake lacks connected subject")?;
+        if connected_subject
+            .as_deref()
+            .is_some_and(|previous| previous != subject)
+        {
+            return Err("Slack intake changed connected subject during hydration".to_owned());
+        }
+        connected_subject = Some(subject.to_owned());
+        if action["connected_subject_ref"] != subject {
+            return Err("Slack intake action differs from the connected subject".to_owned());
+        }
+        let messages = page["messages"]
+            .as_array()
+            .filter(|messages| messages.len() <= 15)
+            .ok_or("Slack intake returned an unbounded thread page")?;
+        let channel = item
+            .thread_locator
+            .rsplit_once('/')
+            .map(|(channel, _)| channel)
+            .ok_or("Slack intake target lacks a channel")?;
+        for message in messages {
+            if !message["message_locator"]
+                .as_str()
+                .is_some_and(|locator| locator.starts_with(&format!("{channel}/")))
+            {
+                return Err("Slack intake page contains another channel".to_owned());
+            }
+            if let Some(preview) = message["preview"].as_str() {
+                if preview.chars().nth(1000).is_some()
+                    || messages_context.len() >= 30
+                    || message["occurred_at"].as_str().is_none()
+                    || message["author"]["external_id"].as_str().is_none()
+                {
+                    truncated = true;
+                }
+                if messages_context.len() < 30 {
+                    messages_context.push(json!({
+                        "message_locator":message["message_locator"],
+                        "occurred_at":message["occurred_at"],
+                        "author":message["author"],
+                        "is_self":message["author"]["external_id"] == subject,
+                        "preview":preview.chars().take(1000).collect::<String>(),
+                    }));
+                }
+            } else {
+                truncated = true;
+            }
+            if message["message_locator"] == item.source_ref {
+                // Search and thread previews can render markup differently.
+                // The queue digest identifies the selected occurrence; the
+                // fresh read is bound by tenant, locator, time, and author.
+                if message_for_queue(message)?["occurred_at"] != latest["occurred_at"] {
+                    return Err("Slack intake source occurrence time changed".to_owned());
+                }
+                if message["author"]["external_id"] != action["requester"]["external_id"]
+                    || message["author"]["external_id"] == subject
+                {
+                    return Err("Slack intake source author changed or is self-authored".to_owned());
+                }
+                source = message["preview"]
+                    .as_str()
+                    .map(|preview| preview.chars().take(1000).collect());
+            }
+        }
+        receipts.push(receipt);
+        cursor = page["next_cursor"]
+            .as_str()
+            .filter(|value| !value.is_empty())
+            .map(str::to_owned);
+        complete = cursor.is_none() && !truncated;
+        if cursor.is_none() {
+            break;
+        }
+    }
+    let body = source.ok_or("Slack intake source was not found in three bounded thread pages")?;
+    let title = body
+        .lines()
+        .next()
+        .unwrap_or("Slack request")
+        .chars()
+        .take(200)
+        .collect();
+    Ok(HydratedSource {
+        title,
+        body,
+        context: json!({"provider":"slack","thread_locator":item.thread_locator,"source_ref":item.source_ref,"source_digest":item.source_digest,"messages":messages_context,"coverage_incomplete":!complete}),
+        complete,
+        receipts,
+    })
+}
+
+fn hydrate_mail_source(
+    loaded: &LoadedProfile,
+    workspace: &WorkspaceEnv,
+    item: &WorkAssignment,
+) -> Result<HydratedSource, String> {
+    let rest = item
+        .thread_locator
+        .strip_prefix("nitrosend://")
+        .ok_or("source intake has an invalid mail thread locator")?;
+    let (brand_sid, conversation) = rest
+        .split_once('/')
+        .ok_or("source intake has an invalid mail conversation")?;
+    let conversation_id = conversation
+        .parse::<u64>()
+        .ok()
+        .filter(|id| *id > 0)
+        .ok_or("source intake has an invalid mail conversation id")?;
+    let source = loaded
+        .profile
+        .sources
+        .iter()
+        .find_map(|source| match source {
+            SourceProfile::NitrosendInbox {
+                brand_sid: configured,
+                credential_profile,
+                ..
+            } if configured == brand_sid => Some(credential_profile.as_deref()),
+            _ => None,
+        })
+        .ok_or("mail intake brand is outside configured sources")?;
+    let (output, receipt) = run_skill(
+        loaded,
+        workspace,
+        "nitrosend",
+        "inbox",
+        json!({"command":"get_thread","arguments":{"conversation_id":conversation_id},"brand_sid":brand_sid}),
+        false,
+        source,
+        false,
+    )?;
+    let thread = nitrosend_read_result(&output)?;
+    let detail = &thread["thread"];
+    let row = json!({
+        "conversation_id":conversation_id,
+        "last_message_at":detail["last_message_at"],
+        "updated_at":detail["updated_at"],
+        "subject":detail["subject"],
+        "preview":detail["preview"],
+    });
+    let (observation, _) = normalize_mail_observation(brand_sid, &row, thread)
+        .ok_or("mail intake thread cannot be grounded to its latest message")?;
+    if observation["source_ref"] != item.source_ref
+        || observation["source_digest"] != item.source_digest
+    {
+        return Err("mail intake source changed after observation".to_owned());
+    }
+    let message_id = item
+        .source_ref
+        .rsplit('/')
+        .next()
+        .and_then(|id| id.parse::<u64>().ok())
+        .ok_or("mail intake has an invalid source message")?;
+    let grounding = &thread["thread_grounding"];
+    let (messages, context_complete) = bounded_mail_context(grounding)?;
+    let message = grounding["messages"]
+        .as_array()
+        .and_then(|messages| messages.iter().find(|message| message["id"] == message_id))
+        .ok_or("mail intake source is absent from grounded thread")?;
+    let body = message["text_body"]
+        .as_str()
+        .filter(|body| !body.trim().is_empty())
+        .ok_or("mail intake source has no grounded body")?;
+    let complete =
+        context_complete && message["body_truncated"] == false && body.chars().nth(4000).is_none();
+    Ok(HydratedSource {
+        title: detail["subject"]
+            .as_str()
+            .unwrap_or("Mail request")
+            .chars()
+            .take(200)
+            .collect(),
+        body: body.chars().take(4000).collect(),
+        context: json!({"provider":"nitrosend","thread_locator":item.thread_locator,"source_ref":item.source_ref,"source_digest":item.source_digest,"source_message_id":message_id,"messages":messages,"omitted_before_count":grounding["omitted_before"]["count"],"coverage_incomplete":!complete}),
+        complete,
+        receipts: vec![receipt],
+    })
 }
 
 fn render_notification_plain_text(text: &str) -> String {
@@ -1911,7 +2396,7 @@ fn prepare_notification(
     });
     record.state.pending_turn = None;
     record.state.next_due_unix_seconds = scheduled_due(loaded.profile.min_check_minutes);
-    record.state.next_worker_due_unix_seconds = 0;
+    record.state.next_delivery_due_unix_seconds = 0;
     write_control(loaded, workspace, record, "notification_intent")?;
     Ok(json!({"status":"notification_pending","material_digest":material_digest}))
 }
@@ -1922,11 +2407,11 @@ fn deliver_pending(
     record: &mut ControlRecord,
 ) -> Result<Value, String> {
     if quiet_at(loaded.profile.quiet_hours.as_ref(), now_seconds()) {
-        record.state.next_worker_due_unix_seconds = next_allowed_at(loaded, now_seconds());
+        record.state.next_delivery_due_unix_seconds = next_allowed_at(loaded, now_seconds());
         write_control(loaded, workspace, record, "quiet_delivery")?;
         return Ok(json!({
             "status":"quiet_delivery",
-            "next_worker_due_unix_seconds":record.state.next_worker_due_unix_seconds
+            "next_delivery_due_unix_seconds":record.state.next_delivery_due_unix_seconds
         }));
     }
     let pending = record
@@ -1982,11 +2467,11 @@ fn deliver_pending(
         mark_handled(&mut record.state, digest);
     }
     record.state.pending_intent = None;
+    record.state.next_delivery_due_unix_seconds = 0;
     record.state.active_run_id = None;
     if !record.state.deferred_turns.is_empty() {
         record.state.next_due_unix_seconds = 0;
     }
-    record.state.next_worker_due_unix_seconds = 0;
     write_control(loaded, workspace, record, "delivered")?;
     Ok(json!({"status":"delivered","receipt":receipt}))
 }
@@ -2575,12 +3060,79 @@ mod tests {
     use serde_json::json;
 
     use super::{
-        DeferredTurn, PendingTurn, message_for_queue, normalize_mail_observation,
-        notification_uuid, page_cursor, parse_pr_target, private_notification_text,
-        private_text_is_safe, quiet_hour, scan_continuation_from_value, unreviewed_digests,
-        verified_notification_readback,
+        DeferredTurn, PendingTurn, WorkAssignment, WorkerLane, bounded_mail_context,
+        due_work_index, due_worker_lane, message_for_queue, next_work_due,
+        normalize_mail_observation, notification_uuid, page_cursor, parse_pr_target,
+        private_notification_text, private_text_is_safe, quiet_hour, scan_continuation_from_value,
+        unreviewed_digests, verified_notification_readback,
     };
     use crate::assistant::QuietHours;
+
+    #[test]
+    fn held_delivery_does_not_starve_due_assignment() {
+        assert_eq!(
+            due_worker_lane(Some(120), Some(0), 60),
+            Some(WorkerLane::Assignment)
+        );
+        assert_eq!(
+            due_worker_lane(Some(0), Some(0), 60),
+            Some(WorkerLane::Delivery)
+        );
+        assert_eq!(due_worker_lane(Some(120), Some(120), 60), None);
+        assert_eq!(due_worker_lane(None, None, 60), None);
+    }
+
+    #[test]
+    fn failed_assignment_waits_without_blocking_another_due_item() -> Result<(), String> {
+        let old: WorkAssignment = serde_json::from_value(json!({
+            "id":"first", "source_ref":"slack://one", "source_digest":"digest",
+            "thread_locator":"slack://thread", "route_id":"intake",
+            "target_ref":"slack://thread", "status":"pending",
+            "receipt":null, "result":null
+        }))
+        .map_err(|error| error.to_string())?;
+        assert_eq!(old.retry_after_unix_seconds, 0);
+        let mut work = vec![
+            old.clone(),
+            WorkAssignment {
+                id: "second".to_owned(),
+                ..old
+            },
+        ];
+        work[0].retry_after_unix_seconds = 120;
+        assert_eq!(next_work_due(&work), Some(0));
+        assert_eq!(due_work_index(&work, 60), Some(1));
+        work[1].status = "completed".to_owned();
+        assert_eq!(next_work_due(&work), Some(120));
+        assert_eq!(due_work_index(&work, 60), None);
+        assert_eq!(due_work_index(&work, 120), Some(0));
+        Ok(())
+    }
+
+    #[test]
+    fn mail_context_is_complete_only_when_all_grounded_messages_are_available() -> Result<(), String>
+    {
+        let mut grounding = json!({
+            "returned_count":2,
+            "omitted_before":{"count":0},
+            "messages":[
+                {"id":1,"direction":"inbound","occurred_at":"2026-10-01T00:00:00Z","text_body":"Question","body_truncated":false,"attachments":[]},
+                {"id":2,"direction":"outbound","occurred_at":"2026-10-01T01:00:00Z","text_body":"Answer","body_truncated":false,"attachments":[]}
+            ]
+        });
+        let (messages, complete) = bounded_mail_context(&grounding)?;
+        assert!(complete);
+        assert_eq!(messages.len(), 2);
+        grounding["omitted_before"]["count"] = json!(1);
+        assert!(!bounded_mail_context(&grounding)?.1);
+        grounding["omitted_before"]["count"] = json!(0);
+        grounding["messages"][0]["body_truncated"] = json!(true);
+        assert!(!bounded_mail_context(&grounding)?.1);
+        grounding["messages"][0]["body_truncated"] = json!(false);
+        grounding["messages"][0]["attachments"] = json!([{"name":"file"}]);
+        assert!(!bounded_mail_context(&grounding)?.1);
+        Ok(())
+    }
 
     #[test]
     fn pending_delivery_preserves_only_new_attention_and_old_turns_decode() -> Result<(), String> {

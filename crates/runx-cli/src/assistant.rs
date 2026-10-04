@@ -219,8 +219,27 @@ impl SourceProfile {
 pub(super) struct ModelProfile {
     pub(super) model: String,
     pub(super) endpoint_url: String,
+    #[serde(default)]
+    pub(super) auth_mode: ModelAuthMode,
     #[serde(default = "default_model_rounds")]
     pub(super) max_rounds: u32,
+}
+
+#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub(super) enum ModelAuthMode {
+    #[default]
+    LocalNone,
+    ApiKey,
+}
+
+impl ModelAuthMode {
+    const fn as_str(self) -> &'static str {
+        match self {
+            Self::LocalNone => "local_none",
+            Self::ApiKey => "api_key",
+        }
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -241,7 +260,9 @@ pub(super) struct NotificationProfile {
 pub(super) struct WorkRoute {
     pub(super) route_id: String,
     pub(super) kind: String,
+    #[serde(default)]
     pub(super) repositories: Vec<String>,
+    #[serde(default)]
     pub(super) credential_profile: Option<String>,
 }
 
@@ -308,11 +329,11 @@ fn load_profile(path: &Path, workspace: &WorkspaceEnv) -> Result<LoadedProfile, 
         .map_err(|error| format!("assistant profile JSON is invalid: {error}"))?;
     validate_profile(&profile)?;
     runx_runtime::load_managed_agent_config(
-        &model_environment(&profile, workspace),
+        &model_environment(&profile, workspace)?,
         workspace.cwd(),
     )
-    .map_err(|error| format!("assistant local model configuration is invalid: {error}"))?
-    .ok_or("assistant local model configuration is incomplete")?;
+    .map_err(|error| format!("assistant model configuration is invalid: {error}"))?
+    .ok_or("assistant model configuration is incomplete")?;
     let source_bytes = serde_json::to_vec(&profile.sources)
         .map_err(|error| format!("encoding assistant source roster: {error}"))?;
     let source_set_digest = sha256_prefixed(&source_bytes);
@@ -329,7 +350,17 @@ fn load_profile(path: &Path, workspace: &WorkspaceEnv) -> Result<LoadedProfile, 
         });
     }
     if !profile.work_routes.is_empty() {
-        names.insert("github-sync");
+        for route in &profile.work_routes {
+            match route.kind.as_str() {
+                "github_pr_status" => {
+                    names.insert("github-sync");
+                }
+                "source_intake" => {
+                    names.insert("issue-intake");
+                }
+                _ => {}
+            }
+        }
     }
     let mut skill_bindings = Vec::new();
     for name in names {
@@ -460,13 +491,10 @@ fn validate_profile(profile: &AssistantProfile) -> Result<(), String> {
         if !valid_identifier(&route.route_id) || !route_ids.insert(&route.route_id) {
             return Err("assistant work route IDs must be unique bounded identifiers".to_owned());
         }
-        if route.kind != "github_pr_status"
-            || route.repositories.is_empty()
-            || route.repositories.len() > 8
-        {
-            return Err(
-                "assistant V1 work routes require github_pr_status and 1-8 repositories".to_owned(),
-            );
+        match route.kind.as_str() {
+            "github_pr_status" if !route.repositories.is_empty() && route.repositories.len() <= 8 => {}
+            "source_intake" if route.repositories.is_empty() && route.credential_profile.is_none() => {}
+            _ => return Err("assistant work route must be github_pr_status with 1-8 repositories or source_intake with no repository or credential override".to_owned()),
         }
         let mut repositories = BTreeSet::new();
         for repository in &route.repositories {
@@ -669,16 +697,40 @@ fn run_assistant_command(
 pub(super) fn model_environment(
     profile: &AssistantProfile,
     workspace: &WorkspaceEnv,
-) -> BTreeMap<String, String> {
+) -> Result<BTreeMap<String, String>, String> {
     let mut env = workspace.env().clone();
+    apply_model_profile(&mut env, &profile.model)?;
+    Ok(env)
+}
+
+fn apply_model_profile(
+    env: &mut BTreeMap<String, String>,
+    model: &ModelProfile,
+) -> Result<(), String> {
+    if model.auth_mode == ModelAuthMode::ApiKey
+        && env
+            .get("RUNX_AGENT_API_KEY")
+            .is_none_or(|key| key.trim().is_empty())
+    {
+        return Err("remote assistant model requires an explicit RUNX_AGENT_API_KEY".to_owned());
+    }
+    // The configured endpoint may belong to another API vendor. Do not send an
+    // unrelated ambient OpenAI key there through the generic fallback.
+    env.remove("OPENAI_API_KEY");
+    if model.auth_mode == ModelAuthMode::LocalNone {
+        env.remove("RUNX_AGENT_API_KEY");
+    }
     env.insert("RUNX_AGENT_PROVIDER".to_owned(), "openai".to_owned());
-    env.insert("RUNX_AGENT_AUTH_MODE".to_owned(), "local_none".to_owned());
-    env.insert("RUNX_AGENT_MODEL".to_owned(), profile.model.model.clone());
+    env.insert(
+        "RUNX_AGENT_AUTH_MODE".to_owned(),
+        model.auth_mode.as_str().to_owned(),
+    );
+    env.insert("RUNX_AGENT_MODEL".to_owned(), model.model.clone());
     env.insert(
         "RUNX_AGENT_ENDPOINT_URL".to_owned(),
-        profile.model.endpoint_url.clone(),
+        model.endpoint_url.clone(),
     );
-    env
+    Ok(())
 }
 
 #[cfg(test)]
@@ -687,7 +739,10 @@ mod tests {
 
     use serde_json::json;
 
-    use super::{AssistantProfile, ModelProfile, SourceProfile, validate_profile};
+    use super::{
+        AssistantProfile, ModelAuthMode, ModelProfile, SourceProfile, apply_model_profile,
+        validate_profile,
+    };
 
     #[test]
     fn source_pages_cannot_exceed_queue_commit_capacity() {
@@ -717,6 +772,7 @@ mod tests {
             model: ModelProfile {
                 model: "local-model".to_owned(),
                 endpoint_url: "http://127.0.0.1:18081/v1/chat/completions".to_owned(),
+                auth_mode: ModelAuthMode::LocalNone,
                 max_rounds: 4,
             },
             notification: None,
@@ -740,5 +796,65 @@ mod tests {
             validate_profile(&profile),
             Err(message) if message.contains("full rows")
         ));
+    }
+
+    #[test]
+    fn operator_pinned_model_uses_configured_auth_mode() -> Result<(), String> {
+        let legacy: ModelProfile = serde_json::from_value(json!({
+            "model":"chosen-local-model",
+            "endpoint_url":"http://127.0.0.1:18082/v1/chat/completions",
+            "max_rounds":4
+        }))
+        .map_err(|error| format!("legacy profile must decode: {error}"))?;
+        assert_eq!(legacy.auth_mode, ModelAuthMode::LocalNone);
+        let mut env = std::collections::BTreeMap::from([
+            ("RUNX_AGENT_API_KEY".to_owned(), "remote-secret".to_owned()),
+            ("OPENAI_API_KEY".to_owned(), "other-secret".to_owned()),
+        ]);
+        let mut model = ModelProfile {
+            model: "chosen-local-model".to_owned(),
+            endpoint_url: "http://127.0.0.1:18082/v1/chat/completions".to_owned(),
+            auth_mode: ModelAuthMode::LocalNone,
+            max_rounds: 4,
+        };
+        apply_model_profile(&mut env, &model)?;
+        assert_eq!(
+            env.get("RUNX_AGENT_MODEL").map(String::as_str),
+            Some("chosen-local-model")
+        );
+        assert_eq!(
+            env.get("RUNX_AGENT_AUTH_MODE").map(String::as_str),
+            Some("local_none")
+        );
+        assert!(!env.contains_key("RUNX_AGENT_API_KEY"));
+        assert!(!env.contains_key("OPENAI_API_KEY"));
+
+        model.model = "chosen-remote-model".to_owned();
+        model.endpoint_url = "https://example.test/v1/chat/completions".to_owned();
+        model.auth_mode = ModelAuthMode::ApiKey;
+        assert!(
+            apply_model_profile(&mut env, &model)
+                .is_err_and(|error| error.contains("explicit RUNX_AGENT_API_KEY"))
+        );
+        env.insert("RUNX_AGENT_API_KEY".to_owned(), "remote-secret".to_owned());
+        apply_model_profile(&mut env, &model)?;
+        assert_eq!(
+            env.get("RUNX_AGENT_MODEL").map(String::as_str),
+            Some("chosen-remote-model")
+        );
+        assert_eq!(
+            env.get("RUNX_AGENT_AUTH_MODE").map(String::as_str),
+            Some("api_key")
+        );
+        assert_eq!(
+            env.get("RUNX_AGENT_API_KEY").map(String::as_str),
+            Some("remote-secret")
+        );
+        assert!(!env.contains_key("OPENAI_API_KEY"));
+        assert_eq!(
+            env.get("RUNX_AGENT_ENDPOINT_URL").map(String::as_str),
+            Some("https://example.test/v1/chat/completions")
+        );
+        Ok(())
     }
 }

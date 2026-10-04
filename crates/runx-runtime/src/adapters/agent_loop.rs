@@ -434,9 +434,14 @@ fn validate_final_result(config: &AgentLoopConfig, value: &JsonValue) -> Result<
         .map_err(|error| format!("$: exact output schema is invalid: {error}"))?;
     let instance = serde_json::to_value(value)
         .map_err(|error| format!("$: final result could not be serialized: {error}"))?;
-    validator
-        .validate(&instance)
-        .map_err(|error| error.to_string())
+    validator.validate(&instance).map_err(|error| {
+        let path = error.instance_path();
+        if path.is_empty() {
+            format!("$: {error}")
+        } else {
+            format!("${path}: {error}")
+        }
+    })
 }
 
 #[cfg(test)]
@@ -446,6 +451,36 @@ mod tests {
     use super::*;
     use crate::adapter::InvocationOutput;
     use runx_contracts::{JsonObject, JsonValue, OutputField, OutputType};
+
+    #[test]
+    fn exact_output_contract_error_identifies_nested_field() -> Result<(), String> {
+        let config = AgentLoopConfig {
+            max_rounds: 1,
+            max_empty_turn_resamples: 0,
+            final_result_tool: FINAL.to_owned(),
+            final_result_output: None,
+            final_result_schema: Some(
+                serde_json::from_value(serde_json::json!({
+                    "type":"object",
+                    "properties": {"change_set": {
+                        "type":"object",
+                        "required":["severity"],
+                        "properties":{"severity":{"type":"string"}}
+                    }}
+                }))
+                .map_err(|error| error.to_string())?,
+            ),
+        };
+        let error = validate_final_result(
+            &config,
+            &serde_json::from_value(serde_json::json!({"change_set":{}}))
+                .map_err(|error| error.to_string())?,
+        )
+        .err()
+        .ok_or("missing nested field must fail")?;
+        assert!(error.starts_with("$/change_set: \"severity\" is a required property"));
+        Ok(())
+    }
 
     const FINAL: &str = "runx_final_result";
 
