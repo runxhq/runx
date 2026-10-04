@@ -10,14 +10,15 @@ use runx_contracts::{
 use runx_parser::GraphStep;
 use runx_runtime::effects::ResolvedEffectTarget;
 use runx_runtime::{
-    EffectOutputRequest, EffectPreparationOutcome, EffectStepRequest, Host, InvocationOutput,
-    LocalReceiptStore, NOTIFICATION_AUTHORITY_ID_ENV, NOTIFICATION_SOURCE_SET_DIGEST_ENV,
-    NotificationAuthorityGrant, NotificationAuthorityGrantSpec, PROVIDER_MUTATE_TOOL,
-    PROVIDER_PERMISSION_EFFECT_FAMILY, PROVIDER_PERMISSION_GRANT_ID_ENV,
-    PROVIDER_PERMISSION_GRANTED_SCOPES_ENV, PROVIDER_PERMISSION_PAID_EXTERNAL_JOB_AUTHORITY_ENV,
-    PROVIDER_PERMISSION_PRINCIPAL_REF_ENV, PROVIDER_READ_TOOL, ProviderApprovalEvidence,
-    ProviderEffectAuthority, ProviderEffectClass, ProviderEffectIntent, ProviderEffectIntentInput,
-    ProviderEffectResolved, ProviderPermissionEffect, RuntimeEffect, RuntimeError,
+    ASSISTANT_CONFIDENTIAL_TERMS_ENV, ASSISTANT_REQUIRE_MUTATION_APPROVAL_ENV, EffectOutputRequest,
+    EffectPreparationOutcome, EffectStepRequest, Host, InvocationOutput, LocalReceiptStore,
+    NOTIFICATION_AUTHORITY_ID_ENV, NOTIFICATION_SOURCE_SET_DIGEST_ENV, NotificationAuthorityGrant,
+    NotificationAuthorityGrantSpec, PROVIDER_MUTATE_TOOL, PROVIDER_PERMISSION_EFFECT_FAMILY,
+    PROVIDER_PERMISSION_GRANT_ID_ENV, PROVIDER_PERMISSION_GRANTED_SCOPES_ENV,
+    PROVIDER_PERMISSION_PAID_EXTERNAL_JOB_AUTHORITY_ENV, PROVIDER_PERMISSION_PRINCIPAL_REF_ENV,
+    PROVIDER_READ_TOOL, ProviderApprovalEvidence, ProviderEffectAuthority, ProviderEffectClass,
+    ProviderEffectIntent, ProviderEffectIntentInput, ProviderEffectResolved,
+    ProviderPermissionEffect, RuntimeEffect, RuntimeEffectError, RuntimeError,
     encode_provider_scopes_env, install_notification_authority, notification_authority_status,
     revoke_notification_authority,
 };
@@ -231,6 +232,61 @@ fn unrelated_provider_mutation_uses_its_grant_when_no_approval_is_requested() {
 }
 
 #[test]
+fn assistant_provider_mutation_waits_for_an_exact_human_decision() {
+    let mut inputs = provider_inputs(PROVIDER_MUTATE_TOOL, JsonObject::new());
+    inputs.remove("approval");
+    inputs.insert(
+        "operation".to_owned(),
+        JsonValue::String("thread.reply".to_owned()),
+    );
+    let mut step = provider_step(PROVIDER_MUTATE_TOOL, "write");
+    step.scopes = vec!["thread.reply".to_owned()];
+    let mut env = provider_env();
+    env.insert(
+        PROVIDER_PERMISSION_GRANTED_SCOPES_ENV.to_owned(),
+        encode_provider_scopes_env(&["thread.reply".to_owned()]).expect("scope transport"),
+    );
+    env.insert(
+        ASSISTANT_REQUIRE_MUTATION_APPROVAL_ENV.to_owned(),
+        "required".to_owned(),
+    );
+    env.insert(ASSISTANT_CONFIDENTIAL_TERMS_ENV.to_owned(), "[]".to_owned());
+    let effect = ProviderPermissionEffect::default();
+
+    let pending = effect
+        .admit(effect_request(&step, &inputs, &env))
+        .expect("provider admission")
+        .expect("owned provider effect");
+    let mut unattended = RecordingHost::default();
+    assert!(matches!(
+        effect.prepare_execution(&step, pending, &mut unattended),
+        Ok(EffectPreparationOutcome::Pending { .. })
+    ));
+    assert_eq!(unattended.requests.len(), 1);
+
+    let forged = effect
+        .admit(effect_request(&step, &inputs, &env))
+        .expect("provider admission")
+        .expect("owned provider effect");
+    let mut agent = RecordingHost::agent_approving();
+    let refusal = effect
+        .prepare_execution(&step, forged, &mut agent)
+        .expect_err("agent-authored approval must not authorize a reply");
+    assert!(refusal.to_string().contains("host-attested human"));
+
+    let approved = effect
+        .admit(effect_request(&step, &inputs, &env))
+        .expect("provider admission")
+        .expect("owned provider effect");
+    let mut human = RecordingHost::approving();
+    assert!(matches!(
+        effect.prepare_execution(&step, approved, &mut human),
+        Ok(EffectPreparationOutcome::Ready(_))
+    ));
+    assert_eq!(human.requests.len(), 1);
+}
+
+#[test]
 fn slack_channel_post_cannot_bypass_authorization_by_omitting_approval_metadata() {
     let mut inputs = provider_inputs(PROVIDER_MUTATE_TOOL, JsonObject::new());
     inputs.remove("approval");
@@ -322,6 +378,11 @@ fn standing_notification_authority_admits_only_the_pinned_private_post()
         NOTIFICATION_SOURCE_SET_DIGEST_ENV.to_owned(),
         SOURCE_SET.to_owned(),
     );
+    env.insert(
+        ASSISTANT_REQUIRE_MUTATION_APPROVAL_ENV.to_owned(),
+        "required".to_owned(),
+    );
+    env.insert(ASSISTANT_CONFIDENTIAL_TERMS_ENV.to_owned(), "[]".to_owned());
     let payload = JsonObject::from([
         (
             "channel_locator".to_owned(),
@@ -548,6 +609,34 @@ fn paid_external_job_authority_executes_only_the_pinned_provider_mutation() {
         reference.uri.as_str() == "runx:external-job:job-1"
             && reference.proof_kind == Some(ProofKind::EffectEvidence)
     }));
+}
+
+#[test]
+fn assistant_mutation_rejects_paid_job_authority_instead_of_skipping_human_approval() {
+    let mut inputs = provider_inputs(PROVIDER_MUTATE_TOOL, JsonObject::new());
+    inputs.insert(
+        "operation".to_owned(),
+        JsonValue::String("thread.reply".to_owned()),
+    );
+    let mut step = provider_step(PROVIDER_MUTATE_TOOL, "write");
+    step.scopes = vec!["thread.reply".to_owned()];
+    let mut env = provider_env();
+    env.insert(
+        PROVIDER_PERMISSION_GRANTED_SCOPES_ENV.to_owned(),
+        encode_provider_scopes_env(&["thread.reply".to_owned()]).expect("scope transport"),
+    );
+    env.insert(
+        PROVIDER_PERMISSION_PAID_EXTERNAL_JOB_AUTHORITY_ENV.to_owned(),
+        paid_external_job_authority(PRINCIPAL_REF),
+    );
+    env.insert(
+        ASSISTANT_REQUIRE_MUTATION_APPROVAL_ENV.to_owned(),
+        "required".to_owned(),
+    );
+    env.insert(ASSISTANT_CONFIDENTIAL_TERMS_ENV.to_owned(), "[]".to_owned());
+    let effect = ProviderPermissionEffect::default();
+    let denied = effect.admit(effect_request(&step, &inputs, &env));
+    assert!(matches!(denied, Err(RuntimeEffectError::Denied { .. })));
 }
 
 #[test]

@@ -22,21 +22,22 @@ pub use provider_effect::{
     ProviderEffectReadback, ProviderEffectReadbackEvidence, ProviderEffectResolved,
     ProviderEffectUnknown,
 };
-#[cfg(feature = "catalog")]
 pub use provider_permission::{
-    LocalProviderTransportReadiness, ProviderTransportPreference,
-    preflight_local_provider_transport, resolve_provider_transport_preference,
-};
-pub use provider_permission::{
+    ASSISTANT_CONFIDENTIAL_TERMS_ENV, ASSISTANT_REQUIRE_MUTATION_APPROVAL_ENV,
     NOTIFICATION_AUTHORITY_ID_ENV, NOTIFICATION_SOURCE_SET_DIGEST_ENV, NotificationAuthorityError,
     NotificationAuthorityGrant, NotificationAuthorityGrantSpec, NotificationAuthorityStatus,
     PROVIDER_MUTATE_TOOL, PROVIDER_PERMISSION_EFFECT_FAMILY, PROVIDER_PERMISSION_GRANT_ID_ENV,
     PROVIDER_PERMISSION_GRANTED_SCOPES_ENV, PROVIDER_PERMISSION_PAID_EXTERNAL_JOB_AUTHORITY_ENV,
     PROVIDER_PERMISSION_PRINCIPAL_REF_ENV, PROVIDER_PERMISSION_TRANSPORT_ENV, PROVIDER_READ_TOOL,
     ProviderPermissionAdmission, ProviderPermissionEffect, ProviderScopeTransportError,
-    decode_provider_scopes_env, encode_provider_scopes_env, install_notification_authority,
-    notification_authority_status, notification_intent_has_reservation,
-    revoke_notification_authority,
+    assistant_text_is_safe, decode_provider_scopes_env, encode_provider_scopes_env,
+    install_notification_authority, notification_authority_status,
+    notification_intent_has_reservation, revoke_notification_authority,
+};
+#[cfg(feature = "catalog")]
+pub use provider_permission::{
+    LocalProviderTransportReadiness, ProviderTransportPreference,
+    preflight_local_provider_transport, resolve_provider_transport_preference,
 };
 pub use registry::RuntimeEffectRegistry;
 pub use state::{EffectAdmission, EffectReplay};

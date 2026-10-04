@@ -11,11 +11,12 @@ use chrono::{DateTime, Local, SecondsFormat, TimeZone, Timelike, Utc};
 use ring::rand::{SecureRandom, SystemRandom};
 use runx_contracts::sha256_prefixed;
 use runx_runtime::{
-    ManagedAgentPolicy, NOTIFICATION_AUTHORITY_ID_ENV, NOTIFICATION_SOURCE_SET_DIGEST_ENV,
+    ASSISTANT_CONFIDENTIAL_TERMS_ENV, ASSISTANT_REQUIRE_MUTATION_APPROVAL_ENV, ManagedAgentPolicy,
+    NOTIFICATION_AUTHORITY_ID_ENV, NOTIFICATION_SOURCE_SET_DIGEST_ENV,
     PROVIDER_PERMISSION_GRANT_ID_ENV, PROVIDER_PERMISSION_GRANTED_SCOPES_ENV,
     PROVIDER_PERMISSION_PRINCIPAL_REF_ENV, SkillRunRequest, WorkspaceEnv,
-    encode_provider_scopes_env, now_iso8601, resolve_project_runx_dir, resolve_runx_workspace_base,
-    resolve_skill_credential_for_path,
+    assistant_text_is_safe as private_text_is_safe, encode_provider_scopes_env, now_iso8601,
+    resolve_project_runx_dir, resolve_runx_workspace_base, resolve_skill_credential_for_path,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -295,6 +296,15 @@ fn run_skill_with_id(
     } else {
         workspace.env().clone()
     };
+    env.insert(
+        ASSISTANT_REQUIRE_MUTATION_APPROVAL_ENV.to_owned(),
+        "required".to_owned(),
+    );
+    env.insert(
+        ASSISTANT_CONFIDENTIAL_TERMS_ENV.to_owned(),
+        serde_json::to_string(&loaded.profile.confidential_terms)
+            .map_err(|error| format!("encoding assistant egress policy: {error}"))?,
+    );
     if delivery {
         let notify = loaded
             .profile
@@ -1814,28 +1824,6 @@ fn has_active_notification_mention(text: &str) -> bool {
         .any(|needle| text.contains(needle))
 }
 
-fn percent_decode_once(text: &str) -> String {
-    let bytes = text.as_bytes();
-    let mut decoded = Vec::with_capacity(bytes.len());
-    let mut index = 0;
-    while index < bytes.len() {
-        if bytes[index] == b'%'
-            && index + 2 < bytes.len()
-            && let (Some(high), Some(low)) = (
-                (bytes[index + 1] as char).to_digit(16),
-                (bytes[index + 2] as char).to_digit(16),
-            )
-        {
-            decoded.push(((high << 4) | low) as u8);
-            index += 3;
-        } else {
-            decoded.push(bytes[index]);
-            index += 1;
-        }
-    }
-    String::from_utf8_lossy(&decoded).into_owned()
-}
-
 fn admit_private_text(
     loaded: &LoadedProfile,
     workspace: &WorkspaceEnv,
@@ -1846,67 +1834,6 @@ fn admit_private_text(
     } else {
         Err("assistant delivery contains protected local or credential material".to_owned())
     }
-}
-
-fn private_text_is_safe(
-    text: &str,
-    confidential_terms: &[String],
-    env: &BTreeMap<String, String>,
-) -> bool {
-    let decoded = percent_decode_once(&percent_decode_once(text));
-    let lower = decoded.to_ascii_lowercase();
-    let blocked_shapes = [
-        "/users/",
-        "/home/",
-        "/private/",
-        "/var/folders/",
-        "/opt/homebrew/",
-        "/tmp/",
-        "~/",
-        "file://",
-        "local://",
-        "c:\\users\\",
-        "-----begin private key-----",
-        "bearer ",
-        "ghp_",
-        "gho_",
-        "xoxb-",
-        "xoxp-",
-        "sk-proj-",
-        "aws_secret_access_key",
-        "${",
-        "$(",
-        ".env",
-        "runx:provider-credential:",
-    ];
-    if blocked_shapes.iter().any(|shape| lower.contains(shape))
-        || confidential_terms
-            .iter()
-            .any(|term| lower.contains(&term.to_ascii_lowercase()))
-    {
-        return false;
-    }
-    for (key, value) in env {
-        let upper = key.to_ascii_uppercase();
-        let protected = [
-            "KEY",
-            "TOKEN",
-            "SECRET",
-            "PASSWORD",
-            "CREDENTIAL",
-            "COOKIE",
-            "SESSION",
-        ]
-        .iter()
-        .any(|marker| upper.contains(marker));
-        if protected
-            && (lower.contains(&key.to_ascii_lowercase())
-                || (value.len() >= 8 && decoded.contains(value)))
-        {
-            return false;
-        }
-    }
-    true
 }
 
 fn prepare_notification(
@@ -2858,8 +2785,15 @@ mod tests {
         let terms = vec!["internal.example.test".to_owned()];
         for text in [
             "Build failed under /Users/someone/dev/project",
+            "See /etc/hosts for the answer",
+            "Path=/mnt/work/report",
+            "deploy log at '/opt/app/logs'",
+            "see \"/srv/data/report\"",
+            "see\r\n/opt/data",
+            "The file is D:\\dev\\repo\\secret",
             "Open the file at %252fprivate%252ftmp%252freport",
             "Use SERVICE_API_KEY for the next step",
+            "Use $HOME for the working directory",
             "Token specific-secret-value was rotated",
             "See internal.example.test for details",
             "Bearer opaque-private-token",

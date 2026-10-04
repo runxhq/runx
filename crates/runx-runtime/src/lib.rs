@@ -110,28 +110,28 @@ pub use dev::{
     discover_fixture_paths, render_dev_result, run_dev_once, should_ignore_dev_watch_path,
 };
 pub use doctor::{DoctorOptions, default_doctor_options, run_doctor};
+pub use effects::{
+    ASSISTANT_CONFIDENTIAL_TERMS_ENV, ASSISTANT_REQUIRE_MUTATION_APPROVAL_ENV, EffectAdmission,
+    EffectOutputRequest, EffectPreparationOutcome, EffectReceiptRequest, EffectReplay,
+    EffectReplayOutputRequest, EffectReplayReceiptRequest, EffectStepRequest, EffectToolRequest,
+    NOTIFICATION_AUTHORITY_ID_ENV, NOTIFICATION_SOURCE_SET_DIGEST_ENV, NotificationAuthorityError,
+    NotificationAuthorityGrant, NotificationAuthorityGrantSpec, NotificationAuthorityStatus,
+    PROVIDER_MUTATE_TOOL, PROVIDER_PERMISSION_EFFECT_FAMILY, PROVIDER_PERMISSION_GRANT_ID_ENV,
+    PROVIDER_PERMISSION_GRANTED_SCOPES_ENV, PROVIDER_PERMISSION_PAID_EXTERNAL_JOB_AUTHORITY_ENV,
+    PROVIDER_PERMISSION_PRINCIPAL_REF_ENV, PROVIDER_READ_TOOL, ProviderAcknowledgementEvidence,
+    ProviderApprovalEvidence, ProviderEffectAcknowledged, ProviderEffectAmount,
+    ProviderEffectAttempt, ProviderEffectAuthority, ProviderEffectClass, ProviderEffectError,
+    ProviderEffectFinality, ProviderEffectIntent, ProviderEffectIntentInput,
+    ProviderEffectReadback, ProviderEffectReadbackEvidence, ProviderEffectResolved,
+    ProviderEffectUnknown, ProviderPermissionAdmission, ProviderPermissionEffect,
+    ProviderScopeTransportError, RuntimeEffect, RuntimeEffectError, RuntimeEffectRegistry,
+    assistant_text_is_safe, decode_provider_scopes_env, encode_provider_scopes_env,
+    insert_effect_verification_ref, install_notification_authority, notification_authority_status,
+    notification_intent_has_reservation, revoke_notification_authority,
+};
 #[cfg(feature = "catalog")]
 pub use effects::{
     EXTERNAL_RECEIPT_EFFECT_FAMILY, EXTERNAL_RECEIPT_VERIFY_TOOL, ExternalReceiptEffect,
-};
-pub use effects::{
-    EffectAdmission, EffectOutputRequest, EffectPreparationOutcome, EffectReceiptRequest,
-    EffectReplay, EffectReplayOutputRequest, EffectReplayReceiptRequest, EffectStepRequest,
-    EffectToolRequest, NOTIFICATION_AUTHORITY_ID_ENV, NOTIFICATION_SOURCE_SET_DIGEST_ENV,
-    NotificationAuthorityError, NotificationAuthorityGrant, NotificationAuthorityGrantSpec,
-    NotificationAuthorityStatus, PROVIDER_MUTATE_TOOL, PROVIDER_PERMISSION_EFFECT_FAMILY,
-    PROVIDER_PERMISSION_GRANT_ID_ENV, PROVIDER_PERMISSION_GRANTED_SCOPES_ENV,
-    PROVIDER_PERMISSION_PAID_EXTERNAL_JOB_AUTHORITY_ENV, PROVIDER_PERMISSION_PRINCIPAL_REF_ENV,
-    PROVIDER_READ_TOOL, ProviderAcknowledgementEvidence, ProviderApprovalEvidence,
-    ProviderEffectAcknowledged, ProviderEffectAmount, ProviderEffectAttempt,
-    ProviderEffectAuthority, ProviderEffectClass, ProviderEffectError, ProviderEffectFinality,
-    ProviderEffectIntent, ProviderEffectIntentInput, ProviderEffectReadback,
-    ProviderEffectReadbackEvidence, ProviderEffectResolved, ProviderEffectUnknown,
-    ProviderPermissionAdmission, ProviderPermissionEffect, ProviderScopeTransportError,
-    RuntimeEffect, RuntimeEffectError, RuntimeEffectRegistry, decode_provider_scopes_env,
-    encode_provider_scopes_env, insert_effect_verification_ref, install_notification_authority,
-    notification_authority_status, notification_intent_has_reservation,
-    revoke_notification_authority,
 };
 #[cfg(feature = "catalog")]
 pub use effects::{

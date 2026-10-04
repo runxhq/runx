@@ -156,6 +156,16 @@ out of the Slack post because Slack auto-links even code-formatted locators and
 changes the exact text required by provider readback. The final rendered text is
 checked for protected local paths, credential material, system variables and
 private profile terms before intent creation and again before delivery.
+Every composed assistant skill run also carries an assistant-only native
+`provider.mutate` rule. If a skill omits its own exact approval request, the
+provider effect requests one human decision before dispatch; an existing skill
+approval remains the single gate. A paid-job authority cannot satisfy that
+assistant human gate. The same confidentiality check covers provider-bound
+metadata, scopes, target, and outgoing payload before effect admission. A missing or
+malformed private-term policy refuses the mutation. This applies to native
+provider mutations; direct MCP writes are not an admitted assistant work route
+in this version and require an owning delivery check before being configured.
+
 If a pinned notification is blocked before native reservation, pause the profile
 and run `discard-notification`; Runx checks the exact idempotency key in its
 authority ledger before allowing the discard. Resuming then rescans from page

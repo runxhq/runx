@@ -92,6 +92,193 @@ fn provider_capabilities_bind_idempotency_and_approval_to_mutation_only() {
 }
 
 #[test]
+fn assistant_mutations_require_one_native_human_gate_even_when_skill_omits_approval() {
+    let effect = ProviderPermissionEffect::default();
+    let step = native_step(PROVIDER_MUTATE_TOOL, &["thread.reply"], "write");
+    let inputs = provider_inputs("thread.reply");
+    let mut env = provider_env("github-mcp-read", "thread.reply");
+
+    let ordinary = effect
+        .admit(effect_request(&step, &inputs, &env))
+        .expect("ordinary provider admission")
+        .expect("owned provider effect");
+    let ordinary = ordinary
+        .context::<ProviderPermissionAdmission>()
+        .expect("ordinary provider context");
+    assert!(ordinary.approval_request.is_none());
+    assert!(
+        !ordinary
+            .provider_effect
+            .as_ref()
+            .expect("effect")
+            .intent()
+            .requires_approval()
+    );
+
+    env.insert(
+        ASSISTANT_REQUIRE_MUTATION_APPROVAL_ENV.to_owned(),
+        "required".to_owned(),
+    );
+    env.insert(ASSISTANT_CONFIDENTIAL_TERMS_ENV.to_owned(), "[]".to_owned());
+    let assistant = effect
+        .admit(effect_request(&step, &inputs, &env))
+        .expect("assistant provider admission")
+        .expect("owned provider effect");
+    let assistant = assistant
+        .context::<ProviderPermissionAdmission>()
+        .expect("assistant provider context");
+    assert_eq!(
+        assistant
+            .approval_request
+            .as_ref()
+            .and_then(|request| request.gate_type.as_deref()),
+        Some("assistant_outward")
+    );
+    assert!(
+        assistant
+            .provider_effect
+            .as_ref()
+            .expect("effect")
+            .intent()
+            .requires_approval()
+    );
+
+    let mut declared = inputs.clone();
+    declared.insert(
+        "approval".to_owned(),
+        JsonValue::Object(JsonObject::from([
+            (
+                "reason".to_owned(),
+                JsonValue::String("Approve the exact reply.".to_owned()),
+            ),
+            (
+                "type".to_owned(),
+                JsonValue::String("slack_message".to_owned()),
+            ),
+        ])),
+    );
+    let existing = effect
+        .admit(effect_request(&step, &declared, &env))
+        .expect("declared approval admission")
+        .expect("owned provider effect");
+    let existing = existing
+        .context::<ProviderPermissionAdmission>()
+        .expect("declared provider context");
+    assert_eq!(
+        existing
+            .approval_request
+            .as_ref()
+            .and_then(|request| request.gate_type.as_deref()),
+        Some("slack_message"),
+    );
+}
+
+#[test]
+fn assistant_egress_refuses_protected_payloads_before_provider_effect_admission() {
+    let effect = ProviderPermissionEffect::default();
+    let step = native_step(PROVIDER_MUTATE_TOOL, &["thread.reply"], "write");
+    let mut env = provider_env("github-mcp-read", "thread.reply");
+    env.insert(
+        ASSISTANT_REQUIRE_MUTATION_APPROVAL_ENV.to_owned(),
+        "required".to_owned(),
+    );
+    let mut inputs = provider_inputs("thread.reply");
+    assert!(effect.admit(effect_request(&step, &inputs, &env)).is_err());
+
+    env.insert(
+        ASSISTANT_REQUIRE_MUTATION_APPROVAL_ENV.to_owned(),
+        "disabled".to_owned(),
+    );
+    assert!(effect.admit(effect_request(&step, &inputs, &env)).is_err());
+    env.insert(
+        ASSISTANT_REQUIRE_MUTATION_APPROVAL_ENV.to_owned(),
+        "required".to_owned(),
+    );
+
+    env.insert(
+        ASSISTANT_CONFIDENTIAL_TERMS_ENV.to_owned(),
+        "[\"private.example.test\"]".to_owned(),
+    );
+    env.insert(
+        "SERVICE_API_KEY".to_owned(),
+        "private-token-value".to_owned(),
+    );
+    for text in [
+        "Look in /Users/operator/dev/project",
+        "Read /etc/hosts",
+        "Path=/mnt/work/report",
+        "deploy log at '/opt/app/logs'",
+        "see \"/srv/data/report\"",
+        "see\r\n/opt/data",
+        "The file is D:\\dev\\repo\\secret",
+        "See %252fprivate%252ftmp%252fresult",
+        "Use SERVICE_API_KEY",
+        "Use $HOME for the working directory",
+        "The value is private-token-value",
+        "Check private.example.test",
+    ] {
+        inputs.insert(
+            "input".to_owned(),
+            JsonValue::Object(JsonObject::from([(
+                "text".to_owned(),
+                JsonValue::String(text.to_owned()),
+            )])),
+        );
+        let error = effect
+            .admit(effect_request(&step, &inputs, &env))
+            .expect_err("protected text must be rejected before approval or dispatch");
+        assert!(matches!(error, RuntimeEffectError::Denied { .. }));
+        assert!(!error.to_string().contains(text));
+    }
+    for field in ["operation", "target", "idempotency_key"] {
+        let mut protected = provider_inputs("thread.reply");
+        protected.insert(
+            field.to_owned(),
+            JsonValue::String("value '/opt/app/logs'".to_owned()),
+        );
+        assert!(matches!(
+            effect.admit(effect_request(&step, &protected, &env)),
+            Err(RuntimeEffectError::Denied { .. })
+        ));
+    }
+    let mut nested = provider_inputs("thread.reply");
+    nested.insert(
+        "input".to_owned(),
+        JsonValue::Object(JsonObject::from([(
+            "'/opt/app/logs'".to_owned(),
+            JsonValue::Array(vec![JsonValue::String("safe".to_owned())]),
+        )])),
+    );
+    assert!(matches!(
+        effect.admit(effect_request(&step, &nested, &env)),
+        Err(RuntimeEffectError::Denied { .. })
+    ));
+    let mut protected_scope_step = step.clone();
+    protected_scope_step.scopes = vec!["thread.reply '/opt/app/logs'".to_owned()];
+    let mut protected_scope_env = env.clone();
+    protected_scope_env.insert(
+        PROVIDER_PERMISSION_GRANTED_SCOPES_ENV.to_owned(),
+        encode_provider_scopes_env(&protected_scope_step.scopes).expect("scope transport"),
+    );
+    assert!(matches!(
+        effect.admit(effect_request(
+            &protected_scope_step,
+            &inputs,
+            &protected_scope_env
+        )),
+        Err(RuntimeEffectError::Denied { .. })
+    ));
+    inputs.insert(
+        "input".to_owned(),
+        JsonValue::Object(JsonObject::from([(
+            "text".to_owned(),
+            JsonValue::String("I will review https://example.com/issues/1 today.".to_owned()),
+        )])),
+    );
+    assert!(effect.admit(effect_request(&step, &inputs, &env)).is_ok());
+}
+
+#[test]
 fn admitted_verbs_bind_grant_and_scope_evidence() {
     for (verb, expected) in [
         ("read", AuthorityVerb::Read),

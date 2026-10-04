@@ -19,6 +19,7 @@ use crate::{
 
 mod approval;
 mod contract;
+mod egress;
 #[cfg(feature = "catalog")]
 mod execution;
 mod identity;
@@ -31,6 +32,7 @@ mod recovery;
 mod scope_transport;
 mod standing;
 
+pub use egress::{ASSISTANT_CONFIDENTIAL_TERMS_ENV, assistant_text_is_safe};
 pub use scope_transport::{
     ProviderScopeTransportError, decode_provider_scopes_env, encode_provider_scopes_env,
 };
@@ -67,6 +69,11 @@ pub const PROVIDER_PERMISSION_PAID_EXTERNAL_JOB_AUTHORITY_ENV: &str =
 /// project binding; either source conflicts fail closed when a complete
 /// host-injected hosted-grant triplet requests a different transport.
 pub const PROVIDER_PERMISSION_TRANSPORT_ENV: &str = "RUNX_PROVIDER_PERMISSION_TRANSPORT";
+/// The local assistant host sets this for every composed skill run. An omitted
+/// package approval declaration must not turn an assistant provider mutation
+/// into an unapproved external effect.
+pub const ASSISTANT_REQUIRE_MUTATION_APPROVAL_ENV: &str =
+    "RUNX_ASSISTANT_REQUIRE_MUTATION_APPROVAL";
 
 #[cfg(feature = "catalog")]
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -393,6 +400,8 @@ fn build_provider_admission(
             message: "channel.post requires the Slack provider identity".to_owned(),
         });
     }
+    let assistant_guarded =
+        egress::admit_assistant_egress(request, native_access, &plan.required_scopes)?;
     let witness = provider_permission_witness(request, &plan);
     let approval_request = contract::approval_request(request.inputs)
         .map_err(|message| RuntimeEffectError::InvalidMetadata {
@@ -405,6 +414,12 @@ fn build_provider_admission(
                     reason: "Approve posting this exact Slack notification.".to_owned(),
                     gate_type: Some("slack_message".to_owned()),
                 }
+            })
+        })
+        .or_else(|| {
+            assistant_guarded.then(|| contract::ProviderApprovalRequest {
+                reason: "Approve this exact assistant provider mutation.".to_owned(),
+                gate_type: Some("assistant_outward".to_owned()),
             })
         });
     let provider_effect = native_access
@@ -429,13 +444,15 @@ fn build_provider_admission(
         request,
         resolution.map(|resolved| resolved.principal_ref.as_str()),
     )?;
-    if mandatory_notification_authorization(request, native_access) && mutation_authority.is_some()
+    if (assistant_guarded || mandatory_notification_authorization(request, native_access))
+        && mutation_authority.is_some()
     {
         return Err(RuntimeEffectError::Denied {
             family: PROVIDER_PERMISSION_EFFECT_FAMILY.to_owned(),
             verb: runx_contracts::AuthorityVerb::Write,
-            message: "Slack channel posts require exact human or bounded notification authority"
-                .to_owned(),
+            message:
+                "assistant mutations and Slack channel posts require exact human or bounded notification authority"
+                    .to_owned(),
         });
     }
     let notification_request = if mandatory_notification_authorization(request, native_access) {
