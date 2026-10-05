@@ -88,6 +88,8 @@ struct WorkAssignment {
     runs: BTreeMap<String, BoundWorkRun>,
     #[serde(default)]
     failed_skill: Option<String>,
+    #[serde(default)]
+    private_update_status: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -115,6 +117,8 @@ struct PendingIntent {
     selected_digests: Vec<String>,
     #[serde(default)]
     delivery_package_digest: String,
+    #[serde(default)]
+    work_ids: Vec<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -200,6 +204,7 @@ fn due_work_index(work: &[WorkAssignment], now: u64) -> Option<usize> {
 fn evictable_work_index(work: &[WorkAssignment], protected_id: Option<&str>) -> Option<usize> {
     work.iter().position(|item| {
         item.status != "pending"
+            && !needs_work_update(item)
             && protected_id != Some(item.id.as_str())
             && !work.iter().any(|child| {
                 child.status == "pending"
@@ -529,7 +534,7 @@ fn pinned_skill_path_by_digest(
         .join(digest.trim_start_matches("sha256:"));
     let metadata = fs::symlink_metadata(&path)
         .map_err(|error| format!("reading pinned {name} skill package: {error}"))?;
-    if !metadata.is_dir() || metadata.file_type().is_symlink() || package_digest(&path)? != digest {
+    if !metadata.is_dir() || metadata.file_type().is_symlink() {
         return Err(format!(
             "pinned {name} skill package is unavailable or changed"
         ));
@@ -540,7 +545,7 @@ fn pinned_skill_path_by_digest(
         fs::set_permissions(&path, fs::Permissions::from_mode(0o700))
             .map_err(|error| format!("protecting pinned {name} skill package: {error}"))?;
     }
-    Ok(path)
+    resolve_pinned_skill(&path, name, digest)
 }
 
 fn package_digest(path: &Path) -> Result<String, String> {
@@ -554,6 +559,41 @@ fn package_digest(path: &Path) -> Result<String, String> {
         .ok_or("assistant skill inspection has no package digest".to_owned())
 }
 
+fn resolve_pinned_skill(root: &Path, name: &str, digest: &str) -> Result<PathBuf, String> {
+    if root.join("SKILL.md").is_file() {
+        if package_digest(root)? != digest {
+            return Err(format!("pinned {name} skill package has changed"));
+        }
+        return Ok(root.to_path_buf());
+    }
+    let bytes = fs::read(root.join(".assistant-bundle.json"))
+        .map_err(|error| format!("reading pinned {name} closure binding: {error}"))?;
+    let digests: BTreeMap<String, String> = serde_json::from_slice(&bytes)
+        .map_err(|error| format!("decoding pinned {name} closure binding: {error}"))?;
+    if digests.len() < 2 || !digests.contains_key(name) {
+        return Err(format!("pinned {name} closure is incomplete"));
+    }
+    let bindings = digests
+        .iter()
+        .map(|(skill, package_digest)| (skill.clone(), (package_digest.clone(), root.join(skill))))
+        .collect::<BTreeMap<_, _>>();
+    if super::skill_binding_digest(&bindings)? != digest {
+        return Err(format!("pinned {name} closure binding has changed"));
+    }
+    for (skill, (expected, path)) in &bindings {
+        if !super::valid_identifier(skill)
+            || fs::symlink_metadata(path)
+                .map_err(|error| format!("reading pinned {skill} package: {error}"))?
+                .file_type()
+                .is_symlink()
+            || package_digest(path)? != *expected
+        {
+            return Err(format!("pinned {skill} closure package has changed"));
+        }
+    }
+    Ok(root.join(name))
+}
+
 /// A native checkpoint resumes from this exact content-addressed directory.
 /// Patch installs can replace the source package without changing a running
 /// checkpoint's code. The digest is checked again before every invocation.
@@ -563,7 +603,10 @@ fn pinned_skill_path(
     name: &str,
     expected_digest: &str,
 ) -> Result<PathBuf, String> {
-    let digest = package_digest(source)?;
+    let inspected = runx_runtime::inspect_skill_package(source, None, None)
+        .map_err(|error| format!("inspecting assistant skill package: {error}"))?;
+    let bindings = super::inspected_skill_bindings(&inspected)?;
+    let digest = super::skill_binding_digest(&bindings)?;
     if digest != expected_digest {
         return Err(format!(
             "assistant {name} skill changed during this turn; retry with fresh bindings"
@@ -599,10 +642,7 @@ fn pinned_skill_path(
                 fs::set_permissions(&target, fs::Permissions::from_mode(0o700))
                     .map_err(|error| format!("protecting pinned skill package: {error}"))?;
             }
-            if package_digest(&target)? != digest {
-                return Err(format!("pinned {name} skill package has changed"));
-            }
-            return Ok(target);
+            return resolve_pinned_skill(&target, name, &digest);
         }
         Ok(_) => {
             return Err(format!(
@@ -625,13 +665,46 @@ fn pinned_skill_path(
             .map_err(|error| format!("protecting staged assistant skill package: {error}"))?;
     }
     let staged = (|| {
-        copy_skill_files(source, &stage)?;
-        if package_digest(&stage)? != digest {
+        if bindings.len() == 1 {
+            copy_skill_files(source, &stage)?;
+        } else {
+            let parent = source
+                .parent()
+                .ok_or("assistant skill has no package parent")?
+                .canonicalize()
+                .map_err(|error| format!("resolving assistant skill root: {error}"))?;
+            let mut manifest = BTreeMap::new();
+            for (skill, (package_digest, path)) in &bindings {
+                let canonical = path
+                    .canonicalize()
+                    .map_err(|error| format!("resolving {skill} closure package: {error}"))?;
+                if !super::valid_identifier(skill)
+                    || canonical.parent() != Some(parent.as_path())
+                    || canonical.file_name().and_then(|name| name.to_str()) != Some(skill)
+                {
+                    return Err("assistant skill closure leaves its local sibling root".to_owned());
+                }
+                let destination = stage.join(skill);
+                fs::create_dir(&destination)
+                    .map_err(|error| format!("staging {skill} closure package: {error}"))?;
+                copy_skill_files(&canonical, &destination)?;
+                manifest.insert(skill.clone(), package_digest.clone());
+            }
+            fs::write(
+                stage.join(".assistant-bundle.json"),
+                serde_json::to_vec(&manifest)
+                    .map_err(|error| format!("encoding assistant closure binding: {error}"))?,
+            )
+            .map_err(|error| format!("writing assistant closure binding: {error}"))?;
+        }
+        if resolve_pinned_skill(&stage, name, &digest).is_err() {
             return Err("assistant skill changed while its package was being pinned".to_owned());
         }
         match fs::rename(&stage, &target) {
             Ok(()) => Ok(()),
-            Err(_) if target.exists() && package_digest(&target)? == digest => Ok(()),
+            Err(_) if target.exists() && resolve_pinned_skill(&target, name, &digest).is_ok() => {
+                Ok(())
+            }
             Err(error) => Err(format!("committing assistant skill package: {error}")),
         }
     })();
@@ -639,7 +712,7 @@ fn pinned_skill_path(
         let _ = fs::remove_dir_all(&stage);
     }
     staged?;
-    Ok(target)
+    resolve_pinned_skill(&target, name, &digest)
 }
 
 fn copy_skill_files(source: &Path, target: &Path) -> Result<(), String> {
@@ -828,9 +901,28 @@ fn read_control(loaded: &LoadedProfile, workspace: &WorkspaceEnv) -> Result<Cont
                 || item.parent_work_id.as_ref().is_some_and(|id| id.len() > 80)
                 || item.source_ref.len() > 300
                 || item.target_ref.len() > 300
+                || item.private_update_status.as_deref().is_some_and(|status| {
+                    !matches!(status, "local_only" | "delivered") || item.status != "completed"
+                })
         })
     {
         return Err("assistant work state is invalid".to_owned());
+    }
+    if let Some(intent) = state.pending_intent.as_ref() {
+        let mut seen = BTreeSet::new();
+        if intent.work_ids.len() > 3
+            || intent.work_ids.iter().any(|id| {
+                !seen.insert(id)
+                    || !state.work.iter().any(|item| {
+                        item.id == *id
+                            && needs_work_update(item)
+                            && work_result_digest(item)
+                                .is_some_and(|digest| intent.selected_digests.contains(&digest))
+                    })
+            })
+        {
+            return Err("assistant notification work binding is invalid".to_owned());
+        }
     }
     Ok(ControlRecord { version, state })
 }
@@ -869,6 +961,81 @@ fn read_work_result(
     serde_json::to_value(value)
         .map(Some)
         .map_err(|error| format!("decoding assistant work result: {error}"))
+}
+
+fn work_result_digest(item: &WorkAssignment) -> Option<String> {
+    let receipt = item.receipt.as_deref()?;
+    Some(sha256_prefixed(
+        format!("assistant-work-result:{}:{receipt}", item.id).as_bytes(),
+    ))
+}
+
+fn needs_work_update(item: &WorkAssignment) -> bool {
+    item.status == "completed"
+        && item.private_update_status.is_none()
+        && item.receipt.is_some()
+        && item.result_ref.is_some()
+}
+
+fn pending_work_update_indices(work: &[WorkAssignment]) -> Vec<usize> {
+    work.iter()
+        .enumerate()
+        .filter(|(_, item)| needs_work_update(item))
+        .map(|(index, _)| index)
+        .collect()
+}
+
+fn work_update_item(workspace: &WorkspaceEnv, item: &WorkAssignment) -> Result<Value, String> {
+    let result = read_work_result(workspace, item)?.ok_or("completed work has no result")?;
+    let summary = match result["kind"].as_str() {
+        Some("conversation_review") => {
+            let status = result["status"]
+                .as_str()
+                .ok_or("conversation work lacks status")?;
+            let prefix = match status {
+                "reply" => "Unsent reply draft",
+                "follow_up" => "Follow-up proposed but not queued",
+                "needs_context" => "Conversation needs context",
+                "no_action" => "Conversation needs no action",
+                _ => return Err("conversation work has an invalid outcome".to_owned()),
+            };
+            let summary = result["summary"]
+                .as_str()
+                .ok_or("conversation work lacks summary")?;
+            format!("{prefix}; unverified draft summary: {summary}")
+        }
+        Some("coding_intake") => {
+            let summary = result["summary"]
+                .as_str()
+                .ok_or("coding intake lacks summary")?;
+            format!("Coding request triaged; no code changed; unverified draft summary: {summary}")
+        }
+        Some("work_plan") => {
+            let decision = result["decision"]
+                .as_str()
+                .ok_or("work plan lacks decision")?;
+            let change_set = result["change_set_id"]
+                .as_str()
+                .ok_or("work plan lacks change set")?;
+            format!("Coding plan {decision}; no code changed: {change_set}")
+        }
+        None => {
+            let state = result["state"].as_str().ok_or("PR work lacks state")?;
+            let title = result["title"].as_str().ok_or("PR work lacks title")?;
+            format!("Pull request {state}: {title}")
+        }
+        _ => return Err("completed work has an unsupported result kind".to_owned()),
+    };
+    let digest = work_result_digest(item).ok_or("completed work lacks a receipt")?;
+    Ok(json!({
+        "source_ref":format!("runx://assistant/work/{}", item.id),
+        "source_digest":digest,
+        "source_kind":"work_result",
+        "priority":"medium",
+        "summary":summary.chars().take(1000).collect::<String>(),
+        "receipt":item.receipt,
+        "work_id":item.id,
+    }))
 }
 
 fn write_control(
@@ -983,6 +1150,7 @@ pub(super) fn status(loaded: &LoadedProfile, workspace: &WorkspaceEnv) -> Result
             || (record.state.last_blocker.is_some() && record.state.pending_intent.is_none()),
         "confirmed_memory_count":record.state.confirmed_memory.len(),
         "pending_work_count":record.state.work.iter().filter(|item| item.status == "pending").count(),
+        "pending_private_work_updates":pending_work_update_indices(&record.state.work).len(),
         "report_available":record.state.last_review_ref.is_some(),
         "charter_configured":!loaded.profile.charter.is_empty(),
         "notification_authority":authority,
@@ -1589,6 +1757,58 @@ fn run_turn(
     workspace: &WorkspaceEnv,
     record: &mut ControlRecord,
 ) -> Result<Value, String> {
+    if record
+        .state
+        .pending_turn
+        .as_ref()
+        .is_some_and(|turn| turn.pages.is_empty() && turn.review_ref.is_none())
+    {
+        let due = pending_work_update_indices(&record.state.work)
+            .into_iter()
+            .take(3)
+            .collect::<Vec<_>>();
+        if !due.is_empty() {
+            let items = due
+                .iter()
+                .map(|index| work_update_item(workspace, &record.state.work[*index]))
+                .collect::<Result<Vec<_>, _>>()?;
+            let material_digest =
+                sha256_prefixed(&serde_json::to_vec(&items).map_err(|error| error.to_string())?);
+            if loaded.profile.notification.is_some() {
+                let packet =
+                    json!({"brief":"Verified assistant work is ready for review.","items":items});
+                return prepare_notification(
+                    loaded,
+                    workspace,
+                    record,
+                    &packet,
+                    &material_digest,
+                    false,
+                );
+            }
+            let receipts = due
+                .iter()
+                .filter_map(|index| record.state.work[*index].receipt.clone())
+                .collect::<Vec<_>>();
+            for index in due {
+                record.state.work[index].private_update_status = Some("local_only".to_owned());
+            }
+            record.state.last_handled_material_digest = Some(material_digest);
+            record.state.last_blocker = None;
+            record.state.active_run_id = None;
+            record.state.pending_turn = None;
+            record.state.next_due_unix_seconds =
+                if pending_work_update_indices(&record.state.work).is_empty() {
+                    scheduled_due(loaded.profile.min_check_minutes)
+                } else {
+                    0
+                };
+            write_control(loaded, workspace, record, "work_available_locally")?;
+            return Ok(
+                json!({"status":"work_available_undelivered","work_count":receipts.len(),"receipts":receipts}),
+            );
+        }
+    }
     let (observations, coverage_incomplete) = collect_observations(loaded, workspace, record)?;
     let observations = observations
         .into_iter()
@@ -1695,11 +1915,23 @@ fn run_turn(
         );
     }
     if decision == "ready" {
+        for item in &observations {
+            if let Some(digest) = item["source_digest"].as_str() {
+                mark_handled(&mut record.state, digest);
+            }
+        }
+        record.state.last_handled_material_digest = Some(material_digest);
+        record.state.last_handled_receipt = review.receipt.clone();
         record.state.last_blocker = None;
         record.state.scan_retry_from_first_page = false;
         record.state.active_run_id = None;
         record.state.pending_turn = None;
-        record.state.next_due_unix_seconds = scheduled_due(loaded.profile.min_check_minutes);
+        record.state.next_due_unix_seconds =
+            if pending_work_update_indices(&record.state.work).is_empty() {
+                scheduled_due(loaded.profile.min_check_minutes)
+            } else {
+                0
+            };
         write_control(loaded, workspace, record, "ready_undelivered")?;
         return Ok(
             json!({"status":"ready_undelivered","receipt":review.receipt,"observation_count":observations.len(),"coverage_incomplete":coverage_incomplete}),
@@ -1716,7 +1948,12 @@ fn run_turn(
     record.state.last_handled_receipt = review.receipt;
     record.state.active_run_id = None;
     record.state.pending_turn = None;
-    record.state.next_due_unix_seconds = scheduled_due(minutes);
+    record.state.next_due_unix_seconds =
+        if pending_work_update_indices(&record.state.work).is_empty() {
+            scheduled_due(minutes)
+        } else {
+            0
+        };
     write_control(loaded, workspace, record, decision)?;
     Ok(
         json!({"status":decision,"observation_count":observations.len(),"next_check_minutes":minutes,"coverage_incomplete":coverage_incomplete}),
@@ -2216,6 +2453,7 @@ fn admit_work(
             result_ref: None,
             runs: BTreeMap::new(),
             failed_skill: None,
+            private_update_status: None,
         });
         changed = true;
     }
@@ -2293,6 +2531,7 @@ fn dispatch_pending_work(
     record.state.work[index].result_ref = Some(persist_work_result(workspace, &item, &result)?);
     record.state.work[index].runs.clear();
     record.state.work[index].failed_skill = None;
+    record.state.next_due_unix_seconds = 0;
     if let Some(child) = child
         && !record.state.work.iter().any(|entry| entry.id == child.id)
     {
@@ -2449,6 +2688,7 @@ fn plan_child_assignment(
         result_ref: None,
         runs: BTreeMap::new(),
         failed_skill: None,
+        private_update_status: None,
     }))
 }
 
@@ -3095,14 +3335,20 @@ fn private_notification_text(
             let source_digest = item["source_digest"]
                 .as_str()
                 .ok_or("selected item lacks source digest")?;
-            if !source_digest.starts_with("sha256:")
-                || source_digest.len() != 71
-                || !source_digest[7..]
-                    .bytes()
-                    .all(|byte| byte.is_ascii_hexdigit())
-            {
+            if !valid_sha256_digest(source_digest) {
                 return Err("selected item has invalid source digest".to_owned());
             }
+            let (label, reference_kind, reference) = if item["source_kind"] == "work_result" {
+                let receipt = item["receipt"]
+                    .as_str()
+                    .ok_or("completed work update lacks receipt")?;
+                if !valid_sha256_digest(receipt) {
+                    return Err("completed work update has invalid receipt".to_owned());
+                }
+                ("WORK", "receipt", receipt)
+            } else {
+                (priority, "source", source_digest)
+            };
             let mut end = 0;
             for (index, character) in summary.char_indices() {
                 if index + character.len_utf8() > summary_bytes {
@@ -3112,19 +3358,33 @@ fn private_notification_text(
             }
             let suffix = if end < summary.len() { "…" } else { "" };
             compact.push_str(&format!(
-                "\n{}: {}{} (source {source_digest})",
-                priority.to_uppercase(),
+                "\n{}: {}{} ({reference_kind} {reference})",
+                label.to_uppercase(),
                 &summary[..end],
                 suffix
             ));
         }
-        compact.push_str("\n\nExact source links: runx assistant report.");
+        let location = if items
+            .iter()
+            .all(|item| item["source_kind"] == "work_result")
+        {
+            "runx assistant work"
+        } else {
+            "runx assistant report"
+        };
+        compact.push_str(&format!("\n\nExact source links: {location}."));
         compact.push_str(caveat);
         if compact.len() <= max_bytes && !has_active_notification_mention(&compact) {
             return Ok(compact);
         }
     }
     Err("brief and exact source references exceed configured notification limit".to_owned())
+}
+
+fn valid_sha256_digest(value: &str) -> bool {
+    value.starts_with("sha256:")
+        && value.len() == 71
+        && value[7..].bytes().all(|byte| byte.is_ascii_hexdigit())
 }
 
 fn has_active_notification_mention(text: &str) -> bool {
@@ -3172,6 +3432,36 @@ fn prepare_notification(
                 .ok_or("selected item lacks digest")
         })
         .collect::<Result<Vec<_>, _>>()?;
+    let work_ids = packet["items"]
+        .as_array()
+        .ok_or("ready packet lacks selected items")?
+        .iter()
+        .filter(|item| item["source_kind"] == "work_result")
+        .map(|item| {
+            let id = item["work_id"]
+                .as_str()
+                .ok_or("work update lacks work id")?;
+            let assignment = record
+                .state
+                .work
+                .iter()
+                .find(|work| {
+                    work.id == id
+                        && work.status == "completed"
+                        && work.private_update_status.is_none()
+                })
+                .ok_or("work update is not a pending completed assignment")?;
+            if item["source_digest"].as_str() != work_result_digest(assignment).as_deref()
+                || item["receipt"].as_str() != assignment.receipt.as_deref()
+            {
+                return Err("work update differs from its sealed receipt".to_owned());
+            }
+            Ok(id.to_owned())
+        })
+        .collect::<Result<Vec<_>, String>>()?;
+    if work_ids.len() > 3 || work_ids.iter().collect::<BTreeSet<_>>().len() != work_ids.len() {
+        return Err("work update selection is invalid".to_owned());
+    }
     let delivery_package_digest = loaded
         .skill_bindings
         .get("slack-notify")
@@ -3231,8 +3521,10 @@ fn prepare_notification(
         logical_run_id: logical.clone(),
         selected_digests,
         delivery_package_digest: delivery_package_digest.clone(),
+        work_ids,
     });
     record.state.pending_turn = None;
+    record.state.last_blocker = None;
     record.state.next_due_unix_seconds = scheduled_due(loaded.profile.min_check_minutes);
     record.state.next_delivery_due_unix_seconds = 0;
     write_control(loaded, workspace, record, "notification_intent")?;
@@ -3303,13 +3595,46 @@ fn deliver_pending(
     record.state.last_handled_receipt = Some(receipt.clone());
     record.state.last_blocker = None;
     record.state.scan_retry_from_first_page = false;
+    let work_digests = pending
+        .work_ids
+        .iter()
+        .filter_map(|id| {
+            record
+                .state
+                .work
+                .iter()
+                .find(|work| work.id == *id)
+                .and_then(work_result_digest)
+        })
+        .collect::<BTreeSet<_>>();
     for digest in &pending.selected_digests {
-        mark_handled(&mut record.state, digest);
+        if !work_digests.contains(digest) {
+            mark_handled(&mut record.state, digest);
+        }
+    }
+    for id in &pending.work_ids {
+        let assignment = record
+            .state
+            .work
+            .iter_mut()
+            .find(|work| {
+                work.id == *id && work.status == "completed" && work.private_update_status.is_none()
+            })
+            .ok_or("delivered work update lacks pending assignment")?;
+        if !pending
+            .selected_digests
+            .contains(&work_result_digest(assignment).ok_or("delivered work lacks receipt")?)
+        {
+            return Err("delivered work update is not bound to selected digest".to_owned());
+        }
+        assignment.private_update_status = Some("delivered".to_owned());
     }
     record.state.pending_intent = None;
     record.state.next_delivery_due_unix_seconds = 0;
     record.state.active_run_id = None;
-    if !record.state.deferred_turns.is_empty() {
+    if !record.state.deferred_turns.is_empty()
+        || !pending_work_update_indices(&record.state.work).is_empty()
+    {
         record.state.next_due_unix_seconds = 0;
     }
     write_control(loaded, workspace, record, "delivered")?;
@@ -4025,6 +4350,73 @@ mod tests {
     }
 
     #[test]
+    fn pinned_composed_skill_keeps_its_sibling_after_a_patch() -> Result<(), String> {
+        let root = std::env::temp_dir().join(format!(
+            "runx-assistant-closure-pin-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map_err(|error| error.to_string())?
+                .as_nanos()
+        ));
+        let source = root.join("skills");
+        std::fs::create_dir_all(&source).map_err(|error| error.to_string())?;
+        std::fs::write(root.join("pnpm-workspace.yaml"), b"packages: []\n")
+            .map_err(|error| error.to_string())?;
+        let repository = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let packets = root.join("dist/packets");
+        std::fs::create_dir_all(&packets).map_err(|error| error.to_string())?;
+        super::copy_skill_files(&repository.join("dist/packets"), &packets)?;
+        let official = repository.join("skills");
+        for name in ["send-as", "slack-notify"] {
+            let destination = source.join(name);
+            std::fs::create_dir(&destination).map_err(|error| error.to_string())?;
+            super::copy_skill_files(&official.join(name), &destination)?;
+        }
+        let workspace = runx_runtime::WorkspaceEnv::load_process(root.clone())
+            .map_err(|error| error.to_string())?;
+        let skill = source.join("slack-notify");
+        let binding = |path: &std::path::Path| -> Result<String, String> {
+            let inspected = runx_runtime::inspect_skill_package(path, None, None)
+                .map_err(|error| error.to_string())?;
+            super::super::skill_binding_digest(&super::super::inspected_skill_bindings(&inspected)?)
+        };
+        let first_digest = binding(&skill)?;
+        let first = pinned_skill_path(&workspace, &skill, "slack-notify", &first_digest)?;
+        assert_eq!(
+            first.file_name().and_then(|name| name.to_str()),
+            Some("slack-notify")
+        );
+        assert_eq!(
+            super::pinned_skill_path_by_digest(&workspace, "slack-notify", &first_digest)?,
+            first
+        );
+        let dependency = source.join("send-as/send-as.mjs");
+        let original = std::fs::read(&dependency).map_err(|error| error.to_string())?;
+        let mut patched = original;
+        patched.extend_from_slice(b"\n// patched local dependency\n");
+        std::fs::write(&dependency, patched).map_err(|error| error.to_string())?;
+        let second_digest = binding(&skill)?;
+        assert_ne!(first_digest, second_digest);
+        let second = pinned_skill_path(&workspace, &skill, "slack-notify", &second_digest)?;
+        assert_ne!(first, second);
+        assert_eq!(
+            super::pinned_skill_path_by_digest(&workspace, "slack-notify", &first_digest)?,
+            first
+        );
+        let pinned_dependency = first
+            .parent()
+            .ok_or("pinned bundle has no parent")?
+            .join("send-as/send-as.mjs");
+        std::fs::write(pinned_dependency, b"tampered").map_err(|error| error.to_string())?;
+        assert!(
+            super::pinned_skill_path_by_digest(&workspace, "slack-notify", &first_digest).is_err()
+        );
+        std::fs::remove_dir_all(root).map_err(|error| error.to_string())?;
+        Ok(())
+    }
+
+    #[test]
     fn work_result_is_exact_private_artifact_and_tampering_blocks_read() -> Result<(), String> {
         let root = std::env::temp_dir().join(format!(
             "runx-assistant-work-result-{}-{}",
@@ -4041,12 +4433,34 @@ mod tests {
             "id":"work-1", "source_ref":"slack://message", "source_digest":"digest",
             "thread_locator":"slack://thread", "route_id":"intake",
             "target_ref":"slack://thread", "status":"completed",
-            "receipt":"sha256:receipt", "result_ref":null
+            "receipt":format!("sha256:{}", "a".repeat(64)), "result_ref":null
         }))
         .map_err(|error| error.to_string())?;
-        let result = json!({"kind":"coding_intake","change_set":{"summary":"private context"}});
+        let result = json!({"kind":"coding_intake","summary":"Check the bounded request","change_set":{"summary":"private context"}});
         item.result_ref = Some(persist_work_result(&workspace, &item, &result)?);
         assert_eq!(read_work_result(&workspace, &item)?, Some(result));
+        assert_eq!(super::pending_work_update_indices(&[item.clone()]), vec![0]);
+        assert_eq!(evictable_work_index(&[item.clone()], None), None);
+        let update = super::work_update_item(&workspace, &item)?;
+        assert_eq!(update["work_id"], item.id);
+        assert_eq!(update["receipt"].as_str(), item.receipt.as_deref());
+        let text = private_notification_text(
+            &json!({"brief":"Verified work","items":[update]}),
+            2000,
+            false,
+        )?;
+        assert!(text.contains("WORK: Coding request triaged; no code changed"));
+        assert!(text.contains(&format!("receipt sha256:{}", "a".repeat(64))));
+        assert!(!text.contains(&format!(
+            "source {}",
+            update["source_digest"].as_str().unwrap_or_default()
+        )));
+        assert!(text.contains("runx assistant work"));
+        item.private_update_status = Some("local_only".to_owned());
+        assert!(super::pending_work_update_indices(&[item.clone()]).is_empty());
+        assert_eq!(evictable_work_index(&[item.clone()], None), Some(0));
+        item.private_update_status = Some("delivered".to_owned());
+        assert!(super::pending_work_update_indices(&[item.clone()]).is_empty());
         let path = item
             .result_ref
             .as_ref()

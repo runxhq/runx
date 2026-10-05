@@ -109,6 +109,9 @@ turns; `tick` runs one due turn, and `status` reports control and timer state.
 ticks until an explicit resume. A skill-package patch does not change that
 revision: new work uses the newly inspected package, and an already started
 native run retains a content-addressed local package copy for exact resume.
+The binding includes local sibling packages reached by any runner in the
+inspected closure. A sibling patch gives new work a new binding while the
+existing run keeps its exact earlier closure; a changed pinned copy is refused.
 Each assignment pins its exact invocation inputs and run identity before
 calling a skill; composed conversations retain separate bindings for review
 and coding intake. The original copy must remain available while its run is
@@ -153,8 +156,12 @@ private repository allowlist, and asks the model to select exact
 source/route/target triples. The finalizer rejects invented targets and
 non-open source actions. The host records a stable assignment in `data-store`
 before `assistant execute` runs one due `github-sync#pull`. It verifies the exact PR
-identity in provider readback, records state and receipt, and supplies that
-bounded result to later reviews. Read retries reuse the same native run identity
+identity in provider readback, records state and receipt, and makes that
+bounded result available in `assistant work`. A completed assignment wakes the
+intake loop immediately. Before reading another provider page, the loop turns up
+to three sealed work results into one private progress update. This is a
+deterministic projection of the result, not another model judgment or work
+queue. Read retries reuse the same native run identity
 after a crash; they cannot post or mutate the PR. Intake continues while the
 worker is busy. When attention selects an open mail or Slack item and the
 profile enables `conversation_review`, the host queues that review from the
@@ -204,8 +211,12 @@ assignment is eligible for a new attempt when its failed skill package changes;
 the prior receipt remains in the append-only control history.
 
 Notification is off when `allowed_action_ids` is empty and `notification` is
-`null`; in that mode a useful brief closes as `ready_undelivered` and is not
-marked handled. To enable delivery, configure `private_update` plus an exact
+`null`; in that mode a useful attention brief closes as `ready_undelivered`
+and remains available in `report`. Its source occurrences are marked handled
+so an unchanged scan does not call the model again. Completed work is recorded
+as `work_available_undelivered` with its sealed receipts, and remains visible
+in `assistant work`; it is not reported as sent. To enable delivery, configure
+`private_update` plus an exact
 private `slack://workspace/channel` target, provider grant, principal, expiry,
 and post/text quotas; install its native standing authority with `grant`.
 Delivery uses a persisted exact intent, a stable graph run identity and
@@ -223,9 +234,12 @@ coverage caveat in the exact posted text. `revoke` disables the standing
 authority. Quiet hours defer a pending notification; read-only checks can
 continue during quiet hours even while notification is pending.
 The local host projects each selected item into a short, plain-text notification
-with its full source digest, within the channel's byte quota. The complete
+with its full source digest, or the sealed receipt for completed work, within
+the channel's byte quota. The complete
 evidence-bound review, including exact source locators, remains available through
-`report`; if even the digests cannot fit, delivery holds without posting. Source
+`report`; sealed assignment results remain in `assistant work`. A work update
+is marked delivered only after provider readback matches its pinned intent.
+If even the digests cannot fit, delivery holds without posting. Source
 markup and active Slack mentions are removed from the notification so a quoted
 message cannot change the posted text or ping others. Source locators are kept
 out of the Slack post because Slack auto-links even code-formatted locators and
