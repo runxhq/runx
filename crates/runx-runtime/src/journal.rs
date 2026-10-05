@@ -940,6 +940,13 @@ fn graph_checkpoint_status_for_run(
     {
         return Ok(GraphCheckpointStatus::Active);
     }
+    if value
+        .get("completed_receipt_id")
+        .and_then(serde_json::Value::as_str)
+        .is_some()
+    {
+        return Ok(GraphCheckpointStatus::Terminal);
+    }
     let status = value
         .pointer("/checkpoint/state/status")
         .and_then(serde_json::Value::as_str);

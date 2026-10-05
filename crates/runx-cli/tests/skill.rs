@@ -299,6 +299,58 @@ fn graph_action_approval_yields_one_operator_resolution() -> Result<(), Box<dyn 
     assert_eq!(signed_json["status"], "needs_approval");
     assert_eq!(signed_json["requests"][0]["kind"], "approval");
 
+    let run_id = graph_json["run_id"].as_str().ok_or("missing run id")?;
+    let request_id = graph_json["requests"][0]["id"]
+        .as_str()
+        .ok_or("missing request id")?;
+    let answers = root.join("decline.json");
+    fs::write(
+        &answers,
+        serde_json::json!({"approvals": { request_id: false }}).to_string(),
+    )?;
+    let declined = crate::support::unsigned_runx_command_at(&root)
+        .arg("resume")
+        .arg(run_id)
+        .arg(&answers)
+        .arg("--receipt-dir")
+        .arg(&receipt_dir)
+        .arg("--json")
+        .output()?;
+    let declined = serde_json::from_slice::<serde_json::Value>(&declined.stdout)?;
+    assert_eq!(declined["status"], "sealed");
+    assert_ne!(declined["closure"]["disposition"], "closed");
+    assert!(runx_runtime::journal::find_paused_run(&receipt_dir, run_id)?.is_none());
+    let receipt_id = declined["receipt_id"]
+        .as_str()
+        .ok_or("missing receipt id")?;
+    let receipt_path =
+        runx_runtime::LocalReceiptStore::new(&receipt_dir).receipt_path(receipt_id)?;
+    fs::remove_file(&receipt_path)?;
+    assert!(!receipt_path.exists());
+    let replay = runx_runtime::orchestrator::LocalOrchestrator::default().run_skill_with_runner(
+        &runx_runtime::orchestrator::SkillRunRequest {
+            skill_path: approval_skill,
+            receipt_dir: Some(receipt_dir),
+            run_id: Some(run_id.to_owned()),
+            answers_path: None,
+            inputs: std::collections::BTreeMap::new(),
+            env: std::collections::BTreeMap::from([(
+                "RUNX_HOME".to_owned(),
+                root.join("home").to_string_lossy().into_owned(),
+            )]),
+            cwd: root,
+            managed_agent: runx_runtime::ManagedAgentPolicy::HostDriven,
+            local_credential: None,
+        },
+        "approval-graph",
+    )?;
+    assert!(!replay.succeeded());
+    assert_eq!(
+        replay.receipt_refs.first().map(String::as_str),
+        declined["receipt_id"].as_str()
+    );
+    assert!(receipt_path.exists());
+
     Ok(())
 }
 
@@ -1145,6 +1197,10 @@ fn write_approval_graph_skill(root: &Path) -> Result<PathBuf, Box<dyn std::error
         "---\nname: approval-graph\n---\n# Approval Graph\n",
     )?;
     fs::write(
+        skill_dir.join("fail.mjs"),
+        "export function fail() { throw new Error('expected terminal fault'); }\n",
+    )?;
+    fs::write(
         skill_dir.join("X.yaml"),
         r#"
 skill: approval-graph
@@ -1154,7 +1210,7 @@ runners:
     type: graph
     graph:
       name: approval-graph
-      result_from: [approve]
+      result_from: [fail]
       steps:
         - id: approve
           run:
@@ -1165,6 +1221,12 @@ runners:
           artifacts:
             wrap_as: approval_decision
             packet: runx.approval.decision.v1
+        - id: fail
+          run:
+            type: javascript
+            module: fail.mjs
+            export: fail
+            outputs: { result: object }
 "#,
     )?;
     Ok(skill_dir)

@@ -4,9 +4,9 @@
 #[cfg(test)]
 use super::contract_json_value;
 use super::{
-    GRAPH_SKILL_STATE_SCHEMA, SkillExecutionContext, SkillOutputDiagnostics, SkillRunError,
-    SkillSourceAdapter, build_domain_act_frame, generated_run_id, identifier_segment, invalid,
-    needs_agent_output, sealed_output,
+    GRAPH_SKILL_STATE_SCHEMA, PendingSkillRequest, SkillExecutionContext, SkillOutputDiagnostics,
+    SkillRunError, SkillSourceAdapter, build_domain_act_frame, generated_run_id,
+    identifier_segment, invalid, needs_agent_output, sealed_output,
 };
 
 use std::collections::BTreeMap;
@@ -120,11 +120,23 @@ pub(super) fn execute_graph_skill_run(
                 "graph run identity cannot replace its original inputs",
             ));
         }
-        if state.checkpoint.state.status == GraphStatus::Succeeded {
+        if state.completed_receipt_id.is_none()
+            && (state.sealed_graph_receipt.is_some()
+                || state.terminal_result.is_some()
+                || matches!(
+                    state.checkpoint.state.status,
+                    GraphStatus::Succeeded | GraphStatus::Failed
+                ))
+        {
+            return Err(invalid(
+                "completed graph checkpoint lacks its primary receipt identity",
+            ));
+        }
+        if state.completed_receipt_id.is_some() {
             let completed = resumed_state
                 .take()
                 .ok_or_else(|| invalid("completed graph state is missing"))?;
-            return restore_completed_graph_skill_run(context, graph, completed, &run_id);
+            return restore_sealed_graph_skill_run(context, graph, completed, &run_id);
         }
     }
     let skill_dir = crate::skill_package::resolve_skill_package_directory(&request.skill_path)?;
@@ -218,7 +230,6 @@ pub(super) fn execute_graph_skill_run(
                         next_checkpoint,
                         &mut final_host,
                     )?;
-                    write_graph_receipts(request, workspace, receipts, &run)?;
                     let result = graph_run_result(&run)?;
                     let public_context = graph_run_context(&run);
                     let trace = graph_run_trace(&run);
@@ -233,9 +244,6 @@ pub(super) fn execute_graph_skill_run(
                         &created_at,
                         receipts.signature_config(),
                     )?;
-                    if let Some(domain_receipt) = &domain {
-                        write_skill_receipt(request, workspace, receipts, domain_receipt)?;
-                    }
                     let receipt = domain.as_ref().unwrap_or(&run.receipt);
                     write_graph_state(
                         request,
@@ -250,11 +258,19 @@ pub(super) fn execute_graph_skill_run(
                             execution_closure_digest: execution_closure_digest.to_owned(),
                             graph_inputs: graph_inputs.clone(),
                             resolution_answers: answers.clone(),
+                            pending_request: None,
                             completed_receipt_id: Some(receipt.id.to_string()),
                             completed_graph_receipt_id: Some(run.receipt.id.to_string()),
+                            terminal_result: None,
+                            sealed_graph_receipt: Some(run.receipt.clone()),
+                            sealed_primary_receipt: domain.clone(),
                             checkpoint: completed_checkpoint,
                         },
                     )?;
+                    write_graph_receipts(request, workspace, receipts, &run)?;
+                    if let Some(domain_receipt) = &domain {
+                        write_skill_receipt(request, workspace, receipts, domain_receipt)?;
+                    }
                     let output = graph_run_skill_output(&result, &run)?;
                     return Ok(sealed_output(
                         manifest,
@@ -282,8 +298,12 @@ pub(super) fn execute_graph_skill_run(
                         execution_closure_digest: execution_closure_digest.to_owned(),
                         graph_inputs: graph_inputs.clone(),
                         resolution_answers: answers.clone(),
+                        pending_request: None,
                         completed_receipt_id: None,
                         completed_graph_receipt_id: None,
+                        terminal_result: None,
+                        sealed_graph_receipt: None,
+                        sealed_primary_receipt: None,
                         checkpoint: next_checkpoint.clone(),
                     },
                 )?;
@@ -292,6 +312,13 @@ pub(super) fn execute_graph_skill_run(
             Err(RuntimeError::ResolutionPending {
                 checkpoint: paused, ..
             }) if host.pending_request().is_some() => {
+                let (request_id, request_value) = host
+                    .pending_request()
+                    .ok_or_else(|| invalid("graph blocked without pending request"))?;
+                let pending_request = PendingSkillRequest {
+                    id: request_id.to_owned(),
+                    value: request_value.clone(),
+                };
                 write_graph_state(
                     request,
                     workspace,
@@ -305,15 +332,16 @@ pub(super) fn execute_graph_skill_run(
                         execution_closure_digest: execution_closure_digest.to_owned(),
                         graph_inputs: graph_inputs.clone(),
                         resolution_answers: answers.clone(),
+                        pending_request: Some(pending_request.clone()),
                         completed_receipt_id: None,
                         completed_graph_receipt_id: None,
+                        terminal_result: None,
+                        sealed_graph_receipt: None,
+                        sealed_primary_receipt: None,
                         checkpoint: *paused
                             .ok_or_else(|| invalid("graph pause omitted its checkpoint"))?,
                     },
                 )?;
-                let (request_id, request_value) = host
-                    .pending_request()
-                    .ok_or_else(|| invalid("graph blocked without pending request"))?;
                 write_paused_graph_checkpoint(PausedGraphCheckpoint {
                     request,
                     workspace,
@@ -324,14 +352,14 @@ pub(super) fn execute_graph_skill_run(
                     package_digest,
                     execution_closure_digest: Some(execution_closure_digest),
                     run_id: &run_id,
-                    request_id,
+                    request_id: &pending_request.id,
                 })?;
                 return Ok(needs_agent_output(
                     manifest,
                     &runner.name,
                     &run_id,
-                    request_id,
-                    request_value.clone(),
+                    &pending_request.id,
+                    pending_request.value,
                 ));
             }
             Err(RuntimeError::ResolutionPending {
@@ -352,6 +380,10 @@ pub(super) fn execute_graph_skill_run(
                     checkpoint: previous_checkpoint,
                     run_id: &run_id,
                     runtime: &runtime,
+                    package_digest,
+                    execution_closure_digest,
+                    graph_inputs: &graph_inputs,
+                    answers: &answers,
                     step_id: &step_id,
                     reason_code: "graph_blocked",
                     summary: format!("graph {} blocked at {step_id}: {reason}", graph.name),
@@ -373,6 +405,10 @@ pub(super) fn execute_graph_skill_run(
                     checkpoint: previous_checkpoint,
                     run_id: &run_id,
                     runtime: &runtime,
+                    package_digest,
+                    execution_closure_digest,
+                    graph_inputs: &graph_inputs,
+                    answers: &answers,
                     step_id: &step_id,
                     reason_code: "authority_denied",
                     summary: format!(
@@ -401,6 +437,10 @@ pub(super) fn execute_graph_skill_run(
                     checkpoint: previous_checkpoint,
                     run_id: &run_id,
                     runtime: &runtime,
+                    package_digest,
+                    execution_closure_digest,
+                    graph_inputs: &graph_inputs,
+                    answers: &answers,
                     step_id: &step_id,
                     reason_code: "provider_readback_pending",
                     summary,
@@ -434,6 +474,10 @@ pub(super) fn execute_graph_skill_run(
                     checkpoint: previous_checkpoint,
                     run_id: &run_id,
                     runtime: &runtime,
+                    package_digest,
+                    execution_closure_digest,
+                    graph_inputs: &graph_inputs,
+                    answers: &answers,
                     step_id: &step_id,
                     reason_code: &reason_code,
                     summary,
@@ -458,6 +502,10 @@ pub(super) fn execute_graph_skill_run(
                     checkpoint: previous_checkpoint,
                     run_id: &run_id,
                     runtime: &runtime,
+                    package_digest,
+                    execution_closure_digest,
+                    graph_inputs: &graph_inputs,
+                    answers: &answers,
                     step_id: &step_id,
                     reason_code: "graph_step_failed",
                     summary,
@@ -469,12 +517,13 @@ pub(super) fn execute_graph_skill_run(
     }
 }
 
-fn restore_completed_graph_skill_run(
+fn restore_sealed_graph_skill_run(
     context: &SkillExecutionContext<'_>,
     graph: ExecutionGraph,
     state: GraphSkillRunState,
     run_id: &str,
 ) -> Result<RunResult, SkillRunError> {
+    let terminal_result = state.terminal_result.clone();
     let graph_receipt_id = state
         .completed_graph_receipt_id
         .as_deref()
@@ -483,51 +532,39 @@ fn restore_completed_graph_skill_run(
         .completed_receipt_id
         .as_deref()
         .ok_or_else(|| invalid("completed graph checkpoint lacks its primary receipt identity"))?;
+    let sealed_graph_receipt = state
+        .sealed_graph_receipt
+        .as_ref()
+        .ok_or_else(|| invalid("completed graph state lacks its sealed receipt"))?;
+    if sealed_graph_receipt.id.as_str() != graph_receipt_id {
+        return Err(invalid("completed graph state changed its sealed receipt"));
+    }
+    let sealed_primary_receipt = state.sealed_primary_receipt.as_ref();
+    if sealed_primary_receipt
+        .map(|receipt| receipt.id.as_str())
+        .unwrap_or(graph_receipt_id)
+        != receipt_id
+    {
+        return Err(invalid("completed graph state changed its primary receipt"));
+    }
     let receipt_path = context.receipts.resolve_path(
         context.workspace,
         context.request.receipt_dir.as_deref(),
         None,
     );
     let policy = context.receipts.signature_config().signature_policy();
-    let graph_receipt = context
-        .receipts
-        .read_local_receipt(graph_receipt_id, &receipt_path.path)
-        .map_err(|error| invalid(format!("completed graph receipt is invalid: {error}")))?;
-    let primary_receipt = if receipt_id == graph_receipt_id {
-        graph_receipt.clone()
-    } else {
-        context
-            .receipts
-            .read_local_receipt(receipt_id, &receipt_path.path)
-            .map_err(|error| invalid(format!("completed primary receipt is invalid: {error}")))?
-    };
-    if graph_receipt.seal.disposition != ClosureDisposition::Closed
-        || primary_receipt.seal.disposition != ClosureDisposition::Closed
-        || graph_receipt.subject.reference.uri.as_str() != format!("hrn_{}_graph", graph.name)
-    {
-        return Err(invalid(
-            "completed graph receipt does not match its sealed run",
-        ));
-    }
-    let expected_primary = if context.runner.source.act.is_some() {
-        format!("hrn_{}_turn", identifier_segment(run_id))
-    } else {
-        graph_receipt.subject.reference.uri.to_string()
-    };
-    if primary_receipt.subject.reference.uri.as_str() != expected_primary {
-        return Err(invalid(
-            "completed primary receipt does not match its runner",
-        ));
-    }
     let graph = materialize_graph_parameter_inputs(graph, &state.graph_inputs);
     let checkpoint = state.checkpoint;
-    if checkpoint.graph_name != graph.name || checkpoint.state.status != GraphStatus::Succeeded {
+    if checkpoint.graph_name != graph.name
+        || (terminal_result.is_none() && checkpoint.state.status != GraphStatus::Succeeded)
+        || (terminal_result.is_some() && checkpoint.state.status == GraphStatus::Succeeded)
+    {
         return Err(invalid(
             "completed graph checkpoint does not match its runner",
         ));
     }
     crate::receipts::tree::validate_runtime_receipt_tree_refs_with_policy(
-        &graph_receipt,
+        sealed_graph_receipt,
         checkpoint.steps.iter().flat_map(|step| {
             step.nested_receipts
                 .iter()
@@ -542,10 +579,62 @@ fn restore_completed_graph_skill_run(
         state: checkpoint.state,
         steps: checkpoint.steps,
         sync_points: checkpoint.sync_points,
-        receipt: graph_receipt,
+        receipt: sealed_graph_receipt.clone(),
         journal: checkpoint.journal,
     };
-    let result = graph_run_result(&run)?;
+    let primary = sealed_primary_receipt.unwrap_or(sealed_graph_receipt);
+    if sealed_graph_receipt.subject.reference.uri.as_str()
+        != format!("hrn_{}_graph", run.graph.name)
+        || (terminal_result.is_some()
+            && (sealed_graph_receipt.seal.disposition == ClosureDisposition::Closed
+                || sealed_primary_receipt.is_some()))
+        || (terminal_result.is_none()
+            && (sealed_graph_receipt.seal.disposition != ClosureDisposition::Closed
+                || primary.seal.disposition != ClosureDisposition::Closed))
+    {
+        return Err(invalid(
+            "completed graph receipt does not match its sealed run",
+        ));
+    }
+    let expected_primary = if terminal_result.is_none() && context.runner.source.act.is_some() {
+        format!("hrn_{}_turn", identifier_segment(run_id))
+    } else {
+        sealed_graph_receipt.subject.reference.uri.to_string()
+    };
+    if primary.subject.reference.uri.as_str() != expected_primary {
+        return Err(invalid(
+            "completed primary receipt does not match its runner",
+        ));
+    }
+    write_graph_receipts(context.request, context.workspace, context.receipts, &run)?;
+    if let Some(primary) = sealed_primary_receipt {
+        write_skill_receipt(
+            context.request,
+            context.workspace,
+            context.receipts,
+            primary,
+        )?;
+    }
+    let graph_receipt = context
+        .receipts
+        .read_local_receipt(graph_receipt_id, &receipt_path.path)
+        .map_err(|error| invalid(format!("completed graph receipt is invalid: {error}")))?;
+    let primary_receipt = if receipt_id == graph_receipt_id {
+        graph_receipt.clone()
+    } else {
+        context
+            .receipts
+            .read_local_receipt(receipt_id, &receipt_path.path)
+            .map_err(|error| invalid(format!("completed primary receipt is invalid: {error}")))?
+    };
+    let run = GraphRun {
+        receipt: graph_receipt,
+        ..run
+    };
+    let result = match terminal_result {
+        Some(result) => result,
+        None => graph_run_result(&run)?,
+    };
     let output = graph_run_skill_output(&result, &run)?;
     Ok(sealed_output(
         context.manifest,
@@ -642,6 +731,10 @@ struct TerminalGraphSkillRun<'a> {
     checkpoint: GraphCheckpoint,
     run_id: &'a str,
     runtime: &'a Runtime<SkillSourceAdapter>,
+    package_digest: &'a str,
+    execution_closure_digest: &'a str,
+    graph_inputs: &'a JsonObject,
+    answers: &'a ResolutionAnswers,
     step_id: &'a str,
     reason_code: &'a str,
     summary: String,
@@ -692,11 +785,40 @@ fn seal_terminal_graph_skill_run(
             )?
         }
     };
-    write_graph_receipts(context.request, context.workspace, context.receipts, &run)?;
     let result = failure_result.unwrap_or(graph_run_result(&run)?);
     let public_context = graph_run_context(&run);
     let trace = graph_run_trace(&run);
     let output = graph_run_skill_output(&result, &run)?;
+    write_graph_state(
+        context.request,
+        context.workspace,
+        context.receipts,
+        context.run_id,
+        &GraphSkillRunState {
+            schema: GRAPH_SKILL_STATE_SCHEMA.to_owned(),
+            run_id: context.run_id.to_owned(),
+            runner_name: context.runner_name.to_owned(),
+            package_digest: context.package_digest.to_owned(),
+            execution_closure_digest: context.execution_closure_digest.to_owned(),
+            graph_inputs: context.graph_inputs.clone(),
+            resolution_answers: context.answers.clone(),
+            pending_request: None,
+            completed_receipt_id: Some(run.receipt.id.to_string()),
+            completed_graph_receipt_id: Some(run.receipt.id.to_string()),
+            terminal_result: Some(result.clone()),
+            sealed_graph_receipt: Some(run.receipt.clone()),
+            sealed_primary_receipt: None,
+            checkpoint: GraphCheckpoint {
+                graph_name: run.graph.name.clone(),
+                state: run.state.clone(),
+                steps: run.steps.clone(),
+                sync_points: run.sync_points.clone(),
+                journal: run.journal.clone(),
+                suspended_step: None,
+            },
+        },
+    )?;
+    write_graph_receipts(context.request, context.workspace, context.receipts, &run)?;
     Ok(sealed_output(
         context.manifest,
         context.runner_name,
@@ -723,9 +845,17 @@ pub(super) struct GraphSkillRunState {
     #[serde(default)]
     pub(super) resolution_answers: ResolutionAnswers,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(super) pending_request: Option<PendingSkillRequest>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(super) completed_receipt_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(super) completed_graph_receipt_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(super) terminal_result: Option<JsonValue>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(super) sealed_graph_receipt: Option<runx_contracts::Receipt>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(super) sealed_primary_receipt: Option<runx_contracts::Receipt>,
     pub(super) checkpoint: GraphCheckpoint,
 }
 
@@ -844,9 +974,8 @@ impl Host for SkillRunGraphHost {
         if let Some(answer) = self.answers.get(&request_id) {
             if self.answers.requires_request_digest(&request_id) {
                 let supplied = self.answers.request_digest(&request_id).ok_or_else(|| {
-                    RuntimeError::SkillFailed {
-                        skill_name: "graph-resolution".to_owned(),
-                        message: format!(
+                    RuntimeError::ContinuationRejected {
+                        reason: format!(
                             "request_digests did not include pending request {request_id}"
                         ),
                     }
@@ -861,9 +990,8 @@ impl Host for SkillRunGraphHost {
                 })?;
                 let current = runx_contracts::sha256_prefixed(&bytes);
                 if supplied != current {
-                    return Err(RuntimeError::SkillFailed {
-                        skill_name: "graph-resolution".to_owned(),
-                        message: format!(
+                    return Err(RuntimeError::ContinuationRejected {
+                        reason: format!(
                             "request digest mismatch for {request_id}: supplied {supplied}, current {current}"
                         ),
                     });

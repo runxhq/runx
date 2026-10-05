@@ -92,6 +92,15 @@ struct WorkAssignment {
     failed_skill: Option<String>,
     #[serde(default)]
     private_update_status: Option<String>,
+    #[serde(default)]
+    pending_resolution: Option<PendingResolution>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct PendingResolution {
+    skill: String,
+    run_id: String,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -205,24 +214,27 @@ fn due_worker_lane(
 
 fn next_work_due(work: &[WorkAssignment]) -> Option<u64> {
     work.iter()
-        .filter(|item| item.status == "pending")
+        .filter(|item| work_is_open(item))
         .map(|item| item.retry_after_unix_seconds)
         .min()
 }
 
 fn due_work_index(work: &[WorkAssignment], now: u64) -> Option<usize> {
     work.iter()
-        .position(|item| item.status == "pending" && item.retry_after_unix_seconds <= now)
+        .position(|item| work_is_open(item) && item.retry_after_unix_seconds <= now)
+}
+
+fn work_is_open(item: &WorkAssignment) -> bool {
+    matches!(item.status.as_str(), "pending" | "awaiting_resolution")
 }
 
 fn evictable_work_index(work: &[WorkAssignment], protected_id: Option<&str>) -> Option<usize> {
     work.iter().position(|item| {
-        item.status != "pending"
+        !work_is_open(item)
             && !needs_work_update(item)
             && protected_id != Some(item.id.as_str())
             && !work.iter().any(|child| {
-                child.status == "pending"
-                    && child.parent_work_id.as_deref() == Some(item.id.as_str())
+                work_is_open(child) && child.parent_work_id.as_deref() == Some(item.id.as_str())
             })
     })
 }
@@ -370,6 +382,51 @@ struct SkillRunFailure {
     skill: Option<String>,
 }
 
+#[derive(Debug)]
+enum SkillRunStop {
+    Failure(SkillRunFailure),
+    Suspended {
+        skill: String,
+        run_id: String,
+        requests: Vec<Value>,
+    },
+}
+
+impl SkillRunStop {
+    fn sealed_validation(skill: &str, receipt: &str, message: impl Into<String>) -> Self {
+        Self::Failure(SkillRunFailure::sealed_validation(skill, receipt, message))
+    }
+}
+
+impl From<SkillRunFailure> for SkillRunStop {
+    fn from(error: SkillRunFailure) -> Self {
+        Self::Failure(error)
+    }
+}
+
+impl From<String> for SkillRunStop {
+    fn from(message: String) -> Self {
+        Self::Failure(message.into())
+    }
+}
+
+impl From<&str> for SkillRunStop {
+    fn from(message: &str) -> Self {
+        Self::Failure(message.into())
+    }
+}
+
+impl From<SkillRunStop> for String {
+    fn from(stop: SkillRunStop) -> Self {
+        match stop {
+            SkillRunStop::Failure(error) => error.message,
+            SkillRunStop::Suspended { run_id, .. } => {
+                format!("native run {run_id} awaits a resolution")
+            }
+        }
+    }
+}
+
 impl From<String> for SkillRunFailure {
     fn from(message: String) -> Self {
         Self {
@@ -417,7 +474,7 @@ fn run_skill_with_id(
     delivery: bool,
     run_id: Option<&str>,
     pinned_package_digest: Option<&str>,
-) -> Result<(Value, String), SkillRunFailure> {
+) -> Result<(Value, String), SkillRunStop> {
     let source_path = loaded.profile.skills_root.join(name);
     let path = if let Some(digest) = pinned_package_digest {
         pinned_skill_path_by_digest(workspace, name, digest)?
@@ -509,9 +566,24 @@ fn run_skill_with_id(
     let result = orchestrator
         .run_skill_with_runner(&request, runner)
         .map_err(|error| format!("{name}#{runner}: {error}"))?;
+    if result.status == runx_runtime::RunStatus::NeedsAgent {
+        let run_id = run_id.ok_or("unbound skill run suspended without a durable identity")?;
+        if result.pending_requests.is_empty() {
+            return Err("native run suspended without a pending request".into());
+        }
+        return Err(SkillRunStop::Suspended {
+            skill: name.to_owned(),
+            run_id: run_id.to_owned(),
+            requests: result
+                .pending_requests
+                .into_iter()
+                .map(|request| serde_json::to_value(request).map_err(|error| error.to_string()))
+                .collect::<Result<_, _>>()?,
+        });
+    }
     if !result.succeeded() {
         let receipt = result.receipt_refs.first().cloned();
-        return Err(SkillRunFailure {
+        return Err(SkillRunStop::Failure(SkillRunFailure {
             message: format!(
                 "{name}#{runner} did not close: {:?}; receipt: {}",
                 result.disposition,
@@ -523,7 +595,7 @@ fn run_skill_with_id(
                 None
             },
             skill: Some(name.to_owned()),
-        });
+        }));
     }
     let receipt = result
         .receipt_refs
@@ -754,7 +826,14 @@ fn read_control(loaded: &LoadedProfile, workspace: &WorkspaceEnv) -> Result<Cont
     }
     if state.work.len() > 40
         || state.work.iter().any(|item| {
-            !matches!(item.status.as_str(), "pending" | "completed" | "held")
+            !matches!(
+                item.status.as_str(),
+                "pending" | "awaiting_resolution" | "completed" | "held"
+            ) || (item.status == "awaiting_resolution") != item.pending_resolution.is_some()
+                || item.pending_resolution.as_ref().is_some_and(|pending| {
+                    item.runs.get(&pending.skill).map(|run| run.run_id.as_str())
+                        != Some(pending.run_id.as_str())
+                })
                 || item.id.len() > 80
                 || item.parent_work_id.as_ref().is_some_and(|id| id.len() > 80)
                 || item.source_ref.len() > 300
@@ -1009,6 +1088,7 @@ pub(super) fn status(loaded: &LoadedProfile, workspace: &WorkspaceEnv) -> Result
         "last_fresh_scan_at_unix_seconds":record.state.last_fresh_scan_at,
         "confirmed_memory_count":record.state.confirmed_memory.len(),
         "pending_work_count":record.state.work.iter().filter(|item| item.status == "pending").count(),
+        "awaiting_resolution_count":record.state.work.iter().filter(|item| item.status == "awaiting_resolution").count(),
         "pending_private_work_updates":pending_work_update_indices(&record.state.work).len(),
         "report_available":record.state.last_review_ref.is_some(),
         "charter_configured":!loaded.profile.charter.is_empty(),
@@ -1122,10 +1202,19 @@ pub(super) fn work(
         .map(|item| {
             let mut projection = serde_json::to_value(item)
                 .map_err(|error| format!("encoding assistant work item: {error}"))?;
-            projection
+            let fields = projection
                 .as_object_mut()
-                .ok_or("assistant work item is not an object")?
-                .remove("result_ref");
+                .ok_or("assistant work item is not an object")?;
+            fields.remove("result_ref");
+            fields.remove("runs");
+            if let Some(pending) = item.pending_resolution.as_ref() {
+                let native = runx_runtime::skill_front::inspect_paused_skill_request(
+                    &super::receipt_root(workspace),
+                    &pending.run_id,
+                )
+                .map_err(|error| format!("inspecting native pending request: {error}"))?;
+                projection["pending_request_ids"] = json!(native.map(|request| vec![request.id]));
+            }
             projection["result"] = json!(read_work_result(workspace, item)?);
             Ok::<Value, String>(projection)
         })
@@ -1258,11 +1347,7 @@ fn memory_edit_allowed(loaded: &LoadedProfile, record: &ControlRecord) -> Result
         || record.state.active_run_id.is_some()
         || record.state.pending_turn.is_some()
         || record.state.pending_intent.is_some()
-        || record
-            .state
-            .work
-            .iter()
-            .any(|item| item.status == "pending")
+        || record.state.work.iter().any(work_is_open)
     {
         return Err(
             "assistant memory cannot change during pending work or profile drift".to_owned(),
@@ -1297,7 +1382,7 @@ pub(super) fn set_paused(
             .state
             .work
             .iter()
-            .any(|item| item.status == "pending" && !item.runs.is_empty())
+            .any(|item| work_is_open(item) && !item.runs.is_empty())
         {
             return Err(
                 "cannot rebind an active work run to changed operator configuration".to_owned(),
@@ -1318,7 +1403,7 @@ pub(super) fn set_paused(
         record.state.next_due_unix_seconds = 0;
         record.state.next_delivery_due_unix_seconds = 0;
         for item in &mut record.state.work {
-            if item.status == "pending" {
+            if work_is_open(item) {
                 item.retry_after_unix_seconds = 0;
             }
         }
@@ -1518,35 +1603,91 @@ pub(super) fn execute(loaded: &LoadedProfile, workspace: &WorkspaceEnv) -> Resul
     } else {
         None
     };
-    let result: Result<Value, SkillRunFailure> = match lane {
+    let result: Result<Value, SkillRunStop> = match lane {
         Some(WorkerLane::Delivery) => {
-            deliver_pending(loaded, workspace, &mut record).map_err(SkillRunFailure::from)
+            deliver_pending(loaded, workspace, &mut record).map_err(SkillRunStop::from)
         }
         Some(WorkerLane::Assignment) => dispatch_pending_work(loaded, workspace, &mut record),
         None => unreachable!(),
     };
-    if let Err(error) = &result {
-        // A concurrent intake may have advanced the control version. Never
-        // overwrite it with a stale worker snapshot; retry the same native
-        // run identity after a bounded delay.
-        let _control_lock = lock(loaded, workspace)?;
-        let mut current = read_control(loaded, workspace)?;
-        current.state.last_blocker = Some(error.message.chars().take(500).collect());
-        if lane == Some(WorkerLane::Delivery) {
-            current.state.next_delivery_due_unix_seconds =
-                scheduled_due(loaded.profile.min_check_minutes);
-        } else if let Some(work_id) = attempted_work_id.as_deref()
-            && let Some(item) = current
-                .state
-                .work
-                .iter_mut()
-                .find(|item| item.id == work_id && item.status == "pending")
-        {
-            apply_assignment_failure(item, error, loaded.profile.min_check_minutes);
+    match result {
+        Ok(output) => Ok(output),
+        Err(SkillRunStop::Suspended {
+            skill,
+            run_id,
+            requests,
+        }) => {
+            let work_id = attempted_work_id
+                .as_deref()
+                .ok_or("unassigned native run suspended")?;
+            record_suspended_work(loaded, workspace, work_id, &skill, &run_id, &requests)
         }
-        write_control(loaded, workspace, &mut current, "worker_held")?;
+        Err(SkillRunStop::Failure(error)) => {
+            // Intake may have advanced the control version. Retry only the
+            // original bound run after a bounded delay.
+            let _control_lock = lock(loaded, workspace)?;
+            let mut current = read_control(loaded, workspace)?;
+            current.state.last_blocker = Some(error.message.chars().take(500).collect());
+            if lane == Some(WorkerLane::Delivery) {
+                current.state.next_delivery_due_unix_seconds =
+                    scheduled_due(loaded.profile.min_check_minutes);
+            } else if let Some(work_id) = attempted_work_id.as_deref()
+                && let Some(item) = current
+                    .state
+                    .work
+                    .iter_mut()
+                    .find(|item| item.id == work_id && work_is_open(item))
+            {
+                apply_assignment_failure(item, &error, loaded.profile.min_check_minutes);
+            }
+            write_control(loaded, workspace, &mut current, "worker_held")?;
+            Err(error.message)
+        }
     }
-    result.map_err(String::from)
+}
+
+fn record_suspended_work(
+    loaded: &LoadedProfile,
+    workspace: &WorkspaceEnv,
+    work_id: &str,
+    skill: &str,
+    run_id: &str,
+    requests: &[Value],
+) -> Result<Value, String> {
+    let native = runx_runtime::skill_front::inspect_paused_skill_request(
+        &super::receipt_root(workspace),
+        run_id,
+    )
+    .map_err(|error| format!("inspecting native pending request: {error}"))?
+    .ok_or("native run has no paused request")?;
+    if requests.len() != 1 || requests[0]["id"] != native.id {
+        return Err("native suspended request differs from its run checkpoint".to_owned());
+    }
+    let _control_lock = lock(loaded, workspace)?;
+    let mut current = read_control(loaded, workspace)?;
+    let item = current
+        .state
+        .work
+        .iter_mut()
+        .find(|item| item.id == work_id && work_is_open(item))
+        .ok_or("suspended work is no longer open")?;
+    if item.runs.get(skill).map(|run| run.run_id.as_str()) != Some(run_id) {
+        return Err("native suspension differs from the admitted run".to_owned());
+    }
+    item.status = "awaiting_resolution".to_owned();
+    item.retry_after_unix_seconds = scheduled_due(loaded.profile.min_check_minutes);
+    item.pending_resolution = Some(PendingResolution {
+        skill: skill.to_owned(),
+        run_id: run_id.to_owned(),
+    });
+    current.state.last_blocker = None;
+    write_control(loaded, workspace, &mut current, "work_awaiting_resolution")?;
+    Ok(json!({
+        "status":"work_awaiting_resolution",
+        "work_id":work_id,
+        "run_id":run_id,
+        "request_ids":[native.id]
+    }))
 }
 
 fn refresh_failed_work_after_patch(
@@ -1586,6 +1727,7 @@ fn apply_assignment_failure(item: &mut WorkAssignment, error: &SkillRunFailure, 
         item.status = "held".to_owned();
         item.receipt = Some(receipt.clone());
         item.failed_skill = error.skill.clone();
+        item.pending_resolution = None;
     } else {
         item.retry_after_unix_seconds = scheduled_due(minutes);
     }
@@ -2328,6 +2470,7 @@ fn admit_work(
             runs: BTreeMap::new(),
             failed_skill: None,
             private_update_status: None,
+            pending_resolution: None,
         });
         changed = true;
     }
@@ -2341,33 +2484,76 @@ fn dispatch_pending_work(
     loaded: &LoadedProfile,
     workspace: &WorkspaceEnv,
     record: &mut ControlRecord,
-) -> Result<Value, SkillRunFailure> {
+) -> Result<Value, SkillRunStop> {
     let index = due_work_index(&record.state.work, now_seconds()).ok_or("no due assistant work")?;
     let item = record.state.work[index].clone();
+    let mut resumed_native = false;
+    if let Some(pending) = item.pending_resolution.as_ref() {
+        let native = runx_runtime::journal::find_paused_run(
+            &super::receipt_root(workspace),
+            &pending.run_id,
+        )
+        .map_err(|error| format!("inspecting native suspended run: {error}"))?;
+        if let Some(native) = native {
+            let bound = item
+                .runs
+                .get(&pending.skill)
+                .ok_or("suspended work lost its skill binding")?;
+            let path =
+                pinned_skill_path_by_digest(workspace, &pending.skill, &bound.package_digest)?;
+            if native.id != pending.run_id
+                || native.resume_skill_ref.as_deref() != path.to_str()
+                || bound.run_id != pending.run_id
+            {
+                return Err("native suspended run differs from admitted work".into());
+            }
+            record.state.work[index].retry_after_unix_seconds =
+                scheduled_due(loaded.profile.min_check_minutes);
+            write_control(loaded, workspace, record, "work_still_awaiting_resolution")?;
+            return Ok(json!({
+                "status":"work_awaiting_resolution",
+                "work_id":item.id,
+                "run_id":pending.run_id,
+                "request_ids":[runx_runtime::skill_front::inspect_paused_skill_request(
+                    &super::receipt_root(workspace),
+                    &pending.run_id,
+                )
+                .map_err(|error| format!("inspecting native pending request: {error}"))?
+                .ok_or("native suspended run has no pending request")?.id]
+            }));
+        }
+        record.state.work[index].status = "pending".to_owned();
+        record.state.work[index].pending_resolution = None;
+        write_control(loaded, workspace, record, "native_resolution_recorded")?;
+        resumed_native = true;
+    }
     let route = loaded
         .profile
         .work_routes
         .iter()
         .find(|route| route.route_id == item.route_id)
         .ok_or("pending work route is no longer configured")?;
-    let dispositions = current_dispositions(
-        loaded,
-        workspace,
-        &[json!({
-            "source_ref":item.source_ref,"thread_locator":item.thread_locator
-        })],
-    )?;
-    if !dispositions
-        .iter()
-        .any(|state| state["disposition"] == "open")
-    {
-        record.state.work[index].status = "held".to_owned();
-        record.state.work[index].runs.clear();
-        record.state.work[index].failed_skill = None;
-        write_control(loaded, workspace, record, "work_source_closed")?;
-        return Ok(
-            json!({"status":"work_held","work_id":item.id,"reason":"source action is no longer open"}),
-        );
+    if !resumed_native {
+        let dispositions = current_dispositions(
+            loaded,
+            workspace,
+            &[json!({
+                "source_ref":item.source_ref,"thread_locator":item.thread_locator
+            })],
+        )?;
+        if !dispositions
+            .iter()
+            .any(|state| state["disposition"] == "open")
+        {
+            record.state.work[index].status = "held".to_owned();
+            record.state.work[index].runs.clear();
+            record.state.work[index].failed_skill = None;
+            record.state.work[index].pending_resolution = None;
+            write_control(loaded, workspace, record, "work_source_closed")?;
+            return Ok(
+                json!({"status":"work_held","work_id":item.id,"reason":"source action is no longer open"}),
+            );
+        }
     }
     let (result, receipt) = match route.kind.as_str() {
         "github_pr_status" => run_pr_status(loaded, workspace, record, index, &item, route)?,
@@ -2395,7 +2581,7 @@ fn dispatch_pending_work(
             } else {
                 "conversation-review"
             };
-            SkillRunFailure::sealed_validation(skill, &receipt, error)
+            SkillRunStop::sealed_validation(skill, &receipt, error)
         })?
     } else {
         None
@@ -2405,6 +2591,7 @@ fn dispatch_pending_work(
     record.state.work[index].result_ref = Some(persist_work_result(workspace, &item, &result)?);
     record.state.work[index].runs.clear();
     record.state.work[index].failed_skill = None;
+    record.state.work[index].pending_resolution = None;
     record.state.next_due_unix_seconds = 0;
     if let Some(child) = child
         && !record.state.work.iter().any(|entry| entry.id == child.id)
@@ -2428,7 +2615,7 @@ fn run_pr_status(
     index: usize,
     item: &WorkAssignment,
     route: &WorkRoute,
-) -> Result<(Value, String), SkillRunFailure> {
+) -> Result<(Value, String), SkillRunStop> {
     let (repository, number) = parse_pr_target(&item.target_ref)
         .ok_or("pending work target is not a canonical GitHub pull request")?;
     if !route
@@ -2495,7 +2682,7 @@ fn run_pr_status(
             "result_digest":sha256_prefixed(&bytes)
         }))
     })()
-    .map_err(|error| SkillRunFailure::sealed_validation("github-sync", &receipt, error))?;
+    .map_err(|error| SkillRunStop::sealed_validation("github-sync", &receipt, error))?;
     Ok((checked, receipt))
 }
 
@@ -2563,6 +2750,7 @@ fn plan_child_assignment(
         runs: BTreeMap::new(),
         failed_skill: None,
         private_update_status: None,
+        pending_resolution: None,
     }))
 }
 
@@ -2572,7 +2760,7 @@ fn run_work_plan(
     record: &mut ControlRecord,
     index: usize,
     item: &WorkAssignment,
-) -> Result<(Value, String), SkillRunFailure> {
+) -> Result<(Value, String), SkillRunStop> {
     let parent = item
         .parent_work_id
         .as_deref()
@@ -2628,21 +2816,21 @@ fn run_work_plan(
         Some(&bound.package_digest),
     )?;
     let plan = result_data(&output, "work_plan")
-        .map_err(|error| SkillRunFailure::sealed_validation("work-plan", &receipt, error))?;
+        .map_err(|error| SkillRunStop::sealed_validation("work-plan", &receipt, error))?;
     if plan["change_set"] != inputs["change_set"]
         || plan["evidence"]["source_change_set_preserved"] != true
         || plan["evidence"]["source_thread_locator_preserved"] != true
         || !matches!(plan["decision"].as_str(), Some("ready" | "blocked"))
         || (plan["decision"] == "ready" && plan["validation"]["status"] != "pass")
     {
-        return Err(SkillRunFailure::sealed_validation(
+        return Err(SkillRunStop::sealed_validation(
             "work-plan",
             &receipt,
             "work plan did not preserve the admitted parent change set",
         ));
     }
     bounded_work_artifact(plan)
-        .map_err(|error| SkillRunFailure::sealed_validation("work-plan", &receipt, error))?;
+        .map_err(|error| SkillRunStop::sealed_validation("work-plan", &receipt, error))?;
     Ok((
         json!({
             "kind":"work_plan",
@@ -2706,7 +2894,7 @@ fn run_conversation_review(
     index: usize,
     item: &WorkAssignment,
     memory: &[ConfirmedMemory],
-) -> Result<(Value, String), SkillRunFailure> {
+) -> Result<(Value, String), SkillRunStop> {
     if item.target_ref != item.thread_locator {
         return Err("source intake target differs from its recorded thread".into());
     }
@@ -2765,13 +2953,13 @@ fn run_conversation_review(
         Some(&review_run.package_digest),
     )?;
     let conversation = result_data(&review, "conversation_packet").map_err(|error| {
-        SkillRunFailure::sealed_validation("conversation-review", &review_receipt, error)
+        SkillRunStop::sealed_validation("conversation-review", &review_receipt, error)
     })?;
     if conversation["source_ref"] != item.source_ref
         || conversation["source_digest"] != item.source_digest
         || conversation["thread_locator"] != item.thread_locator
     {
-        return Err(SkillRunFailure::sealed_validation(
+        return Err(SkillRunStop::sealed_validation(
             "conversation-review",
             &review_receipt,
             "conversation review is not bound to the admitted source",
@@ -2781,10 +2969,10 @@ fn run_conversation_review(
         .as_str()
         .ok_or("conversation review lacks a status")
         .map_err(|error| {
-            SkillRunFailure::sealed_validation("conversation-review", &review_receipt, error)
+            SkillRunStop::sealed_validation("conversation-review", &review_receipt, error)
         })?;
     if conversation["validation"]["status"] != "pass" && status != "needs_context" {
-        return Err(SkillRunFailure::sealed_validation(
+        return Err(SkillRunStop::sealed_validation(
             "conversation-review",
             &review_receipt,
             "conversation review failed validation",
@@ -2809,7 +2997,7 @@ fn run_conversation_review(
         ));
     }
     if !source_complete {
-        return Err(SkillRunFailure::sealed_validation(
+        return Err(SkillRunStop::sealed_validation(
             "conversation-review",
             &review_receipt,
             "incomplete conversation cannot enter coding intake",
@@ -2905,7 +3093,7 @@ fn run_conversation_review(
         "checked_at":now_iso8601(),
     }))
     })()
-    .map_err(|error| SkillRunFailure::sealed_validation("issue-intake", &receipt, error))?;
+    .map_err(|error| SkillRunStop::sealed_validation("issue-intake", &receipt, error))?;
     Ok((result, receipt))
 }
 
@@ -4440,9 +4628,15 @@ mod tests {
         assert_eq!(next_work_due(&work), Some(0));
         assert_eq!(due_work_index(&work, 60), Some(1));
         work[1].status = "completed".to_owned();
+        work[0].status = "awaiting_resolution".to_owned();
+        work[0].pending_resolution = Some(super::PendingResolution {
+            skill: "conversation-review".to_owned(),
+            run_id: "run_original".to_owned(),
+        });
         assert_eq!(next_work_due(&work), Some(120));
         assert_eq!(due_work_index(&work, 60), None);
         assert_eq!(due_work_index(&work, 120), Some(0));
+        assert_eq!(evictable_work_index(&work, None), Some(1));
         Ok(())
     }
 

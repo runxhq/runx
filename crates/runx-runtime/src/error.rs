@@ -151,6 +151,8 @@ pub enum RuntimeError {
     },
     #[error("skill '{skill_name}' failed: {message}")]
     SkillFailed { skill_name: String, message: String },
+    #[error("continuation rejected: {reason}")]
+    ContinuationRejected { reason: String },
     #[error("{owner} input contract failed at '{path}': {message}")]
     InputContract {
         step_id: Option<String>,
@@ -217,7 +219,8 @@ impl RuntimeError {
             | Self::ParallelHostInteraction { .. }
             | Self::EffectState { .. }
             | Self::ProviderEffectUnknown { .. }
-            | Self::ReceiptInvalid { .. } => true,
+            | Self::ReceiptInvalid { .. }
+            | Self::ContinuationRejected { .. } => true,
             Self::Io { .. }
             | Self::ParseGraph(_)
             | Self::ValidateGraph(_)

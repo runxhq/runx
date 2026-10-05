@@ -42,6 +42,14 @@ pub(crate) mod runner_manifest;
 mod source_adapter;
 mod state_store;
 
+pub use self::state_store::inspect_paused_skill_request;
+
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+pub struct PendingSkillRequest {
+    pub id: String,
+    pub value: JsonValue,
+}
+
 pub(crate) use self::graph::graph_domain_act_receipt;
 #[cfg(feature = "cli-tool")]
 pub(crate) use self::inline_harness::run_package_harness_with_effects;

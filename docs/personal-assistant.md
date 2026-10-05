@@ -216,6 +216,23 @@ terminal native run ID indefinitely. Each new package digest gives an
 assignment a distinct native run identity. A held read-only or planning
 assignment is eligible for a new attempt when its failed skill package changes;
 the prior receipt remains in the append-only control history.
+If a bound skill asks the host for a decision, the assignment becomes
+`awaiting_resolution` with the original native run ID and exact pending-request
+artifact. `assistant execute` checks that native continuation on its due wake;
+it does not call the model again while the request is unresolved. The operator
+can use the native `runx resume <run-id> <answers.json|->` path for an exact
+decision. Once Runx closes that run, the next worker wake consumes its result
+under the original input and package binding. `assistant work` shows request
+IDs and the run ID, but omits private artifact paths and bound input references.
+`status.awaiting_resolution_count` separates these assignments from due work.
+Native graph checkpoints retain terminal receipt identity for closed, blocked,
+deferred, and failed runs; a repeated bound invocation replays that sealed
+outcome. The terminal checkpoint includes the sealed receipts and is synced
+before receipt files are written, so a retry can finish receipt persistence
+without executing the graph again. Rejected or digest-mismatched continuation
+answers leave the original request pending. Checkpoint replacement syncs the
+file and parent directory.
+This does not yet provide a Slack decision adapter or authorize an outward send.
 
 Notification is off when `allowed_action_ids` is empty and `notification` is
 `null`; in that mode a useful attention brief closes as `ready_undelivered`

@@ -84,7 +84,14 @@ pub(super) fn execute_agent_skill_run(
                         return seal_agent_failure(context, &run_id, AgentFailure::managed(&error));
                     }
                     InlineAgentOutcome::HostDrives => {
-                        super::state_store::write_agent_state(context, &run_id)?;
+                        super::state_store::write_agent_state(
+                            context,
+                            &run_id,
+                            super::PendingSkillRequest {
+                                id: request_id.clone(),
+                                value: resolution_request_value.clone(),
+                            },
+                        )?;
                         write_paused_agent_checkpoint(context, &run_id, &request_id)?;
                         return Ok(needs_agent_output(
                             context.manifest,

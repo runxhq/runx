@@ -2163,24 +2163,19 @@ fn native_graph_skill_resume_rejects_agent_answer_for_approval()
 
     let rejected = run_skill(SkillRunRequest {
         skill_path: skill_dir,
-        receipt_dir: Some(receipt_dir),
-        run_id: Some(run_id),
+        receipt_dir: Some(receipt_dir.clone()),
+        run_id: Some(run_id.clone()),
         answers_path: Some(answers_path),
         inputs: BTreeMap::new(),
         env: BTreeMap::new(),
         cwd: temp.path().to_path_buf(),
         managed_agent: Default::default(),
         local_credential: None,
-    })?;
-    let output = object(&rejected.output, "rejected agent approval result")?;
-    assert_eq!(string_field(output, "status"), Some("sealed"));
-    let closure = object_field(output, "closure").ok_or("missing rejection closure")?;
-    assert_eq!(string_field(closure, "disposition"), Some("failed"));
-    let result = object_field(output, "result").ok_or("missing rejection result")?;
-    assert!(
-        string_field(result, "message")
-            .is_some_and(|message| message.contains("host-attested human"))
-    );
+    })
+    .err()
+    .ok_or("agent-authored approval must be rejected without sealing")?;
+    assert!(rejected.to_string().contains("host-attested human"));
+    assert!(runx_runtime::journal::find_paused_run(&receipt_dir, &run_id)?.is_some());
 
     Ok(())
 }

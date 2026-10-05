@@ -1,5 +1,7 @@
 use super::graph::GraphSkillRunState;
-use super::{GRAPH_SKILL_STATE_SCHEMA, SkillRunError, identifier_segment, invalid};
+use super::{
+    GRAPH_SKILL_STATE_SCHEMA, PendingSkillRequest, SkillRunError, identifier_segment, invalid,
+};
 
 use std::fs;
 use std::io::Write;
@@ -20,6 +22,79 @@ fn graph_state_path(
         .path
         .join("runs")
         .join(format!("{}.graph-state.json", identifier_segment(run_id)))
+}
+
+/// Inspect the one outstanding request owned by a paused native skill run.
+/// The assistant and other local operators keep only the run identity; the
+/// checkpoint remains the sole durable owner of the request bytes.
+pub fn inspect_paused_skill_request(
+    receipt_dir: &Path,
+    run_id: &str,
+) -> Result<Option<PendingSkillRequest>, SkillRunError> {
+    let Some(paused) = crate::journal::find_paused_run(receipt_dir, run_id)
+        .map_err(|error| invalid(format!("inspecting native paused run: {error}")))?
+    else {
+        return Ok(None);
+    };
+    if !matches!(paused.kind.as_str(), "agent" | "graph") {
+        return Err(invalid("paused native run has no skill request checkpoint"));
+    }
+    let path = receipt_dir.join("runs").join(format!(
+        "{}.{}-state.json",
+        identifier_segment(run_id),
+        paused.kind
+    ));
+    let raw = fs::read(&path)
+        .map_err(|source| RuntimeError::io(format!("reading {}", path.display()), source))?;
+    if paused.kind == "agent" {
+        let state: AgentSkillState = serde_json::from_slice(&raw)
+            .map_err(|error| invalid(format!("native agent checkpoint is malformed: {error}")))?;
+        if state.run_id != run_id
+            || paused.package_digest.as_deref() != Some(state.package_digest.as_str())
+            || paused.selected_runner.as_deref() != Some(state.runner.as_str())
+            || paused.execution_closure_digest.as_deref()
+                != Some(state.execution_closure_digest.as_str())
+        {
+            return Err(invalid(
+                "native pending request differs from its paused run",
+            ));
+        }
+        let pending = state
+            .pending_request
+            .ok_or_else(|| invalid("paused native agent has no durable pending request"))?;
+        if paused.step_ids.as_slice() != [pending.id.as_str()] {
+            return Err(invalid(
+                "native pending request identity differs from its ledger",
+            ));
+        }
+        return Ok(Some(pending));
+    }
+    let state: GraphSkillRunState = serde_json::from_slice(&raw)
+        .map_err(|error| invalid(format!("native graph checkpoint is malformed: {error}")))?;
+    if state.schema != GRAPH_SKILL_STATE_SCHEMA
+        || state.run_id != run_id
+        || state.completed_receipt_id.is_some()
+        || paused.package_digest.as_deref() != Some(state.package_digest.as_str())
+        || paused.selected_runner.as_deref() != Some(state.runner_name.as_str())
+        || paused.execution_closure_digest.as_deref()
+            != Some(state.execution_closure_digest.as_str())
+    {
+        return Err(invalid(
+            "native pending request differs from its paused run",
+        ));
+    }
+    let pending = state
+        .pending_request
+        .ok_or_else(|| invalid("paused native graph has no durable pending request"))?;
+    if pending.id.is_empty() || matches!(pending.value, runx_contracts::JsonValue::Null) {
+        return Err(invalid("native pending request is malformed"));
+    }
+    if paused.step_ids.as_slice() != [pending.id.as_str()] {
+        return Err(invalid(
+            "native pending request identity differs from its ledger",
+        ));
+    }
+    Ok(Some(pending))
 }
 
 pub(super) fn write_graph_state(
@@ -48,9 +123,10 @@ fn write_state(path: &Path, state: &impl serde::Serialize) -> Result<(), SkillRu
         use std::os::unix::fs::OpenOptionsExt;
         options.mode(0o600);
     }
-    let write = options
-        .open(&temp_path)
-        .and_then(|mut file| file.write_all(&bytes));
+    let write = options.open(&temp_path).and_then(|mut file| {
+        file.write_all(&bytes)?;
+        file.sync_all()
+    });
     if let Err(source) = write {
         let _ignored = fs::remove_file(&temp_path);
         return Err(RuntimeError::io(format!("writing {}", temp_path.display()), source).into());
@@ -62,6 +138,12 @@ fn write_state(path: &Path, state: &impl serde::Serialize) -> Result<(), SkillRu
             source,
         )
     })?;
+    #[cfg(unix)]
+    if let Some(parent) = path.parent() {
+        fs::File::open(parent)
+            .and_then(|directory| directory.sync_all())
+            .map_err(|source| RuntimeError::io(format!("syncing {}", parent.display()), source))?;
+    }
     Ok(())
 }
 
@@ -163,6 +245,8 @@ struct AgentSkillState {
     package_digest: String,
     execution_closure_digest: String,
     inputs: runx_contracts::JsonObject,
+    #[serde(default)]
+    pending_request: Option<PendingSkillRequest>,
 }
 
 fn agent_state_path(
@@ -181,6 +265,7 @@ fn agent_state_path(
 pub(super) fn write_agent_state(
     context: &super::SkillExecutionContext<'_>,
     run_id: &str,
+    pending_request: PendingSkillRequest,
 ) -> Result<(), SkillRunError> {
     let state = AgentSkillState {
         run_id: run_id.to_owned(),
@@ -191,6 +276,7 @@ pub(super) fn write_agent_state(
             .ok_or_else(|| invalid("agent continuation requires an execution-closure digest"))?
             .to_owned(),
         inputs: context.request.inputs.clone(),
+        pending_request: Some(pending_request),
     };
     write_state(
         &agent_state_path(context.request, context.workspace, context.receipts, run_id),
