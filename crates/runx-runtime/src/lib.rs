@@ -226,7 +226,9 @@ pub use services::{
 };
 pub use skill_front::PackageHarnessReport;
 pub use skill_package::{
-    LoadedSkillPackage, SkillInspectionError, inspect_skill_package, load_validated_skill_package,
+    LoadedSkillPackage, SkillInspectionError, SkillRetentionError, inspect_local_skill_binding,
+    inspect_skill_package, load_validated_skill_package, resolve_retained_skill_binding,
+    retain_skill_binding,
 };
 pub use tool_catalogs::{
     ToolBuildOptions, ToolCatalogError, ToolInspectOptions, ToolSearchOptions, build_tool_catalogs,

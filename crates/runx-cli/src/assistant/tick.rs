@@ -537,218 +537,61 @@ fn run_skill_with_id(
     ))
 }
 
+fn skill_retention_root(workspace: &WorkspaceEnv) -> PathBuf {
+    project_runx_dir(workspace)
+        .join("assistant")
+        .join("skill-packages")
+}
+
 fn pinned_skill_path_by_digest(
     workspace: &WorkspaceEnv,
     name: &str,
     digest: &str,
 ) -> Result<PathBuf, String> {
-    let path = project_runx_dir(workspace)
-        .join("assistant")
-        .join("skill-packages")
-        .join(name)
-        .join(digest.trim_start_matches("sha256:"));
-    let metadata = fs::symlink_metadata(&path)
-        .map_err(|error| format!("reading pinned {name} skill package: {error}"))?;
-    if !metadata.is_dir() || metadata.file_type().is_symlink() {
-        return Err(format!(
-            "pinned {name} skill package is unavailable or changed"
-        ));
-    }
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        fs::set_permissions(&path, fs::Permissions::from_mode(0o700))
-            .map_err(|error| format!("protecting pinned {name} skill package: {error}"))?;
-    }
-    resolve_pinned_skill(&path, name, digest)
+    runx_runtime::resolve_retained_skill_binding(&skill_retention_root(workspace), name, digest)
+        .map_err(|error| error.to_string())
 }
 
-fn package_digest(path: &Path) -> Result<String, String> {
-    let inspected = runx_runtime::inspect_skill_package(path, None, None)
-        .map_err(|error| format!("inspecting assistant skill package: {error}"))?;
-    inspected
-        .as_object()
-        .and_then(|object| object.get("package_digest"))
-        .and_then(runx_contracts::JsonValue::as_str)
-        .map(str::to_owned)
-        .ok_or("assistant skill inspection has no package digest".to_owned())
-}
-
-fn resolve_pinned_skill(root: &Path, name: &str, digest: &str) -> Result<PathBuf, String> {
-    if root.join("SKILL.md").is_file() {
-        if package_digest(root)? != digest {
-            return Err(format!("pinned {name} skill package has changed"));
-        }
-        return Ok(root.to_path_buf());
-    }
-    let bytes = fs::read(root.join(".assistant-bundle.json"))
-        .map_err(|error| format!("reading pinned {name} closure binding: {error}"))?;
-    let digests: BTreeMap<String, String> = serde_json::from_slice(&bytes)
-        .map_err(|error| format!("decoding pinned {name} closure binding: {error}"))?;
-    if digests.len() < 2 || !digests.contains_key(name) {
-        return Err(format!("pinned {name} closure is incomplete"));
-    }
-    let bindings = digests
-        .iter()
-        .map(|(skill, package_digest)| (skill.clone(), (package_digest.clone(), root.join(skill))))
-        .collect::<BTreeMap<_, _>>();
-    if super::skill_binding_digest(&bindings)? != digest {
-        return Err(format!("pinned {name} closure binding has changed"));
-    }
-    for (skill, (expected, path)) in &bindings {
-        if !super::valid_identifier(skill)
-            || fs::symlink_metadata(path)
-                .map_err(|error| format!("reading pinned {skill} package: {error}"))?
-                .file_type()
-                .is_symlink()
-            || package_digest(path)? != *expected
-        {
-            return Err(format!("pinned {skill} closure package has changed"));
-        }
-    }
-    Ok(root.join(name))
-}
-
-/// A native checkpoint resumes from this exact content-addressed directory.
-/// Patch installs can replace the source package without changing a running
-/// checkpoint's code. The digest is checked again before every invocation.
 fn pinned_skill_path(
     workspace: &WorkspaceEnv,
     source: &Path,
     name: &str,
     expected_digest: &str,
 ) -> Result<PathBuf, String> {
-    let inspected = runx_runtime::inspect_skill_package(source, None, None)
-        .map_err(|error| format!("inspecting assistant skill package: {error}"))?;
-    let bindings = super::inspected_skill_bindings(&inspected)?;
-    let digest = super::skill_binding_digest(&bindings)?;
-    if digest != expected_digest {
-        return Err(format!(
-            "assistant {name} skill changed during this turn; retry with fresh bindings"
-        ));
-    }
-    let root = project_runx_dir(workspace)
-        .join("assistant")
-        .join("skill-packages")
-        .join(name);
-    let target = root.join(digest.trim_start_matches("sha256:"));
-    fs::create_dir_all(&root)
-        .map_err(|error| format!("creating assistant skill package store: {error}"))?;
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        for directory in [
-            root.parent().and_then(Path::parent),
-            root.parent(),
-            Some(root.as_path()),
-        ]
-        .into_iter()
-        .flatten()
-        {
-            fs::set_permissions(directory, fs::Permissions::from_mode(0o700))
-                .map_err(|error| format!("protecting assistant skill package store: {error}"))?;
-        }
-    }
-    match fs::symlink_metadata(&target) {
-        Ok(metadata) if metadata.is_dir() && !metadata.file_type().is_symlink() => {
-            #[cfg(unix)]
-            {
-                use std::os::unix::fs::PermissionsExt;
-                fs::set_permissions(&target, fs::Permissions::from_mode(0o700))
-                    .map_err(|error| format!("protecting pinned skill package: {error}"))?;
-            }
-            return resolve_pinned_skill(&target, name, &digest);
-        }
-        Ok(_) => {
-            return Err(format!(
-                "pinned {name} skill package is not a regular directory"
-            ));
-        }
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-        Err(error) => return Err(format!("checking pinned skill package: {error}")),
-    }
-    let mut nonce = [0_u8; 16];
-    SystemRandom::new()
-        .fill(&mut nonce)
-        .map_err(|_| "creating assistant skill package nonce failed".to_owned())?;
-    let stage = root.join(format!(".stage-{:032x}", u128::from_le_bytes(nonce)));
-    fs::create_dir(&stage).map_err(|error| format!("staging assistant skill package: {error}"))?;
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        fs::set_permissions(&stage, fs::Permissions::from_mode(0o700))
-            .map_err(|error| format!("protecting staged assistant skill package: {error}"))?;
-    }
-    let staged = (|| {
-        if bindings.len() == 1 {
-            copy_skill_files(source, &stage)?;
-        } else {
-            let parent = source
-                .parent()
-                .ok_or("assistant skill has no package parent")?
-                .canonicalize()
-                .map_err(|error| format!("resolving assistant skill root: {error}"))?;
-            let mut manifest = BTreeMap::new();
-            for (skill, (package_digest, path)) in &bindings {
-                let canonical = path
-                    .canonicalize()
-                    .map_err(|error| format!("resolving {skill} closure package: {error}"))?;
-                if !super::valid_identifier(skill)
-                    || canonical.parent() != Some(parent.as_path())
-                    || canonical.file_name().and_then(|name| name.to_str()) != Some(skill)
-                {
-                    return Err("assistant skill closure leaves its local sibling root".to_owned());
-                }
-                let destination = stage.join(skill);
-                fs::create_dir(&destination)
-                    .map_err(|error| format!("staging {skill} closure package: {error}"))?;
-                copy_skill_files(&canonical, &destination)?;
-                manifest.insert(skill.clone(), package_digest.clone());
-            }
-            fs::write(
-                stage.join(".assistant-bundle.json"),
-                serde_json::to_vec(&manifest)
-                    .map_err(|error| format!("encoding assistant closure binding: {error}"))?,
-            )
-            .map_err(|error| format!("writing assistant closure binding: {error}"))?;
-        }
-        if resolve_pinned_skill(&stage, name, &digest).is_err() {
-            return Err("assistant skill changed while its package was being pinned".to_owned());
-        }
-        match fs::rename(&stage, &target) {
-            Ok(()) => Ok(()),
-            Err(_) if target.exists() && resolve_pinned_skill(&target, name, &digest).is_ok() => {
-                Ok(())
-            }
-            Err(error) => Err(format!("committing assistant skill package: {error}")),
-        }
-    })();
-    if stage.exists() {
-        let _ = fs::remove_dir_all(&stage);
-    }
-    staged?;
-    resolve_pinned_skill(&target, name, &digest)
+    runx_runtime::retain_skill_binding(
+        &skill_retention_root(workspace),
+        source,
+        name,
+        expected_digest,
+    )
+    .map_err(|error| error.to_string())
 }
 
+#[cfg(test)]
+fn package_digest(path: &Path) -> Result<String, String> {
+    let inspected =
+        runx_runtime::inspect_skill_package(path, None, None).map_err(|error| error.to_string())?;
+    inspected
+        .as_object()
+        .and_then(|object| object.get("package_digest"))
+        .and_then(runx_contracts::JsonValue::as_str)
+        .map(str::to_owned)
+        .ok_or("skill inspection has no package digest".to_owned())
+}
+
+#[cfg(test)]
 fn copy_skill_files(source: &Path, target: &Path) -> Result<(), String> {
-    for entry in fs::read_dir(source).map_err(|error| format!("reading skill package: {error}"))? {
-        let entry = entry.map_err(|error| format!("reading skill package entry: {error}"))?;
-        let file_type = entry
-            .file_type()
-            .map_err(|error| format!("checking skill package entry: {error}"))?;
+    for entry in fs::read_dir(source).map_err(|error| error.to_string())? {
+        let entry = entry.map_err(|error| error.to_string())?;
+        let kind = entry.file_type().map_err(|error| error.to_string())?;
         let destination = target.join(entry.file_name());
-        if file_type.is_dir() {
-            fs::create_dir(&destination)
-                .map_err(|error| format!("creating skill package directory: {error}"))?;
+        if kind.is_dir() {
+            fs::create_dir(&destination).map_err(|error| error.to_string())?;
             copy_skill_files(&entry.path(), &destination)?;
-        } else if file_type.is_file() {
-            fs::copy(entry.path(), destination)
-                .map_err(|error| format!("copying skill package file: {error}"))?;
+        } else if kind.is_file() {
+            fs::copy(entry.path(), destination).map_err(|error| error.to_string())?;
         } else {
-            return Err(
-                "assistant skill packages cannot contain symbolic links or special files"
-                    .to_owned(),
-            );
+            return Err("skill test fixture contains a special file".to_owned());
         }
     }
     Ok(())
@@ -4469,9 +4312,7 @@ mod tests {
             .map_err(|error| error.to_string())?;
         let skill = source.join("slack-notify");
         let binding = |path: &std::path::Path| -> Result<String, String> {
-            let inspected = runx_runtime::inspect_skill_package(path, None, None)
-                .map_err(|error| error.to_string())?;
-            super::super::skill_binding_digest(&super::super::inspected_skill_bindings(&inspected)?)
+            runx_runtime::inspect_local_skill_binding(path, None).map_err(|error| error.to_string())
         };
         let first_digest = binding(&skill)?;
         let first = pinned_skill_path(&workspace, &skill, "slack-notify", &first_digest)?;

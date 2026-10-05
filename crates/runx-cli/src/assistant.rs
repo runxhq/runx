@@ -369,14 +369,12 @@ fn load_profile(path: &Path, workspace: &WorkspaceEnv) -> Result<LoadedProfile, 
     }
     let mut skill_bindings = BTreeMap::new();
     for name in names {
-        let inspected = runx_runtime::inspect_skill_package(
+        let digest = runx_runtime::inspect_local_skill_binding(
             &profile.skills_root.join(name),
-            None,
             Some(workspace.env()),
         )
         .map_err(|error| format!("inspecting assistant skill {name}: {error}"))?;
-        let bindings = inspected_skill_bindings(&inspected)?;
-        skill_bindings.insert(name.to_owned(), skill_binding_digest(&bindings)?);
+        skill_bindings.insert(name.to_owned(), digest);
     }
     let skill_set_digest = sha256_prefixed(
         &serde_json::to_vec(&skill_bindings)
@@ -393,71 +391,6 @@ fn load_profile(path: &Path, workspace: &WorkspaceEnv) -> Result<LoadedProfile, 
         skill_set_digest,
         skill_bindings,
     })
-}
-
-/// One local skill binding includes every package reached by any declared
-/// runner. A sibling patch gets a new binding while an already pinned run
-/// keeps the exact earlier closure.
-fn inspected_skill_bindings(
-    inspected: &runx_contracts::JsonValue,
-) -> Result<BTreeMap<String, (String, PathBuf)>, String> {
-    let value = serde_json::to_value(inspected)
-        .map_err(|error| format!("encoding assistant skill inspection: {error}"))?;
-    let name = value["name"]
-        .as_str()
-        .ok_or("assistant skill inspection has no name")?;
-    let digest = value["package_digest"]
-        .as_str()
-        .ok_or("assistant skill inspection has no package digest")?;
-    let path = value["skill_path"]
-        .as_str()
-        .ok_or("assistant skill inspection has no path")?;
-    let mut bindings =
-        BTreeMap::from([(name.to_owned(), (digest.to_owned(), PathBuf::from(path)))]);
-    for runner in value["runner_inspections"].as_array().into_iter().flatten() {
-        let packages = runner["execution_closure"]["package_bindings"]
-            .as_array()
-            .ok_or("assistant runner has no package bindings")?;
-        for package in packages {
-            if package["source_kind"] != "source_root" {
-                return Err("assistant skill closure must use local source packages".to_owned());
-            }
-            let package_name = package["skill"]
-                .as_str()
-                .ok_or("assistant closure package has no name")?;
-            let package_digest = package["package_digest"]
-                .as_str()
-                .ok_or("assistant closure package has no digest")?;
-            let package_path = package["source_path"]
-                .as_str()
-                .ok_or("assistant closure package has no source path")?;
-            let binding = (package_digest.to_owned(), PathBuf::from(package_path));
-            if let Some(existing) = bindings.insert(package_name.to_owned(), binding.clone())
-                && existing != binding
-            {
-                return Err("assistant closure binds a skill to conflicting packages".to_owned());
-            }
-        }
-    }
-    Ok(bindings)
-}
-
-fn skill_binding_digest(bindings: &BTreeMap<String, (String, PathBuf)>) -> Result<String, String> {
-    if bindings.len() == 1 {
-        return Ok(bindings
-            .values()
-            .next()
-            .ok_or("empty skill binding")?
-            .0
-            .clone());
-    }
-    let digests = bindings
-        .iter()
-        .map(|(name, (digest, _))| (name, digest))
-        .collect::<BTreeMap<_, _>>();
-    Ok(sha256_prefixed(&serde_json::to_vec(&digests).map_err(
-        |error| format!("encoding assistant closure binding: {error}"),
-    )?))
 }
 
 fn validate_profile(profile: &AssistantProfile) -> Result<(), String> {

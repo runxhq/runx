@@ -14,11 +14,16 @@ use crate::RuntimeError;
 use crate::filesystem::{DirectoryEntry, find_files_named, read_dir_sorted};
 
 mod inspection;
+mod retention;
 
 pub(crate) use inspection::inspect_loaded_execution_closure_binding;
 #[cfg(feature = "cli-tool")]
 pub(crate) use inspection::{LocalExecutionClosure, inspect_loaded_local_execution_closure};
 pub use inspection::{SkillInspectionError, inspect_skill_package};
+pub use retention::{
+    SkillRetentionError, inspect_local_skill_binding, resolve_retained_skill_binding,
+    retain_skill_binding,
+};
 
 pub(crate) const MAX_PACKAGE_FILES: usize = 500;
 pub(crate) const MAX_PACKAGE_BYTES: usize = 20 * 1024 * 1024;
