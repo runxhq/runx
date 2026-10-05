@@ -44,7 +44,10 @@ export function finalizeAttention(inputs) {
   if (selected.length > 5 || array(draft.items).length !== selected.length) findings.push("draft items exceed the limit or contain an invalid selection");
   const work = [];
   const seenWork = new Set();
-  for (const raw of array(draft.work_proposals)) {
+  const proposedWork = array(draft.work_proposals);
+  const candidateRoutes = new Set(array(inputs.work_candidates).map((item) => text(item.route_id)));
+  const admittedWork = proposedWork.filter((item) => candidateRoutes.has(text(item?.route_id)));
+  for (const raw of admittedWork) {
     const sourceRef = text(raw?.source_ref);
     const routeId = text(raw?.route_id);
     const targetRef = text(raw?.target_ref);
@@ -60,7 +63,7 @@ export function finalizeAttention(inputs) {
     seenWork.add(key);
     work.push({ source_ref: sourceRef, source_digest: text(source.source_digest), route_id: routeId, target_ref: targetRef });
   }
-  if (work.length > 3 || work.length !== array(draft.work_proposals).length) findings.push("work proposals exceed the limit or contain an invalid selection");
+  if (work.length > 3 || work.length !== admittedWork.length) findings.push("work proposals exceed the limit or contain an invalid selection");
   const proposedActions = array(draft.recommended_action_ids).map(text);
   const actions = proposedActions.filter((id) => allowed.has(id));
   if (proposedActions.length > 10 || new Set(actions).size !== actions.length) {
@@ -90,6 +93,7 @@ export function finalizeAttention(inputs) {
         status: valid ? "pass" : "fail",
         findings,
         omitted_unconfigured_actions: proposedActions.length - actions.length,
+        omitted_unconfigured_work: proposedWork.length - admittedWork.length,
       },
     },
   };

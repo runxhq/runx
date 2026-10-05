@@ -1,4 +1,4 @@
-skill: personal-assistant
+skill: attention-review
 version: "0.4.0"
 
 catalog:
@@ -13,7 +13,7 @@ catalog:
 
 harness:
   cases:
-    - name: personal-assistant-selects-bounded-attention
+    - name: attention-review-selects-bounded-attention
       operator_journeys:
         - mode: standalone
           confusors: [chief-of-staff, ops-desk]
@@ -63,7 +63,7 @@ harness:
                   validation: { status: pass }
         receipt: { schema: runx.receipt.v1 }
 
-    - name: personal-assistant-omits-unconfigured-action
+    - name: attention-review-omits-unconfigured-action
       inputs:
         objective: Check new personal observations without an authorized delivery action.
         as_of: "2026-10-02T10:00:00Z"
@@ -75,6 +75,8 @@ harness:
             summary: A colleague asks for a decision.
         current_actions: [{ source_ref: mail-1, disposition: open }]
         allowed_action_ids: []
+        work_candidates:
+          - { source_ref: mail-1, source_digest: 'sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc', route_id: pr_status, target_ref: 'https://github.com/example/project/pull/12' }
         min_check_minutes: 15
         max_check_minutes: 60
       caller:
@@ -84,6 +86,7 @@ harness:
               decision: idle
               items: [{ source_ref: mail-1, priority: high }]
               recommended_action_ids: [private_update]
+              work_proposals: [{ source_ref: mail-1, route_id: conversation, target_ref: mail-thread-1 }]
               next_check_minutes: 20
       expect:
         status: sealed
@@ -95,10 +98,11 @@ harness:
                 data:
                   decision: ready
                   recommended_action_ids: []
-                  validation: { status: pass, omitted_unconfigured_actions: 1 }
+                  work_proposals: []
+                  validation: { status: pass, omitted_unconfigured_actions: 1, omitted_unconfigured_work: 1 }
         receipt: { schema: runx.receipt.v1 }
 
-    - name: personal-assistant-proposes-exact-work
+    - name: attention-review-proposes-exact-work
       inputs:
         objective: Check new personal observations.
         as_of: "2026-10-02T10:00:00Z"
@@ -137,7 +141,7 @@ harness:
                   validation: { status: pass }
         receipt: { schema: runx.receipt.v1 }
 
-    - name: personal-assistant-uses-verified-work-result
+    - name: attention-review-uses-verified-work-result
       inputs:
         objective: Reassess the observed request using a verified pull-request status.
         as_of: "2026-10-02T10:05:00Z"
@@ -176,7 +180,7 @@ harness:
                   validation: { status: pass }
         receipt: { schema: runx.receipt.v1 }
 
-    - name: personal-assistant-holds-invented-work
+    - name: attention-review-holds-invented-work
       inputs:
         objective: Check new personal observations.
         as_of: "2026-10-02T10:00:00Z"
@@ -188,7 +192,8 @@ harness:
             summary: A colleague requests review of a pull request.
         current_actions: [{ source_ref: chat-1, disposition: open }]
         allowed_action_ids: []
-        work_candidates: []
+        work_candidates:
+          - { source_ref: chat-1, source_digest: 'sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', route_id: pr_status, target_ref: 'https://github.com/example/project/pull/13' }
         min_check_minutes: 15
         max_check_minutes: 60
       caller:
@@ -212,7 +217,7 @@ harness:
                   validation: { status: fail }
         receipt: { schema: runx.receipt.v1 }
 
-    - name: personal-assistant-holds-invented-source
+    - name: attention-review-holds-invented-source
       inputs:
         objective: Check new personal observations.
         user_context: { charter: "Prioritize time-sensitive replies.", confirmed_memory: [] }
@@ -248,7 +253,7 @@ harness:
                   validation: { status: fail }
         receipt: { schema: runx.receipt.v1 }
 
-    - name: personal-assistant-preserves-inbox-disposition
+    - name: attention-review-preserves-inbox-disposition
       inputs:
         objective: Check new personal observations.
         as_of: "2026-10-02T10:00:00Z"
@@ -358,7 +363,7 @@ runners:
       work_candidates:
         type: array
         required: false
-        description: Exact host-derived configured read-only route targets; proposals only, never execution authority.
+        description: Exact host-derived configured non-mutating route targets; proposals only, never execution authority.
         schema:
           maxItems: 20
           uniqueItems: true
@@ -374,7 +379,7 @@ runners:
       work_results:
         type: array
         required: false
-        description: Receipt-backed read-only results projected by the local host; context, not authority.
+        description: Receipt-backed non-mutating results projected by the local host; context, not authority.
         schema:
           maxItems: 20
           items:
@@ -409,7 +414,7 @@ runners:
         min_check_minutes: 15
         max_check_minutes: 60
     graph:
-      name: personal-assistant-review
+      name: attention-review-review
       result_from: [finalize]
       steps:
         - id: judge
@@ -444,7 +449,7 @@ runners:
             max_check_minutes: $input.max_check_minutes
           run:
             type: javascript
-            module: personal-assistant.mjs
+            module: attention-review.mjs
             export: finalizeAttention
             outputs:
               attention_packet: object

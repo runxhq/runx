@@ -84,6 +84,18 @@ struct WorkAssignment {
     retry_after_unix_seconds: u64,
     receipt: Option<String>,
     result_ref: Option<Value>,
+    #[serde(default)]
+    runs: BTreeMap<String, BoundWorkRun>,
+    #[serde(default)]
+    failed_skill: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct BoundWorkRun {
+    run_id: String,
+    package_digest: String,
+    input_ref: Value,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -101,6 +113,8 @@ struct PendingIntent {
     material_digest: String,
     logical_run_id: String,
     selected_digests: Vec<String>,
+    #[serde(default)]
+    delivery_package_digest: String,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -324,7 +338,48 @@ fn run_skill(
         credential_profile,
         delivery,
         None,
+        None,
     )
+    .map_err(String::from)
+}
+
+#[derive(Debug)]
+struct SkillRunFailure {
+    message: String,
+    terminal_receipt: Option<String>,
+    skill: Option<String>,
+}
+
+impl From<String> for SkillRunFailure {
+    fn from(message: String) -> Self {
+        Self {
+            message,
+            terminal_receipt: None,
+            skill: None,
+        }
+    }
+}
+
+impl From<&str> for SkillRunFailure {
+    fn from(message: &str) -> Self {
+        message.to_owned().into()
+    }
+}
+
+impl From<SkillRunFailure> for String {
+    fn from(error: SkillRunFailure) -> Self {
+        error.message
+    }
+}
+
+impl SkillRunFailure {
+    fn sealed_validation(skill: &str, receipt: &str, message: impl Into<String>) -> Self {
+        Self {
+            message: message.into(),
+            terminal_receipt: Some(receipt.to_owned()),
+            skill: Some(skill.to_owned()),
+        }
+    }
 }
 
 #[expect(
@@ -341,8 +396,20 @@ fn run_skill_with_id(
     credential_profile: Option<&str>,
     delivery: bool,
     run_id: Option<&str>,
-) -> Result<(Value, String), String> {
-    let path = loaded.profile.skills_root.join(name);
+    pinned_package_digest: Option<&str>,
+) -> Result<(Value, String), SkillRunFailure> {
+    let source_path = loaded.profile.skills_root.join(name);
+    let path = if let Some(digest) = pinned_package_digest {
+        pinned_skill_path_by_digest(workspace, name, digest)?
+    } else if run_id.is_some() {
+        let expected = loaded
+            .skill_bindings
+            .get(name)
+            .ok_or_else(|| format!("assistant has no inspected {name} skill binding"))?;
+        pinned_skill_path(workspace, &source_path, name, expected)?
+    } else {
+        source_path.clone()
+    };
     let mut env = if model {
         model_environment(&loaded.profile, workspace)?
     } else {
@@ -395,7 +462,7 @@ fn run_skill_with_id(
         .as_ref()
         .is_some_and(|item| !item.resolution.is_ready())
     {
-        return Err(format!("{name} requires a configured credential"));
+        return Err(format!("{name} requires a configured credential").into());
     }
     let input_map: BTreeMap<String, runx_contracts::JsonValue> = serde_json::from_value(inputs)
         .map_err(|error| format!("assistant skill inputs are invalid: {error}"))?;
@@ -423,15 +490,20 @@ fn run_skill_with_id(
         .run_skill_with_runner(&request, runner)
         .map_err(|error| format!("{name}#{runner}: {error}"))?;
     if !result.succeeded() {
-        return Err(format!(
-            "{name}#{runner} did not close: {:?}; receipt: {}",
-            result.disposition,
-            result
-                .receipt_refs
-                .first()
-                .map(String::as_str)
-                .unwrap_or("unavailable")
-        ));
+        let receipt = result.receipt_refs.first().cloned();
+        return Err(SkillRunFailure {
+            message: format!(
+                "{name}#{runner} did not close: {:?}; receipt: {}",
+                result.disposition,
+                receipt.as_deref().unwrap_or("unavailable")
+            ),
+            terminal_receipt: if result.status == runx_runtime::RunStatus::Sealed {
+                receipt
+            } else {
+                None
+            },
+            skill: Some(name.to_owned()),
+        });
     }
     let receipt = result
         .receipt_refs
@@ -443,6 +515,245 @@ fn run_skill_with_id(
             .map_err(|error| format!("encoding skill output: {error}"))?,
         receipt,
     ))
+}
+
+fn pinned_skill_path_by_digest(
+    workspace: &WorkspaceEnv,
+    name: &str,
+    digest: &str,
+) -> Result<PathBuf, String> {
+    let path = project_runx_dir(workspace)
+        .join("assistant")
+        .join("skill-packages")
+        .join(name)
+        .join(digest.trim_start_matches("sha256:"));
+    let metadata = fs::symlink_metadata(&path)
+        .map_err(|error| format!("reading pinned {name} skill package: {error}"))?;
+    if !metadata.is_dir() || metadata.file_type().is_symlink() || package_digest(&path)? != digest {
+        return Err(format!(
+            "pinned {name} skill package is unavailable or changed"
+        ));
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o700))
+            .map_err(|error| format!("protecting pinned {name} skill package: {error}"))?;
+    }
+    Ok(path)
+}
+
+fn package_digest(path: &Path) -> Result<String, String> {
+    let inspected = runx_runtime::inspect_skill_package(path, None, None)
+        .map_err(|error| format!("inspecting assistant skill package: {error}"))?;
+    inspected
+        .as_object()
+        .and_then(|object| object.get("package_digest"))
+        .and_then(runx_contracts::JsonValue::as_str)
+        .map(str::to_owned)
+        .ok_or("assistant skill inspection has no package digest".to_owned())
+}
+
+/// A native checkpoint resumes from this exact content-addressed directory.
+/// Patch installs can replace the source package without changing a running
+/// checkpoint's code. The digest is checked again before every invocation.
+fn pinned_skill_path(
+    workspace: &WorkspaceEnv,
+    source: &Path,
+    name: &str,
+    expected_digest: &str,
+) -> Result<PathBuf, String> {
+    let digest = package_digest(source)?;
+    if digest != expected_digest {
+        return Err(format!(
+            "assistant {name} skill changed during this turn; retry with fresh bindings"
+        ));
+    }
+    let root = project_runx_dir(workspace)
+        .join("assistant")
+        .join("skill-packages")
+        .join(name);
+    let target = root.join(digest.trim_start_matches("sha256:"));
+    fs::create_dir_all(&root)
+        .map_err(|error| format!("creating assistant skill package store: {error}"))?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        for directory in [
+            root.parent().and_then(Path::parent),
+            root.parent(),
+            Some(root.as_path()),
+        ]
+        .into_iter()
+        .flatten()
+        {
+            fs::set_permissions(directory, fs::Permissions::from_mode(0o700))
+                .map_err(|error| format!("protecting assistant skill package store: {error}"))?;
+        }
+    }
+    match fs::symlink_metadata(&target) {
+        Ok(metadata) if metadata.is_dir() && !metadata.file_type().is_symlink() => {
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                fs::set_permissions(&target, fs::Permissions::from_mode(0o700))
+                    .map_err(|error| format!("protecting pinned skill package: {error}"))?;
+            }
+            if package_digest(&target)? != digest {
+                return Err(format!("pinned {name} skill package has changed"));
+            }
+            return Ok(target);
+        }
+        Ok(_) => {
+            return Err(format!(
+                "pinned {name} skill package is not a regular directory"
+            ));
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => return Err(format!("checking pinned skill package: {error}")),
+    }
+    let mut nonce = [0_u8; 16];
+    SystemRandom::new()
+        .fill(&mut nonce)
+        .map_err(|_| "creating assistant skill package nonce failed".to_owned())?;
+    let stage = root.join(format!(".stage-{:032x}", u128::from_le_bytes(nonce)));
+    fs::create_dir(&stage).map_err(|error| format!("staging assistant skill package: {error}"))?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(&stage, fs::Permissions::from_mode(0o700))
+            .map_err(|error| format!("protecting staged assistant skill package: {error}"))?;
+    }
+    let staged = (|| {
+        copy_skill_files(source, &stage)?;
+        if package_digest(&stage)? != digest {
+            return Err("assistant skill changed while its package was being pinned".to_owned());
+        }
+        match fs::rename(&stage, &target) {
+            Ok(()) => Ok(()),
+            Err(_) if target.exists() && package_digest(&target)? == digest => Ok(()),
+            Err(error) => Err(format!("committing assistant skill package: {error}")),
+        }
+    })();
+    if stage.exists() {
+        let _ = fs::remove_dir_all(&stage);
+    }
+    staged?;
+    Ok(target)
+}
+
+fn copy_skill_files(source: &Path, target: &Path) -> Result<(), String> {
+    for entry in fs::read_dir(source).map_err(|error| format!("reading skill package: {error}"))? {
+        let entry = entry.map_err(|error| format!("reading skill package entry: {error}"))?;
+        let file_type = entry
+            .file_type()
+            .map_err(|error| format!("checking skill package entry: {error}"))?;
+        let destination = target.join(entry.file_name());
+        if file_type.is_dir() {
+            fs::create_dir(&destination)
+                .map_err(|error| format!("creating skill package directory: {error}"))?;
+            copy_skill_files(&entry.path(), &destination)?;
+        } else if file_type.is_file() {
+            fs::copy(entry.path(), destination)
+                .map_err(|error| format!("copying skill package file: {error}"))?;
+        } else {
+            return Err(
+                "assistant skill packages cannot contain symbolic links or special files"
+                    .to_owned(),
+            );
+        }
+    }
+    Ok(())
+}
+
+fn work_run_id(
+    loaded: &LoadedProfile,
+    prefix: &str,
+    item: &WorkAssignment,
+    skill: &str,
+) -> Result<String, String> {
+    let digest = loaded
+        .skill_bindings
+        .get(skill)
+        .ok_or_else(|| format!("assistant has no inspected {skill} skill binding"))?;
+    let binding = sha256_prefixed(
+        &serde_json::to_vec(&(&item.id, digest))
+            .map_err(|error| format!("encoding work run binding: {error}"))?,
+    );
+    Ok(format!("{prefix}{}", binding.trim_start_matches("sha256:")))
+}
+
+fn bound_work_inputs(
+    loaded: &LoadedProfile,
+    workspace: &WorkspaceEnv,
+    record: &mut ControlRecord,
+    index: usize,
+    skill: &str,
+    prefix: &str,
+    build: impl FnOnce() -> Result<(Value, Vec<String>), String>,
+) -> Result<(BoundWorkRun, Value, Vec<String>), String> {
+    if let Some(bound) = record.state.work[index].runs.get(skill) {
+        pinned_skill_path_by_digest(workspace, skill, &bound.package_digest)?;
+        let packet = read_bound_work_inputs(workspace, bound)?;
+        return Ok((
+            bound.clone(),
+            packet["inputs"].clone(),
+            serde_json::from_value(packet["evidence_receipts"].clone())
+                .map_err(|error| format!("decoding bound work evidence: {error}"))?,
+        ));
+    }
+    let (inputs, evidence_receipts) = build()?;
+    let packet = json!({"inputs":inputs,"evidence_receipts":evidence_receipts});
+    if serde_json::to_vec(&packet)
+        .map_err(|error| format!("encoding bound work inputs: {error}"))?
+        .len()
+        > 64 * 1024
+    {
+        return Err("assistant work inputs exceed 64 KiB".to_owned());
+    }
+    let digest = loaded
+        .skill_bindings
+        .get(skill)
+        .ok_or_else(|| format!("assistant has no inspected {skill} skill binding"))?;
+    pinned_skill_path(
+        workspace,
+        &loaded.profile.skills_root.join(skill),
+        skill,
+        digest,
+    )?;
+    let run_id = work_run_id(loaded, prefix, &record.state.work[index], skill)?;
+    let value = serde_json::from_value(packet.clone())
+        .map_err(|error| format!("normalizing bound work inputs: {error}"))?;
+    let reference = crate::skill::output::persist_json_artifact(
+        &project_runx_dir(workspace),
+        &run_id,
+        "assistant-work-inputs",
+        "inputs",
+        &value,
+    )?;
+    let bound = BoundWorkRun {
+        run_id,
+        package_digest: digest.clone(),
+        input_ref: serde_json::to_value(reference)
+            .map_err(|error| format!("encoding bound work input reference: {error}"))?,
+    };
+    record.state.work[index]
+        .runs
+        .insert(skill.to_owned(), bound.clone());
+    write_control(loaded, workspace, record, "work_run_bound")?;
+    Ok((bound, packet["inputs"].clone(), evidence_receipts))
+}
+
+fn read_bound_work_inputs(workspace: &WorkspaceEnv, bound: &BoundWorkRun) -> Result<Value, String> {
+    let reference = serde_json::from_value(bound.input_ref.clone())
+        .map_err(|error| format!("decoding bound work input reference: {error}"))?;
+    let value = crate::skill::output::read_json_artifact(&project_runx_dir(workspace), &reference)?;
+    let packet = serde_json::to_value(value)
+        .map_err(|error| format!("decoding bound work inputs: {error}"))?;
+    if !packet["inputs"].is_object() || !packet["evidence_receipts"].is_array() {
+        return Err("bound work inputs are malformed".to_owned());
+    }
+    Ok(packet)
 }
 
 fn result_data<'a>(output: &'a Value, field: &str) -> Result<&'a Value, String> {
@@ -948,17 +1259,23 @@ pub(super) fn set_paused(
 ) -> Result<Value, String> {
     let _lock = lock(loaded, workspace)?;
     let mut record = read_control(loaded, workspace)?;
-    if !paused
-        && record.state.profile_revision != loaded.revision
-        && (record.state.pending_intent.is_some()
-            || record.state.pending_turn.is_some()
-            || record
-                .state
-                .work
-                .iter()
-                .any(|item| item.status == "pending"))
-    {
-        return Err("cannot resume pending exact assistant work with changed bindings".to_owned());
+    if !paused && record.state.profile_revision != loaded.revision {
+        if record.state.pending_intent.is_some() || record.state.pending_turn.is_some() {
+            return Err(
+                "cannot resume a pinned assistant turn or delivery with changed bindings"
+                    .to_owned(),
+            );
+        }
+        if record
+            .state
+            .work
+            .iter()
+            .any(|item| item.status == "pending" && !item.runs.is_empty())
+        {
+            return Err(
+                "cannot rebind an active work run to changed operator configuration".to_owned(),
+            );
+        }
     }
     record.state.paused = paused;
     if !paused {
@@ -1150,6 +1467,9 @@ pub(super) fn execute(loaded: &LoadedProfile, workspace: &WorkspaceEnv) -> Resul
     if record.state.profile_revision != loaded.revision {
         return Err("assistant profile changed; inspect and resume explicitly".to_owned());
     }
+    if refresh_failed_work_after_patch(&mut record.state.work, &loaded.skill_bindings) {
+        write_control(loaded, workspace, &mut record, "work_patch_rebound")?;
+    }
     let now = now_seconds();
     let delivery_due = record
         .state
@@ -1170,8 +1490,10 @@ pub(super) fn execute(loaded: &LoadedProfile, workspace: &WorkspaceEnv) -> Resul
     } else {
         None
     };
-    let result = match lane {
-        Some(WorkerLane::Delivery) => deliver_pending(loaded, workspace, &mut record),
+    let result: Result<Value, SkillRunFailure> = match lane {
+        Some(WorkerLane::Delivery) => {
+            deliver_pending(loaded, workspace, &mut record).map_err(SkillRunFailure::from)
+        }
         Some(WorkerLane::Assignment) => dispatch_pending_work(loaded, workspace, &mut record),
         None => unreachable!(),
     };
@@ -1181,7 +1503,7 @@ pub(super) fn execute(loaded: &LoadedProfile, workspace: &WorkspaceEnv) -> Resul
         // run identity after a bounded delay.
         let _control_lock = lock(loaded, workspace)?;
         let mut current = read_control(loaded, workspace)?;
-        current.state.last_blocker = Some(error.chars().take(500).collect());
+        current.state.last_blocker = Some(error.message.chars().take(500).collect());
         if lane == Some(WorkerLane::Delivery) {
             current.state.next_delivery_due_unix_seconds =
                 scheduled_due(loaded.profile.min_check_minutes);
@@ -1192,11 +1514,53 @@ pub(super) fn execute(loaded: &LoadedProfile, workspace: &WorkspaceEnv) -> Resul
                 .iter_mut()
                 .find(|item| item.id == work_id && item.status == "pending")
         {
-            item.retry_after_unix_seconds = scheduled_due(loaded.profile.min_check_minutes);
+            apply_assignment_failure(item, error, loaded.profile.min_check_minutes);
         }
         write_control(loaded, workspace, &mut current, "worker_held")?;
     }
-    result
+    result.map_err(String::from)
+}
+
+fn refresh_failed_work_after_patch(
+    work: &mut [WorkAssignment],
+    bindings: &BTreeMap<String, String>,
+) -> bool {
+    let mut changed = false;
+    for item in work {
+        let Some(failed_skill) = item.failed_skill.as_ref() else {
+            continue;
+        };
+        if item.status != "held" || item.receipt.is_none() {
+            continue;
+        }
+        let Some(bound) = item.runs.get(failed_skill) else {
+            continue;
+        };
+        let Some(current_digest) = bindings.get(failed_skill) else {
+            continue;
+        };
+        if current_digest == &bound.package_digest {
+            continue;
+        }
+        let failed_skill = failed_skill.clone();
+        item.status = "pending".to_owned();
+        item.retry_after_unix_seconds = 0;
+        item.receipt = None;
+        item.failed_skill = None;
+        item.runs.remove(&failed_skill);
+        changed = true;
+    }
+    changed
+}
+
+fn apply_assignment_failure(item: &mut WorkAssignment, error: &SkillRunFailure, minutes: u64) {
+    if let Some(receipt) = &error.terminal_receipt {
+        item.status = "held".to_owned();
+        item.receipt = Some(receipt.clone());
+        item.failed_skill = error.skill.clone();
+    } else {
+        item.retry_after_unix_seconds = scheduled_due(minutes);
+    }
 }
 
 fn finish_or_hold(
@@ -1396,7 +1760,27 @@ fn review_observations(
             let Some(receipt) = work.receipt.as_ref() else {
                 return Ok(None);
             };
-            if result["kind"] == "source_intake" {
+            if result["kind"] == "conversation_review" {
+                if result["summary"].as_str().is_none()
+                    || result["status"].as_str().is_none()
+                    || result["checked_at"].as_str().is_none()
+                {
+                    return Ok(None);
+                }
+                return Ok(Some(json!({
+                    "source_ref":work.source_ref,
+                    "source_digest":work.source_digest,
+                    "route_id":work.route_id,
+                    "target_ref":work.target_ref,
+                    "kind":"conversation_review",
+                    "summary":result["summary"],
+                    "status":result["status"],
+                    "source_complete":result["source_complete"],
+                    "checked_at":result["checked_at"],
+                    "receipt":receipt,
+                })));
+            }
+            if result["kind"] == "coding_intake" {
                 if result["summary"].as_str().is_none()
                     || result["recommended_lane"].as_str().is_none()
                     || result["checked_at"].as_str().is_none()
@@ -1408,7 +1792,7 @@ fn review_observations(
                     "source_digest":work.source_digest,
                     "route_id":work.route_id,
                     "target_ref":work.target_ref,
-                    "kind":"source_intake",
+                    "kind":"coding_intake",
                     "summary":result["summary"],
                     "recommended_lane":result["recommended_lane"],
                     "source_complete":result["source_complete"],
@@ -1467,10 +1851,10 @@ fn review_observations(
     let (review, receipt) = run_skill(
         loaded,
         workspace,
-        "personal-assistant",
+        "attention-review",
         "review",
         json!({
-            "objective":"Identify new attention. Set brief iff items is nonempty; idle requires empty items, recommended_action_ids and work_proposals. Use high, medium or low for item priority. Propose at most three read-only checks from exact work_candidates triples. Use work_results to avoid stale claims. This source-page scan is partial; do not claim complete coverage. Propose only allowed_action_ids; if empty, recommend none.",
+            "objective":"Identify new attention. Set brief iff items is nonempty; idle requires empty items, recommended_action_ids and work_proposals. Use high, medium or low for item priority. Propose at most three exact optional checks from work_candidates; selected mail/chat items are reviewed through the configured conversation route by the host. Use work_results to avoid stale claims. This source-page scan is partial; do not claim complete coverage. Propose only allowed_action_ids; if empty, recommend none.",
             "as_of":now_iso8601(),
             "evidence":model_evidence,
             "user_context":{"charter":loaded.profile.charter,"confirmed_memory":record.state.confirmed_memory},
@@ -1661,29 +2045,6 @@ fn work_candidates(loaded: &LoadedProfile, observations: &[Value]) -> Vec<Value>
         let Some(summary) = observation["summary"].as_str() else {
             continue;
         };
-        if matches!(observation["source_kind"].as_str(), Some("chat" | "mail"))
-            && let Some(thread) = observation["thread_locator"].as_str()
-        {
-            for route in &loaded.profile.work_routes {
-                if route.kind == "source_intake"
-                    && seen.insert((
-                        observation["source_ref"].to_string(),
-                        route.route_id.clone(),
-                        thread.to_owned(),
-                    ))
-                {
-                    candidates.push(json!({
-                        "source_ref":observation["source_ref"],
-                        "source_digest":observation["source_digest"],
-                        "route_id":route.route_id,
-                        "target_ref":thread
-                    }));
-                    if candidates.len() == 20 {
-                        return candidates;
-                    }
-                }
-            }
-        }
         for (start, _) in summary.match_indices("https://github.com/") {
             let raw = summary[start..]
                 .split(|ch: char| ch.is_whitespace() || "<>|#?".contains(ch))
@@ -1732,21 +2093,63 @@ fn admit_work(
     let proposals = packet["work_proposals"]
         .as_array()
         .ok_or("attention packet lacks work proposals")?;
-    if proposals.is_empty() {
-        return Ok(());
-    }
     if proposals.len() > 3 {
         return Err("attention packet exceeds work proposal limit".to_owned());
     }
     let candidates = work_candidates(loaded, observations);
+    let mut requested: Vec<(Value, bool)> = proposals
+        .iter()
+        .cloned()
+        .map(|proposal| (proposal, false))
+        .collect();
+    if let Some(route) = loaded
+        .profile
+        .work_routes
+        .iter()
+        .find(|route| route.kind == "conversation_review")
+    {
+        for item in packet["items"]
+            .as_array()
+            .ok_or("attention packet lacks selected items")?
+        {
+            let Some(observation) = observations.iter().find(|observation| {
+                observation["source_ref"] == item["source_ref"]
+                    && observation["source_digest"] == item["source_digest"]
+            }) else {
+                return Err("selected conversation source is no longer present".to_owned());
+            };
+            if matches!(observation["source_kind"].as_str(), Some("chat" | "mail")) {
+                requested.push((
+                    json!({
+                        "source_ref":observation["source_ref"],
+                        "source_digest":observation["source_digest"],
+                        "route_id":route.route_id,
+                        "target_ref":observation["thread_locator"],
+                    }),
+                    true,
+                ));
+            }
+        }
+    }
+    if requested.is_empty() {
+        return Ok(());
+    }
     let dispositions = current_dispositions(loaded, workspace, observations)?;
     let mut changed = false;
-    for proposal in proposals {
-        if !candidates.iter().any(|candidate| {
+    for (proposal, selected_conversation) in &requested {
+        let model_candidate = candidates.iter().any(|candidate| {
             candidate["source_ref"] == proposal["source_ref"]
                 && candidate["source_digest"] == proposal["source_digest"]
                 && candidate["route_id"] == proposal["route_id"]
                 && candidate["target_ref"] == proposal["target_ref"]
+        });
+        let valid_route = loaded.profile.work_routes.iter().any(|route| {
+            route.kind == "conversation_review" && route.route_id == proposal["route_id"]
+        });
+        if !(if *selected_conversation {
+            valid_route
+        } else {
+            model_candidate
         }) {
             return Err("work proposal is no longer an exact configured candidate".to_owned());
         }
@@ -1763,6 +2166,13 @@ fn admit_work(
             .iter()
             .find(|item| item["source_ref"] == source_ref)
             .ok_or("work proposal source is missing")?;
+        if *selected_conversation
+            && (!matches!(observation["source_kind"].as_str(), Some("chat" | "mail"))
+                || observation["source_digest"] != proposal["source_digest"]
+                || observation["thread_locator"] != proposal["target_ref"])
+        {
+            return Err("selected conversation no longer matches its source thread".to_owned());
+        }
         let route_id = proposal["route_id"]
             .as_str()
             .ok_or("work proposal lacks route")?;
@@ -1804,6 +2214,8 @@ fn admit_work(
             retry_after_unix_seconds: 0,
             receipt: None,
             result_ref: None,
+            runs: BTreeMap::new(),
+            failed_skill: None,
         });
         changed = true;
     }
@@ -1817,7 +2229,7 @@ fn dispatch_pending_work(
     loaded: &LoadedProfile,
     workspace: &WorkspaceEnv,
     record: &mut ControlRecord,
-) -> Result<Value, String> {
+) -> Result<Value, SkillRunFailure> {
     let index = due_work_index(&record.state.work, now_seconds()).ok_or("no due assistant work")?;
     let item = record.state.work[index].clone();
     let route = loaded
@@ -1838,26 +2250,23 @@ fn dispatch_pending_work(
         .any(|state| state["disposition"] == "open")
     {
         record.state.work[index].status = "held".to_owned();
+        record.state.work[index].runs.clear();
+        record.state.work[index].failed_skill = None;
         write_control(loaded, workspace, record, "work_source_closed")?;
         return Ok(
             json!({"status":"work_held","work_id":item.id,"reason":"source action is no longer open"}),
         );
     }
     let (result, receipt) = match route.kind.as_str() {
-        "github_pr_status" => {
-            let run_id = format!(
-                "run_assistant_work_{}",
-                item.id.trim_start_matches("sha256:")
-            );
-            run_pr_status(loaded, workspace, &item, route, &run_id)?
+        "github_pr_status" => run_pr_status(loaded, workspace, record, index, &item, route)?,
+        "conversation_review" => {
+            let memory = record.state.confirmed_memory.clone();
+            run_conversation_review(loaded, workspace, record, index, &item, &memory)?
         }
-        "source_intake" => {
-            run_source_intake(loaded, workspace, &item, &record.state.confirmed_memory)?
-        }
-        "work_plan" => run_work_plan(loaded, workspace, &item, &record.state.work)?,
-        _ => return Err("pending work has an unsupported route".to_owned()),
+        "work_plan" => run_work_plan(loaded, workspace, record, index, &item)?,
+        _ => return Err("pending work has an unsupported route".into()),
     };
-    let child = if route.kind == "source_intake" {
+    let child = if route.kind == "conversation_review" {
         plan_child_assignment(
             &loaded.profile.instance_id,
             loaded
@@ -1867,13 +2276,23 @@ fn dispatch_pending_work(
                 .find(|route| route.kind == "work_plan"),
             &item,
             &result,
-        )?
+        )
+        .map_err(|error| {
+            let skill = if result["kind"] == "coding_intake" {
+                "issue-intake"
+            } else {
+                "conversation-review"
+            };
+            SkillRunFailure::sealed_validation(skill, &receipt, error)
+        })?
     } else {
         None
     };
     record.state.work[index].status = "completed".to_owned();
     record.state.work[index].receipt = Some(receipt.clone());
     record.state.work[index].result_ref = Some(persist_work_result(workspace, &item, &result)?);
+    record.state.work[index].runs.clear();
+    record.state.work[index].failed_skill = None;
     if let Some(child) = child
         && !record.state.work.iter().any(|entry| entry.id == child.id)
     {
@@ -1892,10 +2311,11 @@ fn dispatch_pending_work(
 fn run_pr_status(
     loaded: &LoadedProfile,
     workspace: &WorkspaceEnv,
+    record: &mut ControlRecord,
+    index: usize,
     item: &WorkAssignment,
     route: &WorkRoute,
-    run_id: &str,
-) -> Result<(Value, String), String> {
+) -> Result<(Value, String), SkillRunFailure> {
     let (repository, number) = parse_pr_target(&item.target_ref)
         .ok_or("pending work target is not a canonical GitHub pull request")?;
     if !route
@@ -1903,41 +2323,56 @@ fn run_pr_status(
         .iter()
         .any(|allowed| allowed == &repository)
     {
-        return Err("pending work target is outside its configured route".to_owned());
+        return Err("pending work target is outside its configured route".into());
     }
+    let (bound, inputs, _) = bound_work_inputs(
+        loaded,
+        workspace,
+        record,
+        index,
+        "github-sync",
+        "run_assistant_work_",
+        || {
+            Ok((
+                json!({"repo":repository,"resources":{"kind":"prs","refs":[format!("pulls/{number}")],"include_body":false}}),
+                vec![],
+            ))
+        },
+    )?;
     let (output, receipt) = run_skill_with_id(
         loaded,
         workspace,
         "github-sync",
         "pull",
-        json!({"repo":repository,"resources":{"kind":"prs","refs":[format!("pulls/{number}")],"include_body":false}}),
+        inputs,
         false,
         route.credential_profile.as_deref(),
         false,
-        Some(run_id),
+        Some(&bound.run_id),
+        Some(&bound.package_digest),
     )?;
-    let result = &result_data(&output, "provider_operation")?["result"];
-    let items = result["items"]
-        .as_array()
-        .ok_or("GitHub PR check lacks items")?;
-    let pr = items
-        .first()
-        .ok_or("GitHub PR check returned no requested pull request")?;
-    if result["repository"] != repository
-        || items.len() != 1
-        || pr["repository"] != repository
-        || pr["number"]
-            .as_u64()
-            .or_else(|| pr["number"].as_str().and_then(|value| value.parse().ok()))
-            != Some(number)
-        || pr["url"] != item.target_ref
-        || !matches!(pr["state"].as_str(), Some("open" | "closed"))
-    {
-        return Err("GitHub PR check lacks bounded repository readback".to_owned());
-    }
-    let bytes = serde_json::to_vec(result).map_err(|error| error.to_string())?;
-    Ok((
-        json!({
+    let checked = (|| -> Result<Value, String> {
+        let result = &result_data(&output, "provider_operation")?["result"];
+        let items = result["items"]
+            .as_array()
+            .ok_or("GitHub PR check lacks items")?;
+        let pr = items
+            .first()
+            .ok_or("GitHub PR check returned no requested pull request")?;
+        if result["repository"] != repository
+            || items.len() != 1
+            || pr["repository"] != repository
+            || pr["number"]
+                .as_u64()
+                .or_else(|| pr["number"].as_str().and_then(|value| value.parse().ok()))
+                != Some(number)
+            || pr["url"] != item.target_ref
+            || !matches!(pr["state"].as_str(), Some("open" | "closed"))
+        {
+            return Err("GitHub PR check lacks bounded repository readback".to_owned());
+        }
+        let bytes = serde_json::to_vec(result).map_err(|error| error.to_string())?;
+        Ok(json!({
             "repository":repository,
             "pull_ref":format!("pulls/{number}"),
             "state":pr["state"],
@@ -1945,9 +2380,10 @@ fn run_pr_status(
             "url":pr["url"],
             "checked_at":now_iso8601(),
             "result_digest":sha256_prefixed(&bytes)
-        }),
-        receipt,
-    ))
+        }))
+    })()
+    .map_err(|error| SkillRunFailure::sealed_validation("github-sync", &receipt, error))?;
+    Ok((checked, receipt))
 }
 
 fn bounded_work_artifact(value: &Value) -> Result<(), String> {
@@ -1962,7 +2398,7 @@ fn bounded_work_artifact(value: &Value) -> Result<(), String> {
 
 fn plannable_change_set<'a>(item: &WorkAssignment, result: &'a Value) -> Option<&'a Value> {
     let change_set = result.get("change_set")?;
-    if result["kind"] != "source_intake"
+    if result["kind"] != "coding_intake"
         || result["source_complete"] != true
         || result["needs_human"] != false
         || result["recommended_lane"] != "work-plan"
@@ -2011,19 +2447,22 @@ fn plan_child_assignment(
         retry_after_unix_seconds: 0,
         receipt: None,
         result_ref: None,
+        runs: BTreeMap::new(),
+        failed_skill: None,
     }))
 }
 
 fn run_work_plan(
     loaded: &LoadedProfile,
     workspace: &WorkspaceEnv,
+    record: &mut ControlRecord,
+    index: usize,
     item: &WorkAssignment,
-    work: &[WorkAssignment],
-) -> Result<(Value, String), String> {
+) -> Result<(Value, String), SkillRunFailure> {
     let parent = item
         .parent_work_id
         .as_deref()
-        .and_then(|id| work.iter().find(|entry| entry.id == id))
+        .and_then(|id| record.state.work.iter().find(|entry| entry.id == id))
         .filter(|entry| {
             entry.status == "completed"
                 && entry.receipt.is_some()
@@ -2031,10 +2470,11 @@ fn run_work_plan(
                 && entry.source_digest == item.source_digest
                 && entry.thread_locator == item.thread_locator
         })
+        .cloned()
         .ok_or("work plan lacks a completed source-intake parent")?;
     let source_result =
-        read_work_result(workspace, parent)?.ok_or("work plan parent has no intake result")?;
-    let change_set = plannable_change_set(parent, &source_result)
+        read_work_result(workspace, &parent)?.ok_or("work plan parent has no intake result")?;
+    let change_set = plannable_change_set(&parent, &source_result)
         .filter(|set| set["change_set_id"] == item.target_ref)
         .ok_or("work plan parent does not authorize this exact planning target")?;
     bounded_work_artifact(change_set)?;
@@ -2042,31 +2482,53 @@ fn run_work_plan(
         .as_str()
         .filter(|summary| !summary.is_empty() && summary.len() <= 2000)
         .ok_or("work plan parent lacks a bounded objective")?;
-    let (output, receipt) = run_skill(
+    let (bound, inputs, _) = bound_work_inputs(
+        loaded,
+        workspace,
+        record,
+        index,
+        "work-plan",
+        "run_assistant_plan_",
+        || {
+            Ok((
+                json!({
+                    "objective":objective,
+                    "project_context":loaded.profile.charter,
+                    "thread_locator":item.thread_locator,
+                    "change_set":change_set,
+                }),
+                vec![],
+            ))
+        },
+    )?;
+    let (output, receipt) = run_skill_with_id(
         loaded,
         workspace,
         "work-plan",
         "work-plan",
-        json!({
-            "objective":objective,
-            "project_context":loaded.profile.charter,
-            "thread_locator":item.thread_locator,
-            "change_set":change_set,
-        }),
+        inputs.clone(),
         true,
         None,
         false,
+        Some(&bound.run_id),
+        Some(&bound.package_digest),
     )?;
-    let plan = result_data(&output, "work_plan")?;
-    if plan["change_set"] != *change_set
+    let plan = result_data(&output, "work_plan")
+        .map_err(|error| SkillRunFailure::sealed_validation("work-plan", &receipt, error))?;
+    if plan["change_set"] != inputs["change_set"]
         || plan["evidence"]["source_change_set_preserved"] != true
         || plan["evidence"]["source_thread_locator_preserved"] != true
         || !matches!(plan["decision"].as_str(), Some("ready" | "blocked"))
         || (plan["decision"] == "ready" && plan["validation"]["status"] != "pass")
     {
-        return Err("work plan did not preserve the admitted parent change set".to_owned());
+        return Err(SkillRunFailure::sealed_validation(
+            "work-plan",
+            &receipt,
+            "work plan did not preserve the admitted parent change set",
+        ));
     }
-    bounded_work_artifact(plan)?;
+    bounded_work_artifact(plan)
+        .map_err(|error| SkillRunFailure::sealed_validation("work-plan", &receipt, error))?;
     Ok((
         json!({
             "kind":"work_plan",
@@ -2107,57 +2569,171 @@ fn bounded_mail_context(grounding: &Value) -> Result<(Vec<Value>, bool), String>
         if body.is_empty()
             || body.chars().nth(limit).is_some()
             || message["body_truncated"] != false
+            || message["occurred_at"].as_str().is_none()
+            || message["direction"].as_str().is_none()
             || !matches!(message["attachments"].as_array(), Some(attachments) if attachments.is_empty())
         {
             complete = false;
         }
         context.push(json!({
-            "id":message["id"],
-            "direction":message["direction"],
-            "occurred_at":message["occurred_at"],
-            "text_body":excerpt,
+            "message_ref":message["id"].to_string(),
+            "direction":message["direction"].as_str().unwrap_or(""),
+            "occurred_at":message["occurred_at"].as_str().unwrap_or(""),
+            "text":excerpt,
         }));
     }
     Ok((context, complete))
 }
 
-fn run_source_intake(
+fn run_conversation_review(
     loaded: &LoadedProfile,
     workspace: &WorkspaceEnv,
+    record: &mut ControlRecord,
+    index: usize,
     item: &WorkAssignment,
     memory: &[ConfirmedMemory],
-) -> Result<(Value, String), String> {
+) -> Result<(Value, String), SkillRunFailure> {
     if item.target_ref != item.thread_locator {
-        return Err("source intake target differs from its recorded thread".to_owned());
+        return Err("source intake target differs from its recorded thread".into());
     }
-    let source = if item.source_ref.starts_with("slack://") {
-        hydrate_slack_source(loaded, workspace, item)?
-    } else if item.source_ref.starts_with("nitrosend://") {
-        hydrate_mail_source(loaded, workspace, item)?
-    } else {
-        return Err("source intake has an unsupported source locator".to_owned());
-    };
     let mut operator_context = loaded.profile.charter.clone();
     for entry in memory {
         operator_context.push_str("\nConfirmed operator context: ");
         operator_context.push_str(&entry.text);
     }
-    let (output, receipt) = run_skill(
+    let (review_run, review_inputs, source_receipts) = bound_work_inputs(
+        loaded,
+        workspace,
+        record,
+        index,
+        "conversation-review",
+        "run_assistant_conversation_",
+        || {
+            let source = if item.source_ref.starts_with("slack://") {
+                hydrate_slack_source(loaded, workspace, item)?
+            } else if item.source_ref.starts_with("nitrosend://") {
+                hydrate_mail_source(loaded, workspace, item)?
+            } else {
+                return Err("source intake has an unsupported source locator".to_owned());
+            };
+            Ok((
+                json!({
+                    "source_ref":item.source_ref,
+                    "source_digest":item.source_digest,
+                    "thread_locator":item.thread_locator,
+                    "title":source.title,
+                    "body":source.body,
+                    "thread":source.context,
+                    "source_complete":source.complete,
+                    "operator_context":operator_context,
+                }),
+                source.receipts,
+            ))
+        },
+    )?;
+    if review_inputs["source_ref"] != item.source_ref
+        || review_inputs["source_digest"] != item.source_digest
+        || review_inputs["thread_locator"] != item.thread_locator
+    {
+        return Err("bound conversation inputs differ from the admitted source".into());
+    }
+    let source_complete = review_inputs["source_complete"] == true;
+    let (review, review_receipt) = run_skill_with_id(
+        loaded,
+        workspace,
+        "conversation-review",
+        "review",
+        review_inputs.clone(),
+        true,
+        None,
+        false,
+        Some(&review_run.run_id),
+        Some(&review_run.package_digest),
+    )?;
+    let conversation = result_data(&review, "conversation_packet").map_err(|error| {
+        SkillRunFailure::sealed_validation("conversation-review", &review_receipt, error)
+    })?;
+    if conversation["source_ref"] != item.source_ref
+        || conversation["source_digest"] != item.source_digest
+        || conversation["thread_locator"] != item.thread_locator
+    {
+        return Err(SkillRunFailure::sealed_validation(
+            "conversation-review",
+            &review_receipt,
+            "conversation review is not bound to the admitted source",
+        ));
+    }
+    let status = conversation["status"]
+        .as_str()
+        .ok_or("conversation review lacks a status")
+        .map_err(|error| {
+            SkillRunFailure::sealed_validation("conversation-review", &review_receipt, error)
+        })?;
+    if conversation["validation"]["status"] != "pass" && status != "needs_context" {
+        return Err(SkillRunFailure::sealed_validation(
+            "conversation-review",
+            &review_receipt,
+            "conversation review failed validation",
+        ));
+    }
+    if status != "coding" {
+        return Ok((
+            json!({
+                "kind":"conversation_review",
+                "status":status,
+                "summary":conversation["summary"],
+                "reason":conversation["reason"],
+                "draft_message":conversation["draft_message"],
+                "follow_up_task":conversation["follow_up_task"],
+                "follow_up_status":conversation["follow_up_status"],
+                "effect_status":"draft_only",
+                "source_complete":source_complete,
+                "source_receipts":source_receipts,
+                "checked_at":now_iso8601(),
+            }),
+            review_receipt,
+        ));
+    }
+    if !source_complete {
+        return Err(SkillRunFailure::sealed_validation(
+            "conversation-review",
+            &review_receipt,
+            "incomplete conversation cannot enter coding intake",
+        ));
+    }
+    let (intake_run, intake_inputs, _) = bound_work_inputs(
+        loaded,
+        workspace,
+        record,
+        index,
+        "issue-intake",
+        "run_assistant_coding_intake_",
+        || {
+            Ok((
+                json!({
+                    "thread_title":review_inputs["title"],
+                    "thread_body":review_inputs["body"],
+                    "thread_locator":item.thread_locator,
+                    "thread":review_inputs["thread"],
+                    "operator_context":review_inputs["operator_context"],
+                }),
+                source_receipts.clone(),
+            ))
+        },
+    )?;
+    let (output, receipt) = run_skill_with_id(
         loaded,
         workspace,
         "issue-intake",
         "intake",
-        json!({
-            "thread_title":source.title,
-            "thread_body":source.body,
-            "thread_locator":item.thread_locator,
-            "thread":source.context,
-            "operator_context":operator_context,
-        }),
+        intake_inputs,
         true,
         None,
         false,
+        Some(&intake_run.run_id),
+        Some(&intake_run.package_digest),
     )?;
+    let result = (|| -> Result<Value, String> {
     let report = output
         .pointer("/result/intake_report")
         .filter(|value| value.is_object())
@@ -2196,22 +2772,26 @@ fn run_source_intake(
     {
         return Err("intake report exceeds assistant's bounded handoff".to_owned());
     }
-    let needs_human = report["needs_human"] == true || !source.complete;
-    let result = json!({
-        "kind":"source_intake",
+    let needs_human = report["needs_human"] == true || !source_complete;
+    Ok(json!({
+        "kind":"coding_intake",
         "effect_status":"draft_only",
+        "conversation_receipt":review_receipt,
+        "coding_request_quote":conversation["request_quote"],
         "summary":summary,
         "suggested_reply":reply,
-        "recommended_lane":if source.complete { lane } else { "manual-review" },
+        "recommended_lane":if source_complete { lane } else { "manual-review" },
         "change_set_id":change_set_id,
         "change_set":change_set,
         "commence_decision":if needs_human { json!("needs_human") } else { change_set["commence_decision"].clone() },
         "action_decision":if needs_human { json!("stop") } else { change_set["action_decision"].clone() },
         "needs_human":needs_human,
-        "source_complete":source.complete,
-        "source_receipts":source.receipts,
+        "source_complete":source_complete,
+        "source_receipts":source_receipts,
         "checked_at":now_iso8601(),
-    });
+    }))
+    })()
+    .map_err(|error| SkillRunFailure::sealed_validation("issue-intake", &receipt, error))?;
     Ok((result, receipt))
 }
 
@@ -2307,11 +2887,11 @@ fn hydrate_slack_source(
                 }
                 if messages_context.len() < 30 {
                     messages_context.push(json!({
-                        "message_locator":message["message_locator"],
-                        "occurred_at":message["occurred_at"],
-                        "author":message["author"],
+                        "message_ref":message["message_locator"],
+                        "occurred_at":message["occurred_at"].as_str().unwrap_or(""),
+                        "author_ref":message["author"]["external_id"].as_str().unwrap_or(""),
                         "is_self":message["author"]["external_id"] == subject,
-                        "preview":preview.chars().take(1000).collect::<String>(),
+                        "text":preview.chars().take(1000).collect::<String>(),
                     }));
                 }
             } else {
@@ -2355,7 +2935,7 @@ fn hydrate_slack_source(
     Ok(HydratedSource {
         title,
         body,
-        context: json!({"provider":"slack","thread_locator":item.thread_locator,"source_ref":item.source_ref,"source_digest":item.source_digest,"messages":messages_context,"coverage_incomplete":!complete}),
+        context: json!({"thread_locator":item.thread_locator,"source_ref":item.source_ref,"source_digest":item.source_digest,"messages":messages_context,"coverage_incomplete":!complete}),
         complete,
         receipts,
     })
@@ -2443,7 +3023,7 @@ fn hydrate_mail_source(
             .take(200)
             .collect(),
         body: body.chars().take(4000).collect(),
-        context: json!({"provider":"nitrosend","thread_locator":item.thread_locator,"source_ref":item.source_ref,"source_digest":item.source_digest,"source_message_id":message_id,"messages":messages,"omitted_before_count":grounding["omitted_before"]["count"],"coverage_incomplete":!complete}),
+        context: json!({"thread_locator":item.thread_locator,"source_ref":item.source_ref,"source_digest":item.source_digest,"messages":messages,"omitted_before_count":grounding["omitted_before"]["count"],"coverage_incomplete":!complete}),
         complete,
         receipts: vec![receipt],
     })
@@ -2592,7 +3172,17 @@ fn prepare_notification(
                 .ok_or("selected item lacks digest")
         })
         .collect::<Result<Vec<_>, _>>()?;
-    let (planned, _) = run_skill(
+    let delivery_package_digest = loaded
+        .skill_bindings
+        .get("slack-notify")
+        .ok_or("assistant has no inspected slack-notify binding")?;
+    pinned_skill_path(
+        workspace,
+        &loaded.profile.skills_root.join("slack-notify"),
+        "slack-notify",
+        delivery_package_digest,
+    )?;
+    let (planned, _) = run_skill_with_id(
         loaded,
         workspace,
         "slack-notify",
@@ -2605,7 +3195,10 @@ fn prepare_notification(
         false,
         None,
         false,
-    )?;
+        None,
+        Some(delivery_package_digest),
+    )
+    .map_err(String::from)?;
     let plan = result_data(&planned, "notify_plan")?;
     if plan["decision"] != "ready_for_provider" {
         return Err("slack-notify did not admit the exact private brief".to_owned());
@@ -2637,6 +3230,7 @@ fn prepare_notification(
         material_digest: material_digest.to_owned(),
         logical_run_id: logical.clone(),
         selected_digests,
+        delivery_package_digest: delivery_package_digest.clone(),
     });
     record.state.pending_turn = None;
     record.state.next_due_unix_seconds = scheduled_due(loaded.profile.min_check_minutes);
@@ -2696,6 +3290,8 @@ fn deliver_pending(
         None,
         true,
         Some(&delivery_run_id),
+        (!pending.delivery_package_digest.is_empty())
+            .then_some(pending.delivery_package_digest.as_str()),
     )?;
     let readback = result_data(&delivered, "provider_operation")
         .or_else(|_| result_data(&delivered, "notify_delivery"))?;
@@ -3304,15 +3900,129 @@ mod tests {
     use serde_json::json;
 
     use super::{
-        DeferredTurn, PendingTurn, WorkAssignment, WorkerLane, bounded_mail_context,
-        bounded_work_artifact, due_work_index, due_worker_lane, evictable_work_index,
-        message_for_queue, next_work_due, normalize_mail_observation, notification_uuid,
-        page_cursor, parse_pr_target, persist_work_result, plan_child_assignment,
+        DeferredTurn, PendingTurn, SkillRunFailure, WorkAssignment, WorkerLane,
+        apply_assignment_failure, bounded_mail_context, bounded_work_artifact, due_work_index,
+        due_worker_lane, evictable_work_index, message_for_queue, next_work_due,
+        normalize_mail_observation, notification_uuid, package_digest, page_cursor,
+        parse_pr_target, persist_work_result, pinned_skill_path, plan_child_assignment,
         plannable_change_set, private_notification_text, private_text_is_safe, quiet_hour,
-        read_work_result, scan_continuation_from_value, unreviewed_digests,
-        verified_notification_readback,
+        read_work_result, refresh_failed_work_after_patch, scan_continuation_from_value,
+        unreviewed_digests, verified_notification_readback,
     };
     use crate::assistant::{QuietHours, WorkRoute};
+
+    #[test]
+    fn sealed_failed_work_is_held_and_transient_work_can_retry() -> Result<(), String> {
+        let mut work: WorkAssignment = serde_json::from_value(json!({
+            "id":"sha256:assignment", "source_ref":"slack://message", "source_digest":"sha256:source",
+            "thread_locator":"slack://thread", "route_id":"review",
+            "target_ref":"slack://thread", "status":"pending",
+            "receipt":null, "result_ref":null
+        }))
+        .map_err(|error| error.to_string())?;
+        apply_assignment_failure(
+            &mut work,
+            &SkillRunFailure {
+                message: "model failed".to_owned(),
+                terminal_receipt: Some("sha256:failed".to_owned()),
+                skill: Some("issue-intake".to_owned()),
+            },
+            15,
+        );
+        assert_eq!(work.status, "held");
+        assert_eq!(work.receipt.as_deref(), Some("sha256:failed"));
+        work.runs.insert(
+            "issue-intake".to_owned(),
+            super::BoundWorkRun {
+                run_id: "run_old".to_owned(),
+                package_digest: "sha256:old".to_owned(),
+                input_ref: json!(null),
+            },
+        );
+        work.runs.insert(
+            "conversation-review".to_owned(),
+            super::BoundWorkRun {
+                run_id: "run_completed_phase".to_owned(),
+                package_digest: "sha256:completed".to_owned(),
+                input_ref: json!({"artifact":"completed-phase-inputs"}),
+            },
+        );
+        let current = BTreeMap::from([("issue-intake".to_owned(), "sha256:old".to_owned())]);
+        assert!(!refresh_failed_work_after_patch(
+            std::slice::from_mut(&mut work),
+            &current
+        ));
+        let unrelated_patch = BTreeMap::from([
+            ("issue-intake".to_owned(), "sha256:old".to_owned()),
+            ("conversation-review".to_owned(), "sha256:new".to_owned()),
+        ]);
+        assert!(!refresh_failed_work_after_patch(
+            std::slice::from_mut(&mut work),
+            &unrelated_patch
+        ));
+        let patched = BTreeMap::from([("issue-intake".to_owned(), "sha256:new".to_owned())]);
+        assert!(refresh_failed_work_after_patch(
+            std::slice::from_mut(&mut work),
+            &patched
+        ));
+        assert_eq!(work.status, "pending");
+        assert!(!work.runs.contains_key("issue-intake"));
+        assert_eq!(
+            work.runs["conversation-review"].run_id,
+            "run_completed_phase"
+        );
+        assert!(work.receipt.is_none());
+
+        apply_assignment_failure(
+            &mut work,
+            &SkillRunFailure {
+                message: "temporary transport error".to_owned(),
+                terminal_receipt: None,
+                skill: None,
+            },
+            15,
+        );
+        assert_eq!(work.status, "pending");
+        assert!(work.retry_after_unix_seconds > 0);
+        Ok(())
+    }
+
+    #[test]
+    fn pinned_skill_survives_a_patch_without_rebinding_started_code() -> Result<(), String> {
+        let root = std::env::temp_dir().join(format!(
+            "runx-assistant-skill-pin-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map_err(|error| error.to_string())?
+                .as_nanos()
+        ));
+        let source = root.join("source");
+        std::fs::create_dir_all(&source).map_err(|error| error.to_string())?;
+        std::fs::write(
+            source.join("SKILL.md"),
+            "---\nname: example\ndescription: test\n---\nExample skill.\n",
+        )
+        .map_err(|error| error.to_string())?;
+        let workspace = runx_runtime::WorkspaceEnv::load_process(root.clone())
+            .map_err(|error| error.to_string())?;
+        let source_digest = package_digest(&source)?;
+        let first = pinned_skill_path(&workspace, &source, "example", &source_digest)?;
+        let first_digest = package_digest(&first)?;
+        std::fs::write(
+            source.join("SKILL.md"),
+            "---\nname: example\ndescription: patched\n---\nPatched skill.\n",
+        )
+        .map_err(|error| error.to_string())?;
+        assert!(pinned_skill_path(&workspace, &source, "example", &source_digest).is_err());
+        let patched_digest = package_digest(&source)?;
+        let second = pinned_skill_path(&workspace, &source, "example", &patched_digest)?;
+        assert_ne!(first, second);
+        assert_eq!(package_digest(&first)?, first_digest);
+        assert_eq!(package_digest(&second)?, package_digest(&source)?);
+        std::fs::remove_dir_all(root).map_err(|error| error.to_string())?;
+        Ok(())
+    }
 
     #[test]
     fn work_result_is_exact_private_artifact_and_tampering_blocks_read() -> Result<(), String> {
@@ -3334,7 +4044,7 @@ mod tests {
             "receipt":"sha256:receipt", "result_ref":null
         }))
         .map_err(|error| error.to_string())?;
-        let result = json!({"kind":"source_intake","change_set":{"summary":"private context"}});
+        let result = json!({"kind":"coding_intake","change_set":{"summary":"private context"}});
         item.result_ref = Some(persist_work_result(&workspace, &item, &result)?);
         assert_eq!(read_work_result(&workspace, &item)?, Some(result));
         let path = item
@@ -3399,7 +4109,7 @@ mod tests {
         }))
         .map_err(|error| error.to_string())?;
         let approved = json!({
-            "kind":"source_intake", "source_complete":true, "needs_human":false,
+            "kind":"coding_intake", "source_complete":true, "needs_human":false,
             "recommended_lane":"work-plan", "commence_decision":"approve",
             "action_decision":"proceed_to_plan", "change_set_id":"change-1",
             "change_set":{

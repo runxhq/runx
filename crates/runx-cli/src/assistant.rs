@@ -273,6 +273,7 @@ pub(super) struct LoadedProfile {
     pub(super) revision: String,
     pub(super) source_set_digest: String,
     pub(super) skill_set_digest: String,
+    pub(super) skill_bindings: BTreeMap<String, String>,
 }
 
 fn default_heartbeat_seconds() -> u64 {
@@ -340,7 +341,7 @@ fn load_profile(path: &Path, workspace: &WorkspaceEnv) -> Result<LoadedProfile, 
     let mut names = BTreeSet::from([
         "data-store",
         "operator-inbox",
-        "personal-assistant",
+        "attention-review",
         "slack-notify",
     ]);
     for source in &profile.sources {
@@ -355,7 +356,8 @@ fn load_profile(path: &Path, workspace: &WorkspaceEnv) -> Result<LoadedProfile, 
                 "github_pr_status" => {
                     names.insert("github-sync");
                 }
-                "source_intake" => {
+                "conversation_review" => {
+                    names.insert("conversation-review");
                     names.insert("issue-intake");
                 }
                 "work_plan" => {
@@ -365,7 +367,7 @@ fn load_profile(path: &Path, workspace: &WorkspaceEnv) -> Result<LoadedProfile, 
             }
         }
     }
-    let mut skill_bindings = Vec::new();
+    let mut skill_bindings = BTreeMap::new();
     for name in names {
         let inspected = runx_runtime::inspect_skill_package(
             &profile.skills_root.join(name),
@@ -378,22 +380,22 @@ fn load_profile(path: &Path, workspace: &WorkspaceEnv) -> Result<LoadedProfile, 
             .and_then(|item| item.get("package_digest"))
             .and_then(runx_contracts::JsonValue::as_str)
             .ok_or_else(|| format!("assistant skill {name} inspection has no digest"))?;
-        skill_bindings.push((name, digest.to_owned()));
+        skill_bindings.insert(name.to_owned(), digest.to_owned());
     }
     let skill_set_digest = sha256_prefixed(
         &serde_json::to_vec(&skill_bindings)
             .map_err(|error| format!("encoding assistant skill bindings: {error}"))?,
     );
-    let revision = sha256_prefixed(
-        &serde_json::to_vec(&(sha256_prefixed(&bytes), &skill_set_digest))
-            .map_err(|error| format!("encoding assistant profile binding: {error}"))?,
-    );
+    // Operator configuration is the control-plane revision. Skill packages
+    // are bound by each native run, so a patch must not stop unrelated work.
+    let revision = sha256_prefixed(&bytes);
     Ok(LoadedProfile {
         path,
         profile,
         revision,
         source_set_digest,
         skill_set_digest,
+        skill_bindings,
     })
 }
 
@@ -412,7 +414,7 @@ fn validate_profile(profile: &AssistantProfile) -> Result<(), String> {
     for name in [
         "data-store",
         "operator-inbox",
-        "personal-assistant",
+        "attention-review",
         "slack-notify",
     ] {
         if !profile.skills_root.join(name).join("X.yaml").is_file() {
@@ -501,13 +503,22 @@ fn validate_profile(profile: &AssistantProfile) -> Result<(), String> {
     if profile
         .work_routes
         .iter()
+        .filter(|route| route.kind == "conversation_review")
+        .count()
+        > 1
+    {
+        return Err("assistant may configure only one conversation_review route".to_owned());
+    }
+    if profile
+        .work_routes
+        .iter()
         .any(|route| route.kind == "work_plan")
         && !profile
             .work_routes
             .iter()
-            .any(|route| route.kind == "source_intake")
+            .any(|route| route.kind == "conversation_review")
     {
-        return Err("assistant work_plan requires a source_intake route".to_owned());
+        return Err("assistant work_plan requires a conversation_review route".to_owned());
     }
     let mut route_ids = BTreeSet::new();
     for route in &profile.work_routes {
@@ -516,8 +527,8 @@ fn validate_profile(profile: &AssistantProfile) -> Result<(), String> {
         }
         match route.kind.as_str() {
             "github_pr_status" if !route.repositories.is_empty() && route.repositories.len() <= 8 => {}
-            "source_intake" | "work_plan" if route.repositories.is_empty() && route.credential_profile.is_none() => {}
-            _ => return Err("assistant work route must be github_pr_status with 1-8 repositories or source_intake/work_plan with no repository or credential override".to_owned()),
+            "conversation_review" | "work_plan" if route.repositories.is_empty() && route.credential_profile.is_none() => {}
+            _ => return Err("assistant work route must be github_pr_status with 1-8 repositories or conversation_review/work_plan with no repository or credential override".to_owned()),
         }
         let mut repositories = BTreeSet::new();
         for repository in &route.repositories {

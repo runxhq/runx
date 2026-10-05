@@ -1,0 +1,266 @@
+skill: conversation-review
+version: "0.1.0"
+
+catalog:
+  kind: graph
+  audience: operator
+  visibility: public
+  role: context
+  execution: plan
+  completion: runtime_receipt
+  requires_adapter: false
+  approval: none
+
+harness:
+  cases:
+    - name: conversation-review-keeps-ordinary-reply-out-of-coding
+      operator_journeys:
+        - mode: standalone
+          confusors: [issue-intake, chief-of-staff]
+          request: Review this grounded email conversation and prepare the next response.
+          expected_outcome: Produce an unsent reply without opening an engineering intake or work plan.
+        - mode: composed
+          request: Continue from the already hydrated email thread.
+          expected_outcome: Reuse the exact source binding and decide the reply without rereading the mailbox.
+          prior_evidence:
+            - The source-owning skill already read the complete message and supplied its digest.
+          must_not_repeat:
+            - Do not read the provider thread again.
+            - Do not create a coding change set for ordinary correspondence.
+      inputs:
+        source_ref: nitrosend://example/1/2
+        source_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+        thread_locator: nitrosend://example/1
+        title: A quick call
+        body: Could we find time to talk next week?
+        thread:
+          source_ref: nitrosend://example/1/2
+          source_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+          thread_locator: nitrosend://example/1
+          coverage_incomplete: false
+          messages: [{ text: Could we find time to talk next week? }]
+        source_complete: true
+        operator_context: Offer a time only when availability is supplied.
+      caller:
+        answers:
+          agent_task.conversation-review.output:
+            draft:
+              kind: reply
+              summary: A call was requested.
+              reason: The sender asked for a scheduling response.
+              draft_message: Happy to talk. I will check my availability and get back to you with times.
+              request_quote: ""
+      expect:
+        status: sealed
+        steps: [judge, finalize]
+        step_outputs:
+          finalize:
+            subset:
+              conversation_packet:
+                data:
+                  status: reply
+                  delivery_status: not_sent
+                  validation: { status: pass, findings: [] }
+        receipt: { schema: runx.receipt.v1 }
+
+    - name: conversation-review-admits-grounded-coding-request
+      inputs:
+        source_ref: slack://example/channel/2
+        source_digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+        thread_locator: slack://example/channel/1
+        title: Broken test
+        body: Please fix the failing parser test in the repository.
+        thread:
+          source_ref: slack://example/channel/2
+          source_digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+          thread_locator: slack://example/channel/1
+          coverage_incomplete: false
+          messages: [{ text: Please fix the failing parser test in the repository. }]
+        source_complete: true
+        operator_context: Keep engineering requests separate from ordinary replies.
+      caller:
+        answers:
+          agent_task.conversation-review.output:
+            draft:
+              kind: coding
+              summary: A parser test needs repair.
+              reason: The message explicitly requests a repository fix.
+              draft_message: ""
+              request_quote: Please fix the failing parser test in the repository.
+      expect:
+        status: sealed
+        step_outputs:
+          finalize:
+            subset:
+              conversation_packet:
+                data:
+                  status: coding
+                  request_quote: Please fix the failing parser test in the repository.
+                  validation: { status: pass, findings: [] }
+        receipt: { schema: runx.receipt.v1 }
+
+    - name: conversation-review-holds-incomplete-thread
+      inputs:
+        source_ref: nitrosend://example/3/4
+        source_digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+        thread_locator: nitrosend://example/3
+        title: Review the deployment
+        body: Please review the deployment.
+        thread:
+          source_ref: nitrosend://example/3/4
+          source_digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+          thread_locator: nitrosend://example/3
+          coverage_incomplete: true
+          messages: [{ text: Please review the deployment. }]
+        source_complete: false
+        operator_context: Do not act on truncated threads.
+      caller:
+        answers:
+          agent_task.conversation-review.output:
+            draft:
+              kind: coding
+              summary: A deployment review is requested.
+              reason: The visible message mentions a review.
+              draft_message: ""
+              request_quote: Please review the deployment.
+      expect:
+        status: sealed
+        step_outputs:
+          finalize:
+            subset:
+              conversation_packet:
+                data:
+                  status: needs_context
+                  validation: { status: pass, findings: [] }
+        receipt: { schema: runx.receipt.v1 }
+
+runners:
+  review:
+    default: true
+    type: graph
+    inputs:
+      source_ref:
+        type: string
+        required: true
+        description: Exact observed message locator.
+        schema: { minLength: 1, maxLength: 1000 }
+      source_digest:
+        type: string
+        required: true
+        description: Digest of the admitted observation.
+        schema: { pattern: '^sha256:[0-9a-f]{64}$' }
+      thread_locator:
+        type: string
+        required: true
+        description: Exact provider thread locator.
+        schema: { minLength: 1, maxLength: 1000 }
+      title:
+        type: string
+        required: true
+        description: Bounded provider-backed thread title.
+        schema: { minLength: 1, maxLength: 200 }
+      body:
+        type: string
+        required: true
+        description: Bounded text of the selected message.
+        schema: { minLength: 1, maxLength: 4000 }
+      thread:
+        type: json
+        required: true
+        description: Bounded provider-neutral messages and coverage metadata.
+        schema:
+          required: [source_ref, source_digest, thread_locator, coverage_incomplete, messages]
+          additionalProperties: false
+          properties:
+            source_ref: { type: string, minLength: 1, maxLength: 1000 }
+            source_digest: { type: string, pattern: '^sha256:[0-9a-f]{64}$' }
+            thread_locator: { type: string, minLength: 1, maxLength: 1000 }
+            coverage_incomplete: { type: boolean }
+            omitted_before_count: { type: [integer, "null"], minimum: 0 }
+            messages:
+              type: array
+              maxItems: 30
+              items:
+                type: object
+                required: [text]
+                additionalProperties: false
+                properties:
+                  message_ref: { type: string, maxLength: 1000 }
+                  author_ref: { type: string, maxLength: 1000 }
+                  direction: { type: string, maxLength: 50 }
+                  is_self: { type: boolean }
+                  occurred_at: { type: string, maxLength: 100 }
+                  text: { type: string, maxLength: 4000 }
+      source_complete:
+        type: boolean
+        required: true
+        description: Whether the source reader proved the supplied context complete.
+      operator_context:
+        type: string
+        required: true
+        description: Private charter and operator-confirmed context; never source evidence.
+        schema: { maxLength: 10000 }
+    graph:
+      name: conversation-review
+      result_from: [finalize]
+      steps:
+        - id: judge
+          run:
+            type: agent-task
+            agent: operator
+            task: conversation-review
+            outputs:
+              draft: object
+          inputs:
+            title: $input.title
+            body: $input.body
+            thread: $input.thread
+            source_complete: $input.source_complete
+            operator_context: $input.operator_context
+          artifacts:
+            named_emits:
+              draft: draft
+        - id: finalize
+          context:
+            draft: judge.draft.data
+          inputs:
+            source_ref: $input.source_ref
+            source_digest: $input.source_digest
+            thread_locator: $input.thread_locator
+            title: $input.title
+            body: $input.body
+            thread: $input.thread
+            source_complete: $input.source_complete
+          run:
+            type: javascript
+            module: conversation-review.mjs
+            export: finalizeConversation
+            outputs:
+              conversation_packet:
+                type: object
+                schema:
+                  required: [schema, status, source_ref, source_digest, thread_locator, summary, reason, draft_message, request_quote, follow_up_task, follow_up_status, delivery_status, validation]
+                  additionalProperties: false
+                  properties:
+                    schema: { const: runx.conversation.review.v1 }
+                    status: { type: string, enum: [reply, follow_up, coding, no_action, needs_context] }
+                    source_ref: { type: string, minLength: 1, maxLength: 1000 }
+                    source_digest: { type: string, pattern: '^sha256:[0-9a-f]{64}$' }
+                    thread_locator: { type: string, minLength: 1, maxLength: 1000 }
+                    summary: { type: string, maxLength: 1000 }
+                    reason: { type: string, maxLength: 1500 }
+                    draft_message: { type: [string, "null"], maxLength: 4000 }
+                    request_quote: { type: [string, "null"], maxLength: 1000 }
+                    follow_up_task: { type: [string, "null"], maxLength: 1000 }
+                    follow_up_status: { type: [string, "null"], enum: [not_queued, null] }
+                    delivery_status: { const: not_sent }
+                    validation:
+                      type: object
+                      required: [status, findings]
+                      additionalProperties: false
+                      properties:
+                        status: { type: string, enum: [pass, fail] }
+                        findings: { type: array, maxItems: 10, items: { type: string, maxLength: 300 } }
+          artifacts:
+            named_emits:
+              conversation_packet: conversation_packet

@@ -44,7 +44,7 @@ the exact audience there, outside the OSS skill package:
     },
     {
       "route_id": "intake",
-      "kind": "source_intake",
+      "kind": "conversation_review",
       "repositories": [],
       "credential_profile": null
     },
@@ -91,7 +91,12 @@ crash or a caught error, the same pinned pages replay; an unpinned legacy turn
 restarts at page one. Operator-inbox stores a continuation when another page
 exists, and the next due turn advances that scan. While `coverage_incomplete`
 is true, a brief does not represent a complete mailbox or Slack audit. The
-provider's cursor or page can become stale as the source changes, and a failed
+20-observation limit is an admission ceiling, not a promise that every pinned
+model can make a useful tool call at that size. In live Qwen 2.5 testing, a
+10-plus-10 source page exhausted the empty-turn retry budget; 5-plus-5
+completed the attention pass. Set per-source limits for the configured model
+and confirm them with a real trial; the assistant never switches models itself.
+The provider's cursor or page can become stale as the source changes, and a failed
 continuation holds the turn for inspection. Independent cross-source checks
 are still needed before autonomous follow-up actions.
 
@@ -100,12 +105,21 @@ skill packages. `profile_valid` checks model configuration and remote key
 presence, but cannot certify credential validity, notification authority, or
 endpoint health. `runx assistant resume --profile <path>` enables
 turns; `tick` runs one due turn, and `status` reports control and timer state.
-`pause` prevents future turns. A profile or skill-package change stops active
-ticks until an explicit resume. A pending exact notification cannot be resumed
-with changed bindings; the same applies to a pinned source or review turn.
+`pause` prevents future turns. A profile configuration change stops active
+ticks until an explicit resume. A skill-package patch does not change that
+revision: new work uses the newly inspected package, and an already started
+native run retains a content-addressed local package copy for exact resume.
+Each assignment pins its exact invocation inputs and run identity before
+calling a skill; composed conversations retain separate bindings for review
+and coding intake. The original copy must remain available while its run is
+resumable. A pending
+exact notification or pinned source/review turn cannot be rebound across a
+profile configuration change.
+After updating the Runx executable itself, reinstall an existing assistant
+timer so its owned binary snapshot runs the new host logic.
 `runx assistant report --profile <path>` returns the last persisted, validated
 attention packet with its review receipt and the five most recent completed
-read-only assignments. It reports `not_available` until a turn has committed a
+non-mutating assignments. It reports `not_available` until a turn has committed a
 review. `status.report_available` indicates whether that artifact exists. A
 partial source scan remains marked `coverage_incomplete`; the report is a
 snapshot of that review, not a fresh source read.
@@ -133,7 +147,7 @@ The assistant does not create a parallel source-action database or infer
 completion from email text. The model proposes a bounded next check and the
 local control stream persists its due time; the heartbeat invokes finite `tick`
 and `execute` roles. A turn with changed evidence may also select up to
-three exact read-only work candidates. `github_pr_status` makes an exact
+three exact non-mutating work candidates. `github_pr_status` makes an exact
 provider read: the host extracts canonical PR links from observed summaries, intersects them with the
 private repository allowlist, and asks the model to select exact
 source/route/target triples. The finalizer rejects invented targets and
@@ -142,20 +156,28 @@ before `assistant execute` runs one due `github-sync#pull`. It verifies the exac
 identity in provider readback, records state and receipt, and supplies that
 bounded result to later reviews. Read retries reuse the same native run identity
 after a crash; they cannot post or mutate the PR. Intake continues while the
-worker is busy. `source_intake` rereads one exact recorded Slack or Nitrosend
+worker is busy. When attention selects an open mail or Slack item and the
+profile enables `conversation_review`, the host queues that review from the
+exact observed thread; the model does not have to propose the same review a
+second time. The worker rereads one exact recorded Slack or Nitrosend
 thread through its owning skill, checks its identity against the current open
-operator-inbox action, and calls `issue-intake` with the private charter and
-confirmed context. The source and intake receipts, bounded summary, exact change set, and
-suggested reply appear in `assistant work`; recent work appears in `report`.
+operator-inbox action, and calls `conversation-review` with the private charter
+and confirmed context. Ordinary correspondence produces an unsent draft or
+an unscheduled follow-up proposal; the current worker does not execute it.
+Only a complete thread classified as a real coding request,
+with a verbatim request quote, enters `issue-intake`; its change set may then
+enter `work-plan`. The source and decision receipts and bounded result appear
+in `assistant work`; recent work appears in `report`.
 Slack context retains message order, authors, and timestamps across up to three
 bounded thread pages. Slack search and thread previews can render markup differently, so the live
 read is matched by tenant, message locator, occurrence time, author, and the
 canonical inbox action rather than by comparing the preview strings. An
 incomplete bounded thread, truncated mail body, older omitted mail messages, or
-unread attachments are forced to `manual-review` with a stopped action decision.
+unread attachments yield `needs_context` from `conversation-review`; they cannot
+enter coding intake or an outward reply.
 The available mail window is passed as bounded conversation context, with its
 omission count retained. An optional `work_plan` route queues one child of a
-completed intake when the source is complete and the exact change set says
+completed coding intake when the source is complete and the exact change set says
 `recommended_lane: work-plan`, `commence_decision: approve`, and
 `action_decision: proceed_to_plan`. The next finite worker turn invokes the
 existing `work-plan` skill with that unchanged parent change set and the pinned
@@ -172,9 +194,14 @@ Two distinct source occurrences that link the same PR can currently produce
 two reads. Both are bounded and read-only; deduplicating them across occurrences
 requires a freshness rule so a later request can still trigger a new check.
 Delivery and assignments have separate persisted due times. A blocked or quiet
-private notification does not prevent a due read-only assignment from running
-on the next finite worker wake. A failed assignment receives its own bounded
-retry time, so a different due assignment can run first.
+private notification does not prevent a due non-mutating assignment from running
+on the next finite worker wake. A transient assignment failure receives its
+own bounded retry time, so a different due assignment can run first. A sealed
+failed skill run is held with its receipt; the worker does not retry that
+terminal native run ID indefinitely. Each new package digest gives an
+assignment a distinct native run identity. A held read-only or planning
+assignment is eligible for a new attempt when its failed skill package changes;
+the prior receipt remains in the append-only control history.
 
 Notification is off when `allowed_action_ids` is empty and `notification` is
 `null`; in that mode a useful brief closes as `ready_undelivered` and is not
@@ -182,7 +209,8 @@ marked handled. To enable delivery, configure `private_update` plus an exact
 private `slack://workspace/channel` target, provider grant, principal, expiry,
 and post/text quotas; install its native standing authority with `grant`.
 Delivery uses a persisted exact intent, a stable graph run identity and
-idempotency key, native permission checks, and provider readback. A dispatched
+idempotency key, the delivery skill package pinned when the intent is created,
+native permission checks, and provider readback. A dispatched
 intent remains pinned if delivery fails or its outcome is unknown. Repeating
 the same explicit graph run ID recovers its completed checkpoint and signed
 receipt without executing the delivery step again; missing or invalid completion

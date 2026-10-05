@@ -17,13 +17,18 @@ pub(crate) const OFFICIAL_SKILLS: &[OfficialSkillLockEntry] = &[
     },
     OfficialSkillLockEntry {
         skill_id: "runx/agency",
-        version: "sha-d775c99d8021",
-        digest: "2c5e1c0bcf57bed49f301c2fda99c98219fab9dc4baa651f1fd1455ee134b9cf",
+        version: "sha-90c8f606c306",
+        digest: "b89c523d608130a72180c97eafb5f979bf52dcc5948394c853efc99f26f6b27c",
     },
     OfficialSkillLockEntry {
         skill_id: "zhtwangk/answer-from-docs",
         version: "sha-934544f2bca4",
         digest: "55b3d2e3558bca9ac6a68f21ecc01865a21781a94a1b7c87719bb11985774faa",
+    },
+    OfficialSkillLockEntry {
+        skill_id: "runx/attention-review",
+        version: "sha-6afd9e3977d5",
+        digest: "7e6fac48b2bac8f0aa21123014fdf62f9b608a67cde7bfc13ca30dc0b4634cba",
     },
     OfficialSkillLockEntry {
         skill_id: "runx/audit-receipt",
@@ -59,6 +64,11 @@ pub(crate) const OFFICIAL_SKILLS: &[OfficialSkillLockEntry] = &[
         skill_id: "runx/contract-drafter",
         version: "sha-99f958c38dee",
         digest: "63d51951256ec45a7962b4a7bc03dc2e39404925510938ce7839234aa118f529",
+    },
+    OfficialSkillLockEntry {
+        skill_id: "runx/conversation-review",
+        version: "sha-97419af669a8",
+        digest: "dd8757abd5001470483fd78ccbb00f68a3056c789afe2c0aebdcd8c745c92334",
     },
     OfficialSkillLockEntry {
         skill_id: "runx/crm-cleanup",
@@ -254,11 +264,6 @@ pub(crate) const OFFICIAL_SKILLS: &[OfficialSkillLockEntry] = &[
         skill_id: "runx/organic-growth",
         version: "sha-a5ec9cc2e860",
         digest: "115d06eb9a646f67f0020ef0bb80abe3a1adfe80b8872f11d161cff39b357683",
-    },
-    OfficialSkillLockEntry {
-        skill_id: "runx/personal-assistant",
-        version: "sha-790c961d542f",
-        digest: "0aaf03c705354ae76ea55490ea8230bf0d71a132a575105c0868a0952c55f511",
     },
     OfficialSkillLockEntry {
         skill_id: "runx/policy-author",
