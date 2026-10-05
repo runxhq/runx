@@ -91,6 +91,13 @@ crash or a caught error, the same pinned pages replay; an unpinned legacy turn
 restarts at page one. Operator-inbox stores a continuation when another page
 exists, and the next due turn advances that scan. While `coverage_incomplete`
 is true, a brief does not represent a complete mailbox or Slack audit. The
+assistant interleaves a bounded page-one refresh when twice the minimum check
+interval has elapsed since the last first-page read. Refresh and backlog use
+separate scan heads in `operator-inbox`, so fresh messages can be noticed
+during catch-up without resetting the older cursor. One turn still reads only
+one page per source, and a refresh remains partial when more pages exist.
+`status.last_fresh_scan_at_unix_seconds` reports the last committed first-page
+read by configured source ID. The
 20-observation limit is an admission ceiling, not a promise that every pinned
 model can make a useful tool call at that size. In live Qwen 2.5 testing, a
 10-plus-10 source page exhausted the empty-turn retry budget; 5-plus-5

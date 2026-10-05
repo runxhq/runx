@@ -57,6 +57,8 @@ struct Control {
     #[serde(default)]
     scan_retry_from_first_page: bool,
     #[serde(default)]
+    last_fresh_scan_at: BTreeMap<String, u64>,
+    #[serde(default)]
     confirmed_memory: Vec<ConfirmedMemory>,
     #[serde(default)]
     work: Vec<WorkAssignment>,
@@ -151,9 +153,21 @@ struct PagePacket {
     query_digest: String,
     scan_id: String,
     page_index: u64,
+    #[serde(default)]
+    scan_lane: ScanLane,
+    #[serde(default)]
+    fetched_at_unix_seconds: u64,
     next_cursor: Option<String>,
     messages: Vec<Value>,
     observations: Vec<Value>,
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum ScanLane {
+    #[default]
+    Backlog,
+    Fresh,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -311,6 +325,7 @@ fn control_default(loaded: &LoadedProfile) -> Control {
         handled_occurrence_digests: Vec::new(),
         last_blocker: None,
         scan_retry_from_first_page: false,
+        last_fresh_scan_at: BTreeMap::new(),
         confirmed_memory: Vec::new(),
         work: Vec::new(),
         last_review_ref: None,
@@ -1148,6 +1163,7 @@ pub(super) fn status(loaded: &LoadedProfile, workspace: &WorkspaceEnv) -> Result
         "last_blocker": record.state.last_blocker,
         "scan_retry_from_first_page": record.state.scan_retry_from_first_page
             || (record.state.last_blocker.is_some() && record.state.pending_intent.is_none()),
+        "last_fresh_scan_at_unix_seconds":record.state.last_fresh_scan_at,
         "confirmed_memory_count":record.state.confirmed_memory.len(),
         "pending_work_count":record.state.work.iter().filter(|item| item.status == "pending").count(),
         "pending_private_work_updates":pending_work_update_indices(&record.state.work).len(),
@@ -1453,6 +1469,7 @@ pub(super) fn set_paused(
             record.state.last_delivered_material_digest = None;
             record.state.handled_occurrence_digests.clear();
             record.state.scan_retry_from_first_page = true;
+            record.state.last_fresh_scan_at.clear();
         }
         record.state.profile_revision = loaded.revision.clone();
         record.state.next_due_unix_seconds = 0;
@@ -1950,7 +1967,11 @@ fn run_turn(
     record.state.pending_turn = None;
     record.state.next_due_unix_seconds =
         if pending_work_update_indices(&record.state.work).is_empty() {
-            scheduled_due(minutes)
+            scheduled_due(if coverage_incomplete {
+                loaded.profile.min_check_minutes
+            } else {
+                minutes
+            })
         } else {
             0
         };
@@ -2173,7 +2194,7 @@ fn validate_review(loaded: &LoadedProfile, review: &ReviewPacket) -> Result<(), 
 fn commit_pending_pages(
     loaded: &LoadedProfile,
     workspace: &WorkspaceEnv,
-    record: &ControlRecord,
+    record: &mut ControlRecord,
 ) -> Result<(), String> {
     let pending = record
         .state
@@ -2186,14 +2207,24 @@ fn commit_pending_pages(
     if pending.pages.len() != loaded.profile.sources.len() {
         return Err("assistant turn lacks a complete pinned source set".to_owned());
     }
+    let pages = pending.pages.clone();
     for source in &loaded.profile.sources {
-        let pinned = pending
-            .pages
+        let pinned = pages
             .iter()
             .find(|page| page.source_id == source.id())
             .ok_or("assistant turn lacks a configured source page")?;
         let page = read_pinned_page(workspace, source, pinned)?;
         record_scan(loaded, workspace, source, &page)?;
+        if page.page_index == 1 {
+            record.state.last_fresh_scan_at.insert(
+                source.id().to_owned(),
+                if page.fetched_at_unix_seconds == 0 {
+                    now_seconds()
+                } else {
+                    page.fetched_at_unix_seconds
+                },
+            );
+        }
     }
     Ok(())
 }
@@ -3746,10 +3777,10 @@ fn read_pinned_page(
         serde_json::to_value(value).map_err(|error| format!("decoding source page: {error}"))?,
     )
     .map_err(|error| format!("source page artifact is invalid: {error}"))?;
-    let query_digest =
-        sha256_prefixed(&serde_json::to_vec(source).map_err(|error| error.to_string())?);
+    let query_digest = source_scan_digest(source, page.scan_lane)?;
     if page.source_id != source.id()
         || page.query_digest != query_digest
+        || (page.scan_lane == ScanLane::Fresh && page.page_index != 1)
         || page.scan_id.is_empty()
         || !(1..=10_000).contains(&page.page_index)
         || page.messages.len() > MAX_OBSERVATIONS
@@ -3764,19 +3795,48 @@ fn read_pinned_page(
     Ok(page)
 }
 
+fn source_scan_digest(source: &SourceProfile, lane: ScanLane) -> Result<String, String> {
+    let bytes = match lane {
+        ScanLane::Backlog => serde_json::to_vec(source),
+        ScanLane::Fresh => serde_json::to_vec(&("fresh", source)),
+    }
+    .map_err(|error| format!("encoding assistant source scan: {error}"))?;
+    Ok(sha256_prefixed(&bytes))
+}
+
+fn fresh_scan_due(last_fresh_at: Option<u64>, now: u64, min_check_minutes: u64) -> bool {
+    last_fresh_at
+        .is_none_or(|last| now.saturating_sub(last) >= min_check_minutes.saturating_mul(120))
+}
+
 fn fetch_page(
     loaded: &LoadedProfile,
     workspace: &WorkspaceEnv,
     source: &SourceProfile,
     record: &ControlRecord,
 ) -> Result<PagePacket, String> {
-    let continuation = if record.state.scan_retry_from_first_page
+    let backlog_continuation = if record.state.scan_retry_from_first_page
         || (record.state.last_blocker.is_some() && record.state.pending_intent.is_none())
     {
         None
     } else {
         scan_continuation(loaded, workspace, source)?
     };
+    // The backlog cursor remains in operator-inbox. A page-one refresh uses a
+    // second scan head in that same owner, so it cannot overwrite continuation.
+    let scan_lane = if backlog_continuation.is_some()
+        && fresh_scan_due(
+            record.state.last_fresh_scan_at.get(source.id()).copied(),
+            now_seconds(),
+            loaded.profile.min_check_minutes,
+        ) {
+        ScanLane::Fresh
+    } else {
+        ScanLane::Backlog
+    };
+    let continuation = (scan_lane == ScanLane::Backlog)
+        .then_some(backlog_continuation)
+        .flatten();
     let (name, runner, inputs, credential) = match source {
         SourceProfile::SlackMentions { query, .. } => {
             let mut query = query.clone();
@@ -3866,8 +3926,7 @@ fn fetch_page(
         page_messages.push(message);
         observations.push(evidence);
     }
-    let query_digest =
-        sha256_prefixed(&serde_json::to_vec(source).map_err(|error| error.to_string())?);
+    let query_digest = source_scan_digest(source, scan_lane)?;
     let logical = record
         .state
         .active_run_id
@@ -3880,8 +3939,13 @@ fn fetch_page(
         .map(|next| next.scan_id.clone())
         .unwrap_or_else(|| {
             format!(
-                "{logical}-{}-{}",
+                "{logical}-{}-{}-{}",
                 source.id(),
+                if scan_lane == ScanLane::Fresh {
+                    "fresh"
+                } else {
+                    "backlog"
+                },
                 &page_digest.trim_start_matches("sha256:")[..12],
             )
         });
@@ -3890,6 +3954,8 @@ fn fetch_page(
         query_digest,
         scan_id,
         page_index: continuation.as_ref().map_or(1, |next| next.page_index),
+        scan_lane,
+        fetched_at_unix_seconds: now_seconds(),
         next_cursor: page_cursor(page),
         messages: page_messages,
         observations,
@@ -3907,8 +3973,7 @@ fn scan_continuation(
     workspace: &WorkspaceEnv,
     source: &SourceProfile,
 ) -> Result<Option<ScanContinuation>, String> {
-    let query_digest =
-        sha256_prefixed(&serde_json::to_vec(source).map_err(|error| error.to_string())?);
+    let query_digest = source_scan_digest(source, ScanLane::Backlog)?;
     let (read, _) = run_skill(
         loaded,
         workspace,
@@ -4135,8 +4200,7 @@ fn record_scan(
     source: &SourceProfile,
     page: &PagePacket,
 ) -> Result<(), String> {
-    let query_digest =
-        sha256_prefixed(&serde_json::to_vec(source).map_err(|error| error.to_string())?);
+    let query_digest = source_scan_digest(source, page.scan_lane)?;
     if page.source_id != source.id() || page.query_digest != query_digest {
         return Err("committed scan page differs from its pinned source".to_owned());
     }
@@ -4225,16 +4289,44 @@ mod tests {
     use serde_json::json;
 
     use super::{
-        DeferredTurn, PendingTurn, SkillRunFailure, WorkAssignment, WorkerLane,
-        apply_assignment_failure, bounded_mail_context, bounded_work_artifact, due_work_index,
-        due_worker_lane, evictable_work_index, message_for_queue, next_work_due,
-        normalize_mail_observation, notification_uuid, package_digest, page_cursor,
+        DeferredTurn, PagePacket, PendingTurn, ScanLane, SkillRunFailure, WorkAssignment,
+        WorkerLane, apply_assignment_failure, bounded_mail_context, bounded_work_artifact,
+        due_work_index, due_worker_lane, evictable_work_index, fresh_scan_due, message_for_queue,
+        next_work_due, normalize_mail_observation, notification_uuid, package_digest, page_cursor,
         parse_pr_target, persist_work_result, pinned_skill_path, plan_child_assignment,
         plannable_change_set, private_notification_text, private_text_is_safe, quiet_hour,
         read_work_result, refresh_failed_work_after_patch, scan_continuation_from_value,
-        unreviewed_digests, verified_notification_readback,
+        source_scan_digest, unreviewed_digests, verified_notification_readback,
     };
-    use crate::assistant::{QuietHours, WorkRoute};
+    use crate::assistant::{QuietHours, SourceProfile, WorkRoute};
+
+    #[test]
+    fn fresh_page_keeps_the_backlog_scan_head_and_old_page_binding() -> Result<(), String> {
+        let source = SourceProfile::SlackMentions {
+            source_id: "mentions".to_owned(),
+            query: json!({"mentions_connected_subject":true,"limit":3}),
+        };
+        let backlog = source_scan_digest(&source, ScanLane::Backlog)?;
+        let fresh = source_scan_digest(&source, ScanLane::Fresh)?;
+        assert_eq!(
+            backlog,
+            runx_contracts::sha256_prefixed(
+                &serde_json::to_vec(&source).map_err(|error| error.to_string())?
+            )
+        );
+        assert_ne!(backlog, fresh);
+        let old_page: PagePacket = serde_json::from_value(json!({
+            "source_id":"mentions","query_digest":backlog,"scan_id":"old",
+            "page_index":2,"next_cursor":"cursor","messages":[],"observations":[]
+        }))
+        .map_err(|error| error.to_string())?;
+        assert_eq!(old_page.scan_lane, ScanLane::Backlog);
+        assert_eq!(old_page.fetched_at_unix_seconds, 0);
+        assert!(!fresh_scan_due(Some(100), 100 + 29 * 60, 15));
+        assert!(fresh_scan_due(Some(100), 100 + 30 * 60, 15));
+        assert!(fresh_scan_due(None, 100, 15));
+        Ok(())
+    }
 
     #[test]
     fn sealed_failed_work_is_held_and_transient_work_can_retry() -> Result<(), String> {
