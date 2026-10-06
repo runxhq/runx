@@ -1,5 +1,5 @@
 skill: crm-cleanup
-version: "0.1.0"
+version: "0.3.0"
 
 catalog:
   kind: graph
@@ -136,6 +136,240 @@ harness:
       expect:
         status: failure
 
+    - name: crm-cleanup-dedupes-identical-updates
+      inputs:
+        transcript: "Dana confirmed the renewal is signed and the new billing contact is Priya."
+        crm_records:
+          - id: acct-globex
+            contract_status: pending
+            billing_contact: unknown
+        crm_schema:
+          allowed_fields: [contract_status, billing_contact]
+      caller:
+        answers:
+          agent_task.crm-cleanup-reconcile.output:
+            update_draft:
+              updates:
+                - record_id: acct-globex
+                  field: contract_status
+                  to: signed
+                  evidence_quote: the renewal is signed
+                - record_id: acct-globex
+                  field: contract_status
+                  to: signed
+                  evidence_quote: the renewal is signed
+      expect:
+        status: sealed
+        steps: [digest-transcript, digest-records, reconcile, finalize]
+        step_outputs:
+          finalize:
+            subset:
+              crm_update_proposal:
+                data:
+                  schema: runx.crm_update_proposal.v1
+                  decision: proposed
+                  write_performed: false
+                  updates:
+                    - record_id: acct-globex
+                      field: contract_status
+                      from: pending
+                      to: signed
+                      evidence_quote: the renewal is signed
+                  validation: { status: pass, findings: [] }
+        receipt: { schema: runx.receipt.v1 }
+
+    - name: crm-cleanup-refuses-conflicting-values
+      inputs:
+        transcript: "Dana said the rollout stalled but later added it might be back on track."
+        crm_records:
+          - id: acct-globex
+            account_status: healthy
+        crm_schema:
+          allowed_fields: [account_status]
+      caller:
+        answers:
+          agent_task.crm-cleanup-reconcile.output:
+            update_draft:
+              updates:
+                - record_id: acct-globex
+                  field: account_status
+                  to: at_risk
+                  evidence_quote: the rollout stalled
+                - record_id: acct-globex
+                  field: account_status
+                  to: healthy
+                  evidence_quote: might be back on track
+      expect:
+        status: sealed
+        steps: [digest-transcript, digest-records, reconcile, finalize]
+        step_outputs:
+          finalize:
+            subset:
+              crm_update_proposal:
+                data:
+                  schema: runx.crm_update_proposal.v1
+                  decision: refused
+                  updates: []
+                  validation:
+                    status: fail
+                    findings:
+                      - code: update.conflicting_values
+        receipt: { schema: runx.receipt.v1 }
+
+    - name: crm-cleanup-accepts-typed-values
+      inputs:
+        transcript: "Ops review set the health score to 72 and flagged priority escalation for acct-1."
+        crm_records:
+          - id: acct-1
+            health_score: 50
+            priority_escalation: false
+        crm_schema:
+          allowed_fields: [health_score, priority_escalation]
+      caller:
+        answers:
+          agent_task.crm-cleanup-reconcile.output:
+            update_draft:
+              updates:
+                - record_id: acct-1
+                  field: health_score
+                  to: 72
+                  evidence_quote: set the health score to 72
+                - record_id: acct-1
+                  field: priority_escalation
+                  to: true
+                  evidence_quote: flagged priority escalation for acct-1
+      expect:
+        status: sealed
+        steps: [digest-transcript, digest-records, reconcile, finalize]
+        step_outputs:
+          finalize:
+            subset:
+              crm_update_proposal:
+                data:
+                  schema: runx.crm_update_proposal.v1
+                  decision: proposed
+                  write_performed: false
+                  updates:
+                    - record_id: acct-1
+                      field: health_score
+                      from: 50
+                      to: 72
+                      evidence_quote: set the health score to 72
+                    - record_id: acct-1
+                      field: priority_escalation
+                      from: false
+                      to: true
+                      evidence_quote: flagged priority escalation for acct-1
+                  validation: { status: pass, findings: [] }
+        receipt: { schema: runx.receipt.v1 }
+
+    - name: crm-cleanup-mixed-multi-record
+      inputs:
+        transcript: "Renewed Globex for another year. Also move the Initech account owner to Kim."
+        crm_records:
+          - id: acct-globex
+            contract_status: expiring
+          - id: acct-initech
+            owner: lee
+        crm_schema:
+          allowed_fields: [contract_status]
+      caller:
+        answers:
+          agent_task.crm-cleanup-reconcile.output:
+            update_draft:
+              updates:
+                - record_id: acct-globex
+                  field: contract_status
+                  to: renewed
+                  evidence_quote: Renewed Globex for another year
+                - record_id: acct-initech
+                  field: owner
+                  to: kim
+                  evidence_quote: move the Initech account owner to Kim
+      expect:
+        status: sealed
+        steps: [digest-transcript, digest-records, reconcile, finalize]
+        step_outputs:
+          finalize:
+            subset:
+              crm_update_proposal:
+                data:
+                  schema: runx.crm_update_proposal.v1
+                  decision: proposed
+                  updates:
+                    - record_id: acct-globex
+                      field: contract_status
+                      from: expiring
+                      to: renewed
+                      evidence_quote: Renewed Globex for another year
+                  rejected_updates:
+                    - record_id: acct-initech
+                      field: owner
+                      reason: field is outside the crm_schema allowlist
+                  validation: { status: pass, findings: [] }
+        receipt: { schema: runx.receipt.v1 }
+
+    - name: crm-cleanup-apply-sealed-write
+      runner: apply
+      inputs:
+        crm_update_proposal:
+          schema: runx.crm_update_proposal.v1
+          decision: proposed
+          updates:
+            - record_id: acct-globex
+              field: account_status
+              from: healthy
+              to: at_risk
+              evidence_quote: the rollout stalled
+        crm_records:
+          - id: acct-globex
+            account_status: healthy
+      expect:
+        status: sealed
+        steps: [transport]
+        step_outputs:
+          transport:
+            subset:
+              crm_write_result:
+                data:
+                  schema: runx.crm_write_result.v1
+                  executed: true
+                  write_result:
+                    before:
+                      - record_id: acct-globex
+                        field: account_status
+                        value: healthy
+                    after:
+                      - record_id: acct-globex
+                        field: account_status
+                        value: at_risk
+        receipt: { schema: runx.receipt.v1 }
+
+    - name: crm-cleanup-apply-noop-executes-nothing
+      runner: apply
+      inputs:
+        crm_update_proposal:
+          schema: runx.crm_update_proposal.v1
+          decision: no_action
+          updates: []
+        crm_records:
+          - id: acct-globex
+            account_status: healthy
+      expect:
+        status: sealed
+        steps: [transport]
+        step_outputs:
+          transport:
+            subset:
+              crm_write_result:
+                data:
+                  schema: runx.crm_write_result.v1
+                  executed: false
+                  write_result:
+                    before: []
+                    after: []
+        receipt: { schema: runx.receipt.v1 }
+
 runners:
   reconcile:
     default: true
@@ -271,3 +505,46 @@ runners:
           artifacts:
             named_emits:
               crm_update_proposal: crm_update_proposal
+
+  apply:
+    type: graph
+    inputs:
+      crm_update_proposal:
+        type: object
+        required: true
+        description: Sealed proposal from the reconcile runner.
+      crm_records:
+        type: json
+        required: true
+        description: Current CRM records; the mock transport applies updates in memory.
+    graph:
+      name: crm-cleanup-apply
+      result_from: [transport]
+      steps:
+        - id: transport
+          label: execute proposed updates through the mock CRM transport
+          inputs:
+            crm_update_proposal: $input.crm_update_proposal
+            crm_records: $input.crm_records
+          run:
+            type: javascript
+            module: crm-cleanup.mjs
+            export: applyUpdates
+            outputs:
+              crm_write_result:
+                type: object
+                schema:
+                  required: [schema, executed, reason, write_result]
+                  properties:
+                    schema: { const: runx.crm_write_result.v1 }
+                    executed: { type: boolean }
+                    reason: { type: string }
+                    write_result:
+                      type: object
+                      required: [before, after]
+                      properties:
+                        before: { type: array }
+                        after: { type: array }
+          artifacts:
+            named_emits:
+              crm_write_result: crm_write_result

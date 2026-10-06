@@ -1,0 +1,18 @@
+Sales call transcript — Acme Corp Q3 business review
+Date: 2026-10-02 | Rep: Sara | Contact: Vikram (VP Operations, Acme Corp)
+
+Sara: Thanks for the time today, Vikram. How is the rollout going?
+Vikram: Honestly, the rollout stalled in August. The warehouse team never finished
+the barcode migration, so adoption is stuck at around 40 percent.
+Sara: That explains the usage dip. What would unblock it?
+Vikram: We need an executive review before we commit more budget. Get me and
+Priya in a room with your solutions team and we can decide.
+Sara: Noted. I will set up the executive review for next week.
+Vikram: Also, the renewal is coming up in November. If the review goes well,
+we will renew for another year, but I cannot promise anything today.
+Sara: Understood. One more thing — who should be the billing contact going
+forward? Last invoice went to finance@acme-old.com and bounced.
+Vikram: Send all billing to priya.sharma@acme.com from now on. She owns it.
+Sara: Got it. I will also send over the Q3 usage report by Friday as discussed.
+Vikram: Please do. And update our account health — I would say we are at risk
+until the review lands.

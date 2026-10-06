@@ -8,6 +8,8 @@ export function finalizeUpdates(inputs) {
   const findings = [];
   const updates = [];
   const rejected = [];
+  const seenUpdates = new Set();
+  const slotWinners = new Map();
 
   for (const update of proposed) {
     const recordId = stringValue(update.record_id);
@@ -31,6 +33,18 @@ export function finalizeUpdates(inputs) {
       findings.push({ code: "update.empty_value", message: `update to ${recordId}.${field} carries no target value.` });
       continue;
     }
+    const toKey = JSON.stringify(to) ?? "undefined";
+    const updateKey = `${recordId}${field}${toKey}${quote}`;
+    if (seenUpdates.has(updateKey)) {
+      continue;
+    }
+    seenUpdates.add(updateKey);
+    const slotKey = `${recordId}${field}`;
+    if (slotWinners.has(slotKey) && slotWinners.get(slotKey) !== toKey) {
+      findings.push({ code: "update.conflicting_values", message: `conflicting target values proposed for ${recordId}.${field}; refusing the run rather than picking a winner silently.` });
+      continue;
+    }
+    slotWinners.set(slotKey, toKey);
     updates.push({
       record_id: recordId,
       field,
@@ -80,4 +94,50 @@ function uniqueStrings(value) {
 
 function record(value) {
   return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+}
+
+export function applyUpdates(inputs) {
+  const proposal = record(inputs.crm_update_proposal);
+  const records = (Array.isArray(inputs.crm_records) ? inputs.crm_records : []).map(record);
+  const recordsById = new Map(records.map((entry) => [stringValue(entry.id), entry]));
+  const applied = [];
+  const writeLog = [];
+
+  if (proposal.decision !== "proposed" || !Array.isArray(proposal.updates)) {
+    return {
+      crm_write_result: {
+        schema: "runx.crm_write_result.v1",
+        executed: false,
+        reason: "No proposed updates to apply; nothing was written.",
+        write_result: { before: [], after: [] },
+      },
+    };
+  }
+
+  for (const update of proposal.updates) {
+    const recordId = stringValue(update.record_id);
+    const field = stringValue(update.field);
+    const target = recordsById.get(recordId);
+    if (!target || !field) continue;
+    const before = target[field] === undefined ? null : target[field];
+    const after = update.to;
+    target[field] = after;
+    applied.push({ record_id: recordId, field, before, after });
+    writeLog.push(`mock-transport: ${recordId}.${field} ${JSON.stringify(before)} -> ${JSON.stringify(after)}`);
+  }
+
+  return {
+    crm_write_result: {
+      schema: "runx.crm_write_result.v1",
+      executed: applied.length > 0,
+      reason: applied.length > 0
+        ? `Applied ${applied.length} update(s) through the mock CRM transport.`
+        : "No updates were applicable; nothing was written.",
+      write_result: {
+        before: applied.map((a) => ({ record_id: a.record_id, field: a.field, value: a.before })),
+        after: applied.map((a) => ({ record_id: a.record_id, field: a.field, value: a.after })),
+      },
+      transport_log: writeLog,
+    },
+  };
 }

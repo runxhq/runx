@@ -29,6 +29,28 @@ the sealed proposal is what a gated CRM operator or human approver consumes.
 (`crm-operator-or-human-approver`). A run with no supported updates seals
 `no_action` rather than inventing work.
 
+Two more deterministic guarantees keep proposals trustworthy:
+
+- **Idempotent proposals.** Identical updates (same record, field, value, and
+  quote) are deduplicated. A reconciling agent that repeats itself cannot
+  inflate the proposal.
+- **Conflict refusal.** Two different target values for the same record and
+  field refuse the whole run with a named finding
+  (`update.conflicting_values`). The skill never picks a winner silently;
+  the conflict goes back to the operator or human approver.
+
+Non-string values (numbers, booleans) are supported as update targets and
+carried through with their types intact.
+
+## Apply runner
+
+The `apply` runner executes a sealed proposal through a mock CRM transport.
+It takes `crm_update_proposal` and `crm_records`, applies each update in
+memory, and returns `crm_write_result` (`runx.crm_write_result.v1`) with
+`executed`, `write_result{before,after}`, and a transport log. A `no_action`
+or `refused` proposal executes nothing. The mock transport stands in for a
+real CRM connector; swap it for your connector in production.
+
 ## Output
 
 `crm_update_proposal` (`runx.crm_update_proposal.v1`) carries `decision`

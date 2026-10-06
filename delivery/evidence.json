@@ -1,0 +1,128 @@
+{
+ "artifact_summary": "crm-cleanup 0.3.0 improves the first-party skill with idempotent proposals, conflict refusal, typed values, and a mock CRM transport apply runner. Published as ahmeda-afk/crm-cleanup@sha-3c2d0012b6d7. Harness 10/10 green. Dogfood fetches records via web-fetch, proposes 3 updates, executes through mock transport with before/after write_result.",
+ "dogfood": {
+  "command": "python3 dogfood-v3.py (web-fetch records, run skill, execute via mock transport)",
+  "harness_cases": [
+   {
+    "name": "crm-cleanup-proposes-traced-updates",
+    "status": "sealed"
+   },
+   {
+    "name": "crm-cleanup-rejects-unlisted-field",
+    "status": "sealed"
+   },
+   {
+    "name": "crm-cleanup-refuses-invented-quote",
+    "status": "sealed"
+   },
+   {
+    "name": "crm-cleanup-needs-transcript",
+    "status": "sealed"
+   },
+   {
+    "name": "crm-cleanup-dedupes-identical-updates",
+    "status": "sealed"
+   },
+   {
+    "name": "crm-cleanup-refuses-conflicting-values",
+    "status": "sealed"
+   },
+   {
+    "name": "crm-cleanup-accepts-typed-values",
+    "status": "sealed"
+   },
+   {
+    "name": "crm-cleanup-mixed-multi-record",
+    "status": "sealed"
+   },
+   {
+    "name": "crm-cleanup-apply-sealed-write",
+    "status": "sealed"
+   },
+   {
+    "name": "crm-cleanup-apply-noop-executes-nothing",
+    "status": "sealed"
+   }
+  ],
+  "input": {
+   "crm_records_source": "web-fetch https://raw.githubusercontent.com/AhmedA-afk/runx/ed2a0148ff98b812065f530456b1edc35f35a939/skills/crm-cleanup/fixtures/dogfood-records.json",
+   "transcript": "Acme Corp Q3 business review call"
+  },
+  "package": "ahmeda-afk/crm-cleanup@sha-3c2d0012b6d7",
+  "receipt_ref": "sha256:ebfebebc6bee12789c708d4f69d160e287d0edade4dad904862f05927769cdc6",
+  "verify_verdict": "pass",
+  "write_result": {
+   "after": [
+    {
+     "field": "account_status",
+     "record_id": "acct-acme",
+     "value": "at_risk"
+    },
+    {
+     "field": "billing_contact",
+     "record_id": "acct-acme",
+     "value": "priya.sharma@acme.com"
+    },
+    {
+     "field": "next_action",
+     "record_id": "acct-acme",
+     "value": "executive review next week"
+    }
+   ],
+   "before": [
+    {
+     "field": "account_status",
+     "record_id": "acct-acme",
+     "value": "healthy"
+    },
+    {
+     "field": "billing_contact",
+     "record_id": "acct-acme",
+     "value": "finance@acme-old.com"
+    },
+    {
+     "field": "next_action",
+     "record_id": "acct-acme",
+     "value": "none"
+    }
+   ],
+   "executed": true
+  }
+ },
+ "evidence_items": [
+  "runx_version",
+  "package",
+  "harness",
+  "dogfood",
+  "pr",
+  "publish_method",
+  "install_command"
+ ],
+ "harness": {
+  "assertion_errors": 0,
+  "case_count": 10,
+  "cases_passed": 10
+ },
+ "install_command": "runx add ahmeda-afk/crm-cleanup@sha-3c2d0012b6d7 --registry https://api.runx.ai",
+ "observations": [
+  "runx_version: runx-cli 0.9.1",
+  "package: crm-cleanup sha-3c2d0012b6d7 by ahmeda-afk",
+  "public_url: https://runx.ai/x/ahmeda-afk/crm-cleanup@sha-3c2d0012b6d7",
+  "harness: 10/10 cases pass, 0 assertion errors",
+  "dogfood_receipt: sha256:ebfebebc6bee12789c708d4f69d160e287d0edade4dad904862f05927769cdc6",
+  "write_result: 3 updates applied via mock transport, before/after sealed",
+  "source_read: web-fetch of dogfood-records.json from raw.githubusercontent.com at runtime",
+  "pr_url: https://github.com/runxhq/runx/pull/528"
+ ],
+ "pr": {
+  "base": "main",
+  "branch": "crm-cleanup-0.2.0",
+  "dco_signed": true,
+  "fork": "AhmedA-afk/runx",
+  "head_commit": "ed2a0148ff98b812065f530456b1edc35f35a939",
+  "number": 528,
+  "url": "https://github.com/runxhq/runx/pull/528"
+ },
+ "runx_version": "runx-cli 0.9.1",
+ "summary": "crm-cleanup 0.3.0 improves the first-party skill with idempotent proposals, conflict refusal, typed values, and a mock CRM transport apply runner. Published as ahmeda-afk/crm-cleanup@sha-3c2d0012b6d7. Harness 10/10 green. Dogfood fetches records via web-fetch, proposes 3 updates, executes through mock transport with before/after write_result."
+}
