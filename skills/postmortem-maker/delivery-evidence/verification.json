@@ -1,0 +1,18 @@
+{
+  "schema": "runx.bounty_verification.v1",
+  "package": "astra-intelligence/postmortem-maker@sha-279a27f325fd",
+  "cli_version": "runx-cli 0.9.1",
+  "checks": {
+    "published_registry_listing": "passed",
+    "registry_harness_green": "passed",
+    "local_harness_green": "passed",
+    "clean_install": "passed",
+    "sealed_dogfood_receipt": "passed",
+    "receipt_verify": "passed",
+    "real_source_read_at_runtime": "passed",
+    "executed_send_plan_bound_to_postmortem": "passed",
+    "pr_contains_package": "passed",
+    "raw_urls_fetchable": "passed"
+  },
+  "receipt_ref": "sha256:9cd34dd39c08709722f031e82120248128ddbb68b93d06b937506d7d03fde9c4"
+}

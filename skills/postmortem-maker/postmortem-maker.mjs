@@ -1,5 +1,5 @@
 export function finalizePostmortem(inputs) {
-  const fragments = (Array.isArray(inputs.incident_fragments) ? inputs.incident_fragments : []).map(record);
+  const fragments = (Array.isArray(inputs.incident_fragments) ? inputs.incident_fragments : []).map(fragmentRecord);
   const draft = record(inputs.postmortem_draft);
   const fragmentsById = new Map(fragments.map((fragment) => [stringValue(fragment.id), fragment]));
   const findings = [];
@@ -46,21 +46,39 @@ export function finalizePostmortem(inputs) {
     return [{ action, owner }];
   });
 
-  const failed = findings.length > 0;
-  const publishable = !failed && rootStatus !== "unknown" && unknowns.length === 0;
-  const decision = failed ? "refused" : publishable ? "publishable" : "needs_more_evidence";
+  const impact = record(draft.impact);
+  const invalid = findings.length > 0;
+  const settled = !invalid && rootStatus !== "unknown" && unknowns.length === 0;
+  const policy = record(inputs.postmortem_policy);
+  const allowPublish = policy.allow_publish !== false;
+  const sendPlan = {
+    schema: "runx.send_plan.v1",
+    status: settled && allowPublish ? "ready" : "withheld",
+    transport: "sealed-outbox",
+    gate: settled && allowPublish ? "human-approver" : null,
+    bound_to: settled && allowPublish ? `postmortem:${stringValue(inputs.incident_ref) ?? ""}` : null,
+  };
+
   return {
     postmortem: {
-      schema: "runx.postmortem.v1",
-      decision,
-      reason: failed
-        ? "Refused: the draft claims facts the supplied fragments do not support."
-        : publishable
-          ? "Every timeline entry and the root cause are fragment-cited with no open unknowns."
-          : "The postmortem is evidence-grounded but incomplete; unknowns remain and nothing publishes.",
-      summary: failed ? null : stringValue(draft.summary),
-      timeline: failed ? [] : validTimeline,
-      root_cause: failed
+      schema: "runx.postmortem.v2",
+      decision: invalid ? "refused" : settled ? "publishable" : "needs_more_evidence",
+      reason: invalid
+        ? "Refused: the draft asserts facts the source evidence does not contain."
+        : settled
+          ? "Every claim is source-cited and no unknowns remain open."
+          : "Honest but incomplete: unresolved unknowns block publication.",
+      status: invalid ? "refused" : "sealed",
+      incident_ref: stringValue(inputs.incident_ref),
+      summary: invalid ? null : stringValue(draft.summary),
+      timeline: invalid ? [] : validTimeline,
+      impact: invalid
+        ? null
+        : {
+            statement: stringValue(impact.statement),
+            scope: stringValue(impact.scope),
+          },
+      root_cause: invalid
         ? null
         : {
             status: rootStatus,
@@ -68,13 +86,41 @@ export function finalizePostmortem(inputs) {
             fragment_id: rootStatus === "unknown" ? null : stringValue(rootCause.fragment_id),
           },
       unknowns,
-      action_items: failed ? [] : actionItems,
-      publish_proposal: publishable
-        ? { gate: "human-approver", delivery_skill: "send-as", sent: false }
-        : null,
-      publish_performed: false,
+      action_items: invalid ? [] : actionItems,
+      send_plan: sendPlan,
       fragments_digest: requiredDigest(inputs.fragments_digest),
-      validation: { status: failed ? "fail" : "pass", findings },
+      validation: { status: invalid ? "fail" : "pass", findings },
+    },
+  };
+}
+
+export function prepareDelivery(inputs) {
+  const postmortem = record(inputs.postmortem);
+  const policy = record(inputs.postmortem_policy);
+  const ref = (stringValue(inputs.incident_ref) ?? "incident").replace(/[^A-Za-z0-9._-]/g, "_");
+  const dir = (stringValue(policy.outbox_dir) ?? "outbox/postmortems").replace(/\/+$/, "");
+  return {
+    delivery_draft: {
+      schema: "runx.sealed_outbox.v1",
+      transport: "sealed-outbox",
+      path: `${dir}/${ref}.postmortem.json`,
+      contents: `${JSON.stringify(postmortem, null, 2)}\n`,
+      bound_digest: stringValue(postmortem.fragments_digest),
+    },
+  };
+}
+
+export function recordDelivery(inputs) {
+  const postmortem = record(inputs.postmortem);
+  const delivery = record(inputs.delivery_draft);
+  return {
+    publish_result: {
+      schema: "runx.publish_result.v1",
+      executed: true,
+      transport: "sealed-outbox",
+      send_plan_status: "executed",
+      path: stringValue(delivery.path),
+      fragments_digest: stringValue(postmortem.fragments_digest),
     },
   };
 }
@@ -95,6 +141,15 @@ function requiredDigest(value) {
     throw new Error("native digest evidence is missing");
   }
   return value;
+}
+
+function fragmentRecord(value) {
+  const v = record(value);
+  return {
+    id: stringValue(v.id),
+    source: stringValue(v.source),
+    text: typeof v.text === "string" ? v.text : "",
+  };
 }
 
 function stringValue(value) {

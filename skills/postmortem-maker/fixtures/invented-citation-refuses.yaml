@@ -1,0 +1,59 @@
+name: postmortem-maker-invented-citation-refuses
+kind: skill
+target: ..
+operator_journeys:
+  - mode: standalone
+    confusors: [incident-commander, answer-from-docs]
+    request: Produce the postmortem for this incident from the collected fragments.
+    expected_outcome: Refuse the conflicting evidence because the draft claims a fact the fragments do not contain; nothing is published.
+inputs:
+  incident_ref: inc-x
+  incident_source:
+    kind: inline
+    fragments:
+      - id: frag-1
+        source: log
+        text: "Service restarted at 09:00."
+  postmortem_policy:
+    allow_publish: true
+    outbox_dir: outbox
+caller:
+  answers:
+    agent_task.postmortem-maker-read.output:
+      source_read:
+        read_kind: inline
+        fetched_ref: inline:inc-x
+        fragments:
+          - id: frag-1
+            source: log
+            text: "Service restarted at 09:00."
+    agent_task.postmortem-maker-draft.output:
+      postmortem_draft:
+        summary: Total outage caused by database corruption.
+        timeline:
+          - entry: The database corrupted.
+            fragment_id: frag-1
+            quote: "database corruption detected"
+        root_cause:
+          status: known
+          statement: Database corruption.
+          fragment_id: frag-1
+          quote: "database corruption detected"
+        unknowns: []
+        action_items: []
+expect:
+  status: sealed
+  steps: [read-source, digest-source, draft, finalize]
+  step_outputs:
+    finalize:
+      subset:
+        postmortem:
+          data:
+            schema: runx.postmortem.v2
+            decision: refused
+            timeline: []
+            send_plan:
+              status: withheld
+              transport: sealed-outbox
+            validation: { status: fail }
+  receipt: { schema: runx.receipt.v1 }

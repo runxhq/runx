@@ -1,0 +1,61 @@
+name: postmortem-maker-unknowns-block-publish
+kind: skill
+target: ..
+operator_journeys:
+  - mode: standalone
+    confusors: [incident-commander, answer-from-docs]
+    request: Produce the postmortem for this incident from the collected fragments.
+    expected_outcome: Return a fragment-cited postmortem that keeps unresolved cause in unknowns and withholds the send plan, publishing nothing.
+inputs:
+  incident_ref: inc-batch-2026-08-10
+  incident_source:
+    kind: inline
+    fragments:
+      - id: frag-1
+        source: cron-log
+        text: "Nightly batch failed at step export with exit 1."
+  postmortem_policy:
+    allow_publish: true
+    outbox_dir: outbox
+caller:
+  answers:
+    agent_task.postmortem-maker-read.output:
+      source_read:
+        read_kind: inline
+        fetched_ref: inline:inc-batch-2026-08-10
+        fragments:
+          - id: frag-1
+            source: cron-log
+            text: "Nightly batch failed at step export with exit 1."
+    agent_task.postmortem-maker-draft.output:
+      postmortem_draft:
+        summary: The nightly batch failed at the export step; cause not yet established.
+        impact:
+          statement: Batch exports did not complete.
+          scope: nightly-batch
+        timeline:
+          - entry: The nightly batch failed at the export step.
+            fragment_id: frag-1
+            quote: "Nightly batch failed at step export"
+        root_cause:
+          status: unknown
+        unknowns:
+          - Which upstream input changed before the export step failed.
+        action_items:
+          - action: Capture export step inputs on failure.
+            owner: data-oncall
+expect:
+  status: sealed
+  steps: [read-source, digest-source, draft, finalize]
+  step_outputs:
+    finalize:
+      subset:
+        postmortem:
+          data:
+            schema: runx.postmortem.v2
+            decision: needs_more_evidence
+            send_plan:
+              status: withheld
+              transport: sealed-outbox
+            validation: { status: pass, findings: [] }
+  receipt: { schema: runx.receipt.v1 }

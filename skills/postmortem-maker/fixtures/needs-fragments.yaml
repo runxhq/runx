@@ -1,0 +1,49 @@
+name: postmortem-maker-needs-fragments
+kind: skill
+target: ..
+operator_journeys:
+  - mode: standalone
+    confusors: [incident-commander, answer-from-docs]
+    request: Produce the postmortem for this incident.
+    expected_outcome: Refuse the run because the incident source produced no fragments; a postmortem is never drafted from an empty record.
+inputs:
+  incident_ref: inc-y
+  incident_source:
+    kind: inline
+    fragments: []
+  postmortem_policy:
+    allow_publish: false
+    outbox_dir: outbox
+caller:
+  answers:
+    agent_task.postmortem-maker-read.output:
+      source_read:
+        read_kind: inline
+        fetched_ref: inline:inc-y
+        fragments: []
+    agent_task.postmortem-maker-draft.output:
+      postmortem_draft:
+        summary: No incident fragments were available.
+        impact:
+          statement: None.
+          scope: unknown
+        timeline: []
+        root_cause:
+          status: unknown
+        unknowns:
+          - No incident fragments were supplied.
+        action_items: []
+expect:
+  status: sealed
+  steps: [read-source, digest-source, draft, finalize]
+  step_outputs:
+    finalize:
+      subset:
+        postmortem:
+          data:
+            decision: refused
+            send_plan:
+              status: withheld
+              transport: sealed-outbox
+            validation: { status: fail }
+  receipt: { schema: runx.receipt.v1 }

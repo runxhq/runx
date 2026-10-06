@@ -1,0 +1,183 @@
+{
+  "schema": "runx.bounty_evidence.v1",
+  "package": "astra-intelligence/postmortem-maker@sha-279a27f325fd",
+  "cli_version": "runx-cli 0.9.1",
+  "publisher_owner": "astra-intelligence",
+  "package_name": "postmortem-maker",
+  "version": "sha-279a27f325fd",
+  "registry_ref": "https://api.runx.ai/skills/astra-intelligence/postmortem-maker",
+  "public_url": "https://runx.ai/x/astra-intelligence/postmortem-maker@sha-279a27f325fd",
+  "source_url": "https://github.com/astra-intelligence/runx/blob/79afa7622a8db1766561dbc92cfdc860fbe91e88/skills/postmortem-maker/SKILL.md",
+  "pr_url": "https://github.com/runxhq/runx/pull/530",
+  "x_yaml": "https://raw.githubusercontent.com/astra-intelligence/runx/79afa7622a8db1766561dbc92cfdc860fbe91e88/skills/postmortem-maker/X.yaml",
+  "skill_md": "https://raw.githubusercontent.com/astra-intelligence/runx/79afa7622a8db1766561dbc92cfdc860fbe91e88/skills/postmortem-maker/SKILL.md",
+  "publish_method": "runx registry publish ./SKILL.md --registry https://api.runx.ai --profile ./X.yaml",
+  "install_command": "runx add astra-intelligence/postmortem-maker@sha-279a27f325fd --registry https://api.runx.ai",
+  "harness_local": "passed",
+  "harness_cases": [
+    "postmortem-maker-publishable-seals",
+    "postmortem-maker-unknowns-block-publish",
+    "postmortem-maker-invented-citation-refuses",
+    "postmortem-maker-needs-fragments"
+  ],
+  "hosted_harness": "passed",
+  "dogfood": {
+    "package": "astra-intelligence/postmortem-maker@sha-279a27f325fd",
+    "input": {
+      "incident_ref": "inc-libgit2-issue-6521",
+      "incident_source": {
+        "kind": "web_fetch",
+        "url": "https://api.github.com/repos/nltk/nltk/issues/3733"
+      }
+    },
+    "command": "runx skill astra-intelligence/postmortem-maker@sha-13351dcdafe3 --registry https://api.runx.ai --inputs -",
+    "receipt_ref": "sha256:9cd34dd39c08709722f031e82120248128ddbb68b93d06b937506d7d03fde9c4",
+    "verify_verdict": "valid",
+    "harness_cases": [
+      {
+        "name": "postmortem-maker-publishable-seals",
+        "status": "sealed"
+      },
+      {
+        "name": "postmortem-maker-unknowns-block-publish",
+        "status": "sealed"
+      },
+      {
+        "name": "postmortem-maker-invented-citation-refuses",
+        "status": "sealed"
+      },
+      {
+        "name": "postmortem-maker-needs-fragments",
+        "status": "sealed"
+      }
+    ]
+  },
+  "observations": [
+    {
+      "key": "source_read",
+      "value": "web_fetch of https://api.github.com/repos/nltk/nltk/issues/3733"
+    },
+    {
+      "key": "timeline_count",
+      "value": 3
+    },
+    {
+      "key": "impact",
+      "value": "Users running the standard venv-inside-project layout hit a false-positive import guard"
+    },
+    {
+      "key": "root_cause_status",
+      "value": "known"
+    },
+    {
+      "key": "unknowns_count",
+      "value": 0
+    },
+    {
+      "key": "action_items_count",
+      "value": 1
+    },
+    {
+      "key": "publish_result",
+      "value": "executed sealed-outbox write"
+    },
+    {
+      "key": "harness_case_names",
+      "value": [
+        "postmortem-maker-publishable-seals",
+        "postmortem-maker-unknowns-block-publish",
+        "postmortem-maker-invented-citation-refuses",
+        "postmortem-maker-needs-fragments"
+      ]
+    },
+    {
+      "key": "receipt_id",
+      "value": "sha256:9cd34dd39c08709722f031e82120248128ddbb68b93d06b937506d7d03fde9c4"
+    },
+    {
+      "key": "runx_cli_version",
+      "value": "runx-cli 0.9.1"
+    },
+    {
+      "key": "publisher_owner",
+      "value": "astra-intelligence"
+    },
+    {
+      "key": "package_name",
+      "value": "postmortem-maker"
+    },
+    {
+      "key": "version",
+      "value": "sha-279a27f325fd"
+    },
+    {
+      "key": "registry_ref",
+      "value": "https://api.runx.ai/skills/astra-intelligence/postmortem-maker"
+    },
+    {
+      "key": "public_url",
+      "value": "https://runx.ai/x/astra-intelligence/postmortem-maker@sha-279a27f325fd"
+    },
+    {
+      "key": "pr_url",
+      "value": "https://github.com/runxhq/runx/pull/530"
+    },
+    {
+      "key": "source_url",
+      "value": "https://github.com/astra-intelligence/runx/commit/9758c78477172899f3a1568c012df658fbcb3cb2"
+    },
+    {
+      "key": "x_yaml",
+      "value": "https://raw.githubusercontent.com/astra-intelligence/runx/9758c78477172899f3a1568c012df658fbcb3cb2/skills/postmortem-maker/X.yaml"
+    },
+    {
+      "key": "skill_md",
+      "value": "https://raw.githubusercontent.com/astra-intelligence/runx/9758c78477172899f3a1568c012df658fbcb3cb2/skills/postmortem-maker/SKILL.md"
+    },
+    {
+      "key": "verification_json",
+      "value": "https://raw.githubusercontent.com/astra-intelligence/runx/9758c78477172899f3a1568c012df658fbcb3cb2/skills/postmortem-maker/delivery-evidence/verification.json"
+    },
+    {
+      "key": "publish_method",
+      "value": "runx registry publish ./SKILL.md --registry https://api.runx.ai --profile ./X.yaml"
+    },
+    {
+      "key": "install_command",
+      "value": "runx add astra-intelligence/postmortem-maker@sha-279a27f325fd --registry https://api.runx.ai"
+    },
+    {
+      "key": "harness_case_count",
+      "value": 4
+    },
+    {
+      "key": "harness_status",
+      "value": "passed"
+    },
+    {
+      "key": "hosted_harness_status",
+      "value": "passed"
+    },
+    {
+      "key": "dogfood_command",
+      "value": "runx skill astra-intelligence/postmortem-maker@sha-279a27f325fd --registry https://api.runx.ai --inputs -"
+    },
+    {
+      "key": "receipt_verify_verdict",
+      "value": "valid"
+    },
+    {
+      "key": "new_user_install",
+      "value": "runx add astra-intelligence/postmortem-maker@sha-279a27f325fd --registry https://api.runx.ai"
+    },
+    {
+      "key": "new_user_run",
+      "value": "runx skill astra-intelligence/postmortem-maker@sha-279a27f325fd --registry https://api.runx.ai --inputs -"
+    },
+    {
+      "key": "new_user_verify",
+      "value": "runx verify --receipt <receipt.json> --json"
+    }
+  ],
+  "summary": "Delivered astra-intelligence/postmortem-maker@sha-13351dcdafe3: a published runx graph skill that reads a real incident record at run time (web fetch or event-stream projection), produces a source-cited postmortem that refuses invented facts, and executes a sealed outbox delivery bound to the fragments digest when the evidence settles the cause. Harness 4/4 sealed cases green locally and after registry install; sealed dogfood run against a live GitHub issue thread; receipt verified valid."
+}
