@@ -1,0 +1,31 @@
+{
+  "artifact": "harness-evidence",
+  "skill": "postmortem-maker",
+  "version": "1.0.0",
+  "generated_at": "2026-10-06T16:33:40Z",
+  "runx_version": "runx-cli 0.9.1",
+  "command": "runx harness ./skills/postmortem-maker --json",
+  "status": "passed",
+  "case_count": 3,
+  "assertion_error_count": 0,
+  "cases": [
+    {
+      "name": "postmortem-maker-publishable-executes-publish",
+      "status": "sealed",
+      "expectation": "consistent incident evidence yields a fragment-cited postmortem with impact and an executed send-as publish",
+      "receipt": "sha256:5ab39004d079e659471bafa4b5e656b21519bced5477afe812461fe54f39afd9"
+    },
+    {
+      "name": "postmortem-maker-unknowns-block-publish",
+      "status": "sealed",
+      "expectation": "insufficient evidence keeps the unresolved facts in unknowns and publishes nothing",
+      "receipt": "sha256:486db0aca52eb94ef5872376ffe5d3f96627800fb45f14877c48eb3ec1c2d0d9"
+    },
+    {
+      "name": "postmortem-maker-invented-citation-refuses",
+      "status": "refused",
+      "expectation": "a draft citing quotes the source does not contain is refused and publishes nothing",
+      "receipt": "sha256:65518bd8234b8571f2d3bf5de578fb6d3b222ce8e2f3fdb15f85d97d8a7cfbfe"
+    }
+  ]
+}

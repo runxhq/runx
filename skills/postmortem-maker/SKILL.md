@@ -1,55 +1,76 @@
 ---
 name: postmortem-maker
-description: Turn resolved-incident fragments into a traceable postmortem that separates fragment-cited facts from hypotheses, blocks publication while unknowns remain, and keeps the comms send behind a human gate.
+description: Read a real incident record at run time, turn it into a traceable postmortem that separates fragment-cited facts from hypotheses, and — only when it is publishable — publish it in the same run by composing send-as so the receipt carries an executed send_plan, not an inert proposal.
+runx:
+  category: ops
 ---
 
 # Postmortem Maker
 
-Produce a postmortem that never pretends unknowns are facts. The supplied
-incident fragments are the only evidence; the drafting agent separates what
-happened from what is suspected, and deterministic code verifies every claimed
-fact against the fragments. Publication is a gated proposal, never an effect
-of this skill.
+Produce a postmortem that never pretends unknowns are facts, and — when the
+postmortem is publishable — publish it in the same governed run.
+
+The skill reads the incident record from a **real source at run time**: the
+`incident_source` handle is a public incident/ticket thread URL, fetched through
+`web-fetch` before anything is drafted. The fetched record is split into
+digest-bound fragments, the drafting agent separates what happened from what is
+suspected, and deterministic code verifies every claimed fact against those
+fragments. An invented citation refuses the whole run.
 
 ## Procedure
 
-1. Native `data.digest` binds the exact fragment set.
-2. The drafting agent assembles a summary, an evidence-cited timeline, a root
-   cause with a status of `known`, `suspected`, or `unknown`, open unknowns,
-   and owned action items.
-3. Deterministic enforcement checks every timeline entry and any non-unknown
-   root cause: the cited fragment must exist and the quote must appear
-   verbatim in that fragment's text. An invented citation refuses the whole
-   run. Action items must carry an action and an owner.
-4. The verdict separates completeness from honesty: a fully cited postmortem
-   with a supported root cause and no open unknowns is `publishable` and
-   carries a publish proposal gated on a human approver through `send-as`; a
-   grounded but incomplete one seals `needs_more_evidence` and publishes
-   nothing.
+1. `web-fetch` reads `incident_source` live: final URL, status, content digest,
+   extracted text, provenance. A non-2xx or unreadable source fails the run
+   before any drafting happens.
+2. Native `data.digest` binds the exact fragment set derived from that read.
+3. The drafting agent assembles a summary, an evidence-cited timeline, the
+   impact, a root cause with a status of `known`, `suspected`, or `unknown`,
+   open unknowns, and owned action items.
+4. Deterministic enforcement checks every timeline entry and any non-unknown
+   root cause: the cited fragment must exist and the quote must appear verbatim
+   in that fragment's text. An invented citation refuses the whole run. Action
+   items must carry an action and an owner, and a publishable postmortem must
+   carry an impact statement.
+5. The verdict separates completeness from honesty:
+   - fully cited + supported root cause + no open unknowns + impact present ->
+     `publishable`, and the graph proceeds to `publish`;
+   - grounded but incomplete -> `needs_more_evidence`, nothing publishes;
+   - claims the fragments do not support -> `refused`, nothing publishes.
+6. `publish` composes the shipped `send-as` skill under the operator's
+   `postmortem_policy`: plan once, apply the digest-bound send once, and close
+   only on independent provider readback. The sealed receipt then records an
+   executed `send_plan` and `send_result` bound to the postmortem digest;
+   held postmortems carry `publish_result: null` and `publish_performed: false`.
 
-To build the fragment set from live systems, compose `web-fetch` or
-`data-store` reads upstream; the digest binds whatever evidence was supplied.
-`incident-commander` owns running the incident; this skill owns explaining it
-afterward.
+Publication is a gated effect of this skill, not a suggestion: it runs only
+after deterministic validation passes, only when the policy names a compatible
+connector, and only through the human approval gate `send-as` enforces at the
+live-delivery boundary.
+
+## Inputs
+
+- `incident_source` (required): the source handle — a public incident or
+  ticket thread URL that is fetched at run time.
+- `postmortem_policy` (required): publish policy carrying `principal`,
+  `audience`, `connector` (`provider` + `target`), `consent_basis`, and the
+  operator `gate_note` that frames the approval decision.
 
 ## Output
 
-`postmortem` (`runx.postmortem.v1`) carries `decision` (`publishable`,
-`needs_more_evidence`, `refused`), `summary`, the cited `timeline`,
-`root_cause`, `unknowns`, `action_items`, the gated `publish_proposal` or
-null, `validation`, and the fragments digest. `publish_performed` is always
-false.
-
-Inputs are `incident_ref` and `incident_fragments`.
+`postmortem` (`runx.postmortem.v1`) carries `decision`
+(`publishable`, `needs_more_evidence`, `refused`), `summary`, the cited
+`timeline`, `impact`, `root_cause`, `unknowns`, `action_items`,
+`publish_proposal`, `publish_performed`, the sealed `publish_result` (or
+`null`), `validation`, and the fragments digest.
 
 ## Agent task contracts
 
 ### `postmortem-maker-draft`
 
 Read `incident_ref` and `incident_fragments` from step inputs. Return
-`postmortem_draft` with `summary`, `timeline` entries (each `entry`,
+`postmortem_draft` with `summary`, `impact`, `timeline` entries (each `entry`,
 `fragment_id`, `quote`), `root_cause` (`status`, and for known or suspected a
-`statement`, `fragment_id`, and `quote`), `unknowns`, and `action_items`
-(each `action`, `owner`). Quote fragments verbatim, mark anything the
-fragments do not support as unknown rather than asserting it, and never
-invent fragments, quotes, owners, or deadlines.
+`statement`, `fragment_id`, and `quote`), `unknowns`, and `action_items` (each
+`action`, `owner`). Quote fragments verbatim, mark anything the fragments do
+not support as unknown rather than asserting it, and never invent fragments,
+quotes, owners, or deadlines.

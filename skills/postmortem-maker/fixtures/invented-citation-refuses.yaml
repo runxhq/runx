@@ -1,0 +1,56 @@
+name: postmortem-maker-invented-citation-refuses
+kind: skill
+target: ..
+operator_journeys:
+  - mode: standalone
+    confusors: [postmortem-maker-unknowns-block-publish]
+    request: Write the postmortem for this outage from the record.
+    expected_outcome: Refuse the run when the draft claims facts the fetched record does not contain, publishing nothing.
+inputs:
+  incident_source: https://fixture.runx.invalid/incidents/inc-api-2026-10-03
+  postmortem_policy:
+    principal: agent:hermes-jobs
+    audience: { type: thread, ref: "incident-thread:api-2026-10-03" }
+    connector: { provider: provider-postmortem-demo, target: "thread:postmortem-notice" }
+    consent_basis: The operator commissioned this postmortem publication as the deliverable of a paid bounty.
+    gate_note: Publish only a postmortem that is complete and fully cited.
+caller:
+  http_responses:
+    "https://fixture.runx.invalid/incidents/inc-api-2026-10-03":
+      status: 200
+      headers: { content-type: text/plain }
+      body: |
+        2026-10-03 11:05 UTC service restarted at 11:05 after a deploy.
+  answers:
+    agent_task.postmortem-maker-draft.output:
+      postmortem_draft:
+        summary: Total outage caused by database corruption.
+        impact: All API traffic failed for the duration of the outage.
+        timeline:
+          - entry: The database corrupted.
+            fragment_id: frag-1
+            quote: "database corruption detected"
+        root_cause:
+          status: known
+          statement: Database corruption.
+          fragment_id: frag-1
+          quote: "database corruption detected"
+        unknowns: []
+        action_items: []
+expect:
+  status: sealed
+  steps: [read-source, fragmentize, digest-fragments, draft, finalize, stamp-held]
+  step_outputs:
+    stamp-held:
+      subset:
+        postmortem:
+          data:
+            decision: refused
+            status: refused
+            timeline: []
+            publish_proposal: null
+            publish_performed: false
+            publish_result: null
+            validation: { status: fail }
+  receipt: { schema: runx.receipt.v1 }
+metadata: { public_skill: postmortem-maker, source_case: invented-citation-refuses, source: skills-fixture }

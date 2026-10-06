@@ -1,0 +1,136 @@
+name: postmortem-maker-publishable-executes-publish
+kind: skill
+target: ..
+operator_journeys:
+  - mode: standalone
+    confusors: [incident-commander, answer-from-docs]
+    request: Read this resolved incident and publish its postmortem in one governed run.
+    expected_outcome: Fetch the source live, seal a fragment-cited postmortem with impact, then publish it through send-as and close on provider readback.
+  - mode: composed
+    request: Continue from this already published postmortem.
+    expected_outcome: Reuse the sealed postmortem and its executed send result without re-reading the source or resending.
+    prior_evidence:
+      - The fetched incident record and the sealed postmortem carried by the prior step.
+    must_not_repeat:
+      - Do not fetch the incident source again after its digest is sealed.
+      - Do not send again once provider readback exists.
+inputs:
+  incident_source: https://fixture.runx.invalid/incidents/inc-checkout-2026-10-05
+  postmortem_policy:
+    principal: agent:hermes-jobs
+    audience: { type: thread, ref: "incident-thread:checkout-2026-10-05" }
+    connector: { provider: provider-postmortem-demo, target: "thread:postmortem-notice" }
+    consent_basis: The operator commissioned this postmortem publication as the deliverable of a paid bounty.
+    gate_note: Publish only this sealed postmortem; no other send is authorized.
+caller:
+  http_responses:
+    "https://fixture.runx.invalid/incidents/inc-checkout-2026-10-05":
+      status: 200
+      headers: { content-type: text/plain }
+      body: |
+        2026-10-05 03:02 UTC deploy 2026.10.05.1 rolled out a connection pool change to checkout-api.
+        2026-10-05 03:12 UTC alert fired: checkout 5xx rate crossed 8 percent.
+        2026-10-05 03:40 UTC rollback of 2026.10.05.1 completed and 5xx rate returned to baseline.
+  answers:
+    agent_task.postmortem-maker-draft.output:
+      postmortem_draft:
+        summary: A connection pool change in deploy 2026.10.05.1 degraded checkout until the rollback restored baseline.
+        impact: Checkout served errors above the alert threshold for roughly 28 minutes; customers saw failed checkout attempts during that window.
+        timeline:
+          - entry: Deploy 2026.10.05.1 shipped a connection pool change to checkout-api.
+            fragment_id: frag-1
+            quote: "deploy 2026.10.05.1 rolled out a connection pool change to checkout-api"
+          - entry: Checkout 5xx rate crossed the alert threshold.
+            fragment_id: frag-2
+            quote: "checkout 5xx rate crossed 8 percent"
+          - entry: The rollback returned 5xx rate to baseline.
+            fragment_id: frag-3
+            quote: "rollback of 2026.10.05.1 completed and 5xx rate returned to baseline"
+        root_cause:
+          status: known
+          statement: The connection pool change in deploy 2026.10.05.1 degraded checkout-api database access.
+          fragment_id: frag-1
+          quote: "connection pool change to checkout-api"
+        unknowns: []
+        action_items:
+          - action: Add pool saturation alerting before the next checkout-api pool change ships.
+            owner: platform-oncall
+    agent_task.send-as.output:
+      send_plan:
+        decision: ready
+        action_family: send-as
+        principal: { type: user, ref: agent:hermes-jobs }
+        provider: { name: provider-postmortem-demo, account_ref: postmortem-notice, runtime_path: provider.send }
+        send_class: status
+        channel: other
+        audience: { type: thread, ref: "incident-thread:checkout-2026-10-05", requires_reconfirmation: false }
+        content:
+          draft_ref: postmortem:publishable
+          digest: sha256:2a920702c8d9102739cfe901d8ebbbf3f081e27c05051ced24b0f81199059a86
+          subject_or_title: "Postmortem: A connection pool change in deploy 2026.10.05.1 degraded checkout until the rollback restored baseline."
+        gates:
+          preflight_required: true
+          human_approval_required: true
+          approval_ref: send-as.live-send.approval
+        blockers: []
+        provider_actions: [message.send]
+        evidence_refs: [sha256:2a920702c8d9102739cfe901d8ebbbf3f081e27c05051ced24b0f81199059a86]
+        success_checkpoint:
+          milestone: provider_delivery_required
+          description: Provider delivery and independent readback remain required after this plan.
+  provider_responses:
+    principal_id: postmortem-fixture
+    grants:
+      - grant_id: postmortem-fixture
+        provider: provider-postmortem-demo
+        scopes: [message.send, message.read]
+    operations:
+      - grant_id: postmortem-fixture
+        operation: message.send
+        target: thread:postmortem-notice
+        access: mutate
+        result:
+          message_id: msg_postmortem_001
+          principal_ref: agent:hermes-jobs
+          audience_ref: "incident-thread:checkout-2026-10-05"
+          content_digest: sha256:2a920702c8d9102739cfe901d8ebbbf3f081e27c05051ced24b0f81199059a86
+          status: sent
+          sent_at: "2026-10-06T00:00:00Z"
+          idempotency_key: $request.idempotency_key
+      - grant_id: postmortem-fixture
+        operation: message.read
+        target: thread:postmortem-notice
+        access: read
+        result:
+          message_id: msg_postmortem_001
+          principal_ref: agent:hermes-jobs
+          audience_ref: "incident-thread:checkout-2026-10-05"
+          content_digest: sha256:2a920702c8d9102739cfe901d8ebbbf3f081e27c05051ced24b0f81199059a86
+          status: sent
+          sent_at: "2026-10-06T00:00:00Z"
+          idempotency_key: $previous.idempotency_key
+  approvals:
+    "provider-effect:sha256:bb7735698856eb2ffb4f7b25bd74199057106c3f633e904cd97116442a6b647e": true
+expect:
+  status: sealed
+  steps: [read-source, fragmentize, digest-fragments, draft, finalize, seal-postmortem, compose-content, publish, stamp-published]
+  step_outputs:
+    seal-postmortem:
+      subset:
+        digest_result:
+          data:
+            digest: sha256:2a920702c8d9102739cfe901d8ebbbf3f081e27c05051ced24b0f81199059a86
+    stamp-published:
+      subset:
+        postmortem:
+          data:
+            schema: runx.postmortem.v1
+            decision: publishable
+            status: publishable
+            impact: "Checkout served errors above the alert threshold for roughly 28 minutes; customers saw failed checkout attempts during that window."
+            publish_proposal: { gate: human-approver, delivery_skill: send-as, sent: true }
+            publish_performed: true
+            publish_result: { schema: runx.send_as.result.v1, status: sent }
+            validation: { status: pass, findings: [] }
+  receipt: { schema: runx.receipt.v1 }
+metadata: { public_skill: postmortem-maker, source_case: publishable-executes-publish, source: skills-fixture }
