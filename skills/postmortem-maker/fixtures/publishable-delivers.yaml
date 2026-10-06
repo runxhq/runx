@@ -1,0 +1,95 @@
+name: postmortem-maker-publishable-delivers
+kind: skill
+target: ..
+runner: make
+operator_journeys:
+  - mode: standalone
+    confusors: [incident-commander, answer-from-docs]
+    request: Produce the postmortem for this resolved incident thread and publish it.
+    expected_outcome: Read the incident source, return a source-cited postmortem, and execute the sealed outbox delivery bound to it.
+  - mode: composed
+    request: Continue from this sealed postmortem into the governed comms send.
+    expected_outcome: Reuse the sealed postmortem and its executed delivery without re-deriving the timeline.
+    prior_evidence:
+      - The incident source read and sealed postmortem supplied by the prior step.
+    must_not_repeat:
+      - Do not re-derive timeline entries or the root cause already sealed.
+inputs:
+  incident_ref: inc-checkout-2026-08-09
+  incident_source:
+    kind: inline
+    fragments:
+      - id: frag-1
+        source: pagerduty
+        text: "03:12 UTC alert fired: checkout 5xx rate crossed 8 percent."
+      - id: frag-2
+        source: deploy-log
+        text: "03:02 UTC deploy 2026.08.09.3 rolled out a connection pool change to checkout-api."
+      - id: frag-3
+        source: slack-incident
+        text: "03:40 UTC rollback of 2026.08.09.3 completed and 5xx rate returned to baseline."
+  postmortem_policy:
+    allow_publish: true
+    outbox_dir: outbox/postmortems
+caller:
+  answers:
+    agent_task.postmortem-maker-read.output:
+      source_read:
+        read_kind: inline
+        fetched_ref: inline:inc-checkout-2026-08-09
+        fragments:
+          - id: frag-1
+            source: pagerduty
+            text: "03:12 UTC alert fired: checkout 5xx rate crossed 8 percent."
+          - id: frag-2
+            source: deploy-log
+            text: "03:02 UTC deploy 2026.08.09.3 rolled out a connection pool change to checkout-api."
+          - id: frag-3
+            source: slack-incident
+            text: "03:40 UTC rollback of 2026.08.09.3 completed and 5xx rate returned to baseline."
+    agent_task.postmortem-maker-draft.output:
+      postmortem_draft:
+        summary: A connection pool change in deploy 2026.08.09.3 degraded checkout until rollback.
+        impact:
+          statement: Checkout returned 5xx above the alert threshold for about 38 minutes.
+          scope: checkout-api
+        timeline:
+          - entry: Deploy 2026.08.09.3 shipped a connection pool change.
+            fragment_id: frag-2
+            quote: "deploy 2026.08.09.3 rolled out a connection pool change"
+          - entry: Checkout 5xx rate crossed the alert threshold.
+            fragment_id: frag-1
+            quote: "checkout 5xx rate crossed 8 percent"
+          - entry: Rollback restored baseline.
+            fragment_id: frag-3
+            quote: "rollback of 2026.08.09.3 completed and 5xx rate returned to baseline"
+        root_cause:
+          status: known
+          statement: The connection pool change in 2026.08.09.3 exhausted checkout database connections.
+          fragment_id: frag-2
+          quote: "connection pool change to checkout-api"
+        unknowns: []
+        action_items:
+          - action: Add pool saturation alerting before the next pool change ships.
+            owner: platform-oncall
+expect:
+  status: sealed
+  steps: [read-source, digest-source, draft, finalize, prepare-delivery, deliver, record-delivery]
+  step_outputs:
+    finalize:
+      subset:
+        postmortem:
+          data:
+            schema: runx.postmortem.v2
+            decision: publishable
+            send_plan:
+              status: ready
+            validation: { status: pass, findings: [] }
+    record-delivery:
+      subset:
+        publish_result:
+          data:
+            executed: true
+            transport: sealed-outbox
+            send_plan_status: executed
+  receipt: { schema: runx.receipt.v1 }

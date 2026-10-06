@@ -1,5 +1,5 @@
 skill: postmortem-maker
-version: "0.1.0"
+version: "0.2.0"
 
 catalog:
   kind: graph
@@ -11,154 +11,12 @@ catalog:
   requires_adapter: false
   approval: none
 
-harness:
-  cases:
-    - name: postmortem-maker-publishable-seals
-      operator_journeys:
-        - mode: standalone
-          confusors: [incident-commander, answer-from-docs]
-          request: Produce the postmortem for this resolved incident from the collected fragments.
-          expected_outcome: Return a fragment-cited postmortem with a supported root cause and a gated publish proposal, publishing nothing.
-        - mode: composed
-          request: Continue from this sealed postmortem into the governed comms send.
-          expected_outcome: Reuse the sealed postmortem and its publish proposal without re-deriving the timeline.
-          prior_evidence:
-            - The incident fragments and sealed postmortem supplied by the prior step.
-          must_not_repeat:
-            - Do not re-derive timeline entries or the root cause already sealed.
-      inputs:
-        incident_ref: inc-checkout-2026-08-09
-        incident_fragments:
-          - id: frag-1
-            source: pagerduty
-            text: "03:12 UTC alert fired: checkout 5xx rate crossed 8 percent."
-          - id: frag-2
-            source: deploy-log
-            text: "03:02 UTC deploy 2026.08.09.3 rolled out a connection pool change to checkout-api."
-          - id: frag-3
-            source: slack-incident
-            text: "03:40 UTC rollback of 2026.08.09.3 completed and 5xx rate returned to baseline."
-      caller:
-        answers:
-          agent_task.postmortem-maker-draft.output:
-            postmortem_draft:
-              summary: A connection pool change in deploy 2026.08.09.3 degraded checkout until rollback.
-              timeline:
-                - entry: Deploy 2026.08.09.3 shipped a connection pool change.
-                  fragment_id: frag-2
-                  quote: "deploy 2026.08.09.3 rolled out a connection pool change"
-                - entry: Checkout 5xx rate crossed the alert threshold.
-                  fragment_id: frag-1
-                  quote: "checkout 5xx rate crossed 8 percent"
-                - entry: Rollback restored baseline.
-                  fragment_id: frag-3
-                  quote: "rollback of 2026.08.09.3 completed and 5xx rate returned to baseline"
-              root_cause:
-                status: known
-                statement: The connection pool change in 2026.08.09.3 exhausted checkout database connections.
-                fragment_id: frag-2
-                quote: "connection pool change to checkout-api"
-              unknowns: []
-              action_items:
-                - action: Add pool saturation alerting before the next pool change ships.
-                  owner: platform-oncall
-      expect:
-        status: sealed
-        steps: [digest-fragments, draft, finalize]
-        step_outputs:
-          finalize:
-            subset:
-              postmortem:
-                data:
-                  schema: runx.postmortem.v1
-                  decision: publishable
-                  publish_proposal:
-                    gate: human-approver
-                    delivery_skill: send-as
-                    sent: false
-                  publish_performed: false
-                  validation: { status: pass, findings: [] }
-        receipt: { schema: runx.receipt.v1 }
-
-    - name: postmortem-maker-unknowns-block-publish
-      inputs:
-        incident_ref: inc-batch-2026-08-10
-        incident_fragments:
-          - id: frag-1
-            source: cron-log
-            text: "Nightly batch failed at step export with exit 1."
-      caller:
-        answers:
-          agent_task.postmortem-maker-draft.output:
-            postmortem_draft:
-              summary: The nightly batch failed at the export step; cause not yet established.
-              timeline:
-                - entry: The nightly batch failed at the export step.
-                  fragment_id: frag-1
-                  quote: "Nightly batch failed at step export"
-              root_cause:
-                status: unknown
-              unknowns:
-                - Which upstream input changed before the export step failed.
-              action_items:
-                - action: Capture export step inputs on failure.
-                  owner: data-oncall
-      expect:
-        status: sealed
-        steps: [digest-fragments, draft, finalize]
-        step_outputs:
-          finalize:
-            subset:
-              postmortem:
-                data:
-                  decision: needs_more_evidence
-                  publish_proposal: null
-                  publish_performed: false
-                  validation: { status: pass, findings: [] }
-        receipt: { schema: runx.receipt.v1 }
-
-    - name: postmortem-maker-invented-citation-refuses
-      inputs:
-        incident_ref: inc-x
-        incident_fragments:
-          - id: frag-1
-            source: log
-            text: "Service restarted at 09:00."
-      caller:
-        answers:
-          agent_task.postmortem-maker-draft.output:
-            postmortem_draft:
-              summary: Total outage caused by database corruption.
-              timeline:
-                - entry: The database corrupted.
-                  fragment_id: frag-1
-                  quote: "database corruption detected"
-              root_cause:
-                status: known
-                statement: Database corruption.
-                fragment_id: frag-1
-                quote: "database corruption detected"
-              unknowns: []
-              action_items: []
-      expect:
-        status: sealed
-        steps: [digest-fragments, draft, finalize]
-        step_outputs:
-          finalize:
-            subset:
-              postmortem:
-                data:
-                  decision: refused
-                  timeline: []
-                  publish_proposal: null
-                  validation: { status: fail }
-        receipt: { schema: runx.receipt.v1 }
-
-    - name: postmortem-maker-needs-fragments
-      inputs:
-        incident_ref: inc-y
-      expect:
-        status: failure
+policy:
+  side_effects: workspace_write
+  sends_messages: denied
+  mints_authority: denied
+  persists_state: denied
+  secrets_required: false
 
 runners:
   make:
@@ -169,27 +27,54 @@ runners:
         type: string
         required: true
         description: Identifier of the resolved incident this postmortem covers.
-      incident_fragments:
+      incident_source:
         type: json
         required: true
-        description: Collected incident evidence fragments with stable id, source, and text; compose web-fetch or data-store reads to gather them.
+        description: "Where to read the incident record at run time: {kind: web_fetch, url, allowlist?} fetches a real incident thread over HTTPS, {kind: read_projection, data_source_ref, aggregate_id, resource} reads an incident/ticket event-stream projection, or {kind: inline, fragments} replays supplied fragments for deterministic harness runs."
+      postmortem_policy:
+        type: json
+        required: false
+        description: "Publish posture: {allow_publish: boolean, outbox_dir: string}. The sealed outbox delivery only runs when the postmortem is publishable and allow_publish is true."
     examples:
       - incident_ref: inc-checkout-2026-08-09
-        incident_fragments:
-          - id: frag-1
-            source: pagerduty
-            text: "03:12 UTC alert fired."
+        incident_source:
+          kind: web_fetch
+          url: https://api.github.com/repos/nltk/nltk/issues/3733
+        postmortem_policy:
+          allow_publish: true
+          outbox_dir: outbox/postmortems
     graph:
       name: postmortem-maker-make
-      result_from: [finalize]
+      result_from: [record-delivery, finalize]
       steps:
-        - id: digest-fragments
-          tool: data.digest
+        - id: read-source
+          label: read the incident record from its real source
+          run:
+            type: agent-task
+            agent: researcher
+            task: postmortem-maker-read
+            outputs:
+              source_read: object
           inputs:
-            value: $input.incident_fragments
+            incident_ref: $input.incident_ref
+            incident_source: $input.incident_source
+          allowed_tools:
+            - web.fetch
+            - data.read_projection
+          scopes:
+            - runx:net:allowlist
+            - runx:data:read
+          artifacts:
+            named_emits:
+              source_read: source_read
+
+        - id: digest-source
+          tool: data.digest
+          context:
+            value: read-source.source_read.data.fragments
 
         - id: draft
-          label: separate facts from hypotheses across the fragments
+          label: separate facts from hypotheses across the source evidence
           run:
             type: agent-task
             agent: reviewer
@@ -198,19 +83,24 @@ runners:
               postmortem_draft: object
           inputs:
             incident_ref: $input.incident_ref
-            incident_fragments: $input.incident_fragments
+            postmortem_policy: $input.postmortem_policy
+          context:
+            incident_fragments: read-source.source_read.data.fragments
+            source_digest: digest-source.digest_result.data.digest
           allowed_tools: []
           artifacts:
             named_emits:
               postmortem_draft: postmortem_draft
 
         - id: finalize
-          label: enforce fragment citations deterministically
+          label: enforce source citations deterministically
           inputs:
-            incident_fragments: $input.incident_fragments
+            incident_ref: $input.incident_ref
+            postmortem_policy: $input.postmortem_policy
           context:
+            incident_fragments: read-source.source_read.data.fragments
             postmortem_draft: draft.postmortem_draft.data
-            fragments_digest: digest-fragments.digest_result.data.digest
+            fragments_digest: digest-source.digest_result.data.digest
           run:
             type: javascript
             module: postmortem-maker.mjs
@@ -219,12 +109,14 @@ runners:
               postmortem:
                 type: object
                 schema:
-                  required: [schema, decision, reason, summary, timeline, root_cause, unknowns, action_items, publish_proposal, publish_performed, fragments_digest, validation]
+                  required: [schema, decision, reason, status, incident_ref, summary, timeline, impact, root_cause, unknowns, action_items, send_plan, fragments_digest, validation]
                   additionalProperties: false
                   properties:
-                    schema: { const: runx.postmortem.v1 }
+                    schema: { const: runx.postmortem.v2 }
                     decision: { type: string, enum: [publishable, needs_more_evidence, refused] }
                     reason: { type: string, minLength: 1, maxLength: 2000 }
+                    status: { type: string, enum: [sealed, refused] }
+                    incident_ref: { type: [string, "null"], maxLength: 256 }
                     summary: { type: [string, "null"], maxLength: 8000 }
                     timeline:
                       type: array
@@ -237,6 +129,13 @@ runners:
                           entry: { type: string, minLength: 1, maxLength: 4000 }
                           fragment_id: { type: string, minLength: 1, maxLength: 200 }
                           quote: { type: string, minLength: 1, maxLength: 4000 }
+                    impact:
+                      type: [object, "null"]
+                      required: [statement, scope]
+                      additionalProperties: false
+                      properties:
+                        statement: { type: [string, "null"], maxLength: 4000 }
+                        scope: { type: [string, "null"], maxLength: 500 }
                     root_cause:
                       type: [object, "null"]
                       required: [status, statement, fragment_id]
@@ -259,15 +158,16 @@ runners:
                         properties:
                           action: { type: string, minLength: 1, maxLength: 2000 }
                           owner: { type: string, minLength: 1, maxLength: 500 }
-                    publish_proposal:
-                      type: [object, "null"]
-                      required: [gate, delivery_skill, sent]
+                    send_plan:
+                      type: object
+                      required: [schema, status, transport]
                       additionalProperties: false
                       properties:
-                        gate: { const: human-approver }
-                        delivery_skill: { const: send-as }
-                        sent: { const: false }
-                    publish_performed: { const: false }
+                        schema: { const: runx.send_plan.v1 }
+                        status: { type: string, enum: [ready, withheld] }
+                        transport: { const: sealed-outbox }
+                        gate: { type: string, maxLength: 200 }
+                        bound_to: { type: string, maxLength: 200 }
                     fragments_digest: { type: string, pattern: "^sha256:[0-9a-f]{64}$" }
                     validation:
                       type: object
@@ -288,3 +188,52 @@ runners:
           artifacts:
             named_emits:
               postmortem: postmortem
+
+        - id: prepare-delivery
+          label: bind the postmortem to its outbox delivery payload
+          when:
+            field: finalize.postmortem.data.send_plan.status
+            equals: ready
+          inputs:
+            postmortem_policy: $input.postmortem_policy
+          context:
+            postmortem: finalize.postmortem.data
+          run:
+            type: javascript
+            module: postmortem-maker.mjs
+            export: prepareDelivery
+            outputs:
+              delivery_draft: object
+          artifacts:
+            named_emits:
+              delivery_draft: delivery_draft
+
+        - id: deliver
+          label: execute the sealed outbox transport
+          when:
+            field: finalize.postmortem.data.send_plan.status
+            equals: ready
+          tool: fs.write
+          scopes: [fs.write]
+          context:
+            path: prepare-delivery.delivery_draft.data.path
+            contents: prepare-delivery.delivery_draft.data.contents
+
+        - id: record-delivery
+          label: seal the executed send plan into the publish result
+          when:
+            field: finalize.postmortem.data.send_plan.status
+            equals: ready
+          context:
+            postmortem: finalize.postmortem.data
+            delivery_draft: prepare-delivery.delivery_draft.data
+            write_result: deliver.file_write.data
+          run:
+            type: javascript
+            module: postmortem-maker.mjs
+            export: recordDelivery
+            outputs:
+              publish_result: object
+          artifacts:
+            named_emits:
+              publish_result: publish_result
