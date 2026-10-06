@@ -1,0 +1,18 @@
+{
+  "status": "passed",
+  "case_count": 4,
+  "assertion_error_count": 0,
+  "assertion_errors": [],
+  "case_names": [
+    "postmortem-maker-publishable-delivers",
+    "postmortem-maker-conflicting-evidence-withholds",
+    "postmortem-maker-invented-citation-refuses",
+    "postmortem-maker-missing-source-refuses"
+  ],
+  "receipt_ids": [
+    "sha256:2eea82355134b5b77dc7bf675007c341a330e44e18ed1b691905e285a83e5658",
+    "sha256:1936ed956fc0745125cfc1fa9629d565ad178a6a964b3f74f16021381e02aafc",
+    "sha256:b27cda4f046488a70465f0cf392f5bc22fd0bc0cef85aabefe26af5a2edeb32c"
+  ],
+  "graph_case_count": 4
+}
