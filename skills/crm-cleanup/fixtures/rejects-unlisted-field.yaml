@@ -1,0 +1,52 @@
+name: crm-cleanup-rejects-unlisted-field
+kind: skill
+target: ..
+runner: reconcile
+inputs:
+  transcript: "Owner said move the account to Kim."
+  crm_source:
+    kind: inline
+    records:
+      - id: acct-1
+        owner: lee
+  crm_schema:
+    allowed_fields: [next_action]
+  write_target:
+    kind: mock
+    path: outbox/crm/records.json
+caller:
+  answers:
+    agent_task.crm-cleanup-read.output:
+      source_read:
+        read_kind: inline
+        fetched_ref: inline:fixture
+        records:
+          - id: acct-1
+            owner: lee
+    agent_task.crm-cleanup-reconcile.output:
+      update_draft:
+        takeaways:
+          - Account owner change requested.
+        updates:
+          - record_id: acct-1
+            field: owner
+            to: kim
+            evidence_quote: move the account to Kim
+expect:
+  status: sealed
+  steps: [read-source, digest-transcript, digest-records, reconcile, finalize]
+  step_outputs:
+    finalize:
+      subset:
+        crm_cleanup:
+          data:
+            decision: no_action
+            field_updates: []
+            rejected_updates:
+              - record_id: acct-1
+                field: owner
+                reason: field is outside the crm_schema allowlist
+            write_plan:
+              status: withheld
+            validation: { status: pass, findings: [] }
+  receipt: { schema: runx.receipt.v1 }

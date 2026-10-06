@@ -1,0 +1,22 @@
+{
+  "connector": "crm-export",
+  "exported_at": "2026-09-15T11:00:00Z",
+  "records": [
+    {
+      "id": "acct-globex",
+      "name": "Globex Corporation",
+      "account_status": "healthy",
+      "next_action": "none",
+      "health_score": 82,
+      "owner": "dana.sales"
+    },
+    {
+      "id": "acct-initech",
+      "name": "Initech LLC",
+      "account_status": "onboarding",
+      "next_action": "kickoff call scheduled",
+      "health_score": 64,
+      "owner": "peter.sales"
+    }
+  ]
+}

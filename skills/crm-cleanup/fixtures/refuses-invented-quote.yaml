@@ -1,0 +1,47 @@
+name: crm-cleanup-refuses-invented-quote
+kind: skill
+target: ..
+runner: reconcile
+inputs:
+  transcript: "Short call, no changes discussed."
+  crm_source:
+    kind: inline
+    records:
+      - id: acct-1
+        account_status: healthy
+  crm_schema:
+    allowed_fields: [account_status]
+  write_target:
+    kind: mock
+    path: outbox/crm/records.json
+caller:
+  answers:
+    agent_task.crm-cleanup-read.output:
+      source_read:
+        read_kind: inline
+        fetched_ref: inline:fixture
+        records:
+          - id: acct-1
+            account_status: healthy
+    agent_task.crm-cleanup-reconcile.output:
+      update_draft:
+        takeaways: []
+        updates:
+          - record_id: acct-1
+            field: account_status
+            to: at_risk
+            evidence_quote: customer threatened to churn immediately
+expect:
+  status: sealed
+  steps: [read-source, digest-transcript, digest-records, reconcile, finalize]
+  step_outputs:
+    finalize:
+      subset:
+        crm_cleanup:
+          data:
+            decision: refused
+            field_updates: []
+            write_plan:
+              status: withheld
+            validation: { status: fail }
+  receipt: { schema: runx.receipt.v1 }
