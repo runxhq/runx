@@ -6,7 +6,8 @@ use serde::{Deserialize, Serialize};
 use crate::ValidationError;
 pub use crate::harness_fixture::{
     HarnessExpectation, HarnessHttpExchangeFixture, HarnessHttpRequestBodyFixture,
-    HarnessHttpResponseFixture, OperatorJourneyClaim, OperatorJourneyMode, ReceiptExpectation,
+    HarnessHttpResponseFixture, HarnessMcpCallFixture, OperatorJourneyClaim, OperatorJourneyMode,
+    ReceiptExpectation,
 };
 
 use super::FIELDS;
@@ -22,8 +23,13 @@ const HARNESS_CASE_FIELDS: &[&str] = &[
     "expect",
     "operator_journeys",
 ];
-const HARNESS_CALLER_FIELDS: &[&str] =
-    &["answers", "approvals", "http_exchanges", "http_responses"];
+const HARNESS_CALLER_FIELDS: &[&str] = &[
+    "answers",
+    "approvals",
+    "http_exchanges",
+    "http_responses",
+    "mcp_calls",
+];
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct HarnessCallerFixture {
@@ -35,6 +41,8 @@ pub struct HarnessCallerFixture {
     pub http_responses: BTreeMap<String, HarnessHttpResponseFixture>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub http_exchanges: Vec<HarnessHttpExchangeFixture>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub mcp_calls: Vec<HarnessMcpCallFixture>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -178,6 +186,11 @@ fn validate_harness_caller(
         http_exchanges: crate::harness_fixture::parse_harness_http_exchanges(
             value.get("http_exchanges"),
             &format!("{field}.http_exchanges"),
+        )
+        .map_err(|error| FIELDS.validation_error(error.to_string()))?,
+        mcp_calls: crate::harness_fixture::parse_harness_mcp_calls(
+            value.get("mcp_calls"),
+            &format!("{field}.mcp_calls"),
         )
         .map_err(|error| FIELDS.validation_error(error.to_string()))?,
     })

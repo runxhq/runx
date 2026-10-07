@@ -1,6 +1,6 @@
 ---
 name: github-pr-comment
-description: Post one exact GitHub pull-request comment through local gh, any compatible hosted connector, or the explicit human-gated MCP composition, with retry safety and independent readback.
+description: Post one exact GitHub pull-request comment through the GitHub connector, with retry safety and independent readback.
 runx:
   category: code
 ---
@@ -17,43 +17,30 @@ that exact note posted. Use `issue-triage` for analysis and drafting, and a
 broader GitHub skill for other resource types. This skill never merges a pull
 request; comment authority cannot be promoted into merge authority.
 
-## Composes
-
-<!-- Generated from the native execution closure; run pnpm core-skills:composes:generate. -->
-
-- `github-mcp-merge-pr#default`
-- `github-mcp-pr-review-note#default`
-
 ## How it works
 
 1. Supply `owner/name`, the exact pull-request number, exact comment body, and a
    stable idempotency key for that body.
-2. The default `post` runner computes the body digest and admits the write only
-   under a compatible `pr.comment` grant.
-3. Native `provider.mutate` posts under `pr.comment`; native `provider.read`
-   then reads the returned comment ref under `pr.read`. Repository, PR number,
-   comment ref, and body digest must match before completion.
-4. The explicit `comment` runner preserves the separately human-gated bundled
-   `examples/github-mcp-hero/review-note` path as the canonical MCP composition
-   and deterministic harness surface. It is not live Connect evidence.
+2. The default `post` runner calls `github/comments.create` once with the exact
+   body, under the GitHub instance selected here: the signed-in `gh` session
+   or a stored token.
+3. The runtime records GitHub's acknowledgement, reads the comment back by its
+   id, and completes only when the read-back id and body match the approved
+   comment.
 
-The separate `merge-refused` runner routes the same comment grant to the
-bundled `examples/github-mcp-hero/merge-pr` denial fixture. It is an executable
-authority test: a `pr.merge` request must seal as policy denied, never as a
-backdoor merge path.
+The separate `merge-refused` runner asks for `github/pullrequest.merge` under
+the same comment grant. It is an executable authority test: the merge request
+must seal as policy denied, never as a backdoor merge path.
 
 ## Stop conditions
 
 - Stop when repository, pull-request number, body, or idempotency key is
   missing or changes after admission.
-- The explicit `comment` runner stops when its human approval is absent or
-  denied; the default `post` runner does not add that second gate.
 - Refuse a provider grant that does not resolve uniquely to `pr.comment`.
-- Refuse a missing, ambiguous, wrong-provider, or under-scoped GitHub binding;
-  compatible local `gh`, hosted connectors, and MCP transports all remain
-  behind the same provider effect rather than a raw token or package HTTP client.
-- Do not treat mutation acceptance without an independent comment read, stable
-  comment ref, and matching body digest as final readback.
+- Refuse when no GitHub instance is selected, or the selected one cannot
+  comment; the skill never handles a raw token.
+- Do not treat mutation acceptance without an independent comment read whose
+  id and body match as final readback.
 - Never merge, close, label, or otherwise mutate the pull request beyond the
   exact comment.
 

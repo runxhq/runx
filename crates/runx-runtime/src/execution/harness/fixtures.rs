@@ -75,7 +75,3 @@ pub fn load_harness_fixture(path: impl AsRef<Path>) -> Result<HarnessFixture, Ha
         &contents,
     )?)
 }
-
-pub(crate) fn fixture_kind_name(kind: &HarnessFixtureKind) -> &'static str {
-    runx_parser::harness_fixture::fixture_kind_name(kind)
-}

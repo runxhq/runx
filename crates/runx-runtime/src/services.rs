@@ -23,7 +23,9 @@ pub(crate) use workspace_files::{
     ArtifactPageEncoding, ArtifactRecordPage, DEFAULT_ARTIFACT_PAGE_BYTES, LocalArtifact,
     LocalArtifactService, WorkspaceFile, resolve_scoped_root,
 };
-pub use workspace_files::{WorkspaceFileError, read_workspace_text};
+pub use workspace_files::{
+    WorkspaceFileError, persist_json_artifact, read_json_artifact, read_workspace_text,
+};
 
 #[cfg(test)]
 mod tests {

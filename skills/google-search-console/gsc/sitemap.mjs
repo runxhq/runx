@@ -90,6 +90,33 @@ export function admitSitemapSubmission(inputs) {
   };
 }
 
+export function refuseSitemapSubmission(inputs) {
+  const admission = object(inputs.submission_admission);
+  return {
+    sitemap_submission: {
+      schema: "runx.search.sitemap_submission.v1",
+      decision: "blocked",
+      provider: "google-search-console",
+      operation: "sitemaps.submit",
+      property: text(admission.property),
+      sitemap_url: text(admission.sitemap_url),
+      plan_digest: text(admission.plan_digest),
+      idempotency_key: text(inputs.idempotency_key),
+      provider_status: "not_called",
+      external_status: "not_submitted",
+      mutation: { accepted_at: "" },
+      readback: {
+        status: "",
+        last_submitted: "",
+        last_downloaded: "",
+        error_count: null,
+        warning_count: null,
+      },
+      validation: object(admission.validation),
+    },
+  };
+}
+
 export function finalizeSitemapSubmission(inputs) {
   const plan = object(inputs.sitemap_plan);
   const mutation = object(inputs.mutation_result);

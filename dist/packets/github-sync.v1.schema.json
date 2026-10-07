@@ -32,6 +32,7 @@
       "items": { "type": "object", "additionalProperties": true }
     },
     "provider_operation": { "type": "string" },
+    "provider_input": { "type": ["object", "null"], "additionalProperties": true },
     "scope_used": { "type": "string", "minLength": 1 },
     "provider_status": { "type": "string", "const": "not_called" },
     "blockers": { "type": "array", "items": { "type": "string" } }
@@ -46,6 +47,7 @@
     "mutations",
     "diff_summary",
     "provider_operation",
+    "provider_input",
     "scope_used",
     "provider_status",
     "blockers"
@@ -59,7 +61,8 @@
       "then": {
         "properties": {
           "decision": { "enum": ["blocked", "refused", "needs_agent"] },
-          "provider_operation": { "const": "" }
+          "provider_operation": { "const": "" },
+          "provider_input": { "const": null }
         }
       }
     },
@@ -72,6 +75,7 @@
         "properties": {
           "direction": { "enum": ["pull", "push"] },
           "provider_operation": { "type": "string", "minLength": 1 },
+          "provider_input": { "type": "object", "additionalProperties": true },
           "blockers": { "type": "array", "maxItems": 0 }
         }
       }

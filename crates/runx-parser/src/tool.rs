@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::skill::{
     SkillArtifactContract, SkillIdempotencyPolicy, SkillInput, SkillRetryPolicy, SkillSource,
-    validate_inputs, validate_skill_artifact_contract, validate_skill_source,
+    SourceKind, validate_inputs, validate_skill_artifact_contract, validate_skill_source,
 };
 use crate::{ParseError, ValidationError, assert_yaml_parity_subset, json_fields::JsonFieldReader};
 
@@ -140,13 +140,13 @@ fn validate_scopes(scopes: Vec<String>) -> Result<Vec<String>, ValidationError> 
 
 fn validate_tool_source(source: SkillSource, field: &str) -> Result<SkillSource, ValidationError> {
     if matches!(
-        source.source_type.as_str(),
-        "cli-tool" | "javascript" | "mcp" | "a2a"
+        source.source_type,
+        SourceKind::CliTool | SourceKind::JavaScript
     ) {
         return Ok(source);
     }
     Err(FIELDS.validation_error(format!(
-        "{field} must be one of cli-tool, javascript, mcp, or a2a for tool manifests."
+        "{field} must be one of cli-tool or javascript for tool manifests."
     )))
 }
 

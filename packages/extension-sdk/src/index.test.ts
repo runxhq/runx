@@ -3,20 +3,15 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import { validateExternalAdapterResponseContract } from "@runxhq/contracts";
 import { describe, expect, it } from "vitest";
 
 import {
-  defineExternalAdapter,
   defineTool,
   failure,
   firstNonEmptyString,
-  materializeExternalAdapterInputs,
   prune,
 } from "./index.js";
 
-const externalAdapterConformanceRoot = path.join(process.cwd(), "fixtures", "external-adapter-conformance");
-const externalAdapterInvocationPath = path.join(externalAdapterConformanceRoot, "invocation.json");
 const tsxBin = path.join(process.cwd(), "node_modules", ".bin", process.platform === "win32" ? "tsx.cmd" : "tsx");
 
 describe("@runxhq/extension-sdk", () => {
@@ -83,137 +78,7 @@ describe("@runxhq/extension-sdk", () => {
     expect(prune({ keep: "yes", drop: undefined, empty: [], nested: { value: undefined } })).toEqual({ keep: "yes" });
   });
 
-  it("runs a TypeScript external adapter against the conformance invocation fixture", async () => {
-    const invocation = JSON.parse(await readFile(externalAdapterInvocationPath, "utf8"));
-    const adapter = defineExternalAdapter({
-      adapterId: "adapter.conformance.echo",
-      invoke({ invocation }) {
-        return {
-          stdout: JSON.stringify({ message: invocation.inputs.message }),
-          stderr: "",
-          exitCode: 0,
-          output: {
-            adapter_language: "typescript",
-            message: invocation.inputs.message,
-            count: invocation.inputs.count,
-          },
-          observedAt: "2026-05-21T15:00:00.000Z",
-        };
-      },
-    });
-
-    const response = await adapter.runWith(invocation);
-
-    expect(validateExternalAdapterResponseContract(response)).toMatchObject({
-      schema: "runx.external_adapter.response.v1",
-      protocol_version: "runx.external_adapter.v1",
-      invocation_id: invocation.invocation_id,
-      adapter_id: invocation.adapter_id,
-      status: "completed",
-      output: {
-        adapter_language: "typescript",
-        message: "hello from fixture",
-        count: 2,
-      },
-    });
-  });
-
-  it("materializes resolved adapter inputs with explicit context precedence", () => {
-    expect(materializeExternalAdapterInputs({
-      inputs: { message: "static", count: 1 },
-      resolved_inputs: { message: "resolved" },
-    })).toEqual({ message: "resolved", count: 1 });
-  });
-
-  it("runs sample adapters over the process stdin/stdout wire protocol", async () => {
-    const invocationJson = await readFile(externalAdapterInvocationPath, "utf8");
-    const adapters = [
-      {
-        language: "typescript",
-        command: tsxBin,
-        args: [path.join(externalAdapterConformanceRoot, "typescript_echo_adapter.ts")],
-      },
-      {
-        language: "python",
-        command: "python3",
-        args: [path.join(externalAdapterConformanceRoot, "python_echo_adapter.py")],
-      },
-    ] as const;
-
-    for (const adapter of adapters) {
-      const stdout = await runExternalAdapterProcess(adapter.command, adapter.args, invocationJson);
-      const response = validateExternalAdapterResponseContract(JSON.parse(stdout));
-
-      expect(response).toMatchObject({
-        schema: "runx.external_adapter.response.v1",
-        protocol_version: "runx.external_adapter.v1",
-        invocation_id: "external_inv_conformance_001",
-        adapter_id: "adapter.conformance.echo",
-        status: "completed",
-        output: {
-          adapter_language: adapter.language,
-          message: "hello from fixture",
-          count: 2,
-        },
-      });
-    }
-  });
-
-  it("returns a failed protocol frame without turning it into a process failure", async () => {
-    const tempDir = await mkdtemp(path.join(os.tmpdir(), "runx-external-adapter-failure-"));
-    const adapterPath = path.join(tempDir, "adapter.mts");
-    try {
-      await writeFile(adapterPath, [
-        `import { defineExternalAdapter } from ${JSON.stringify(new URL("./index.ts", import.meta.url).href)};`,
-        'const adapter = defineExternalAdapter({',
-        '  adapterId: "adapter.conformance.echo",',
-        '  invoke() { throw new Error("expected adapter failure"); },',
-        '});',
-        'await adapter.main();',
-      ].join("\n"), "utf8");
-      const invocationJson = await readFile(externalAdapterInvocationPath, "utf8");
-      const stdout = await runExternalAdapterProcess(tsxBin, [adapterPath], invocationJson);
-      expect(validateExternalAdapterResponseContract(JSON.parse(stdout))).toMatchObject({
-        status: "failed",
-        exit_code: 1,
-        stderr: "expected adapter failure",
-      });
-    } finally {
-      await rm(tempDir, { recursive: true, force: true });
-    }
-  });
-
-  it("fails closed when a prebuilt adapter response changes invocation identity", async () => {
-    const invocation = JSON.parse(await readFile(externalAdapterInvocationPath, "utf8"));
-    const adapter = defineExternalAdapter({
-      adapterId: "adapter.conformance.echo",
-      invoke() {
-        return {
-          schema: "runx.external_adapter.response.v1" as const,
-          protocol_version: "runx.external_adapter.v1" as const,
-          invocation_id: "external_inv_other",
-          adapter_id: "adapter.conformance.echo",
-          status: "completed" as const,
-          observed_at: "2026-05-21T15:00:00.000Z",
-        };
-      },
-    });
-
-    await expect(adapter.runWith(invocation)).resolves.toMatchObject({
-      schema: "runx.external_adapter.response.v1",
-      protocol_version: "runx.external_adapter.v1",
-      invocation_id: invocation.invocation_id,
-      adapter_id: invocation.adapter_id,
-      status: "failed",
-      exit_code: 1,
-      errors: [{
-        code: "adapter_error",
-        retryable: false,
-      }],
-    });
-  });
-
-  it("keeps external adapter extension helpers protocol-only", async () => {
+  it("keeps extension helpers free of runtime packages", async () => {
     const source = await readFile(new URL("./index.ts", import.meta.url), "utf8");
     const forbiddenPackages = ["runtime-local", "adapters"].map((name) => `@runxhq/${name}`);
 
@@ -222,14 +87,6 @@ describe("@runxhq/extension-sdk", () => {
     }
   });
 });
-
-async function runExternalAdapterProcess(
-  command: string,
-  args: readonly string[],
-  invocationJson: string,
-): Promise<string> {
-  return runProcess(command, args, invocationJson);
-}
 
 async function runProcess(
   command: string,

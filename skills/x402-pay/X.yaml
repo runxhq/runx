@@ -1,5 +1,5 @@
 skill: x402-pay
-version: "0.9.0"
+version: "0.9.1"
 catalog: { kind: graph, audience: operator, visibility: public, role: branded, canonical_skill: runx/spend, provider: x402, runtime_path: hosted, execution: execute, completion: provider_readback, requires_adapter: true, approval: required }
 input_definitions:
   marketplace_offer:
@@ -78,6 +78,9 @@ input_definitions:
         currency: { type: string, const: USD }
         max_amount_minor: { type: integer, minimum: 0, maximum: 9007199254740991 }
         counterparty: { type: string, format: uri, maxLength: 2048 }
+connectors:
+  x402:
+    operations: [payment.x402, payment.x402.read]
 runners:
   pay:
     default: true
@@ -143,14 +146,9 @@ runners:
       result_from: [pay]
       steps:
         - id: pay
-          tool: provider.mutate
+          operation: x402/payment.x402
           idempotency_key: $input.idempotency_seed
-          scopes: [payment.x402]
-          policy: { provider_permission: { verb: write } }
           inputs:
-            operation: payment.x402
-            target: $input.payment_signal.resource.url
-            expected_provider: x402
             approval:
               reason: Approve paying this exact x402 challenge.
               type: x402_payment
@@ -177,18 +175,16 @@ runners:
       result_from: [readback]
       steps:
         - id: prepare
-          inputs: { payment_ref: $input.payment_ref }
+          inputs: { payment_ref: $input.payment_ref, resource_url: $input.resource_url }
           run:
             type: javascript
             module: readback.mjs
             export: prepareReadback
             timeout_seconds: 5
-            outputs: { readback_request: object }
+            outputs: { readback_request: object, expected_result: object }
         - id: readback
-          tool: provider.read
-          scopes: [payment.x402.read]
-          policy: { provider_permission: { verb: read } }
-          inputs: { operation: payment.x402.read, target: $input.resource_url, expected_provider: x402, result_fields: [payment_ref, challenge_id, amount_minor, currency, status, transaction, network, payer, pay_to, invocation_id, payment_required_digest, payment_response_digest, resource_status, resource_result, readback_status], optional_result_fields: [resource_state, finality, block_number, inner_receipt_ref, runx_composite], ephemeral_result_paths: [/resource_result/resource_access] }
+          operation: x402/payment.x402.read
+          inputs: { result_fields: [payment_ref, challenge_id, amount_minor, currency, status, transaction, network, payer, pay_to, invocation_id, payment_required_digest, payment_response_digest, resource_status, resource_result, readback_status], optional_result_fields: [resource_state, finality, block_number, inner_receipt_ref, runx_composite], ephemeral_result_paths: [/resource_result/resource_access] }
           context:
             input: prepare.readback_request
-            expected_result: prepare.readback_request
+            expected_result: prepare.expected_result

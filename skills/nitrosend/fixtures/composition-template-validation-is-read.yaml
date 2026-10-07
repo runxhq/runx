@@ -3,14 +3,14 @@ kind: skill
 target: ..
 runner: compose-email
 operator_journeys:
-  - mode: composed
-    request: Validate this contract-bound reusable Nitrosend template without saving it.
-    expected_outcome: Reuse the current contract and candidate, return provider validation evidence, and perform no draft persistence or delivery.
-    prior_evidence:
-      - Nitrosend intent returned contract ecc_template_fixture and a template next call.
-    must_not_repeat:
-      - Do not request another intent contract.
-      - Do not persist, approve, test, or send the template.
+- mode: composed
+  request: Validate this contract-bound reusable Nitrosend template without saving it.
+  expected_outcome: Reuse the current contract and candidate, return provider validation evidence, and perform no draft persistence or delivery.
+  prior_evidence:
+  - Nitrosend intent returned contract ecc_template_fixture and a template next call.
+  must_not_repeat:
+  - Do not request another intent contract.
+  - Do not persist, approve, test, or send the template.
 inputs:
   target_type: template
   composition_mode: validate
@@ -21,43 +21,50 @@ inputs:
     name: Product update
     subject: Two useful improvements
     sections:
-      - { type: header, props: {} }
-      - { type: text, props: { content: "<p>Two useful improvements are ready.</p>" } }
-      - { type: footer, props: {} }
+    - type: header
+      props: {}
+    - type: text
+      props:
+        content: <p>Two useful improvements are ready.</p>
+    - type: footer
+      props: {}
   brand_sid: brnd_demo123
+setup:
+  credentials:
+  - nitrosend
 env:
   NITROSEND_API_KEY: harness-nitrosend-token
 caller:
-  http_exchanges:
-    - request:
-        method: POST
-        url: https://api.nitrosend.com/mcp
-        body:
-          json:
-            jsonrpc: "2.0"
-            id: nitrosend-compose_email
-            method: tools/call
-            params:
-              name: nitro_manage_template
-              arguments:
-                contract_id: ecc_template_fixture
-                name: Product update
-                subject: Two useful improvements
-                sections:
-                  - { type: header, props: {} }
-                  - { type: text, props: { content: "<p>Two useful improvements are ready.</p>" } }
-                  - { type: footer, props: {} }
-                composition_mode: validate
-                validate_only: true
-      response:
-        status: 200
-        headers: { content-type: application/json }
-        body: >-
-          {"jsonrpc":"2.0","id":"nitrosend-compose_email","result":{"content":[{"type":"text","text":"{\"meta\":{\"tool\":\"nitro_manage_template\"},\"result\":{\"composition_status\":\"valid\",\"contract_id\":\"ecc_template_fixture\",\"valid\":true,\"persisted\":false}}"}]}}
+  mcp_calls:
+  - tool: nitro_manage_template
+    arguments:
+      contract_id: ecc_template_fixture
+      name: Product update
+      subject: Two useful improvements
+      sections:
+      - type: header
+        props: {}
+      - type: text
+        props:
+          content: <p>Two useful improvements are ready.</p>
+      - type: footer
+        props: {}
+      composition_mode: validate
+      validate_only: true
+    headers:
+      x-brand-sid: brnd_demo123
+    result:
+      content:
+      - type: text
+        text: '{"meta":{"tool":"nitro_manage_template"},"result":{"composition_status":"valid","contract_id":"ecc_template_fixture","valid":true,"persisted":false}}'
 expect:
   status: sealed
-  steps: [compose]
-  receipt: { schema: runx.receipt.v1, state: sealed, disposition: closed }
+  steps:
+  - compose
+  receipt:
+    schema: runx.receipt.v1
+    state: sealed
+    disposition: closed
 metadata:
   public_skill: nitrosend
   source_case: composition-template-validation-is-read

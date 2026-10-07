@@ -10,9 +10,11 @@ use super::helpers::{
     optional_number, optional_object, optional_string, optional_string_array,
     optional_string_object, required_string, validation_error,
 };
+use runx_contracts::connector::{OperationName, is_connector_id};
+
 use super::types::{
-    GraphContextEdge, GraphRetryPolicy, GraphRunTarget, GraphStep, GraphWhen,
-    MintAuthorityDirective, MintScopeSource,
+    DuplicatePolicy, GraphContextEdge, GraphRetryPolicy, GraphRunTarget, GraphStep, GraphWhen,
+    OperationStepTarget, UncertainOutcome,
 };
 use crate::{ValidationError, skill::validate_skill_artifact_contract};
 
@@ -20,7 +22,53 @@ struct StepTarget {
     skill: Option<String>,
     tool: Option<String>,
     run: Option<GraphRunTarget>,
+    operation: Option<OperationStepTarget>,
 }
+
+/// Every key a step may carry. Anything else is an authoring error, never
+/// silently ignored.
+const STEP_FIELDS: &[&str] = &[
+    "id",
+    "label",
+    "skill",
+    "tool",
+    "run",
+    "operation",
+    "artifacts",
+    "outputs",
+    "runner",
+    "inputs",
+    "context",
+    "context_skills",
+    "scopes",
+    "allowed_tools",
+    "retry",
+    "policy",
+    "fanout_group",
+    "mode",
+    "when",
+    "idempotency_key",
+    "on_uncertain",
+    "duplicates",
+];
+
+/// Fields that do not apply to an operation step: the operation's manifest
+/// owns scopes, verb, approval floor and output packet, and its tolerance
+/// replaces retries.
+const NON_OPERATION_FIELDS: &[&str] = &[
+    "artifacts",
+    "outputs",
+    "runner",
+    "context_skills",
+    "scopes",
+    "allowed_tools",
+    "retry",
+    "policy",
+];
+
+/// Inputs an operation step must not pass: the manifest and the instance own
+/// what these used to say.
+const RETIRED_OPERATION_INPUTS: &[&str] = &["expected_provider", "target_from_grant", "adapter"];
 
 // Function rationale: step validation parses one step's fields in a
 // single pass and rejects incoherent combinations inline; splitting it would scatter
@@ -29,7 +77,6 @@ pub fn validate_step(
     raw_step: &JsonObject,
     field: &str,
     previous_step_ids: &BTreeSet<String>,
-    charter_in_scope: bool,
 ) -> Result<GraphStep, ValidationError> {
     reject_unsupported_step_fields(raw_step, field)?;
 
@@ -51,6 +98,10 @@ pub fn validate_step(
     reject_legacy_input_bindings(&inputs, &format!("{field}.inputs"))?;
     reject_step_output_refs_in_inputs(&inputs, previous_step_ids, &format!("{field}.inputs"))?;
     reject_static_context_input_collisions(&inputs, &context, field)?;
+    if let Some(operation) = &target.operation {
+        validate_operation_step(raw_step, field, operation, &inputs, &context)?;
+    }
+    let (on_uncertain, duplicates) = validate_tolerance(raw_step, field, &target)?;
 
     let scopes = optional_string_array(raw_step.get("scopes"), &format!("{field}.scopes"))?
         .unwrap_or_default();
@@ -59,17 +110,6 @@ pub fn validate_step(
             "{field}.scopes must contain only non-empty scope strings."
         )));
     }
-    let requested_scope_from = optional_non_empty_string(
-        raw_step.get("requested_scope_from"),
-        &format!("{field}.requested_scope_from"),
-    )?;
-    let mint_authority = validate_mint_authority(
-        raw_step.get("mint_authority"),
-        field,
-        charter_in_scope,
-        &scopes,
-        requested_scope_from.as_deref(),
-    )?;
     let outputs = optional_object(raw_step.get("outputs"), &format!("{field}.outputs"))?;
     if let Some(outputs) = &outputs {
         runx_contracts::parse_output_contract(outputs)
@@ -82,6 +122,7 @@ pub fn validate_step(
         skill: target.skill,
         tool: target.tool,
         run: target.run,
+        operation: target.operation,
         artifacts: validate_skill_artifact_contract(
             raw_step.get("artifacts"),
             &format!("{field}.artifacts"),
@@ -105,9 +146,107 @@ pub fn validate_step(
             raw_step.get("idempotency_key"),
             &format!("{field}.idempotency_key"),
         )?,
-        mint_authority,
-        requested_scope_from,
+        on_uncertain,
+        duplicates,
     })
+}
+
+/// `operation: <requirement>/<operation>`, or `operation: <requirement>` with
+/// the operation name bound as the step's `operation` input.
+fn parse_operation_target(
+    value: Option<&JsonValue>,
+    field: &str,
+) -> Result<Option<OperationStepTarget>, ValidationError> {
+    let Some(value) = optional_non_empty_string(value, &format!("{field}.operation"))? else {
+        return Ok(None);
+    };
+    let (requirement, operation) = match value.split_once('/') {
+        Some((requirement, operation)) => (requirement, Some(operation)),
+        None => (value.as_str(), None),
+    };
+    if !is_connector_id(requirement) {
+        return Err(validation_error(format!(
+            "{field}.operation requirement '{requirement}' must be a connectors key."
+        )));
+    }
+    let operation = operation
+        .map(|operation| {
+            OperationName::new(operation).ok_or_else(|| {
+                validation_error(format!(
+                    "{field}.operation '{operation}' is not a valid operation name."
+                ))
+            })
+        })
+        .transpose()?;
+    Ok(Some(OperationStepTarget {
+        requirement: requirement.to_owned(),
+        operation,
+        declared: None,
+    }))
+}
+
+fn validate_operation_step(
+    raw_step: &JsonObject,
+    field: &str,
+    operation: &OperationStepTarget,
+    inputs: &JsonObject,
+    context: &BTreeMap<String, String>,
+) -> Result<(), ValidationError> {
+    if let Some(key) = NON_OPERATION_FIELDS
+        .iter()
+        .find(|key| raw_step.contains_key(**key))
+    {
+        return Err(validation_error(format!(
+            "{field}.{key} does not apply to an operation step; the connector operation owns it."
+        )));
+    }
+    if let Some(key) = RETIRED_OPERATION_INPUTS
+        .iter()
+        .find(|key| inputs.contains_key(**key) || context.contains_key(**key))
+    {
+        return Err(validation_error(format!(
+            "{field}.inputs.{key} is retired; the connector requirement and its instance decide it."
+        )));
+    }
+    let binds_operation = inputs.contains_key("operation") || context.contains_key("operation");
+    match (&operation.operation, binds_operation) {
+        (Some(_), true) => Err(validation_error(format!(
+            "{field} names its operation and also binds an operation input."
+        ))),
+        (None, false) => Err(validation_error(format!(
+            "{field}.operation names only a requirement; bind the operation name as the step's operation input."
+        ))),
+        _ => Ok(()),
+    }
+}
+
+fn validate_tolerance(
+    raw_step: &JsonObject,
+    field: &str,
+    target: &StepTarget,
+) -> Result<(Option<UncertainOutcome>, Option<DuplicatePolicy>), ValidationError> {
+    let on_uncertain = optional_string(raw_step.get("on_uncertain"), &format!("{field}.on_uncertain"))?
+        .map(|value| UncertainOutcome::parse(&value).ok_or_else(|| {
+            validation_error(format!(
+                "{field}.on_uncertain '{value}' must be hold, reconcile, or expire_after <n>s|m|h|d."
+            ))
+        }))
+        .transpose()?;
+    let duplicates = optional_string(raw_step.get("duplicates"), &format!("{field}.duplicates"))?
+        .map(|value| match value.as_str() {
+            "forbidden" => Ok(DuplicatePolicy::Forbidden),
+            "visible" => Ok(DuplicatePolicy::Visible),
+            _ => Err(validation_error(format!(
+                "{field}.duplicates '{value}' must be forbidden or visible."
+            ))),
+        })
+        .transpose()?;
+    if target.operation.is_none() && (on_uncertain.is_some() || duplicates.is_some()) {
+        return Err(validation_error(format!(
+            "{field}.on_uncertain and {field}.duplicates apply only to operation steps."
+        )));
+    }
+    Ok((on_uncertain, duplicates))
 }
 
 fn reject_static_context_input_collisions(
@@ -127,77 +266,6 @@ fn reject_static_context_input_collisions(
         "{field} binds the same input through both inputs and context: {}.",
         collisions.join(", ")
     )))
-}
-
-/// Validate the `mint_authority` compute-path directive and its coherence with
-/// the graph charter and the chosen scope source. A directive is only admissible
-/// when the graph (or runner) declares `charter_from`, and each source draws from
-/// exactly one place: `static_scopes` from the step's non-empty `scopes:` list and
-/// nothing else, `requested_scope` from `requested_scope_from` and nothing else.
-fn validate_mint_authority(
-    value: Option<&JsonValue>,
-    field: &str,
-    charter_in_scope: bool,
-    scopes: &[String],
-    requested_scope_from: Option<&str>,
-) -> Result<Option<MintAuthorityDirective>, ValidationError> {
-    let Some(record) = optional_object(value, &format!("{field}.mint_authority"))? else {
-        if requested_scope_from.is_some() {
-            return Err(validation_error(format!(
-                "{field}.requested_scope_from is only valid with a mint_authority directive."
-            )));
-        }
-        return Ok(None);
-    };
-    if !charter_in_scope {
-        return Err(validation_error(format!(
-            "{field}.mint_authority requires the graph to declare charter_from."
-        )));
-    }
-    let source = validate_mint_scope_source(
-        record.get("source"),
-        &format!("{field}.mint_authority.source"),
-    )?;
-    match source {
-        MintScopeSource::StaticScopes => {
-            if scopes.is_empty() {
-                return Err(validation_error(format!(
-                    "{field}.mint_authority source static_scopes requires a non-empty scopes list."
-                )));
-            }
-            if requested_scope_from.is_some() {
-                return Err(validation_error(format!(
-                    "{field}.mint_authority source static_scopes must not declare requested_scope_from."
-                )));
-            }
-        }
-        MintScopeSource::RequestedScope => {
-            if requested_scope_from.is_none() {
-                return Err(validation_error(format!(
-                    "{field}.mint_authority source requested_scope requires requested_scope_from."
-                )));
-            }
-            if !scopes.is_empty() {
-                return Err(validation_error(format!(
-                    "{field}.mint_authority source requested_scope must not declare a static scopes list."
-                )));
-            }
-        }
-    }
-    Ok(Some(MintAuthorityDirective { source }))
-}
-
-fn validate_mint_scope_source(
-    value: Option<&JsonValue>,
-    field: &str,
-) -> Result<MintScopeSource, ValidationError> {
-    match required_string(value, field)?.as_str() {
-        "static_scopes" => Ok(MintScopeSource::StaticScopes),
-        "requested_scope" => Ok(MintScopeSource::RequestedScope),
-        other => Err(validation_error(format!(
-            "{field} '{other}' must be static_scopes or requested_scope."
-        ))),
-    }
 }
 
 fn reject_step_output_refs_in_inputs(
@@ -403,13 +471,15 @@ fn validate_step_target(raw_step: &JsonObject, field: &str) -> Result<StepTarget
         skill: optional_non_empty_string(raw_step.get("skill"), &format!("{field}.skill"))?,
         tool: optional_non_empty_string(raw_step.get("tool"), &format!("{field}.tool"))?,
         run,
+        operation: parse_operation_target(raw_step.get("operation"), field)?,
     };
     let target_count = usize::from(target.skill.is_some())
         + usize::from(target.tool.is_some())
-        + usize::from(target.run.is_some());
+        + usize::from(target.run.is_some())
+        + usize::from(target.operation.is_some());
     if target_count != 1 {
         return Err(validation_error(format!(
-            "{field} must declare exactly one of skill, tool, or run."
+            "{field} must declare exactly one of skill, tool, run, or operation."
         )));
     }
     Ok(target)
@@ -459,14 +529,22 @@ fn reject_unsupported_step_fields(
         )));
     }
     validate_mode(raw_step, field)?;
-    if ["run", "skill", "tool"]
+    if let Some(key) = raw_step
+        .keys()
+        .find(|key| !STEP_FIELDS.contains(&key.as_str()))
+    {
+        return Err(validation_error(format!(
+            "{field}.{key} is not a graph step field."
+        )));
+    }
+    if ["run", "skill", "tool", "operation"]
         .into_iter()
         .filter(|key| raw_step.contains_key(*key))
         .count()
         > 1
     {
         return Err(validation_error(format!(
-            "{field} must not declare more than one of run, skill, or tool."
+            "{field} must not declare more than one of run, skill, tool, or operation."
         )));
     }
     Ok(())

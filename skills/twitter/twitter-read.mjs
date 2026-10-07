@@ -1,12 +1,10 @@
 const QUERIES = new Set(["snapshot", "posts", "mentions", "search", "following", "followers"]);
-const TWEET_FIELDS = "created_at,public_metrics,entities,referenced_tweets,in_reply_to_user_id";
-const USER_FIELDS = "created_at,description,public_metrics";
+const USER_QUERIES = new Set(["following", "followers"]);
 
 export function prepareRead(inputs) {
   const query = text(inputs.query);
   const params = record(inputs.params);
   const maxItems = positiveInteger(inputs.max_items, 200, 10_000);
-  const authMode = inputs.auth === "app" ? "app" : "user";
   const source = text(inputs.source) || "live";
   const packet = (decision, overrides = {}) => readPlan(query, params, maxItems, decision, overrides);
 
@@ -18,8 +16,7 @@ export function prepareRead(inputs) {
     };
   }
   if (source === "archive") {
-    const archiveFile = text(inputs.archive_file);
-    if (!archiveFile) {
+    if (!text(inputs.archive_file)) {
       return {
         twitter_read_plan: packet("needs_input", {
           source,
@@ -28,104 +25,79 @@ export function prepareRead(inputs) {
       };
     }
     return {
-      twitter_read_plan: packet("archive", {
-        source: "archive",
-        archive_files: [],
-        retrieved_via: "runtime_artifact",
-      }),
+      twitter_read_plan: packet("archive", { source: "archive", retrieved_via: "runtime_artifact" }),
     };
   }
   if (source !== "live") {
     return {
-      twitter_read_plan: packet("needs_input", {
-        blockers: ["source must be live or archive"],
-      }),
+      twitter_read_plan: packet("needs_input", { blockers: ["source must be live or archive"] }),
     };
   }
   if (query === "search" && !text(params.q)) {
     return {
-      twitter_read_plan: packet("needs_input", {
-        blockers: ["params.q is required for search"],
-      }),
+      twitter_read_plan: packet("needs_input", { blockers: ["params.q is required for search"] }),
     };
   }
-
-  const needsSelf = query === "snapshot" || (!text(params.user_id) && query !== "search");
-  if (needsSelf && authMode === "app") {
-    return {
-      twitter_read_plan: packet("needs_input", {
-        blockers: ["params.user_id is required for app-context reads that target an account"],
-        stop_conditions: ["needs_authority"],
-      }),
-    };
-  }
+  const [operation, input] = liveCall(query, params, maxItems);
   return {
-    twitter_read_plan: packet("live", {
-      source: "live",
-      auth: authMode === "app"
-        ? { type: "bearer", secret_env: "TWITTER_BEARER_TOKEN" }
-        : { type: "oauth1", secret_env: "TWITTER_USER_AUTH" },
-      requests: liveRequests(query, params, maxItems, needsSelf),
-    }),
+    twitter_read_plan: packet("live", { connector_operation: operation, provider_input: input }),
   };
+}
+
+// The connector operation that answers a query: the authenticated account's
+// own collection unless the query names another account.
+function liveCall(query, params, maxItems) {
+  if (query === "snapshot") return ["account.snapshot", {}];
+  const page = {
+    limit: maxItems,
+    page_size: Math.max(10, Math.min(100, maxItems)),
+    ...(text(params.pagination_token) ? { cursor: text(params.pagination_token) } : {}),
+  };
+  if (query === "search") return ["posts.search", { query: text(params.q), ...page }];
+  const userId = text(params.user_id);
+  return userId
+    ? [`${query}.read`, { user_id: userId, ...page }]
+    : [`account.${query}.read`, page];
 }
 
 export function normalizeRead(inputs) {
   const plan = record(inputs.read_plan);
-  const execution = record(inputs.http_execution);
-
-  if (plan.decision !== "live") {
-    return {
-      twitter_read_result: readResult(plan, {
-        decision: "needs_input",
-        source: text(plan.source) || "live",
-        blockers: array(plan.blockers),
-        stop_conditions: array(plan.stop_conditions),
-      }),
-    };
-  }
-
-  const responses = new Map(
-    array(execution.responses).map((value) => [text(record(value).id), record(value)]),
-  );
-  const self = responses.get("self");
-  const collection = responses.get("collection");
-  const failure = [self, collection]
-    .filter(Boolean)
-    .find((response) => response.performed !== false && response.ok !== true);
-  if (failure) {
-    const status = number(failure.status, 0);
-    const authority = [401, 402, 403].includes(status);
-    return {
-      twitter_read_result: readResult(plan, {
-        decision: status === 429 ? "stopped" : authority ? "needs_input" : "provider_error",
-        blockers: [providerError(failure)],
-        rate: rate(failure),
-        stop_conditions: status === 429 ? ["rate_limited"] : authority ? ["needs_authority"] : [],
-        request_count: number(execution.request_count, 0),
-      }),
-    };
-  }
-
+  const operation = record(inputs.provider_operation);
+  const result = record(operation.result);
   const kind = text(record(plan.query).kind);
-  const pages = collection ? array(collection.pages) : [];
-  const rawItems = pages.flatMap((page) => array(record(record(page).json).data));
-  const mapped = rawItems.map(kind === "following" || kind === "followers" ? mapUser : mapPost);
-  const maxItems = number(plan.max_items, 200);
-  const items = mapped.slice(0, maxItems);
-  const last = collection || self || {};
+  // Pages are read whole, so the items may run past max_items by part of a
+  // page; every one is kept, and the next read starts where these stop.
+  const items = array(USER_QUERIES.has(kind) ? result.users : result.posts)
+    .map(record)
+    .map(USER_QUERIES.has(kind) ? mapUser : mapPost);
+  const next = text(result.next);
   return {
     twitter_read_result: readResult(plan, {
-      decision: execution.stopped === true ? "stopped" : "ok",
-      account: self?.json?.data ? mapUser(self.json.data) : null,
+      account: result.account ? mapUser(record(result.account)) : null,
       items,
-      truncated: mapped.length > items.length || Boolean(collection?.next_cursor),
-      rate: rate(last),
-      request_count: number(execution.request_count, 0),
-      stop_conditions: execution.stopped === true ? ["rate_limited"] : [],
+      truncated: Boolean(next),
+      next_cursor: next || null,
+      retrieved_via: text(operation.readback_ref) || "api.x.com",
     }),
   };
 }
+
+// A read that needs input before any provider call, as evidence with no
+// items. The digest is of the empty item list.
+export function blockedRead(inputs) {
+  const plan = record(inputs.read_plan);
+  return finalizeRead({
+    read_result: readResult(plan, {
+      decision: "needs_input",
+      source: text(plan.source) || "live",
+      blockers: array(plan.blockers),
+    }),
+    digest_result: { digest: EMPTY_ITEMS_DIGEST },
+  });
+}
+
+// The canonical digest of [], what data.digest returns for no items.
+const EMPTY_ITEMS_DIGEST = "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945";
 
 export function normalizeArchivePage(inputs) {
   const plan = record(inputs.read_plan);
@@ -180,7 +152,6 @@ export function normalizeArchivePage(inputs) {
       items,
       truncated,
       retrieved_via: text(page.artifact_ref),
-      request_count: 0,
       blockers,
     }),
   };
@@ -191,21 +162,19 @@ export function finalizeRead(inputs) {
   const items = array(value.items);
   return {
     twitter_evidence: {
-      decision: text(value.decision) || "provider_error",
+      decision: text(value.decision) || "ok",
       source: text(value.source) || "live",
       query: record(value.query),
       account: value.account ?? null,
       items,
       item_count: items.length,
       truncated: value.truncated === true,
+      next_cursor: text(value.next_cursor) || null,
       provenance: {
         retrieved_via: text(value.retrieved_via),
-        request_count: number(value.request_count, 0),
         content_digest: text(record(inputs.digest_result).digest),
       },
-      rate: record(value.rate),
       blockers: array(value.blockers),
-      stop_conditions: array(value.stop_conditions),
     },
   };
 }
@@ -216,72 +185,12 @@ function readPlan(query, params, maxItems, decision, overrides = {}) {
     source: "live",
     query: { kind: query, params },
     max_items: maxItems,
-    auth: null,
-    allowed_hosts: ["api.x.com"],
-    requests: [],
-    archive_files: [],
-    items: [],
-    truncated: false,
+    connector_operation: null,
+    provider_input: null,
     retrieved_via: "api.x.com",
     blockers: [],
-    stop_conditions: [],
     ...overrides,
   };
-}
-
-function liveRequests(kind, requestParams, limit, needsSelf) {
-  const requests = [];
-  if (needsSelf) {
-    requests.push({
-      id: "self",
-      method: "GET",
-      url: "https://api.x.com/2/users/me",
-      query: { "user.fields": USER_FIELDS },
-    });
-  }
-  if (kind === "snapshot") return requests;
-
-  const userId = text(requestParams.user_id);
-  const target = userId || "{$response:self.json.data.id}";
-  let url;
-  let query;
-  if (kind === "posts") {
-    url = `https://api.x.com/2/users/${target}/tweets`;
-    query = { "tweet.fields": TWEET_FIELDS };
-  } else if (kind === "mentions") {
-    url = `https://api.x.com/2/users/${target}/mentions`;
-    query = { "tweet.fields": TWEET_FIELDS };
-  } else if (kind === "search") {
-    url = "https://api.x.com/2/tweets/search/recent";
-    query = { query: text(requestParams.q), "tweet.fields": TWEET_FIELDS };
-  } else if (kind === "following") {
-    url = `https://api.x.com/2/users/${target}/following`;
-    query = { "user.fields": USER_FIELDS };
-  } else {
-    url = `https://api.x.com/2/users/${target}/followers`;
-    query = { "user.fields": USER_FIELDS };
-  }
-  const pageSize = Math.max(10, Math.min(100, limit));
-  const initialCursor = text(requestParams.pagination_token);
-  requests.push({
-    id: "collection",
-    method: "GET",
-    url,
-    query: {
-      ...query,
-      max_results: pageSize,
-      ...(initialCursor ? { pagination_token: initialCursor } : {}),
-    },
-    ...(needsSelf ? { requires_success_of: ["self"] } : {}),
-    pagination: {
-      cursor_param: "pagination_token",
-      cursor_path: "meta.next_token",
-      items_path: "data",
-      max_pages: Math.min(20, Math.max(1, Math.ceil(limit / pageSize))),
-      max_items: limit,
-    },
-  });
-  return requests;
 }
 
 function readResult(plan, overrides = {}) {
@@ -292,11 +201,9 @@ function readResult(plan, overrides = {}) {
     account: null,
     items: [],
     truncated: false,
+    next_cursor: null,
     retrieved_via: text(plan.retrieved_via) || "api.x.com",
-    request_count: 0,
-    rate: { limited: false, remaining: -1, reset_at: null },
     blockers: [],
-    stop_conditions: [],
     ...overrides,
   };
 }
@@ -349,28 +256,6 @@ function mapUser(raw) {
       posts: number(metrics.tweet_count, 0),
     },
   };
-}
-
-function rate(response = {}) {
-  const headers = record(response.headers);
-  const reset = Number(headers["x-rate-limit-reset"]);
-  return {
-    limited: number(response.status, 0) === 429,
-    remaining: number(headers["x-rate-limit-remaining"], -1),
-    reset_at: Number.isFinite(reset) && reset > 0 ? new Date(reset * 1000).toISOString() : null,
-  };
-}
-
-function providerError(response) {
-  const body = record(response.json);
-  const first = array(body.errors).map(record)[0] ?? {};
-  const status = number(response.status, 0);
-  const specific = text(first.detail) || text(first.message) || text(body.detail) || text(body.title);
-  if (specific) return specific;
-  if (status === 401) return "provider rejected the credentials (401); check the token values and app access";
-  if (status === 402) return "provider requires payment (402); add API credits or a spending cap";
-  if (status === 403) return "provider refused the request (403); check the required scopes";
-  return `provider returned HTTP ${status}`;
 }
 
 function record(value) {

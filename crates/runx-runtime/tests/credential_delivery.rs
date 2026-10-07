@@ -1,4 +1,4 @@
-#![cfg(all(feature = "cli-tool", feature = "mcp"))]
+#![cfg(feature = "cli-tool")]
 
 use std::collections::BTreeMap;
 use std::path::PathBuf;
@@ -12,7 +12,6 @@ use runx_contracts::{
 use runx_core::policy::{CredentialBindingDecision, CredentialEnvelope};
 use runx_parser::SkillSource;
 use runx_runtime::adapters::cli_tool::CliToolAdapter;
-use runx_runtime::adapters::mcp::{FixtureMcpTransport, McpAdapter};
 use runx_runtime::{
     CredentialDelivery, CredentialDeliveryError, CredentialDeliveryProfile,
     InMemoryMaterialResolver, InvocationStatus, ResolvedCredentialMaterial, SkillAdapter,
@@ -291,6 +290,7 @@ fn delivery_profile_rejects_empty_material() -> Result<(), Box<dyn std::error::E
 fn cli_tool_delivers_and_redacts_declared_credential() -> Result<(), Box<dyn std::error::Error>> {
     let delivery = allowed_delivery()?;
     let output = CliToolAdapter.invoke(SkillInvocation {
+        historical_context: Vec::new(),
         skill_name: "credential.echo".to_owned(),
         step_id: None,
         artifacts: None,
@@ -318,6 +318,7 @@ fn cli_tool_delivers_and_redacts_declared_credential() -> Result<(), Box<dyn std
 #[test]
 fn cli_tool_omits_truncated_output_before_redaction() -> Result<(), Box<dyn std::error::Error>> {
     let output = CliToolAdapter.invoke(SkillInvocation {
+        historical_context: Vec::new(),
         skill_name: "credential.large-output".to_owned(),
         step_id: None,
         artifacts: None,
@@ -406,39 +407,6 @@ fn credential_delivery_redacts_exact_encoded_values_without_destroying_endpoint_
     Ok(())
 }
 
-#[test]
-fn mcp_adapter_delivers_secret_env_and_redacts_tool_result()
--> Result<(), Box<dyn std::error::Error>> {
-    let mut inputs = runx_contracts::JsonObject::new();
-    inputs.insert(
-        "name".to_owned(),
-        runx_contracts::JsonValue::String("GITHUB_TOKEN".to_owned()),
-    );
-    let output = McpAdapter::new(FixtureMcpTransport).invoke(SkillInvocation {
-        skill_name: "credential.mcp".to_owned(),
-        step_id: None,
-        artifacts: None,
-        allowed_tools: None,
-        source: mcp_source(),
-        inputs,
-        resolved_inputs: Default::default(),
-        current_context: Vec::new(),
-        provenance: Vec::new(),
-        skill_directory: std::env::current_dir()?,
-        env: process_env(),
-        requirements: Default::default(),
-        credential_delivery: allowed_delivery()?,
-    })?;
-
-    assert_eq!(output.status, InvocationStatus::Success);
-    // The MCP envelope is projected to its semantic value; the delivered
-    // secret must arrive redacted.
-    assert_eq!(output.value.as_str(), Some("[redacted-credential]"));
-    assert!(!output.rendered_value().contains("ghs_secret_token"));
-    assert!(!serde_json::to_string(&output.metadata)?.contains("ghs_secret_token"));
-    Ok(())
-}
-
 fn allowed_delivery() -> Result<CredentialDelivery, CredentialDeliveryError> {
     CredentialDelivery::from_allowed_binding(
         &CredentialBindingDecision::Allow {
@@ -523,17 +491,10 @@ fn cli_source() -> SkillSource {
         cwd: None,
         timeout_seconds: Some(5),
         input_mode: None,
-        server: None,
-        tool: None,
-        arguments: None,
-        agent_card_url: None,
-        agent_identity: None,
         agent: None,
         task: None,
         outputs: None,
         graph: None,
-        external_adapter: None,
-        thread_outbox_provider: None,
         environment: Default::default(),
         raw: Default::default(),
     }
@@ -546,20 +507,6 @@ fn large_output_cli_source() -> SkillSource {
         "-e".to_owned(),
         "process.stdout.write('x'.repeat(8 * 1024 * 1024 + 1));".to_owned(),
     ];
-    source
-}
-
-fn mcp_source() -> SkillSource {
-    let mut source = cli_source();
-    source.source_type = runx_parser::SourceKind::Mcp;
-    source.command = None;
-    source.args = Vec::new();
-    source.server = Some(runx_parser::SkillMcpServer {
-        command: "fixture".to_owned(),
-        args: Vec::new(),
-        cwd: None,
-    });
-    source.tool = Some("env".to_owned());
     source
 }
 

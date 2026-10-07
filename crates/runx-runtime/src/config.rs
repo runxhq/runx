@@ -33,17 +33,15 @@ pub struct RunxConfigFile {
 pub struct RunxCredentialsConfig {
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub profiles: BTreeMap<String, RunxCredentialProfile>,
-    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
-    pub defaults: BTreeMap<String, String>,
 }
 
+/// A stored secret: which connector credential it holds, and where the
+/// encrypted material is.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct RunxCredentialProfile {
-    pub provider: String,
-    pub auth_mode: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub audience: Option<String>,
+    pub connector: String,
+    pub credential: String,
     pub secret_ref: String,
 }
 
@@ -52,6 +50,9 @@ pub struct RunxCredentialProfile {
 pub struct RunxAgentConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub provider: Option<String>,
+    /// The wire format of a provider runx has no built-in profile for.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dialect: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -85,6 +86,7 @@ pub struct RunxPublicConfig {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ConfigKey {
     AgentProvider,
+    AgentDialect,
     AgentModel,
     AgentApiKey,
     AgentEndpointUrl,
@@ -92,24 +94,84 @@ pub enum ConfigKey {
     PublicApiToken,
 }
 
-/// Canonical managed agent provider identifiers. The wire form on
-/// `ManagedAgentConfig::provider` is an open `NonEmptyString`; this module is
-/// for discoverability and shared default constants.
-pub mod managed_agent_provider {
-    /// OpenAI-compatible chat completion API.
-    pub const OPENAI: &str = "openai";
-    /// Anthropic Messages API.
-    pub const ANTHROPIC: &str = "anthropic";
+/// A model API's wire format. Dialects are code; providers are data.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ModelDialect {
+    /// The chat completions format most providers and local servers speak.
+    ChatCompletions,
+    AnthropicMessages,
+}
+
+impl ModelDialect {
+    #[must_use]
+    pub fn parse(value: &str) -> Option<Self> {
+        match value.trim() {
+            "chat_completions" => Some(Self::ChatCompletions),
+            "anthropic_messages" => Some(Self::AnthropicMessages),
+            _ => None,
+        }
+    }
+
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::ChatCompletions => "chat_completions",
+            Self::AnthropicMessages => "anthropic_messages",
+        }
+    }
+}
+
+/// A provider runx knows: the dialect it speaks, where, the variable that
+/// holds its key, and the model a run uses when none is configured. Any other
+/// provider names its dialect, endpoint and model in config.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ModelProvider {
+    pub id: &'static str,
+    pub dialect: ModelDialect,
+    pub endpoint: &'static str,
+    pub key_env: &'static str,
+    pub default_model: &'static str,
+}
+
+pub const MODEL_PROVIDERS: &[ModelProvider] = &[
+    ModelProvider {
+        id: "anthropic",
+        dialect: ModelDialect::AnthropicMessages,
+        endpoint: "https://api.anthropic.com/v1/messages",
+        key_env: "ANTHROPIC_API_KEY",
+        default_model: "claude-opus-5-5",
+    },
+    ModelProvider {
+        id: "openai",
+        dialect: ModelDialect::ChatCompletions,
+        endpoint: "https://api.openai.com/v1/chat/completions",
+        key_env: "OPENAI_API_KEY",
+        default_model: "gpt-6-sol",
+    },
+    ModelProvider {
+        id: "gemini",
+        dialect: ModelDialect::ChatCompletions,
+        endpoint: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+        key_env: "GEMINI_API_KEY",
+        default_model: "gemini-3-pro-preview",
+    },
+];
+
+/// The built-in profile of provider `id`.
+#[must_use]
+pub fn model_provider(id: &str) -> Option<&'static ModelProvider> {
+    MODEL_PROVIDERS.iter().find(|provider| provider.id == id)
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ManagedAgentConfig {
-    /// Open provider identifier (e.g. `managed_agent_provider::OPENAI`). Any
-    /// non-empty string is accepted; new providers do not need a code edit.
+    /// The provider's id: a built-in profile, or a name the operator gave a
+    /// provider configured by dialect and endpoint.
     pub provider: NonEmptyString,
+    pub dialect: ModelDialect,
     pub model: String,
     pub api_key: Option<SecretString>,
-    pub endpoint_url: Option<String>,
+    pub endpoint_url: String,
     pub auth_mode: ManagedAgentAuthMode,
 }
 
@@ -176,6 +238,7 @@ pub enum ConfigError {
 pub fn parse_config_key(key: &str) -> Result<ConfigKey, ConfigError> {
     match key {
         "agent.provider" => Ok(ConfigKey::AgentProvider),
+        "agent.dialect" => Ok(ConfigKey::AgentDialect),
         "agent.model" => Ok(ConfigKey::AgentModel),
         "agent.api_key" => Ok(ConfigKey::AgentApiKey),
         "agent.endpoint_url" => Ok(ConfigKey::AgentEndpointUrl),
@@ -271,6 +334,15 @@ pub fn update_runx_config_value(
             agent.provider = Some(value.to_owned());
             config.agent = Some(agent);
         }
+        ConfigKey::AgentDialect => {
+            ModelDialect::parse(value).ok_or(ConfigError::InvalidAgentSetting {
+                key: "agent.dialect",
+                message: "expected chat_completions or anthropic_messages",
+            })?;
+            let mut agent = config.agent.unwrap_or_default();
+            agent.dialect = Some(value.trim().to_owned());
+            config.agent = Some(agent);
+        }
         ConfigKey::AgentModel => {
             let mut agent = config.agent.unwrap_or_default();
             agent.model = Some(value.to_owned());
@@ -312,6 +384,7 @@ pub fn clear_runx_agent_endpoint_url(mut config: RunxConfigFile) -> RunxConfigFi
 pub fn lookup_runx_config_value(config: &RunxConfigFile, key: ConfigKey) -> Option<String> {
     match key {
         ConfigKey::AgentProvider => config.agent.as_ref()?.provider.clone(),
+        ConfigKey::AgentDialect => config.agent.as_ref()?.dialect.clone(),
         ConfigKey::AgentModel => config.agent.as_ref()?.model.clone(),
         ConfigKey::AgentEndpointUrl => config.agent.as_ref()?.endpoint_url.clone(),
         ConfigKey::AgentAuthMode => config.agent.as_ref()?.auth_mode.clone(),
@@ -458,15 +531,48 @@ pub fn load_managed_agent_config(
         if auth_mode == ManagedAgentAuthMode::LocalNone {
             return Err(ConfigError::InvalidAgentSetting {
                 key: "agent.provider",
-                message: "local_none requires the openai provider",
+                message: "local_none requires a provider",
             });
         }
         return Ok(None);
     };
+    let profile = model_provider(provider.as_str());
+    let dialect = match env.get("RUNX_AGENT_DIALECT").or_else(|| {
+        config
+            .agent
+            .as_ref()
+            .and_then(|agent| agent.dialect.as_ref())
+    }) {
+        Some(value) => ModelDialect::parse(value).ok_or(ConfigError::InvalidAgentSetting {
+            key: "agent.dialect",
+            message: "expected chat_completions or anthropic_messages",
+        })?,
+        None => profile
+            .map(|profile| profile.dialect)
+            .ok_or(ConfigError::InvalidAgentSetting {
+                key: "agent.dialect",
+                message: "a provider runx has no profile for needs a dialect and an endpoint",
+            })?,
+    };
+    if profile.is_some_and(|profile| profile.dialect != dialect) {
+        return Err(ConfigError::InvalidAgentSetting {
+            key: "agent.dialect",
+            message: "differs from the dialect the provider speaks",
+        });
+    }
     let model = env
         .get("RUNX_AGENT_MODEL")
         .or_else(|| config.agent.as_ref().and_then(|agent| agent.model.as_ref()))
         .map(|value| value.trim().to_owned())
+        .filter(|value| !value.is_empty())
+        // A profile's default model is the model at its own endpoint; a
+        // configured endpoint serves whatever models it serves, so it names
+        // its own.
+        .or_else(|| {
+            profile
+                .filter(|_| endpoint_url.is_none())
+                .map(|profile| profile.default_model.to_owned())
+        })
         .unwrap_or_default();
     if model.is_empty() {
         if auth_mode == ManagedAgentAuthMode::LocalNone {
@@ -477,8 +583,7 @@ pub fn load_managed_agent_config(
         }
         return Ok(None);
     }
-    let provider_env_var = managed_agent_provider_env_var(&provider);
-    let provider_key = env.get(&provider_env_var);
+    let provider_key = profile.and_then(|profile| env.get(profile.key_env));
     let mut api_key = env
         .get("RUNX_AGENT_API_KEY")
         .or(provider_key)
@@ -498,13 +603,13 @@ pub fn load_managed_agent_config(
     }
     match auth_mode {
         ManagedAgentAuthMode::ApiKey => {
-            if let Some(endpoint) = endpoint_url.as_deref()
-                && (provider.as_str() != managed_agent_provider::OPENAI
-                    || !endpoint.starts_with("https://"))
+            if endpoint_url
+                .as_deref()
+                .is_some_and(|endpoint| !endpoint.starts_with("https://"))
             {
                 return Err(ConfigError::InvalidAgentSetting {
                     key: "agent.endpoint_url",
-                    message: "api_key endpoints require the openai provider and HTTPS",
+                    message: "api_key endpoints require HTTPS",
                 });
             }
             if api_key.is_empty() {
@@ -512,10 +617,10 @@ pub fn load_managed_agent_config(
             }
         }
         ManagedAgentAuthMode::LocalNone => {
-            if provider.as_str() != managed_agent_provider::OPENAI || !api_key.is_empty() {
+            if dialect != ModelDialect::ChatCompletions || !api_key.is_empty() {
                 return Err(ConfigError::InvalidAgentSetting {
                     key: "agent.auth_mode",
-                    message: "local_none requires openai and no API key",
+                    message: "local_none requires the chat_completions dialect and no API key",
                 });
             }
             let Some(endpoint) = endpoint_url.as_deref() else {
@@ -532,8 +637,15 @@ pub fn load_managed_agent_config(
             })?;
         }
     }
+    let endpoint_url = endpoint_url
+        .or_else(|| profile.map(|profile| profile.endpoint.to_owned()))
+        .ok_or(ConfigError::InvalidAgentSetting {
+            key: "agent.endpoint_url",
+            message: "a provider runx has no profile for needs a dialect and an endpoint",
+        })?;
     Ok(Some(ManagedAgentConfig {
         provider,
+        dialect,
         model,
         api_key: (!api_key.is_empty()).then(|| SecretString::new(api_key)),
         endpoint_url,
@@ -715,14 +827,6 @@ fn config_key_read_error(path: &Path, cause: Option<String>) -> ConfigError {
 
 fn normalize_managed_agent_provider(value: &str) -> Option<NonEmptyString> {
     NonEmptyString::new(value.trim().to_lowercase())
-}
-
-/// Derive the env var name that carries the API key for a given managed agent
-/// provider. Follows the `<UPPERCASED>_API_KEY` convention (e.g. `OPENAI_API_KEY`,
-/// `ANTHROPIC_API_KEY`), so new providers work without a code edit. Callers can
-/// always override via `RUNX_AGENT_API_KEY`.
-fn managed_agent_provider_env_var(provider: &NonEmptyString) -> String {
-    format!("{}_API_KEY", provider.as_ref().to_uppercase())
 }
 
 fn write_private_file(path: &Path, contents: &[u8]) -> Result<(), ConfigError> {

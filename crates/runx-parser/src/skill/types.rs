@@ -3,9 +3,7 @@
 // share one typed source of truth.
 use std::collections::BTreeMap;
 
-use runx_contracts::{
-    EnvironmentRequirements, ExecutionSemantics, ExternalAdapterManifest, JsonObject, JsonValue,
-};
+use runx_contracts::{EnvironmentRequirements, ExecutionSemantics, JsonObject, JsonValue};
 use serde::{Deserialize, Serialize};
 
 use crate::graph::MintAuthorityDirective;
@@ -23,24 +21,17 @@ pub use runx_contracts::{
     InputDefinition as SkillInput, RetryPolicy as SkillRetryPolicy,
 };
 
-/// Closed set of built-in skill source kinds. The extension lane is the
-/// `ExternalAdapter` variant; custom adapters are identified by the
-/// external-adapter manifest, not by an open `source.type` string. First-party
-/// governed fronts that carry their own protocol, such as thread outbox
-/// publication, get explicit variants.
+/// Closed set of built-in skill source kinds. `source.type` is never an open
+/// string: every runner resolves to one of these variants at parse time.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum SourceKind {
     CliTool,
     JavaScript,
-    Mcp,
-    A2a,
     Agent,
     #[serde(rename = "agent-task")]
     AgentStep,
     Graph,
-    ExternalAdapter,
-    ThreadOutboxProvider,
 }
 
 impl SourceKind {
@@ -48,13 +39,9 @@ impl SourceKind {
         match self {
             SourceKind::CliTool => "cli-tool",
             SourceKind::JavaScript => "javascript",
-            SourceKind::Mcp => "mcp",
-            SourceKind::A2a => "a2a",
             SourceKind::Agent => "agent",
             SourceKind::AgentStep => "agent-task",
             SourceKind::Graph => "graph",
-            SourceKind::ExternalAdapter => "external-adapter",
-            SourceKind::ThreadOutboxProvider => "thread-outbox-provider",
         }
     }
 }
@@ -132,16 +119,6 @@ pub struct SkillSource {
     #[serde(default, skip_serializing_if = "EnvironmentRequirements::is_empty")]
     pub environment: EnvironmentRequirements,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub server: Option<SkillMcpServer>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub tool: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub arguments: Option<JsonObject>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub agent_card_url: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub agent_identity: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub agent: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub task: Option<String>,
@@ -149,14 +126,6 @@ pub struct SkillSource {
     pub outputs: Option<JsonObject>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub graph: Option<crate::ExecutionGraph>,
-    /// Parser-owned external-adapter declaration. Downstream consumers must
-    /// use this typed value rather than reinterpret `raw`.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub external_adapter: Option<SkillExternalAdapterManifest>,
-    /// Parser-owned thread-outbox-provider declaration. The runtime owns frame
-    /// loading and execution, but not source-shape parsing.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub thread_outbox_provider: Option<SkillThreadOutboxProviderSource>,
     /// The declared act this source performs, validated at load. `None` when no
     /// `act:` block is declared (the run then seals a generic observation act).
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -227,15 +196,9 @@ pub struct ActDeclaration {
     pub authority_subset_proof_from: Option<String>,
     /// Compute path (mutually exclusive with the explicit `authority_*_from` keys
     /// above): when present, the runtime mints the child authority term from the
-    /// charter (resolved from config) off the model path instead of receiving a
-    /// pre-built term. With `MintScopeSource::RequestedScope`, the requested child
-    /// scope is read from the input key named by `requested_scope_from`.
+    /// charter off the model path, from the requested scope this directive names.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mint_authority: Option<MintAuthorityDirective>,
-    /// The input key carrying the requested child scope, used only when
-    /// `mint_authority.source` is `MintScopeSource::RequestedScope`.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub requested_scope_from: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub previous_from: Option<String>,
     /// Graph turns only: the step whose output supplies the reason prose.
@@ -244,43 +207,6 @@ pub struct ActDeclaration {
     /// Graph turns only: the step whose real result supplies the governed effect.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub effect_step: Option<String>,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum SkillExternalAdapterManifest {
-    Inline(Box<ExternalAdapterManifest>),
-    Path(String),
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SkillThreadOutboxProviderSource {
-    pub operation: runx_contracts::ThreadOutboxProviderOperation,
-    pub manifest_path: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub push_path: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub fetch_path: Option<String>,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SkillMcpServer {
-    pub command: String,
-    pub args: Vec<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub cwd: Option<String>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CredentialRequirement {
-    pub provider: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub audience: Option<String>,
-    /// Supported authentication modes mapped to their process delivery name.
-    pub deliveries: BTreeMap<String, String>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -366,8 +292,6 @@ pub struct SkillRunnerDefinition {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub examples: Vec<JsonObject>,
     pub scopes: Vec<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub credential: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub auth: Option<JsonValue>,
     #[serde(skip_serializing_if = "Option::is_none")]

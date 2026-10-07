@@ -41,9 +41,7 @@ impl<'de> Visitor<'de> for JsonValueVisitor {
     }
 
     fn visit_u64<E>(self, value: u64) -> Result<Self::Value, E> {
-        Ok(JsonValue::Number(
-            i64::try_from(value).map_or(JsonNumber::U64(value), JsonNumber::I64),
-        ))
+        Ok(JsonValue::Number(JsonNumber::from(value)))
     }
 
     fn visit_f64<E>(self, value: f64) -> Result<Self::Value, E>

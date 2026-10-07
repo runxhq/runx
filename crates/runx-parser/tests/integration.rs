@@ -5,8 +5,9 @@
 //! Cargo.toml keeps Cargo from also building each file as its own binary.
 //! See .scafld/specs/active/test-surface-build-consolidation.md.
 
+mod official_connectors;
 mod parser_catalog;
-mod parser_credentials;
+mod parser_connectors;
 mod parser_dev_fixture;
 mod parser_fixtures;
 mod parser_graph_allowed_tools;

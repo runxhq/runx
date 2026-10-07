@@ -1,5 +1,5 @@
 skill: slack-notify
-version: "0.4.3"
+version: "0.4.4"
 catalog:
   kind: graph
   audience: public
@@ -26,6 +26,9 @@ input_definitions:
       oneOf:
         - required: [message]
         - required: [content_ref, digest]
+connectors:
+  slack:
+    operations: [channel.post, channel.post.read]
 runners:
   notify:
     default: true
@@ -317,20 +320,12 @@ runners:
           context:
             actual: digest.digest_result.data.digest
         - id: deliver
-          tool: provider.mutate
-          scopes:
-            - channel.post
+          operation: slack/channel.post
           idempotency_key: $input.idempotency_key
           when:
             field: bind-content.comparison.data.equal
             equals: true
-          policy:
-            provider_permission:
-              verb: write
           inputs:
-            operation: channel.post
-            target: $input.channel_locator
-            expected_provider: slack
             approval:
               reason: Approve posting this exact digest-bound Slack notification.
               type: slack_message
@@ -343,21 +338,63 @@ runners:
               channel_locator: $input.channel_locator
               text: $input.text
 
+        - id: prepare-readback
+          when:
+            field: bind-content.comparison.data.equal
+            equals: true
+          inputs: { text: $input.text }
+          context: { delivery: deliver.provider_operation.data }
+          run:
+            type: javascript
+            module: slack-notify.mjs
+            export: prepareNotificationReadback
+            outputs: { read_request: object }
         - id: readback
           when:
             field: bind-content.comparison.data.equal
             equals: true
-          tool: provider.read
-          scopes:
-            - channel.post.read
-          policy:
-            provider_permission:
-              verb: read
+          operation: slack/channel.post.read
           inputs:
-            operation: channel.post.read
-            target: $input.channel_locator
-            expected_provider: slack
             result_fields: [message_locator, conversation_locator, content_digest, occurred_at]
           context:
             expected_result: deliver.provider_operation.data.result
-            input: deliver.provider_operation.data.result
+            input: prepare-readback.read_request
+  reconcile_exact:
+    type: graph
+    inputs:
+      notification_plan: { type: json, packet: runx.notify.v1, required: true }
+      channel_locator: { type: string, required: true }
+      text: { type: string, required: true }
+      message_locator: { type: string, required: true }
+      failed_at: { type: string, required: true }
+    graph:
+      name: slack-notify-reconcile-exact
+      result_from: [finish]
+      steps:
+        - id: read
+          skill: ../slack
+          runner: read_thread
+          inputs:
+            thread_locator: $input.message_locator
+            limit: 1
+        - id: digest
+          tool: data.digest
+          inputs: { value: $input.text, encoding: utf8_text }
+        - id: finish
+          inputs:
+            notification_plan: $input.notification_plan
+            channel_locator: $input.channel_locator
+            text: $input.text
+            message_locator: $input.message_locator
+            failed_at: $input.failed_at
+          context:
+            provider_operation: read.provider_operation.data
+            digest_result: digest.digest_result.data
+          run:
+            type: javascript
+            module: slack-notify.mjs
+            export: reconcileExactNotification
+            outputs: { provider_operation: object }
+          artifacts:
+            named_emits: { provider_operation: provider_operation }
+            packets: { provider_operation: runx.provider.operation.v1 }

@@ -302,6 +302,7 @@ fn base(id: &str) -> Receipt {
             grant_refs: Vec::new(),
             scope_refs: Vec::new(),
             terms: Vec::new(),
+            derivations: Vec::new(),
             attenuation: AuthorityAttenuation {
                 parent_authority_ref: None,
                 subset_proof: None,

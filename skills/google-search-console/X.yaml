@@ -1,5 +1,5 @@
 skill: google-search-console
-version: "0.1.7"
+version: "0.1.8"
 
 catalog:
   kind: graph
@@ -410,6 +410,37 @@ harness:
                   validation: { status: pass }
         receipt: { schema: runx.receipt.v1 }
 
+    - name: refuses-a-sitemap-plan-whose-digest-does-not-bind
+      runner: submit-sitemap
+      inputs:
+        sitemap_plan:
+          schema: runx.search.sitemap_plan.v1
+          decision: ready_for_execution
+          provider: google-search-console
+          operation: sitemaps.submit
+          property: sc-domain:example.com
+          sitemap_url: https://www.example.com/sitemap.xml
+          provider_status: not_called
+          external_status: not_submitted
+          validation: { status: pass, findings: [] }
+          plan_digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+        idempotency_key: 00000000-0000-4000-8000-000000000001
+      expect:
+        status: sealed
+        steps: [digest, admit, refuse]
+        step_outputs:
+          refuse:
+            subset:
+              sitemap_submission:
+                data:
+                  decision: blocked
+                  provider_status: not_called
+                  external_status: not_submitted
+                  validation: { status: fail }
+        receipt: { schema: runx.receipt.v1 }
+connectors:
+  google-search-console:
+    operations: [search.analytics.query, sites.list, url.inspect, sitemaps.list, sitemaps.submit, sitemaps.get]
 runners:
   performance:
     default: true
@@ -451,14 +482,8 @@ runners:
       result_from: [finalize]
       steps:
         - id: read
-          tool: provider.read
-          scopes: [search.analytics.read]
-          policy:
-            provider_permission: { verb: read }
+          operation: google-search-console/search.analytics.query
           inputs:
-            operation: search.analytics.query
-            target: $input.property
-            expected_provider: google-search-console
             result_fields: [property, start_date, end_date, dimensions, search_type, data_state, rows, row_count, aggregation_type, metadata, pagination, fetched_at]
             input:
               property: $input.property
@@ -574,14 +599,8 @@ runners:
       result_from: [read]
       steps:
         - id: read
-          tool: provider.read
-          scopes: [sites.read]
-          policy:
-            provider_permission: { verb: read }
+          operation: google-search-console/sites.list
           inputs:
-            operation: sites.list
-            target: google-search-console://sites
-            expected_provider: google-search-console
             result_fields: [sites]
             input: {}
 
@@ -608,14 +627,8 @@ runners:
       result_from: [finalize]
       steps:
         - id: read
-          tool: provider.read
-          scopes: [url.inspect]
-          policy:
-            provider_permission: { verb: read }
+          operation: google-search-console/url.inspect
           inputs:
-            operation: url.inspect
-            target: $input.inspection_url
-            expected_provider: google-search-console
             result_fields: [property, inspection_url, verdict, coverage_state, robots_txt_state, indexing_state, page_fetch_state, crawled_as, last_crawl_time, referring_urls, sitemap, amp, mobile_usability, rich_results, inspection_link, fetched_at]
             input:
               property: $input.property
@@ -664,14 +677,8 @@ runners:
       result_from: [read]
       steps:
         - id: read
-          tool: provider.read
-          scopes: [sitemaps.read]
-          policy:
-            provider_permission: { verb: read }
+          operation: google-search-console/sitemaps.list
           inputs:
-            operation: sitemaps.list
-            target: $input.property
-            expected_provider: google-search-console
             result_fields: [property, sitemaps]
             input: { property: $input.property }
 
@@ -743,7 +750,7 @@ runners:
         idempotency_key: 00000000-0000-4000-8000-000000000001
     graph:
       name: google-search-console-submit-sitemap
-      result_from: [finalize]
+      result_from: [refuse, finalize]
       steps:
         - id: digest
           tool: data.digest
@@ -768,15 +775,9 @@ runners:
           when:
             field: admit.submission_admission.decision
             equals: ready
-          tool: provider.mutate
+          operation: google-search-console/sitemaps.submit
           idempotency_key: $input.idempotency_key
-          scopes: [sitemaps.submit]
-          policy:
-            provider_permission: { verb: write }
           inputs:
-            operation: sitemaps.submit
-            target: $input.sitemap_plan.sitemap_url
-            expected_provider: google-search-console
             idempotency_key: $input.idempotency_key
             expected_result:
               property: $input.sitemap_plan.property
@@ -785,15 +786,28 @@ runners:
             input:
               property: $input.sitemap_plan.property
               sitemap_url: $input.sitemap_plan.sitemap_url
-        - id: readback
-          tool: provider.read
-          scopes: [sitemaps.read]
-          policy:
-            provider_permission: { verb: read }
+        - id: refuse
+          when:
+            field: admit.submission_admission.decision
+            equals: blocked
           inputs:
-            operation: sitemaps.get
-            target: $input.sitemap_plan.sitemap_url
-            expected_provider: google-search-console
+            idempotency_key: $input.idempotency_key
+          context:
+            submission_admission: admit.submission_admission
+          run:
+            type: javascript
+            module: gsc/sitemap.mjs
+            export: refuseSitemapSubmission
+            outputs:
+              sitemap_submission: object
+          artifacts:
+            named_emits: { sitemap_submission: sitemap_submission }
+        - id: readback
+          when:
+            field: admit.submission_admission.decision
+            equals: ready
+          operation: google-search-console/sitemaps.get
+          inputs:
             result_fields: [property, sitemap_url, status, last_submitted, last_downloaded, error_count, warning_count]
             input:
               property: $input.sitemap_plan.property

@@ -1,0 +1,78 @@
+name: moltbook-publish-creates-and-reads-back-post
+kind: skill
+target: ..
+runner: publish
+operator_journeys:
+  - mode: composed
+    confusors: [governed-outbound, send-as]
+    request: Publish this approved Moltbook post packet.
+    expected_outcome: Bind the exact payload digest, publish once after approval, and confirm the created post by reading it back.
+    prior_evidence:
+      - The validated post packet and its payload digest supplied in the fixture.
+    must_not_repeat:
+      - Do not draft the post again.
+      - Do not publish a second post when the readback already confirms the first.
+setup:
+  credentials: [moltbook]
+env:
+  MOLTBOOK_API_KEY: harness-moltbook-key
+inputs:
+  post_packet:
+    decision: ready_for_handoff
+    post_payload:
+      channel: moltbook
+      submolt: agents
+      title: How to move a Runx skill into a package root
+      body: Package-rooted skills make inspection and harness verification explicit.
+      claim_refs:
+        - claim: Package-rooted skills are the migration subject.
+          source_refs: [changelog_1]
+    payload_digest: sha256:22d50f9adab4c26e2408063ce226b8eccf65415f8abb5eb8205791cf2202c251
+    moderation_notes: { final_check: [No unsupported claims.] }
+    follow_up_plan: { monitor_for: [migration questions] }
+    source_evidence:
+      - { source_ref: changelog_1, observed_at: "2026-07-16T10:00:00Z" }
+    delivery_status: not_posted
+    validation: { status: pass, findings: [] }
+  idempotency_key: fixture-moltbook-publish-001
+caller:
+  http_exchanges:
+    - request:
+        method: POST
+        url: https://www.moltbook.com/api/v1/posts
+        body:
+          json:
+            submolt_name: agents
+            title: How to move a Runx skill into a package root
+            content: Package-rooted skills make inspection and harness verification explicit.
+      response:
+        status: 201
+        headers: { content-type: application/json }
+        body: '{"success":true,"post":{"id":"7d0c3a52-0002-4000-8000-000000000001","title":"How to move a Runx skill into a package root","content":"Package-rooted skills make inspection and harness verification explicit.","verification_status":"verified"}}'
+    - request:
+        method: GET
+        url: https://www.moltbook.com/api/v1/posts/7d0c3a52-0002-4000-8000-000000000001
+        body: none
+      response:
+        status: 200
+        headers: { content-type: application/json }
+        body: '{"success":true,"post":{"id":"7d0c3a52-0002-4000-8000-000000000001","title":"How to move a Runx skill into a package root","content":"Package-rooted skills make inspection and harness verification explicit.","author":{"name":"runx-agent"},"submolt":{"name":"agents"},"created_at":"2026-07-17T12:00:00Z"}}'
+  approvals:
+    "operation:sha256:a828ea5a1dac62f48b65038b037cf813f07ae538f088db16d1f80b387c5f862d": true
+expect:
+  status: sealed
+  steps: [validate, digest-payload, bind-payload, publish]
+  step_outputs:
+    publish:
+      subset:
+        provider_operation:
+          data:
+            status: success
+            provider: moltbook
+            operation: post.create
+            finality: confirmed
+            operation_id: 7d0c3a52-0002-4000-8000-000000000001
+            result:
+              post: { id: 7d0c3a52-0002-4000-8000-000000000001, submolt: { name: agents } }
+  receipt: { schema: runx.receipt.v1, state: sealed, disposition: closed }
+metadata: { public_skill: moltbook, source_case: publish-confirmed, source: skills-fixture }

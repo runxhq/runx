@@ -1,37 +1,22 @@
 //! Cloud registry index endpoint (`POST /v1/index`).
 //!
-//! This module is the canonical client for indexing a GitHub repository into
-//! the hosted runx registry. It is consumed by the `runx add <github-url>` CLI
-//! path and by any future flow that needs to publish a remote repo through the
-//! hosted index. Single responsibility: parse a GitHub ref, POST it, return a
-//! typed envelope; presentation and arg parsing live in the CLI.
+//! The client for indexing a repository into the hosted runx registry, used by
+//! `runx add <repository-url>`. The hosted index decides which repository hosts
+//! it supports and names the repository it indexed; this module only POSTs the
+//! URL and returns the typed envelope. Presentation lives in the CLI.
 
 use serde::{Deserialize, Serialize};
-use url::Url;
 
 use super::types::TrustTier;
 use crate::hosted_api::{HostedApiOperationError, request::send_json};
 use crate::http::{HttpMethod, RuntimeHttpTransport as Transport};
 
-/// Structured GitHub repository reference parsed from a user-provided URL.
-///
-/// Returning a structured value (rather than a `bool` predicate over the raw
-/// string) lets callers show a friendly progress message and validates that the
-/// URL has both owner and repo segments before the network call.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct GithubRepoRef {
-    /// Canonical `https://github.com/<owner>/<repo>` form of the input.
-    pub canonical_url: String,
-    pub owner: String,
-    pub repo: String,
-}
-
-/// Inputs to [`index_github_repo`]. Borrowed so callers don't have to clone.
+/// Inputs to [`index_repository`].
 #[derive(Clone, Debug)]
-pub struct IndexGithubRepoOptions<'a> {
+pub struct IndexRepositoryOptions<'a> {
     /// Base URL of the hosted registry (no trailing slash required).
     pub base_url: &'a str,
-    /// The repo URL to send to the cloud (canonical form preferred).
+    /// The repository URL, as the person gave it.
     pub repo_url: &'a str,
     /// Optional branch/tag forwarded as `ref` in the request body.
     pub repo_ref: Option<&'a str>,
@@ -75,7 +60,7 @@ pub struct IndexResponse {
     pub warnings: Vec<IndexWarning>,
 }
 
-/// Errors returned by [`parse_github_repo_ref`] and [`index_github_repo`].
+/// Errors returned by [`index_repository`].
 ///
 /// Distinct from [`crate::registry::RegistryClientError`] because the `/v1/index`
 /// endpoint has its own error envelope shape (`{ status: "error", error: { code,
@@ -84,52 +69,10 @@ pub struct IndexResponse {
 /// retry guidance without re-parsing strings.
 #[derive(Debug, thiserror::Error)]
 pub enum IndexError {
-    #[error(
-        "'{0}' is not a recognized GitHub repository URL. Expected https://github.com/<owner>/<repo>."
-    )]
-    NotAGithubRepoUrl(String),
     #[error(transparent)]
     HostedApi(#[from] HostedApiOperationError),
     #[error("runx API index returned an invalid response: {0}")]
     InvalidResponse(String),
-}
-
-/// Parse a user-supplied GitHub repo URL into a structured reference.
-///
-/// Accepts `https://github.com/<owner>/<repo>[/...]`, the same with `http://`,
-/// or bare `github.com/<owner>/<repo>[/...]`. Anything else is rejected.
-pub fn parse_github_repo_ref(input: &str) -> Result<GithubRepoRef, IndexError> {
-    let trimmed = input.trim();
-    if trimmed.is_empty() {
-        return Err(IndexError::NotAGithubRepoUrl(input.to_owned()));
-    }
-    let normalized: String = if trimmed.starts_with("https://") || trimmed.starts_with("http://") {
-        trimmed.to_owned()
-    } else if let Some(rest) = trimmed.strip_prefix("github.com/") {
-        format!("https://github.com/{rest}")
-    } else {
-        return Err(IndexError::NotAGithubRepoUrl(input.to_owned()));
-    };
-    let parsed =
-        Url::parse(&normalized).map_err(|_| IndexError::NotAGithubRepoUrl(input.to_owned()))?;
-    if parsed.host_str() != Some("github.com") {
-        return Err(IndexError::NotAGithubRepoUrl(input.to_owned()));
-    }
-    let mut segments = parsed
-        .path_segments()
-        .map(|iter| iter.filter(|segment| !segment.is_empty()))
-        .ok_or_else(|| IndexError::NotAGithubRepoUrl(input.to_owned()))?;
-    let owner = segments
-        .next()
-        .ok_or_else(|| IndexError::NotAGithubRepoUrl(input.to_owned()))?;
-    let repo = segments
-        .next()
-        .ok_or_else(|| IndexError::NotAGithubRepoUrl(input.to_owned()))?;
-    Ok(GithubRepoRef {
-        canonical_url: format!("https://github.com/{owner}/{repo}"),
-        owner: owner.to_owned(),
-        repo: repo.to_owned(),
-    })
 }
 
 /// POST the repo URL to the hosted registry's `/v1/index` endpoint.
@@ -137,9 +80,9 @@ pub fn parse_github_repo_ref(input: &str) -> Result<GithubRepoRef, IndexError> {
 /// The transport handles timeouts/retries/TLS per the runtime's standard HTTP
 /// discipline. Generic over `T: Transport` so tests can inject a stub without
 /// touching the network.
-pub fn index_github_repo<T: Transport>(
+pub fn index_repository<T: Transport>(
     transport: &T,
-    options: &IndexGithubRepoOptions<'_>,
+    options: &IndexRepositoryOptions<'_>,
 ) -> Result<IndexResponse, IndexError> {
     let base = options.base_url.trim_end_matches('/');
     let body = serde_json::json!({
@@ -176,79 +119,4 @@ struct SuccessEnvelope {
     listings: Vec<IndexedListing>,
     #[serde(default)]
     warnings: Vec<IndexWarning>,
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn parses_https_github_url() -> Result<(), IndexError> {
-        let parsed = parse_github_repo_ref("https://github.com/runxhq/runx")?;
-        assert_eq!(parsed.canonical_url, "https://github.com/runxhq/runx");
-        assert_eq!(parsed.owner, "runxhq");
-        assert_eq!(parsed.repo, "runx");
-        Ok(())
-    }
-
-    #[test]
-    fn parses_http_url_normalizes_to_https_canonical_form() -> Result<(), IndexError> {
-        let parsed = parse_github_repo_ref("http://github.com/runxhq/runx")?;
-        assert_eq!(parsed.canonical_url, "https://github.com/runxhq/runx");
-        Ok(())
-    }
-
-    #[test]
-    fn parses_bare_github_form_with_canonical_https_url() -> Result<(), IndexError> {
-        let parsed = parse_github_repo_ref("github.com/runxhq/runx")?;
-        assert_eq!(parsed.canonical_url, "https://github.com/runxhq/runx");
-        assert_eq!(parsed.owner, "runxhq");
-        Ok(())
-    }
-
-    #[test]
-    fn parses_url_with_trailing_path_taking_first_two_segments_only() -> Result<(), IndexError> {
-        let parsed = parse_github_repo_ref("https://github.com/runxhq/runx/tree/main/skills")?;
-        assert_eq!(parsed.canonical_url, "https://github.com/runxhq/runx");
-        assert_eq!(parsed.owner, "runxhq");
-        assert_eq!(parsed.repo, "runx");
-        Ok(())
-    }
-
-    #[test]
-    fn trims_whitespace_from_input() -> Result<(), IndexError> {
-        let parsed = parse_github_repo_ref("  https://github.com/runxhq/runx  ")?;
-        assert_eq!(parsed.canonical_url, "https://github.com/runxhq/runx");
-        Ok(())
-    }
-
-    #[test]
-    fn rejects_non_github_host() {
-        let result = parse_github_repo_ref("https://gitlab.com/foo/bar");
-        assert!(matches!(result, Err(IndexError::NotAGithubRepoUrl(_))));
-    }
-
-    #[test]
-    fn rejects_missing_repo_segment() {
-        let result = parse_github_repo_ref("https://github.com/runxhq");
-        assert!(matches!(result, Err(IndexError::NotAGithubRepoUrl(_))));
-    }
-
-    #[test]
-    fn rejects_empty_input() {
-        assert!(matches!(
-            parse_github_repo_ref(""),
-            Err(IndexError::NotAGithubRepoUrl(_))
-        ));
-        assert!(matches!(
-            parse_github_repo_ref("   "),
-            Err(IndexError::NotAGithubRepoUrl(_))
-        ));
-    }
-
-    #[test]
-    fn rejects_unsupported_scheme() {
-        let result = parse_github_repo_ref("ftp://github.com/runxhq/runx");
-        assert!(matches!(result, Err(IndexError::NotAGithubRepoUrl(_))));
-    }
 }

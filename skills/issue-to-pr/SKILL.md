@@ -14,11 +14,10 @@ host agent's editor, shell, Git, tests, or repository judgment.
 
 ## Direct operator flow
 
-1. Resolve the repository from an explicit `owner/name` or the current
-   checkout's `origin`. Never infer the target from an available grant.
-2. Use the already-authenticated local `gh` and Git paths for inspection.
-   Hosted Connect is a compatible fallback or explicit operator binding, not
-   the default reason to leave local tooling.
+1. Name the repository as an exact `owner/name`. Never infer the target from
+   an available grant.
+2. Read through the GitHub instance selected here: the signed-in `gh`
+   session (`runx connector use github --session`) or a stored token.
 3. Run one preflight before work: issue identity, repository permission, branch
    state, required tools, requested outcome, and publication authority.
 4. Investigate, edit, and test with the host agent's ordinary tools. Do not
@@ -30,11 +29,12 @@ host agent's editor, shell, Git, tests, or repository judgment.
 6. If PR publication is not authorized, return the tested/finalized result and
    stop. Do not silently downgrade the work to a plan.
 7. If publication is authorized, pass the exact `host_result` to `publish`.
-   Runx admits one `pullrequest.publish` mutation under the scoped repository
-   grant. That boundary publishes
-   the exact commit to the requested branch, recovers by reading existing
-   remote state, and independently reads the PR back. Notifications, feeds,
-   issue comments, and documentation sync are optional downstream skills.
+   Runx pushes the exact commit to the requested branch (`github/branch.push`,
+   never forced, read back from GitHub), reuses the one open pull request for
+   that branch or opens one (`github/pullrequest.open`, read back), and
+   completes only when the pull request's head is the tested commit.
+   Notifications, feeds, issue comments, and documentation sync are optional
+   downstream skills.
 
 ## Reuse in chains
 
@@ -91,8 +91,9 @@ state.
 ## Stop conditions
 
 - Wrong or ambiguous repository: stop with one target-resolution blocker.
-- Missing local auth and no compatible hosted grant: return the exact `gh auth
-  login` or `runx connect` handoff; do not cycle through unrelated skills.
+- No GitHub instance selected: return the exact `runx connector use github
+  --session` or `runx credential set github` handoff; do not cycle through
+  unrelated skills.
 - Dirty or conflicting branch state: stop before mutation and preserve the
   evidence already gathered.
 - Failed tests or failed/stale finalize: return blocked or failed, never

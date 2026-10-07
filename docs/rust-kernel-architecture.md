@@ -16,9 +16,9 @@ local execution, Rust is the canonical owner once a command is advertised by
 the native CLI or runtime. That includes graph execution, harness and dogfood
 execution, receipt sealing and verification, policy and registry configuration,
 authority admission, effect-family authority, permission delivery, and local
-built-in adapter execution plus external execution-adapter supervision. Local
-process sources are trusted host code: Runx controls their exact invocation and
-delivered grant, but does not claim portable syscall or filesystem confinement.
+built-in adapter execution. Local process sources are trusted host code: Runx
+controls their exact invocation and delivered grant, but does not claim portable
+syscall or filesystem confinement.
 TypeScript remains for generated contracts,
 CLI/client wrappers, cloud/product integrations, host adapters, authoring
 tooling, docs, conformance tests, and helper SDKs over language-neutral
@@ -26,11 +26,10 @@ protocols. It is not a runtime-local or adapters fallback for trusted local
 behavior.
 
 Rust ownership of orchestration does not require extension authors to write
-Rust. External execution adapters target stable language-neutral protocols and
-manifests; they must not require `runx-runtime`, `runx-core`, or a fork of the
-core repo. Source ingress, hosted runtime binding, tool catalog/read-model, and
-thread/outbox provider adapters are separate extension lanes, not implicit
-members of the execution-adapter protocol.
+Rust. Tool authors write `cli-tool` or `javascript` tools against
+language-neutral manifests and process contracts; they must not require
+`runx-runtime`, `runx-core`, or a fork of the core repo. Source ingress, hosted
+runtime binding, and tool catalog/read-model are separate extension lanes.
 Rust crates exist to:
 
 - Prove behavioral parity through a shared fixture suite while a domain is
@@ -38,7 +37,7 @@ Rust crates exist to:
 - Make TypeScript kernel drift explicit (intentional fixture refresh required).
 - Provide the native local CLI/runtime path for skill, graph, harness, receipt,
   history, policy, authority, effect-family admission, permission delivery, and
-  external execution-adapter supervision.
+  process supervision.
 
 Rust is not a second source of truth for cut-over surfaces; it is the source of
 truth. If Rust and TypeScript disagree on a fixture before a surface cuts over,
@@ -89,8 +88,7 @@ explicit follow-up specs, not a vague "port the kernel" promise.
 The future workspace under `oss/crates/`:
 
 ```
-runx-contracts    pure public contracts: CLI JSON, host protocol,
-                    external execution-adapter protocol envelopes, receipts,
+runx-contracts    pure public contracts: CLI JSON, host protocol, receipts,
                     registry/tool records, act assignment
                     deps: serde, sha2
                     deferred deps: serde_json/thiserror only when concrete code
@@ -117,12 +115,11 @@ runx-sdk          library: blocking CLI-backed SDK v0; future async path
                     explicit non-dep: runx-core in v0
 
 runx-runtime      impure: filesystem, subprocess, network, built-in adapter
-                  execution, external execution-adapter supervision, MCP,
-                  typed execution-boundary evidence and process supervision
+                  execution, MCP, typed execution-boundary evidence and
+                  process supervision
                     default features: none
                     opt-in features: async-http, cli-tool, mcp,
-                                     mcp-http-server, a2a, agent, catalog,
-                                     external-adapter, thread-outbox-provider
+                                     mcp-http-server, agent, catalog
                     deps: runx-contracts, runx-core, runx-parser,
                           runx-receipts; async/network dependencies require
                           explicit adapter-tier exception specs
@@ -188,9 +185,9 @@ facade feature or sibling facade module, but that is not part of v0. SDK v0 is
 allowed to block because it is only a subprocess-backed bridge to the current
 CLI.
 
-contracts-first-ordering: `runx-contracts` owns host protocol, external
-execution-adapter protocol envelopes, capability execution, idempotency hashes,
-and consumed JSON contract types before SDK Phase 2. `runx-sdk` may depend on
+contracts-first-ordering: `runx-contracts` owns host protocol, capability
+execution, idempotency hashes, and consumed JSON contract types before SDK
+Phase 2. `runx-sdk` may depend on
 `runx-contracts` in CLI-backed v0, but it must not duplicate contract-owned
 types or hash helpers.
 
@@ -201,15 +198,11 @@ implementation. The old TypeScript package split is useful history, not a
 forcing function for Cargo crates.
 
 There is also no `runx-adapters` crate in the initial Rust shape. Built-in
-adapter execution and external execution-adapter protocol supervision live under
-`runx-runtime` feature flags
-(`async-http`, `cli-tool`, `mcp`, `mcp-http-server`, `a2a`, `agent`,
-`catalog`, `external-adapter`, `thread-outbox-provider`) until a family has an
-independent publishing story;
-`a2a` is contract-defined but not enabled in `runx-cli`. External execution adapter implementations live
-outside the trusted core and talk to runx over language-neutral protocols. The
-extension author's stable surface is a lane-specific manifest and wire contract,
-plus optional helper SDKs; it is not a Rust crate dependency or a core fork.
+adapter execution lives under `runx-runtime` feature flags (`async-http`,
+`cli-tool`, `mcp`, `mcp-http-server`, `agent`, `catalog`) until a family has an
+independent publishing story. The extension author's stable surface is a tool
+manifest and process contract, plus optional helper SDKs; it is not a Rust
+crate dependency or a core fork.
 
 There is no umbrella `runx` crate in the initial Rust shape. The `runx` crate
 name is already taken by an unrelated crate, and the installable user-facing
@@ -230,8 +223,8 @@ of side effects. Current modules map to these implementation buckets:
 - Harness execution: `execution::harness`, `execution::orchestrator`,
   `execution::runner`, and `execution::skill_front`. These modules open the
   governed execution boundary, run graphs or skills, and seal receipts.
-- Adapter invocation: `adapter`, `adapters::*`, `agent_invocation`,
-  `process_invocation`, and `outbox_provider`. These modules resolve an
+- Adapter invocation: `adapter`, `adapters::*`, `agent_invocation`, and
+  `process_invocation`. These modules resolve an
   invocation, deliver admitted authority, run or supervise a process/protocol
   call, capture output, and return projected evidence to the harness.
 - Receipt and event projection: `receipts`, `journal`, `host`, `redaction`,
@@ -257,9 +250,8 @@ Current runtime lift shape:
   receipts, process invocation, and adapter invocation. These facets are passed where
   they are needed; there is no catch-all harness context.
 - `runx-runtime::adapter_pipeline` owns the shared adapter lifecycle:
-  resolve, admit, invoke, capture, project, and seal. CLI-tool, external
-  adapter, and MCP paths use the same lifecycle instead of parallel process
-  stories.
+  resolve, admit, invoke, capture, project, and seal. CLI-tool, JavaScript,
+  and agent paths use the same lifecycle instead of parallel process stories.
 - `runx-runtime::lifecycle` owns internal harness, decision, act, receipt,
   abnormal-seal, verification, and publication events before they project into
   local journal/history rows.
@@ -267,8 +259,7 @@ Current runtime lift shape:
   registry. The oracle binary consumes that registry for check, regeneration,
   and JSON summary output.
 - Stress gates are explicit scripts (`stress:runtime:mcp`,
-  `stress:runtime:cli-tool`, `stress:runtime:external-adapter`,
-  `stress:runtime:fanout`). They are not hidden inside the default fast loop.
+  `stress:runtime:cli-tool`, `stress:runtime:fanout`). They are not hidden inside the default fast loop.
 
 ### Volume-independent execution boundary
 
@@ -535,9 +526,9 @@ Sunset order (each step is its own cutover spec, not implicit):
 4. Port impure trusted-kernel domains (`artifacts`, `config`, `knowledge`,
    `receipts`, `registry`) and delete the TypeScript runtime-local/adapters
    fallback. Each trusted local domain requires TS-side purification or a
-   pure/impure split first. External adapters and plugins remain supported
-   through their lane-specific language-neutral protocols, not through
-   TypeScript executor internals.
+   pure/impure split first. Tools remain supported through their
+   language-neutral manifests and process contracts, not through TypeScript
+   executor internals.
 5. Keep npm `@runxhq/cli` as a platform-aware selector that resolves and execs
    the Rust binary without requiring TypeScript source or tsx at runtime.
 6. Move `runx-sdk` from CLI-backed mode to `native-runtime` once the runtime
@@ -625,9 +616,8 @@ and process-supervision decisions. `crates/runx-contracts` carries the
 domain-neutral portable wire contracts and shared schema mechanics; domain
 crates contribute their own contract artifacts. Checked-in fixtures are
 conformance evidence, not an alternate implementation.
-External execution-adapter authors target language-neutral contracts and do not
-need Rust or a core fork to add integrations. Non-execution extension lanes have
-their own protocol contracts.
+Tool authors target language-neutral manifests and process contracts and do not
+need Rust or a core fork to add integrations.
 
 ## 18. Rust implementation quality bar
 
@@ -687,10 +677,10 @@ Async and blocking rules:
 - `runx-contracts`, `runx-core`, `runx-parser`, and `runx-receipts` do not
   depend on `tokio`, `async-trait`, HTTP clients, or subprocess libraries.
 - `runx-runtime` owns process management, network IO, MCP, permission delivery,
-  built-in adapter execution, external execution-adapter
-  supervision, and adapter concurrency. It may own an async runtime or MCP/HTTP
-  protocol crate only after a spec records the security rationale and updates
-  `crates/deny.toml`; until then the workspace ban is deliberate.
+  built-in adapter execution, and adapter concurrency. It may own an async
+  runtime or MCP/HTTP protocol crate only after a spec records the security
+  rationale and updates `crates/deny.toml`; until then the workspace ban is
+  deliberate.
 - Process ownership is kernel-backed before blocking external child code can
   run: Unix executions start in a dedicated process group; Windows executions
   start suspended, join a per-execution Job Object, and only then resume. Every
@@ -700,9 +690,7 @@ Async and blocking rules:
   wrappers are not containment mechanisms.
 - `runx-runtime` defaults to no adapter features. Built-in protocol host
   families are opt-in: `async-http`, `cli-tool`, `mcp`, `mcp-http-server`,
-  `a2a`, `agent`, `catalog`, `external-adapter`, and
-  `thread-outbox-provider`; `a2a` is
-  contract-defined but not enabled in `runx-cli`.
+  `agent`, and `catalog`.
 - `runx-sdk` v0 is explicitly a blocking CLI-backed client and depends on
   `runx-contracts`, not `runx-core` or `runx-runtime`. A future async SDK path
   requires its own spec and contract fixtures.

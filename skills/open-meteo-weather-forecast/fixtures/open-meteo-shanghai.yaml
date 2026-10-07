@@ -40,17 +40,17 @@ expect:
   step_outputs:
     forecast:
       subset:
-        http_execution:
+        provider_operation:
           data:
-            decision: completed
-            request_count: 1
-            responses:
-              - id: forecast
-                status: 200
-                json:
-                  timezone: Asia/Shanghai
-                  timezone_abbreviation: GMT+8
-                  utc_offset_seconds: 28800
+            status: success
+            provider: open-meteo
+            operation: forecast.read
+            transport: local_http
+            result:
+              forecast:
+                timezone: Asia/Shanghai
+                timezone_abbreviation: GMT+8
+                utc_offset_seconds: 28800
 metadata:
   public_skill: open-meteo-weather-forecast
   source_case: open-meteo-shanghai

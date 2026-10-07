@@ -70,12 +70,13 @@ outcome pointers use central reusable reference contracts.
 - `runx.reference.v1` is the only object used for a concrete pointer.
 - `runx.reference_link.v1` wraps a `Reference` with a role when the surrounding
   packet needs to say why a reference is present.
-- `runx.operational_proposal.v1` narrows those shapes to provider-neutral
-  proposal refs and proposal ref links. Provider-locked type names such as
-  GitHub issues or Slack threads are invalid in the proposal envelope.
-- Generic reference types such as `provider_thread`, `provider_event`,
-  `provider_comment`, `tracking_item`, `change_request`, `repository`, and
-  `support_ticket` are preferred for cross-provider operational flows.
+- `runx.operational_proposal.v1` uses those shapes for proposal refs and
+  proposal ref links.
+- External reference types never name a provider: `thread`, `event`,
+  `comment`, `tracking_item`, `change_request`, `repository`, and
+  `external_url`. A connector declares which of its
+  locators name which type (`references` in `connector.yaml`), and the
+  runtime classifies locators from those declarations.
 - Provider names belong in `ref.provider`, provider locators belong in
   `ref.locator`, and provider URLs or URIs belong in `ref.uri`.
 - Proposal, story, and outbox packets must not add top-level provider-specific

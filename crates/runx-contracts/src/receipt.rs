@@ -20,9 +20,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::schema::{IsoDateTime, NonEmptyString, RunxSchema};
 use crate::{
-    ActForm, AuthorityAttenuation, AuthorityTerm, Closure, ClosureDisposition, CriterionBinding,
-    Decision, HashAlgorithm, Intent, JsonObject, OfferRevisionRef, ParentInvocationBinding,
-    PrincipalReference, Reference, RevisionDetails, Sha256Digest, VerificationDetails,
+    ActForm, AuthorityAttenuation, AuthorityDerivation, AuthorityTerm, Closure, ClosureDisposition,
+    CriterionBinding, Decision, HashAlgorithm, Intent, JsonObject, OfferRevisionRef,
+    ParentInvocationBinding, PrincipalReference, Reference, RevisionDetails, Sha256Digest,
+    VerificationDetails,
 };
 
 /// Logical schema name for the governance receipt.
@@ -245,6 +246,9 @@ pub struct ReceiptAuthority {
     pub mandate_ref: Option<Reference>,
     #[serde(default)]
     pub terms: Vec<AuthorityTerm>,
+    /// How each derived execution term in `terms` was proven.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub derivations: Vec<AuthorityDerivation>,
     pub enforcement: ReceiptEnforcement,
 }
 

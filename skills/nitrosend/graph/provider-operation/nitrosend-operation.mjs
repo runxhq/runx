@@ -1,5 +1,3 @@
-const API_URL = "https://api.nitrosend.com/mcp";
-const API_HOST = "api.nitrosend.com";
 const READ_OPERATIONS = new Map([
   ["status", "nitro_get_status"],
   ["query", "nitro_query"],
@@ -7,7 +5,6 @@ const READ_OPERATIONS = new Map([
   ["sender_settings", "nitro_configure_account"],
   ["insights", "nitro_get_insights"],
   ["review_delivery", "nitro_review_delivery"],
-  ["review_content", "nitro_review_delivery"],
   ["import_status", "nitro_query"],
   ["compose_email", null],
   ["billing_status", "nitro_manage_billing"],
@@ -27,13 +24,48 @@ const ACT_OPERATIONS = new Map([
   ["define_segment", "nitro_define_segment"],
   ["ingest_image", "nitro_ingest"],
 ]);
+// The Nitrosend connector operation each skill operation runs as.
+const CONNECTOR_OPERATIONS = new Map([
+  ["status", "status.read"],
+  ["query", "entities.query"],
+  ["import_status", "entities.query"],
+  ["inbox", "inbox.read"],
+  ["sender_settings", "sender.read"],
+  ["insights", "insights.read"],
+  ["review_delivery", "delivery.review"],
+  ["billing_status", "billing.status"],
+  ["billing_plans", "billing.plans"],
+  ["plan_checkout_status", "checkout.status"],
+  ["plan_checkout", "plan.checkout"],
+  ["configure_sender", "sender.configure"],
+  ["compose_campaign", "campaign.draft"],
+  ["compose_flow", "flow.draft"],
+  ["manage_template", "template.draft"],
+  ["define_segment", "segment.define"],
+  ["ingest_image", "image.ingest"],
+]);
+const CREATIVE_DRAFT_OPERATIONS = new Set([
+  "compose_campaign", "compose_flow", "manage_template",
+]);
+// A composition read, by mode: intent plans and validate checks; neither
+// persists.
+const COMPOSITION_READS = new Map([["intent", "plan"], ["validate", "validate"]]);
+// The connector operations that only read, among those an act may choose.
+const READ_CONNECTOR_OPERATIONS = new Set([
+  "test_message.preview", "message.preview", "contacts.records.preview",
+]);
+// A delivery control, by target and lifecycle operation.
+const CONTROL_OPERATIONS = new Map([
+  ["campaign:approve", "campaign.approve"],
+  ["flow:approve", "flow.approve"],
+  ["campaign:live", "campaign.send"],
+  ["campaign:schedule", "campaign.schedule"],
+  ["flow:live", "flow.activate"],
+]);
 const COMPOSITION_TOOLS = new Map([
   ["campaign", "nitro_compose_campaign"],
   ["flow", "nitro_compose_flow"],
   ["template", "nitro_manage_template"],
-]);
-const CREATIVE_DRAFT_OPERATIONS = new Set([
-  "compose_campaign", "compose_flow", "manage_template",
 ]);
 const BILLING_PROVIDER_OPERATIONS = new Map([
   ["billing_status", "status"],
@@ -61,7 +93,7 @@ const QUERY_FILTERS = new Map([
 ]);
 const INBOX_ARGUMENTS = new Map([
   ["list_mailbox", new Set(["status", "query", "inbox_id", "view", "include_counts", "page", "per"])],
-  ["get_thread", new Set(["conversation_id"])],
+  ["get_thread", new Set(["conversation_id", "purpose"])],
   ["get_thread_page", new Set(["conversation_id", "before_occurred_at", "before_message_id"])],
   ["get_message_body", new Set(["conversation_id", "message_id", "offset"])],
 ]);
@@ -102,80 +134,90 @@ export function prepareOperation(inputs) {
   const tool = operation === "compose_email"
     ? COMPOSITION_TOOLS.get(text(args.target_type)) ?? null
     : operations?.get(operation) ?? null;
-  const requestId = `nitrosend-${operation || "unknown"}`;
+  const connectorOperation = decision === "ready" ? connectorOperationFor(operation, args) : null;
   return {
     operation_plan: {
-      decision,
+      decision: decision === "ready" && !connectorOperation ? "refused" : decision,
       provider: "nitrosend",
       mode,
       operation: operation || null,
       tool,
+      connector_operation: connectorOperation,
+      // A preview validates without dispatching, so it runs as a read and
+      // takes no approval; only a live write does.
+      access: connectorOperation
+        ? (mode === "act" && !READ_CONNECTOR_OPERATIONS.has(connectorOperation) ? "write" : "read")
+        : null,
+      provider_input: connectorOperation ? providerInput(operation, args, brandSid) : null,
       expected_provider_operation: BILLING_PROVIDER_OPERATIONS.get(operation) ?? null,
       expected_purchase_id: operation === "plan_checkout_status" ? Number(args.purchase_id) : null,
       brand_sid: brandSid || null,
-      requests: decision === "ready"
-        ? [{
-            id: requestId,
-            method: "POST",
-            url: API_URL,
-            headers: {
-              accept: "application/json, text/event-stream",
-              ...(brandSid ? { "x-brand-sid": brandSid } : {}),
-            },
-            body: {
-              jsonrpc: "2.0",
-              id: requestId,
-              method: "tools/call",
-              params: { name: tool, arguments: providerArguments(operation, args) },
-            },
-          }]
-        : [],
-      allowed_hosts: [API_HOST],
-      auth: { type: "bearer", secret_env: "NITROSEND_API_KEY" },
-      blockers: blockers.map((blocker) => blocker.replace(/^refused:/u, "")),
+      blockers: decision === "ready" && !connectorOperation
+        ? [`${operation} has no Nitrosend connector operation for these arguments`]
+        : blockers.map((blocker) => blocker.replace(/^refused:/u, "")),
     },
   };
 }
 
+function connectorOperationFor(operation, args) {
+  if (operation === "compose_email") {
+    return `${text(args.target_type)}.composition.${COMPOSITION_READS.get(text(args.composition_mode))}`;
+  }
+  if (operation === "control_delivery") {
+    return CONTROL_OPERATIONS.get(`${text(args.target_type)}:${text(args.operation)}`) ?? null;
+  }
+  const preview = args.dry_run === true;
+  if (operation === "send_test_message") return preview ? "test_message.preview" : "test_message.send";
+  if (operation === "send_transactional") return preview ? "message.preview" : "message.send";
+  if (operation === "import_contacts") return preview ? "contacts.records.preview" : "contacts.records.import";
+  return CONNECTOR_OPERATIONS.get(operation) ?? null;
+}
+
+// The connector operation's input: the brand it runs for, and the tool's
+// arguments in the shape the operation declares.
+function providerInput(operation, args, brandSid) {
+  const brand = brandSid ? { brand_sid: brandSid } : {};
+  const provided = providerArguments(operation, args);
+  if (["status", "sender_settings", "billing_status", "billing_plans"].includes(operation)) {
+    return brand;
+  }
+  if (operation === "plan_checkout_status") return { ...brand, purchase_id: Number(args.purchase_id) };
+  if (operation === "plan_checkout") return { ...brand, plan_id: Number(args.plan_id) };
+  // runx derives a live write's provider key from the step's own key.
+  if (operation === "control_delivery") {
+    const { target_type: _type, operation: _operation, idempotency_key: _key, ...control } = provided;
+    return { ...brand, ...defined(control) };
+  }
+  if (["send_test_message", "send_transactional", "import_contacts"].includes(operation)) {
+    const { dry_run: _dryRun, idempotency_key: _key, ...fields } = provided;
+    return { ...brand, ...defined(fields) };
+  }
+  return { ...brand, arguments: defined(provided) };
+}
+
+function defined(value) {
+  return Object.fromEntries(Object.entries(record(value)).filter(([, child]) => child !== undefined && child !== null));
+}
+
 export function normalizeOperation(inputs) {
   const plan = record(inputs.operation_plan);
-  const execution = record(inputs.http_execution);
-  const response = array(execution.responses)[0];
-  if (!response || typeof response !== "object" || Array.isArray(response)) {
-    return { provider_evidence: evidence(plan, "provider_error", null, null, ["Nitrosend returned no HTTP response evidence"]) };
-  }
-  const status = number(response.status);
-  if (response.ok !== true) {
-    const authority = status === 401 || status === 403;
-    return {
-      provider_evidence: evidence(
-        plan,
-        authority ? "needs_input" : "provider_error",
-        response,
-        null,
-        [authority ? "Nitrosend rejected the configured credential" : `Nitrosend returned HTTP ${status}`],
-      ),
-    };
+  const packet = record(inputs.provider_operation);
+  if (packet.status !== "success" || packet.provider !== "nitrosend" ||
+      packet.operation !== plan.connector_operation) {
+    throw new Error("the Nitrosend result differs from the admitted connector operation");
   }
   try {
-    const payload = providerPayload(response);
-    const result = parseToolContent(payload, text(plan.operation));
-    const safeResult = redact(result);
-    const contractBlocker = billingResultBlocker(plan, safeResult);
-    const explicitProviderError = record(payload.result).isError === true ||
-      safeResult?.error === true || safeResult?.isError === true;
-    const providerError = explicitProviderError || Boolean(contractBlocker);
+    const result = redact(toolResult(record(packet.result), text(plan.operation)));
+    const contractBlocker = billingResultBlocker(plan, result);
+    const explicitProviderError = result?.error === true || result?.isError === true;
     return {
       provider_evidence: evidence(
         plan,
-        providerError ? "provider_error" : "ok",
-        response,
-        safeResult,
-        providerError
-          ? [explicitProviderError
-              ? safeResult?.message || "Nitrosend rejected the operation"
-              : contractBlocker]
-          : [],
+        explicitProviderError || contractBlocker ? "provider_error" : "ok",
+        result,
+        explicitProviderError
+          ? [result?.message || "Nitrosend rejected the operation"]
+          : contractBlocker ? [contractBlocker] : [],
       ),
     };
   } catch (error) {
@@ -183,7 +225,6 @@ export function normalizeOperation(inputs) {
       provider_evidence: evidence(
         plan,
         "provider_error",
-        response,
         null,
         [redactText(error instanceof Error ? error.message : String(error))],
       ),
@@ -214,7 +255,6 @@ export function blockedOperation(inputs) {
     provider_evidence: evidence(
       plan,
       text(plan.decision) || "needs_input",
-      null,
       null,
       array(plan.blockers).map(String),
     ),
@@ -313,6 +353,10 @@ function validate(mode, operation, args, brandSid) {
         !positiveInteger(details.conversation_id)) {
       return [`inbox ${args.command} requires a positive integer conversation_id`];
     }
+    if (args.command === "get_thread" && details.purpose !== undefined &&
+        !["read", "reply"].includes(details.purpose)) {
+      return ["inbox get_thread purpose must be read or reply"];
+    }
     if (args.command === "get_thread_page" &&
         (!text(details.before_occurred_at) || !positiveInteger(details.before_message_id))) {
       return ["inbox get_thread_page requires before_occurred_at and a positive integer before_message_id"];
@@ -389,18 +433,6 @@ function validate(mode, operation, args, brandSid) {
     }
     if (args.target_type === "flow" && !positiveInteger(args.revision_id)) {
       return ["review_delivery requires arguments.revision_id for flows"];
-    }
-  }
-  if (mode === "read" && operation === "review_content") {
-    const keys = Object.keys(args);
-    const unexpected = keys.filter((key) => !["subject", "html"].includes(key));
-    if (unexpected.length > 0) {
-      return [`review_content received unsupported fields: ${unexpected.join(", ")}`];
-    }
-    if (typeof args.subject !== "string" || utf8Bytes(args.subject) > 998 ||
-        typeof args.html !== "string" || utf8Bytes(args.html) < 1 ||
-        utf8Bytes(args.html) > 262_144) {
-      return ["review_content requires a UTF-8 subject up to 998 bytes and HTML between 1 and 262144 bytes"];
     }
   }
   if (mode === "read" && operation === "import_status" && !positiveInteger(args.import_id)) {
@@ -554,28 +586,14 @@ function utf8Bytes(value) {
   return bytes;
 }
 
+// The tool arguments a skill operation's connector input carries; the
+// manifest fixes the rest.
 function providerArguments(operation, args) {
-  if (operation === "billing_status") return { operation: "status" };
-  if (operation === "billing_plans") return { operation: "plans" };
-  if (operation === "plan_checkout_status") {
-    return {
-      operation: "checkout_status",
-      params: { purchase_id: Number(args.purchase_id) },
-    };
-  }
-  if (operation === "plan_checkout") {
-    return {
-      operation: "checkout",
-      params: { plan_id: Number(args.plan_id), confirm: true },
-      idempotency_key: args.idempotency_key,
-    };
-  }
-  if (operation === "sender_settings") return {};
   if (operation === "inbox") {
     return {
       command: args.command,
       ...record(args.arguments),
-      ...(args.command === "get_thread" ? { purpose: "read" } : {}),
+      ...(args.command === "get_thread" ? { purpose: args.arguments?.purpose ?? "read" } : {}),
     };
   }
   if (operation === "compose_email") {
@@ -590,9 +608,6 @@ function providerArguments(operation, args) {
       ...(args.composition_mode === "validate" ? { validate_only: true } : {}),
     };
   }
-  if (operation === "import_status") {
-    return { entity: "imports", filters: { id: Number(args.import_id) }, page: 1, per: 1 };
-  }
   if (operation === "ingest_image") {
     return {
       kind: "image",
@@ -600,6 +615,9 @@ function providerArguments(operation, args) {
       description: args.description,
       ...(text(args.filename) ? { filename: args.filename } : {}),
     };
+  }
+  if (operation === "import_status") {
+    return { entity: "imports", filters: { id: Number(args.import_id) }, page: 1, per: 1 };
   }
   if (operation !== "import_contacts") return args;
   const { source_id: sourceId, consent_basis: _consentBasis, ...providerArgs } = args;
@@ -612,64 +630,35 @@ function providerArguments(operation, args) {
   return providerArgs;
 }
 
-function providerPayload(response) {
-  if (response.json && typeof response.json === "object" && !Array.isArray(response.json)) {
-    return response.json;
+// What a Nitrosend tool returned: its `result`, with the selected sender
+// settings spelled out for the sender operations.
+function toolResult(value, operation) {
+  if (!(isRecord(value.meta) && value.meta.tool && Object.hasOwn(value, "result"))) {
+    return providerResult(value);
   }
-  const body = text(response.body);
-  if (!body) throw new Error("Nitrosend returned an empty MCP response");
-  if (body.startsWith("{")) return JSON.parse(body);
-  const payloads = body
-    .split(/\r?\n/u)
-    .filter((line) => line.startsWith("data:"))
-    .map((line) => line.slice(5).trim())
-    .filter((line) => line && line !== "[DONE]");
-  if (payloads.length === 0) throw new Error("Nitrosend returned an invalid MCP event stream");
-  return JSON.parse(payloads.at(-1));
-}
-
-function parseToolContent(payload, operation) {
-  if (payload.error) {
-    const message = text(payload.error.message) || "Nitrosend MCP request failed";
-    const detail = text(payload.error.data);
-    throw new Error(detail && detail !== message ? `${message}: ${detail}` : message);
+  const result = record(value.result);
+  if (operation === "ingest_image") {
+    const { signed_id: _signedId, direct_upload: _directUpload, ...publicResult } = result;
+    return publicResult;
   }
-  const content = payload.result?.content;
-  if (!Array.isArray(content)) return providerResult(payload.result ?? {});
-  const value = content.find((item) => item?.type === "text")?.text;
-  if (typeof value !== "string") return providerResult(payload.result ?? {});
-  let parsed;
-  try {
-    parsed = JSON.parse(value);
-  } catch {
-    return { message: value };
+  if (!["sender_settings", "configure_sender"].includes(operation)) {
+    return result;
   }
-  if (isRecord(parsed) && parsed.meta?.tool && Object.hasOwn(parsed, "result")) {
-    const result = record(parsed.result);
-    if (operation === "ingest_image") {
-      const { signed_id: _signedId, direct_upload: _directUpload, ...publicResult } = result;
-      return publicResult;
-    }
-    if (!["sender_settings", "configure_sender"].includes(operation)) {
-      return result;
-    }
-    const sender = record(result.sender);
-    const currentBrand = record(parsed.meta.current_brand);
-    return {
-      ...result,
-      current_brand: parsed.meta.current_brand ?? null,
-      sender_settings: {
-        brand_sid: text(currentBrand.sid) || null,
-        from_name: text(sender.from_name) || null,
-        from_email: text(sender.from_email) || null,
-        reply_to: text(sender.reply_to) || null,
-        test_email_recipients: Array.isArray(result.test_email_recipients)
-          ? result.test_email_recipients
-          : [],
-      },
-    };
-  }
-  return providerResult(parsed);
+  const sender = record(result.sender);
+  const currentBrand = record(value.meta.current_brand);
+  return {
+    ...result,
+    current_brand: value.meta.current_brand ?? null,
+    sender_settings: {
+      brand_sid: text(currentBrand.sid) || null,
+      from_name: text(sender.from_name) || null,
+      from_email: text(sender.from_email) || null,
+      reply_to: text(sender.reply_to) || null,
+      test_email_recipients: Array.isArray(result.test_email_recipients)
+        ? result.test_email_recipients
+        : [],
+    },
+  };
 }
 
 function providerResult(value) {
@@ -677,7 +666,7 @@ function providerResult(value) {
   throw new Error("Nitrosend returned a non-object tool result");
 }
 
-function evidence(plan, decision, response, result, blockers) {
+function evidence(plan, decision, result, blockers) {
   return {
     decision,
     provider: "nitrosend",
@@ -686,14 +675,6 @@ function evidence(plan, decision, response, result, blockers) {
     tool: plan.tool ?? null,
     provider_ref: decision === "ok" ? providerReference(text(plan.operation), result) : null,
     result,
-    evidence: response
-      ? {
-          request_id: text(response.id),
-          http_status: number(response.status),
-          body_digest: text(response.body_digest),
-          credential_material: "redacted",
-        }
-      : null,
     blockers,
   };
 }

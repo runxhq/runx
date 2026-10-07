@@ -1,12 +1,12 @@
 skill: n8n-handoff
-version: "0.2.1"
+version: "0.2.2"
 catalog:
   kind: graph
   audience: operator
   visibility: public
   role: context
   execution: execute
-  completion: provider_readback
+  completion: provider_acknowledgement
   requires_adapter: true
   approval: required
 input_definitions:
@@ -43,8 +43,8 @@ input_definitions:
   webhook_host:
     type: string
     required: true
-    description: Public n8n host, without scheme or path.
-    schema: { pattern: '^[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?(?::[0-9]{1,5})?$' }
+    description: The workspace's n8n Cloud host, such as acme.app.n8n.cloud, without scheme or path.
+    schema: { pattern: '^[a-z0-9][a-z0-9-]{0,62}\.app\.n8n\.cloud$' }
   workflow_slug:
     type: string
     required: false
@@ -72,7 +72,7 @@ harness:
         handoff_audience: n8n:workflow:runx-governed-effect
         execution_context:
           caller: runx-cli
-          workflow_ref: self-hosted-n8n-demo
+          workflow_ref: n8n-cloud-demo
           environment: local-dogfood
         payload:
           hello: workflow
@@ -101,6 +101,9 @@ harness:
                   receipt_expectations:
                     outbound_effect_must_be_receipted: true
                     receiver_response_must_be_captured: true
+connectors:
+  n8n:
+    operations: [workflow.invoke]
 runners:
   preflight:
     default: false
@@ -123,7 +126,7 @@ runners:
     examples:
       - event_id: evt_n8n_demo_001
         handoff_audience: n8n:workflow:runx-governed-effect
-        execution_context: { caller: runx-cli, workflow_ref: self-hosted-n8n-demo }
+        execution_context: { caller: runx-cli, workflow_ref: n8n-cloud-demo }
         payload: { hello: workflow }
     graph:
       name: n8n-handoff-preflight
@@ -161,15 +164,15 @@ runners:
       receiver:
         definition: receiver
     examples:
-      - webhook_host: n8n.example.com
+      - webhook_host: acme.app.n8n.cloud
         workflow_slug: runx-governed-effect
         event_id: evt_n8n_demo_001
         handoff_audience: n8n:workflow:runx-governed-effect
-        execution_context: { caller: runx-cli, workflow_ref: self-hosted-n8n-demo }
+        execution_context: { caller: runx-cli, workflow_ref: n8n-cloud-demo }
         payload: { hello: workflow }
     graph:
       name: n8n-handoff-send
-      result_from: [readback]
+      result_from: [invoke]
       steps:
         - id: build-handoff-context
           tool: control.prepare_handoff
@@ -182,41 +185,27 @@ runners:
             payload: $input.payload
             source: $input.source
             receiver: $input.receiver
-        - id: invoke
-          tool: provider.mutate
-          idempotency_key: $input.event_id
-          scopes: [orchestrator.n8n.workflow.invoke]
-          policy:
-            provider_permission: { verb: write }
+        - id: address
           inputs:
-            expected_provider: n8n
-            operation: workflow.invoke
-            target: $input.webhook_host
+            webhook_host: $input.webhook_host
+            workflow_slug: $input.workflow_slug
+          context:
+            delivery: build-handoff-context.handoff_context.data.delivery
+          run:
+            type: javascript
+            module: webhook.mjs
+            export: webhookRequest
+            outputs:
+              webhook_request: object
+
+        - id: invoke
+          operation: n8n/workflow.invoke
+          idempotency_key: $input.event_id
+          inputs:
             approval:
-              reason: Approve invoking this exact n8n workflow handoff.
+              reason: Approve delivering this exact handoff to the n8n workflow webhook.
               type: workflow_handoff
             idempotency_key: $input.event_id
-            result_fields: [event_id, invocation_ref, status, idempotency_key]
-            expected_result: { event_id: $input.event_id, status: accepted }
-            input:
-              workflow_slug: $input.workflow_slug
+            result_fields: [acknowledgement]
           context:
-            handoff_context: build-handoff-context.handoff_context.data
-
-        - id: readback
-          tool: provider.read
-          scopes: [orchestrator.n8n.workflow.read]
-          policy:
-            provider_permission: { verb: read }
-          inputs:
-            expected_provider: n8n
-            operation: workflow.invocation.read
-            target: $input.webhook_host
-            result_fields: [event_id, invocation_ref, status, idempotency_key]
-            expected_result:
-              event_id: $input.event_id
-              invocation_ref: $input.invoke_result.invocation_ref
-              status: accepted
-              idempotency_key: $input.invoke_result.idempotency_key
-          context:
-            invoke_result: invoke.provider_operation.data.result
+            input: address.webhook_request

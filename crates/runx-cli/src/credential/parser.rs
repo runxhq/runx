@@ -2,7 +2,7 @@ use std::ffi::OsString;
 
 use crate::cli_args::{os_arg, split_flag};
 
-use super::{CredentialAction, CredentialBindingTarget, CredentialPlan};
+use super::{CredentialAction, CredentialPlan};
 
 pub fn parse_credential_plan(args: &[OsString]) -> Result<CredentialPlan, String> {
     if os_arg(args, 0, "credential")? != "credential" {
@@ -11,21 +11,20 @@ pub fn parse_credential_plan(args: &[OsString]) -> Result<CredentialPlan, String
     let subcommand = args
         .get(1)
         .and_then(|value| value.to_str())
-        .ok_or_else(|| "runx credential requires set, list, remove, or bind".to_owned())?;
+        .ok_or_else(|| "runx credential requires set, list, or remove".to_owned())?;
     match subcommand {
         "set" => parse_set(args),
         "list" => parse_list(args),
         "remove" => parse_remove(args),
-        "bind" => parse_bind(args),
         _ => Err(format!("unknown credential subcommand {subcommand}")),
     }
 }
 
 fn parse_set(args: &[OsString]) -> Result<CredentialPlan, String> {
-    let provider = positional(args, 2, "runx credential set requires <provider>")?;
+    let connector = positional(args, 2, "runx credential set requires <connector>")?;
+    let mut credential = None;
     let mut profile = None;
-    let mut auth_mode = "api_key".to_owned();
-    let mut audience = None;
+    let mut scopes = Vec::new();
     let mut from_stdin = false;
     let mut json = false;
     let mut index = 3;
@@ -38,9 +37,9 @@ fn parse_set(args: &[OsString]) -> Result<CredentialPlan, String> {
         }
         let (flag, inline) = split_flag(token);
         match flag {
+            "--credential" => credential = Some(flag_value(args, &mut index, flag, inline)?),
             "--profile" => profile = Some(flag_value(args, &mut index, flag, inline)?),
-            "--auth-mode" => auth_mode = flag_value(args, &mut index, flag, inline)?,
-            "--audience" => audience = Some(flag_value(args, &mut index, flag, inline)?),
+            "--scope" => scopes.push(flag_value(args, &mut index, flag, inline)?),
             "--from-stdin" => {
                 reject_inline(flag, inline)?;
                 from_stdin = true;
@@ -56,12 +55,14 @@ fn parse_set(args: &[OsString]) -> Result<CredentialPlan, String> {
     if !from_stdin {
         return Err("runx credential set requires --from-stdin".to_owned());
     }
+    let credential =
+        credential.ok_or_else(|| "runx credential set requires --credential <name>".to_owned())?;
     Ok(CredentialPlan {
         action: CredentialAction::Set {
-            profile: profile.unwrap_or_else(|| provider.clone()),
-            provider,
-            auth_mode,
-            audience,
+            profile: profile.unwrap_or_else(|| connector.clone()),
+            connector,
+            credential,
+            scopes,
             from_stdin,
         },
         json,
@@ -81,46 +82,6 @@ fn parse_remove(args: &[OsString]) -> Result<CredentialPlan, String> {
     let json = parse_json_only(args, 3, "credential remove")?;
     Ok(CredentialPlan {
         action: CredentialAction::Remove { profile },
-        json,
-    })
-}
-
-fn parse_bind(args: &[OsString]) -> Result<CredentialPlan, String> {
-    let profile = positional(args, 2, "runx credential bind requires <profile>")?;
-    let mut provider = None;
-    let mut skill = None;
-    let mut credential = None;
-    let mut json = false;
-    let mut index = 3;
-    while index < args.len() {
-        let token = os_arg(args, index, "credential")?;
-        let (flag, inline) = split_flag(token);
-        match flag {
-            "--provider" => provider = Some(flag_value(args, &mut index, flag, inline)?),
-            "--skill" => skill = Some(flag_value(args, &mut index, flag, inline)?),
-            "--credential" => credential = Some(flag_value(args, &mut index, flag, inline)?),
-            "--json" | "-j" => {
-                reject_inline(flag, inline)?;
-                json = true;
-            }
-            _ => return Err(format!("unknown credential bind flag {flag}")),
-        }
-        index += 1;
-    }
-    let target = match (provider, skill, credential) {
-        (Some(provider), None, None) => CredentialBindingTarget::Provider(provider),
-        (None, Some(skill), Some(credential)) => {
-            CredentialBindingTarget::Skill { skill, credential }
-        }
-        _ => {
-            return Err(
-                "runx credential bind requires either --provider <provider> or --skill <skill> --credential <name>"
-                    .to_owned(),
-            );
-        }
-    };
-    Ok(CredentialPlan {
-        action: CredentialAction::Bind { profile, target },
         json,
     })
 }

@@ -47,7 +47,6 @@ try {
     "dist/index.d.ts",
     "dist/src/index.js",
     "dist/src/index.d.ts",
-    "dist/src/external-adapter.js",
     "dist/src/tool.js",
     "package.json",
   ]);

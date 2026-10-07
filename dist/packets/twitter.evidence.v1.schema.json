@@ -24,14 +24,12 @@
     "decision": {
       "enum": [
         "ok",
-        "needs_input",
-        "provider_error",
-        "stopped"
+        "needs_input"
       ],
       "type": "string"
     },
     "item_count": {
-      "maximum": 10000,
+      "maximum": 10099,
       "minimum": 0,
       "type": "integer"
     },
@@ -173,8 +171,16 @@
           }
         ]
       },
-      "maxItems": 10000,
+      "maxItems": 10099,
       "type": "array"
+    },
+    "next_cursor": {
+      "maxLength": 512,
+      "minLength": 1,
+      "type": [
+        "string",
+        "null"
+      ]
     },
     "provenance": {
       "additionalProperties": false,
@@ -183,10 +189,6 @@
           "pattern": "^sha256:[0-9a-f]{64}$",
           "type": "string"
         },
-        "request_count": {
-          "minimum": 0,
-          "type": "integer"
-        },
         "retrieved_via": {
           "maxLength": 4000,
           "type": "string"
@@ -194,7 +196,6 @@
       },
       "required": [
         "retrieved_via",
-        "request_count",
         "content_digest"
       ],
       "type": "object"
@@ -223,44 +224,12 @@
       ],
       "type": "object"
     },
-    "rate": {
-      "additionalProperties": false,
-      "properties": {
-        "limited": {
-          "type": "boolean"
-        },
-        "remaining": {
-          "type": "number"
-        },
-        "reset_at": {
-          "type": [
-            "string",
-            "null"
-          ]
-        }
-      },
-      "required": [
-        "limited",
-        "remaining",
-        "reset_at"
-      ],
-      "type": "object"
-    },
     "source": {
       "enum": [
         "live",
         "archive"
       ],
       "type": "string"
-    },
-    "stop_conditions": {
-      "items": {
-        "maxLength": 1000,
-        "minLength": 1,
-        "type": "string"
-      },
-      "maxItems": 100,
-      "type": "array"
     },
     "truncated": {
       "type": "boolean"
@@ -274,10 +243,9 @@
     "items",
     "item_count",
     "truncated",
+    "next_cursor",
     "provenance",
-    "rate",
-    "blockers",
-    "stop_conditions"
+    "blockers"
   ],
   "type": "object"
 }

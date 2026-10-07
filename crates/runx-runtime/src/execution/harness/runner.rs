@@ -25,7 +25,7 @@ use super::super::graph::materialize_graph_parameter_inputs;
 use super::assertions::{assert_expectations, status_from_disposition};
 use super::fixtures::{
     HarnessExpectedStatus, HarnessFixture, HarnessFixtureError, HarnessFixtureKind,
-    fixture_kind_name, load_harness_fixture,
+    load_harness_fixture,
 };
 use crate::RuntimeError;
 use crate::adapter::{EphemeralValue, InvocationOutput, SkillAdapter, SkillInvocation};
@@ -58,6 +58,8 @@ pub struct HarnessReplayOutput {
     pub steps: Vec<StepRun>,
     pub skill_output: Option<InvocationOutput>,
     pub replayed_answers: JsonObject,
+    /// The requests the run made that the case did not answer, by id.
+    pub unanswered: Vec<String>,
 }
 
 #[derive(Debug, Error)]
@@ -85,8 +87,6 @@ pub enum HarnessReplayError {
         receipt_id: String,
         findings: String,
     },
-    #[error("harness fixture mode {mode} at {field_path} is not yet supported by the Rust harness")]
-    UnsupportedFixtureMode { mode: String, field_path: String },
     #[error("invalid harness replay metadata at {field}: {message}")]
     InvalidReplayMetadata { field: String, message: String },
     #[error("invalid harness fixture environment {name}: {message}")]
@@ -163,6 +163,8 @@ fn fixture_runtime_options_from_env(
     env: BTreeMap<String, String>,
 ) -> Result<RuntimeOptions, HarnessReplayError> {
     Ok(RuntimeOptions {
+        current_context: Vec::new(),
+        historical_context: Vec::new(),
         created_at: crate::time::DEFAULT_CREATED_AT.to_owned(),
         ..RuntimeOptions::from_env_or_local_development(env)?
     })
@@ -177,49 +179,31 @@ where
     A: SkillAdapter,
 {
     let fixture_path = fixture_path.as_ref();
-    let fixture = load_harness_fixture(fixture_path)?;
-    #[cfg(feature = "catalog")]
-    let mut fixture = fixture;
-    let http_responses = runx_parser::harness_fixture::parse_harness_http_responses(
-        fixture.caller.get("http_responses"),
-        "caller.http_responses",
-    )
-    .map_err(HarnessFixtureError::Parser)?;
-    let http_exchanges = runx_parser::harness_fixture::parse_harness_http_exchanges(
-        fixture.caller.get("http_exchanges"),
-        "caller.http_exchanges",
-    )
-    .map_err(HarnessFixtureError::Parser)?;
-    options.effects =
-        super::effects_with_harness_http(&options.effects, &http_responses, &http_exchanges);
-    #[cfg(feature = "catalog")]
-    {
-        let provider_responses = runx_parser::harness_fixture::parse_harness_provider_responses(
-            fixture.caller.get("provider_responses"),
-            "caller.provider_responses",
-        )
-        .map_err(HarnessFixtureError::Parser)?;
-        options.effects = super::effects_with_harness_provider_responses(
-            &options.effects,
-            provider_responses.as_ref(),
-        )
-        .map_err(|error| RuntimeError::effect_state("wiring harness provider responses", error))?;
-        if provider_responses.is_some() {
-            fixture.env.insert(
-                crate::HOSTED_API_BASE_URL_ENV.to_owned(),
-                super::HARNESS_PROVIDER_BASE_URL.to_owned(),
-            );
-            fixture.env.insert(
-                crate::HOSTED_API_TOKEN_ENV.to_owned(),
-                super::HARNESS_PROVIDER_TOKEN.to_owned(),
-            );
-        }
-    }
+    let mut fixture = load_harness_fixture(fixture_path)?;
     let target_path = resolve_target_path(fixture_path, &fixture.target)?;
+    // Each case runs against a kernel of its own, held until the case is
+    // done: its instances, custody and usage never reach the operator's
+    // workspace or another case.
+    let case_root = tempfile::Builder::new()
+        .prefix("runx-harness-case-")
+        .tempdir()
+        .map_err(|error| {
+            RuntimeError::effect_state("isolating a harness case", error.to_string())
+        })?;
+    fixture.env.insert(
+        crate::receipts::paths::RUNX_PROJECT_DIR_ENV.to_owned(),
+        case_root
+            .path()
+            .join("project")
+            .to_string_lossy()
+            .into_owned(),
+    );
+    #[cfg(feature = "async-http")]
+    wire_operations(&mut fixture, &target_path, &mut options, case_root.path())?;
     seed_harness_receipts(&fixture, &target_path, &options)?;
     let receipt_signature = options.receipt_signature.clone();
     let output = match fixture.kind {
-        HarnessFixtureKind::Skill | HarnessFixtureKind::A2a | HarnessFixtureKind::Agent => {
+        HarnessFixtureKind::Skill | HarnessFixtureKind::Agent => {
             run_skill_fixture(&fixture, target_path, adapter, options)?
         }
         HarnessFixtureKind::AgentStep => run_agent_task_fixture(&fixture, options)?,
@@ -227,12 +211,6 @@ where
             run_graph_replay_fixture(&fixture, options)?
         }
         HarnessFixtureKind::Graph => run_graph_fixture(&fixture, &target_path, adapter, options)?,
-        HarnessFixtureKind::Mcp => {
-            return Err(HarnessReplayError::UnsupportedFixtureMode {
-                mode: fixture_kind_name(&fixture.kind).to_owned(),
-                field_path: "kind".to_owned(),
-            });
-        }
     };
     assert_expectations(&output, receipt_signature.signature_policy())
         .map_err(|error| expectation_error_with_output(error, &output))?;
@@ -284,6 +262,173 @@ fn seed_harness_receipts(
     let mut env = options.env.clone();
     env.extend(fixture.env.clone());
     crate::services::VerifiedReceiptStore::resolve(&env, target_path)?.write_all(&receipts)?;
+    Ok(())
+}
+
+/// Stand the case's fixtures in beneath operation steps: its exact HTTP
+/// answers, its provider fixture, and the sessions and credentials it runs
+/// under.
+#[cfg(feature = "async-http")]
+fn wire_operations(
+    fixture: &mut HarnessFixture,
+    target_path: &Path,
+    options: &mut RuntimeOptions,
+    case_root: &Path,
+) -> Result<(), HarnessReplayError> {
+    let http_responses = runx_parser::harness_fixture::parse_harness_http_responses(
+        fixture.caller.get("http_responses"),
+        "caller.http_responses",
+    )
+    .map_err(HarnessFixtureError::Parser)?;
+    let http_exchanges = runx_parser::harness_fixture::parse_harness_http_exchanges(
+        fixture.caller.get("http_exchanges"),
+        "caller.http_exchanges",
+    )
+    .map_err(HarnessFixtureError::Parser)?;
+    let provider_responses = runx_parser::harness_fixture::parse_harness_provider_responses(
+        fixture.caller.get("provider_responses"),
+        "caller.provider_responses",
+    )
+    .map_err(HarnessFixtureError::Parser)?;
+    let mcp_calls = runx_parser::harness_fixture::parse_harness_mcp_calls(
+        fixture.caller.get("mcp_calls"),
+        "caller.mcp_calls",
+    )
+    .map_err(HarnessFixtureError::Parser)?;
+    let transport = super::http_responses::harness_transport(
+        &http_responses,
+        &http_exchanges,
+        provider_responses.as_ref(),
+    );
+    options.effects =
+        super::http_responses::effects_over(&options.effects, transport.clone(), &mcp_calls)
+            .map_err(|error| RuntimeError::effect_state("wiring the harness transport", error))?;
+    if let Some(responses) = provider_responses.as_ref() {
+        fixture.env.insert(
+            crate::HOSTED_API_BASE_URL_ENV.to_owned(),
+            super::HARNESS_PROVIDER_BASE_URL.to_owned(),
+        );
+        fixture.env.insert(
+            crate::HOSTED_API_TOKEN_ENV.to_owned(),
+            super::HARNESS_PROVIDER_TOKEN.to_owned(),
+        );
+        fixture
+            .env
+            .extend(super::injected_grant_env(responses).map_err(|message| {
+                HarnessFixtureError::Parser(
+                    runx_parser::harness_fixture::HarnessFixtureError::Invalid {
+                        field: "caller.provider_responses.principal_id".to_owned(),
+                        message,
+                    },
+                )
+            })?);
+    }
+    seed_harness_sessions(fixture, target_path, options, &transport)?;
+    seed_harness_credentials(fixture, target_path, options, case_root)
+}
+
+/// Confirm and select the session instances the case runs under, as
+/// `runx connector use` would, in the case's own kernel and
+/// with the fixture environment resolved as the run resolves it.
+#[cfg(feature = "async-http")]
+fn seed_harness_sessions(
+    fixture: &HarnessFixture,
+    target_path: &Path,
+    options: &RuntimeOptions,
+    transport: &super::provider_responses::HarnessTransport,
+) -> Result<(), HarnessReplayError> {
+    if fixture.setup.sessions.is_empty() {
+        return Ok(());
+    }
+    let mut env = options.env.clone();
+    env.extend(fixture.env.clone());
+    resolve_fixture_path(&mut env, target_path)?;
+    let setup = |error: String| RuntimeError::effect_state("confirming a harness session", error);
+    let instances = crate::Instances::new(
+        crate::KernelStore::for_workspace(&env, target_path)
+            .map_err(|error| setup(error.to_string()))?,
+    );
+    let scope =
+        crate::ConnectorScope::for_skill(target_path).map_err(|error| setup(error.to_string()))?;
+    for connector in &fixture.setup.sessions {
+        let connector = scope
+            .connector(connector.as_str())
+            .map_err(|error| setup(error.to_string()))?;
+        crate::kernel::setup::confirm_session_over(
+            &instances,
+            &connector,
+            transport,
+            &env,
+            target_path,
+        )
+        .map_err(setup)?;
+    }
+    Ok(())
+}
+
+/// Store and select the credentials the case runs under, as `runx
+/// credential set` would. They live in a runx home inside the case's root,
+/// so no secret reaches the operator's.
+#[cfg(feature = "async-http")]
+fn seed_harness_credentials(
+    fixture: &mut HarnessFixture,
+    target_path: &Path,
+    options: &RuntimeOptions,
+    case_root: &Path,
+) -> Result<(), HarnessReplayError> {
+    if fixture.setup.credentials.is_empty() {
+        return Ok(());
+    }
+    let setup = |error: String| RuntimeError::effect_state("storing a harness credential", error);
+    fixture.env.insert(
+        "RUNX_HOME".to_owned(),
+        case_root.join("home").to_string_lossy().into_owned(),
+    );
+    let mut env = options.env.clone();
+    env.extend(fixture.env.clone());
+    resolve_fixture_path(&mut env, target_path)?;
+    let workspace = crate::services::WorkspaceEnv::new(env.clone(), target_path.to_path_buf())
+        .map_err(|error| setup(error.to_string()))?;
+    let instances = crate::Instances::new(
+        crate::KernelStore::for_workspace(&env, target_path)
+            .map_err(|error| setup(error.to_string()))?,
+    );
+    let scope =
+        crate::ConnectorScope::for_skill(target_path).map_err(|error| setup(error.to_string()))?;
+    for connector in &fixture.setup.credentials {
+        let connector = scope
+            .connector(connector.as_str())
+            .map_err(|error| setup(error.to_string()))?;
+        let manifest = &connector.manifest;
+        // The one declared credential whose variable the case itself sets.
+        let mut set = manifest
+            .auth
+            .credentials
+            .iter()
+            .filter_map(|(name, declaration)| {
+                fixture
+                    .env
+                    .get(declaration.delivery.env.as_str())
+                    .map(|secret| (name, secret))
+            });
+        let (Some((name, secret)), None) = (set.next(), set.next()) else {
+            return Err(setup(format!(
+                "the case sets the variable of exactly one of connector {}'s credentials",
+                manifest.id
+            ))
+            .into());
+        };
+        crate::kernel::setup::set_credential(
+            &instances,
+            &connector,
+            manifest.id.as_str(),
+            name,
+            secret,
+            &[],
+            &workspace,
+        )
+        .map_err(setup)?;
+    }
     Ok(())
 }
 
@@ -366,6 +511,7 @@ fn run_agent_task_fixture(
         steps: Vec::new(),
         skill_output: Some(output),
         replayed_answers,
+        unanswered: Vec::new(),
     })
 }
 
@@ -503,6 +649,7 @@ fn run_graph_replay_fixture(
         steps: runs,
         skill_output,
         replayed_answers,
+        unanswered: Vec::new(),
     })
 }
 
@@ -614,6 +761,7 @@ where
         steps: Vec::new(),
         skill_output: Some(skill_output),
         replayed_answers,
+        unanswered: Vec::new(),
     })
 }
 
@@ -657,7 +805,6 @@ where
         })?;
     let graph = materialize_graph_parameter_inputs(graph, &invocation.inputs);
     overlay_harness_env(&mut options, &invocation.env);
-    options.credential_delivery = invocation.credential_delivery.clone();
     let run_id = options
         .env
         .entry(crate::execution::runner::RUNX_RUN_ID_ENV.to_owned())
@@ -671,7 +818,7 @@ where
     let runtime = Runtime::new(adapter, options);
     let mut host = FixtureHost::new(fixture);
     let graph_run = runtime.run_graph_for_harness(&invocation.skill_directory, graph, &mut host)?;
-    let replayed_answers = host.into_replayed_answers();
+    let (replayed_answers, unanswered) = host.finish();
     // When the runner declares an `act:` block, seal the turn's primary receipt as
     // its domain act through the SAME production minting entry, so the fixture and
     // production/inline paths emit identical receipts. The graph trace receipt and
@@ -685,7 +832,7 @@ where
         &created_at,
         &signature_config,
     )?;
-    let mut output = replay_output_from_graph(fixture, graph_run, replayed_answers);
+    let mut output = replay_output_from_graph(fixture, graph_run, replayed_answers, unanswered);
     if let Some(domain_receipt) = minted {
         output.receipt = domain_receipt;
     }
@@ -734,14 +881,13 @@ fn skill_fixture_invocation(
         })?;
     let runner = select_harness_runner(manifest, fixture.runner.as_deref())?.clone();
     let mut env = options.env.clone();
-    super::isolate_harness_environment(&mut env, loaded.package.profiles.values());
+    super::isolate_harness_environment(&mut env, &super::credential_variables(&skill_dir)?);
     env.extend(fixture.env.clone());
     resolve_fixture_path(&mut env, &skill_dir)?;
     crate::services::merge_inferred_tool_roots(&mut env, &skill_dir);
     let skill_name = runner.name.clone();
-    let credential_delivery =
-        harness_credential_delivery(manifest, &runner, &fixture.env, &loaded.package.skill.name)?;
     let invocation = SkillInvocation {
+        historical_context: Vec::new(),
         skill_name: skill_name.clone(),
         step_id: None,
         source: runner.source.clone(),
@@ -754,57 +900,9 @@ fn skill_fixture_invocation(
         provenance: Vec::new(),
         skill_directory: skill_dir,
         env,
-        credential_delivery,
+        credential_delivery: crate::credentials::CredentialDelivery::none(),
     };
     Ok((skill_name, runner, invocation))
-}
-
-fn harness_credential_delivery(
-    manifest: &SkillRunnerManifest,
-    runner: &SkillRunnerDefinition,
-    fixture_env: &BTreeMap<String, String>,
-    skill_name: &str,
-) -> Result<crate::credentials::CredentialDelivery, HarnessReplayError> {
-    let Some(requirement) = runner
-        .credential
-        .as_ref()
-        .and_then(|name| manifest.credentials.get(name))
-    else {
-        return Ok(crate::credentials::CredentialDelivery::none());
-    };
-    let supplied = requirement
-        .deliveries
-        .iter()
-        .filter_map(|(auth_mode, env_name)| {
-            fixture_env
-                .get(env_name)
-                .filter(|value| !value.is_empty())
-                .map(|value| (auth_mode, env_name, value))
-        })
-        .collect::<Vec<_>>();
-    let [(auth_mode, env_name, secret)] = supplied.as_slice() else {
-        if supplied.is_empty() {
-            return Ok(crate::credentials::CredentialDelivery::none());
-        }
-        return Err(HarnessReplayError::InvalidFixtureEnvironment {
-            name: runner
-                .credential
-                .clone()
-                .unwrap_or_else(|| "credential".to_owned()),
-            message: "declare exactly one non-empty harness credential delivery mode".to_owned(),
-        });
-    };
-    crate::credentials::CredentialDelivery::from_local_descriptor(
-        requirement.provider.clone(),
-        (*auth_mode).clone(),
-        (*env_name).clone(),
-        format!("harness:{skill_name}:{auth_mode}"),
-        manifest.execution_requirements(runner).scopes,
-        (*secret).clone(),
-    )
-    .and_then(|delivery| delivery.bind_audience(requirement.audience.as_deref()))
-    .map_err(RuntimeError::from)
-    .map_err(HarnessReplayError::from)
 }
 
 struct SkillFixtureInvocationOutcome {
@@ -1009,7 +1107,8 @@ fn run_graph_fixture<A>(
 where
     A: SkillAdapter,
 {
-    super::isolate_harness_environment(&mut options.env, std::iter::empty());
+    let skill_dir = graph_path.parent().unwrap_or(graph_path);
+    super::isolate_harness_environment(&mut options.env, &super::credential_variables(skill_dir)?);
     overlay_harness_env(&mut options, &fixture.env);
     // Harness graph replays need a deterministic run_id so per-run governance
     // can resolve one, mirroring the production graph runner. Derived from the
@@ -1028,14 +1127,15 @@ where
     let runtime = Runtime::new(adapter, options);
     let mut host = FixtureHost::new(fixture);
     let graph_run = runtime.run_graph_file_for_harness(graph_path, &mut host)?;
-    let replayed_answers = host.into_replayed_answers();
-    let output = replay_output_from_graph(fixture, graph_run, replayed_answers);
+    let (replayed_answers, unanswered) = host.finish();
+    let output = replay_output_from_graph(fixture, graph_run, replayed_answers, unanswered);
     Ok(output)
 }
 
 struct FixtureHost<'a> {
     fixture: &'a HarnessFixture,
     replayed_answers: JsonObject,
+    unanswered: Vec<String>,
 }
 
 impl<'a> FixtureHost<'a> {
@@ -1043,11 +1143,13 @@ impl<'a> FixtureHost<'a> {
         Self {
             fixture,
             replayed_answers: JsonObject::new(),
+            unanswered: Vec::new(),
         }
     }
 
-    fn into_replayed_answers(self) -> JsonObject {
-        self.replayed_answers
+    /// The answers the run replayed and the requests the case left open.
+    fn finish(self) -> (JsonObject, Vec<String>) {
+        (self.replayed_answers, self.unanswered)
     }
 }
 
@@ -1063,6 +1165,9 @@ impl Host for FixtureHost<'_> {
         match request {
             ResolutionRequest::Approval { id, gate } => {
                 let response = fixture_approval_response(self.fixture, &id, &gate.id)?;
+                if response.is_none() {
+                    self.unanswered.push(gate.id.to_string());
+                }
                 if response.is_some()
                     && fixture_answer(self.fixture, "approvals", &gate.id, &id).is_none()
                     && let Some((key, answer)) =
@@ -1074,13 +1179,19 @@ impl Host for FixtureHost<'_> {
             }
             ResolutionRequest::AgentAct { id, .. } => {
                 let response = fixture_agent_act_response(self.fixture, id.as_str())?;
+                if response.is_none() {
+                    self.unanswered.push(id.to_string());
+                }
                 if let Some(response) = &response {
                     self.replayed_answers
                         .insert(id.to_string(), response.payload.clone());
                 }
                 Ok(response)
             }
-            ResolutionRequest::Input { .. } => Ok(None),
+            ResolutionRequest::Input { id, .. } | ResolutionRequest::Retry { id, .. } => {
+                self.unanswered.push(id.to_string());
+                Ok(None)
+            }
         }
     }
 
@@ -1196,6 +1307,7 @@ fn replay_output_from_graph(
     fixture: &HarnessFixture,
     graph_run: GraphRun,
     replayed_answers: JsonObject,
+    unanswered: Vec<String>,
 ) -> HarnessReplayOutput {
     let result = crate::execution::runner::graph_run_result(&graph_run).ok();
     let skill_output = result.map(|result| {
@@ -1223,6 +1335,7 @@ fn replay_output_from_graph(
         steps: graph_run.steps,
         skill_output,
         replayed_answers,
+        unanswered,
     }
 }
 
@@ -1283,7 +1396,6 @@ fn resolve_fixture_path(
 #[cfg(test)]
 mod tests {
     use super::{overlay_harness_env, resolve_fixture_path};
-    use crate::credentials::CredentialDelivery;
     use crate::effects::RuntimeEffectRegistry;
     use crate::execution::runner::RuntimeOptions;
     use crate::receipts::RuntimeReceiptSignatureConfig;
@@ -1293,6 +1405,9 @@ mod tests {
     #[test]
     fn overlay_harness_env_preserves_operator_env_and_allows_fixture_override() {
         let mut options = RuntimeOptions {
+            run_authority: None,
+            current_context: Vec::new(),
+            historical_context: Vec::new(),
             created_at: "2026-05-18T00:00:00Z".to_owned(),
             env: BTreeMap::from([
                 ("OPERATOR_ENV".to_owned(), "preserved".to_owned()),
@@ -1300,7 +1415,6 @@ mod tests {
             ]),
             receipt_signature: RuntimeReceiptSignatureConfig::local_development(),
             effects: RuntimeEffectRegistry::default(),
-            credential_delivery: CredentialDelivery::none(),
         };
         let fixture_env = BTreeMap::from([
             ("FIXTURE_OVERRIDE".to_owned(), "fixture".to_owned()),

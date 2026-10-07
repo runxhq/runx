@@ -1,10 +1,10 @@
-use std::io::{self, Read};
-use std::path::PathBuf;
 use std::process::ExitCode;
 
+use runx_contracts::ConnectorInstance;
+use runx_contracts::connector::CredentialName;
 use runx_runtime::{
-    WorkspaceEnv, bind_project_credential, list_local_credential_profiles,
-    remove_local_credential_profile, set_local_credential_profile,
+    Instances, KernelStore, WorkspaceEnv, list_local_credential_profiles,
+    remove_local_credential_profile,
 };
 use serde::Serialize;
 
@@ -21,26 +21,16 @@ pub struct CredentialPlan {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CredentialAction {
     Set {
-        provider: String,
+        connector: String,
+        credential: String,
         profile: String,
-        auth_mode: String,
-        audience: Option<String>,
+        scopes: Vec<String>,
         from_stdin: bool,
     },
     List,
     Remove {
         profile: String,
     },
-    Bind {
-        profile: String,
-        target: CredentialBindingTarget,
-    },
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum CredentialBindingTarget {
-    Provider(String),
-    Skill { skill: String, credential: String },
 }
 
 pub fn run_native_credential_with_workspace(
@@ -56,26 +46,38 @@ pub fn run_native_credential_with_workspace(
 fn execute(plan: &CredentialPlan, workspace: &WorkspaceEnv) -> Result<String, String> {
     let result = match &plan.action {
         CredentialAction::Set {
-            provider,
+            connector,
+            credential,
             profile,
-            auth_mode,
-            audience,
+            scopes,
             from_stdin,
         } => {
             if !from_stdin {
                 return Err("credential secret input must come from stdin".to_owned());
             }
-            let secret = read_secret_stdin()?;
-            let profile = set_local_credential_profile(
-                workspace,
+            let connector = runx_runtime::ConnectorScope::for_workspace(workspace.cwd())
+                .and_then(|scope| scope.connector(connector))
+                .map_err(|error| error.to_string())?;
+            let credential = CredentialName::new(credential.as_str())
+                .ok_or_else(|| format!("{credential} is not a credential name"))?;
+            let secret = crate::cli_io::read_stdin_secret("credential secret")?;
+            let instances = Instances::new(
+                KernelStore::for_workspace(workspace.env(), workspace.cwd())
+                    .map_err(|error| error.to_string())?,
+            );
+            let instance = runx_runtime::kernel::setup::set_credential(
+                &instances,
+                &connector,
                 profile,
-                provider,
-                auth_mode,
-                audience.as_deref(),
+                &credential,
                 &secret,
-            )
-            .map_err(|error| error.to_string())?;
-            CredentialResult::Set { profile }
+                scopes,
+                workspace,
+            )?;
+            CredentialResult::Set {
+                profile: profile.clone(),
+                instance: Box::new(instance),
+            }
         }
         CredentialAction::List => CredentialResult::List {
             profiles: list_local_credential_profiles(workspace)
@@ -86,16 +88,6 @@ fn execute(plan: &CredentialPlan, workspace: &WorkspaceEnv) -> Result<String, St
             removed: remove_local_credential_profile(workspace, profile)
                 .map_err(|error| error.to_string())?,
         },
-        CredentialAction::Bind { profile, target } => {
-            let target = target.binding_key();
-            let path = bind_project_credential(workspace, &target, profile)
-                .map_err(|error| error.to_string())?;
-            CredentialResult::Bind {
-                profile: profile.clone(),
-                target,
-                path,
-            }
-        }
     };
     if plan.json {
         serde_json::to_string_pretty(&CredentialJsonOutput {
@@ -109,34 +101,12 @@ fn execute(plan: &CredentialPlan, workspace: &WorkspaceEnv) -> Result<String, St
     }
 }
 
-impl CredentialBindingTarget {
-    fn binding_key(&self) -> String {
-        match self {
-            Self::Provider(provider) => format!("provider:{provider}"),
-            Self::Skill { skill, credential } => format!("skill:{skill}:{credential}"),
-        }
-    }
-}
-
-fn read_secret_stdin() -> Result<String, String> {
-    let mut secret = String::new();
-    io::stdin()
-        .read_to_string(&mut secret)
-        .map_err(|error| format!("failed to read credential from stdin: {error}"))?;
-    while secret.ends_with(['\r', '\n']) {
-        secret.pop();
-    }
-    if secret.is_empty() {
-        return Err("credential secret from stdin must not be empty".to_owned());
-    }
-    Ok(secret)
-}
-
 #[derive(Serialize)]
 #[serde(tag = "action", rename_all = "snake_case")]
 enum CredentialResult {
     Set {
-        profile: runx_runtime::CredentialProfileSummary,
+        profile: String,
+        instance: Box<ConnectorInstance>,
     },
     List {
         profiles: Vec<runx_runtime::CredentialProfileSummary>,
@@ -144,11 +114,6 @@ enum CredentialResult {
     Remove {
         profile: String,
         removed: bool,
-    },
-    Bind {
-        profile: String,
-        target: String,
-        path: PathBuf,
     },
 }
 
@@ -160,46 +125,25 @@ struct CredentialJsonOutput<'a> {
 
 fn render_text(result: &CredentialResult) -> String {
     match result {
-        CredentialResult::Set { profile } => {
-            let audience = profile
-                .audience
-                .as_deref()
-                .map_or(String::new(), |value| format!(" for {value}"));
-            format!(
-                "credential profile '{}' stored for {} ({}){audience} and set as default\n",
-                profile.name, profile.provider, profile.auth_mode
-            )
-        }
+        CredentialResult::Set { profile, instance } => format!(
+            "credential profile '{profile}' stored; {} uses instance {}\n",
+            instance.connector, instance.instance_id
+        ),
         CredentialResult::List { profiles } if profiles.is_empty() => {
             "no credential profiles configured\n".to_owned()
         }
         CredentialResult::List { profiles } => profiles
             .iter()
             .map(|profile| {
-                let audience = profile
-                    .audience
-                    .as_deref()
-                    .map_or(String::new(), |value| format!("  audience={value}"));
                 format!(
-                    "{}  {}  {}{audience}{}\n",
-                    profile.name,
-                    profile.provider,
-                    profile.auth_mode,
-                    if profile.is_default { "  default" } else { "" }
+                    "{}  {}  {}\n",
+                    profile.name, profile.connector, profile.credential
                 )
             })
             .collect(),
         CredentialResult::Remove { profile, removed } => format!(
             "credential profile '{profile}' {}\n",
             if *removed { "removed" } else { "not found" }
-        ),
-        CredentialResult::Bind {
-            profile,
-            target,
-            path,
-        } => format!(
-            "credential profile '{profile}' bound to {target} in {}\n",
-            path.display()
         ),
     }
 }
@@ -217,16 +161,20 @@ fn fail(plan: &CredentialPlan, message: &str) -> ExitCode {
 
 #[cfg(test)]
 mod tests {
-    use super::{CredentialAction, CredentialBindingTarget, CredentialPlan, parse_credential_plan};
+    use super::{CredentialAction, CredentialPlan, parse_credential_plan};
 
     #[test]
-    fn parses_stdin_profile_setup() {
+    fn parses_stdin_connector_credential() {
         let args = [
             "credential",
             "set",
             "nitrosend",
+            "--credential",
+            "api_key",
             "--profile",
             "account-one",
+            "--scope",
+            "content.review",
             "--from-stdin",
             "--json",
         ]
@@ -235,10 +183,10 @@ mod tests {
             parse_credential_plan(&args),
             Ok(CredentialPlan {
                 action: CredentialAction::Set {
-                    provider: "nitrosend".to_owned(),
+                    connector: "nitrosend".to_owned(),
+                    credential: "api_key".to_owned(),
                     profile: "account-one".to_owned(),
-                    auth_mode: "api_key".to_owned(),
-                    audience: None,
+                    scopes: vec!["content.review".to_owned()],
                     from_stdin: true,
                 },
                 json: true,
@@ -247,59 +195,11 @@ mod tests {
     }
 
     #[test]
-    fn parses_skill_binding() {
-        let args = [
-            "credential",
-            "bind",
-            "account-one",
-            "--skill",
-            "nitrosend/support",
-            "--credential",
-            "nitrosend",
-        ]
-        .map(Into::into);
+    fn set_requires_the_connector_credential_name() {
+        let args = ["credential", "set", "nitrosend", "--from-stdin"].map(Into::into);
         assert_eq!(
             parse_credential_plan(&args),
-            Ok(CredentialPlan {
-                action: CredentialAction::Bind {
-                    profile: "account-one".to_owned(),
-                    target: CredentialBindingTarget::Skill {
-                        skill: "nitrosend/support".to_owned(),
-                        credential: "nitrosend".to_owned(),
-                    },
-                },
-                json: false,
-            })
-        );
-    }
-
-    #[test]
-    fn parses_profile_audience_binding() {
-        let args = [
-            "credential",
-            "set",
-            "n8n",
-            "--profile",
-            "workflow",
-            "--auth-mode",
-            "bearer",
-            "--audience",
-            "https://n8n.example.com",
-            "--from-stdin",
-        ]
-        .map(Into::into);
-        assert_eq!(
-            parse_credential_plan(&args),
-            Ok(CredentialPlan {
-                action: CredentialAction::Set {
-                    provider: "n8n".to_owned(),
-                    profile: "workflow".to_owned(),
-                    auth_mode: "bearer".to_owned(),
-                    audience: Some("https://n8n.example.com".to_owned()),
-                    from_stdin: true,
-                },
-                json: false,
-            })
+            Err("runx credential set requires --credential <name>".to_owned())
         );
     }
 }

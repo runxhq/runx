@@ -52,45 +52,37 @@ fn tool_catalogs_reject_node_entrypoints_that_import_typescript()
 }
 
 #[test]
-fn tool_catalogs_search_fixture_mcp_requires_enablement() {
-    let disabled = search_tools(&ToolSearchOptions {
-        query: "echo".to_owned(),
+fn tool_catalogs_search_returns_native_tools() {
+    let report = search_tools(&ToolSearchOptions {
+        query: "fs.read".to_owned(),
         source: None,
         limit: 20,
-        fixture_catalog_enabled: false,
     });
-    assert!(disabled.results.is_empty());
 
-    let enabled = search_tools(&ToolSearchOptions {
-        query: "echo".to_owned(),
-        source: Some("fixture-mcp".to_owned()),
-        limit: 20,
-        fixture_catalog_enabled: true,
-    });
-    assert_eq!(enabled.status, ToolBuildStatus::Success);
-    assert_eq!(enabled.results.len(), 1);
-    assert_eq!(enabled.results[0].tool_id, "fixture-mcp/fixture.echo");
-    assert_eq!(enabled.results[0].source_label, "Fixture MCP Catalog");
+    assert_eq!(report.status, ToolBuildStatus::Success);
+    let read = report
+        .results
+        .iter()
+        .find(|result| result.name == "fs.read");
+    assert!(read.is_some_and(|result| result.source_type == "native"));
 }
 
 #[test]
-fn tool_catalogs_inspect_fixture_mcp_echo() -> Result<(), Box<dyn std::error::Error>> {
+fn tool_catalogs_inspect_native_tool() -> Result<(), Box<dyn std::error::Error>> {
     let root = repo_root()?;
     let report = inspect_tool(&ToolInspectOptions {
         root: root.clone(),
-        tool_ref: "fixture.echo".to_owned(),
-        source: Some("fixture-mcp".to_owned()),
+        tool_ref: "fs.read".to_owned(),
+        source: None,
         search_from_directory: root,
         tool_roots: Vec::new(),
-        fixture_catalog_enabled: true,
         allow_explicit_manifest_path: true,
     })?;
 
     assert_eq!(report.status, ToolBuildStatus::Success);
-    assert_eq!(report.tool.provenance.origin, ToolInspectOrigin::Imported);
-    assert_eq!(report.tool.name, "fixture.echo");
-    assert_eq!(report.tool.execution_source_type, "catalog");
-    assert!(report.tool.inputs["message"].required);
+    assert_eq!(report.tool.provenance.origin, ToolInspectOrigin::Native);
+    assert_eq!(report.tool.name, "fs.read");
+    assert_eq!(report.tool.execution_source_type, "native");
     Ok(())
 }
 
@@ -103,7 +95,6 @@ fn tool_catalogs_inspect_local_manifest() -> Result<(), Box<dyn std::error::Erro
         source: None,
         search_from_directory: temp_root.clone(),
         tool_roots: Vec::new(),
-        fixture_catalog_enabled: false,
         allow_explicit_manifest_path: true,
     })?;
 
@@ -151,7 +142,6 @@ fn tool_catalogs_ignore_ancestor_tool_roots_outside_workspace()
         source: None,
         search_from_directory: skill_dir,
         tool_roots: Vec::new(),
-        fixture_catalog_enabled: false,
         allow_explicit_manifest_path: false,
     }) {
         Ok(_) => return Err("ancestor tool root outside workspace should be ignored".into()),
@@ -177,7 +167,6 @@ fn tool_catalogs_reject_absolute_explicit_manifest_path() -> Result<(), Box<dyn 
         source: None,
         search_from_directory: temp_root,
         tool_roots: Vec::new(),
-        fixture_catalog_enabled: false,
         allow_explicit_manifest_path: true,
     }) {
         Ok(_) => return Err("absolute explicit manifest path should be rejected".into()),
@@ -204,7 +193,6 @@ fn tool_catalogs_reject_parent_traversal_explicit_manifest_path()
         source: None,
         search_from_directory: temp_root,
         tool_roots: Vec::new(),
-        fixture_catalog_enabled: false,
         allow_explicit_manifest_path: true,
     }) {
         Ok(_) => return Err("parent traversal explicit manifest path should be rejected".into()),
@@ -217,52 +205,6 @@ fn tool_catalogs_reject_parent_traversal_explicit_manifest_path()
             .contains("must be relative and must not contain '..'"),
         "unexpected error: {error}"
     );
-    Ok(())
-}
-
-#[test]
-fn tool_catalogs_inspect_prefers_local_manifest_over_fixture_catalog()
--> Result<(), Box<dyn std::error::Error>> {
-    let temp_root = copy_minimal_tool_fixture("inspect_local_precedence")?;
-    let tool_dir = temp_root.join("tools/fixture/echo");
-    fs::create_dir_all(&tool_dir)?;
-    fs::write(
-        tool_dir.join("manifest.json"),
-        r#"{
-  "schema": "runx.tool.manifest.v1",
-  "name": "fixture.echo",
-  "description": "Local collision fixture.",
-  "source": {
-    "type": "cli-tool",
-    "command": "node",
-    "args": [
-      "./run.mjs"
-    ]
-  },
-  "inputs": {},
-  "scopes": [
-    "fixture.local"
-  ]
-}
-"#,
-    )?;
-
-    let report = inspect_tool(&ToolInspectOptions {
-        root: temp_root.clone(),
-        tool_ref: "fixture.echo".to_owned(),
-        source: Some("fixture-mcp".to_owned()),
-        search_from_directory: temp_root,
-        tool_roots: Vec::new(),
-        fixture_catalog_enabled: true,
-        allow_explicit_manifest_path: true,
-    })?;
-
-    assert_eq!(report.tool.provenance.origin, ToolInspectOrigin::Local);
-    assert_eq!(
-        report.tool.description.as_deref(),
-        Some("Local collision fixture.")
-    );
-    assert_eq!(report.tool.scopes, ["fixture.local"]);
     Ok(())
 }
 

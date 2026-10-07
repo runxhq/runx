@@ -26,18 +26,16 @@ inputs:
     counterparty: https://vendor.example/v1/invocations
   idempotency_seed: x402-test-payment-001
 caller:
-  approvals: { "provider-effect:sha256:7df64fe1611d77903cc75773e30c0624d9a30c6534333b9c6659a72cca2c381c": true }
+  approvals: { "operation:sha256:c510484d3ee2dfb1b3c6063870339bebea890a89e5dfeb105564eae3084cc80f": true }
   provider_responses:
     principal_id: x402-fixture
-    grants: [{ grant_id: x402-fixture, provider: x402, scopes: [payment.x402, payment.x402.read] }]
+    grant: { grant_id: x402-fixture, provider: x402, scopes: [payment.x402, payment.x402.read] }
     operations:
-      - grant_id: x402-fixture
-        operation: payment.x402
+      - operation: payment.x402
         target: https://vendor.example/v1/invocations
         access: mutate
         result: { payment_ref: payment_x402_001, challenge_id: ch_test_001, amount_minor: 25, currency: USD, status: settled, transaction: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", network: "eip155:8453", payer: "0x0000000000000000000000000000000000000001", pay_to: "0x0000000000000000000000000000000000000002", invocation_id: ausca-invocation-1, payment_required_digest: "sha256:1111111111111111111111111111111111111111111111111111111111111111", payment_response_digest: "sha256:2222222222222222222222222222222222222222222222222222222222222222", resource_status: 202 }
-      - grant_id: x402-fixture
-        operation: payment.x402.read
+      - operation: payment.x402.read
         target: https://vendor.example/v1/invocations
         access: read
         result: { payment_ref: payment_x402_001, challenge_id: ch_test_001, amount_minor: 25, currency: USD, status: settled, transaction: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", network: "eip155:8453", payer: "0x0000000000000000000000000000000000000001", pay_to: "0x0000000000000000000000000000000000000002", invocation_id: ausca-invocation-1, payment_required_digest: "sha256:1111111111111111111111111111111111111111111111111111111111111111", payment_response_digest: "sha256:2222222222222222222222222222222222222222222222222222222222222222", resource_status: 200, resource_result: { invocation: { state: succeeded, receipt_ref: { type: receipt, uri: "runx:receipt:inner-1" } } }, readback_status: complete, finality: confirmed, block_number: "123", inner_receipt_ref: "runx:receipt:inner-1" }

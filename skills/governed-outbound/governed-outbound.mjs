@@ -4,7 +4,6 @@ export default function validatePlan(inputs) {
   const source = requiredRecord(inputs.source, "source");
   const redaction = requiredRecord(inputs.redaction, "redaction");
   const sendPlan = requiredRecord(inputs.send_plan, "send_plan");
-  if (source.decision !== "ready") throw new Error("source provider readback must be ready");
   if (redaction.decision !== "ready") throw new Error("redaction must be ready");
   if (sendPlan.decision !== "ready") throw new Error("send plan must be ready");
   assertEqual(requiredString(record(sendPlan.principal).ref, "send_plan.principal.ref"), principal, "send plan principal differs from the approved principal");

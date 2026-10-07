@@ -2,14 +2,12 @@ name: issue-to-pr-resume-after-provider-failure
 kind: skill
 target: ..
 runner: resume
+setup:
+  sessions: [github]
 env:
   PATH: fixtures/bin:/usr/bin:/bin
   RUNX_CWD: ../..
   RUNX_ISSUE_TO_PR_GIT_STATE: .runx/issue-to-pr-resume-ref
-  RUNX_PROVIDER_PERMISSION_GRANT_ID: ""
-  RUNX_PROVIDER_PERMISSION_GRANTED_SCOPES: ""
-  RUNX_PROVIDER_PERMISSION_PRINCIPAL_REF: ""
-  RUNX_PROVIDER_PERMISSION_TRANSPORT: local:github
 inputs:
   issue_evidence:
     schema: runx.issue_to_pr.issue_evidence.v1
@@ -23,10 +21,9 @@ inputs:
     assignees: []
     source:
       provider: github
-      transport: local_github
-      principal_ref: runx:principal:github:github.com:operator:U_operator
+      transport: local_http
+      principal_ref: runx:principal:github:7
       readback_ref: runx:github-readback:sha256:fixture
-    checkout_resolved: true
   host_result:
     schema: runx.issue_to_pr.host_result.v1
     status: completed
@@ -52,6 +49,35 @@ inputs:
       draft: false
       idempotency_key: issue-to-pr-442-v1
     errors: []
+caller:
+  http_responses:
+    "https://api.github.com/user":
+      status: 200
+      headers: { content-type: application/json }
+      body: '{"id": 7, "login": "operator"}'
+    "https://api.github.com/repos/runxhq/runx/pulls?base=main&head=runxhq%3Afix%2F442-operator-first&per_page=2&state=open":
+      status: 200
+      headers: { content-type: application/json }
+      body: '[]'
+    "https://api.github.com/repos/runxhq/runx/pulls/77":
+      status: 200
+      headers: { content-type: application/json }
+      body: '{"number": 77, "title": "Make issue-to-PR operator-first", "state": "open", "body": "Closes #442.", "html_url": "https://github.com/runxhq/runx/pull/77", "head": {"ref": "fix/442-operator-first", "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}, "base": {"ref": "main"}, "draft": false}'
+  http_exchanges:
+    - request:
+        method: POST
+        url: https://api.github.com/repos/runxhq/runx/pulls
+        body:
+          json:
+            title: Make issue-to-PR operator-first
+            body: "Closes #442."
+            head: fix/442-operator-first
+            base: main
+            draft: false
+      response:
+        status: 201
+        headers: { content-type: application/json }
+        body: '{"number": 77, "title": "Make issue-to-PR operator-first", "state": "open", "body": "Closes #442.", "html_url": "https://github.com/runxhq/runx/pull/77", "head": {"ref": "fix/442-operator-first", "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}, "base": {"ref": "main"}, "draft": false}'
 expect:
   status: sealed
   receipt: { schema: runx.receipt.v1 }

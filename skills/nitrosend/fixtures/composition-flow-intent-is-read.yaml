@@ -8,36 +8,37 @@ inputs:
   arguments:
     goal: Welcome new trial users over seven days.
     name: Trial welcome series
-    trigger: { event: contact_add }
+    trigger:
+      event: contact_add
   brand_sid: brnd_demo123
+setup:
+  credentials:
+  - nitrosend
 env:
   NITROSEND_API_KEY: harness-nitrosend-token
 caller:
-  http_exchanges:
-    - request:
-        method: POST
-        url: https://api.nitrosend.com/mcp
-        body:
-          json:
-            jsonrpc: "2.0"
-            id: nitrosend-compose_email
-            method: tools/call
-            params:
-              name: nitro_compose_flow
-              arguments:
-                goal: Welcome new trial users over seven days.
-                name: Trial welcome series
-                trigger: { event: contact_add }
-                composition_mode: intent
-      response:
-        status: 200
-        headers: { content-type: application/json }
-        body: >-
-          {"jsonrpc":"2.0","id":"nitrosend-compose_email","result":{"content":[{"type":"text","text":"{\"meta\":{\"tool\":\"nitro_compose_flow\"},\"result\":{\"composition_status\":\"draft_required\",\"contract_id\":\"ecc_flow_fixture\",\"next_call\":{\"tool\":\"nitro_compose_flow\",\"input\":{\"composition_mode\":\"draft\",\"contract_id\":\"ecc_flow_fixture\",\"idempotency_key\":\"ecr_flow_fixture\"}}}}"}]}}
+  mcp_calls:
+  - tool: nitro_compose_flow
+    arguments:
+      goal: Welcome new trial users over seven days.
+      name: Trial welcome series
+      trigger:
+        event: contact_add
+      composition_mode: intent
+    headers:
+      x-brand-sid: brnd_demo123
+    result:
+      content:
+      - type: text
+        text: '{"meta":{"tool":"nitro_compose_flow"},"result":{"composition_status":"draft_required","contract_id":"ecc_flow_fixture","next_call":{"tool":"nitro_compose_flow","input":{"composition_mode":"draft","contract_id":"ecc_flow_fixture","idempotency_key":"ecr_flow_fixture"}}}}'
 expect:
   status: sealed
-  steps: [compose]
-  receipt: { schema: runx.receipt.v1, state: sealed, disposition: closed }
+  steps:
+  - compose
+  receipt:
+    schema: runx.receipt.v1
+    state: sealed
+    disposition: closed
 metadata:
   public_skill: nitrosend
   source_case: composition-flow-intent-is-read

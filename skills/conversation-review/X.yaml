@@ -1,5 +1,5 @@
 skill: conversation-review
-version: "0.1.0"
+version: "0.1.1"
 
 catalog:
   kind: graph
@@ -40,7 +40,6 @@ harness:
           coverage_incomplete: false
           messages: [{ text: Could we find time to talk next week? }]
         source_complete: true
-        operator_context: Offer a time only when availability is supplied.
       caller:
         answers:
           agent_task.conversation-review.output:
@@ -77,7 +76,6 @@ harness:
           coverage_incomplete: false
           messages: [{ text: Please fix the failing parser test in the repository. }]
         source_complete: true
-        operator_context: Keep engineering requests separate from ordinary replies.
       caller:
         answers:
           agent_task.conversation-review.output:
@@ -113,7 +111,6 @@ harness:
           coverage_incomplete: true
           messages: [{ text: Please review the deployment. }]
         source_complete: false
-        operator_context: Do not act on truncated threads.
       caller:
         answers:
           agent_task.conversation-review.output:
@@ -195,11 +192,6 @@ runners:
         type: boolean
         required: true
         description: Whether the source reader proved the supplied context complete.
-      operator_context:
-        type: string
-        required: true
-        description: Private charter and operator-confirmed context; never source evidence.
-        schema: { maxLength: 10000 }
     graph:
       name: conversation-review
       result_from: [finalize]
@@ -216,7 +208,6 @@ runners:
             body: $input.body
             thread: $input.thread
             source_complete: $input.source_complete
-            operator_context: $input.operator_context
           artifacts:
             named_emits:
               draft: draft
@@ -264,3 +255,57 @@ runners:
           artifacts:
             named_emits:
               conversation_packet: conversation_packet
+  operate:
+    type: graph
+    inputs:
+      source_context:
+        type: json
+        required: true
+        packet: runx.source_packet.v1
+        description: Exact adapter-normalized source evidence.
+      handoff_routes:
+        type: object
+        required: false
+        description: Operator-configured reply, coding and ordinary follow-up routes.
+        schema:
+          additionalProperties: false
+          properties:
+            reply: {type: string, minLength: 1, maxLength: 64}
+            coding: {type: string, minLength: 1, maxLength: 64}
+            follow_up: {type: string, minLength: 1, maxLength: 64}
+    graph:
+      name: conversation-work
+      result_from: [finish]
+      steps:
+        - id: prepare
+          inputs:
+            source_context: $input.source_context
+          run:
+            type: javascript
+            module: conversation-review.mjs
+            export: prepareWork
+            outputs: {review_inputs: object}
+        - id: review
+          skill: .
+          runner: review
+          context:
+            source_ref: prepare.review_inputs.source_ref
+            source_digest: prepare.review_inputs.source_digest
+            thread_locator: prepare.review_inputs.thread_locator
+            title: prepare.review_inputs.title
+            body: prepare.review_inputs.body
+            thread: prepare.review_inputs.thread
+            source_complete: prepare.review_inputs.source_complete
+        - id: finish
+          context:
+            conversation_packet: review.conversation_packet.data
+          inputs:
+            handoff_routes: $input.handoff_routes
+          run:
+            type: javascript
+            module: conversation-review.mjs
+            export: finishWork
+            outputs: {work_result: object}
+          artifacts:
+            named_emits: {work_result: work_result}
+            packets: {work_result: runx.work_outcome.v1}

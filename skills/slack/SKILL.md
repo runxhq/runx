@@ -82,9 +82,9 @@ audience, and digest-bound content to canonical `send-as`. The emitted
 `deliver_reply` accepts that exact `send_plan`, thread locator, text, and a
 stable UUID idempotency key. It recomputes the digest and rejects any change to
 the plan decision, Slack provider, chat channel, thread audience, content
-digest, or human-approval requirement. After approval it calls the native
-`provider.mutate` tool for `thread.reply`, then independently calls
-`provider.read` for `thread.reply.read`. Completion requires the same workspace,
+digest, or human-approval requirement. After approval it calls the `slack`
+connector's `thread.reply` operation, then independently calls
+`thread.reply.read`. Completion requires the same workspace,
 channel, thread locator, message locator, content digest, and occurrence time
 from Slack. Provider acceptance alone is not completion.
 

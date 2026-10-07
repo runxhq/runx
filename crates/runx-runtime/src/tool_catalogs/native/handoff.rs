@@ -1,10 +1,9 @@
-use std::collections::BTreeMap;
 use std::net::IpAddr;
 
 use runx_contracts::{
     JsonObject, JsonValue, OrchestratorExecutionContext, OrchestratorHandoffBinding,
     OrchestratorHandoffContext, OrchestratorHandoffDelivery, OrchestratorHandoffIdempotency,
-    OrchestratorHandoffRequest, OrchestratorReceiptExpectations, OrchestratorReceiverValidation,
+    OrchestratorReceiptExpectations, OrchestratorReceiverValidation,
 };
 use serde::{Deserialize, Serialize};
 
@@ -30,8 +29,6 @@ struct HandoffInput {
     source: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     receiver: Option<JsonObject>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    request: Option<HandoffRequestInput>,
 }
 
 impl CapabilityInput for HandoffInput {
@@ -47,15 +44,6 @@ struct HandoffOutput {
 }
 
 impl CapabilityOutput for HandoffOutput {}
-
-#[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
-#[serde(deny_unknown_fields)]
-struct HandoffRequestInput {
-    id: String,
-    url: String,
-    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
-    path: BTreeMap<String, String>,
-}
 
 const FIELDS: &[CapabilityField] = &[
     field(
@@ -83,10 +71,6 @@ const FIELDS: &[CapabilityField] = &[
     field(
         "receiver",
         "Optional receiver metadata and HTTPS endpoint reference.",
-    ),
-    field(
-        "request",
-        "Optional exact HTTPS webhook request template; native preparation binds the canonical delivery body and Runx handoff headers.",
     ),
 ];
 
@@ -195,13 +179,6 @@ fn prepare_input(input: &HandoffInput) -> Result<HandoffOutput, RuntimeError> {
         source: source.to_owned(),
         idempotency_key: idempotency_key.to_owned(),
     };
-    let requests = input
-        .request
-        .as_ref()
-        .map(|request| prepare_request(request, scope, audience, event_id, &delivery))
-        .transpose()?
-        .into_iter()
-        .collect();
     Ok(HandoffOutput {
         handoff_context: OrchestratorHandoffContext {
             status: "ready".to_owned(),
@@ -219,7 +196,6 @@ fn prepare_input(input: &HandoffInput) -> Result<HandoffOutput, RuntimeError> {
             receiver: input.receiver.clone(),
             delivery,
             receiver_validation: OrchestratorReceiverValidation {
-                require_bearer: true,
                 require_scope: scope.to_owned(),
                 require_audience: audience.to_owned(),
                 require_event_id: event_id.to_owned(),
@@ -231,59 +207,7 @@ fn prepare_input(input: &HandoffInput) -> Result<HandoffOutput, RuntimeError> {
                 receiver_response_must_be_captured: true,
                 delivered_credential_material_absent: true,
             },
-            requests,
-            stop_conditions: Vec::new(),
         },
-    })
-}
-
-fn prepare_request(
-    request: &HandoffRequestInput,
-    scope: &str,
-    audience: &str,
-    event_id: &str,
-    delivery: &OrchestratorHandoffDelivery,
-) -> Result<OrchestratorHandoffRequest, RuntimeError> {
-    let id = non_empty("request.id", &request.id)?;
-    if id.len() > 128
-        || !id.chars().all(|character| {
-            character.is_ascii_alphanumeric() || matches!(character, '.' | '_' | '-')
-        })
-    {
-        return Err(invalid_input(
-            TOOL,
-            "request.id must be 1-128 ASCII letters, numbers, dots, underscores, or dashes",
-        ));
-    }
-    let url = non_empty("request.url", &request.url)?;
-    if !url.starts_with("https://") || url.chars().any(char::is_whitespace) {
-        return Err(invalid_input(
-            TOOL,
-            "request.url must be an HTTPS URL or HTTPS URL template without whitespace",
-        ));
-    }
-    if request
-        .path
-        .iter()
-        .any(|(key, value)| key.trim().is_empty() || value.trim().is_empty())
-    {
-        return Err(invalid_input(
-            TOOL,
-            "request.path keys and values must not be empty",
-        ));
-    }
-    Ok(OrchestratorHandoffRequest {
-        id: id.to_owned(),
-        method: "POST".to_owned(),
-        url: url.to_owned(),
-        path: request.path.clone(),
-        headers: BTreeMap::from([
-            ("content-type".to_owned(), "application/json".to_owned()),
-            ("x-runx-event-id".to_owned(), event_id.to_owned()),
-            ("x-runx-handoff-audience".to_owned(), audience.to_owned()),
-            ("x-runx-handoff-scope".to_owned(), scope.to_owned()),
-        ]),
-        body: delivery.clone(),
     })
 }
 
@@ -335,14 +259,6 @@ fn reject_delivered_credential_material(
     reject_delivered_credential_object(&context.extensions, invocation, 0)?;
     if let Some(receiver) = &input.receiver {
         reject_delivered_credential_object(receiver, invocation, 0)?;
-    }
-    if let Some(request) = &input.request {
-        reject_delivered_credential_text(&request.id, invocation)?;
-        reject_delivered_credential_text(&request.url, invocation)?;
-        for (key, value) in &request.path {
-            reject_delivered_credential_text(key, invocation)?;
-            reject_delivered_credential_text(value, invocation)?;
-        }
     }
     Ok(())
 }
@@ -452,7 +368,7 @@ mod tests {
     use crate::credentials::CredentialDelivery;
     use crate::tool_catalogs::native::NativeInvocation;
 
-    use super::{HandoffInput, HandoffRequestInput, prepare, prepare_input};
+    use super::{HandoffInput, prepare, prepare_input};
 
     fn value(value: serde_json::Value) -> runx_contracts::JsonValue {
         serde_json::from_value(value).expect("portable test JSON")
@@ -488,36 +404,6 @@ mod tests {
                 .platform
                 .as_deref(),
             Some("n8n")
-        );
-        assert!(output.handoff_context.requests.is_empty());
-    }
-
-    #[test]
-    fn prepares_the_exact_http_request_from_the_same_delivery_value() {
-        let mut input = input();
-        input.request = Some(HandoffRequestInput {
-            id: "n8n-handoff".to_owned(),
-            url: "https://{webhook_host}/webhook/{workflow_slug}".to_owned(),
-            path: BTreeMap::from([
-                ("webhook_host".to_owned(), "n8n.example.com".to_owned()),
-                ("workflow_slug".to_owned(), "runx-effect".to_owned()),
-            ]),
-        });
-        let output = prepare_input(&input).expect("prepared handoff");
-        let request = output
-            .handoff_context
-            .requests
-            .first()
-            .expect("prepared request");
-        assert_eq!(request.method, "POST");
-        assert_eq!(
-            request.body.payload,
-            value(json!({ "token": "business-domain-value" }))
-        );
-        assert_eq!(request.body, output.handoff_context.delivery);
-        assert_eq!(
-            request.headers["x-runx-handoff-audience"],
-            "n8n:workflow:demo"
         );
     }
 

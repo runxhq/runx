@@ -8,10 +8,17 @@ runx:
 # Nitrosend
 
 Use this as the single public Runx surface for Nitrosend customer operations.
-Local account runners bind the API key only to the local runtime. The hosted
-`review-content` runner calls one bounded `provider.read` operation whose Cloud
-adapter retains credential custody. No runner accepts an API key as skill input
-or returns one in a receipt.
+Every runner calls the Nitrosend connector's operations: each is one tool on
+Nitrosend's MCP server, pinned by digest, and runx refuses a tool served with
+another definition. The connector's instance holds the API key (set once with
+`runx credential set nitrosend --credential api_key --from-stdin`); the hosted
+`review-content` runner's key stays in runx Connect. No runner accepts an API
+key as skill input or returns one in a receipt. A brand-scoped operation sends
+the selected `brand_sid` as Nitrosend's brand header, so each brand runs on its
+own session.
+
+Writes ask for exact approval at the operation itself. Dry runs and previews
+run as reads: they validate without dispatching and need no approval.
 
 This skill is not for Nitrosend customer-support administration or team Slack
 work. Those are product-operator concerns owned by the Nitrosend repository.
@@ -43,8 +50,8 @@ work. Those are product-operator concerns owned by the Nitrosend repository.
 - `review-delivery`: read-only content and preflight review. Flow review requires
   the exact immutable `revision_id`; campaigns and templates do not.
 - `send-test-message`: re-review one exact template, campaign, or immutable flow
-  revision, bind one to five explicit recipients, require approval, then dry-run
-  or dispatch the idempotent test. It never approves, activates, or sends the
+  revision and bind one to five explicit recipients. A dry run validates the
+  test without approval; a live test send asks for approval and dispatches once. It never approves, activates, or sends the
   target to its audience.
 - `review-content`: read-only spam and accessibility review for bounded inline
   email content. It accepts no account entity, audience, delivery, or mutation

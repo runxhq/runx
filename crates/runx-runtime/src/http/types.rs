@@ -87,7 +87,6 @@ pub struct RuntimeHttpResponse {
     pub headers: Vec<RuntimeHttpHeader>,
     pub body_digest: String,
     pub body_bytes: usize,
-    pub truncated: bool,
 }
 
 /// One request-sensitive response available only through the private harness
@@ -116,7 +115,6 @@ impl RuntimeHttpResponse {
             body_bytes: body.len(),
             body,
             headers: Vec::new(),
-            truncated: false,
         }
     }
 }
@@ -135,7 +133,6 @@ impl fmt::Debug for RuntimeHttpResponse {
             .field("header_names", &header_names)
             .field("body_digest", &self.body_digest)
             .field("body_bytes", &self.body_bytes)
-            .field("truncated", &self.truncated)
             .finish()
     }
 }

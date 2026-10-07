@@ -32,6 +32,7 @@ type SkillRunnerManifest = {
       readonly caller?: unknown;
       readonly expect?: unknown;
     }[];
+    readonly files?: readonly string[];
   };
   readonly raw: { readonly document: Record<string, unknown> };
 };

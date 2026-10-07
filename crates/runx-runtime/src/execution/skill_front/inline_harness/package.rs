@@ -29,7 +29,7 @@ pub(crate) fn run_package_harness_with_effects(
     let mut base_env = workspace.env().clone();
     crate::execution::harness::isolate_harness_environment(
         &mut base_env,
-        loaded.package.profiles.values(),
+        &crate::execution::harness::credential_variables(&loaded.directory)?,
     );
     let harness = PackageHarnessEnvironment::prepare(
         base_env,

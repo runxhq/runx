@@ -39,28 +39,26 @@ caller:
         checklist: [confirm provider approval, verify provider readback]
   provider_responses:
     principal_id: security-publisher-fixture
-    grants:
-      - grant_id: vuln-disclosure-fixture
+    grant:
+        grant_id: vuln-disclosure-fixture
         provider: github
         scopes: [advisory.publish, advisory.read]
     operations:
-      - grant_id: vuln-disclosure-fixture
-        operation: advisory.publish
+      - operation: advisory.publish
         target: runxhq/example
         access: mutate
         result:
           advisory_ref: github:runxhq/example/security-advisories/GHSA-example-1234
           payload_digest: sha256:ffbfa74bacc06d2eb87da944c16d6827723a80508c52b2a8f6bdd5c077e56490
-      - grant_id: vuln-disclosure-fixture
-        operation: advisory.read
-        target: runxhq/example
+      - operation: advisory.read
+        target: github:runxhq/example/security-advisories/GHSA-example-1234
         access: read
         result:
           advisory_ref: github:runxhq/example/security-advisories/GHSA-example-1234
           payload_digest: sha256:ffbfa74bacc06d2eb87da944c16d6827723a80508c52b2a8f6bdd5c077e56490
           status: published
   approvals:
-    "provider-effect:sha256:c0616de70c70fc6ef67afbe612b95468690c8be2aa39aca757950ef08d5a72b9": true
+    "operation:sha256:4a653768d3eee3cc357b0b642f90bf694abc2da8dd8c7c8a10a41ace9e9e319e": true
 expect:
   status: sealed
   steps: [prepare, publish]

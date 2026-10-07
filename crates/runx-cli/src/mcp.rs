@@ -1,4 +1,3 @@
-use std::collections::BTreeMap;
 use std::ffi::OsString;
 use std::io::Write;
 use std::path::PathBuf;
@@ -91,13 +90,6 @@ pub fn parse_mcp_plan(args: &[OsString]) -> Result<McpPlan, String> {
 // Function rationale: native MCP startup owns one cohesive
 // stdio-vs-HTTP transport selection and error presentation boundary.
 pub fn run_native_mcp_with_workspace(plan: McpPlan, workspace: &WorkspaceEnv) -> ExitCode {
-    let credential_deliveries = match resolve_mcp_credential_deliveries(&plan, workspace) {
-        Ok(deliveries) => deliveries,
-        Err(error) => {
-            let _ignored = writeln!(std::io::stderr(), "runx: {error}");
-            return ExitCode::from(1);
-        }
-    };
     let options =
         match runx_runtime::adapters::mcp::McpServerOptions::from_skill_paths_with_execution(
             &plan.refs,
@@ -107,7 +99,6 @@ pub fn run_native_mcp_with_workspace(plan: McpPlan, workspace: &WorkspaceEnv) ->
                 runner: plan.runner,
                 receipt_dir: plan.receipt_dir,
                 env: workspace.env().clone(),
-                credential_deliveries,
             },
         ) {
             Ok(options) => options,
@@ -161,40 +152,4 @@ pub fn run_native_mcp_with_workspace(plan: McpPlan, workspace: &WorkspaceEnv) ->
             ExitCode::from(1)
         }
     }
-}
-
-fn resolve_mcp_credential_deliveries(
-    plan: &McpPlan,
-    workspace: &WorkspaceEnv,
-) -> Result<BTreeMap<PathBuf, runx_runtime::CredentialDelivery>, String> {
-    let mut deliveries = BTreeMap::new();
-    for skill_ref in &plan.refs {
-        let Some(context) = runx_runtime::resolve_skill_credential_for_path(
-            skill_ref,
-            plan.runner.as_deref(),
-            None,
-            workspace,
-        )
-        .map_err(|error| error.to_string())?
-        else {
-            continue;
-        };
-        if !context.resolution.is_ready() {
-            return Err(format!(
-                "skill '{}' needs a {} credential; configure it with: runx credential set {} --from-stdin",
-                context.request.skill_name,
-                context.request.requirement.provider,
-                context.request.requirement.provider
-            ));
-        }
-        let canonical = skill_ref
-            .canonicalize()
-            .map_err(|error| format!("could not resolve {}: {error}", skill_ref.display()))?;
-        let delivery = context
-            .resolution
-            .delivery(workspace)
-            .map_err(|error| error.to_string())?;
-        deliveries.insert(canonical, delivery);
-    }
-    Ok(deliveries)
 }

@@ -1,12 +1,14 @@
 {
   "schema": "runx.tool.manifest.v1",
   "name": "nitrosend.bulk_import",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Reserve, stream, and finalize one consented Nitrosend CSV import without exposing transient signed upload material.",
   "source": {
     "type": "cli-tool",
     "command": "node",
-    "args": ["./run.mjs"]
+    "args": [
+      "./run.mjs"
+    ]
   },
   "inputs": {
     "csv_path": {
@@ -41,17 +43,28 @@
     },
     "idempotency_key": {
       "type": "string",
-      "required": true,
-      "description": "Stable retry key for reservation and finalization."
+      "required": false,
+      "description": "runx's provider key for a live import; a preview takes none."
     },
     "brand_sid": {
       "type": "string",
       "required": false,
       "description": "Optional public Nitrosend brand SID."
+    },
+    "phase": {
+      "type": "string",
+      "required": false,
+      "description": "perform for a live import; runx sets it when the import runs as a write."
     }
   },
-  "scopes": ["nitrosend:write", "net:http", "fs:read"],
-  "retry": { "max_attempts": 1 },
+  "scopes": [
+    "nitrosend:write",
+    "net:http",
+    "fs:read"
+  ],
+  "retry": {
+    "max_attempts": 1
+  },
   "artifacts": {
     "wrap_as": "provider_evidence"
   }

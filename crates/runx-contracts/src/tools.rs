@@ -7,8 +7,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::schema::RunxSchema;
 use crate::{
-    ArtifactContract, EnvironmentRequirements, IdempotencyPolicy, InputDefinition, JsonObject,
-    JsonValue, RetryPolicy,
+    ArtifactContract, EnvironmentRequirements, IdempotencyPolicy, InputDefinition, JsonValue,
+    RetryPolicy,
 };
 
 pub const TOOL_MANIFEST_SCHEMA: &str = "runx.tool.manifest.v1";
@@ -39,8 +39,6 @@ pub enum ToolCommandInputMode {
 pub enum ToolSourceType {
     CliTool,
     Javascript,
-    Mcp,
-    A2a,
 }
 
 impl ToolSourceType {
@@ -49,8 +47,6 @@ impl ToolSourceType {
         match self {
             Self::CliTool => "cli-tool",
             Self::Javascript => "javascript",
-            Self::Mcp => "mcp",
-            Self::A2a => "a2a",
         }
     }
 }
@@ -66,7 +62,6 @@ pub enum ToolBuildStatus {
 #[serde(rename_all = "snake_case")]
 pub enum ToolInspectOrigin {
     Local,
-    Imported,
     Native,
 }
 
@@ -120,26 +115,6 @@ pub struct ToolSource {
     pub timeout_seconds: Option<u64>,
     #[serde(default, skip_serializing_if = "EnvironmentRequirements::is_empty")]
     pub environment: EnvironmentRequirements,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub server: Option<ToolMcpServer>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub tool: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub arguments: Option<JsonObject>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub agent_card_url: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub agent_identity: Option<String>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
-#[serde(deny_unknown_fields)]
-pub struct ToolMcpServer {
-    pub command: String,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub args: Vec<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub cwd: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
@@ -376,11 +351,6 @@ mod tests {
             timeout_seconds: None,
             input_mode: None,
             environment: EnvironmentRequirements::default(),
-            server: None,
-            tool: None,
-            arguments: None,
-            agent_card_url: None,
-            agent_identity: None,
         }
     }
 
@@ -410,22 +380,22 @@ mod tests {
     fn tool_catalog_search_result_uses_executor_json_shape() -> Result<(), serde_json::Error> {
         let result: ToolCatalogSearchResult = serde_json::from_str(
             r#"{
-              "tool_id": "fixture-mcp/fixture.echo",
-              "name": "fixture.echo",
-              "summary": "Echo a message.",
-              "source": "fixture-mcp",
-              "source_label": "Fixture MCP",
-              "source_type": "mcp",
-              "namespace": "fixture",
-              "external_name": "echo",
-              "required_scopes": ["fixture.echo"],
-              "tags": ["mcp"],
-              "catalog_ref": "fixture-mcp:fixture.echo"
+              "tool_id": "runx-runtime/filesystem/fs.read",
+              "name": "fs.read",
+              "summary": "Read a UTF-8 text file.",
+              "source": "runx-runtime/filesystem",
+              "source_label": "runx-runtime/filesystem",
+              "source_type": "native",
+              "namespace": "fs",
+              "external_name": "read",
+              "required_scopes": ["fs.read"],
+              "tags": ["native"],
+              "catalog_ref": "runx-runtime/filesystem:fs.read"
             }"#,
         )?;
 
-        assert_eq!(result.catalog_ref, "fixture-mcp:fixture.echo");
-        assert_eq!(result.required_scopes, ["fixture.echo"]);
+        assert_eq!(result.catalog_ref, "runx-runtime/filesystem:fs.read");
+        assert_eq!(result.required_scopes, ["fs.read"]);
         Ok(())
     }
 
@@ -433,40 +403,36 @@ mod tests {
     fn tool_inspect_result_uses_provenance_shape() -> Result<(), serde_json::Error> {
         let result: ToolInspectResult = serde_json::from_str(
             r#"{
-              "ref": "fixture.echo",
-              "name": "fixture.echo",
-              "execution_source_type": "catalog",
+              "ref": "fs.read",
+              "name": "fs.read",
+              "execution_source_type": "native",
               "inputs": {},
-              "scopes": ["fixture.echo"],
-              "reference_path": "catalog:fixture-mcp:fixture.echo",
+              "scopes": ["fs.read"],
+              "reference_path": "native:runx-runtime/filesystem:fs.read",
               "skill_directory": ".",
               "provenance": {
-                "origin": "imported",
-                "source": "fixture-mcp",
-                "source_label": "Fixture MCP",
-                "source_type": "mcp",
-                "namespace": "fixture",
-                "external_name": "echo",
-                "catalog_ref": "fixture-mcp:fixture.echo",
-                "tool_id": "fixture-mcp/fixture.echo",
-                "tags": ["mcp"]
+                "origin": "native",
+                "source": "runx-runtime/filesystem",
+                "source_label": "runx-runtime/filesystem",
+                "source_type": "native",
+                "catalog_ref": "runx-runtime/filesystem:fs.read"
               }
             }"#,
         )?;
 
-        assert_eq!(result.tool_ref, "fixture.echo");
+        assert_eq!(result.tool_ref, "fs.read");
         assert_eq!(
             result.provenance,
             ToolInspectProvenance {
-                origin: ToolInspectOrigin::Imported,
-                source: Some("fixture-mcp".to_owned()),
-                source_label: Some("Fixture MCP".to_owned()),
-                source_type: Some("mcp".to_owned()),
-                namespace: Some("fixture".to_owned()),
-                external_name: Some("echo".to_owned()),
-                catalog_ref: Some("fixture-mcp:fixture.echo".to_owned()),
-                tool_id: Some("fixture-mcp/fixture.echo".to_owned()),
-                tags: Some(vec!["mcp".to_owned()]),
+                origin: ToolInspectOrigin::Native,
+                source: Some("runx-runtime/filesystem".to_owned()),
+                source_label: Some("runx-runtime/filesystem".to_owned()),
+                source_type: Some("native".to_owned()),
+                namespace: None,
+                external_name: None,
+                catalog_ref: Some("runx-runtime/filesystem:fs.read".to_owned()),
+                tool_id: None,
+                tags: None,
             }
         );
         Ok(())

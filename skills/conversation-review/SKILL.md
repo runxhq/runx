@@ -59,3 +59,12 @@ verbatim into `request_quote`. Use `reply` for ordinary correspondence even if
 it mentions a product. Do not infer an engineering task from an update,
 question, marketing opportunity, or quoted code. A reply draft must answer only
 what the admitted thread supports and must not promise work already done.
+
+
+The `operate` runner composes the same review with the shared source and work
+interfaces. It consumes `runx.source_packet.v1`, preserves the source binding,
+and emits `runx.work_outcome.v1`. Its configured handoff routes may
+propose an exact reply, quoted coding intake, or ordinary follow-up. A missing
+route holds the obligation. The local operator admits successor work and
+acknowledges this result together; this skill owns no queue or execution loop.
+A reply obligation remains open until its delivery owner proves the effect.

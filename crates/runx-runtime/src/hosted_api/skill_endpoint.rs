@@ -5,8 +5,6 @@ use crate::http::{
     RuntimeHttpResponse, RuntimeHttpTransport,
 };
 
-const MAX_HOSTED_SKILL_CHALLENGE_BYTES: usize = 256 * 1024;
-
 #[derive(Clone, Debug)]
 pub struct HostedSkillChallenge {
     pub resource_url: String,
@@ -23,9 +21,9 @@ pub enum HostedSkillEndpointError {
     InvalidBaseUrl(String),
 }
 
-/// Request the bounded challenge for one hosted skill endpoint. The runtime
-/// owns URL construction, guarded transport selection, and response bounds;
-/// callers own presentation of the returned protocol payload.
+/// Request the challenge for one hosted skill endpoint. The runtime owns URL
+/// construction and guarded transport selection; callers own presentation of
+/// the returned protocol payload.
 pub fn request_hosted_skill_challenge(
     base_url: &str,
     skill_id: &str,
@@ -47,18 +45,15 @@ fn request_hosted_skill_challenge_with_transport<T: RuntimeHttpTransport + ?Size
     runner: &str,
 ) -> Result<HostedSkillChallenge, HostedSkillEndpointError> {
     let resource_url = hosted_skill_resource_url(base_url, skill_id)?;
-    let response = transport.send_limited(
-        RuntimeHttpRequest {
-            method: HttpMethod::Post,
-            url: resource_url.clone(),
-            headers: vec![
-                RuntimeHttpHeader::new("content-type", "application/json"),
-                RuntimeHttpHeader::new("x-runx-skill-runner", runner),
-            ],
-            body: Some(serde_json::json!({ "runner": runner }).to_string()),
-        },
-        MAX_HOSTED_SKILL_CHALLENGE_BYTES,
-    )?;
+    let response = transport.send(RuntimeHttpRequest {
+        method: HttpMethod::Post,
+        url: resource_url.clone(),
+        headers: vec![
+            RuntimeHttpHeader::new("content-type", "application/json"),
+            RuntimeHttpHeader::new("x-runx-skill-runner", runner),
+        ],
+        body: Some(serde_json::json!({ "runner": runner }).to_string()),
+    })?;
     Ok(HostedSkillChallenge {
         resource_url,
         response,
@@ -113,8 +108,8 @@ mod tests {
     }
 
     #[test]
-    fn hosted_skill_challenge_uses_the_bounded_runtime_transport()
-    -> Result<(), Box<dyn std::error::Error>> {
+    fn hosted_skill_challenge_uses_the_runtime_transport() -> Result<(), Box<dyn std::error::Error>>
+    {
         let transport = StubTransport {
             response: RuntimeHttpResponse::new(402, "{}"),
             requests: RefCell::new(Vec::new()),
@@ -165,32 +160,5 @@ mod tests {
             Err(HostedSkillEndpointError::InvalidSkillId(_))
         ));
         assert!(transport.requests.borrow().is_empty());
-    }
-
-    #[test]
-    fn hosted_skill_challenge_rejects_an_oversized_response() {
-        let transport = StubTransport {
-            response: RuntimeHttpResponse::new(
-                402,
-                "x".repeat(MAX_HOSTED_SKILL_CHALLENGE_BYTES + 1),
-            ),
-            requests: RefCell::new(Vec::new()),
-        };
-
-        let result = request_hosted_skill_challenge_with_transport(
-            &transport,
-            "https://api.runx.test",
-            "ausca/document-ocr",
-            "invoke",
-        );
-
-        assert!(matches!(
-            result,
-            Err(HostedSkillEndpointError::Http(
-                RuntimeHttpError::ResponseBodyTooLarge {
-                    limit: MAX_HOSTED_SKILL_CHALLENGE_BYTES
-                }
-            ))
-        ));
     }
 }

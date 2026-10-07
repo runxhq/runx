@@ -192,6 +192,7 @@ mod tests {
         let started = Instant::now();
         DEFAULT_TIMEOUT_OVERRIDE_SECONDS.store(1, std::sync::atomic::Ordering::SeqCst);
         let output = CliToolAdapter.invoke(SkillInvocation {
+            historical_context: Vec::new(),
             skill_name: "default-timeout".to_owned(),
             step_id: None,
             artifacts: None,
@@ -209,17 +210,10 @@ mod tests {
                 timeout_seconds: None,
                 input_mode: None,
                 environment: Default::default(),
-                server: None,
-                tool: None,
-                arguments: None,
-                agent_card_url: None,
-                agent_identity: None,
                 agent: None,
                 task: None,
                 outputs: None,
                 graph: None,
-                external_adapter: None,
-                thread_outbox_provider: None,
                 raw: JsonObject::new(),
             },
             inputs: JsonObject::new(),

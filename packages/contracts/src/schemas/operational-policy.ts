@@ -5,19 +5,6 @@ import {
 
 export const operationalPolicySchemaVersion = "runx.operational_policy.v1" as const;
 
-/**
- * Canonical source provider identifiers. The wire schema accepts any non-empty
- * string so adapters can publish their own identifier without a schema edit;
- * this list is for discoverability and shared default constants.
- */
-export const operationalPolicySourceProviders = [
-  "slack",
-  "sentry",
-  "github",
-  "file",
-  "api",
-] as const;
-
 export const operationalPolicyActions = [
   "reply-only",
   "issue-intake",
@@ -27,15 +14,6 @@ export const operationalPolicyActions = [
   "pr-review",
   "pr-fix-up",
   "merge-assist",
-] as const;
-
-/**
- * Canonical runner kind identifiers. The wire schema accepts any non-empty
- * string so adapters can publish their own identifier without a schema edit.
- */
-export const operationalPolicyRunnerKinds = [
-  "local",
-  "github-actions",
 ] as const;
 
 export const operationalPolicyRunnerStates = [

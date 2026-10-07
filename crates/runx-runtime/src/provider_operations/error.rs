@@ -17,7 +17,7 @@ impl fmt::Display for ProviderOperationError {
             Self::InvalidGrantId => formatter
                 .write_str("provider grant id must be a safe, non-empty URL path identifier"),
             Self::InvalidOperation => formatter.write_str(
-                "provider operation must use a dotted lowercase capability such as thread.reply",
+                "provider operation must be dotted lowercase segments such as thread.reply or reports.run_realtime",
             ),
             Self::InvalidScopes => formatter
                 .write_str("provider operation scopes must contain non-empty capability strings"),

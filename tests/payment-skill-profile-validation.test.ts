@@ -58,6 +58,7 @@ describe("payment ownership boundary", () => {
           readonly type: string;
           readonly graph: { readonly steps: readonly {
             readonly tool?: string;
+            readonly operation?: string;
             readonly idempotency_key?: unknown;
             readonly inputs?: { readonly approval?: unknown };
             readonly run?: { readonly type?: string };
@@ -69,13 +70,17 @@ describe("payment ownership boundary", () => {
       expect(manifest.catalog?.requires_adapter, `${skill} adapter`).toBe(true);
       expect(manifest.catalog?.approval, `${skill} approval`).toBe("required");
       expect(Object.keys(manifest.runners).length, `${skill} runners`).toBeGreaterThan(0);
+      const operations: string[] = [];
       for (const [name, runner] of Object.entries(manifest.runners)) {
         expect(runner.type, `${skill}/${name} composition`).toBe("graph");
         for (const step of runner.graph.steps) {
           // Pure preparation/readback computation can accompany provider calls.
           // It must use the isolated module lane, never a host CLI process.
           if (step.run) expect(step.run.type, `${skill}/${name} local computation`).toBe("javascript");
-          if (step.tool === "provider.mutate") {
+          if (step.operation) operations.push(step.operation);
+          // The payment itself is a connector write; its readback is the
+          // matching `.read` operation.
+          if (step.operation && !step.operation.endsWith(".read")) {
             expect(step.idempotency_key, `${skill}/${name} retry identity`).toBeTypeOf("string");
             expect(step.inputs?.approval, `${skill}/${name} exact-act approval`).toMatchObject({
               type: expect.any(String), reason: expect.any(String),
@@ -86,8 +91,8 @@ describe("payment ownership boundary", () => {
       if (skill === "stripe-pay") {
         expect(source, `${skill} canonical hosted delegate`).toContain("skill: ../spend");
       } else {
-        expect(source, `${skill} hosted mutation`).toContain("provider.mutate");
-        expect(source, `${skill} hosted readback`).toContain("provider.read");
+        expect(operations.some((operation) => !operation.endsWith(".read")), `${skill} hosted mutation`).toBe(true);
+        expect(operations.some((operation) => operation.endsWith(".read")), `${skill} hosted readback`).toBe(true);
       }
       expect(source, `${skill} retired native planner`).not.toMatch(/tool: payment\.(?:quote|reserve|fulfill|recover|charge_|refund_plan|invoice_plan)/);
     }

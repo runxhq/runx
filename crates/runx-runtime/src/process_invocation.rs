@@ -16,15 +16,12 @@ use runx_contracts::{
     EXECUTION_BOUNDARY_METADATA, EnvironmentRequirements, ExecutionBoundaryKind,
     ExecutionBoundaryObservation, JsonObject,
 };
-use runx_parser::{SkillMcpServer, SkillSource};
+use runx_parser::SkillSource;
 
 use crate::RuntimeError;
 
 use self::environment::{child_base_env, child_env};
-use self::paths::{
-    execution_workspace_root, resolve_cwd, resolve_cwd_value, resolved_skill_directory,
-    workspace_cwd,
-};
+use self::paths::{execution_workspace_root, resolve_cwd, resolved_skill_directory, workspace_cwd};
 use self::template::resolve_template;
 
 #[cfg(feature = "cli-tool")]
@@ -93,11 +90,26 @@ impl Drop for PreparedProcessInvocation {
     }
 }
 
-#[cfg(any(feature = "cli-tool", test))]
+#[cfg(any(feature = "async-http", feature = "mcp", test))]
 pub(crate) fn process_base_environment(
     base_env: &BTreeMap<String, String>,
 ) -> Result<BTreeMap<String, String>, RuntimeError> {
     child_base_env(base_env)
+}
+
+/// The workspace a host process runs in: the run's workspace, else the
+/// runtime's own working directory.
+#[cfg(feature = "mcp")]
+pub(crate) fn process_workspace(
+    base_env: &BTreeMap<String, String>,
+) -> Result<std::path::PathBuf, RuntimeError> {
+    match workspace_cwd(base_env)? {
+        Some(cwd) => Ok(cwd),
+        None => std::env::current_dir().map_err(|error| RuntimeError::InvalidRunStep {
+            step_id: "mcp".to_owned(),
+            reason: error.to_string(),
+        }),
+    }
 }
 
 pub fn prepare_process_invocation(
@@ -147,35 +159,6 @@ pub fn prepare_process_invocation(
     )
 }
 
-#[cfg(feature = "external-adapter")]
-pub(crate) fn prepare_external_process_invocation(
-    command: String,
-    args: Vec<String>,
-    cwd: &Path,
-    environment: &EnvironmentRequirements,
-    base_env: &BTreeMap<String, String>,
-) -> Result<PreparedProcessInvocation, RuntimeError> {
-    let workspace_cwd = workspace_cwd(base_env)?;
-    let cwd = resolved_skill_directory(cwd, workspace_cwd.as_deref())?;
-    let mut invocation_env = base_env.clone();
-    invocation_env
-        .entry(crate::receipts::paths::RUNX_CWD_ENV.to_owned())
-        .or_insert_with(|| cwd.to_string_lossy().into_owned());
-    let mut env = child_base_env(&invocation_env)?;
-    env.extend(crate::execution_environment::resolve_environment(
-        environment,
-        &invocation_env,
-    )?);
-    prepare_exact_process_invocation(
-        command,
-        args,
-        cwd,
-        env,
-        Vec::new(),
-        ExecutionBoundaryKind::TrustedHostProcess,
-    )
-}
-
 #[cfg(feature = "cli-tool")]
 pub(crate) fn prepare_native_command_invocation(
     request: NativeCommandInvocationRequest<'_>,
@@ -209,40 +192,6 @@ pub(crate) fn prepare_javascript_worker_invocation(
         BTreeMap::new(),
         Vec::new(),
         ExecutionBoundaryKind::DeterministicWorker,
-    )
-}
-
-pub fn prepare_mcp_process_invocation(
-    environment: &EnvironmentRequirements,
-    server: &SkillMcpServer,
-    skill_directory: &Path,
-    base_env: &BTreeMap<String, String>,
-) -> Result<PreparedProcessInvocation, RuntimeError> {
-    let workspace_cwd = workspace_cwd(base_env)?;
-    let skill_directory = resolved_skill_directory(skill_directory, workspace_cwd.as_deref())?;
-    let workspace_root = execution_workspace_root(workspace_cwd.as_deref(), &skill_directory);
-    let cwd = resolve_cwd_value(
-        server.cwd.as_deref(),
-        &skill_directory,
-        workspace_cwd.as_deref(),
-    )?;
-    let mut invocation_env = base_env.clone();
-    invocation_env.insert(
-        crate::receipts::paths::RUNX_CWD_ENV.to_owned(),
-        workspace_root.to_string_lossy().into_owned(),
-    );
-    let mut env = child_base_env(&invocation_env)?;
-    env.extend(crate::execution_environment::resolve_environment(
-        environment,
-        &invocation_env,
-    )?);
-    prepare_exact_process_invocation(
-        server.command.clone(),
-        server.args.clone(),
-        cwd,
-        env,
-        Vec::new(),
-        ExecutionBoundaryKind::TrustedHostProcess,
     )
 }
 
@@ -311,17 +260,10 @@ mod tests {
             module: None,
             javascript_export: None,
             pages: None,
-            server: None,
-            tool: None,
-            arguments: None,
-            agent_card_url: None,
-            agent_identity: None,
             agent: None,
             task: None,
             outputs: None,
             graph: None,
-            external_adapter: None,
-            thread_outbox_provider: None,
             act: None,
             raw: JsonObject::new(),
         };

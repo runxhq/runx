@@ -35,21 +35,18 @@ impl RunxPrincipalId {
     }
 }
 
+/// What a reference points at. External kinds never name a provider: the
+/// reference's `provider` and `locator` say where, and connectors declare
+/// which of their locators are which kind.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ReferenceType {
-    GithubIssue,
-    GithubPullRequest,
-    GithubRepo,
-    SlackThread,
-    SentryEvent,
-    ProviderThread,
-    ProviderEvent,
-    ProviderComment,
+    Thread,
+    Comment,
+    Event,
     TrackingItem,
     ChangeRequest,
     Repository,
-    SupportTicket,
     Signal,
     Act,
     Receipt,
@@ -79,6 +76,8 @@ pub enum ReferenceType {
     WebhookDelivery,
     RedactionPolicy,
     ExternalUrl,
+    ConnectorInstance,
+    ConnectorOperation,
 }
 
 impl ReferenceType {
@@ -86,18 +85,12 @@ impl ReferenceType {
     /// representation and the `runx:<name>:<id>` URI segment.
     pub fn as_str(&self) -> &'static str {
         match self {
-            ReferenceType::GithubIssue => "github_issue",
-            ReferenceType::GithubPullRequest => "github_pull_request",
-            ReferenceType::GithubRepo => "github_repo",
-            ReferenceType::SlackThread => "slack_thread",
-            ReferenceType::SentryEvent => "sentry_event",
-            ReferenceType::ProviderThread => "provider_thread",
-            ReferenceType::ProviderEvent => "provider_event",
-            ReferenceType::ProviderComment => "provider_comment",
+            ReferenceType::Thread => "thread",
+            ReferenceType::Comment => "comment",
+            ReferenceType::Event => "event",
             ReferenceType::TrackingItem => "tracking_item",
             ReferenceType::ChangeRequest => "change_request",
             ReferenceType::Repository => "repository",
-            ReferenceType::SupportTicket => "support_ticket",
             ReferenceType::Signal => "signal",
             ReferenceType::Act => "act",
             ReferenceType::Receipt => "receipt",
@@ -127,6 +120,8 @@ impl ReferenceType {
             ReferenceType::WebhookDelivery => "webhook_delivery",
             ReferenceType::RedactionPolicy => "redaction_policy",
             ReferenceType::ExternalUrl => "external_url",
+            ReferenceType::ConnectorInstance => "connector_instance",
+            ReferenceType::ConnectorOperation => "connector_operation",
         }
     }
 }

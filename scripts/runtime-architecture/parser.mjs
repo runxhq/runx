@@ -58,7 +58,7 @@ export function checkCanonicalParserOwnership(findings) {
   const runtimeHarnessFixture = existsSync(runtimeHarnessFixturePath)
     ? productionRustSource(readFileSync(runtimeHarnessFixturePath, "utf8"))
     : "";
-  if (/pub\s+fn\s+parse_harness_fixture|\bproject_parser_error\b|HarnessFixtureError::(?:Required|Empty|Invalid|RetiredReceiptField|UnknownReceiptField|UnsupportedFixtureMode)/u.test(runtimeHarnessFixture)) {
+  if (/pub\s+fn\s+parse_harness_fixture|\bproject_parser_error\b|HarnessFixtureError::(?:Required|Empty|Invalid|RetiredReceiptField|UnknownReceiptField)/u.test(runtimeHarnessFixture)) {
     findings.push(`${relative(runtimeHarnessFixturePath)} mirrors parser-owned harness parsing or diagnostics`);
   }
   const runtimeDevLoopPath = path.join(
@@ -268,20 +268,10 @@ export function checkCanonicalParserOwnership(findings) {
   if (/step\.raw|json_field\s*\(\s*&step\.|collect_string_values\s*\(\s*&step\./u.test(preparedSkill)) {
     findings.push(`${relative(preparedSkillPath)} reparses serialized graph steps instead of using GraphStep`);
   }
-  const externalAdapterRuntimePath = path.join(
-    workspaceRoot,
-    "crates/runx-runtime/src/adapters/external_adapter.rs",
-  );
-  const externalAdapterRuntime = existsSync(externalAdapterRuntimePath)
-    ? readFileSync(externalAdapterRuntimePath, "utf8")
-    : "";
-  if (/source\.raw|\b(?:inline_manifest_value|manifest_path_value|optional_source_string)\b/u.test(externalAdapterRuntime)) {
-    findings.push(`${relative(externalAdapterRuntimePath)} reparses external-adapter source metadata outside runx-parser`);
-  }
   const registryPackagePath = path.join(workspaceRoot, "crates/runx-cli/src/registry/package.rs");
   const registryPackage = existsSync(registryPackagePath) ? readFileSync(registryPackagePath, "utf8") : "";
   if (/\bcollect_keyed_string_values\b|\bcollect_script_string_values\b/u.test(registryPackage)) {
-    findings.push(`${relative(registryPackagePath)} recursively guesses external-adapter sidecars instead of using typed contracts`);
+    findings.push(`${relative(registryPackagePath)} recursively guesses execution sidecars instead of using typed contracts`);
   }
   const sourceTypesPath = path.join(workspaceRoot, "crates/runx-parser/src/skill/types.rs");
   const sourceTypes = existsSync(sourceTypesPath) ? readFileSync(sourceTypesPath, "utf8") : "";
@@ -302,22 +292,6 @@ export function checkCanonicalParserOwnership(findings) {
       findings.push(`${relative(sourceParserPath)} must fail explicitly for retired source.type ${retired}`);
     }
   }
-  for (const field of ["external_adapter", "thread_outbox_provider"]) {
-    if (!new RegExp(`pub\\s+${field}:\\s+Option<`).test(sourceTypes)) {
-      findings.push(`${relative(sourceTypesPath)} must expose parser-owned typed ${field} metadata`);
-    }
-  }
-  const threadOutboxPath = path.join(
-    workspaceRoot,
-    "crates/runx-runtime/src/adapters/thread_outbox_provider.rs",
-  );
-  const threadOutboxSource = existsSync(threadOutboxPath)
-    ? readFileSync(threadOutboxPath, "utf8")
-    : "";
-  if (/source\.raw|\bparse_(?:source|config)\b/u.test(threadOutboxSource)) {
-    findings.push(`${relative(threadOutboxPath)} reparses thread-outbox source metadata outside runx-parser`);
-  }
-
   for (const relPath of [
     "crates/runx-runtime/src/tool_catalogs/build.rs",
     "crates/runx-runtime/src/tool_catalogs/inspect.rs",
@@ -331,7 +305,7 @@ export function checkCanonicalParserOwnership(findings) {
   }
   for (const filePath of rustFiles("crates/runx-cli/src")) {
     const source = readFileSync(filePath, "utf8");
-    if (/\bcollect_(?:external_adapter|process)_script_files\b|\bprocess_script_files\b/u.test(source)) {
+    if (/\bcollect_process_script_files\b|\bprocess_script_files\b/u.test(source)) {
       findings.push(`${relative(filePath)} guesses execution sidecars instead of using parser-owned execution_files`);
     }
   }

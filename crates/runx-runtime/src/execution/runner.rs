@@ -49,14 +49,13 @@ pub const RUNX_RUN_ID_ENV: &str = "RUNX_RUN_ID";
 
 #[derive(Clone, Debug)]
 pub struct RuntimeOptions {
+    pub current_context: Vec<runx_contracts::ContextEntry>,
+    pub historical_context: Vec<runx_contracts::ContextEntry>,
+    pub run_authority: Option<crate::RunAuthority>,
     pub created_at: String,
     pub env: BTreeMap<String, String>,
     pub receipt_signature: RuntimeReceiptSignatureConfig,
     pub effects: RuntimeEffectRegistry,
-    /// Credentials delivered to graph step invocations. Defaults to none; a
-    /// top-level skill run threads its own delivery here so credential-needing
-    /// graph-step tools (e.g. http tools with `${secret:NAME}` headers) resolve.
-    pub credential_delivery: crate::credentials::CredentialDelivery,
 }
 
 impl RuntimeOptions {
@@ -97,11 +96,13 @@ impl RuntimeOptions {
     ) -> Self {
         strip_receipt_signing_env(&mut env);
         Self {
+            current_context: Vec::new(),
+            historical_context: Vec::new(),
+            run_authority: None,
             created_at: crate::time::now_iso8601(),
             env,
             receipt_signature,
             effects: RuntimeEffectRegistry::default(),
-            credential_delivery: crate::credentials::CredentialDelivery::none(),
         }
     }
 

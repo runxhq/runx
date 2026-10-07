@@ -1,5 +1,5 @@
 skill: governed-outbound
-version: "0.3.4"
+version: "0.3.5"
 catalog:
   kind: graph
   audience: public
@@ -25,9 +25,6 @@ harness:
             - Do not fetch the external source again.
             - Do not repeat redaction after deterministic residual scanning has passed.
       runner: plan
-      env:
-        RUNX_PROVIDER_PERMISSION_GRANT_ID: provider-read-demo
-        RUNX_PROVIDER_PERMISSION_GRANTED_SCOPES: '["runx:net:allowlist"]'
       inputs:
         url: https://fixture.runx.invalid/source
         allowlist:
@@ -106,9 +103,6 @@ harness:
           schema: runx.receipt.v1
     - name: governed-outbound-redaction-hold
       runner: plan
-      env:
-        RUNX_PROVIDER_PERMISSION_GRANT_ID: provider-read-hold-demo
-        RUNX_PROVIDER_PERMISSION_GRANTED_SCOPES: '["runx:net:allowlist"]'
       inputs:
         url: https://fixture.runx.invalid/source
         allowlist:
@@ -183,7 +177,7 @@ runners:
         - id: fetch-source
           skill: ../web-fetch
           runner: web-fetch
-          scopes: [runx:net:allowlist]
+          scopes: [web.read]
           inputs:
             url: $input.url
             allowlist: $input.allowlist
@@ -195,7 +189,7 @@ runners:
           inputs:
             mode: redact
           context:
-            content: fetch-source.fetch_result.data.extracted
+            content: fetch-source.provider_operation.data.result.extracted
         - id: send
           when:
             field: scrub-content.redaction_report.data.decision
@@ -243,7 +237,7 @@ runners:
           skill: ../web-fetch
           runner: web-fetch
           scopes:
-            - runx:net:allowlist
+            - web.read
           inputs:
             url: $input.url
             allowlist: $input.allowlist
@@ -257,7 +251,7 @@ runners:
           inputs:
             mode: redact
           context:
-            content: fetch-source.fetch_result.data.extracted
+            content: fetch-source.provider_operation.data.result.extracted
         - id: plan-notice
           label: prepare the governed notification plan
           skill: ../send-as
@@ -275,7 +269,7 @@ runners:
             principal: $input.principal
             channel: $input.channel
           context:
-            source: fetch-source.fetch_result.data
+            source: fetch-source.provider_operation.data.result
             redaction: scrub-content.redaction_report.data
             send_plan: plan-notice.send_plan.data
           run:

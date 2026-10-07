@@ -11,12 +11,11 @@ crates must not broker third-party OAuth, custody hosted secrets, issue verified
 hosted grants, implement a provider gateway, or implement real payment planning,
 reservation, rails, ledgers, refunds, recovery, or finality.
 
-The local credential path is intentionally small: a skill declares provider,
-auth modes, and delivery names; OSS resolves an explicit profile, project
-binding, global default, pre-resolved hosted handle, or declared workspace
-environment value. Local material is encrypted at rest and injected only at the
-adapter boundary for that execution. The hosted/cloud layer owns OAuth
-brokerage and hosted credential custody.
+The local credential path is intentionally small: a connector declares its
+credentials, an operator binds one account as an instance, and the kernel
+delivers that instance's material to the operation it admits. Local material is
+encrypted at rest and presented only at the operation's boundary. The
+hosted/cloud layer owns OAuth brokerage and hosted credential custody.
 
 ## Current OSS Surface
 
@@ -30,7 +29,7 @@ brokerage and hosted credential custody.
   receiving provider credentials.
 - `runx-cli` keeps the native OSS CLI shape. `runx connect` is a client of the
   hosted grant lifecycle; it does not perform OAuth brokerage. `runx credential`
-  stores local profiles and non-secret bindings.
+  stores local profiles as connector instances.
 - `runx-sdk` does not expose hosted connect-list APIs.
 - Public payment skills keep only thin v1 hosted operation contracts. Internal
   `mock-*` packages are deterministic simulators and always report that no money
@@ -62,4 +61,4 @@ operation names; greenfield contracts are changed in place rather than forked
 into internal v2 variants.
 
 The complete public behavior is documented in
-[Credential Resolution](./credentials.md).
+[Credentials](./credentials.md).

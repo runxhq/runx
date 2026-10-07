@@ -1,5 +1,5 @@
 skill: nitrosend
-version: "0.4.8"
+version: "0.4.9"
 catalog:
   kind: skill
   audience: public
@@ -12,18 +12,12 @@ catalog:
   completion: provider_readback
   requires_adapter: true
   approval: conditional
-credentials:
+connectors:
   nitrosend:
-    provider: nitrosend
-    audience: https://api.nitrosend.com
-    auth:
-      api_key:
-        delivery:
-          env: NITROSEND_API_KEY
+    operations: [content.review, contacts.import.preview, contacts.import]
 runners:
   billing-status:
     type: graph
-    credential: nitrosend
     inputs: {}
     examples:
       - {}
@@ -63,7 +57,6 @@ runners:
               plans_evidence: nitrosend.provider_evidence.v1
   plan-checkout:
     type: graph
-    credential: nitrosend
     act:
       purpose: Create one operator-approved Nitrosend hosted plan checkout or confirmed in-place plan change.
     inputs:
@@ -96,20 +89,14 @@ runners:
           inputs:
             operation: billing_plans
             arguments: {}
-        - id: approve
-          run:
-            type: approval
-          inputs:
-            gate_id: nitrosend.plan_checkout.approval
-            reason: Create the Nitrosend hosted checkout or confirmed plan change for this exact selected plan.
-          context:
-            billing_status: status.provider_evidence.data
-            eligible_plans: plans.provider_evidence.data
         - id: checkout
           skill: graph/provider-operation
           runner: act
           idempotency_key: "$input.idempotency_key"
           inputs:
+            approval:
+              reason: Create the Nitrosend hosted checkout or confirmed plan change for this exact selected plan.
+              type: nitrosend_plan_checkout
             operation: plan_checkout
             arguments:
               plan_id: "$input.plan_id"
@@ -142,21 +129,17 @@ runners:
               status_evidence: nitrosend.provider_evidence.v1
     policy:
       guards:
-        - step: approve
+        - step: checkout
           field: status.provider_evidence.data.decision
           equals: ok
-        - step: approve
+        - step: checkout
           field: plans.provider_evidence.data.decision
           equals: ok
-        - step: checkout
-          field: approve.approval_decision.data.approved
-          equals: true
         - step: readback
           field: checkout.provider_evidence.data.decision
           equals: ok
   plan-checkout-status:
     type: graph
-    credential: nitrosend
     inputs:
       purchase_id:
         type: integer
@@ -192,7 +175,6 @@ runners:
   status:
     default: true
     type: graph
-    credential: nitrosend
     inputs:
       brand_sid:
         type: string
@@ -213,7 +195,6 @@ runners:
             brand_sid: "$input.brand_sid"
   query:
     type: graph
-    credential: nitrosend
     inputs:
       entity:
         type: string
@@ -267,7 +248,6 @@ runners:
             brand_sid: "$input.brand_sid"
   inbox:
     type: graph
-    credential: nitrosend
     inputs:
       command:
         type: string
@@ -302,9 +282,127 @@ runners:
               command: "$input.command"
               arguments: "$input.arguments"
             brand_sid: "$input.brand_sid"
+  assistant_scan:
+    type: graph
+    inputs:
+      config: { type: object, required: true, description: Bounded mail source configuration. }
+      cursor: { type: string, required: false, description: Opaque source cursor. }
+      page_limit: { type: integer, required: true, description: Maximum mailbox rows, schema: { minimum: 1, maximum: 20 } }
+    graph:
+      name: nitrosend-assistant-scan
+      result_from: [finish]
+      steps:
+        - id: prepare
+          inputs:
+            config: "$input.config"
+            cursor: "$input.cursor"
+            page_limit: "$input.page_limit"
+          run:
+            type: javascript
+            module: assistant-source.mjs
+            export: prepareAssistantScan
+            outputs: { scan_request: object }
+        - id: scan
+          skill: graph/provider-operation
+          runner: read
+          inputs: { operation: inbox }
+          context:
+            arguments: prepare.scan_request.arguments
+            brand_sid: prepare.scan_request.brand_sid
+        - id: finish
+          inputs: { page_limit: "$input.page_limit", cursor: "$input.cursor" }
+          context: { provider_evidence: scan.provider_evidence.data }
+          run:
+            type: javascript
+            module: assistant-source.mjs
+            export: finishAssistantScan
+            outputs: { assistant_page: object }
+          artifacts:
+            named_emits: { assistant_page: assistant_page }
+            packets: { assistant_page: runx.conversation_page.v1 }
+  assistant_observe:
+    type: graph
+    inputs:
+      config: { type: object, required: true, description: Bound mail source configuration. }
+      item: { type: object, required: true, description: One mailbox row from assistant_scan. }
+    graph:
+      name: nitrosend-assistant-observe
+      result_from: [finish]
+      steps:
+        - id: prepare
+          inputs: { config: "$input.config", item: "$input.item" }
+          run:
+            type: javascript
+            module: assistant-source.mjs
+            export: prepareAssistantObserve
+            outputs: { observe_request: object }
+        - id: thread
+          skill: graph/provider-operation
+          runner: read
+          inputs: { operation: inbox }
+          context:
+            arguments: prepare.observe_request.arguments
+            brand_sid: prepare.observe_request.brand_sid
+        - id: finish
+          inputs: { config: "$input.config", item: "$input.item" }
+          context: { provider_evidence: thread.provider_evidence.data }
+          run:
+            type: javascript
+            module: assistant-source.mjs
+            export: finishAssistantObserve
+            outputs: { assistant_observation: object }
+          artifacts:
+            named_emits: { assistant_observation: assistant_observation }
+            packets: { assistant_observation: runx.conversation_observation.v1 }
+  assistant_hydrate:
+    type: graph
+    inputs:
+      config: { type: object, required: true, description: Bound mail source configuration. }
+      source_ref: { type: string, required: true, description: Admitted message locator. }
+      source_digest: { type: string, required: true, description: Admitted occurrence digest. }
+      thread_locator: { type: string, required: true, description: Admitted conversation locator. }
+      action: { type: object, required: true, description: Canonical open operator action. }
+      cursor: { type: string, required: false, description: Continuation cursor; mail hydration has one bounded page. }
+    graph:
+      name: nitrosend-assistant-hydrate
+      result_from: [finish]
+      steps:
+        - id: prepare
+          inputs:
+            config: "$input.config"
+            source_ref: "$input.source_ref"
+            thread_locator: "$input.thread_locator"
+            cursor: "$input.cursor"
+          run:
+            type: javascript
+            module: assistant-source.mjs
+            export: prepareAssistantHydrate
+            outputs: { hydrate_request: object }
+        - id: thread
+          skill: graph/provider-operation
+          runner: read
+          inputs: { operation: inbox }
+          context:
+            arguments: prepare.hydrate_request.arguments
+            brand_sid: prepare.hydrate_request.brand_sid
+        - id: finish
+          inputs:
+            config: "$input.config"
+            source_ref: "$input.source_ref"
+            source_digest: "$input.source_digest"
+            thread_locator: "$input.thread_locator"
+            action: "$input.action"
+          context: { provider_evidence: thread.provider_evidence.data }
+          run:
+            type: javascript
+            module: assistant-source.mjs
+            export: finishAssistantHydrate
+            outputs: { assistant_context: object }
+          artifacts:
+            named_emits: { assistant_context: assistant_context }
+            packets: { assistant_context: runx.source_packet.v1 }
   configure-sender:
     type: graph
-    credential: nitrosend
     act:
       purpose: Replace one explicitly selected Nitrosend brand's exact sender defaults.
     inputs:
@@ -360,22 +458,14 @@ runners:
             expected: "$input.brand_sid"
           context:
             actual: current.provider_evidence.data.result.sender_settings.brand_sid
-        - id: approve
-          when:
-            field: verify-current-brand.comparison.data.equal
-            equals: true
-          run:
-            type: approval
-          inputs:
-            gate_id: nitrosend.configure_sender.approval
-            reason: Replace the selected Nitrosend brand's sender defaults with these exact values.
-          context:
-            current: current.provider_evidence.data
         - id: apply
           skill: graph/provider-operation
           runner: act
           idempotency_key: $input.idempotency_key
           inputs:
+            approval:
+              reason: Replace the selected Nitrosend brand's sender defaults with these exact values.
+              type: nitrosend_configure_sender
             operation: configure_sender
             arguments:
               from_name: "$input.from_name"
@@ -404,9 +494,6 @@ runners:
     policy:
       guards:
         - step: apply
-          field: approve.approval_decision.data.approved
-          equals: true
-        - step: apply
           field: verify-current-brand.comparison.data.equal
           equals: true
         - step: readback
@@ -417,7 +504,6 @@ runners:
           equals: ok
   review-delivery:
     type: graph
-    credential: nitrosend
     inputs:
       target_type:
         type: string
@@ -456,7 +542,6 @@ runners:
             brand_sid: "$input.brand_sid"
   send-test-message:
     type: graph
-    credential: nitrosend
     act:
       purpose: Send or dry-run one reviewed test message to one to five explicit recipients without approving or activating the target.
     inputs:
@@ -543,19 +628,14 @@ runners:
               target_id: "$input.target_id"
               revision_id: "$input.revision_id"
             brand_sid: "$input.brand_sid"
-        - id: approve
-          run:
-            type: approval
-          inputs:
-            gate_id: nitrosend.send_test_message.approval
-            reason: Run this exact reviewed test message for the named recipients. A dry run validates without dispatch.
-          context:
-            review: review.provider_evidence.data
         - id: send
           skill: graph/provider-operation
           runner: act
           idempotency_key: "$input.idempotency_key"
           inputs:
+            approval:
+              reason: Send this exact reviewed test message to the named recipients.
+              type: nitrosend_send_test_message
             operation: send_test_message
             arguments:
               target_type: "$input.target_type"
@@ -571,12 +651,9 @@ runners:
             brand_sid: "$input.brand_sid"
     policy:
       guards:
-        - step: approve
+        - step: send
           field: review.provider_evidence.data.decision
           equals: ok
-        - step: send
-          field: approve.approval_decision.data.approved
-          equals: true
   review-content:
     type: graph
     inputs:
@@ -603,14 +680,8 @@ runners:
             value: "$input.html"
             encoding: utf8_text
         - id: review
-          tool: provider.read
-          scopes: [content.review]
-          policy:
-            provider_permission: { verb: read }
+          operation: nitrosend/content.review
           inputs:
-            expected_provider: nitrosend
-            operation: content.review
-            target: nitrosend://content-review
             result_fields: [subject, html_size_bytes, html_digest, text_preview, text_length, accessibility, spam_score, warnings]
             input:
               subject: "$input.subject"
@@ -637,7 +708,6 @@ runners:
               warnings: array
   import-status:
     type: graph
-    credential: nitrosend
     inputs:
       import_id:
         type: number
@@ -664,7 +734,6 @@ runners:
             brand_sid: "$input.brand_sid"
   approve-delivery:
     type: graph
-    credential: nitrosend
     act:
       purpose: Approve one reviewed Nitrosend campaign or flow without sending it.
     inputs:
@@ -704,19 +773,14 @@ runners:
               target_id: "$input.target_id"
               revision_id: "$input.revision_id"
             brand_sid: "$input.brand_sid"
-        - id: approve
-          run:
-            type: approval
-          inputs:
-            gate_id: nitrosend.approve_delivery.approval
-            reason: Approve this reviewed delivery configuration. This does not send or activate it.
-          context:
-            review: review.provider_evidence.data
         - id: apply
           skill: graph/provider-operation
           runner: act
           idempotency_key: nitrosend-approve-delivery
           inputs:
+            approval:
+              reason: Approve this reviewed delivery configuration. This does not send or activate it.
+              type: nitrosend_approve_delivery
             operation: control_delivery
             arguments:
               target_type: "$input.target_type"
@@ -724,14 +788,8 @@ runners:
               operation: approve
               revision_id: "$input.revision_id"
             brand_sid: "$input.brand_sid"
-    policy:
-      guards:
-        - step: apply
-          field: approve.approval_decision.data.approved
-          equals: true
   send-campaign:
     type: graph
-    credential: nitrosend
     act:
       purpose: Deliver one already-approved Nitrosend campaign after fresh review and explicit approval.
     inputs:
@@ -781,19 +839,14 @@ runners:
               target_type: campaign
               target_id: "$input.campaign_id"
             brand_sid: "$input.brand_sid"
-        - id: approve-send
-          run:
-            type: approval
-          inputs:
-            gate_id: nitrosend.send_campaign.approval
-            reason: Deliver this reviewed campaign to its configured live audience.
-          context:
-            review: review.provider_evidence.data
         - id: deliver
           skill: graph/provider-operation
           runner: act
           idempotency_key: nitrosend-send-campaign
           inputs:
+            approval:
+              reason: Deliver this reviewed campaign to its configured live audience.
+              type: nitrosend_send_campaign
             operation: control_delivery
             arguments:
               target_type: campaign
@@ -805,15 +858,11 @@ runners:
             brand_sid: "$input.brand_sid"
     policy:
       guards:
-        - step: approve-send
+        - step: deliver
           field: review.provider_evidence.data.decision
           equals: ok
-        - step: deliver
-          field: approve-send.approval_decision.data.approved
-          equals: true
   activate-flow:
     type: graph
-    credential: nitrosend
     act:
       purpose: Activate one already-approved Nitrosend flow after fresh review and explicit approval.
     inputs:
@@ -847,19 +896,14 @@ runners:
               target_id: "$input.flow_id"
               revision_id: "$input.revision_id"
             brand_sid: "$input.brand_sid"
-        - id: approve-live
-          run:
-            type: approval
-          inputs:
-            gate_id: nitrosend.activate_flow.approval
-            reason: Activate this reviewed automation flow for live contacts.
-          context:
-            review: review.provider_evidence.data
         - id: activate
           skill: graph/provider-operation
           runner: act
           idempotency_key: nitrosend-activate-flow
           inputs:
+            approval:
+              reason: Activate this reviewed automation flow for live contacts.
+              type: nitrosend_activate_flow
             operation: control_delivery
             arguments:
               target_type: flow
@@ -869,15 +913,11 @@ runners:
             brand_sid: "$input.brand_sid"
     policy:
       guards:
-        - step: approve-live
+        - step: activate
           field: review.provider_evidence.data.decision
           equals: ok
-        - step: activate
-          field: approve-live.approval_decision.data.approved
-          equals: true
   apply-draft:
     type: graph
-    credential: nitrosend
     act:
       purpose: Apply one reviewed Nitrosend campaign, flow, template, segment, or remote image ingest request.
     inputs:
@@ -935,15 +975,6 @@ runners:
               provider_evidence: provider_evidence
             packets:
               provider_evidence: nitrosend.provider_evidence.v1
-        - id: approve-draft
-          when:
-            field: preflight.operation_plan.decision
-            equals: ready
-          run:
-            type: approval
-          inputs:
-            gate_id: nitrosend.apply_draft.approval
-            reason: Apply this reviewed draft or image ingest to the live Nitrosend account. This does not deliver to recipients or activate a flow.
         - id: apply
           when:
             field: preflight.operation_plan.decision
@@ -952,15 +983,13 @@ runners:
           runner: act
           idempotency_key: "$input.arguments.idempotency_key"
           inputs:
+            approval:
+              reason: Apply this reviewed draft or image ingest to the live Nitrosend account. This does not deliver to recipients or activate a flow.
+              type: nitrosend_apply_draft
             operation: "$input.operation"
             arguments: "$input.arguments"
             idempotency_key: "$input.arguments.idempotency_key"
             brand_sid: "$input.brand_sid"
-    policy:
-      guards:
-        - step: apply
-          field: approve-draft.approval_decision.data.approved
-          equals: true
   plan-campaign:
     type: agent-task
     agent: builder
@@ -1189,7 +1218,6 @@ runners:
         operator_context: One recipient only; prepare the plan without sending.
   send-transactional:
     type: graph
-    credential: nitrosend
     act:
       purpose: Send or dry-run one idempotent transactional message to one recipient.
     inputs:
@@ -1246,12 +1274,6 @@ runners:
       name: nitrosend-send-transactional
       result_from: [send]
       steps:
-        - id: approve-send
-          run:
-            type: approval
-          inputs:
-            gate_id: nitrosend.send_transactional.approval
-            reason: Send this transactional message to the named recipient. A dry run performs validation only.
         - id: send
           skill: graph/provider-operation
           runner: act
@@ -1268,14 +1290,8 @@ runners:
               dry_run: "$input.dry_run"
               idempotency_key: "$input.idempotency_key"
             brand_sid: "$input.brand_sid"
-    policy:
-      guards:
-        - step: send
-          field: approve-send.approval_decision.data.approved
-          equals: true
   compose-email:
     type: graph
-    credential: nitrosend
     inputs:
       target_type:
         type: string
@@ -1347,7 +1363,6 @@ runners:
             brand_sid: "$input.brand_sid"
   analytics:
     type: graph
-    credential: nitrosend
     inputs:
       objective:
         type: string
@@ -1461,7 +1476,6 @@ runners:
         operator_context: Prepare a dry-run import plan first.
   import-contacts:
     type: graph
-    credential: nitrosend
     act:
       purpose: Import one consented inline contact batch after explicit approval.
     inputs:
@@ -1513,17 +1527,14 @@ runners:
       name: nitrosend-import-contacts
       result_from: [import]
       steps:
-        - id: approve-import
-          run:
-            type: approval
-          inputs:
-            gate_id: nitrosend.import_contacts.approval
-            reason: Import this consented contact batch into Nitrosend. A dry run only validates it.
         - id: import
           skill: graph/provider-operation
           runner: act
           idempotency_key: nitrosend-import-contacts
           inputs:
+            approval:
+              reason: Import this consented contact batch into Nitrosend.
+              type: nitrosend_import_contacts
             operation: import_contacts
             arguments:
               records: "$input.records"
@@ -1534,14 +1545,8 @@ runners:
               dry_run: "$input.dry_run"
               idempotency_key: "$input.idempotency_key"
             brand_sid: "$input.brand_sid"
-    policy:
-      guards:
-        - step: import
-          field: approve-import.approval_decision.data.approved
-          equals: true
   import-contacts-csv:
     type: graph
-    credential: nitrosend
     act:
       purpose: Upload and start one consented CSV contact import without putting file bytes or signed URLs in the agent packet.
     inputs:
@@ -1595,34 +1600,72 @@ runners:
         brand_sid: brnd_demo123
     graph:
       name: nitrosend-import-contacts-csv
-      result_from: [import]
+      result_from: [present-preview, present-import]
       steps:
-        - id: approve-import
-          run:
-            type: approval
-          inputs:
-            gate_id: nitrosend.import_contacts_csv.approval
-            reason: Upload and import this consented local CSV. A dry run only validates file metadata.
-        - id: import
-          tool: nitrosend.bulk_import
-          scopes:
-            - nitrosend:write
-          idempotency_key: nitrosend-import-contacts-csv
+        - id: plan
           inputs:
             csv_path: "$input.csv_path"
             source_id: "$input.source_id"
             consent_basis: "$input.consent_basis"
             columns: "$input.columns"
-            options:
-              list_ids: "$input.list_ids"
+            list_ids: "$input.list_ids"
             dry_run: "$input.dry_run"
-            idempotency_key: "$input.idempotency_key"
             brand_sid: "$input.brand_sid"
-    policy:
-      guards:
-        - step: import
-          field: approve-import.approval_decision.data.approved
-          equals: true
+          run:
+            type: javascript
+            module: csv-import.mjs
+            export: planCsvImport
+            outputs:
+              csv_import: object
+        - id: preview
+          when:
+            field: plan.csv_import.mode
+            equals: preview
+          operation: nitrosend/contacts.import.preview
+          context:
+            input: plan.csv_import.input
+        - id: import
+          when:
+            field: plan.csv_import.mode
+            equals: import
+          operation: nitrosend/contacts.import
+          idempotency_key: "$input.idempotency_key"
+          inputs:
+            approval:
+              reason: Upload and import this consented local CSV.
+              type: nitrosend_import_contacts_csv
+          context:
+            input: plan.csv_import.input
+        - id: present-preview
+          when:
+            field: plan.csv_import.mode
+            equals: preview
+          context:
+            provider_operation: preview.provider_operation.data
+          run:
+            type: javascript
+            module: csv-import.mjs
+            export: presentCsvImport
+            outputs:
+              provider_evidence: object
+          artifacts:
+            named_emits: { provider_evidence: provider_evidence }
+            packets: { provider_evidence: nitrosend.provider_evidence.v1 }
+        - id: present-import
+          when:
+            field: plan.csv_import.mode
+            equals: import
+          context:
+            provider_operation: import.provider_operation.data
+          run:
+            type: javascript
+            module: csv-import.mjs
+            export: presentCsvImport
+            outputs:
+              provider_evidence: object
+          artifacts:
+            named_emits: { provider_evidence: provider_evidence }
+            packets: { provider_evidence: nitrosend.provider_evidence.v1 }
   segment-from-prose:
     type: agent-task
     agent: builder

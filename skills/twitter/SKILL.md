@@ -37,9 +37,14 @@ name missing evidence as a blocker.
 
 Five runners:
 
-- `read`: collect account evidence from the live API. Queries:
-  `snapshot`, `posts`, `mentions`, `search`, `following`, `followers`. Emits
-  `twitter.evidence.v1`. Read-only; no gate.
+- `read`: collect account evidence from the live API through the `twitter`
+  connector. Queries: `snapshot`, `posts`, `mentions`, `search`, `following`,
+  `followers`. A query without `params.user_id` reads the authenticated
+  account; with it, another account. The connector reads whole pages until it
+  has at least `max_items`, keeps every item of them, and reports in
+  `next_cursor` where a further read starts (pass it back as
+  `params.pagination_token`). Emits `twitter.evidence.v1`.
+  Read-only; no gate.
 - `read-archive`: inspect one contained X archive export (`tweets.js`,
   `following.js`, or `follower.js`) through the runtime's digest-bound artifact
   page seam. Twitter code receives bounded, record-complete pages and never a
@@ -63,20 +68,29 @@ Five runners:
   `unfollow` acts (predicate: `non_mutual: true` for accounts you follow that
   do not follow back, needing `follower.js` too, or an explicit `user_ids`
   list). Emits `twitter.selection.v1` carrying a digest-bound `twitter_plan`.
-- `execute`: run an approved plan through the X API behind an approval gate,
-  act by act, sealing per-act provider evidence into `twitter.execution.v1` and
-  appending one compact progress fact to a durable execution ledger. A batch
-  is always a contiguous plan prefix and native HTTP stops at the first failed
-  or rate-limited request, so a monotonic cursor—not an accumulated id list—is
-  enough to resume safely.
+- `execute`: run the next batch of an approved plan as one `twitter` connector
+  operation behind its own approval, sealing per-act outcomes into
+  `twitter.execution.v1` and appending one compact progress fact to a durable
+  execution ledger. A batch is one published act (a post, reply, quote, or one
+  thread segment), or the contiguous run of up to 50 acts of one other kind
+  from the cursor. The approval binds that exact call. The kernel records each
+  act's outcome as it lands and stops sending at a rate limit, so a monotonic
+  cursor, not an accumulated id list, is enough to resume safely.
 
 ### Resume and the execution ledger
 
 `execute` is stateless per turn; the state lives in a `data-store` stream keyed
 by the immutable plan digest. The latest `twitter.execution.progress.v1` event
-contains only `next_act_index`, `total_act_count`, an optional in-progress
-thread segment cursor, and a bounded summary of the last batch. Its size is
-constant whether the plan has completed two acts or two thousand.
+contains only the X account id the batch ran as, `next_act_index`,
+`total_act_count`, an optional in-progress thread segment cursor, and a bounded
+summary of the last batch. Its size is constant whether the plan has completed
+two acts or two thousand.
+
+Each batch first reads the bound account. It runs only when that account is
+the plan's principal (`account:@handle`, any letter case) and, once the ledger
+has pinned an account id, the same account every earlier batch ran as;
+otherwise the run fails before anything is sent. The approval shows the
+verified `@handle` and account id.
 
 The driver reads only the latest ledger event (`read_events`, `limit: 1`) and
 its stream version. It calls `execute` with that `expected_version` and the
@@ -88,9 +102,9 @@ folds completed ids. An invalid plan, digest mismatch, stale cursor, or already
 complete plan produces a sealed refusal/no-op receipt but does not append a
 fake state transition.
 
-Threads use one extra bounded cursor: if segment 1 succeeds and segment 2
-fails, progress records the next segment plus the confirmed reply id. The next
-batch starts at segment 2 rather than reposting segment 1. The operator binds
+Threads use one extra bounded cursor: each segment is its own batch, and
+progress records the next segment plus the confirmed reply id until the last
+one posts, so a resumed thread never reposts a confirmed segment. The operator binds
 `data_source_ref` to durable local SQLite or another declared `data-store`
 adapter; the skill never opens the database directly.
 
@@ -116,8 +130,19 @@ The act vocabulary, with its consequence class:
 
 Every kind is consequential, so every plan sets
 `gates.human_approval_required: true`. `follow`, `like`, and `repost` are
-engagement acts and share a hard cap of 10 per execution. Direct messages are
+engagement acts and share a hard cap of 10 per plan. Direct messages are
 outside this skill.
+
+A published act is confirmed by reading the post back. The other kinds are
+acknowledged: X answers each with the resulting state (`following: false`,
+`deleted: true`), which is the evidence, and has no read of one follow or like
+cheap enough to confirm a batch. They set a state, so resending one changes
+nothing. An answer that does not state the resulting state stops the cursor at
+that act, and a later batch sends it again.
+
+Post and reply `text`, and each thread segment, is a non-empty string of at
+most 4000 characters, published verbatim; ids are X id strings. A plan that
+breaks either is refused before approval.
 
 ## When to use this skill
 
@@ -176,15 +201,19 @@ For the `plan` runner, build `twitter_plan` this way:
 - **Id not in evidence:** blocker; the plan stays `needs_input`.
 - **Prune criteria ambiguous:** select the unambiguous items, list the rest in
   `open_questions`.
-- **Rate limit during read:** the evidence packet returns what it collected
-  with `stop_conditions: ["rate_limited"]` and the reset time.
+- **Rate limit or provider refusal during read:** the read fails with the
+  provider's reason; a read is whole or it fails.
 - **Oversized user-selection archive:** the current two-file `users` selector
   refuses when either bounded text file exceeds the native read limit; it never
   treats truncation as an empty following/follower set. `read-archive` itself
   remains paged. Do not claim an oversized users bulk plan was evaluated.
-- **Rate limit during execute:** the packet reports `next_act_index`,
-  `remaining_count`, and the reset time. After the reset, read the latest
-  ledger version and invoke the next canonical batch; do not reconstruct ids.
+- **Rate limit during execute:** nothing more is sent; the acts before it are
+  settled and the packet reports `next_act_index`, `remaining_count`, and the
+  reset time. After the reset, read the latest ledger version and invoke the
+  next canonical batch; do not reconstruct ids.
+- **One act refused:** a refused act is recorded as `failed` with the
+  provider's reason and the cursor moves past it. Unfollowing a deactivated
+  account is already the state the act asked for, so it counts as done.
 - **Plan digest mismatch on execute:** the apply step refuses and executes
   nothing. A refusal is receipt evidence, not a fake ledger transition.
 - **Stale stream version or batch key:** refusal before the approval/provider
@@ -192,17 +221,19 @@ For the `plan` runner, build `twitter_plan` this way:
 - **Partially posted thread:** resume from the ledger's `active_thread` cursor;
   never restart the thread from its first confirmed segment.
 - **Approval missing or denied:** the execute graph stops at the gate.
-- **Credentials missing:** clean `needs_input` stop naming the environment
-  variables; never a half-configured call.
+- **No bound account:** admission refuses before any provider call; bind one
+  with `runx credential set twitter`.
 - **Fully autonomous live posting requested:** `reject`; the gate is the
   contract.
 
 ## Output schema
 
-- `twitter.evidence.v1`: `decision`, `source` (`live` or `archive`), `query`,
-  `account`, `items[]` (typed post or user records with metrics), `item_count`,
-  `truncated`, `provenance` (`retrieved_via`, `request_count`,
-  `content_digest`), `rate`, `blockers[]`, `stop_conditions[]`.
+- `twitter.evidence.v1`: `decision` (`ok` or `needs_input`), `source`
+  (`live` or `archive`), `query`, `account`, `items[]` (typed post or user
+  records with metrics), `item_count`, `truncated`, `next_cursor` (where the
+  next live read starts, or null), `provenance`
+  (`retrieved_via`, the readback reference of the provider answers or the
+  archive artifact, and `content_digest`), `blockers[]`.
 - `twitter.plan.v1` (returned as `twitter_plan.data` together with
   `digest_result.data.digest`): `decision` (`ready`, `needs_input`, `reject`),
   `objective`, `principal`, `acts[]` (`act_id`, `kind`, `params`,
@@ -217,7 +248,7 @@ For the `plan` runner, build `twitter_plan` this way:
   `execute`, and `plan_digest` is bound so the approved and executed bytes are
   provably identical.
 - `twitter.execution.v1`: `decision` (`executed`, `partial`, `stopped`,
-  `refused`), `plan_digest`, `principal`, `results[]` (`act_id`, `kind`,
+  `refused`, `noop`), `plan_digest`, `principal`, `results[]` (`act_id`, `kind`,
   `consequence`, `status`, `provider_ref`, `detail`) for the current bounded
   batch, `next_act_index`, `total_act_count`, `remaining_count`, optional
   `active_thread`, `rate`, `blockers[]`, and `success_checkpoint`. A ready batch
@@ -239,7 +270,8 @@ confirmed.
 
 ## Inputs
 
-- `read`: `query` (required), `params`, `max_items`, `auth`.
+- `read`: `query` (required), `params` (`user_id`, `q`, `pagination_token`),
+  `max_items`.
 - `read-archive`: `query` and relative `archive_file` (required),
   `archive_base` (`workspace` default, or `skill` for packaged fixtures), and
   `max_items`.
@@ -253,31 +285,23 @@ confirmed.
   `archive_base`, `max_acts`.
 - `execute`: `plan_json` and `plan_digest` (required), `data_source_ref`
   (required), `expected_version` (required), `idempotency_key` (required),
-  `max_acts` (hard-capped at 50). `idempotency_key` must be exactly
+  `max_acts` (acts per batch, hard-capped at 50). `idempotency_key` must be exactly
   `twitter:<plan_digest>:v<expected_version+1>`; the runner independently
   verifies both values against the durable one-event tail before execution.
 
 ## Credentials and cost
 
-Credentials are delivered per run through the runx credential envelope, never
-as inputs and never as receipt material. Two materials exist:
+The `twitter` connector declares two credentials, and the bound account's
+credential decides how a request authenticates. Credentials never appear as
+inputs or receipt material.
 
-- `TWITTER_USER_AUTH`: one JSON object holding `consumer_key`,
-  `consumer_secret`, `access_token`, `access_secret` (OAuth 1.0a user
-  context). Required for every mutation and for own-account reads. Store it
-  with `runx credential set twitter --profile twitter-user --auth-mode
-  oauth1_user --from-stdin`.
-- `TWITTER_BEARER_TOKEN`: the app-context bearer token, enough for `search`
-  and public reads. Store it with `runx credential set twitter --profile
-  twitter-app --auth-mode bearer --from-stdin`. Read-only app runs should use
-  only this profile.
-
-Use `--profile twitter-user` with `read --auth user` and every `execute` run;
-use `--profile twitter-app` with `read --auth app`. The runner contract maps the
-selected profile's auth mode to exactly one delivery variable. Tool permission
-allowlists do not carry credentials. For local development, the same declared
-variable can come from the process or workspace `.env`; if both Twitter
-variables are set, Runx refuses the ambiguous selection.
+- `user`: one JSON object holding `consumer_key`, `consumer_secret`,
+  `access_token`, `access_secret` (OAuth 1.0a user context). Required for
+  every mutation and for the authenticated account's own reads. Bind it with
+  `runx credential set twitter --credential user --from-stdin`.
+- `app`: the app-context bearer token, enough for `search` and reads that name
+  another account by `user_id`. Bind it with `runx credential set twitter
+  --credential app --from-stdin`.
 
 The X API bills per request on current plans and a post containing a link
 costs a large multiple of a plain one, so prefer archive exports for bulk

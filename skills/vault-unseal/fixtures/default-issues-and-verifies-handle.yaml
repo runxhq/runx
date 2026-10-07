@@ -17,29 +17,27 @@ inputs:
 caller:
   provider_responses:
     principal_id: report-exporter-fixture
-    grants:
-      - grant_id: vault-unseal-fixture
+    grant:
+        grant_id: vault-unseal-fixture
         provider: vault
         scopes: [secret.unseal, handle.read]
     operations:
-      - grant_id: vault-unseal-fixture
-        operation: secret.unseal
+      - operation: secret.unseal
         target: vault://drive/service-account
         access: mutate
         result:
           handle_ref: handle://drive/export/monthly-001
           expires_at: "2026-08-11T00:10:00Z"
           status: active
-      - grant_id: vault-unseal-fixture
-        operation: handle.read
-        target: vault://drive/service-account
+      - operation: handle.read
+        target: handle://drive/export/monthly-001
         access: read
         result:
           handle_ref: handle://drive/export/monthly-001
           expires_at: "2026-08-11T00:10:00Z"
           status: active
   approvals:
-    "provider-effect:sha256:584be5707fe97d51cd2e23e880b9575f7d7c3852e449a77eb1015ee7fcdbcb2c": true
+    "operation:sha256:9b026197d496da297348a85006ad58e5784a58c585fb26606c6bff2d11d404b4": true
 expect:
   status: sealed
   steps: [plan, issue-handle, readback]

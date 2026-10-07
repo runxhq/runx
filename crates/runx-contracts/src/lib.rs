@@ -5,18 +5,22 @@
 extern crate self as runx_contracts;
 
 pub mod act;
+pub mod admission;
 pub mod agent_context;
 pub mod artifact;
 pub mod authority;
 pub mod canonical_json;
+pub mod connector;
+pub mod connector_instance;
+pub mod conversation_source;
 pub mod credential_delivery;
 pub mod decision;
+pub mod decision_adapter;
 pub mod dev;
 pub mod doctor;
 pub mod execution;
 pub mod execution_boundary;
 pub mod execution_requirements;
-pub mod external_adapter;
 pub mod external_job;
 pub mod fingerprint;
 pub mod fixture;
@@ -53,9 +57,9 @@ pub mod signal;
 pub mod skill_authoring;
 pub mod source_packet;
 pub mod suppression;
-pub mod thread_outbox_provider;
 pub mod tools;
 pub mod verification;
+pub mod work_outcome;
 pub mod x402;
 
 pub use act::assignment::{
@@ -71,22 +75,34 @@ pub use act::{
     Act, ActForm, ActSchema, ChangePlan, ChangeRequest, CriterionBinding, CriterionStatus,
     GovernedActRef, Intent, RevisionDetails, SuccessCriterion, TargetSurface, VerificationDetails,
 };
+pub use admission::{
+    Admission, AdmissionCheck, AdmissionDisposition, AdmissionReason, CheckOutcome,
+    OperationAmount, OperationIntent, Readiness,
+};
 pub use agent_context::{
     AgentContextEnvelope, AgentContextProfiles, ContextArtifactMeta, ContextArtifactProducer,
-    ContextEntry, ContextEntryVersion, ExecutionLocation, ProfileFile, ProvenanceEntry,
+    ContextEntry, ContextEntryVersion, ContextPurpose, ContextScope, ContextSharing, ContextTrust,
+    ExecutionLocation, ProfileFile, ProvenanceEntry,
 };
 pub use artifact::{ARTIFACT_SCHEMA, Artifact, ArtifactProducedBy, ArtifactSchema};
 pub use authority::{
     Authority, AuthorityApproval, AuthorityAttenuation, AuthorityBounds, AuthorityCapability,
-    AuthorityCondition, AuthorityConditionPredicate, AuthorityEffectCredentialForm,
-    AuthorityEffectGuard, AuthorityEffectGuardKind, AuthorityEffectLimit, AuthorityResourceFamily,
+    AuthorityCondition, AuthorityConditionPredicate, AuthorityDerivation,
+    AuthorityEffectCredentialForm, AuthorityEffectGuard, AuthorityEffectGuardKind,
+    AuthorityEffectLimit, AuthorityEvidence, AuthorityEvidenceKind, AuthorityResourceFamily,
     AuthoritySchema, AuthoritySubsetComparison, AuthoritySubsetProof, AuthoritySubsetRelation,
-    AuthoritySubsetResult, AuthorityTerm, AuthorityVerb,
+    AuthoritySubsetResult, AuthorityTerm, AuthorityUseLimit, AuthorityVerb,
 };
 pub use canonical_json::{
-    CanonicalJsonError, STABLE_JSON_CANONICALIZATION, canonical_stable_json,
-    write_canonical_json_fragment,
+    CanonicalJsonError, STABLE_JSON_CANONICALIZATION, canonical_digest, canonical_stable_json,
+    to_canonical_bytes, write_canonical_json_fragment,
 };
+pub use connector::{
+    ConnectorId, ConnectorManifest, ConnectorOperation, Digest, InstanceId, OperationAccess,
+    OperationName, OperationVerb, Placement,
+};
+pub use connector_instance::{ConnectorInstance, InstanceAuthority};
+pub use conversation_source::{ConversationObservation, ConversationPage};
 pub use credential_delivery::{
     CredentialDeliveryEnvBinding, CredentialDeliveryHandle, CredentialDeliveryMode,
     CredentialDeliveryObservation, CredentialDeliveryObservationSchema,
@@ -98,6 +114,7 @@ pub use credential_delivery::{
 pub use decision::{
     Closure, ClosureDisposition, Decision, DecisionChoice, DecisionInputs, DecisionJustification,
 };
+pub use decision_adapter::{DecisionObservation, DecisionOrigin};
 pub use dev::{
     DevFixtureAssertion, DevFixtureAssertionKind, DevFixtureResult, DevFixtureStatus, DevReport,
     DevReportSchema, DevReportStatus,
@@ -117,19 +134,7 @@ pub use execution_boundary::{
 };
 pub use execution_requirements::{
     AgentExecutionRequirements, EnvironmentRequirementStatus, EnvironmentRequirements,
-    ExecutionCredentialRequirement, ExecutionRequirements,
-};
-pub use external_adapter::{
-    EXTERNAL_ADAPTER_PROTOCOL_VERSION, ExternalAdapterArtifactObservation,
-    ExternalAdapterCancellationFrame, ExternalAdapterCancellationSchema,
-    ExternalAdapterCredentialNeed, ExternalAdapterCredentialPurpose,
-    ExternalAdapterCredentialReference, ExternalAdapterCredentialRequest,
-    ExternalAdapterCredentialRequestSchema, ExternalAdapterErrorObservation,
-    ExternalAdapterHostResolutionFrame, ExternalAdapterHostResolutionSchema,
-    ExternalAdapterInvocation, ExternalAdapterInvocationSchema, ExternalAdapterManifest,
-    ExternalAdapterManifestSchema, ExternalAdapterProtocolVersion, ExternalAdapterResponse,
-    ExternalAdapterStatus, ExternalAdapterTelemetryObservation, ExternalAdapterTelemetryValue,
-    ExternalAdapterTimeouts, ExternalAdapterTransport, ExternalAdapterTransportKind,
+    ExecutionRequirements,
 };
 pub use external_job::{
     EXTERNAL_JOB_CONTINUATION_SCHEMA, EXTERNAL_JOB_SCHEDULE_INTENT_SCHEMA,
@@ -188,8 +193,7 @@ pub use operational_policy::{
     OperationalPolicySourceRule, OperationalPolicySourceThreadPolicy,
     OperationalPolicyTargetReadback, OperationalPolicyTargetRule,
     OperationalPolicyValidationFinding, admit_operational_policy_request,
-    lint_operational_policy_contract, operational_policy_runner_kind,
-    operational_policy_source_provider, project_operational_policy_readback,
+    lint_operational_policy_contract, project_operational_policy_readback,
     validate_operational_policy_contract, validate_operational_policy_semantics,
 };
 pub use operational_proposal::{
@@ -200,8 +204,8 @@ pub use operational_proposal::{
 };
 pub use orchestrator_handoff::{
     OrchestratorExecutionContext, OrchestratorHandoffBinding, OrchestratorHandoffContext,
-    OrchestratorHandoffDelivery, OrchestratorHandoffIdempotency, OrchestratorHandoffRequest,
-    OrchestratorReceiptExpectations, OrchestratorReceiverValidation,
+    OrchestratorHandoffDelivery, OrchestratorHandoffIdempotency, OrchestratorReceiptExpectations,
+    OrchestratorReceiverValidation,
 };
 pub use output::{
     Output, OutputContractParseError, OutputField, OutputFieldSpec, OutputType,
@@ -292,31 +296,15 @@ pub use skill_authoring::{
 };
 pub use source_packet::{SOURCE_PACKET_SCHEMA, SourcePacket, SourcePacketSchema};
 pub use suppression::{SuppressionRecord, SuppressionRecordSchema, SuppressionScope};
-pub use thread_outbox_provider::{
-    THREAD_OUTBOX_PROVIDER_PROTOCOL_VERSION, ThreadOutboxProviderCredentialNeed,
-    ThreadOutboxProviderCredentialProfile, ThreadOutboxProviderError, ThreadOutboxProviderFetch,
-    ThreadOutboxProviderFetchProviderTarget, ThreadOutboxProviderFetchSchema,
-    ThreadOutboxProviderFetchTarget, ThreadOutboxProviderFetchThreadTarget,
-    ThreadOutboxProviderIdempotency, ThreadOutboxProviderIdempotencyObservation,
-    ThreadOutboxProviderIdempotencyStatus, ThreadOutboxProviderLocator,
-    ThreadOutboxProviderManifest, ThreadOutboxProviderManifestSchema,
-    ThreadOutboxProviderObservation, ThreadOutboxProviderObservationSchema,
-    ThreadOutboxProviderObservationStatus, ThreadOutboxProviderOperation,
-    ThreadOutboxProviderPayloadFormat, ThreadOutboxProviderProtocolVersion,
-    ThreadOutboxProviderPush, ThreadOutboxProviderPushSchema, ThreadOutboxProviderReadbackSummary,
-    ThreadOutboxProviderReceiptCapabilities, ThreadOutboxProviderReceiptContext,
-    ThreadOutboxProviderRedactionCapabilities, ThreadOutboxProviderRenderedPayload,
-    ThreadOutboxProviderThreadLocator, ThreadOutboxProviderTransport,
-    ThreadOutboxProviderTransportKind,
-};
 pub use tools::{
     RuntimeCommand, ToolCommandInputMode, ToolIdempotencyPolicy, ToolInput, ToolManifest,
-    ToolManifestSchema, ToolMcpServer, ToolRetryPolicy, ToolSource, ToolSourceType,
+    ToolManifestSchema, ToolRetryPolicy, ToolSource, ToolSourceType,
 };
 pub use verification::{
     ReceiptVerificationSummary, VERIFICATION_SCHEMA, Verification, VerificationCheck,
     VerificationSchema, VerificationStatus,
 };
+pub use work_outcome::{WorkDisposition, WorkOutcome, WorkProposal};
 pub use x402::{
     RUNX_INVOCATION_EXTENSION_KEY, RUNX_X402_INVOCATION_EXTENSION_SCHEMA,
     RunxX402InvocationExtension, RunxX402InvocationExtensionInfo, X402_PAYMENT_PAYLOAD_SCHEMA_ID,

@@ -24,7 +24,8 @@ pub enum ActAssignmentSchema {
 pub enum ActAssignmentHostKind {
     Cli,
     Api,
-    GithubIssueComment,
+    /// A comment on a provider thread; `trigger_ref` locates it.
+    Comment,
     System,
 }
 
@@ -249,7 +250,7 @@ fn host_kind_to_string(kind: &ActAssignmentHostKind) -> String {
     match kind {
         ActAssignmentHostKind::Cli => "cli",
         ActAssignmentHostKind::Api => "api",
-        ActAssignmentHostKind::GithubIssueComment => "github_issue_comment",
+        ActAssignmentHostKind::Comment => "comment",
         ActAssignmentHostKind::System => "system",
     }
     .to_owned()

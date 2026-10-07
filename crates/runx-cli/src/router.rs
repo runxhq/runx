@@ -6,6 +6,7 @@ use crate::assistant::AssistantPlan;
 use crate::cli_args::{flag_value, optional_flag_value, os_arg, os_flag_value, split_flag};
 use crate::config::ConfigPlan;
 use crate::connect::ConnectPlan;
+use crate::connector::ConnectorPlan;
 use crate::credential::CredentialPlan;
 use crate::data::DataPlan;
 use crate::document_input::DocumentInputSource;
@@ -42,6 +43,7 @@ pub enum RouterAction {
     RunKernel(KernelPlan),
     RunConfig(ConfigPlan),
     RunConnect(ConnectPlan),
+    RunConnector(ConnectorPlan),
     RunCredential(CredentialPlan),
     RunData(DataPlan),
     RunPolicy(PolicyPlan),
@@ -66,7 +68,7 @@ pub struct JsonErrorPlan {
     pub exit_code: u8,
 }
 
-/// Arguments for indexing a GitHub repository via `runx add <github-url>`.
+/// Arguments for indexing a repository via `runx add <repository-url>`.
 #[derive(Debug, Eq, PartialEq)]
 pub struct AddUrlPlan {
     pub repo: String,
@@ -218,6 +220,14 @@ fn route_args_with_optional_workspace(
             &args,
             crate::config::parse_config_plan(&args),
             RouterAction::RunConfig,
+        );
+    }
+
+    if first_arg_is(&args, "connector") {
+        return route_parse(
+            &args,
+            crate::connector::parse_connector_plan(&args),
+            RouterAction::RunConnector,
         );
     }
 
@@ -700,7 +710,7 @@ fn non_empty_new_value(flag: &str, value: String) -> Result<String, String> {
 
 fn parse_add_plan(args: &[OsString]) -> Result<RouterAction, String> {
     let parsed = parse_add_args(args)?;
-    if is_github_repo_url_like(parsed.subject.as_deref().unwrap_or_default()) {
+    if is_repository_url(parsed.subject.as_deref().unwrap_or_default()) {
         return add_url_plan(parsed).map(RouterAction::RunAddUrl);
     }
     add_registry_plan(parsed).map(RouterAction::RunRegistry)
@@ -787,16 +797,16 @@ fn set_add_string(
 fn add_url_plan(parsed: AddParseState) -> Result<AddUrlPlan, String> {
     if parsed.registry.is_some() {
         return Err(
-            "runx add <github-url> uses --api-base-url for the hosted index API, not --registry"
+            "runx add <repository-url> uses --api-base-url for the hosted index API, not --registry"
                 .to_owned(),
         );
     }
     if parsed.version.is_some() {
-        return Err("runx add <github-url> uses --ref for git refs, not --version".to_owned());
+        return Err("runx add <repository-url> uses --ref for git refs, not --version".to_owned());
     }
     if parsed.expected_digest.is_some() || parsed.destination.is_some() {
         return Err(
-            "runx add <github-url> indexes the repository and does not support --to or --digest"
+            "runx add <repository-url> indexes the repository and does not support --to or --digest"
                 .to_owned(),
         );
     }
@@ -834,17 +844,24 @@ fn add_registry_plan(parsed: AddParseState) -> Result<RegistryPlan, String> {
     })
 }
 
-fn is_github_repo_url_like(value: &str) -> bool {
+/// A repository URL rather than a skill ref: an `http(s)` URL, or a host name
+/// (it has a dot) followed by at least an owner and a name. The hosted index
+/// decides which hosts it supports.
+fn is_repository_url(value: &str) -> bool {
     let value = value.trim();
-    let Some(path) = value
-        .strip_prefix("https://github.com/")
-        .or_else(|| value.strip_prefix("http://github.com/"))
-        .or_else(|| value.strip_prefix("github.com/"))
-    else {
-        return false;
-    };
+    let path = value
+        .strip_prefix("https://")
+        .or_else(|| value.strip_prefix("http://"))
+        .unwrap_or(value);
     let mut parts = path.split('/').filter(|part| !part.is_empty());
-    parts.next().is_some() && parts.next().is_some()
+    parts.next().is_some_and(|host| {
+        host.contains('.')
+            && !host.starts_with('.')
+            && host
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'-' | b':'))
+    }) && parts.next().is_some()
+        && parts.next().is_some()
 }
 
 fn parse_init_plan(args: &[OsString]) -> Result<InitPlan, String> {

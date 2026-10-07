@@ -149,10 +149,6 @@ fn source_entrypoints(tool_dir: &Path, source: &SkillSource) -> Vec<PathBuf> {
     candidates.extend(source.command.iter());
     candidates.extend(&source.args);
     candidates.extend(source.module.iter());
-    if let Some(server) = &source.server {
-        candidates.push(&server.command);
-        candidates.extend(&server.args);
-    }
     candidates
         .into_iter()
         .filter_map(|candidate| local_source_path(tool_dir, candidate))

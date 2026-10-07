@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://schemas.runx.ai/runx/twitter/execution/v1.json",
   "x-runx-packet-id": "twitter.execution.v1",
-  "x-runx-generated-from": "skills/twitter/X.yaml#root.runners.execute.graph.steps.5",
+  "x-runx-generated-from": "skills/twitter/X.yaml#root.runners.execute.graph.steps.6",
   "additionalProperties": false,
   "properties": {
     "active_thread": {
@@ -54,6 +54,10 @@
     "ledger_delta": {
       "additionalProperties": false,
       "properties": {
+        "account_id": {
+          "pattern": "^[0-9]{1,19}$",
+          "type": "string"
+        },
         "active_thread": {
           "maxProperties": 3,
           "type": [
@@ -125,6 +129,7 @@
         "schema",
         "type",
         "plan_digest",
+        "account_id",
         "decision",
         "next_act_index",
         "total_act_count",

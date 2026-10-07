@@ -34,7 +34,7 @@ interface ActAssignmentFixtureInput {
   readonly source_ref?: string;
   readonly requested_at: string;
   readonly host: {
-    readonly kind: "cli" | "api" | "github_issue_comment" | "system";
+    readonly kind: "cli" | "api" | "comment" | "system";
     readonly trigger_ref?: string;
     readonly scope_set?: readonly string[];
     readonly actor?: {
@@ -283,7 +283,7 @@ function buildActAssignmentFixtures(): readonly ContractFixture[] {
         source_ref: "github://sourcey/sourcey.com/issues/3",
         requested_at: "2026-04-25T14:00:00Z",
         host: {
-          kind: "github_issue_comment",
+          kind: "comment",
           trigger_ref: "https://github.com/sourcey/sourcey.com/issues/3#issuecomment-1",
           scope_set: ["docs.write", "thread:push"],
           actor: {
@@ -738,7 +738,7 @@ function buildExecutionFixtures(): readonly ContractFixture[] {
     executionFixture("governed-disposition", "GovernedDisposition", "governed_disposition", "needs_agent"),
     executionFixture("outcome-state", "OutcomeState", "outcome_state", "expired"),
     executionFixture("receipt-surface-ref", "ReceiptSurfaceRef", "receipt_surface_ref", {
-      type: "github_issue",
+      type: "thread",
       uri: "https://github.com/runxhq/runx/issues/1",
       label: "tracking issue",
     }),

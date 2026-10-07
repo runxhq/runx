@@ -4,14 +4,12 @@ use super::{
     interpreter::strict_cli_tool_inline_code_denial,
 };
 
-const DEFAULT_ALLOWED_SOURCE_TYPES: [&str; 9] = [
+const DEFAULT_ALLOWED_SOURCE_TYPES: [&str; 7] = [
     "agent",
     "agent-task",
     "approval",
     "cli-tool",
     "javascript",
-    "mcp",
-    "a2a",
     "catalog",
     "graph",
 ];
@@ -79,13 +77,6 @@ fn collect_local_source_reasons(
     options: &LocalAdmissionOptions,
     reasons: &mut Vec<String>,
 ) {
-    if !matches!(
-        skill.source.source_type.as_str(),
-        "cli-tool" | "javascript" | "mcp"
-    ) {
-        return;
-    }
-
     if skill.source.source_type == "cli-tool"
         && let Some(reason) = strict_cli_tool_inline_code_denial(
             skill.source.command.as_deref(),

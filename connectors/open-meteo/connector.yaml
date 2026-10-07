@@ -1,0 +1,105 @@
+schema: runx.connector.v1
+id: open-meteo
+name: Open-Meteo
+description: Geocode places and read forecast and air quality data from Open-Meteo.
+auth:
+  none: {}
+placements:
+  local:
+    auth: [none]
+operations:
+  geocode.search:
+    description: Search for up to five places matching a name.
+    verb: read
+    scopes: [weather.read]
+    target:
+      template: "https://geocoding-api.open-meteo.com/v1/search"
+    input_schema:
+      type: object
+      required: [name]
+      additionalProperties: false
+      properties:
+        name: {type: string, minLength: 1, maxLength: 100}
+    result_fields: [locate]
+    implementation:
+      http:
+        allowed_hosts: [geocoding-api.open-meteo.com]
+        requests:
+          - id: locate
+            method: GET
+            url: "https://geocoding-api.open-meteo.com/v1/search"
+            query:
+              name: {"$argument": "/name"}
+              count: "5"
+              language: en
+              format: json
+            headers:
+              accept: application/json
+        decode: [{op: auto_json}]
+        result_paths:
+          locate: acknowledgement
+  forecast.read:
+    description: Read current conditions and a daily forecast for a coordinate.
+    verb: read
+    scopes: [weather.read]
+    target:
+      template: "https://api.open-meteo.com/v1/forecast"
+    input_schema:
+      type: object
+      required: [latitude, longitude, forecast_days]
+      additionalProperties: false
+      properties:
+        latitude: {type: string, pattern: "^-?[0-9]{1,2}(\\.[0-9]{1,6})?$"}
+        longitude: {type: string, pattern: "^-?[0-9]{1,3}(\\.[0-9]{1,6})?$"}
+        forecast_days: {type: string, pattern: "^([1-9]|1[0-6])$"}
+    result_fields: [forecast]
+    implementation:
+      http:
+        allowed_hosts: [api.open-meteo.com]
+        requests:
+          - id: forecast
+            method: GET
+            url: "https://api.open-meteo.com/v1/forecast"
+            query:
+              latitude: {"$argument": "/latitude"}
+              longitude: {"$argument": "/longitude"}
+              current: "temperature_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m"
+              daily: "weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max"
+              timezone: auto
+              forecast_days: {"$argument": "/forecast_days"}
+            headers:
+              accept: application/json
+        decode: [{op: auto_json}]
+        result_paths:
+          forecast: acknowledgement
+  air_quality.read:
+    description: Read current air quality for a coordinate.
+    verb: read
+    scopes: [weather.read]
+    target:
+      template: "https://air-quality-api.open-meteo.com/v1/air-quality"
+    input_schema:
+      type: object
+      required: [latitude, longitude]
+      additionalProperties: false
+      properties:
+        latitude: {type: string, pattern: "^-?[0-9]{1,2}(\\.[0-9]{1,6})?$"}
+        longitude: {type: string, pattern: "^-?[0-9]{1,3}(\\.[0-9]{1,6})?$"}
+    result_fields: [air_quality]
+    implementation:
+      http:
+        allowed_hosts: [air-quality-api.open-meteo.com]
+        requests:
+          - id: air_quality
+            method: GET
+            url: "https://air-quality-api.open-meteo.com/v1/air-quality"
+            query:
+              latitude: {"$argument": "/latitude"}
+              longitude: {"$argument": "/longitude"}
+              current: "pm10,pm2_5,carbon_monoxide,nitrogen_dioxide,sulphur_dioxide,ozone,european_aqi,us_aqi"
+              timezone: auto
+            headers:
+              accept: application/json
+        decode: [{op: auto_json}]
+        result_paths:
+          air_quality: acknowledgement

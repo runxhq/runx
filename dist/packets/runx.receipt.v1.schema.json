@@ -46,18 +46,12 @@
                 },
                 "type": {
                   "enum": [
-                    "github_issue",
-                    "github_pull_request",
-                    "github_repo",
-                    "slack_thread",
-                    "sentry_event",
-                    "provider_thread",
-                    "provider_event",
-                    "provider_comment",
+                    "thread",
+                    "comment",
+                    "event",
                     "tracking_item",
                     "change_request",
                     "repository",
-                    "support_ticket",
                     "signal",
                     "act",
                     "receipt",
@@ -86,7 +80,9 @@
                     "credential",
                     "webhook_delivery",
                     "redaction_policy",
-                    "external_url"
+                    "external_url",
+                    "connector_instance",
+                    "connector_operation"
                   ],
                   "type": "string"
                 },
@@ -219,18 +215,12 @@
               },
               "type": {
                 "enum": [
-                  "github_issue",
-                  "github_pull_request",
-                  "github_repo",
-                  "slack_thread",
-                  "sentry_event",
-                  "provider_thread",
-                  "provider_event",
-                  "provider_comment",
+                  "thread",
+                  "comment",
+                  "event",
                   "tracking_item",
                   "change_request",
                   "repository",
-                  "support_ticket",
                   "signal",
                   "act",
                   "receipt",
@@ -259,7 +249,9 @@
                   "credential",
                   "webhook_delivery",
                   "redaction_policy",
-                  "external_url"
+                  "external_url",
+                  "connector_instance",
+                  "connector_operation"
                 ],
                 "type": "string"
               },
@@ -320,18 +312,12 @@
                       },
                       "type": {
                         "enum": [
-                          "github_issue",
-                          "github_pull_request",
-                          "github_repo",
-                          "slack_thread",
-                          "sentry_event",
-                          "provider_thread",
-                          "provider_event",
-                          "provider_comment",
+                          "thread",
+                          "comment",
+                          "event",
                           "tracking_item",
                           "change_request",
                           "repository",
-                          "support_ticket",
                           "signal",
                           "act",
                           "receipt",
@@ -360,7 +346,9 @@
                           "credential",
                           "webhook_delivery",
                           "redaction_policy",
-                          "external_url"
+                          "external_url",
+                          "connector_instance",
+                          "connector_operation"
                         ],
                         "type": "string"
                       },
@@ -429,18 +417,12 @@
                       },
                       "type": {
                         "enum": [
-                          "github_issue",
-                          "github_pull_request",
-                          "github_repo",
-                          "slack_thread",
-                          "sentry_event",
-                          "provider_thread",
-                          "provider_event",
-                          "provider_comment",
+                          "thread",
+                          "comment",
+                          "event",
                           "tracking_item",
                           "change_request",
                           "repository",
-                          "support_ticket",
                           "signal",
                           "act",
                           "receipt",
@@ -469,7 +451,9 @@
                           "credential",
                           "webhook_delivery",
                           "redaction_policy",
-                          "external_url"
+                          "external_url",
+                          "connector_instance",
+                          "connector_operation"
                         ],
                         "type": "string"
                       },
@@ -557,18 +541,12 @@
                     },
                     "type": {
                       "enum": [
-                        "github_issue",
-                        "github_pull_request",
-                        "github_repo",
-                        "slack_thread",
-                        "sentry_event",
-                        "provider_thread",
-                        "provider_event",
-                        "provider_comment",
+                        "thread",
+                        "comment",
+                        "event",
                         "tracking_item",
                         "change_request",
                         "repository",
-                        "support_ticket",
                         "signal",
                         "act",
                         "receipt",
@@ -597,7 +575,9 @@
                         "credential",
                         "webhook_delivery",
                         "redaction_policy",
-                        "external_url"
+                        "external_url",
+                        "connector_instance",
+                        "connector_operation"
                       ],
                       "type": "string"
                     },
@@ -773,18 +753,12 @@
                             },
                             "type": {
                               "enum": [
-                                "github_issue",
-                                "github_pull_request",
-                                "github_repo",
-                                "slack_thread",
-                                "sentry_event",
-                                "provider_thread",
-                                "provider_event",
-                                "provider_comment",
+                                "thread",
+                                "comment",
+                                "event",
                                 "tracking_item",
                                 "change_request",
                                 "repository",
-                                "support_ticket",
                                 "signal",
                                 "act",
                                 "receipt",
@@ -813,7 +787,9 @@
                                 "credential",
                                 "webhook_delivery",
                                 "redaction_policy",
-                                "external_url"
+                                "external_url",
+                                "connector_instance",
+                                "connector_operation"
                               ],
                               "type": "string"
                             },
@@ -882,18 +858,12 @@
                     },
                     "type": {
                       "enum": [
-                        "github_issue",
-                        "github_pull_request",
-                        "github_repo",
-                        "slack_thread",
-                        "sentry_event",
-                        "provider_thread",
-                        "provider_event",
-                        "provider_comment",
+                        "thread",
+                        "comment",
+                        "event",
                         "tracking_item",
                         "change_request",
                         "repository",
-                        "support_ticket",
                         "signal",
                         "act",
                         "receipt",
@@ -922,7 +892,9 @@
                         "credential",
                         "webhook_delivery",
                         "redaction_policy",
-                        "external_url"
+                        "external_url",
+                        "connector_instance",
+                        "connector_operation"
                       ],
                       "type": "string"
                     },
@@ -984,18 +956,12 @@
                     },
                     "type": {
                       "enum": [
-                        "github_issue",
-                        "github_pull_request",
-                        "github_repo",
-                        "slack_thread",
-                        "sentry_event",
-                        "provider_thread",
-                        "provider_event",
-                        "provider_comment",
+                        "thread",
+                        "comment",
+                        "event",
                         "tracking_item",
                         "change_request",
                         "repository",
-                        "support_ticket",
                         "signal",
                         "act",
                         "receipt",
@@ -1024,7 +990,9 @@
                         "credential",
                         "webhook_delivery",
                         "redaction_policy",
-                        "external_url"
+                        "external_url",
+                        "connector_instance",
+                        "connector_operation"
                       ],
                       "type": "string"
                     },
@@ -1089,18 +1057,12 @@
                         },
                         "type": {
                           "enum": [
-                            "github_issue",
-                            "github_pull_request",
-                            "github_repo",
-                            "slack_thread",
-                            "sentry_event",
-                            "provider_thread",
-                            "provider_event",
-                            "provider_comment",
+                            "thread",
+                            "comment",
+                            "event",
                             "tracking_item",
                             "change_request",
                             "repository",
-                            "support_ticket",
                             "signal",
                             "act",
                             "receipt",
@@ -1129,7 +1091,9 @@
                             "credential",
                             "webhook_delivery",
                             "redaction_policy",
-                            "external_url"
+                            "external_url",
+                            "connector_instance",
+                            "connector_operation"
                           ],
                           "type": "string"
                         },
@@ -1204,18 +1168,12 @@
                               },
                               "type": {
                                 "enum": [
-                                  "github_issue",
-                                  "github_pull_request",
-                                  "github_repo",
-                                  "slack_thread",
-                                  "sentry_event",
-                                  "provider_thread",
-                                  "provider_event",
-                                  "provider_comment",
+                                  "thread",
+                                  "comment",
+                                  "event",
                                   "tracking_item",
                                   "change_request",
                                   "repository",
-                                  "support_ticket",
                                   "signal",
                                   "act",
                                   "receipt",
@@ -1244,7 +1202,9 @@
                                   "credential",
                                   "webhook_delivery",
                                   "redaction_policy",
-                                  "external_url"
+                                  "external_url",
+                                  "connector_instance",
+                                  "connector_operation"
                                 ],
                                 "type": "string"
                               },
@@ -1306,18 +1266,12 @@
                               },
                               "type": {
                                 "enum": [
-                                  "github_issue",
-                                  "github_pull_request",
-                                  "github_repo",
-                                  "slack_thread",
-                                  "sentry_event",
-                                  "provider_thread",
-                                  "provider_event",
-                                  "provider_comment",
+                                  "thread",
+                                  "comment",
+                                  "event",
                                   "tracking_item",
                                   "change_request",
                                   "repository",
-                                  "support_ticket",
                                   "signal",
                                   "act",
                                   "receipt",
@@ -1346,7 +1300,9 @@
                                   "credential",
                                   "webhook_delivery",
                                   "redaction_policy",
-                                  "external_url"
+                                  "external_url",
+                                  "connector_instance",
+                                  "connector_operation"
                                 ],
                                 "type": "string"
                               },
@@ -1431,18 +1387,12 @@
                         },
                         "type": {
                           "enum": [
-                            "github_issue",
-                            "github_pull_request",
-                            "github_repo",
-                            "slack_thread",
-                            "sentry_event",
-                            "provider_thread",
-                            "provider_event",
-                            "provider_comment",
+                            "thread",
+                            "comment",
+                            "event",
                             "tracking_item",
                             "change_request",
                             "repository",
-                            "support_ticket",
                             "signal",
                             "act",
                             "receipt",
@@ -1471,7 +1421,9 @@
                             "credential",
                             "webhook_delivery",
                             "redaction_policy",
-                            "external_url"
+                            "external_url",
+                            "connector_instance",
+                            "connector_operation"
                           ],
                           "type": "string"
                         },
@@ -1567,18 +1519,12 @@
                 },
                 "type": {
                   "enum": [
-                    "github_issue",
-                    "github_pull_request",
-                    "github_repo",
-                    "slack_thread",
-                    "sentry_event",
-                    "provider_thread",
-                    "provider_event",
-                    "provider_comment",
+                    "thread",
+                    "comment",
+                    "event",
                     "tracking_item",
                     "change_request",
                     "repository",
-                    "support_ticket",
                     "signal",
                     "act",
                     "receipt",
@@ -1607,7 +1553,9 @@
                     "credential",
                     "webhook_delivery",
                     "redaction_policy",
-                    "external_url"
+                    "external_url",
+                    "connector_instance",
+                    "connector_operation"
                   ],
                   "type": "string"
                 },
@@ -1666,18 +1614,12 @@
                 },
                 "type": {
                   "enum": [
-                    "github_issue",
-                    "github_pull_request",
-                    "github_repo",
-                    "slack_thread",
-                    "sentry_event",
-                    "provider_thread",
-                    "provider_event",
-                    "provider_comment",
+                    "thread",
+                    "comment",
+                    "event",
                     "tracking_item",
                     "change_request",
                     "repository",
-                    "support_ticket",
                     "signal",
                     "act",
                     "receipt",
@@ -1706,7 +1648,9 @@
                     "credential",
                     "webhook_delivery",
                     "redaction_policy",
-                    "external_url"
+                    "external_url",
+                    "connector_instance",
+                    "connector_operation"
                   ],
                   "type": "string"
                 },
@@ -1770,18 +1714,12 @@
                   },
                   "type": {
                     "enum": [
-                      "github_issue",
-                      "github_pull_request",
-                      "github_repo",
-                      "slack_thread",
-                      "sentry_event",
-                      "provider_thread",
-                      "provider_event",
-                      "provider_comment",
+                      "thread",
+                      "comment",
+                      "event",
                       "tracking_item",
                       "change_request",
                       "repository",
-                      "support_ticket",
                       "signal",
                       "act",
                       "receipt",
@@ -1810,7 +1748,9 @@
                       "credential",
                       "webhook_delivery",
                       "redaction_policy",
-                      "external_url"
+                      "external_url",
+                      "connector_instance",
+                      "connector_operation"
                     ],
                     "type": "string"
                   },
@@ -1876,18 +1816,12 @@
                               },
                               "type": {
                                 "enum": [
-                                  "github_issue",
-                                  "github_pull_request",
-                                  "github_repo",
-                                  "slack_thread",
-                                  "sentry_event",
-                                  "provider_thread",
-                                  "provider_event",
-                                  "provider_comment",
+                                  "thread",
+                                  "comment",
+                                  "event",
                                   "tracking_item",
                                   "change_request",
                                   "repository",
-                                  "support_ticket",
                                   "signal",
                                   "act",
                                   "receipt",
@@ -1916,7 +1850,9 @@
                                   "credential",
                                   "webhook_delivery",
                                   "redaction_policy",
-                                  "external_url"
+                                  "external_url",
+                                  "connector_instance",
+                                  "connector_operation"
                                 ],
                                 "type": "string"
                               },
@@ -1978,18 +1914,12 @@
                               },
                               "type": {
                                 "enum": [
-                                  "github_issue",
-                                  "github_pull_request",
-                                  "github_repo",
-                                  "slack_thread",
-                                  "sentry_event",
-                                  "provider_thread",
-                                  "provider_event",
-                                  "provider_comment",
+                                  "thread",
+                                  "comment",
+                                  "event",
                                   "tracking_item",
                                   "change_request",
                                   "repository",
-                                  "support_ticket",
                                   "signal",
                                   "act",
                                   "receipt",
@@ -2018,7 +1948,9 @@
                                   "credential",
                                   "webhook_delivery",
                                   "redaction_policy",
-                                  "external_url"
+                                  "external_url",
+                                  "connector_instance",
+                                  "connector_operation"
                                 ],
                                 "type": "string"
                               },
@@ -2103,18 +2035,12 @@
                         },
                         "type": {
                           "enum": [
-                            "github_issue",
-                            "github_pull_request",
-                            "github_repo",
-                            "slack_thread",
-                            "sentry_event",
-                            "provider_thread",
-                            "provider_event",
-                            "provider_comment",
+                            "thread",
+                            "comment",
+                            "event",
                             "tracking_item",
                             "change_request",
                             "repository",
-                            "support_ticket",
                             "signal",
                             "act",
                             "receipt",
@@ -2143,7 +2069,9 @@
                             "credential",
                             "webhook_delivery",
                             "redaction_policy",
-                            "external_url"
+                            "external_url",
+                            "connector_instance",
+                            "connector_operation"
                           ],
                           "type": "string"
                         },
@@ -2253,18 +2181,12 @@
             },
             "type": {
               "enum": [
-                "github_issue",
-                "github_pull_request",
-                "github_repo",
-                "slack_thread",
-                "sentry_event",
-                "provider_thread",
-                "provider_event",
-                "provider_comment",
+                "thread",
+                "comment",
+                "event",
                 "tracking_item",
                 "change_request",
                 "repository",
-                "support_ticket",
                 "signal",
                 "act",
                 "receipt",
@@ -2293,7 +2215,9 @@
                 "credential",
                 "webhook_delivery",
                 "redaction_policy",
-                "external_url"
+                "external_url",
+                "connector_instance",
+                "connector_operation"
               ],
               "type": "string"
             },
@@ -2350,18 +2274,12 @@
                     },
                     "type": {
                       "enum": [
-                        "github_issue",
-                        "github_pull_request",
-                        "github_repo",
-                        "slack_thread",
-                        "sentry_event",
-                        "provider_thread",
-                        "provider_event",
-                        "provider_comment",
+                        "thread",
+                        "comment",
+                        "event",
                         "tracking_item",
                         "change_request",
                         "repository",
-                        "support_ticket",
                         "signal",
                         "act",
                         "receipt",
@@ -2390,7 +2308,9 @@
                         "credential",
                         "webhook_delivery",
                         "redaction_policy",
-                        "external_url"
+                        "external_url",
+                        "connector_instance",
+                        "connector_operation"
                       ],
                       "type": "string"
                     },
@@ -2492,18 +2412,12 @@
                         },
                         "type": {
                           "enum": [
-                            "github_issue",
-                            "github_pull_request",
-                            "github_repo",
-                            "slack_thread",
-                            "sentry_event",
-                            "provider_thread",
-                            "provider_event",
-                            "provider_comment",
+                            "thread",
+                            "comment",
+                            "event",
                             "tracking_item",
                             "change_request",
                             "repository",
-                            "support_ticket",
                             "signal",
                             "act",
                             "receipt",
@@ -2532,7 +2446,9 @@
                             "credential",
                             "webhook_delivery",
                             "redaction_policy",
-                            "external_url"
+                            "external_url",
+                            "connector_instance",
+                            "connector_operation"
                           ],
                           "type": "string"
                         },
@@ -2584,18 +2500,12 @@
                         },
                         "type": {
                           "enum": [
-                            "github_issue",
-                            "github_pull_request",
-                            "github_repo",
-                            "slack_thread",
-                            "sentry_event",
-                            "provider_thread",
-                            "provider_event",
-                            "provider_comment",
+                            "thread",
+                            "comment",
+                            "event",
                             "tracking_item",
                             "change_request",
                             "repository",
-                            "support_ticket",
                             "signal",
                             "act",
                             "receipt",
@@ -2624,7 +2534,9 @@
                             "credential",
                             "webhook_delivery",
                             "redaction_policy",
-                            "external_url"
+                            "external_url",
+                            "connector_instance",
+                            "connector_operation"
                           ],
                           "type": "string"
                         },
@@ -2710,18 +2622,12 @@
               },
               "type": {
                 "enum": [
-                  "github_issue",
-                  "github_pull_request",
-                  "github_repo",
-                  "slack_thread",
-                  "sentry_event",
-                  "provider_thread",
-                  "provider_event",
-                  "provider_comment",
+                  "thread",
+                  "comment",
+                  "event",
                   "tracking_item",
                   "change_request",
                   "repository",
-                  "support_ticket",
                   "signal",
                   "act",
                   "receipt",
@@ -2750,7 +2656,9 @@
                   "credential",
                   "webhook_delivery",
                   "redaction_policy",
-                  "external_url"
+                  "external_url",
+                  "connector_instance",
+                  "connector_operation"
                 ],
                 "type": "string"
               },
@@ -2765,6 +2673,1375 @@
             ],
             "type": "object",
             "x-runx-schema": "runx.reference.v1"
+          },
+          "type": "array"
+        },
+        "derivations": {
+          "items": {
+            "$id": "https://schemas.runx.ai/runx/authority-derivation/v1.json",
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+              "derived_at": {
+                "minLength": 1,
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
+                "type": "string"
+              },
+              "evidence": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "kind": {
+                      "enum": [
+                        "capability",
+                        "delegation",
+                        "approval"
+                      ],
+                      "type": "string"
+                    },
+                    "reference": {
+                      "$id": "https://schemas.runx.ai/runx/reference/v1.json",
+                      "$schema": "https://json-schema.org/draft/2020-12/schema",
+                      "additionalProperties": false,
+                      "properties": {
+                        "label": {
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "locator": {
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "observed_at": {
+                          "minLength": 1,
+                          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
+                          "type": "string"
+                        },
+                        "proof_kind": {
+                          "enum": [
+                            "effect_evidence",
+                            "effect_finality",
+                            "credential_resolution"
+                          ],
+                          "type": "string"
+                        },
+                        "provider": {
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "schema": {
+                          "const": "runx.reference.v1",
+                          "type": "string"
+                        },
+                        "type": {
+                          "enum": [
+                            "thread",
+                            "comment",
+                            "event",
+                            "tracking_item",
+                            "change_request",
+                            "repository",
+                            "signal",
+                            "act",
+                            "receipt",
+                            "graph_receipt",
+                            "artifact",
+                            "verification",
+                            "harness",
+                            "host",
+                            "deployment",
+                            "surface",
+                            "target",
+                            "opportunity",
+                            "thesis_assessment",
+                            "selection",
+                            "skill_binding",
+                            "target_transition_entry",
+                            "selection_cycle",
+                            "decision",
+                            "reflection_entry",
+                            "feed_entry",
+                            "principal",
+                            "authority_proof",
+                            "scope_admission",
+                            "grant",
+                            "mandate",
+                            "credential",
+                            "webhook_delivery",
+                            "redaction_policy",
+                            "external_url",
+                            "connector_instance",
+                            "connector_operation"
+                          ],
+                          "type": "string"
+                        },
+                        "uri": {
+                          "minLength": 1,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "type",
+                        "uri"
+                      ],
+                      "type": "object",
+                      "x-runx-schema": "runx.reference.v1"
+                    },
+                    "term": {
+                      "$id": "https://schemas.runx.ai/runx/authority/term/v1.json",
+                      "$schema": "https://json-schema.org/draft/2020-12/schema",
+                      "additionalProperties": false,
+                      "properties": {
+                        "approvals": {
+                          "items": {
+                            "additionalProperties": false,
+                            "properties": {
+                              "approval_ref": {
+                                "$id": "https://schemas.runx.ai/runx/reference/v1.json",
+                                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                "additionalProperties": false,
+                                "properties": {
+                                  "label": {
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "locator": {
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "observed_at": {
+                                    "minLength": 1,
+                                    "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
+                                    "type": "string"
+                                  },
+                                  "proof_kind": {
+                                    "enum": [
+                                      "effect_evidence",
+                                      "effect_finality",
+                                      "credential_resolution"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "provider": {
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "schema": {
+                                    "const": "runx.reference.v1",
+                                    "type": "string"
+                                  },
+                                  "type": {
+                                    "enum": [
+                                      "thread",
+                                      "comment",
+                                      "event",
+                                      "tracking_item",
+                                      "change_request",
+                                      "repository",
+                                      "signal",
+                                      "act",
+                                      "receipt",
+                                      "graph_receipt",
+                                      "artifact",
+                                      "verification",
+                                      "harness",
+                                      "host",
+                                      "deployment",
+                                      "surface",
+                                      "target",
+                                      "opportunity",
+                                      "thesis_assessment",
+                                      "selection",
+                                      "skill_binding",
+                                      "target_transition_entry",
+                                      "selection_cycle",
+                                      "decision",
+                                      "reflection_entry",
+                                      "feed_entry",
+                                      "principal",
+                                      "authority_proof",
+                                      "scope_admission",
+                                      "grant",
+                                      "mandate",
+                                      "credential",
+                                      "webhook_delivery",
+                                      "redaction_policy",
+                                      "external_url",
+                                      "connector_instance",
+                                      "connector_operation"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "uri": {
+                                    "minLength": 1,
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "type",
+                                  "uri"
+                                ],
+                                "type": "object",
+                                "x-runx-schema": "runx.reference.v1"
+                              },
+                              "approved_at": {
+                                "minLength": 1,
+                                "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
+                                "type": "string"
+                              },
+                              "approved_by_ref": {
+                                "$id": "https://schemas.runx.ai/runx/reference/v1.json",
+                                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                "additionalProperties": false,
+                                "properties": {
+                                  "label": {
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "locator": {
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "observed_at": {
+                                    "minLength": 1,
+                                    "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
+                                    "type": "string"
+                                  },
+                                  "proof_kind": {
+                                    "enum": [
+                                      "effect_evidence",
+                                      "effect_finality",
+                                      "credential_resolution"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "provider": {
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "schema": {
+                                    "const": "runx.reference.v1",
+                                    "type": "string"
+                                  },
+                                  "type": {
+                                    "enum": [
+                                      "thread",
+                                      "comment",
+                                      "event",
+                                      "tracking_item",
+                                      "change_request",
+                                      "repository",
+                                      "signal",
+                                      "act",
+                                      "receipt",
+                                      "graph_receipt",
+                                      "artifact",
+                                      "verification",
+                                      "harness",
+                                      "host",
+                                      "deployment",
+                                      "surface",
+                                      "target",
+                                      "opportunity",
+                                      "thesis_assessment",
+                                      "selection",
+                                      "skill_binding",
+                                      "target_transition_entry",
+                                      "selection_cycle",
+                                      "decision",
+                                      "reflection_entry",
+                                      "feed_entry",
+                                      "principal",
+                                      "authority_proof",
+                                      "scope_admission",
+                                      "grant",
+                                      "mandate",
+                                      "credential",
+                                      "webhook_delivery",
+                                      "redaction_policy",
+                                      "external_url",
+                                      "connector_instance",
+                                      "connector_operation"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "uri": {
+                                    "minLength": 1,
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "type",
+                                  "uri"
+                                ],
+                                "type": "object",
+                                "x-runx-schema": "runx.reference.v1"
+                              },
+                              "criterion_ids": {
+                                "items": {
+                                  "minLength": 1,
+                                  "type": "string"
+                                },
+                                "type": "array"
+                              }
+                            },
+                            "required": [
+                              "approval_ref"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        },
+                        "bounds": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "branch_patterns": {
+                              "items": {
+                                "minLength": 1,
+                                "type": "string"
+                              },
+                              "type": "array"
+                            },
+                            "deployment_environments": {
+                              "items": {
+                                "minLength": 1,
+                                "type": "string"
+                              },
+                              "type": "array"
+                            },
+                            "effect_limits": {
+                              "items": {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "approval_threshold_units": {
+                                    "type": "integer"
+                                  },
+                                  "authorization_form": {
+                                    "enum": [
+                                      "single_use_capability",
+                                      "external_signer"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "channels": {
+                                    "items": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    },
+                                    "type": "array"
+                                  },
+                                  "commitment_required": {
+                                    "type": "boolean"
+                                  },
+                                  "family": {
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "idempotency_required": {
+                                    "type": "boolean"
+                                  },
+                                  "max_per_call_units": {
+                                    "type": "integer"
+                                  },
+                                  "max_per_period_units": {
+                                    "type": "integer"
+                                  },
+                                  "max_per_run_units": {
+                                    "type": "integer"
+                                  },
+                                  "operation": {
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "peer": {
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "period": {
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "preflight_required": {
+                                    "type": "boolean"
+                                  },
+                                  "preflight_ttl_ms": {
+                                    "type": "integer"
+                                  },
+                                  "realm": {
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "receipt_before_success": {
+                                    "type": "boolean"
+                                  },
+                                  "recovery_required": {
+                                    "type": "boolean"
+                                  },
+                                  "single_use_capability": {
+                                    "type": "boolean"
+                                  },
+                                  "unit": {
+                                    "minLength": 1,
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "family",
+                                  "unit",
+                                  "channels"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array"
+                            },
+                            "effects": {
+                              "items": {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "family": {
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "guard_kinds": {
+                                    "items": {
+                                      "enum": [
+                                        "receipt_before_success",
+                                        "non_replay"
+                                      ],
+                                      "type": "string"
+                                    },
+                                    "type": "array"
+                                  },
+                                  "proof_kinds": {
+                                    "items": {
+                                      "enum": [
+                                        "effect_evidence",
+                                        "effect_finality",
+                                        "credential_resolution"
+                                      ],
+                                      "type": "string"
+                                    },
+                                    "type": "array"
+                                  }
+                                },
+                                "required": [
+                                  "family"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array"
+                            },
+                            "filesystem_roots": {
+                              "items": {
+                                "minLength": 1,
+                                "type": "string"
+                              },
+                              "type": "array"
+                            },
+                            "max_child_depth": {
+                              "type": "integer"
+                            },
+                            "max_cost_units": {
+                              "type": "number"
+                            },
+                            "max_fanout": {
+                              "type": "integer"
+                            },
+                            "max_runtime_ms": {
+                              "type": "integer"
+                            },
+                            "network_destinations": {
+                              "items": {
+                                "minLength": 1,
+                                "type": "string"
+                              },
+                              "type": "array"
+                            },
+                            "operations": {
+                              "items": {
+                                "minLength": 1,
+                                "type": "string"
+                              },
+                              "type": "array"
+                            },
+                            "repo_path_globs": {
+                              "items": {
+                                "minLength": 1,
+                                "type": "string"
+                              },
+                              "type": "array"
+                            },
+                            "scopes": {
+                              "items": {
+                                "minLength": 1,
+                                "type": "string"
+                              },
+                              "type": "array"
+                            },
+                            "targets": {
+                              "items": {
+                                "minLength": 1,
+                                "type": "string"
+                              },
+                              "type": "array"
+                            },
+                            "token_audiences": {
+                              "items": {
+                                "minLength": 1,
+                                "type": "string"
+                              },
+                              "type": "array"
+                            },
+                            "uses": {
+                              "additionalProperties": false,
+                              "properties": {
+                                "per_day": {
+                                  "type": "integer"
+                                },
+                                "total": {
+                                  "type": "integer"
+                                }
+                              },
+                              "type": "object"
+                            }
+                          },
+                          "type": "object"
+                        },
+                        "capabilities": {
+                          "items": {
+                            "enum": [
+                              "filesystem_read",
+                              "filesystem_write",
+                              "network_egress",
+                              "secret_read",
+                              "process_spawn",
+                              "provider_mutation",
+                              "public_publication",
+                              "child_harness_spawn",
+                              "effect_single_use_capability"
+                            ],
+                            "type": "string"
+                          },
+                          "type": "array"
+                        },
+                        "conditions": {
+                          "items": {
+                            "additionalProperties": false,
+                            "properties": {
+                              "condition_id": {
+                                "minLength": 1,
+                                "type": "string"
+                              },
+                              "parameters": {
+                                "additionalProperties": {},
+                                "type": "object"
+                              },
+                              "predicate": {
+                                "enum": [
+                                  "signal_verified",
+                                  "decision_selected",
+                                  "host_posture_valid",
+                                  "approval_present",
+                                  "within_time_window",
+                                  "within_budget",
+                                  "effect_proof_present",
+                                  "effect_recovery_available"
+                                ],
+                                "type": "string"
+                              },
+                              "refs": {
+                                "items": {
+                                  "$id": "https://schemas.runx.ai/runx/reference/v1.json",
+                                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                  "additionalProperties": false,
+                                  "properties": {
+                                    "label": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    },
+                                    "locator": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    },
+                                    "observed_at": {
+                                      "minLength": 1,
+                                      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
+                                      "type": "string"
+                                    },
+                                    "proof_kind": {
+                                      "enum": [
+                                        "effect_evidence",
+                                        "effect_finality",
+                                        "credential_resolution"
+                                      ],
+                                      "type": "string"
+                                    },
+                                    "provider": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    },
+                                    "schema": {
+                                      "const": "runx.reference.v1",
+                                      "type": "string"
+                                    },
+                                    "type": {
+                                      "enum": [
+                                        "thread",
+                                        "comment",
+                                        "event",
+                                        "tracking_item",
+                                        "change_request",
+                                        "repository",
+                                        "signal",
+                                        "act",
+                                        "receipt",
+                                        "graph_receipt",
+                                        "artifact",
+                                        "verification",
+                                        "harness",
+                                        "host",
+                                        "deployment",
+                                        "surface",
+                                        "target",
+                                        "opportunity",
+                                        "thesis_assessment",
+                                        "selection",
+                                        "skill_binding",
+                                        "target_transition_entry",
+                                        "selection_cycle",
+                                        "decision",
+                                        "reflection_entry",
+                                        "feed_entry",
+                                        "principal",
+                                        "authority_proof",
+                                        "scope_admission",
+                                        "grant",
+                                        "mandate",
+                                        "credential",
+                                        "webhook_delivery",
+                                        "redaction_policy",
+                                        "external_url",
+                                        "connector_instance",
+                                        "connector_operation"
+                                      ],
+                                      "type": "string"
+                                    },
+                                    "uri": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "type",
+                                    "uri"
+                                  ],
+                                  "type": "object",
+                                  "x-runx-schema": "runx.reference.v1"
+                                },
+                                "type": "array"
+                              }
+                            },
+                            "required": [
+                              "condition_id",
+                              "predicate"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        },
+                        "credential_ref": {
+                          "$id": "https://schemas.runx.ai/runx/reference/v1.json",
+                          "$schema": "https://json-schema.org/draft/2020-12/schema",
+                          "additionalProperties": false,
+                          "properties": {
+                            "label": {
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "locator": {
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "observed_at": {
+                              "minLength": 1,
+                              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
+                              "type": "string"
+                            },
+                            "proof_kind": {
+                              "enum": [
+                                "effect_evidence",
+                                "effect_finality",
+                                "credential_resolution"
+                              ],
+                              "type": "string"
+                            },
+                            "provider": {
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "schema": {
+                              "const": "runx.reference.v1",
+                              "type": "string"
+                            },
+                            "type": {
+                              "enum": [
+                                "thread",
+                                "comment",
+                                "event",
+                                "tracking_item",
+                                "change_request",
+                                "repository",
+                                "signal",
+                                "act",
+                                "receipt",
+                                "graph_receipt",
+                                "artifact",
+                                "verification",
+                                "harness",
+                                "host",
+                                "deployment",
+                                "surface",
+                                "target",
+                                "opportunity",
+                                "thesis_assessment",
+                                "selection",
+                                "skill_binding",
+                                "target_transition_entry",
+                                "selection_cycle",
+                                "decision",
+                                "reflection_entry",
+                                "feed_entry",
+                                "principal",
+                                "authority_proof",
+                                "scope_admission",
+                                "grant",
+                                "mandate",
+                                "credential",
+                                "webhook_delivery",
+                                "redaction_policy",
+                                "external_url",
+                                "connector_instance",
+                                "connector_operation"
+                              ],
+                              "type": "string"
+                            },
+                            "uri": {
+                              "minLength": 1,
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "type",
+                            "uri"
+                          ],
+                          "type": "object",
+                          "x-runx-schema": "runx.reference.v1"
+                        },
+                        "expires_at": {
+                          "minLength": 1,
+                          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
+                          "type": "string"
+                        },
+                        "issued_by_ref": {
+                          "$id": "https://schemas.runx.ai/runx/reference/v1.json",
+                          "$schema": "https://json-schema.org/draft/2020-12/schema",
+                          "additionalProperties": false,
+                          "properties": {
+                            "label": {
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "locator": {
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "observed_at": {
+                              "minLength": 1,
+                              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
+                              "type": "string"
+                            },
+                            "proof_kind": {
+                              "enum": [
+                                "effect_evidence",
+                                "effect_finality",
+                                "credential_resolution"
+                              ],
+                              "type": "string"
+                            },
+                            "provider": {
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "schema": {
+                              "const": "runx.reference.v1",
+                              "type": "string"
+                            },
+                            "type": {
+                              "enum": [
+                                "thread",
+                                "comment",
+                                "event",
+                                "tracking_item",
+                                "change_request",
+                                "repository",
+                                "signal",
+                                "act",
+                                "receipt",
+                                "graph_receipt",
+                                "artifact",
+                                "verification",
+                                "harness",
+                                "host",
+                                "deployment",
+                                "surface",
+                                "target",
+                                "opportunity",
+                                "thesis_assessment",
+                                "selection",
+                                "skill_binding",
+                                "target_transition_entry",
+                                "selection_cycle",
+                                "decision",
+                                "reflection_entry",
+                                "feed_entry",
+                                "principal",
+                                "authority_proof",
+                                "scope_admission",
+                                "grant",
+                                "mandate",
+                                "credential",
+                                "webhook_delivery",
+                                "redaction_policy",
+                                "external_url",
+                                "connector_instance",
+                                "connector_operation"
+                              ],
+                              "type": "string"
+                            },
+                            "uri": {
+                              "minLength": 1,
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "type",
+                            "uri"
+                          ],
+                          "type": "object",
+                          "x-runx-schema": "runx.reference.v1"
+                        },
+                        "principal_ref": {
+                          "$id": "https://schemas.runx.ai/runx/reference/v1.json",
+                          "$schema": "https://json-schema.org/draft/2020-12/schema",
+                          "additionalProperties": false,
+                          "properties": {
+                            "label": {
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "locator": {
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "observed_at": {
+                              "minLength": 1,
+                              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
+                              "type": "string"
+                            },
+                            "proof_kind": {
+                              "enum": [
+                                "effect_evidence",
+                                "effect_finality",
+                                "credential_resolution"
+                              ],
+                              "type": "string"
+                            },
+                            "provider": {
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "schema": {
+                              "const": "runx.reference.v1",
+                              "type": "string"
+                            },
+                            "type": {
+                              "enum": [
+                                "thread",
+                                "comment",
+                                "event",
+                                "tracking_item",
+                                "change_request",
+                                "repository",
+                                "signal",
+                                "act",
+                                "receipt",
+                                "graph_receipt",
+                                "artifact",
+                                "verification",
+                                "harness",
+                                "host",
+                                "deployment",
+                                "surface",
+                                "target",
+                                "opportunity",
+                                "thesis_assessment",
+                                "selection",
+                                "skill_binding",
+                                "target_transition_entry",
+                                "selection_cycle",
+                                "decision",
+                                "reflection_entry",
+                                "feed_entry",
+                                "principal",
+                                "authority_proof",
+                                "scope_admission",
+                                "grant",
+                                "mandate",
+                                "credential",
+                                "webhook_delivery",
+                                "redaction_policy",
+                                "external_url",
+                                "connector_instance",
+                                "connector_operation"
+                              ],
+                              "type": "string"
+                            },
+                            "uri": {
+                              "minLength": 1,
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "type",
+                            "uri"
+                          ],
+                          "type": "object",
+                          "x-runx-schema": "runx.reference.v1"
+                        },
+                        "resource_family": {
+                          "enum": [
+                            "workspace",
+                            "filesystem",
+                            "network",
+                            "deployment",
+                            "credential",
+                            "effect",
+                            "artifact",
+                            "harness",
+                            "publication",
+                            "connector"
+                          ],
+                          "type": "string"
+                        },
+                        "resource_ref": {
+                          "$id": "https://schemas.runx.ai/runx/reference/v1.json",
+                          "$schema": "https://json-schema.org/draft/2020-12/schema",
+                          "additionalProperties": false,
+                          "properties": {
+                            "label": {
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "locator": {
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "observed_at": {
+                              "minLength": 1,
+                              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
+                              "type": "string"
+                            },
+                            "proof_kind": {
+                              "enum": [
+                                "effect_evidence",
+                                "effect_finality",
+                                "credential_resolution"
+                              ],
+                              "type": "string"
+                            },
+                            "provider": {
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "schema": {
+                              "const": "runx.reference.v1",
+                              "type": "string"
+                            },
+                            "type": {
+                              "enum": [
+                                "thread",
+                                "comment",
+                                "event",
+                                "tracking_item",
+                                "change_request",
+                                "repository",
+                                "signal",
+                                "act",
+                                "receipt",
+                                "graph_receipt",
+                                "artifact",
+                                "verification",
+                                "harness",
+                                "host",
+                                "deployment",
+                                "surface",
+                                "target",
+                                "opportunity",
+                                "thesis_assessment",
+                                "selection",
+                                "skill_binding",
+                                "target_transition_entry",
+                                "selection_cycle",
+                                "decision",
+                                "reflection_entry",
+                                "feed_entry",
+                                "principal",
+                                "authority_proof",
+                                "scope_admission",
+                                "grant",
+                                "mandate",
+                                "credential",
+                                "webhook_delivery",
+                                "redaction_policy",
+                                "external_url",
+                                "connector_instance",
+                                "connector_operation"
+                              ],
+                              "type": "string"
+                            },
+                            "uri": {
+                              "minLength": 1,
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "type",
+                            "uri"
+                          ],
+                          "type": "object",
+                          "x-runx-schema": "runx.reference.v1"
+                        },
+                        "schema": {
+                          "const": "runx.authority_term.v1",
+                          "type": "string"
+                        },
+                        "term_id": {
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "verbs": {
+                          "items": {
+                            "enum": [
+                              "read",
+                              "write",
+                              "comment",
+                              "review",
+                              "approve",
+                              "merge",
+                              "create",
+                              "update",
+                              "delete",
+                              "execute",
+                              "verify",
+                              "estimate",
+                              "prepare",
+                              "commit",
+                              "reverse",
+                              "publish",
+                              "spawn_child",
+                              "revoke"
+                            ],
+                            "type": "string"
+                          },
+                          "type": "array"
+                        }
+                      },
+                      "required": [
+                        "term_id",
+                        "principal_ref",
+                        "resource_ref",
+                        "resource_family",
+                        "verbs",
+                        "bounds",
+                        "issued_by_ref"
+                      ],
+                      "type": "object",
+                      "x-runx-schema": "runx.authority_term.v1"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "reference"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "intent_digest": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "proofs": {
+                "items": {
+                  "$id": "https://schemas.runx.ai/runx/authority/subset-proof/v1.json",
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "checked_at": {
+                      "minLength": 1,
+                      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
+                      "type": "string"
+                    },
+                    "compared_terms": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "child_term_id": {
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          "parent_term_id": {
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          "relation": {
+                            "enum": [
+                              "equal",
+                              "subset"
+                            ],
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "child_term_id",
+                          "parent_term_id",
+                          "relation"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "comparison_algorithm": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "parent_authority_ref": {
+                      "$id": "https://schemas.runx.ai/runx/reference/v1.json",
+                      "$schema": "https://json-schema.org/draft/2020-12/schema",
+                      "additionalProperties": false,
+                      "properties": {
+                        "label": {
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "locator": {
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "observed_at": {
+                          "minLength": 1,
+                          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
+                          "type": "string"
+                        },
+                        "proof_kind": {
+                          "enum": [
+                            "effect_evidence",
+                            "effect_finality",
+                            "credential_resolution"
+                          ],
+                          "type": "string"
+                        },
+                        "provider": {
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "schema": {
+                          "const": "runx.reference.v1",
+                          "type": "string"
+                        },
+                        "type": {
+                          "enum": [
+                            "thread",
+                            "comment",
+                            "event",
+                            "tracking_item",
+                            "change_request",
+                            "repository",
+                            "signal",
+                            "act",
+                            "receipt",
+                            "graph_receipt",
+                            "artifact",
+                            "verification",
+                            "harness",
+                            "host",
+                            "deployment",
+                            "surface",
+                            "target",
+                            "opportunity",
+                            "thesis_assessment",
+                            "selection",
+                            "skill_binding",
+                            "target_transition_entry",
+                            "selection_cycle",
+                            "decision",
+                            "reflection_entry",
+                            "feed_entry",
+                            "principal",
+                            "authority_proof",
+                            "scope_admission",
+                            "grant",
+                            "mandate",
+                            "credential",
+                            "webhook_delivery",
+                            "redaction_policy",
+                            "external_url",
+                            "connector_instance",
+                            "connector_operation"
+                          ],
+                          "type": "string"
+                        },
+                        "uri": {
+                          "minLength": 1,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "type",
+                        "uri"
+                      ],
+                      "type": "object",
+                      "x-runx-schema": "runx.reference.v1"
+                    },
+                    "proof_ref": {
+                      "$id": "https://schemas.runx.ai/runx/reference/v1.json",
+                      "$schema": "https://json-schema.org/draft/2020-12/schema",
+                      "additionalProperties": false,
+                      "properties": {
+                        "label": {
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "locator": {
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "observed_at": {
+                          "minLength": 1,
+                          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
+                          "type": "string"
+                        },
+                        "proof_kind": {
+                          "enum": [
+                            "effect_evidence",
+                            "effect_finality",
+                            "credential_resolution"
+                          ],
+                          "type": "string"
+                        },
+                        "provider": {
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "schema": {
+                          "const": "runx.reference.v1",
+                          "type": "string"
+                        },
+                        "type": {
+                          "enum": [
+                            "thread",
+                            "comment",
+                            "event",
+                            "tracking_item",
+                            "change_request",
+                            "repository",
+                            "signal",
+                            "act",
+                            "receipt",
+                            "graph_receipt",
+                            "artifact",
+                            "verification",
+                            "harness",
+                            "host",
+                            "deployment",
+                            "surface",
+                            "target",
+                            "opportunity",
+                            "thesis_assessment",
+                            "selection",
+                            "skill_binding",
+                            "target_transition_entry",
+                            "selection_cycle",
+                            "decision",
+                            "reflection_entry",
+                            "feed_entry",
+                            "principal",
+                            "authority_proof",
+                            "scope_admission",
+                            "grant",
+                            "mandate",
+                            "credential",
+                            "webhook_delivery",
+                            "redaction_policy",
+                            "external_url",
+                            "connector_instance",
+                            "connector_operation"
+                          ],
+                          "type": "string"
+                        },
+                        "uri": {
+                          "minLength": 1,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "type",
+                        "uri"
+                      ],
+                      "type": "object",
+                      "x-runx-schema": "runx.reference.v1"
+                    },
+                    "result": {
+                      "enum": [
+                        "subset"
+                      ],
+                      "type": "string"
+                    },
+                    "schema": {
+                      "const": "runx.authority_subset_proof.v1",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "parent_authority_ref",
+                    "comparison_algorithm",
+                    "result",
+                    "compared_terms",
+                    "checked_at"
+                  ],
+                  "type": "object",
+                  "x-runx-schema": "runx.authority_subset_proof.v1"
+                },
+                "type": "array"
+              },
+              "schema": {
+                "const": "runx.authority_derivation.v1",
+                "type": "string"
+              },
+              "term_id": {
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "term_id",
+              "intent_digest",
+              "evidence",
+              "proofs",
+              "derived_at"
+            ],
+            "type": "object",
+            "x-runx-schema": "runx.authority_derivation.v1"
           },
           "type": "array"
         },
@@ -2830,18 +4107,12 @@
                   },
                   "type": {
                     "enum": [
-                      "github_issue",
-                      "github_pull_request",
-                      "github_repo",
-                      "slack_thread",
-                      "sentry_event",
-                      "provider_thread",
-                      "provider_event",
-                      "provider_comment",
+                      "thread",
+                      "comment",
+                      "event",
                       "tracking_item",
                       "change_request",
                       "repository",
-                      "support_ticket",
                       "signal",
                       "act",
                       "receipt",
@@ -2870,7 +4141,9 @@
                       "credential",
                       "webhook_delivery",
                       "redaction_policy",
-                      "external_url"
+                      "external_url",
+                      "connector_instance",
+                      "connector_operation"
                     ],
                     "type": "string"
                   },
@@ -2925,18 +4198,12 @@
                   },
                   "type": {
                     "enum": [
-                      "github_issue",
-                      "github_pull_request",
-                      "github_repo",
-                      "slack_thread",
-                      "sentry_event",
-                      "provider_thread",
-                      "provider_event",
-                      "provider_comment",
+                      "thread",
+                      "comment",
+                      "event",
                       "tracking_item",
                       "change_request",
                       "repository",
-                      "support_ticket",
                       "signal",
                       "act",
                       "receipt",
@@ -2965,7 +4232,9 @@
                       "credential",
                       "webhook_delivery",
                       "redaction_policy",
-                      "external_url"
+                      "external_url",
+                      "connector_instance",
+                      "connector_operation"
                     ],
                     "type": "string"
                   },
@@ -3020,18 +4289,12 @@
                   },
                   "type": {
                     "enum": [
-                      "github_issue",
-                      "github_pull_request",
-                      "github_repo",
-                      "slack_thread",
-                      "sentry_event",
-                      "provider_thread",
-                      "provider_event",
-                      "provider_comment",
+                      "thread",
+                      "comment",
+                      "event",
                       "tracking_item",
                       "change_request",
                       "repository",
-                      "support_ticket",
                       "signal",
                       "act",
                       "receipt",
@@ -3060,7 +4323,9 @@
                       "credential",
                       "webhook_delivery",
                       "redaction_policy",
-                      "external_url"
+                      "external_url",
+                      "connector_instance",
+                      "connector_operation"
                     ],
                     "type": "string"
                   },
@@ -3121,18 +4386,12 @@
               },
               "type": {
                 "enum": [
-                  "github_issue",
-                  "github_pull_request",
-                  "github_repo",
-                  "slack_thread",
-                  "sentry_event",
-                  "provider_thread",
-                  "provider_event",
-                  "provider_comment",
+                  "thread",
+                  "comment",
+                  "event",
                   "tracking_item",
                   "change_request",
                   "repository",
-                  "support_ticket",
                   "signal",
                   "act",
                   "receipt",
@@ -3161,7 +4420,9 @@
                   "credential",
                   "webhook_delivery",
                   "redaction_policy",
-                  "external_url"
+                  "external_url",
+                  "connector_instance",
+                  "connector_operation"
                 ],
                 "type": "string"
               },
@@ -3215,18 +4476,12 @@
             },
             "type": {
               "enum": [
-                "github_issue",
-                "github_pull_request",
-                "github_repo",
-                "slack_thread",
-                "sentry_event",
-                "provider_thread",
-                "provider_event",
-                "provider_comment",
+                "thread",
+                "comment",
+                "event",
                 "tracking_item",
                 "change_request",
                 "repository",
-                "support_ticket",
                 "signal",
                 "act",
                 "receipt",
@@ -3255,7 +4510,9 @@
                 "credential",
                 "webhook_delivery",
                 "redaction_policy",
-                "external_url"
+                "external_url",
+                "connector_instance",
+                "connector_operation"
               ],
               "type": "string"
             },
@@ -3308,18 +4565,12 @@
               },
               "type": {
                 "enum": [
-                  "github_issue",
-                  "github_pull_request",
-                  "github_repo",
-                  "slack_thread",
-                  "sentry_event",
-                  "provider_thread",
-                  "provider_event",
-                  "provider_comment",
+                  "thread",
+                  "comment",
+                  "event",
                   "tracking_item",
                   "change_request",
                   "repository",
-                  "support_ticket",
                   "signal",
                   "act",
                   "receipt",
@@ -3348,7 +4599,9 @@
                   "credential",
                   "webhook_delivery",
                   "redaction_policy",
-                  "external_url"
+                  "external_url",
+                  "connector_instance",
+                  "connector_operation"
                 ],
                 "type": "string"
               },
@@ -3412,18 +4665,12 @@
                         },
                         "type": {
                           "enum": [
-                            "github_issue",
-                            "github_pull_request",
-                            "github_repo",
-                            "slack_thread",
-                            "sentry_event",
-                            "provider_thread",
-                            "provider_event",
-                            "provider_comment",
+                            "thread",
+                            "comment",
+                            "event",
                             "tracking_item",
                             "change_request",
                             "repository",
-                            "support_ticket",
                             "signal",
                             "act",
                             "receipt",
@@ -3452,7 +4699,9 @@
                             "credential",
                             "webhook_delivery",
                             "redaction_policy",
-                            "external_url"
+                            "external_url",
+                            "connector_instance",
+                            "connector_operation"
                           ],
                           "type": "string"
                         },
@@ -3509,18 +4758,12 @@
                         },
                         "type": {
                           "enum": [
-                            "github_issue",
-                            "github_pull_request",
-                            "github_repo",
-                            "slack_thread",
-                            "sentry_event",
-                            "provider_thread",
-                            "provider_event",
-                            "provider_comment",
+                            "thread",
+                            "comment",
+                            "event",
                             "tracking_item",
                             "change_request",
                             "repository",
-                            "support_ticket",
                             "signal",
                             "act",
                             "receipt",
@@ -3549,7 +4792,9 @@
                             "credential",
                             "webhook_delivery",
                             "redaction_policy",
-                            "external_url"
+                            "external_url",
+                            "connector_instance",
+                            "connector_operation"
                           ],
                           "type": "string"
                         },
@@ -3745,7 +4990,28 @@
                     },
                     "type": "array"
                   },
+                  "operations": {
+                    "items": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
                   "repo_path_globs": {
+                    "items": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "scopes": {
+                    "items": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "targets": {
                     "items": {
                       "minLength": 1,
                       "type": "string"
@@ -3758,6 +5024,18 @@
                       "type": "string"
                     },
                     "type": "array"
+                  },
+                  "uses": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "per_day": {
+                        "type": "integer"
+                      },
+                      "total": {
+                        "type": "integer"
+                      }
+                    },
+                    "type": "object"
                   }
                 },
                 "type": "object"
@@ -3841,18 +5119,12 @@
                           },
                           "type": {
                             "enum": [
-                              "github_issue",
-                              "github_pull_request",
-                              "github_repo",
-                              "slack_thread",
-                              "sentry_event",
-                              "provider_thread",
-                              "provider_event",
-                              "provider_comment",
+                              "thread",
+                              "comment",
+                              "event",
                               "tracking_item",
                               "change_request",
                               "repository",
-                              "support_ticket",
                               "signal",
                               "act",
                               "receipt",
@@ -3881,7 +5153,9 @@
                               "credential",
                               "webhook_delivery",
                               "redaction_policy",
-                              "external_url"
+                              "external_url",
+                              "connector_instance",
+                              "connector_operation"
                             ],
                             "type": "string"
                           },
@@ -3944,18 +5218,12 @@
                   },
                   "type": {
                     "enum": [
-                      "github_issue",
-                      "github_pull_request",
-                      "github_repo",
-                      "slack_thread",
-                      "sentry_event",
-                      "provider_thread",
-                      "provider_event",
-                      "provider_comment",
+                      "thread",
+                      "comment",
+                      "event",
                       "tracking_item",
                       "change_request",
                       "repository",
-                      "support_ticket",
                       "signal",
                       "act",
                       "receipt",
@@ -3984,7 +5252,9 @@
                       "credential",
                       "webhook_delivery",
                       "redaction_policy",
-                      "external_url"
+                      "external_url",
+                      "connector_instance",
+                      "connector_operation"
                     ],
                     "type": "string"
                   },
@@ -4041,18 +5311,12 @@
                   },
                   "type": {
                     "enum": [
-                      "github_issue",
-                      "github_pull_request",
-                      "github_repo",
-                      "slack_thread",
-                      "sentry_event",
-                      "provider_thread",
-                      "provider_event",
-                      "provider_comment",
+                      "thread",
+                      "comment",
+                      "event",
                       "tracking_item",
                       "change_request",
                       "repository",
-                      "support_ticket",
                       "signal",
                       "act",
                       "receipt",
@@ -4081,7 +5345,9 @@
                       "credential",
                       "webhook_delivery",
                       "redaction_policy",
-                      "external_url"
+                      "external_url",
+                      "connector_instance",
+                      "connector_operation"
                     ],
                     "type": "string"
                   },
@@ -4133,18 +5399,12 @@
                   },
                   "type": {
                     "enum": [
-                      "github_issue",
-                      "github_pull_request",
-                      "github_repo",
-                      "slack_thread",
-                      "sentry_event",
-                      "provider_thread",
-                      "provider_event",
-                      "provider_comment",
+                      "thread",
+                      "comment",
+                      "event",
                       "tracking_item",
                       "change_request",
                       "repository",
-                      "support_ticket",
                       "signal",
                       "act",
                       "receipt",
@@ -4173,7 +5433,9 @@
                       "credential",
                       "webhook_delivery",
                       "redaction_policy",
-                      "external_url"
+                      "external_url",
+                      "connector_instance",
+                      "connector_operation"
                     ],
                     "type": "string"
                   },
@@ -4191,7 +5453,6 @@
               },
               "resource_family": {
                 "enum": [
-                  "github_repo",
                   "workspace",
                   "filesystem",
                   "network",
@@ -4200,7 +5461,8 @@
                   "effect",
                   "artifact",
                   "harness",
-                  "publication"
+                  "publication",
+                  "connector"
                 ],
                 "type": "string"
               },
@@ -4240,18 +5502,12 @@
                   },
                   "type": {
                     "enum": [
-                      "github_issue",
-                      "github_pull_request",
-                      "github_repo",
-                      "slack_thread",
-                      "sentry_event",
-                      "provider_thread",
-                      "provider_event",
-                      "provider_comment",
+                      "thread",
+                      "comment",
+                      "event",
                       "tracking_item",
                       "change_request",
                       "repository",
-                      "support_ticket",
                       "signal",
                       "act",
                       "receipt",
@@ -4280,7 +5536,9 @@
                       "credential",
                       "webhook_delivery",
                       "redaction_policy",
-                      "external_url"
+                      "external_url",
+                      "connector_instance",
+                      "connector_operation"
                     ],
                     "type": "string"
                   },
@@ -4412,18 +5670,12 @@
                 },
                 "type": {
                   "enum": [
-                    "github_issue",
-                    "github_pull_request",
-                    "github_repo",
-                    "slack_thread",
-                    "sentry_event",
-                    "provider_thread",
-                    "provider_event",
-                    "provider_comment",
+                    "thread",
+                    "comment",
+                    "event",
                     "tracking_item",
                     "change_request",
                     "repository",
-                    "support_ticket",
                     "signal",
                     "act",
                     "receipt",
@@ -4452,7 +5704,9 @@
                     "credential",
                     "webhook_delivery",
                     "redaction_policy",
-                    "external_url"
+                    "external_url",
+                    "connector_instance",
+                    "connector_operation"
                   ],
                   "type": "string"
                 },
@@ -4572,18 +5826,12 @@
                     },
                     "type": {
                       "enum": [
-                        "github_issue",
-                        "github_pull_request",
-                        "github_repo",
-                        "slack_thread",
-                        "sentry_event",
-                        "provider_thread",
-                        "provider_event",
-                        "provider_comment",
+                        "thread",
+                        "comment",
+                        "event",
                         "tracking_item",
                         "change_request",
                         "repository",
-                        "support_ticket",
                         "signal",
                         "act",
                         "receipt",
@@ -4612,7 +5860,9 @@
                         "credential",
                         "webhook_delivery",
                         "redaction_policy",
-                        "external_url"
+                        "external_url",
+                        "connector_instance",
+                        "connector_operation"
                       ],
                       "type": "string"
                     },
@@ -4668,18 +5918,12 @@
                       },
                       "type": {
                         "enum": [
-                          "github_issue",
-                          "github_pull_request",
-                          "github_repo",
-                          "slack_thread",
-                          "sentry_event",
-                          "provider_thread",
-                          "provider_event",
-                          "provider_comment",
+                          "thread",
+                          "comment",
+                          "event",
                           "tracking_item",
                           "change_request",
                           "repository",
-                          "support_ticket",
                           "signal",
                           "act",
                           "receipt",
@@ -4708,7 +5952,9 @@
                           "credential",
                           "webhook_delivery",
                           "redaction_policy",
-                          "external_url"
+                          "external_url",
+                          "connector_instance",
+                          "connector_operation"
                         ],
                         "type": "string"
                       },
@@ -4766,18 +6012,12 @@
                     },
                     "type": {
                       "enum": [
-                        "github_issue",
-                        "github_pull_request",
-                        "github_repo",
-                        "slack_thread",
-                        "sentry_event",
-                        "provider_thread",
-                        "provider_event",
-                        "provider_comment",
+                        "thread",
+                        "comment",
+                        "event",
                         "tracking_item",
                         "change_request",
                         "repository",
-                        "support_ticket",
                         "signal",
                         "act",
                         "receipt",
@@ -4806,7 +6046,9 @@
                         "credential",
                         "webhook_delivery",
                         "redaction_policy",
-                        "external_url"
+                        "external_url",
+                        "connector_instance",
+                        "connector_operation"
                       ],
                       "type": "string"
                     },
@@ -4862,18 +6104,12 @@
                       },
                       "type": {
                         "enum": [
-                          "github_issue",
-                          "github_pull_request",
-                          "github_repo",
-                          "slack_thread",
-                          "sentry_event",
-                          "provider_thread",
-                          "provider_event",
-                          "provider_comment",
+                          "thread",
+                          "comment",
+                          "event",
                           "tracking_item",
                           "change_request",
                           "repository",
-                          "support_ticket",
                           "signal",
                           "act",
                           "receipt",
@@ -4902,7 +6138,9 @@
                           "credential",
                           "webhook_delivery",
                           "redaction_policy",
-                          "external_url"
+                          "external_url",
+                          "connector_instance",
+                          "connector_operation"
                         ],
                         "type": "string"
                       },
@@ -4970,18 +6208,12 @@
                     },
                     "type": {
                       "enum": [
-                        "github_issue",
-                        "github_pull_request",
-                        "github_repo",
-                        "slack_thread",
-                        "sentry_event",
-                        "provider_thread",
-                        "provider_event",
-                        "provider_comment",
+                        "thread",
+                        "comment",
+                        "event",
                         "tracking_item",
                         "change_request",
                         "repository",
-                        "support_ticket",
                         "signal",
                         "act",
                         "receipt",
@@ -5010,7 +6242,9 @@
                         "credential",
                         "webhook_delivery",
                         "redaction_policy",
-                        "external_url"
+                        "external_url",
+                        "connector_instance",
+                        "connector_operation"
                       ],
                       "type": "string"
                     },
@@ -5085,18 +6319,12 @@
                     },
                     "type": {
                       "enum": [
-                        "github_issue",
-                        "github_pull_request",
-                        "github_repo",
-                        "slack_thread",
-                        "sentry_event",
-                        "provider_thread",
-                        "provider_event",
-                        "provider_comment",
+                        "thread",
+                        "comment",
+                        "event",
                         "tracking_item",
                         "change_request",
                         "repository",
-                        "support_ticket",
                         "signal",
                         "act",
                         "receipt",
@@ -5125,7 +6353,9 @@
                         "credential",
                         "webhook_delivery",
                         "redaction_policy",
-                        "external_url"
+                        "external_url",
+                        "connector_instance",
+                        "connector_operation"
                       ],
                       "type": "string"
                     },
@@ -5236,18 +6466,12 @@
                   },
                   "type": {
                     "enum": [
-                      "github_issue",
-                      "github_pull_request",
-                      "github_repo",
-                      "slack_thread",
-                      "sentry_event",
-                      "provider_thread",
-                      "provider_event",
-                      "provider_comment",
+                      "thread",
+                      "comment",
+                      "event",
                       "tracking_item",
                       "change_request",
                       "repository",
-                      "support_ticket",
                       "signal",
                       "act",
                       "receipt",
@@ -5276,7 +6500,9 @@
                       "credential",
                       "webhook_delivery",
                       "redaction_policy",
-                      "external_url"
+                      "external_url",
+                      "connector_instance",
+                      "connector_operation"
                     ],
                     "type": "string"
                   },
@@ -5608,18 +6834,12 @@
                   },
                   "type": {
                     "enum": [
-                      "github_issue",
-                      "github_pull_request",
-                      "github_repo",
-                      "slack_thread",
-                      "sentry_event",
-                      "provider_thread",
-                      "provider_event",
-                      "provider_comment",
+                      "thread",
+                      "comment",
+                      "event",
                       "tracking_item",
                       "change_request",
                       "repository",
-                      "support_ticket",
                       "signal",
                       "act",
                       "receipt",
@@ -5648,7 +6868,9 @@
                       "credential",
                       "webhook_delivery",
                       "redaction_policy",
-                      "external_url"
+                      "external_url",
+                      "connector_instance",
+                      "connector_operation"
                     ],
                     "type": "string"
                   },
@@ -5775,18 +6997,12 @@
               },
               "type": {
                 "enum": [
-                  "github_issue",
-                  "github_pull_request",
-                  "github_repo",
-                  "slack_thread",
-                  "sentry_event",
-                  "provider_thread",
-                  "provider_event",
-                  "provider_comment",
+                  "thread",
+                  "comment",
+                  "event",
                   "tracking_item",
                   "change_request",
                   "repository",
-                  "support_ticket",
                   "signal",
                   "act",
                   "receipt",
@@ -5815,7 +7031,9 @@
                   "credential",
                   "webhook_delivery",
                   "redaction_policy",
-                  "external_url"
+                  "external_url",
+                  "connector_instance",
+                  "connector_operation"
                 ],
                 "type": "string"
               },
@@ -5869,18 +7087,12 @@
             },
             "type": {
               "enum": [
-                "github_issue",
-                "github_pull_request",
-                "github_repo",
-                "slack_thread",
-                "sentry_event",
-                "provider_thread",
-                "provider_event",
-                "provider_comment",
+                "thread",
+                "comment",
+                "event",
                 "tracking_item",
                 "change_request",
                 "repository",
-                "support_ticket",
                 "signal",
                 "act",
                 "receipt",
@@ -5909,7 +7121,9 @@
                 "credential",
                 "webhook_delivery",
                 "redaction_policy",
-                "external_url"
+                "external_url",
+                "connector_instance",
+                "connector_operation"
               ],
               "type": "string"
             },
@@ -5961,18 +7175,12 @@
             },
             "type": {
               "enum": [
-                "github_issue",
-                "github_pull_request",
-                "github_repo",
-                "slack_thread",
-                "sentry_event",
-                "provider_thread",
-                "provider_event",
-                "provider_comment",
+                "thread",
+                "comment",
+                "event",
                 "tracking_item",
                 "change_request",
                 "repository",
-                "support_ticket",
                 "signal",
                 "act",
                 "receipt",
@@ -6001,7 +7209,9 @@
                 "credential",
                 "webhook_delivery",
                 "redaction_policy",
-                "external_url"
+                "external_url",
+                "connector_instance",
+                "connector_operation"
               ],
               "type": "string"
             },
@@ -6053,18 +7263,12 @@
             },
             "type": {
               "enum": [
-                "github_issue",
-                "github_pull_request",
-                "github_repo",
-                "slack_thread",
-                "sentry_event",
-                "provider_thread",
-                "provider_event",
-                "provider_comment",
+                "thread",
+                "comment",
+                "event",
                 "tracking_item",
                 "change_request",
                 "repository",
-                "support_ticket",
                 "signal",
                 "act",
                 "receipt",
@@ -6093,7 +7297,9 @@
                 "credential",
                 "webhook_delivery",
                 "redaction_policy",
-                "external_url"
+                "external_url",
+                "connector_instance",
+                "connector_operation"
               ],
               "type": "string"
             },
@@ -6247,18 +7453,12 @@
                     },
                     "type": {
                       "enum": [
-                        "github_issue",
-                        "github_pull_request",
-                        "github_repo",
-                        "slack_thread",
-                        "sentry_event",
-                        "provider_thread",
-                        "provider_event",
-                        "provider_comment",
+                        "thread",
+                        "comment",
+                        "event",
                         "tracking_item",
                         "change_request",
                         "repository",
-                        "support_ticket",
                         "signal",
                         "act",
                         "receipt",
@@ -6287,7 +7487,9 @@
                         "credential",
                         "webhook_delivery",
                         "redaction_policy",
-                        "external_url"
+                        "external_url",
+                        "connector_instance",
+                        "connector_operation"
                       ],
                       "type": "string"
                     },
@@ -6356,18 +7558,12 @@
                     },
                     "type": {
                       "enum": [
-                        "github_issue",
-                        "github_pull_request",
-                        "github_repo",
-                        "slack_thread",
-                        "sentry_event",
-                        "provider_thread",
-                        "provider_event",
-                        "provider_comment",
+                        "thread",
+                        "comment",
+                        "event",
                         "tracking_item",
                         "change_request",
                         "repository",
-                        "support_ticket",
                         "signal",
                         "act",
                         "receipt",
@@ -6396,7 +7592,9 @@
                         "credential",
                         "webhook_delivery",
                         "redaction_policy",
-                        "external_url"
+                        "external_url",
+                        "connector_instance",
+                        "connector_operation"
                       ],
                       "type": "string"
                     },
@@ -6496,18 +7694,12 @@
           },
           "type": {
             "enum": [
-              "github_issue",
-              "github_pull_request",
-              "github_repo",
-              "slack_thread",
-              "sentry_event",
-              "provider_thread",
-              "provider_event",
-              "provider_comment",
+              "thread",
+              "comment",
+              "event",
               "tracking_item",
               "change_request",
               "repository",
-              "support_ticket",
               "signal",
               "act",
               "receipt",
@@ -6536,7 +7728,9 @@
               "credential",
               "webhook_delivery",
               "redaction_policy",
-              "external_url"
+              "external_url",
+              "connector_instance",
+              "connector_operation"
             ],
             "type": "string"
           },
@@ -6927,18 +8121,12 @@
             },
             "type": {
               "enum": [
-                "github_issue",
-                "github_pull_request",
-                "github_repo",
-                "slack_thread",
-                "sentry_event",
-                "provider_thread",
-                "provider_event",
-                "provider_comment",
+                "thread",
+                "comment",
+                "event",
                 "tracking_item",
                 "change_request",
                 "repository",
-                "support_ticket",
                 "signal",
                 "act",
                 "receipt",
@@ -6967,7 +8155,9 @@
                 "credential",
                 "webhook_delivery",
                 "redaction_policy",
-                "external_url"
+                "external_url",
+                "connector_instance",
+                "connector_operation"
               ],
               "type": "string"
             },

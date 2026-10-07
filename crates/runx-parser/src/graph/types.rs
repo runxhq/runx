@@ -1,8 +1,8 @@
 use std::collections::BTreeMap;
 
-use serde::{Deserialize, Serialize};
-
+use runx_contracts::connector::OperationName;
 use runx_contracts::{JsonObject, JsonValue};
+use serde::{Deserialize, Serialize};
 
 use crate::ValidationError;
 use crate::skill::{SkillArtifactContract, SkillSource, SourceKind, validate_inline_graph_source};
@@ -118,33 +118,15 @@ pub struct GraphWhen {
     pub not_equals: Option<JsonValue>,
 }
 
-/// Where [`MintAuthorityDirective`] draws the requested child scope from when the
-/// runtime computes the attenuation off the model path. The two cases are
-/// mutually exclusive by construction, so a step can never feed the mint from two
-/// sources at once.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum MintScopeSource {
-    /// Derive the child from the step's static `scopes:` list (the common
-    /// in-graph case). The declared ceiling and the minted term share one source,
-    /// so they cannot drift.
-    StaticScopes,
-    /// Derive the child from a runtime input named by `requested_scope_from` (the
-    /// dynamic case, e.g. an ops-desk-chosen scope). The mint fail-closes if the
-    /// requested scope exceeds the charter.
-    RequestedScope,
-}
-
-/// Declarative request to MINT (compute) the step's child authority term from the
-/// graph charter, off the model path, rather than receive a pre-built term. This
-/// is the compute path; the act-declaration `authority_term_from` /
-/// `authority_parent_from` / `authority_subset_proof_from` keys remain the
-/// explicit pre-built path. A directive is only coherent when the graph (or
-/// runner) declares `charter_from`, since the mint narrows that parent charter.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
+/// Declarative request to MINT (compute) an act's child authority term from the
+/// graph charter, off the model path, rather than receive a pre-built term. The
+/// requested child scope is read from the trusted input this names; the mint
+/// fails closed when it exceeds the charter. Only coherent when the graph (or
+/// runner) declares `charter_from`.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct MintAuthorityDirective {
-    pub source: MintScopeSource,
+    pub requested_scope_from: String,
 }
 
 /// Parser-owned meaning of an inline graph `run:` target. The wire form stays
@@ -249,6 +231,9 @@ pub struct GraphStep {
     pub tool: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub run: Option<GraphRunTarget>,
+    /// A connector operation, admitted and executed by the kernel.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub operation: Option<OperationStepTarget>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub artifacts: Option<SkillArtifactContract>,
     /// Complete output declarations owned by this graph step. Preserve these
@@ -276,18 +261,75 @@ pub struct GraphStep {
     pub when: Option<GraphWhen>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub idempotency_key: Option<String>,
-    /// Compute path: when present, the runtime mints this step's child authority
-    /// term from the graph charter (named by `ExecutionGraph::charter_from`) off
-    /// the model path, instead of receiving a pre-built term via the act
-    /// declaration's `authority_*_from` keys.
+    /// What this use accepts when an operation's outcome is unknown.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub mint_authority: Option<MintAuthorityDirective>,
-    /// The input key carrying the requested child scope, used only when
-    /// `mint_authority.source` is [`MintScopeSource::RequestedScope`]. The static
-    /// `scopes:` list is the source for [`MintScopeSource::StaticScopes`]; the two
-    /// are mutually exclusive.
+    pub on_uncertain: Option<UncertainOutcome>,
+    /// Whether this use tolerates a visible duplicate.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub requested_scope_from: Option<String>,
+    pub duplicates: Option<DuplicatePolicy>,
+}
+
+/// An operation step's target: a key of the skill's `connectors:` block and,
+/// unless the step binds it as its `operation` input, one operation on it.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct OperationStepTarget {
+    pub requirement: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub operation: Option<OperationName>,
+    /// The requirement as the enclosing skill declares it, bound when the
+    /// skill is parsed. A graph outside a skill has none, and its operation
+    /// steps are refused at admission.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub declared: Option<crate::ConnectorRequirement>,
+}
+
+/// What a use accepts when an operation's outcome is unknown. The kernel
+/// refuses a tolerance the operation's guarantees cannot support.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", tag = "kind", deny_unknown_fields)]
+pub enum UncertainOutcome {
+    /// Hold for reconciliation; never re-send blind. The default.
+    Hold,
+    /// Settle the outcome through the operation's reconcile read.
+    Reconcile,
+    /// Give up after this long and let the caller supersede the work.
+    ExpireAfter { seconds: u64 },
+}
+
+impl UncertainOutcome {
+    /// `hold`, `reconcile`, or `expire_after <n><s|m|h|d>`.
+    #[must_use]
+    pub fn parse(value: &str) -> Option<Self> {
+        match value.trim() {
+            "hold" => Some(Self::Hold),
+            "reconcile" => Some(Self::Reconcile),
+            other => {
+                let duration = other.strip_prefix("expire_after")?.trim();
+                let (count, unit) = duration.split_at(duration.len().checked_sub(1)?);
+                let count = count.parse::<u64>().ok().filter(|count| *count > 0)?;
+                let unit = match unit {
+                    "s" => 1,
+                    "m" => 60,
+                    "h" => 3_600,
+                    "d" => 86_400,
+                    _ => return None,
+                };
+                count
+                    .checked_mul(unit)
+                    .map(|seconds| Self::ExpireAfter { seconds })
+            }
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum DuplicatePolicy {
+    /// No duplicate may become visible. The default.
+    Forbidden,
+    /// A duplicate is acceptable to this use.
+    Visible,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

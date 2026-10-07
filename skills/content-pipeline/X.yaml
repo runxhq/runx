@@ -1,5 +1,5 @@
 skill: content-pipeline
-version: "0.3.3"
+version: "0.3.4"
 
 catalog:
   kind: graph
@@ -178,7 +178,7 @@ runners:
       source_packets:
         type: json
         required: true
-        description: Bounded governed source packets, normally runx.fetch.v1 evidence.
+        description: Bounded governed source packets, normally web-fetch provider operation evidence.
       audience:
         type: string
         required: false

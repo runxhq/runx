@@ -202,75 +202,44 @@ the exact `<workspace>/.env` file when it exists. The file only fills missing
 keys, so an exported process value always wins. Runx parses the file as data; it
 does not source a shell or mutate the process environment.
 
-Keep `.env` local and ignored by version control. Loading a key makes it
-available to declared credential resolution, but does not make it ambient child
-configuration. Credential delivery is a separate runtime channel. Executable
-runners declare non-secret configuration once through `environment.required`
-and `environment.optional`; the same declaration drives CLI, MCP, and
-deterministic JavaScript delivery.
+Keep `.env` local and ignored by version control. Loading a key does not make
+it ambient child configuration. Executable runners declare non-secret
+configuration once through `environment.required` and `environment.optional`;
+the same declaration drives CLI, MCP, and deterministic JavaScript delivery.
+Credentials never travel this way.
 
-A graph performs governed HTTP through the native `http.read`, `http.query`, or
-`http.execute` capability. There is no parallel HTTP source or tool-manifest
-adapter. Each step supplies bounded request records, an exact public-host
-allowlist, and `net:http` scope. Path values are typed inputs and are
-percent-encoded before transport:
+A graph reaches a provider only through a connector operation. There is no
+skill-owned HTTP: the connector manifest declares each operation's requests,
+host allowlist, readbacks and how each credential authenticates, and the skill
+lists the operations it calls and passes their input:
 
 ```yaml
-steps:
-  - id: read_account
-    tool: http.read
-    scopes: [net:http]
-    inputs:
-      requests:
-        - id: account
-          method: GET
-          url: https://api.example.com/v1/accounts/{account_id}
-          path:
-            account_id: $input.account_id
-      allowed_hosts: [api.example.com]
-      stop_on_error: true
-```
-
-For authenticated calls, bind the runner credential and declare the native
-tool's auth input. Runx injects delivered material at the transport boundary;
-skills must not construct authorization headers themselves:
-
-Declare the provider contract on the runner:
-
-```yaml
-credentials:
+connectors:
   example-crm:
-    provider: example-crm
-    auth:
-      api_key:
-        delivery:
-          env: EXAMPLE_CRM_TOKEN
+    operations: [account.read]
 runners:
   main:
     type: graph
-    credential: example-crm
     graph:
+      name: main
+      result_from: [read_account]
       steps:
         - id: read_account
-          tool: http.read
-          scopes: [net:http]
+          operation: example-crm/account.read
           inputs:
-            requests:
-              - id: account
-                method: GET
-                url: https://api.example.com/v1/accounts
-            allowed_hosts: [api.example.com]
-            auth:
-              type: bearer
-              secret_env: EXAMPLE_CRM_TOKEN
+            result_fields: [account]
+            input:
+              account_id: $input.account_id
 ```
 
-For durable local use, pipe material into `runx credential set` and select it
-with `--profile`; an ignored `.env` remains the low-friction fallback. See
-[Credential Resolution](./credentials.md) for the manifest contract, resolution
-order, project bindings, multi-auth providers, resume behavior, and MCP startup
-readiness. `skills/nws-weather-forecast` is the canonical public native-HTTP
-proof; credentialed provider skills use the same transport and auth boundary.
+The kernel admits the call against the bound instance, renders the declared
+request, and presents the instance's credential at the transport boundary;
+skills never construct authorization headers. Bind an account once with
+`runx credential set <connector> --credential <name> --from-stdin` or
+`runx connector use`. See [Credentials](./credentials.md) for the connector
+contract, instances, and readiness. `skills/nws-weather-forecast` is the
+canonical public connector read; credentialed provider skills use the same
+path.
 
 ## Governed Data Steps
 

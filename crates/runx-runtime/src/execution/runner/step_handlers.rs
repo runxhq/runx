@@ -8,7 +8,7 @@ mod output;
 #[cfg(feature = "catalog")]
 use std::borrow::Cow;
 use std::path::Path;
-#[cfg(feature = "catalog")]
+#[cfg(feature = "async-http")]
 use std::time::Instant;
 
 use output::{build_ephemeral_step_output, build_step_output_projection, contract_output_claim};
@@ -53,11 +53,6 @@ use crate::host::Host;
 use crate::output_contract::{attach_verified_metadata, verified_runner_metadata_with_artifacts};
 use crate::receipts::{RuntimeReceiptSignaturePolicy, StepSeal, StepSealClosure, seal_step};
 use crate::services::merge_inferred_tool_roots;
-
-const EXTERNAL_ADAPTER_HOST_RESOLUTION_REQUEST_METADATA: &str =
-    "external_adapter_host_resolution_request";
-const EXTERNAL_ADAPTER_HOST_RESOLUTION_RESPONSE_METADATA: &str =
-    "external_adapter_host_resolution_response";
 
 struct AgentSkillStepInvocation {
     skill_name: String,
@@ -132,6 +127,7 @@ enum StepExecutionKind {
     Approval,
     AgentTask,
     InlineSource,
+    Operation,
     Tool,
     Subskill,
 }
@@ -232,6 +228,7 @@ where
         &inputs,
         &runtime.options.env,
         graph_dir,
+        runtime.options.run_authority.as_ref(),
         &runtime.options.effects,
     )?;
     let authority = prepare_effect_execution(
@@ -241,6 +238,7 @@ where
             inputs: &inputs,
             env: &runtime.options.env,
             graph_dir,
+            run_authority: runtime.options.run_authority.as_ref(),
         },
         authority,
         host,
@@ -325,7 +323,6 @@ where
         invocation,
         runner_artifacts.as_ref(),
         authority,
-        request.host,
     )?;
     seal_regular_skill_step(
         RegularSkillSeal {
@@ -425,7 +422,6 @@ where
     let graph = materialize_graph_parameter_inputs(graph, &invocation.inputs);
     let mut child_options = runtime.options.as_ref().clone();
     child_options.env = invocation.env.clone();
-    child_options.credential_delivery = invocation.credential_delivery.clone();
     let child_adapter: Box<dyn SkillAdapter + '_> =
         Box::new(BorrowedSkillAdapter::new(&runtime.configured_adapter));
     let child_runtime = Runtime::with_native_services(
@@ -465,11 +461,8 @@ fn loaded_skill_invocation(
     let env = &request.runtime.options.env;
     let mut invocation_env = env.clone();
     merge_inferred_tool_roots(&mut invocation_env, &skill.directory);
-    let credential_delivery = project_credential_delivery(
-        &skill.runner.source.source_type,
-        &request.runtime.options.credential_delivery,
-    );
-    let invocation = SkillInvocation {
+    let mut invocation = SkillInvocation {
+        historical_context: Vec::new(),
         skill_name: skill.runner.name,
         step_id: Some(request.step.id.clone()),
         source: skill.runner.source,
@@ -488,20 +481,18 @@ fn loaded_skill_invocation(
         provenance: request.provenance.clone(),
         skill_directory: skill.directory,
         env: invocation_env,
-        credential_delivery,
+        credential_delivery: crate::credentials::CredentialDelivery::none(),
     };
-    Ok((skill_name, invocation))
-}
-
-fn project_credential_delivery(
-    source_kind: &SourceKind,
-    delivery: &crate::credentials::CredentialDelivery,
-) -> crate::credentials::CredentialDelivery {
-    if *source_kind == SourceKind::JavaScript {
-        crate::credentials::CredentialDelivery::none()
-    } else {
-        delivery.clone()
+    if matches!(
+        invocation.source.source_type,
+        SourceKind::Agent | SourceKind::AgentStep
+    ) {
+        invocation
+            .current_context
+            .extend(request.runtime.options.current_context.clone());
+        invocation.historical_context = request.runtime.options.historical_context.clone();
     }
+    Ok((skill_name, invocation))
 }
 
 fn invoke_regular_skill_step<A>(
@@ -510,7 +501,6 @@ fn invoke_regular_skill_step<A>(
     invocation: SkillInvocation,
     extra_artifacts: Option<&SkillArtifactContract>,
     authority: Option<&StepAuthorityContext>,
-    host: &mut dyn Host,
 ) -> Result<RegularSkillStepOutput, RuntimeError>
 where
     A: SkillAdapter,
@@ -520,21 +510,12 @@ where
     let skill_directory = invocation.skill_directory.clone();
     let invocation_env = invocation.env.clone();
     let mut output = if invocation.source.source_type == SourceKind::JavaScript {
-        // JavaScript sources are forbidden from receiving credentials, but a
-        // graph legitimately mixes them with native credential-bearing tools
-        // (a JS prepare/finalize around a native HTTP step). Project the
-        // credential away here, the universal JS chokepoint every step path
-        // funnels through, rather than fail the whole run.
-        let mut invocation = invocation;
-        invocation.credential_delivery =
-            project_credential_delivery(&SourceKind::JavaScript, &invocation.credential_delivery);
         runtime
             .javascript
             .invoke_with_artifacts(invocation, &runtime.local_artifacts)?
     } else {
         runtime.configured_adapter.invoke(invocation)?
     };
-    route_external_adapter_host_resolution(step, host, &mut output)?;
     let provisional_projection =
         build_step_output_projection(step, &output, raw_output.as_ref(), extra_artifacts)?;
     let effect_claim = contract_output_claim(&provisional_projection);
@@ -588,14 +569,9 @@ where
     } = regular;
     let projection_refs = std::mem::take(&mut projection.refs);
     let effect_claim = contract_output_claim(&projection);
-    let authority_grant_refs = context
+    let seal_authority = context
         .authority
-        .map(|authority| authority.authority_grant_refs(&context.runtime.options.effects))
-        .transpose()?
-        .unwrap_or_default();
-    let authority_scope_refs = context
-        .authority
-        .map(|authority| authority.authority_scope_refs(&context.runtime.options.effects))
+        .map(|authority| authority.authority(&context.runtime.options.effects))
         .transpose()?
         .unwrap_or_default();
     let receipt = seal_executed_step(
@@ -607,8 +583,7 @@ where
             claim: &projection.outputs,
             projection_refs,
             created_at: &context.runtime.options.created_at,
-            authority_grant_refs,
-            authority_scope_refs,
+            authority: seal_authority,
             operator_refs: tool_operator_references(
                 &context.runtime.options.env,
                 context.policy_approval_refs,
@@ -664,68 +639,6 @@ where
     })
 }
 
-fn route_external_adapter_host_resolution(
-    step: &GraphStep,
-    host: &mut dyn Host,
-    output: &mut InvocationOutput,
-) -> Result<(), RuntimeError> {
-    let Some(JsonValue::Object(request_object)) = output
-        .metadata
-        .get(EXTERNAL_ADAPTER_HOST_RESOLUTION_REQUEST_METADATA)
-        .cloned()
-    else {
-        return Ok(());
-    };
-    let request: ResolutionRequest =
-        serde_json::to_value(JsonValue::Object(request_object.clone()))
-            .and_then(serde_json::from_value)
-            .map_err(|source| {
-                RuntimeError::json("parsing external adapter host-resolution request", source)
-            })?;
-    host.report(ExecutionEvent::ResolutionRequested {
-        message: format!(
-            "external adapter step '{}' requested host resolution",
-            step.id
-        ),
-        data: Some(JsonValue::Object(host_resolution_event_data(
-            step,
-            JsonValue::Object(request_object),
-        ))),
-    })?;
-    let Some(response) = host.resolve(request)? else {
-        return Ok(());
-    };
-    let response_value: JsonValue = serde_json::to_value(&response)
-        .and_then(serde_json::from_value)
-        .map_err(|source| {
-            RuntimeError::json(
-                "serializing external adapter host-resolution response",
-                source,
-            )
-        })?;
-    output.metadata.insert(
-        EXTERNAL_ADAPTER_HOST_RESOLUTION_RESPONSE_METADATA.to_owned(),
-        response_value.clone(),
-    );
-    host.report(ExecutionEvent::ResolutionResolved {
-        message: format!(
-            "external adapter step '{}' host resolution resolved",
-            step.id
-        ),
-        data: Some(JsonValue::Object(host_resolution_event_data(
-            step,
-            response_value,
-        ))),
-    })
-}
-
-fn host_resolution_event_data(step: &GraphStep, payload: JsonValue) -> JsonObject {
-    let mut data = JsonObject::new();
-    data.insert("step_id".to_owned(), JsonValue::String(step.id.clone()));
-    data.insert("payload".to_owned(), payload);
-    data
-}
-
 // Function rationale: replay execution keeps effect recovery, receipt validation, and final output in one audited path.
 fn run_replayed_effect_step(
     runtime: &Runtime<impl SkillAdapter>,
@@ -755,13 +668,6 @@ fn run_replayed_effect_step(
         skill.runner.source.outputs.as_ref(),
         skill.runner.artifacts.as_ref(),
     )?;
-    let authority_grant_refs = runtime
-        .options
-        .effects
-        .replay_authority_grant_refs(&replay)
-        .map_err(|source| RuntimeError::ReceiptInvalid {
-            message: source.to_string(),
-        })?;
     let receipt = seal_executed_step(
         StepSeal {
             graph_name,
@@ -771,8 +677,7 @@ fn run_replayed_effect_step(
             claim: &projection.outputs,
             projection_refs: std::mem::take(&mut projection.refs),
             created_at: replay.receipt_created_at(),
-            authority_grant_refs,
-            authority_scope_refs: Vec::new(),
+            authority: crate::receipts::SealAuthority::default(),
             operator_refs: crate::execution::prepared_skill::prepared_receipt_references(
                 &runtime.options.env,
             ),
@@ -891,6 +796,7 @@ where
         )?,
         StepExecutionKind::AgentTask => run_agent_task(request)?,
         StepExecutionKind::InlineSource => run_inline_source_step(request)?,
+        StepExecutionKind::Operation => run_operation_step(request)?,
         StepExecutionKind::Tool => run_tool_step(request)?,
         StepExecutionKind::Subskill => run_subskill_step(request)?,
     };
@@ -912,6 +818,9 @@ fn step_execution_kind(step: &GraphStep) -> Result<StepExecutionKind, RuntimeErr
                 }),
             },
         };
+    }
+    if step.operation.is_some() {
+        return Ok(StepExecutionKind::Operation);
     }
     if step.tool.is_some() {
         return Ok(StepExecutionKind::Tool);
@@ -947,7 +856,7 @@ where
         attempt,
         inputs,
         provenance,
-        host,
+        host: _,
         authority,
         loaded_skill: _,
         policy_approval_refs,
@@ -956,6 +865,7 @@ where
     let source = inline_source(step)?;
     let requirements = inline_step_requirements(step, &source);
     let invocation = SkillInvocation {
+        historical_context: Vec::new(),
         skill_name: step.id.clone(),
         step_id: Some(step.id.clone()),
         source,
@@ -968,12 +878,11 @@ where
         provenance,
         skill_directory: graph_dir.to_path_buf(),
         env: runtime.options.env.clone(),
-        credential_delivery: runtime.options.credential_delivery.clone(),
+        credential_delivery: crate::credentials::CredentialDelivery::none(),
     };
     // Inline cli-tool step: its contract is the step's own `run.outputs` /
     // `artifacts`, so no extra runner contract is threaded.
-    let regular =
-        invoke_regular_skill_step(runtime, step, invocation, None, authority.as_ref(), host)?;
+    let regular = invoke_regular_skill_step(runtime, step, invocation, None, authority.as_ref())?;
     seal_regular_skill_step(
         RegularSkillSeal {
             runtime,
@@ -1048,8 +957,7 @@ fn seal_agent_act_step<A>(
             claim: &projection.outputs,
             projection_refs: std::mem::take(&mut projection.refs),
             created_at: &runtime.options.created_at,
-            authority_grant_refs: Vec::new(),
-            authority_scope_refs: Vec::new(),
+            authority: crate::receipts::SealAuthority::default(),
             operator_refs: crate::execution::prepared_skill::prepared_receipt_references(
                 &runtime.options.env,
             ),
@@ -1103,6 +1011,7 @@ where
     let source = agent_task_source(step)?;
     let requirements = inline_step_requirements(step, &source);
     let invocation = SkillInvocation {
+        historical_context: Vec::new(),
         skill_name: step.id.clone(),
         step_id: Some(step.id.clone()),
         source,
@@ -1121,8 +1030,13 @@ where
         provenance,
         skill_directory: graph_dir.to_path_buf(),
         env: runtime.options.env.clone(),
-        credential_delivery: runtime.options.credential_delivery.clone(),
+        credential_delivery: crate::credentials::CredentialDelivery::none(),
     };
+    let mut invocation = invocation;
+    invocation
+        .current_context
+        .extend(runtime.options.current_context.clone());
+    invocation.historical_context = runtime.options.historical_context.clone();
     let source_type = AgentActInvocationSourceType::AgentStep;
     let request_id = agent_act_invocation_id(&invocation, source_type);
     let request = agent_act_resolution_request(&invocation, source_type)?;
@@ -1331,7 +1245,7 @@ where
             scopes: &step.scopes,
             env: &runtime.options.env,
             skill_directory: graph_dir,
-            credential_delivery: &runtime.options.credential_delivery,
+            credential_delivery: &crate::credentials::CredentialDelivery::none(),
             local_artifacts: &runtime.local_artifacts,
             javascript: &runtime.javascript,
             skill_name: tool_ref,
@@ -1345,95 +1259,283 @@ where
             &tool_request,
             &runtime.options.effects,
         )?;
-        let mut output = crate::tool_catalogs::dispatch::dispatch_tool(
+        let output = crate::tool_catalogs::dispatch::dispatch_tool(
             tool_request,
             &runtime.options.effects,
             &runtime.options.created_at,
             Instant::now(),
         )?;
-        let provisional_projection =
-            build_step_output_projection(step, &output, None, tool_artifacts.as_ref())?;
-        let provisional_claim = contract_output_claim(&provisional_projection);
-        prepare_effect_output_before_gate(
-            step,
-            authority.as_ref(),
-            provisional_claim,
-            &mut output,
-            &runtime.options.effects,
-        )?;
-        let mut projection =
-            build_step_output_projection(step, &output, None, tool_artifacts.as_ref())?;
-        let ephemeral_contract =
-            build_ephemeral_step_output(step, &output, None, tool_artifacts.as_ref());
-        let projection_refs = std::mem::take(&mut projection.refs);
-        let effect_claim = contract_output_claim(&projection);
-        let authority_grant_refs = authority
-            .as_ref()
-            .map(|authority| authority.authority_grant_refs(&runtime.options.effects))
-            .transpose()?
-            .unwrap_or_default();
-        let authority_scope_refs = authority
-            .as_ref()
-            .map(|authority| authority.authority_scope_refs(&runtime.options.effects))
-            .transpose()?
-            .unwrap_or_default();
-        let receipt = seal_executed_step(
-            StepSeal {
+        seal_effect_step(
+            EffectStepSeal {
+                runtime,
+                graph_dir,
                 graph_name,
-                step_id: &step.id,
+                step,
                 attempt,
-                output: &output,
-                claim: effect_claim,
-                projection_refs,
-                created_at: &runtime.options.created_at,
-                authority_grant_refs,
-                authority_scope_refs,
-                operator_refs: tool_operator_references(&runtime.options.env, policy_approval_refs),
-                child_receipts: &[],
-                descendant_receipts: &[],
-                closure: None,
-                receipt_metadata: None,
+                policy_approval_refs,
+                authority: authority.as_ref(),
+                skill: format!("tool:{tool_ref}"),
             },
-            runtime.options.signature_policy(),
-        )?;
-        finalize_effect_output_before_success(EffectReceiptContext {
-            step,
-            graph_dir,
-            authority: authority.as_ref(),
-            claim: effect_claim,
-            output: &mut output,
-            receipt: &receipt,
-            env: &runtime.options.env,
-            signature_policy: runtime.options.signature_policy(),
-            effects: &runtime.options.effects,
-        })
-        .map_err(|source| RuntimeError::engine("finalizing a sealed provider effect", source))?;
-        persist_effect_state_for_step(EffectReceiptContext {
-            step,
-            graph_dir,
-            authority: authority.as_ref(),
-            claim: effect_claim,
-            output: &mut output,
-            receipt: &receipt,
-            env: &runtime.options.env,
-            signature_policy: runtime.options.signature_policy(),
-            effects: &runtime.options.effects,
-        })
-        .map_err(|source| RuntimeError::engine("persisting a sealed provider effect", source))?;
-        let admission_witness = StepAdmissionWitness::local_runtime(&step.id, receipt.id.as_str());
-        Ok(StepRun {
-            step_id: step.id.clone(),
+            output,
+            tool_artifacts.as_ref(),
+        )
+    }
+}
+
+/// Everything a step owned by an effect seals with.
+#[cfg(feature = "async-http")]
+struct EffectStepSeal<'a, A> {
+    runtime: &'a Runtime<A>,
+    graph_dir: &'a Path,
+    graph_name: &'a str,
+    step: &'a GraphStep,
+    attempt: u32,
+    policy_approval_refs: Vec<Reference>,
+    authority: Option<&'a StepAuthorityContext>,
+    skill: String,
+}
+
+/// Project, gate, seal, finalize and persist a step whose output an effect
+/// produced: a tool step or an operation step.
+#[cfg(feature = "async-http")]
+fn seal_effect_step<A>(
+    seal: EffectStepSeal<'_, A>,
+    mut output: InvocationOutput,
+    artifacts: Option<&SkillArtifactContract>,
+) -> Result<StepRun, RuntimeError>
+where
+    A: SkillAdapter,
+{
+    let EffectStepSeal {
+        runtime,
+        graph_dir,
+        graph_name,
+        step,
+        attempt,
+        policy_approval_refs,
+        authority,
+        skill,
+    } = seal;
+    let provisional_projection = build_step_output_projection(step, &output, None, artifacts)?;
+    let provisional_claim = contract_output_claim(&provisional_projection);
+    prepare_effect_output_before_gate(
+        step,
+        authority,
+        provisional_claim,
+        &mut output,
+        &runtime.options.effects,
+    )?;
+    let mut projection = build_step_output_projection(step, &output, None, artifacts)?;
+    let ephemeral_contract = build_ephemeral_step_output(step, &output, None, artifacts);
+    let projection_refs = std::mem::take(&mut projection.refs);
+    let effect_claim = contract_output_claim(&projection);
+    let seal_authority = authority
+        .map(|authority| authority.authority(&runtime.options.effects))
+        .transpose()?
+        .unwrap_or_default();
+    let receipt = seal_executed_step(
+        StepSeal {
+            graph_name,
+            step_id: &step.id,
             attempt,
-            skill: format!("tool:{tool_ref}"),
-            runner: step.runner.clone(),
-            fanout_group: step.fanout_group.clone(),
-            contract: projection.outputs,
-            ephemeral_contract: EphemeralValue::from_value(JsonValue::Object(ephemeral_contract)),
-            outcome: output.into(),
-            receipt,
-            nested_receipts: Vec::new(),
-            admission_witness,
+            output: &output,
+            claim: effect_claim,
+            projection_refs,
+            created_at: &runtime.options.created_at,
+            authority: seal_authority,
+            operator_refs: tool_operator_references(&runtime.options.env, policy_approval_refs),
+            child_receipts: &[],
+            descendant_receipts: &[],
+            closure: None,
+            receipt_metadata: None,
+        },
+        runtime.options.signature_policy(),
+    )?;
+    for (persist, context) in [
+        (false, "finalizing a sealed effect"),
+        (true, "persisting a sealed effect"),
+    ] {
+        let request = EffectReceiptContext {
+            step,
+            graph_dir,
+            authority,
+            claim: effect_claim,
+            output: &mut output,
+            receipt: &receipt,
+            env: &runtime.options.env,
+            signature_policy: runtime.options.signature_policy(),
+            effects: &runtime.options.effects,
+        };
+        if persist {
+            persist_effect_state_for_step(request)
+        } else {
+            finalize_effect_output_before_success(request)
+        }
+        .map_err(|source| RuntimeError::engine(context, source))?;
+    }
+    let admission_witness = StepAdmissionWitness::local_runtime(&step.id, receipt.id.as_str());
+    Ok(StepRun {
+        step_id: step.id.clone(),
+        attempt,
+        skill,
+        runner: step.runner.clone(),
+        fanout_group: step.fanout_group.clone(),
+        contract: projection.outputs,
+        ephemeral_contract: EphemeralValue::from_value(JsonValue::Object(ephemeral_contract)),
+        outcome: output.into(),
+        receipt,
+        nested_receipts: Vec::new(),
+        admission_witness,
+    })
+}
+
+/// The step's runtime, as the kernel's runner for `process` implementations:
+/// the dispatch path a tool step takes, with the operation's credential.
+#[cfg(feature = "catalog")]
+struct StepTools<'a, A> {
+    runtime: &'a Runtime<A>,
+    graph_dir: &'a Path,
+}
+
+#[cfg(feature = "catalog")]
+impl<A> crate::kernel::operation::ToolRunner for StepTools<'_, A>
+where
+    A: SkillAdapter,
+{
+    fn run(
+        &self,
+        tool: &str,
+        inputs: JsonObject,
+        scopes: &[String],
+        delivery: &crate::credentials::CredentialDelivery,
+    ) -> Result<runx_contracts::JsonValue, String> {
+        let output = crate::tool_catalogs::dispatch::dispatch_tool(
+            crate::tool_catalogs::dispatch::ToolDispatchRequest {
+                tool_ref: Cow::Borrowed(tool),
+                inputs: Cow::Owned(inputs),
+                resolved_inputs: Cow::Owned(JsonObject::new()),
+                scopes,
+                env: &self.runtime.options.env,
+                skill_directory: self.graph_dir,
+                credential_delivery: delivery,
+                local_artifacts: &self.runtime.local_artifacts,
+                javascript: &self.runtime.javascript,
+                skill_name: tool,
+                allow_explicit_manifest_path: false,
+                effect_admission: None,
+            },
+            &self.runtime.options.effects,
+            &crate::time::now_iso8601(),
+            Instant::now(),
+        )
+        .map_err(|error| error.to_string())?;
+        match output.succeeded() {
+            true => Ok(output.value),
+            false => Err(output
+                .failure_message()
+                .unwrap_or_else(|| format!("tool {tool} failed"))),
+        }
+    }
+}
+
+/// An operation step: the kernel executes the call its admission prepared,
+/// and the step seals the `runx.provider.operation.v1` packet.
+fn run_operation_step<A>(request: StepHandlerCtx<'_, A>) -> Result<StepRun, RuntimeError>
+where
+    A: SkillAdapter,
+{
+    #[cfg(not(feature = "async-http"))]
+    {
+        let _ = request;
+        Err(RuntimeError::UnsupportedAdapter {
+            adapter_type: "operation".to_owned(),
         })
+    }
+
+    #[cfg(feature = "async-http")]
+    {
+        let StepHandlerCtx {
+            runtime,
+            graph_dir,
+            graph_name,
+            step,
+            attempt,
+            policy_approval_refs,
+            authority,
+            ..
+        } = request;
+        let authority = authority.ok_or_else(|| RuntimeError::InvalidRunStep {
+            step_id: step.id.clone(),
+            reason: "an operation step runs only after the kernel admits it".to_owned(),
+        })?;
+        let context = authority
+            .admission()
+            .context::<crate::kernel::operation::OperationAdmission>()
+            .ok_or_else(|| RuntimeError::InvalidRunStep {
+                step_id: step.id.clone(),
+                reason: "the step's admission is not an operation admission".to_owned(),
+            })?;
+        #[cfg(feature = "catalog")]
+        let tools = StepTools { runtime, graph_dir };
+        #[cfg(not(feature = "catalog"))]
+        let tools = crate::kernel::operation::NoTools;
+        let started = Instant::now();
+        let outcome = crate::kernel::operation::execute(
+            context,
+            &step.id,
+            &runtime.options.env,
+            graph_dir,
+            &tools,
+        );
+        let mut output = match outcome {
+            Ok(outcome) => {
+                let mut output = crate::adapter_pipeline::AdapterProjection::from_started(started)
+                    .runtime_output(
+                        crate::adapter::InvocationStatus::Success,
+                        outcome.value,
+                        None,
+                        JsonObject::new(),
+                    );
+                if let Some(ephemeral) = outcome.ephemeral {
+                    output.set_ephemeral(ephemeral);
+                }
+                output
+                    .metadata
+                    .extend(crate::process_invocation::boundary_metadata(
+                        outcome.boundary,
+                    )?);
+                output
+            }
+            Err(
+                error @ (RuntimeError::ProviderEffectUnknown { .. }
+                | RuntimeError::ProviderReadbackPending { .. }
+                | RuntimeError::EffectState { .. }),
+            ) => return Err(error),
+            Err(error) => crate::adapter_pipeline::AdapterProjection::from_started(started)
+                .failure(error.to_string(), JsonObject::new()),
+        };
+        let artifacts = crate::kernel::operation::packet_artifacts();
+        if output.succeeded() {
+            crate::output_contract::apply_artifact_outputs(&mut output.value, Some(&artifacts));
+            if let Some(ephemeral) = output.ephemeral.as_value_mut() {
+                crate::output_contract::apply_artifact_outputs(ephemeral, Some(&artifacts));
+            }
+        }
+        let skill = context.skill_label();
+        seal_effect_step(
+            EffectStepSeal {
+                runtime,
+                graph_dir,
+                graph_name,
+                step,
+                attempt,
+                policy_approval_refs,
+                authority: Some(&authority),
+                skill,
+            },
+            output,
+            Some(&artifacts),
+        )
     }
 }
 
@@ -1523,8 +1625,7 @@ where
             claim: &projection.outputs,
             projection_refs: std::mem::take(&mut projection.refs),
             created_at: &runtime.options.created_at,
-            authority_grant_refs: Vec::new(),
-            authority_scope_refs: Vec::new(),
+            authority: crate::receipts::SealAuthority::default(),
             operator_refs: crate::execution::prepared_skill::prepared_receipt_references(
                 &runtime.options.env,
             ),
@@ -1705,8 +1806,7 @@ where
             claim: &projection.outputs,
             projection_refs: std::mem::take(&mut projection.refs),
             created_at: &runtime.options.created_at,
-            authority_grant_refs: Vec::new(),
-            authority_scope_refs: Vec::new(),
+            authority: crate::receipts::SealAuthority::default(),
             operator_refs: crate::execution::prepared_skill::prepared_receipt_references(
                 &runtime.options.env,
             ),
@@ -1756,36 +1856,6 @@ fn step_admission_witness(
             )
         },
     )
-}
-
-#[cfg(test)]
-mod credential_projection {
-    use runx_parser::SourceKind;
-
-    #[test]
-    fn credential_projection_strips_javascript_and_preserves_owned_targets()
-    -> Result<(), Box<dyn std::error::Error>> {
-        let delivery = crate::credentials::CredentialDelivery::from_local_descriptor(
-            "example-provider",
-            "api_key",
-            "EXAMPLE_TOKEN",
-            "local:example-provider",
-            vec!["provider.read".to_owned()],
-            "credential-projection-sentinel",
-        )?;
-
-        let javascript = super::project_credential_delivery(&SourceKind::JavaScript, &delivery);
-        let native = super::project_credential_delivery(&SourceKind::CliTool, &delivery);
-
-        assert!(javascript.secret_env().is_empty());
-        assert!(javascript.public_observation().is_none());
-        assert_eq!(
-            native.secret_env().get("EXAMPLE_TOKEN"),
-            Some("credential-projection-sentinel")
-        );
-        assert!(native.public_observation().is_some());
-        Ok(())
-    }
 }
 
 #[cfg(test)]

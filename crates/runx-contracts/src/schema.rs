@@ -302,8 +302,8 @@ pub fn const_string(value: &str) -> Value {
 /// Map a logical schema name (`runx.reference.v1`) to its canonical `$id` URL
 /// (`https://schemas.runx.ai/runx/reference/v1.json`). Each dot-delimited
 /// segment is path-joined with `/`, and underscores within a segment become
-/// hyphens (`runx.external_adapter.response.v1` ->
-/// `.../runx/external-adapter/response/v1.json`).
+/// hyphens (`runx.credential_delivery.profile.v1` ->
+/// `.../runx/credential-delivery/profile/v1.json`).
 pub fn schema_id_url(logical: &str) -> String {
     let path = logical
         .split('.')
@@ -432,9 +432,26 @@ impl<T: RunxSchema> RunxSchema for Box<T> {
     }
 }
 
-impl<T: RunxSchema> RunxSchema for BTreeMap<String, T> {
+/// A map key type. Validated key types constrain the emitted object's
+/// property names with their grammar.
+pub trait SchemaMapKey {
+    const PATTERN: Option<&'static str>;
+}
+
+impl SchemaMapKey for String {
+    const PATTERN: Option<&'static str> = None;
+}
+
+impl<K: SchemaMapKey, T: RunxSchema> RunxSchema for BTreeMap<K, T> {
     fn json_schema() -> Value {
-        json!({ "type": "object", "additionalProperties": T::json_schema() })
+        match K::PATTERN {
+            None => json!({ "type": "object", "additionalProperties": T::json_schema() }),
+            Some(pattern) => json!({
+                "type": "object",
+                "propertyNames": { "pattern": pattern },
+                "additionalProperties": T::json_schema(),
+            }),
+        }
     }
 }
 

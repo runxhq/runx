@@ -27,16 +27,12 @@ host or provider boundaries remain feature gated:
 - `cli-tool`
 - `mcp`
 - `mcp-http-server`
-- `a2a`
 - `agent`
 - `catalog`
-- `external-adapter`
 - `async-http`
-- `thread-outbox-provider`
 
-`a2a` is contract-defined but not enabled in `runx-cli`; the CLI enables
-`cli-tool`, `catalog`, `mcp`, `mcp-http-server`, `external-adapter`, `agent`,
-and `thread-outbox-provider`. `cli-tool` enables `async-http` transitively.
+The CLI enables `cli-tool`, `catalog`, `mcp`, `mcp-http-server`, and `agent`.
+`cli-tool` enables `async-http` transitively.
 
 The generated catalog-profile capability snapshot lives at
 `fixtures/tool-catalogs/native-capabilities.snapshot.json`. It pins the

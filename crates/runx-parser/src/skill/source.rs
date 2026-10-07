@@ -1,43 +1,31 @@
 // Module rationale: skill-source validation keeps the source-kind
 // parsing, the artifact/mint coherence rules, and their error construction as one
 // cohesive unit; splitting it would scatter the source contract across files.
-use std::path::{Component, Path};
-
 use runx_contracts::javascript_worker::MAX_INPUT_BYTES;
 use runx_contracts::{JsonObject, JsonValue};
 
 use crate::ValidationError;
 use crate::graph::{RawGraphIr, validate_graph_document};
 
-use crate::graph::MintScopeSource;
-
 use super::{
-    ActDeclaration, FIELDS, InputMode, SkillExternalAdapterManifest, SkillMcpServer, SkillSource,
-    SourceKind, validate_environment_requirements,
+    ActDeclaration, FIELDS, InputMode, SkillSource, SourceKind, validate_environment_requirements,
 };
 
 const SOURCE_FIELDS: &[&str] = &[
     "act",
     "agent",
-    "agent_card_url",
-    "agent_identity",
     "args",
-    "arguments",
     "command",
     "cwd",
     "environment",
-    "external_adapter",
     "export",
     "graph",
     "input_mode",
     "module",
     "outputs",
     "pages",
-    "server",
     "task",
-    "thread_outbox_provider",
     "timeout_seconds",
-    "tool",
     "type",
 ];
 
@@ -102,8 +90,6 @@ fn validate_source_with_context(
     validate_agent_command_boundary(source, &source_type)?;
     let source_kind = parse_source_kind(&source_type, "source.type")?;
     validate_source_timeout(&source_kind, timeout_seconds)?;
-    let external_adapter = validate_external_adapter_manifest(source, source_kind)?;
-    let thread_outbox_provider = validate_thread_outbox_provider(source, source_kind)?;
     let outputs = FIELDS.optional_object(source.get("outputs"), "source.outputs")?;
     if let Some(outputs) = &outputs {
         runx_contracts::parse_output_contract(outputs).map_err(|error| {
@@ -120,18 +106,10 @@ fn validate_source_with_context(
         timeout_seconds,
         input_mode,
         environment: validate_environment_requirements(source.get("environment"))?,
-        server: validate_mcp_server(source, &source_type)?,
-        tool: validate_mcp_tool(source, &source_type)?,
-        arguments: FIELDS.optional_object(source.get("arguments"), "source.arguments")?,
-        agent_card_url: validate_a2a_url(source, &source_type)?,
-        agent_identity: FIELDS
-            .optional_string(source.get("agent_identity"), "source.agent_identity")?,
         agent: validate_agent(source, &source_type, context)?,
         task: validate_task(source, &source_type, context)?,
         outputs,
         graph: validate_graph_source(source, &source_type)?,
-        external_adapter,
-        thread_outbox_provider,
         act: validate_act_declaration(source.get("act"))?,
         raw: source.clone(),
         source_type: source_kind,
@@ -224,166 +202,6 @@ fn validate_page_input_name(name: &str, field: &str) -> Result<String, Validatio
     Ok(name.to_owned())
 }
 
-fn validate_external_adapter_manifest(
-    source: &JsonObject,
-    source_kind: SourceKind,
-) -> Result<Option<SkillExternalAdapterManifest>, ValidationError> {
-    let declaration = source.get("external_adapter");
-    if source_kind != SourceKind::ExternalAdapter {
-        if declaration.is_some() {
-            return Err(FIELDS.validation_error(
-                "source.external_adapter is only valid for external-adapter sources.",
-            ));
-        }
-        return Ok(None);
-    }
-    let declaration = FIELDS.required_object(declaration, "source.external_adapter")?;
-    FIELDS.reject_unknown_fields(
-        declaration,
-        "source.external_adapter",
-        &["manifest", "manifest_path"],
-    )?;
-    match (
-        declaration.get("manifest"),
-        declaration.get("manifest_path"),
-    ) {
-        (Some(_), Some(_)) => Err(FIELDS.validation_error(
-            "source.external_adapter must declare exactly one of manifest or manifest_path.",
-        )),
-        (None, None) => Err(FIELDS.validation_error(
-            "source.external_adapter must declare exactly one of manifest or manifest_path.",
-        )),
-        (Some(manifest), None) => {
-            let value = serde_json::to_value(manifest).map_err(|error| {
-                FIELDS.validation_error(format!(
-                    "source.external_adapter.manifest could not be serialized: {error}"
-                ))
-            })?;
-            let manifest = serde_json::from_value(value).map_err(|error| {
-                FIELDS.validation_error(format!(
-                    "source.external_adapter.manifest is invalid: {error}"
-                ))
-            })?;
-            Ok(Some(SkillExternalAdapterManifest::Inline(Box::new(
-                manifest,
-            ))))
-        }
-        (None, Some(path)) => {
-            let path =
-                FIELDS.required_string(Some(path), "source.external_adapter.manifest_path")?;
-            if !safe_external_adapter_manifest_path(&path) {
-                return Err(FIELDS.validation_error(format!(
-                    "source.external_adapter.manifest_path must be a relative path below the skill directory: '{path}'"
-                )));
-            }
-            Ok(Some(SkillExternalAdapterManifest::Path(path)))
-        }
-    }
-}
-
-fn safe_external_adapter_manifest_path(value: &str) -> bool {
-    let path = Path::new(value);
-    !value.trim().is_empty()
-        && path.is_relative()
-        && path
-            .components()
-            .all(|component| matches!(component, Component::Normal(_)))
-}
-
-fn validate_thread_outbox_provider(
-    source: &JsonObject,
-    source_kind: SourceKind,
-) -> Result<Option<super::SkillThreadOutboxProviderSource>, ValidationError> {
-    let declaration = source.get("thread_outbox_provider");
-    if source_kind != SourceKind::ThreadOutboxProvider {
-        if declaration.is_some() {
-            return Err(FIELDS.validation_error(
-                "source.thread_outbox_provider is only valid for thread-outbox-provider sources.",
-            ));
-        }
-        return Ok(None);
-    }
-    let declaration = FIELDS.required_object(declaration, "source.thread_outbox_provider")?;
-    FIELDS.reject_unknown_fields(
-        declaration,
-        "source.thread_outbox_provider",
-        &["operation", "manifest_path", "push_path", "fetch_path"],
-    )?;
-    let operation = match FIELDS
-        .required_string(
-            declaration.get("operation"),
-            "source.thread_outbox_provider.operation",
-        )?
-        .as_str()
-    {
-        "push" => runx_contracts::ThreadOutboxProviderOperation::Push,
-        "fetch" => runx_contracts::ThreadOutboxProviderOperation::Fetch,
-        other => {
-            return Err(FIELDS.validation_error(format!(
-                "source.thread_outbox_provider.operation must be push or fetch, got '{other}'."
-            )));
-        }
-    };
-    let manifest_path = required_thread_outbox_path(declaration, "manifest_path")?;
-    let push_path = optional_thread_outbox_path(declaration, "push_path")?;
-    let fetch_path = optional_thread_outbox_path(declaration, "fetch_path")?;
-    match operation {
-        runx_contracts::ThreadOutboxProviderOperation::Push if fetch_path.is_some() => {
-            return Err(FIELDS.validation_error(
-                "source.thread_outbox_provider.fetch_path is only valid for fetch operations.",
-            ));
-        }
-        runx_contracts::ThreadOutboxProviderOperation::Fetch if push_path.is_some() => {
-            return Err(FIELDS.validation_error(
-                "source.thread_outbox_provider.push_path is only valid for push operations.",
-            ));
-        }
-        runx_contracts::ThreadOutboxProviderOperation::Fetch if fetch_path.is_none() => {
-            return Err(FIELDS.validation_error(
-                "source.thread_outbox_provider.fetch_path is required for fetch operations.",
-            ));
-        }
-        _ => {}
-    }
-    Ok(Some(super::SkillThreadOutboxProviderSource {
-        operation,
-        manifest_path,
-        push_path,
-        fetch_path,
-    }))
-}
-
-fn required_thread_outbox_path(
-    declaration: &JsonObject,
-    field: &str,
-) -> Result<String, ValidationError> {
-    let qualified = format!("source.thread_outbox_provider.{field}");
-    let path = FIELDS.required_string(declaration.get(field), &qualified)?;
-    validate_thread_outbox_path(&qualified, &path)?;
-    Ok(path)
-}
-
-fn optional_thread_outbox_path(
-    declaration: &JsonObject,
-    field: &str,
-) -> Result<Option<String>, ValidationError> {
-    let qualified = format!("source.thread_outbox_provider.{field}");
-    let path = FIELDS.optional_string(declaration.get(field), &qualified)?;
-    if let Some(path) = path.as_deref() {
-        validate_thread_outbox_path(&qualified, path)?;
-    }
-    Ok(path)
-}
-
-fn validate_thread_outbox_path(qualified: &str, path: &str) -> Result<(), ValidationError> {
-    if !safe_external_adapter_manifest_path(path) {
-        return Err(FIELDS.validation_error(format!(
-            "{qualified} must be a relative path below the skill directory: '{path}'"
-        )));
-    }
-    Ok(())
-}
-
 fn validate_javascript_source(
     source: &JsonObject,
     source_type: &str,
@@ -406,23 +224,17 @@ fn validate_javascript_source(
 fn validate_javascript_fields(source: &JsonObject) -> Result<(), ValidationError> {
     const FORBIDDEN: &[&str] = &[
         "agent",
-        "agent_card_url",
-        "agent_identity",
         "allow_private_network",
         "args",
-        "arguments",
         "command",
         "cwd",
-        "external_adapter",
         "graph",
         "headers",
         "hook",
         "http",
         "input_mode",
         "method",
-        "server",
         "task",
-        "tool",
         "url",
     ];
     let present = FORBIDDEN
@@ -488,41 +300,16 @@ fn validate_act_reason_coherence(act: &ActDeclaration) -> Result<(), ValidationE
 }
 
 /// Reject incoherent authority declarations: the compute path (`mint_authority`)
-/// and the explicit pre-built path (`authority_*_from`) are mutually exclusive,
-/// and each mint source draws from exactly one place (`requested_scope` needs
-/// `requested_scope_from`; `static_scopes` must not declare it).
+/// and the explicit pre-built path (`authority_*_from`) are mutually exclusive.
 fn validate_act_authority_coherence(act: &ActDeclaration) -> Result<(), ValidationError> {
-    let Some(directive) = act.mint_authority else {
-        if act.requested_scope_from.is_some() {
-            return Err(FIELDS.validation_error(
-                "source.act.requested_scope_from is only valid with a mint_authority directive.",
-            ));
-        }
-        return Ok(());
-    };
-    if act.authority_term_from.is_some()
-        || act.authority_parent_from.is_some()
-        || act.authority_subset_proof_from.is_some()
+    if act.mint_authority.is_some()
+        && (act.authority_term_from.is_some()
+            || act.authority_parent_from.is_some()
+            || act.authority_subset_proof_from.is_some())
     {
         return Err(FIELDS.validation_error(
             "source.act.mint_authority (compute path) is mutually exclusive with the pre-built authority_term_from / authority_parent_from / authority_subset_proof_from keys.",
         ));
-    }
-    match directive.source {
-        MintScopeSource::StaticScopes => {
-            if act.requested_scope_from.is_some() {
-                return Err(FIELDS.validation_error(
-                    "source.act.mint_authority source static_scopes must not declare requested_scope_from.",
-                ));
-            }
-        }
-        MintScopeSource::RequestedScope => {
-            if act.requested_scope_from.is_none() {
-                return Err(FIELDS.validation_error(
-                    "source.act.mint_authority source requested_scope requires requested_scope_from.",
-                ));
-            }
-        }
     }
     Ok(())
 }
@@ -531,13 +318,9 @@ fn parse_source_kind(value: &str, field: &str) -> Result<SourceKind, ValidationE
     match value {
         "cli-tool" => Ok(SourceKind::CliTool),
         "javascript" => Ok(SourceKind::JavaScript),
-        "mcp" => Ok(SourceKind::Mcp),
-        "a2a" => Ok(SourceKind::A2a),
         "agent" => Ok(SourceKind::Agent),
         "agent-task" => Ok(SourceKind::AgentStep),
         "graph" => Ok(SourceKind::Graph),
-        "external-adapter" => Ok(SourceKind::ExternalAdapter),
-        "thread-outbox-provider" => Ok(SourceKind::ThreadOutboxProvider),
         "http" => Err(retired_http_source_error(field)),
         "catalog" => Err(retired_catalog_source_error(field)),
         other => {
@@ -548,7 +331,7 @@ fn parse_source_kind(value: &str, field: &str) -> Result<SourceKind, ValidationE
 
 fn retired_http_source_error(field: &str) -> ValidationError {
     FIELDS.validation_error(format!(
-        "{field} http was removed; compose http.read, http.query, or http.execute in a graph."
+        "{field} http was removed; call a connector operation from a graph operation step."
     ))
 }
 
@@ -612,48 +395,6 @@ pub(super) fn default_agent_source() -> JsonObject {
         .collect()
 }
 
-fn validate_mcp_server(
-    source: &JsonObject,
-    source_type: &str,
-) -> Result<Option<SkillMcpServer>, ValidationError> {
-    if source_type != "mcp" {
-        return Ok(None);
-    }
-    let server = FIELDS.required_object(source.get("server"), "source.server")?;
-    Ok(Some(SkillMcpServer {
-        command: FIELDS.required_string(server.get("command"), "source.server.command")?,
-        args: FIELDS
-            .optional_string_array(server.get("args"), "source.server.args")?
-            .unwrap_or_default(),
-        cwd: FIELDS.optional_string(server.get("cwd"), "source.server.cwd")?,
-    }))
-}
-
-fn validate_mcp_tool(
-    source: &JsonObject,
-    source_type: &str,
-) -> Result<Option<String>, ValidationError> {
-    if source_type == "mcp" {
-        return Ok(Some(
-            FIELDS.required_string(source.get("tool"), "source.tool")?,
-        ));
-    }
-    FIELDS.optional_string(source.get("tool"), "source.tool")
-}
-
-fn validate_a2a_url(
-    source: &JsonObject,
-    source_type: &str,
-) -> Result<Option<String>, ValidationError> {
-    if source_type == "a2a" {
-        return Ok(Some(FIELDS.required_string(
-            source.get("agent_card_url"),
-            "source.agent_card_url",
-        )?));
-    }
-    FIELDS.optional_string(source.get("agent_card_url"), "source.agent_card_url")
-}
-
 fn validate_agent(
     source: &JsonObject,
     source_type: &str,
@@ -672,9 +413,7 @@ fn validate_task(
     source_type: &str,
     context: SourceValidationContext,
 ) -> Result<Option<String>, ValidationError> {
-    if source_type == "a2a"
-        || (source_type == "agent-task" && matches!(context, SourceValidationContext::Skill))
-    {
+    if source_type == "agent-task" && matches!(context, SourceValidationContext::Skill) {
         return Ok(Some(
             FIELDS.required_string(source.get("task"), "source.task")?,
         ));
@@ -712,7 +451,6 @@ fn validate_agent_command_boundary(
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::unwrap_used)]
 mod tests {
-    use crate::graph::MintScopeSource;
     use runx_contracts::JsonValue;
 
     use super::validate_act_declaration;
@@ -732,21 +470,22 @@ mod tests {
     #[test]
     fn requested_scope_mint_act_validates() {
         let act = validate_act_declaration(Some(&act_value(json!({
-            "mint_authority": {"source": "requested_scope"},
-            "requested_scope_from": "needed_scope",
+            "mint_authority": {"requested_scope_from": "needed_scope"},
         }))))
         .expect("valid act")
         .expect("present act");
         assert_eq!(
-            act.mint_authority.map(|directive| directive.source),
-            Some(MintScopeSource::RequestedScope)
+            act.mint_authority
+                .map(|directive| directive.requested_scope_from)
+                .as_deref(),
+            Some("needed_scope")
         );
     }
 
     #[test]
     fn mint_authority_conflicts_with_prebuilt_path() {
         let message = act_err(json!({
-            "mint_authority": {"source": "static_scopes"},
+            "mint_authority": {"requested_scope_from": "needed_scope"},
             "authority_term_from": "member_authority",
         }));
         assert!(message.contains("mutually exclusive"));
@@ -781,27 +520,17 @@ mod tests {
     }
 
     #[test]
-    fn requested_scope_act_requires_input_key() {
+    fn mint_authority_requires_its_requested_scope_input() {
+        let message = act_err(json!({ "mint_authority": {} }));
+        assert!(message.contains("requested_scope_from"), "{message}");
+    }
+
+    #[test]
+    fn the_retired_mint_shape_is_rejected() {
         let message = act_err(json!({
             "mint_authority": {"source": "requested_scope"},
-        }));
-        assert!(message.contains("requires requested_scope_from"));
-    }
-
-    #[test]
-    fn static_scopes_act_rejects_requested_scope_from() {
-        let message = act_err(json!({
-            "mint_authority": {"source": "static_scopes"},
             "requested_scope_from": "needed_scope",
         }));
-        assert!(message.contains("must not declare requested_scope_from"));
-    }
-
-    #[test]
-    fn dangling_requested_scope_from_in_act_is_rejected() {
-        let message = act_err(json!({
-            "requested_scope_from": "needed_scope",
-        }));
-        assert!(message.contains("only valid with a mint_authority directive"));
+        assert!(!message.is_empty());
     }
 }

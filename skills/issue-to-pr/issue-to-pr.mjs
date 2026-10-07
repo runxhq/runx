@@ -1,24 +1,94 @@
+// GitHub's issue, as `github/issue.read` returns it, as issue evidence.
 export function normalizeIssueEvidence(inputs) {
   const operation = object(inputs.provider_operation);
-  const issue = object(operation.result);
+  const issue = object(object(operation.result).issue);
   return {
     issue_evidence: {
       schema: "runx.issue_to_pr.issue_evidence.v1",
-      repository: text(issue.repository),
-      number: text(issue.number),
+      repository: text(inputs.requested_repository),
+      number: scalarText(issue.number),
       title: text(issue.title),
       state: text(issue.state),
       body: text(issue.body),
-      url: text(issue.url),
-      labels: strings(issue.labels),
-      assignees: strings(issue.assignees),
+      url: text(issue.html_url),
+      labels: names(issue.labels, "name"),
+      assignees: names(issue.assignees, "login"),
       source: {
         provider: text(operation.provider),
         transport: text(operation.transport),
         principal_ref: text(operation.principal_ref),
         readback_ref: text(operation.readback_ref),
       },
-      checkout_resolved: text(inputs.requested_repository) === ".",
+    },
+  };
+}
+
+// The open pull requests to look for before opening one: GitHub filters by
+// `owner:branch`.
+export function planPullRequest(inputs) {
+  const host = object(inputs.host_result);
+  const publication = object(host.publication);
+  const owner = text(host.repository).split("/")[0];
+  return {
+    pull_request_plan: {
+      find: {
+        repository: text(host.repository),
+        state: "open",
+        head: `${owner}:${text(publication.head)}`,
+        base: text(publication.base),
+        per_page: 2,
+      },
+    },
+  };
+}
+
+// Reuse the one open pull request for this head and base, open one when there
+// is none, and stop when several are open.
+export function choosePullRequest(inputs) {
+  const host = object(inputs.host_result);
+  const publication = object(host.publication);
+  const pulls = Array.isArray(object(object(inputs.found).result).pulls) ? object(object(inputs.found).result).pulls : [];
+  const action = pulls.length === 0 ? "open" : pulls.length === 1 ? "reuse" : "blocked";
+  return {
+    pull_request_choice: {
+      action,
+      existing: action === "reuse" ? pulls[0] : null,
+      open: {
+        repository: text(host.repository),
+        title: text(publication.title),
+        body: text(publication.body),
+        head: text(publication.head),
+        base: text(publication.base),
+        draft: publication.draft === true,
+      },
+    },
+  };
+}
+
+// The publication as one result: the pushed commit and the pull request that
+// now carries it.
+export function settlePullRequest(inputs) {
+  const host = object(inputs.host_result);
+  const publication = object(host.publication);
+  const push = object(inputs.pushed);
+  const choice = object(inputs.choice);
+  const opened = object(inputs.opened);
+  const pull = choice.action === "reuse" ? object(choice.existing) : object(object(opened.result).pull);
+  const pushed = push.status === "success" && text(object(push.result).commit) === text(host.commit);
+  const carries = text(object(pull.head).ref) === text(publication.head)
+    && text(object(pull.head).sha) === text(host.commit)
+    && text(object(pull.base).ref) === text(publication.base)
+    && text(pull.state) === "open";
+  return {
+    publication: {
+      status: pushed && carries ? "published" : "failed",
+      repository: text(host.repository),
+      commit: pushed ? text(host.commit) : "",
+      head: text(object(pull.head).ref),
+      base: text(object(pull.base).ref),
+      number: scalarText(pull.number),
+      url: text(pull.html_url),
+      readback_ref: text(opened.readback_ref) || text(push.readback_ref),
     },
   };
 }
@@ -78,14 +148,12 @@ export function finalizeIssueToPr(inputs) {
     && Boolean(text(verification.receipt_ref));
   if (errors.length === 0 && !verified) errors.push("scafld finalization did not verify");
   const publicationRequested = text(host.publication?.decision) === "ready";
-  const publicationResult = object(publication.result);
   const published = publicationRequested
-    && text(publication.status) === "success"
-    && text(publication.operation) === "pullrequest.publish"
-    && text(publicationResult.repository) === text(host.repository)
-    && text(publicationResult.published_commit) === text(host.commit)
-    && text(publicationResult.head) === text(host.publication?.head)
-    && text(publicationResult.base) === text(host.publication?.base)
+    && text(publication.status) === "published"
+    && text(publication.repository) === text(host.repository)
+    && text(publication.commit) === text(host.commit)
+    && text(publication.head) === text(host.publication?.head)
+    && text(publication.base) === text(host.publication?.base)
     && Boolean(text(publication.readback_ref));
   if (publicationRequested && !published) errors.push("exact-ref pull-request publication did not verify");
   const complete = errors.length === 0;
@@ -109,8 +177,8 @@ export function finalizeIssueToPr(inputs) {
       },
       publication: {
         status: published ? "published" : publicationRequested ? "failed" : "not_requested",
-        pr_number: scalarText(publicationResult.number),
-        url: text(publicationResult.url),
+        pr_number: scalarText(publication.number),
+        url: text(publication.url),
         readback_ref: text(publication.readback_ref),
       },
       errors,
@@ -142,6 +210,8 @@ function digest(value) {
   return typeof value === "string" && /^sha256:[0-9a-f]{64}$/.test(value);
 }
 
-function strings(value) {
-  return Array.isArray(value) ? value.filter((entry) => typeof entry === "string") : [];
+function names(value, field) {
+  return Array.isArray(value)
+    ? value.map((entry) => text(object(entry)[field])).filter(Boolean)
+    : [];
 }

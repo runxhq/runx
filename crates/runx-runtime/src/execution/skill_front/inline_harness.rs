@@ -174,11 +174,22 @@ fn execute_inline_harness_case(
     overrides: &SkillRunOverrides,
 ) -> InlineHarnessCaseOutcome {
     let is_graph = runner.source.source_type == runx_parser::SourceKind::Graph;
-    let effects = crate::execution::harness::effects_with_harness_http(
+    let effects = match crate::execution::harness::effects_for_harness(
         context.effects,
         &case.caller.http_responses,
         &case.caller.http_exchanges,
-    );
+        None,
+        &case.caller.mcp_calls,
+    ) {
+        Ok(effects) => effects,
+        Err(error) => {
+            return InlineHarnessCaseOutcome {
+                is_graph,
+                receipt_id: None,
+                assertion_error: Some(format!("{}: {error}", case.name)),
+            };
+        }
+    };
     match execute_skill_run_with_overrides(request, overrides, &effects) {
         Ok(result) => {
             let output = result.output;
@@ -244,6 +255,9 @@ fn inline_harness_case_request(
     let mut env = env.clone();
     env.extend(case.env.clone());
     SkillRunRequest {
+        current_context: Vec::new(),
+        historical_context: Vec::new(),
+        run_authority: None,
         skill_path: skill_dir.to_path_buf(),
         receipt_dir: receipt_dir.map(Path::to_path_buf),
         run_id: None,
@@ -252,7 +266,6 @@ fn inline_harness_case_request(
         env,
         cwd: cwd.to_path_buf(),
         managed_agent: crate::execution::orchestrator::ManagedAgentPolicy::HostDriven,
-        local_credential: None,
     }
 }
 
@@ -558,6 +571,7 @@ mod tests {
             approvals: Some(BTreeMap::from([(approval_id.to_owned(), true)])),
             http_responses: BTreeMap::new(),
             http_exchanges: Vec::new(),
+            mcp_calls: Vec::new(),
         };
         let answers = seeded_answers_from_caller(&caller)
             .map_err(|error| error.to_string())?

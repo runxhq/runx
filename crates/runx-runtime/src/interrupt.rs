@@ -24,7 +24,7 @@ fn lock_active_process_groups() -> std::sync::MutexGuard<'static, BTreeSet<u32>>
 ///
 /// The terminal interrupt handler uses this registry to terminate every active
 /// context before exiting. Registration is runtime-owned so CLI tools,
-/// JavaScript workers, external adapters, and MCP processes share one boundary.
+/// JavaScript workers, and connector MCP servers share one boundary.
 pub(crate) struct ActiveProcessGroup {
     process_id: u32,
 }

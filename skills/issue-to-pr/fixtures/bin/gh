@@ -1,36 +1,8 @@
 #!/bin/sh
-set -eu
-
-if [ -n "${RUNX_ISSUE_TO_PR_GH_LOG:-}" ]; then
-  printf '%s\n' "$*" >> "$RUNX_ISSUE_TO_PR_GH_LOG"
+# The signed-in GitHub CLI, as far as a session needs it: a token.
+if [ "$1 $2" = "auth token" ]; then
+  echo gho_fixture_token
+  exit 0
 fi
-
-case "$*" in
-  *graphql*)
-    /bin/cat >/dev/null
-    printf '%s\n' '{"data":{"viewer":{"id":"U_operator","login":"operator"},"repository":{"nameWithOwner":"runxhq/runx","viewerPermission":"WRITE"}}}'
-    ;;
-  *"--method GET repos/runxhq/runx/issues/442"*)
-    printf '%s\n' '{"number":442,"title":"Make issue-to-PR operator-first","state":"open","body":"Use normal host editing and test tools, then govern only publication.","html_url":"https://github.com/runxhq/runx/issues/442","labels":[{"name":"operator-experience"}],"assignees":[]}'
-    ;;
-  *"--method POST repos/runxhq/runx/pulls"*)
-    /bin/cat >/dev/null
-    /bin/mkdir -p .runx
-    : > .runx/issue-to-pr-fixture-pr
-    printf '%s\n' '{"number":77,"title":"Make issue-to-PR operator-first","state":"open","body":"Closes #442.","html_url":"https://github.com/runxhq/runx/pull/77","head":{"ref":"fix/442-operator-first","sha":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},"base":{"ref":"main"},"draft":false}'
-    ;;
-  *"--method GET repos/runxhq/runx/pulls?"*)
-    if [ -f .runx/issue-to-pr-fixture-pr ]; then
-      printf '%s\n' '[{"number":77,"title":"Make issue-to-PR operator-first","state":"open","body":"Closes #442.","html_url":"https://github.com/runxhq/runx/pull/77","head":{"ref":"fix/442-operator-first","sha":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},"base":{"ref":"main"},"draft":false}]'
-    else
-      printf '%s\n' '[]'
-    fi
-    ;;
-  *"--method GET repos/runxhq/runx/pulls/77"*)
-    printf '%s\n' '{"number":77,"title":"Make issue-to-PR operator-first","state":"open","body":"Closes #442.","html_url":"https://github.com/runxhq/runx/pull/77","head":{"ref":"fix/442-operator-first","sha":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},"base":{"ref":"main"},"draft":false}'
-    ;;
-  *)
-    printf '%s\n' "unexpected fixture gh invocation: $*" >&2
-    exit 2
-    ;;
-esac
+echo "fixture gh does not implement: gh $*" >&2
+exit 1

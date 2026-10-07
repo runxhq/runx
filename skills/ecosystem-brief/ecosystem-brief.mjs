@@ -46,10 +46,14 @@ export default function filterFreshSources(inputs) {
 }
 
 function unwrap(value) {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
-  if (value.data && typeof value.data === "object" && !Array.isArray(value.data)) return value.data;
-  if (value.fetch_result?.data && typeof value.fetch_result.data === "object") return value.fetch_result.data;
-  return value;
+  const outer = record(value) ?? {};
+  const packet = record(outer.provider_operation) ?? record(outer.file_read) ?? outer;
+  const data = record(packet.data) ?? packet;
+  return record(data.result) ?? data;
+}
+
+function record(value) {
+  return value && typeof value === "object" && !Array.isArray(value) ? value : undefined;
 }
 
 function text(value) {

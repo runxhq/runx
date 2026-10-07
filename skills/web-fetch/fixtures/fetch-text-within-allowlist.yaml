@@ -18,7 +18,6 @@ operator_journeys:
 inputs:
   url: https://fixture.runx.invalid/rfc9110
   extract: text
-  max_bytes: 200000
 caller:
   http_responses:
     "https://fixture.runx.invalid/rfc9110":

@@ -54,56 +54,6 @@ const CONTRACT_FIXTURE_SCHEMA_MAPPINGS: &[FixtureSchemaMapping] = &[
         "credential-delivery-request.schema.json",
     ),
     FixtureSchemaMapping::new(
-        "fixtures/contracts/external-adapter/cancellation-frame.json",
-        "/expected",
-        "external-adapter-cancellation.schema.json",
-    ),
-    FixtureSchemaMapping::new(
-        "fixtures/contracts/external-adapter/credential-request.json",
-        "/expected",
-        "external-adapter-credential-request.schema.json",
-    ),
-    FixtureSchemaMapping::new(
-        "fixtures/contracts/external-adapter/host-resolution-frame.json",
-        "/expected",
-        "external-adapter-host-resolution.schema.json",
-    ),
-    FixtureSchemaMapping::new(
-        "fixtures/contracts/external-adapter/invocation.json",
-        "/expected",
-        "external-adapter-invocation.schema.json",
-    ),
-    FixtureSchemaMapping::new(
-        "fixtures/contracts/external-adapter/manifest.json",
-        "/expected",
-        "external-adapter-manifest.schema.json",
-    ),
-    FixtureSchemaMapping::new(
-        "fixtures/contracts/external-adapter/response.json",
-        "/expected",
-        "external-adapter-response.schema.json",
-    ),
-    FixtureSchemaMapping::new(
-        "fixtures/contracts/thread-outbox-provider/fetch.json",
-        "/expected",
-        "thread-outbox-provider-fetch.schema.json",
-    ),
-    FixtureSchemaMapping::new(
-        "fixtures/contracts/thread-outbox-provider/manifest.json",
-        "/expected",
-        "thread-outbox-provider-manifest.schema.json",
-    ),
-    FixtureSchemaMapping::new(
-        "fixtures/contracts/thread-outbox-provider/observation.json",
-        "/expected",
-        "thread-outbox-provider-observation.schema.json",
-    ),
-    FixtureSchemaMapping::new(
-        "fixtures/contracts/thread-outbox-provider/push.json",
-        "/expected",
-        "thread-outbox-provider-push.schema.json",
-    ),
-    FixtureSchemaMapping::new(
         "fixtures/contracts/harness-spine/receipt-abnormal.json",
         "/expected",
         "receipt.schema.json",
@@ -213,10 +163,8 @@ fn contract_fixture_schema_mapping_has_only_declared_exemptions()
     for directory in [
         "fixtures/contracts/act-assignment",
         "fixtures/contracts/execution",
-        "fixtures/contracts/external-adapter",
         "fixtures/contracts/harness-spine",
         "fixtures/contracts/host-protocol",
-        "fixtures/contracts/thread-outbox-provider",
     ] {
         for fixture_path in json_files_in(directory)? {
             let fixture_path = fixture_path_string(&fixture_path)?;

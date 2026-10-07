@@ -11,13 +11,12 @@ inputs:
 caller:
   provider_responses:
     principal_id: operator-fixture
-    grants:
-      - grant_id: slack-search-fixture
+    grant:
+        grant_id: slack-search-fixture
         provider: slack
         scopes: [messages.search]
     operations:
-      - grant_id: slack-search-fixture
-        operation: messages.search
+      - operation: messages.search
         target: slack://messages
         access: read
         result:

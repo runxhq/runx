@@ -59,6 +59,8 @@ fn bench_graph_throughput(c: &mut Criterion) {
 
     c.bench_function("graph_receipt_sealing", |b| {
         let options = RuntimeOptions {
+            current_context: Vec::new(),
+            historical_context: Vec::new(),
             created_at: CREATED_AT.to_owned(),
             ..RuntimeOptions::local_development(std::env::vars().collect())
         };
@@ -139,6 +141,8 @@ fn record_resource_metric(name: &str, metric: JsonValue) -> Result<(), Box<dyn s
 fn register_receipt_store_append(c: &mut Criterion, name: &str, count: usize) {
     c.bench_function(name, |b| {
         let options = RuntimeOptions {
+            current_context: Vec::new(),
+            historical_context: Vec::new(),
             created_at: CREATED_AT.to_owned(),
             ..RuntimeOptions::local_development(std::env::vars().collect())
         };
@@ -179,6 +183,8 @@ fn prepare_receipt_append(
 fn register_receipt_store_index(c: &mut Criterion, name: &str, count: usize) {
     c.bench_function(name, |b| {
         let options = RuntimeOptions {
+            current_context: Vec::new(),
+            historical_context: Vec::new(),
             created_at: CREATED_AT.to_owned(),
             ..RuntimeOptions::local_development(std::env::vars().collect())
         };

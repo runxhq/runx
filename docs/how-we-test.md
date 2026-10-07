@@ -107,18 +107,17 @@ Adapter and fanout stress gates are explicit scripts:
 ```bash
 pnpm stress:runtime:mcp
 pnpm stress:runtime:cli-tool
-pnpm stress:runtime:external-adapter
 pnpm stress:runtime:fanout
 ```
 
-These commands exercise MCP stdio/server wiring, CLI-tool process supervision,
-external adapter cancellation/error boundaries, and fanout ordering/concurrency.
+These commands exercise MCP server wiring, CLI-tool process supervision, and
+fanout ordering/concurrency.
 They are heavy gates, not the default local loop.
 
 The `runtime quality` workflow is the canonical automated heavy lane. It runs
 weekly, on explicit dispatch, and before a release build. One Ubuntu job reuses
 its Cargo cache and runs the official-skill audit, receipt ownership checks,
-the four stress commands, and a focused performance capture. The capture is
+the three stress commands, and a focused performance capture. The capture is
 bound to the exact source commit, enforces worker spawn and parallel fanout
 budgets, and is uploaded as a retained artifact before enforcement. Exact
 four-way saturation remains a deterministic barrier-backed runtime test rather

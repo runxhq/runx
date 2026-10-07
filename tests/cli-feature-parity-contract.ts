@@ -52,6 +52,7 @@ export interface OracleCase {
   readonly expectJson?: boolean;
   readonly stdoutIncludes?: readonly string[];
   readonly stderrIncludes?: readonly string[];
+  readonly env?: Readonly<Record<string, string>>;
   readonly proves: readonly string[];
 }
 
@@ -65,6 +66,7 @@ const commandAnnotations: Readonly<Record<string, CommandAnnotation>> = {
   list: annotation("none", ["list", "tool-catalog"], ["list.tools.execute"]),
   login: annotation("filesystem", ["config", "cli-presentation"], ["login.validate"]),
   connect: annotation("external-stub", ["public-api", "connect", "cli-presentation"], ["connect.execute"]),
+  connector: annotation("filesystem", ["connectors", "cli-presentation"], ["connector.list.execute", "connector.use.validate"]),
   config: annotation("filesystem", ["config", "cli-presentation"], ["config.set.validate", "config.get.validate", "config.list.execute"]),
   credential: annotation("filesystem", ["config", "skill-resolution", "cli-presentation"], ["credential.validate"]),
   policy: annotation("none", ["policy", "cli-presentation"], ["policy.inspect.validate", "policy.lint.validate"]),
@@ -75,7 +77,7 @@ const commandAnnotations: Readonly<Record<string, CommandAnnotation>> = {
   data: annotation("filesystem", ["data", "cli-presentation"], ["data.validate"]),
   dev: annotation("local-runtime", ["dev", "harness", "receipts"], ["dev.validate"]),
   export: annotation("filesystem", ["skill-export", "cli-presentation"], ["export.validate"]),
-  mcp: annotation("adapter", ["mcp", "adapter-mcp"], ["mcp.serve.validate"], "none"),
+  mcp: annotation("adapter", ["mcp"], ["mcp.serve.validate"], "none"),
   assistant: annotation("local-runtime", ["graph-runtime", "receipts", "cli-presentation"], ["assistant.validate"]),
   skill: annotation("local-runtime", ["skill-resolution", "graph-runtime", "receipts", "execution-boundary", "authority", "caller-mediated-resolution", "adapter-cli-tool", "adapter-agent", "cli-presentation"], ["skill.run.validate", "skill.inspect.validate"]),
   add: annotation("external-stub", ["registry", "cli-presentation"], ["add.validate"]),
@@ -97,11 +99,11 @@ const surfaceDefinitions: readonly RuntimeSurfaceDefinition[] = [
   surface("tool-catalog", "runx-runtime tool catalogs", "fixture-backed", "Catalog discovery, dispatch, and local tool builds use the canonical native or manifest-owned path."),
   surface("mcp", "runx-runtime adapters/mcp", "stubbed", "Protocol behavior uses local servers and deterministic clients."),
   surface("adapter-cli-tool", "runx-runtime cli-tool adapter", "fixture-backed", "Exact process invocation, environment, cwd, supervision, and execution-boundary evidence are parity-critical."),
-  surface("adapter-mcp", "runx-runtime MCP adapter", "stubbed", "MCP transport and tool results use local protocol fixtures."),
   surface("adapter-agent", "runx-runtime external agent adapter", "stubbed", "Managed agent calls are represented by local stubs, not live providers."),
   surface("config", "runx-cli", "schema-exact", "RUNX_HOME, encrypted local profiles, and config file behavior are part of CLI parity."),
   surface("public-api", "runx-cli + runx-runtime", "stubbed", "Public API identity and HTTP transport are resolved once and exercised against deterministic local servers."),
   surface("connect", "runx-cli + runx cloud", "stubbed", "The native CLI owns provider-neutral grant lifecycle; governed skills and native provider tools own bounded provider operations."),
+  surface("connectors", "runx-cli + runx-runtime kernel", "fixture-backed", "Official connector manifests, instances and readiness are listed and selected natively; import-mcp pins what a server serves."),
   surface("doctor", "runx-cli + runx-runtime doctor", "semantic", "Diagnostics can add ids, but the documented command surface must not disappear."),
   surface("data", "runx-runtime + runx-cli", "fixture-backed", "Offline data-store migration is bounded, backup-first, idempotent, and independently read back."),
   surface("dev", "runx-cli", "fixture-backed", "Development lanes run deterministic or recorded harness fixtures."),
@@ -149,7 +151,8 @@ function oracleCases(commands: readonly CommandMatrixEntry[]): readonly OracleCa
       [],
     ),
     execute(commands, "list.tools.execute", "list", ["list", "tools", "--json"], 0, true, [], []),
-    execute(commands, "connect.execute", "connect", ["connect", "list", "--api-base-url", "http://127.0.0.1:9", "--token", "rxk_fixture", "--json"], 1, true, ["not publicly routable"], []),
+    execute(commands, "connector.list.execute", "connector", ["connector", "list", "--json"], 0, true, ["\"github\""], []),
+    execute(commands, "connect.execute", "connect", ["connect", "list", "--api-base-url", "http://127.0.0.1:9", "--json"], 1, true, ["not publicly routable"], [], { RUNX_PUBLIC_API_TOKEN: "rxk_fixture" }),
   ];
   const executableCaseIds = new Set(executableCases.map((testCase) => testCase.id));
 
@@ -304,6 +307,7 @@ function execute(
   expectJson: boolean,
   stdoutIncludes: readonly string[],
   stderrIncludes: readonly string[],
+  env?: Readonly<Record<string, string>>,
 ): OracleCase {
   const command = commands.find((entry) => entry.name === commandId);
   if (!command) {
@@ -318,6 +322,7 @@ function execute(
     expectJson,
     stdoutIncludes,
     stderrIncludes,
+    ...(env ? { env } : {}),
     proves: command.parity.surfaces,
   };
 }

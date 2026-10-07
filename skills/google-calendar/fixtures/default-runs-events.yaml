@@ -13,13 +13,12 @@ inputs:
 caller:
   provider_responses:
     principal_id: operator-fixture
-    grants:
-      - grant_id: calendar-events-fixture
+    grant:
+        grant_id: calendar-events-fixture
         provider: google-calendar
         scopes: [events.read]
     operations:
-      - grant_id: calendar-events-fixture
-        operation: events.list
+      - operation: events.list
         target: primary
         access: read
         result:

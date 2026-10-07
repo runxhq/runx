@@ -39,7 +39,7 @@ inputs:
         content_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
         source_ref: https://example.com/evidence
         source_kind: fetch
-        provenance: { observed_at: "2026-07-17T00:00:00Z", bytes: 0, truncated: false, status: 200, redirects: [] }
+        provenance: { observed_at: "2026-07-17T00:00:00Z", bytes: 0, status: 200, redirects: [] }
     index_digest: sha256:2222222222222222222222222222222222222222222222222222222222222222
     validation: { status: pass, findings: [] }
 caller:

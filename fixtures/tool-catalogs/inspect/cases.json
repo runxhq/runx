@@ -6,15 +6,8 @@
     "expectedStatus": 0
   },
   {
-    "name": "inspect-catalog-entry",
-    "ref": "fixture.echo",
-    "source": "fixture-mcp",
-    "expectedStatus": 0
-  },
-  {
     "name": "inspect-missing",
     "ref": "fixture.missing",
-    "source": "fixture-mcp",
     "expectedStatus": 1
   }
 ]

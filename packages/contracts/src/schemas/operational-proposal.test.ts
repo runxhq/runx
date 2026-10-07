@@ -66,7 +66,7 @@ describe("operational proposal schema", () => {
       const proposal = validateOperationalProposalContract(path.proposal);
       const proposalWire = JSON.stringify(proposal);
 
-      expect(proposal.source_ref.type).toBe("provider_thread");
+      expect(proposal.source_ref.type).toBe("thread");
       expect(proposal.authority).toMatchObject({
         proposal_only: true,
         mutation_authority_granted: false,

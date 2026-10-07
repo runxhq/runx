@@ -1,178 +1,197 @@
+import { actKind, reachedState } from "./twitter-execution-batch.mjs";
 import {
   activeThread,
   array,
   nonNegativeInteger,
-  number,
   record,
   text,
 } from "./twitter-execution-values.mjs";
+
+// A refusal of the caller rather than the act leaves the act to a later
+// batch: the kernel's halts (a rate limit, a refused credential, a billing
+// hold) and X's problems with the app or its access, which it answers per
+// request but which no act can clear.
+const HALTING = new Set(["rate_limited", "unauthorized", "billing_required"]);
+const ACCOUNT_PROBLEMS = new Set([
+  "https://api.twitter.com/2/problems/oauth1-permissions",
+  "https://api.twitter.com/2/problems/client-forbidden",
+  "https://api.twitter.com/2/problems/unsupported-authentication",
+]);
+
+function halts(outcome) {
+  return HALTING.has(outcome.code) || ACCOUNT_PROBLEMS.has(text(record(outcome.answer).type));
+}
 
 export function finalizeExecution(inputs) {
   const plan = record(inputs.execution_plan);
   if (plan.decision !== "ready") {
     return { twitter_execution: executionPacket(plan, plan.decision) };
   }
-  const execution = record(inputs.http_execution);
-  const responseById = new Map(
-    array(execution.responses).map((value) => [text(record(value).id), record(value)]),
-  );
-  const state = consumeContiguousResults(plan, execution, responseById);
+  const batch = record(plan.batch);
+  const operation = record(inputs.provider_operation);
+  const state = batch.segment
+    ? publishedSegment(plan, batch, operation)
+    : actKind(batch.kind)?.publish
+      ? published(plan, batch, operation)
+      : repeated(plan, batch, record(operation.result));
   const decision = state.nextActIndex === state.totalActCount
     ? "executed"
     : state.rateLimited
       ? "stopped"
       : "partial";
   const remainingCount = Math.max(0, state.totalActCount - state.nextActIndex);
+  const completed = state.nextActIndex - state.startActIndex;
   return {
     twitter_execution: executionPacket(plan, decision, {
       results: state.results,
       next_act_index: state.nextActIndex,
       remaining_count: remainingCount,
       active_thread: state.activeThread,
-      ledger_delta: progressEvent(plan, decision, state),
-      rate: rate(state.rateResponse),
+      ledger_delta: progressEvent(plan, decision, state, array(batch.acts).length, text(inputs.account_id)),
+      rate: state.rate,
       success_checkpoint: {
-        milestone: decision === "executed"
-          ? "plan_fully_executed"
-          : "plan_partially_executed",
-        description: `${state.nextActIndex - state.startActIndex} acts completed in this batch, ${remainingCount} remaining`,
+        milestone: decision === "executed" ? "plan_fully_executed" : "plan_partially_executed",
+        description: `${completed} acts completed in this batch, ${remainingCount} remaining`,
       },
     }),
   };
 }
 
-function consumeContiguousResults(plan, execution, responseById) {
+function baseState(plan) {
   const startActIndex = nonNegativeInteger(plan.start_act_index) ?? 0;
-  const state = {
+  return {
     startActIndex,
     nextActIndex: startActIndex,
     totalActCount: nonNegativeInteger(plan.total_act_count) ?? 0,
-    activeThread: activeThread(plan.active_thread),
+    activeThread: null,
     results: [],
-    failure: null,
+    failed: false,
     rateLimited: false,
-    rateResponse: null,
+    rate: rate(),
   };
-  for (const group of array(plan.act_groups).map(record)) {
-    if (nonNegativeInteger(group.act_index) !== state.nextActIndex) {
-      state.failure = "execution groups were not a contiguous plan prefix";
-      break;
-    }
-    const responses = array(group.request_ids)
-      .map((id) => responseById.get(String(id)))
-      .filter(Boolean);
-    const directFailure = responses.find((response) => response.ok !== true);
-    const failedResponse = directFailure
-      ?? (responses.length === 0 ? lastFailure(execution.responses) : null);
-    if (failedResponse || responses.length === 0) {
-      const satisfied = directFailure
-        ? terminalProviderState(group, directFailure)
-        : null;
-      if (satisfied) {
-        state.results.push(satisfied);
-        state.activeThread = null;
-        state.nextActIndex += 1;
-        break;
-      }
-      state.rateResponse = number(failedResponse?.status, 0) === 429 ? failedResponse : null;
-      state.rateLimited = Boolean(state.rateResponse);
-      state.failure = failedResponse
-        ? text(failedResponse.skip_reason) || providerError(failedResponse)
-        : "provider execution produced no response for the next act";
-      state.activeThread = partialThreadProgress(group, responses, state.activeThread);
-      state.results.push(result(group, "failed", providerRefs(responses), state.failure));
-      break;
-    }
-    const completed = completedResult(group, responses);
-    state.results.push(completed.result);
-    if (!completed.ok) {
-      state.failure = completed.result.detail;
-      break;
-    }
-    state.activeThread = null;
+}
+
+// One published post: the operation settled, so the act is done.
+function published(plan, batch, operation) {
+  const state = baseState(plan);
+  const act = record(batch.acts[0]);
+  state.results.push(result(act, "done", postId(operation), null));
+  state.nextActIndex += 1;
+  return state;
+}
+
+// One thread segment: the thread stays active until its last segment.
+function publishedSegment(plan, batch, operation) {
+  const state = baseState(plan);
+  const act = record(batch.acts[0]);
+  const segment = record(batch.segment);
+  const posted = nonNegativeInteger(segment.index) ?? 0;
+  const count = nonNegativeInteger(segment.count) ?? 0;
+  const id = postId(operation);
+  if (!id) {
+    // The next segment replies to this one, so without its id the thread
+    // cannot go on; it stops here for the operator to look.
+    state.failed = true;
+    state.results.push(result(act, "failed", null, `segment ${posted + 1} of ${count} was confirmed without a post id`));
+    return state;
+  }
+  state.results.push(result(act, "done", id, `segment ${posted + 1} of ${count} posted`));
+  if (posted + 1 < count) {
+    state.activeThread = {
+      act_index: nonNegativeInteger(act.act_index) ?? state.startActIndex,
+      next_segment_index: posted + 1,
+      in_reply_to: id,
+    };
+  } else {
     state.nextActIndex += 1;
   }
   return state;
 }
 
-function terminalProviderState(group, response) {
-  if (
-    group.kind !== "unfollow"
-    || number(response?.status, 0) !== 400
-    || providerError(response) !== "You cannot unfollow an account that is not active."
-  ) {
-    return null;
+// A repeated act: one outcome per act, in order. The cursor passes every
+// act the provider settled, applied or refused, and stops at the first it
+// halted on, never received, or applied without stating the resulting state.
+// An act stopped on is sent again by a later batch; it sets a state, so a
+// second send changes nothing.
+function repeated(plan, batch, operationResult) {
+  const state = baseState(plan);
+  const outcomes = array(operationResult.outcomes).map(record);
+  for (const [index, act] of array(batch.acts).map(record).entries()) {
+    const outcome = outcomes[index] ?? {};
+    if (outcome.status === "applied") {
+      const reached = reachedState(act.kind, outcome.acknowledgement);
+      if (reached === null) {
+        state.failed = true;
+        state.results.push(result(act, "failed", act.target, "the provider's answer did not state the resulting state"));
+        break;
+      }
+      if (reached === false) {
+        state.failed = true;
+        state.results.push(result(act, "failed", act.target, "the provider reported that the requested state was not reached"));
+      } else {
+        state.results.push(result(act, "done", act.target, null));
+      }
+      state.nextActIndex += 1;
+      continue;
+    }
+    if (outcome.status === "refused" && !halts(outcome)) {
+      const detail = providerDetail(outcome);
+      if (alreadySatisfied(act.kind, detail)) {
+        state.results.push(result(act, "done", act.target, "Target account is inactive; the requested not-following state is already satisfied."));
+      } else {
+        state.failed = true;
+        state.results.push(result(act, "failed", act.target, detail));
+      }
+      state.nextActIndex += 1;
+      continue;
+    }
+    if (outcome.status === "refused") {
+      state.failed = true;
+      state.rateLimited = outcome.code === "rate_limited";
+      state.rate = rate(outcome);
+      state.results.push(result(act, "failed", act.target, providerDetail(outcome)));
+    }
+    break;
   }
-  return result(
-    group,
-    "done",
-    group.fallback_provider_ref ?? null,
-    "Target account is inactive; the requested not-following state is already satisfied.",
-  );
+  return state;
 }
 
-function completedResult(group, responses) {
-  if (group.kind === "thread") {
-    const refs = providerRefs(responses);
-    return {
-      ok: true,
-      result: result(
-        group,
-        "done",
-        refs,
-        `${refs.split(",").filter(Boolean).length} segments posted`,
-      ),
-    };
-  }
-  const data = record(record(responses[0].json).data);
-  if (reachedRequestedState(group.kind, data) === false) {
-    return {
-      ok: false,
-      result: result(
-        group,
-        "failed",
-        null,
-        "provider reported that the requested state was not reached",
-      ),
-    };
-  }
-  return {
-    ok: true,
-    result: result(group, "done", data.id ?? group.fallback_provider_ref ?? null, null),
-  };
+// X answers an unfollow of a deactivated account with this refusal; the
+// account is not followed, which is what the act asked for.
+function alreadySatisfied(kind, detail) {
+  return kind === "unfollow" && detail === "You cannot unfollow an account that is not active.";
 }
 
-const BOOLEAN_OUTCOMES = Object.freeze({
-  delete_post: ["deleted", true],
-  unfollow: ["following", false],
-  follow: ["following", true],
-  mute: ["muting", true],
-  block: ["blocking", true],
-  like: ["liked", true],
-  repost: ["retweeted", true],
-});
-
-function reachedRequestedState(kind, data) {
-  const expectation = BOOLEAN_OUTCOMES[kind];
-  if (!expectation) return null;
-  const [field, expected] = expectation;
-  return typeof data[field] === "boolean" ? data[field] === expected : null;
+function providerDetail(outcome) {
+  const answer = record(outcome.answer);
+  const first = array(answer.errors).map(record)[0] ?? {};
+  return text(first.detail)
+    || text(first.message)
+    || text(answer.detail)
+    || text(answer.title)
+    || text(outcome.reason)
+    || "the provider refused the act";
 }
 
-function progressEvent(plan, decision, state) {
+function postId(operation) {
+  return text(record(record(operation.result).post).id) || text(operation.operation_id) || null;
+}
+
+function progressEvent(plan, decision, state, selectedCount, accountId) {
   return {
     schema: "twitter.execution.progress.v1",
     type: "twitter.execution.progress",
     plan_digest: text(plan.plan_digest),
+    account_id: accountId,
     decision,
     next_act_index: state.nextActIndex,
     total_act_count: state.totalActCount,
     active_thread: state.activeThread,
     batch: {
       start_act_index: state.startActIndex,
-      selected_act_count: array(plan.act_groups).length,
+      selected_act_count: selectedCount,
       completed_act_count: state.nextActIndex - state.startActIndex,
-      failed: state.failure !== null,
+      failed: state.failed,
       rate_limited: state.rateLimited,
     },
   };
@@ -201,70 +220,22 @@ function executionPacket(plan, decision, overrides = {}) {
   };
 }
 
-function partialThreadProgress(group, responses, current) {
-  if (group.kind !== "thread") return null;
-  const failureIndex = responses.findIndex((response) => response.ok !== true);
-  const succeededCount = failureIndex === -1 ? responses.length : failureIndex;
-  if (succeededCount === 0) return current;
-  const inReplyTo = text(record(record(responses[succeededCount - 1].json).data).id);
-  const nextSegmentIndex = (nonNegativeInteger(group.segment_start) ?? 0) + succeededCount;
-  if (!inReplyTo || nextSegmentIndex >= (nonNegativeInteger(group.segment_count) ?? 0)) {
-    return current;
-  }
+function result(act, status, providerRef, detail) {
   return {
-    act_index: nonNegativeInteger(group.act_index) ?? 0,
-    next_segment_index: nextSegmentIndex,
-    in_reply_to: inReplyTo,
-  };
-}
-
-function result(group, status, providerRef, detail) {
-  return {
-    act_id: String(group.act_id),
-    kind: group.kind,
-    consequence: group.consequence,
+    act_id: String(act.act_id),
+    kind: act.kind,
+    consequence: act.consequence,
     status,
     provider_ref: providerRef || null,
     detail,
   };
 }
 
-function providerRefs(responses) {
-  return responses
-    .filter((response) => response.ok === true)
-    .map((response) => record(record(response.json).data).id)
-    .filter(Boolean)
-    .join(",");
-}
-
-function providerError(response) {
-  const body = record(response.json);
-  const first = array(body.errors).map(record)[0] ?? {};
-  return text(first.detail)
-    || text(first.message)
-    || text(body.detail)
-    || text(body.title)
-    || `provider returned HTTP ${number(response.status, 0)}`;
-}
-
-function lastFailure(values) {
-  const responses = array(values);
-  for (let index = responses.length - 1; index >= 0; index -= 1) {
-    const response = record(responses[index]);
-    if (response.ok !== true) return response;
-  }
-  return null;
-}
-
-function rate(value = {}) {
-  const response = record(value);
-  const headers = record(response.headers);
-  const reset = Number(headers["x-rate-limit-reset"]);
+function rate(outcome = {}) {
+  const limited = outcome.code === "rate_limited";
   return {
-    limited: number(response.status, 0) === 429,
-    remaining: number(headers["x-rate-limit-remaining"], -1),
-    reset_at: Number.isFinite(reset) && reset > 0
-      ? new Date(reset * 1000).toISOString()
-      : null,
+    limited,
+    remaining: limited ? 0 : -1,
+    reset_at: limited && text(outcome.retry_at) ? text(outcome.retry_at) : null,
   };
 }

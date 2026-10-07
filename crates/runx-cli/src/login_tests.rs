@@ -43,7 +43,7 @@ fn parses_login_plan() -> Result<(), String> {
         OsString::from("github"),
         OsString::from("--for"),
         OsString::from("publish"),
-        OsString::from("--from-gh"),
+        OsString::from("--token-stdin"),
         OsString::from("--allow-local-api"),
         OsString::from("-j"),
     ];
@@ -53,7 +53,7 @@ fn parses_login_plan() -> Result<(), String> {
             api_base_url: Some("https://runx.test/".to_owned()),
             provider: Some("github".to_owned()),
             purpose: Some(HostedApiCredentialPurpose::Publish),
-            from_gh: true,
+            token_stdin: true,
             allow_local_api: true,
             json: true,
         }
@@ -122,7 +122,7 @@ fn login_exchange_stores_encrypted_public_api_token() -> Result<(), Box<dyn std:
             api_base_url: Some("https://runx.test/".to_owned()),
             provider: Some("github".to_owned()),
             purpose: Some(HostedApiCredentialPurpose::Publish),
-            from_gh: false,
+            token_stdin: false,
             allow_local_api: false,
             json: true,
         },
@@ -197,7 +197,7 @@ fn login_surfaces_api_error() -> Result<(), String> {
             api_base_url: Some("https://runx.test/".to_owned()),
             provider: Some("bad".to_owned()),
             purpose: None,
-            from_gh: false,
+            token_stdin: false,
             allow_local_api: false,
             json: false,
         },
@@ -214,7 +214,7 @@ fn login_surfaces_api_error() -> Result<(), String> {
 }
 
 #[test]
-fn github_cli_login_exchanges_provider_token_without_serializing_it()
+fn a_provider_token_is_exchanged_without_being_stored_or_printed()
 -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempfile_dir()?;
     let env = BTreeMap::from([("RUNX_HOME".to_owned(), temp.to_string_lossy().to_string())]);
@@ -222,9 +222,9 @@ fn github_cli_login_exchanges_provider_token_without_serializing_it()
         200,
         serde_json::json!({
             "status": "success",
-            "principal_id": "user_from_gh",
-            "credential_id": "cred_from_gh",
-            "token": "rxk_from_gh"
+            "principal_id": "user_from_token",
+            "credential_id": "cred_from_token",
+            "token": "rxk_from_token"
         })
         .to_string(),
     )]);
@@ -233,18 +233,19 @@ fn github_cli_login_exchanges_provider_token_without_serializing_it()
             api_base_url: Some("https://runx.test/".to_owned()),
             provider: Some("github".to_owned()),
             purpose: Some(HostedApiCredentialPurpose::Publish),
-            from_gh: true,
+            token_stdin: true,
             allow_local_api: false,
             json: true,
         },
         &env,
         &temp,
         &transport,
-        "github_cli_secret",
+        "github",
+        "provider_token_secret",
     )?;
 
-    assert!(output.contains("user_from_gh"));
-    assert!(!output.contains("github_cli_secret"));
+    assert!(output.contains("user_from_token"));
+    assert!(!output.contains("provider_token_secret"));
     let requests = transport.requests.borrow();
     assert_eq!(requests.len(), 1);
     assert_eq!(requests[0].url, "https://runx.test/v1/login/provider-token");
@@ -258,16 +259,17 @@ fn github_cli_login_exchanges_provider_token_without_serializing_it()
             .iter()
             .find(|header| header.name == "authorization")
             .map(|header| header.value.as_str()),
-        Some("Bearer github_cli_secret")
+        Some("Bearer provider_token_secret")
     );
     let config = fs::read_to_string(temp.join("config.json"))?;
-    assert!(!config.contains("github_cli_secret"));
-    assert!(!config.contains("rxk_from_gh"));
+    assert!(!config.contains("provider_token_secret"));
+    assert!(!config.contains("rxk_from_token"));
     Ok(())
 }
 
 #[test]
-fn github_cli_login_rejects_a_noncanonical_principal() -> Result<(), Box<dyn std::error::Error>> {
+fn a_provider_token_login_rejects_a_noncanonical_principal()
+-> Result<(), Box<dyn std::error::Error>> {
     let temp = tempfile_dir()?;
     let env = BTreeMap::from([("RUNX_HOME".to_owned(), temp.to_string_lossy().to_string())]);
     let transport = StubTransport::with_responses(vec![HttpResponse::new(
@@ -275,8 +277,8 @@ fn github_cli_login_rejects_a_noncanonical_principal() -> Result<(), Box<dyn std
         serde_json::json!({
             "status": "success",
             "principal_id": " ",
-            "credential_id": "cred_from_gh",
-            "token": "rxk_from_gh"
+            "credential_id": "cred_from_token",
+            "token": "rxk_from_token"
         })
         .to_string(),
     )]);
@@ -285,14 +287,15 @@ fn github_cli_login_rejects_a_noncanonical_principal() -> Result<(), Box<dyn std
             api_base_url: Some("https://runx.test/".to_owned()),
             provider: Some("github".to_owned()),
             purpose: Some(HostedApiCredentialPurpose::Publish),
-            from_gh: true,
+            token_stdin: true,
             allow_local_api: false,
             json: true,
         },
         &env,
         &temp,
         &transport,
-        "github_cli_secret",
+        "github",
+        "provider_token_secret",
     ) else {
         return Err("login without a principal must fail closed".into());
     };

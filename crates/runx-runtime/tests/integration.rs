@@ -5,7 +5,6 @@
 //! .scafld/specs/active/test-surface-build-consolidation.md. `autotests = false`
 //! in Cargo.toml keeps Cargo from building each file as its own binary.
 
-mod a2a_parity;
 mod abnormal_seal;
 mod agent_parity;
 mod approval;
@@ -16,7 +15,6 @@ mod credential_grant_policy;
 mod dev;
 mod doctor;
 mod effect_finality;
-mod external_adapter;
 mod fanout_parity;
 mod fanout_proptest;
 mod governance_witness;
@@ -29,16 +27,13 @@ mod javascript_worker_hostile;
 mod javascript_worker_support;
 mod journal_history;
 mod license_boundary;
-mod local_credential_provision;
-mod managed_openai;
-mod mcp_adapter;
+mod managed_chat_completions;
 mod mcp_server;
 mod parity;
 #[cfg(all(feature = "catalog", feature = "cli-tool"))]
 mod policy_approval;
 #[cfg(feature = "cli-tool")]
 mod process_invocation_contract;
-mod provider_effect_receipts;
 mod receipt_paths;
 mod receipt_refs;
 mod receipt_signing;
@@ -53,8 +48,6 @@ mod skill_issue_intake;
 mod skill_manual_context;
 mod skill_run;
 mod support;
-#[cfg(feature = "thread-outbox-provider")]
-mod thread_outbox_provider;
 mod tool_catalogs;
 mod validated_skill_package;
 mod volume_independent_twitter;

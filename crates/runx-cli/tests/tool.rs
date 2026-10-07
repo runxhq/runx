@@ -3,43 +3,28 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 #[test]
-fn tool_search_fixture_catalog_json() -> Result<(), Box<dyn std::error::Error>> {
+fn tool_search_native_catalog_json() -> Result<(), Box<dyn std::error::Error>> {
     let output = unsigned_runx_command_with_inherited_cwd()
-        .args([
-            "tool",
-            "search",
-            "echo",
-            "--source",
-            "fixture-mcp",
-            "--json",
-        ])
-        .env("RUNX_ENABLE_FIXTURE_TOOL_CATALOG", "1")
+        .args(["tool", "search", "fs.read", "--source", "native", "--json"])
         .output()?;
 
     assert!(output.status.success());
-    assert!(String::from_utf8(output.stdout)?.contains(r#""tool_id": "fixture-mcp/fixture.echo""#));
+    let stdout = String::from_utf8(output.stdout)?;
+    assert!(stdout.contains(r#""name": "fs.read""#));
+    assert!(stdout.contains(r#""source_type": "native""#));
     assert_eq!(String::from_utf8(output.stderr)?, "");
     Ok(())
 }
 
 #[test]
-fn tool_inspect_fixture_catalog_json() -> Result<(), Box<dyn std::error::Error>> {
+fn tool_inspect_native_catalog_json() -> Result<(), Box<dyn std::error::Error>> {
     let output = unsigned_runx_command_with_inherited_cwd()
-        .args([
-            "tool",
-            "inspect",
-            "fixture.echo",
-            "--source",
-            "fixture-mcp",
-            "--json",
-        ])
-        .env("RUNX_ENABLE_FIXTURE_TOOL_CATALOG", "1")
+        .args(["tool", "inspect", "fs.read", "--json"])
         .output()?;
 
     assert!(output.status.success());
     let stdout = String::from_utf8(output.stdout)?;
-    assert!(stdout.contains(r#""origin": "imported""#));
-    assert!(stdout.contains(r#""catalog_ref": "fixture-mcp:fixture.echo""#));
+    assert!(stdout.contains(r#""origin": "native""#));
     assert_eq!(String::from_utf8(output.stderr)?, "");
     Ok(())
 }
@@ -80,30 +65,12 @@ fn tool_build_matches_invalid_oracle_bytes() -> Result<(), Box<dyn std::error::E
 }
 
 #[test]
-fn tool_search_matches_fixture_oracle_bytes() -> Result<(), Box<dyn std::error::Error>> {
+fn tool_search_matches_native_oracle_bytes() -> Result<(), Box<dyn std::error::Error>> {
     let output = unsigned_runx_command_with_inherited_cwd()
-        .args(["tool", "search", "mcp", "--source", "fixture-mcp", "--json"])
-        .env("RUNX_ENABLE_FIXTURE_TOOL_CATALOG", "1")
+        .args(["tool", "search", "fs.read", "--source", "native", "--json"])
         .output()?;
 
-    assert_oracle_output("search-tag-mcp", &output, None)
-}
-
-#[test]
-fn tool_inspect_matches_catalog_oracle_bytes() -> Result<(), Box<dyn std::error::Error>> {
-    let output = unsigned_runx_command_with_inherited_cwd()
-        .args([
-            "tool",
-            "inspect",
-            "fixture.echo",
-            "--source",
-            "fixture-mcp",
-            "--json",
-        ])
-        .env("RUNX_ENABLE_FIXTURE_TOOL_CATALOG", "1")
-        .output()?;
-
-    assert_oracle_output("inspect-catalog-entry", &output, Some(&repo_root()?))
+    assert_oracle_output("search-native", &output, None)
 }
 
 #[test]
@@ -123,15 +90,7 @@ fn tool_inspect_matches_local_oracle_bytes() -> Result<(), Box<dyn std::error::E
 #[test]
 fn tool_inspect_matches_missing_oracle_bytes() -> Result<(), Box<dyn std::error::Error>> {
     let output = unsigned_runx_command_with_inherited_cwd()
-        .args([
-            "tool",
-            "inspect",
-            "fixture.missing",
-            "--source",
-            "fixture-mcp",
-            "--json",
-        ])
-        .env("RUNX_ENABLE_FIXTURE_TOOL_CATALOG", "1")
+        .args(["tool", "inspect", "fixture.missing", "--json"])
         .output()?;
 
     assert_oracle_output("inspect-missing", &output, None)

@@ -1,20 +1,14 @@
 [
   {
-    "name": "search-echo",
-    "query": "echo",
-    "source": "fixture-mcp",
-    "expectedStatus": 0
-  },
-  {
-    "name": "search-tag-mcp",
-    "query": "mcp",
-    "source": "fixture-mcp",
+    "name": "search-native",
+    "query": "fs.read",
+    "source": "native",
     "expectedStatus": 0
   },
   {
     "name": "search-empty-result",
-    "query": "not-a-fixture-tool",
-    "source": "fixture-mcp",
+    "query": "not-a-native-tool",
+    "source": "native",
     "expectedStatus": 0
   }
 ]

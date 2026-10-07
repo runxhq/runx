@@ -1,5 +1,5 @@
 skill: github-sync
-version: "0.5.2"
+version: "0.5.4"
 
 catalog:
   kind: skill
@@ -44,10 +44,6 @@ input_definitions:
         kind:
           type: string
           enum: [issues, prs, threads, batch]
-        include_body:
-          type: boolean
-          default: false
-          description: Include full issue, pull-request, or comment bodies in a pull; default is compact metadata with body digests.
         filters: {}
         refs: {}
         mutations: {}
@@ -69,7 +65,7 @@ input_definitions:
                     items: { type: string, minLength: 1, maxLength: 100, pattern: '^[^\u0000]+$' }
                   since: { type: string, minLength: 1, maxLength: 64 }
                   limit: { type: integer, minimum: 1, maximum: 100, default: 30 }
-                  cursor: { type: string, minLength: 1, maxLength: 512 }
+                  cursor: { type: string, pattern: '^[1-9][0-9]{0,4}$', description: GitHub page number a listing continues from. }
               refs:
                 type: array
                 maxItems: 100
@@ -122,7 +118,7 @@ input_definitions:
                   sort: { type: string, enum: [created, updated, popularity, long-running] }
                   direction: { type: string, enum: [asc, desc] }
                   limit: { type: integer, minimum: 1, maximum: 100, default: 30 }
-                  cursor: { type: string, minLength: 1, maxLength: 512 }
+                  cursor: { type: string, pattern: '^[1-9][0-9]{0,4}$', description: GitHub page number a listing continues from. }
               refs:
                 type: array
                 maxItems: 100
@@ -260,6 +256,9 @@ input_definitions:
                           additionalProperties: false
                           properties:
                             body: { type: string, minLength: 1, maxLength: 65536, pattern: '^[^\u0000]+$' }
+connectors:
+  github:
+    operations: [issues.read, issues.list, pullrequests.read, pullrequests.list, comments.list, issues.update, pullrequests.update, comments.create, comments.update]
 runners:
   github-sync:
     default: true
@@ -280,7 +279,7 @@ runners:
         scope: read
     graph:
       name: github-sync
-      result_from: [pull, readback, plan]
+      result_from: [pull, push, plan]
       steps:
         - id: plan
           inputs:
@@ -303,77 +302,21 @@ runners:
           when:
             field: plan.sync_plan.data.decision
             equals: ready
-          tool: provider.read
-          scopes: [repo.read]
-          policy:
-            provider_permission:
-              verb: read
-          inputs:
-            expected_provider: github
-            target: $input.repo
-            expected_result:
-              repository: $input.repo
-            result_fields: [repository, items, cursor]
+          operation: github
           context:
             operation: plan.sync_plan.data.provider_operation
-            input: plan.sync_plan.data
-
-        - id: digest-mutation
-          when:
-            field: plan.sync_plan.data.decision
-            equals: ready_for_execution
-          tool: data.digest
-          context:
-            value: plan.sync_plan.data.mutations
+            input: plan.sync_plan.data.provider_input
 
         - id: push
           when:
             field: plan.sync_plan.data.decision
             equals: ready_for_execution
-          tool: provider.mutate
-          idempotency_key: $input.idempotency_key
-          scopes: [repo.write]
-          policy:
-            provider_permission:
-              verb: write
+          skill: .
+          runner: push
           inputs:
-            target: $input.repo
-            expected_provider: github
+            repo: $input.repo
+            resources: $input.resources
             idempotency_key: $input.idempotency_key
-            expected_result:
-              repository: $input.repo
-            result_fields: [repository, sync_ref, mutation_digest, mutation, resources, batch_digest, batch_status, mutations]
-          context:
-            operation: plan.sync_plan.data.provider_operation
-            input: plan.sync_plan.data
-
-        - id: bind-mutation
-          when:
-            field: plan.sync_plan.data.decision
-            equals: ready_for_execution
-          tool: data.compare
-          context:
-            actual: push.provider_operation.data.result.batch_digest
-            expected: digest-mutation.digest_result.data.digest
-
-        - id: readback
-          when:
-            field: bind-mutation.comparison.data.equal
-            equals: true
-          tool: provider.read
-          scopes: [repo.read]
-          policy:
-            provider_permission:
-              verb: read
-          inputs:
-            operation: sync.read
-            readback: true
-            target: $input.repo
-            expected_provider: github
-            result_fields: [repository, sync_ref, mutation_digest, mutation, resources, batch_digest, batch_status, mutations]
-          context:
-            expected_result: push.provider_operation.data.result
-            input: push.provider_operation.data.result
 
   plan:
     type: javascript
@@ -429,21 +372,10 @@ runners:
           when:
             field: plan.sync_plan.data.decision
             equals: ready
-          tool: provider.read
-          scopes:
-            - repo.read
-          policy:
-            provider_permission:
-              verb: read
-          inputs:
-            expected_provider: github
-            target: $input.repo
-            expected_result:
-              repository: $input.repo
-            result_fields: [repository, items, cursor]
+          operation: github
           context:
             operation: plan.sync_plan.data.provider_operation
-            input: plan.sync_plan.data
+            input: plan.sync_plan.data.provider_input
 
   push:
     type: graph
@@ -463,7 +395,7 @@ runners:
         idempotency_key: runxhq/runx:issues/241:labels:triage
     graph:
       name: github-sync-push
-      result_from: [readback]
+      result_from: [apply]
       steps:
         - id: plan
           inputs:
@@ -482,64 +414,18 @@ runners:
             packets:
               sync_plan: runx.github_sync.v1
 
-        - id: digest-mutation
+        - id: apply
           when:
             field: plan.sync_plan.data.decision
             equals: ready_for_execution
-          tool: data.digest
-          context:
-            value: plan.sync_plan.data.mutations
-
-        - id: push
-          when:
-            field: plan.sync_plan.data.decision
-            equals: ready_for_execution
-          tool: provider.mutate
+          operation: github
           idempotency_key: $input.idempotency_key
-          scopes:
-            - repo.write
-          policy:
-            provider_permission:
-              verb: write
           inputs:
-            target: $input.repo
-            expected_provider: github
             idempotency_key: $input.idempotency_key
-            expected_result:
-              repository: $input.repo
-            result_fields: [repository, sync_ref, mutation_digest, mutation, resources, batch_digest, batch_status, mutations]
           context:
             operation: plan.sync_plan.data.provider_operation
-            input: plan.sync_plan.data
+            input: plan.sync_plan.data.provider_input
 
-        - id: bind-mutation
-          when:
-            field: plan.sync_plan.data.decision
-            equals: ready_for_execution
-          tool: data.compare
-          context:
-            actual: push.provider_operation.data.result.batch_digest
-            expected: digest-mutation.digest_result.data.digest
-
-        - id: readback
-          when:
-            field: bind-mutation.comparison.data.equal
-            equals: true
-          tool: provider.read
-          scopes:
-            - repo.read
-          policy:
-            provider_permission:
-              verb: read
-          inputs:
-            operation: sync.read
-            readback: true
-            target: $input.repo
-            expected_provider: github
-            result_fields: [repository, sync_ref, mutation_digest, mutation, resources, batch_digest, batch_status, mutations]
-          context:
-            expected_result: push.provider_operation.data.result
-            input: push.provider_operation.data.result
   plan_and_append_cursor:
     type: graph
     inputs:

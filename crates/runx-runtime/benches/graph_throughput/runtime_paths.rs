@@ -16,12 +16,11 @@ use runx_runtime::adapters::agent_loop::ToolExecutor;
 use runx_runtime::adapters::agent_tools::RuntimeToolExecutor;
 use runx_runtime::adapters::javascript::JavaScriptAdapter;
 use runx_runtime::{
-    CredentialDelivery, HOSTED_API_BASE_URL_ENV, HOSTED_API_TOKEN_ENV, Host, HttpMethod, NoopHost,
-    PROVIDER_PERMISSION_GRANT_ID_ENV, PROVIDER_PERMISSION_GRANTED_SCOPES_ENV,
-    PROVIDER_PERMISSION_PRINCIPAL_REF_ENV, ProviderPermissionEffect,
-    RUNX_MAX_FANOUT_CONCURRENCY_ENV, RUNX_RECEIPT_DIR_ENV, Runtime, RuntimeEffectRegistry,
-    RuntimeHttpError, RuntimeHttpRequest, RuntimeHttpResponse, RuntimeHttpTransport,
-    RuntimeOptions, SkillAdapter, SkillInvocation, encode_provider_scopes_env,
+    CredentialDelivery, HOSTED_API_BASE_URL_ENV, HOSTED_API_TOKEN_ENV, Host, HttpMethod,
+    INJECTED_GRANT_ID_ENV, INJECTED_GRANTED_SCOPES_ENV, INJECTED_PRINCIPAL_REF_ENV, NoopHost,
+    OperationEffect, RUNX_MAX_FANOUT_CONCURRENCY_ENV, RUNX_RECEIPT_DIR_ENV, Runtime,
+    RuntimeEffectRegistry, RuntimeHttpError, RuntimeHttpRequest, RuntimeHttpResponse,
+    RuntimeHttpTransport, RuntimeOptions, SkillAdapter, SkillInvocation, encode_injected_scopes,
 };
 use tempfile::TempDir;
 
@@ -133,7 +132,6 @@ impl RuntimePathFixtures {
         let native_executor = RuntimeToolExecutor::new(
             BTreeMap::new(),
             directory.path().to_path_buf(),
-            CredentialDelivery::none(),
             RuntimeEffectRegistry::default(),
             CREATED_AT,
             ["data.digest".to_owned()],
@@ -169,21 +167,21 @@ impl RuntimePathFixtures {
         let fanout_graph = graph(&fanout_graph_yaml(8))?;
 
         let provider_transport = ProviderBenchmarkTransport::default();
-        let effects = RuntimeEffectRegistry::with_effect(
-            ProviderPermissionEffect::with_http_transport(provider_transport.clone()),
-        )?;
+        let effects = RuntimeEffectRegistry::with_effect(OperationEffect::with_http_transport(
+            provider_transport.clone(),
+        ))?;
         let mut provider_options = runtime_options();
         provider_options.effects = effects.clone();
         provider_options.env.insert(
-            PROVIDER_PERMISSION_GRANT_ID_ENV.to_owned(),
+            INJECTED_GRANT_ID_ENV.to_owned(),
             "grant_runtime_perf".to_owned(),
         );
         provider_options.env.insert(
-            PROVIDER_PERMISSION_GRANTED_SCOPES_ENV.to_owned(),
-            encode_provider_scopes_env(&["runtime:perf:write".to_owned()])?,
+            INJECTED_GRANTED_SCOPES_ENV.to_owned(),
+            encode_injected_scopes(&["thread.reply".to_owned()]).ok_or("scopes")?,
         );
         provider_options.env.insert(
-            PROVIDER_PERMISSION_PRINCIPAL_REF_ENV.to_owned(),
+            INJECTED_PRINCIPAL_REF_ENV.to_owned(),
             "runx:principal:operator:benchmark".to_owned(),
         );
         provider_options.env.insert(
@@ -202,7 +200,13 @@ impl RuntimePathFixtures {
                 .into_owned(),
         );
         let provider_runtime = Runtime::new(JavaScriptAdapter::default(), provider_options);
-        let provider_graph = graph(PROVIDER_EFFECT_GRAPH)?;
+        let provider_graph = runx_parser::validate_runner_manifest(
+            runx_parser::parse_runner_manifest_yaml(PROVIDER_EFFECT_SKILL)?,
+        )?
+        .runners
+        .remove("run")
+        .and_then(|runner| runner.source.graph)
+        .ok_or("the provider benchmark skill has no graph")?;
 
         Ok(Self {
             directory,
@@ -284,6 +288,8 @@ impl RuntimePathFixtures {
 
 fn runtime_options() -> RuntimeOptions {
     RuntimeOptions {
+        current_context: Vec::new(),
+        historical_context: Vec::new(),
         created_at: CREATED_AT.to_owned(),
         ..RuntimeOptions::local_development(std::env::vars().collect())
     }
@@ -432,7 +438,7 @@ impl RuntimeHttpTransport for ProviderBenchmarkTransport {
             .clone();
         let response = serde_json::json!({
             "status": "success",
-            "provider": "benchmark",
+            "provider": "slack",
             "operation": operation,
             "target": target,
             "access": access,
@@ -525,6 +531,7 @@ fn write_modules(root: &Path) -> Result<(), std::io::Error> {
 
 fn javascript_invocation(root: &Path, inputs: JsonObject) -> SkillInvocation {
     SkillInvocation {
+        historical_context: Vec::new(),
         skill_name: "runtime-perf-module".to_owned(),
         step_id: None,
         requirements: Default::default(),
@@ -557,17 +564,10 @@ fn empty_source() -> SkillSource {
         timeout_seconds: None,
         input_mode: None,
         environment: Default::default(),
-        server: None,
-        tool: None,
-        arguments: None,
-        agent_card_url: None,
-        agent_identity: None,
         agent: None,
         task: None,
         outputs: None,
         graph: None,
-        external_adapter: None,
-        thread_outbox_provider: None,
         act: None,
         raw: JsonObject::new(),
     }
@@ -607,24 +607,26 @@ steps:
         projection: object
 "#;
 
-const PROVIDER_EFFECT_GRAPH: &str = r#"
-name: runtime-provider-effect-transition
-steps:
-  - id: provider-effect
-    tool: provider.mutate
-    scopes: [runtime:perf:write]
-    idempotency_key: benchmark-request
-    policy:
-      provider_permission:
-        verb: write
-    inputs:
-      operation: messages.deliver
-      target: benchmark://channel/performance
-      expected_provider: benchmark
-      idempotency_key: benchmark-request
-      expected_result:
-        state: delivered
-      result_fields: [state]
-      input:
-        text: provider-effect-transition
+const PROVIDER_EFFECT_SKILL: &str = r#"
+skill: runtime-provider-effect-transition
+connectors:
+  slack:
+    operations: [thread.reply]
+runners:
+  run:
+    type: graph
+    graph:
+      name: runtime-provider-effect-transition
+      result_from: [provider-effect]
+      steps:
+        - id: provider-effect
+          operation: slack/thread.reply
+          inputs:
+            idempotency_key: benchmark-request
+            expected_result:
+              state: delivered
+            result_fields: [state]
+            input:
+              thread_locator: slack://T1/C1/1.0
+              text: provider-effect-transition
 "#;

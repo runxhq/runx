@@ -7,7 +7,6 @@ inputs:
   allowlist:
     - fixture.runx.invalid
   extract: metadata
-  max_bytes: 100000
 caller:
   http_responses:
     "https://fixture.runx.invalid/example":
@@ -23,21 +22,21 @@ expect:
   step_outputs:
     fetch:
       subset:
-        fetch_result:
+        provider_operation:
           data:
-            decision: ready
-            status: 200
-            final_url: https://fixture.runx.invalid/example
-            extract_mode: metadata
-            extracted:
-              title: Example Domain
-              content_type: text/html
-              declared_language: en
-            policy:
-              attempted_host: fixture.runx.invalid
-              allowlist_decision: allowed
-            provenance:
-              truncated: false
+            status: success
+            provider: web
+            operation: page.read
+            target: https://fixture.runx.invalid/example
+            transport: local_web
+            result:
+              status: 200
+              final_url: https://fixture.runx.invalid/example
+              extract_mode: metadata
+              extracted:
+                title: Example Domain
+                content_type: text/html
+                declared_language: en
 metadata:
   public_skill: web-fetch
   source_case: live-keyless-read

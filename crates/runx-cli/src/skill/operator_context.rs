@@ -62,16 +62,6 @@ pub(super) fn write_operator_context(
         );
         out.push('\n');
     }
-    if let Some(credential) = &report.request.credential {
-        out.push_str(&format!(
-            "  Credential: {}/{}; scopes: {}\n",
-            credential.provider,
-            credential.auth_mode,
-            list_or_none(&credential.scopes),
-        ));
-    } else {
-        out.push_str("  Credential: none\n");
-    }
     out.push_str(&format!("  Digest: {}\n", report.digest));
     if let Some(reason) = &report.blocked_reason {
         out.push_str(&format!("\nPreparation blocked: {reason}\n"));
@@ -100,12 +90,6 @@ pub(super) fn write_operator_context(
         out.push_str(&format!(
             "  - {}: type={}, bytes={}, sha256={}\n",
             input.name, input.value_type, input.canonical_bytes, input.sha256
-        ));
-    }
-    if let Some(credential) = &report.request.credential {
-        out.push_str(&format!(
-            "credential_binding: env_var={}, material_ref_sha256={}\n",
-            credential.env_var, credential.material_ref_sha256,
         ));
     }
     append_resolution_trace(&mut out, report);

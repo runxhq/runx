@@ -4,8 +4,6 @@ use std::path::Path;
 
 pub(super) use crate::time::now_iso8601;
 
-use runx_contracts::operational_policy_source_provider;
-
 use super::super::types::{
     RegistryPublisher, RegistrySkillVersion, RegistrySourceMetadata, TrustTier,
 };
@@ -36,10 +34,12 @@ pub(super) fn validate_publisher(
 pub(super) fn validate_source_metadata(
     source_metadata: RegistrySourceMetadata,
 ) -> Result<RegistrySourceMetadata, LocalRegistryError> {
-    if source_metadata.provider != operational_policy_source_provider::GITHUB {
+    // The hosted index names the repository host it read; runx does not
+    // restrict which.
+    if source_metadata.provider.trim().is_empty() {
         return Err(LocalRegistryError::InvalidVersionPayload {
             field: "registry_version.source_metadata.provider".to_owned(),
-            message: format!("must be {}", operational_policy_source_provider::GITHUB),
+            message: "must name the repository host".to_owned(),
         });
     }
     if !matches!(

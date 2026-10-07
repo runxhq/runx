@@ -52,6 +52,7 @@ fn rust_matches_skill_author_runtime_fixtures() -> Result<(), Box<dyn std::error
         let temp_dir = tempfile::tempdir()?;
         let started = Instant::now();
         let output = CliToolAdapter.invoke(SkillInvocation {
+            historical_context: Vec::new(),
             skill_name: format!("skill-author-runtime.{}", fixture.id),
             step_id: None,
             artifacts: None,
@@ -128,17 +129,10 @@ fn fixture_source(
         cwd: fixture.cwd.clone(),
         timeout_seconds: Some(fixture.timeout_seconds),
         input_mode: fixture.input_mode,
-        server: None,
-        tool: None,
-        arguments: None,
-        agent_card_url: None,
-        agent_identity: None,
         agent: None,
         task: None,
         outputs: None,
         graph: None,
-        external_adapter: None,
-        thread_outbox_provider: None,
         environment: Default::default(),
         raw: JsonObject::new(),
     })

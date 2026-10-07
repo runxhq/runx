@@ -28,12 +28,12 @@ Credential material is represented by hashed opaque handles such as
 passed through the receipt redactor before signing. Hosted workers and local
 runners use the same `authority_proof` schema name; consuming repos add policy
 for source channels, assignees, and target repositories outside the core proof.
-Local secret handoff is owned by the declared skill-credential contract and the
-Rust `CredentialDelivery` boundary. Hosted provider execution continues to use
-the credential-broker contract and opaque handles. In both paths, secret values
-may cross only the trusted adapter/supervisor delivery channel, not authority
-proofs, receipts, invocation metadata, adapter observations, or public provider
-evidence. See [Credential Resolution](./credentials.md).
+Local secret handoff is owned by the connector instance and the Rust
+`CredentialDelivery` boundary. Hosted provider execution keeps material in runx
+Connect, which renders only the connector's declared requests. In both paths,
+secret values may cross only the trusted driver or supervisor delivery channel,
+not authority proofs, receipts, invocation metadata, adapter observations, or
+public provider evidence. See [Credentials](./credentials.md).
 
 ## Ownership Boundary
 
@@ -47,13 +47,14 @@ observation.
 
 The local runner applies authority in this order:
 
-1. Manifest validation identifies the selected runner and its declared
-   credential requirement.
-2. The credential resolver selects one profile, project binding, hosted handle,
-   or declared workspace source and constructs a redacted delivery.
-3. Structural policy admission resolves the exact authority grant.
-4. The adapter delivers only the resolved environment and credential material,
-   executes through the lane's canonical boundary, and redacts captured output.
+1. Manifest validation identifies the selected runner and the connector
+   operations it calls.
+2. Structural policy admission resolves the exact authority grant.
+3. Each operation is admitted against the connector's selected instance, which
+   supplies its credential as a redacted delivery.
+4. The adapter or driver receives only the declared environment and that
+   credential, executes through the lane's canonical boundary, and redacts
+   captured output.
 5. The signed receipt records the observed boundary, public observations, and
    output hashes without raw material.
 
@@ -63,31 +64,31 @@ The local runner applies authority in this order:
 grant id, and the authority verb. It must not declare `granted_scopes`; granted
 scopes come only from operator-carried runtime grant evidence.
 
-Legacy provider-permission and MCP host steps fail closed unless the operator
-supplies:
+Legacy provider-permission steps fail closed unless the operator supplies:
 
 - `RUNX_PROVIDER_PERMISSION_GRANT_ID`
 - `RUNX_PROVIDER_PERMISSION_GRANTED_SCOPES`, encoded as a JSON array of exact
   capability strings (for example `["repo.read","issues.write"]`)
 
-Native `provider.read` and `provider.mutate` steps use the same evidence model
-without requiring that setup in the common Connect path. They authenticate the
-operator, read active grant metadata from Connect, and select the unique grant
-whose provider and authoritative scopes cover the declared step. The selection
+Connector `operation` steps on the hosted placement use the same evidence
+model without requiring that setup in the common Connect path. They
+authenticate the operator, read active grant metadata from Connect, and select
+the unique grant whose connector and authoritative scopes cover the
+operation. The selection
 is cached for the run. No provider token or credential body crosses into the
 skill. A host-injected native grant is a complete evidence tuple: the two
 variables above plus `RUNX_PROVIDER_PERMISSION_PRINCIPAL_REF`. Partial tuples
 never report ready.
 
-The native boundary can also require exact `expected_result` identity fields
+An operation step can also require exact `expected_result` identity fields
 and project only declared `result_fields` before the result enters a receipt.
 This prevents a correctly scoped call from being mistaken for the wrong
 resource and keeps undeclared secret-adjacent material out of skill output.
 
-The admitted grant is sufficient for a routine provider mutation. A
-consequential mutation may additionally include the typed
-`provider.mutate.inputs.approval` request. The native effect binds that request
-to its exact plan and suspends for host-attested human resolution; the package
+The admitted grant is sufficient for a routine connector write. A
+consequential write carries a typed `approval` request, which the connector
+can make mandatory with `approval: required`. The kernel binds that request to
+the exact intent and suspends for host-attested human resolution; the package
 must not place a second graph approval beside the same effect. Approval is
 therefore an explicit property of one act, not a generic consequence of write
 scope.

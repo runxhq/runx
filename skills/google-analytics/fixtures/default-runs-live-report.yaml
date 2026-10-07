@@ -14,13 +14,12 @@ inputs:
 caller:
   provider_responses:
     principal_id: operator-fixture
-    grants:
-      - grant_id: ga-report-fixture
+    grant:
+        grant_id: ga-report-fixture
         provider: google-analytics
         scopes: [reports.read]
     operations:
-      - grant_id: ga-report-fixture
-        operation: reports.run
+      - operation: reports.run
         target: properties/123456
         access: read
         result:

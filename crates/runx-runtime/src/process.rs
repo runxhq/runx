@@ -1,9 +1,4 @@
-#[cfg(any(
-    feature = "cli-tool",
-    feature = "external-adapter",
-    feature = "thread-outbox-provider",
-    test
-))]
+#[cfg(any(feature = "async-http", test))]
 mod owned_process;
 mod signals;
 #[cfg(windows)]
@@ -12,42 +7,17 @@ mod windows_host_job;
 /// Default retained bytes per stdout/stderr stream for general operator
 /// processes. The supervisor continues draining and hashing the complete stream;
 /// capability-specific contracts may choose a narrower or wider retained body.
-#[cfg(any(
-    feature = "cli-tool",
-    feature = "external-adapter",
-    feature = "thread-outbox-provider",
-    test
-))]
+#[cfg(any(feature = "async-http", test))]
 #[cfg_attr(test, allow(dead_code))]
 pub(crate) const STANDARD_PROCESS_OUTPUT_BYTES: usize = 8 * 1024 * 1024;
 
-#[cfg(any(
-    feature = "cli-tool",
-    feature = "external-adapter",
-    feature = "thread-outbox-provider",
-    test
-))]
+#[cfg(any(feature = "async-http", test))]
 mod capture;
-#[cfg(any(
-    feature = "cli-tool",
-    feature = "external-adapter",
-    feature = "thread-outbox-provider",
-    test
-))]
+#[cfg(any(feature = "async-http", test))]
 mod resource_limits;
-#[cfg(any(
-    feature = "cli-tool",
-    feature = "external-adapter",
-    feature = "thread-outbox-provider",
-    test
-))]
+#[cfg(any(feature = "async-http", test))]
 mod spec;
-#[cfg(any(
-    feature = "cli-tool",
-    feature = "external-adapter",
-    feature = "thread-outbox-provider",
-    test
-))]
+#[cfg(any(feature = "async-http", test))]
 mod supervisor;
 #[cfg(feature = "mcp")]
 mod tokio_supervisor;
@@ -55,19 +25,9 @@ mod tokio_supervisor;
 #[cfg(feature = "cli-tool")]
 pub(crate) use self::capture::CapturedOutput;
 pub(crate) use self::signals::{ProcessSignal, configure_process_group, signal_process_group_id};
-#[cfg(any(
-    feature = "cli-tool",
-    feature = "external-adapter",
-    feature = "thread-outbox-provider",
-    test
-))]
+#[cfg(any(feature = "async-http", test))]
 pub(crate) use self::spec::{ProcessOutcome, ProcessSpec, ProcessStdin, ProcessSupervisorError};
-#[cfg(any(
-    feature = "cli-tool",
-    feature = "external-adapter",
-    feature = "thread-outbox-provider",
-    test
-))]
+#[cfg(any(feature = "async-http", test))]
 pub(crate) use self::supervisor::run_process;
 #[cfg(feature = "mcp")]
 pub(crate) use self::tokio_supervisor::{OwnedTokioProcess, TokioProcessSpec, spawn_tokio_process};

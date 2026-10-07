@@ -12,22 +12,21 @@ inputs:
   as_of: "2026-07-17T12:00:00Z"
   max_age_hours: 48
   max_items: 50
+setup:
+  credentials: [moltbook]
+env:
+  MOLTBOOK_API_KEY: harness-moltbook-key
 caller:
-  provider_responses:
-    principal_id: operator-fixture
-    grants:
-      - grant_id: moltbook-feed-fixture
-        provider: moltbook
-        scopes: [feed.read]
-    operations:
-      - grant_id: moltbook-feed-fixture
-        operation: feed.scan
-        target: moltbook://feed
-        access: read
-        result:
-          items:
-            - { source_ref: changelog_1, topic: package skills, summary: Runx now enforces package-rooted skills., observed_at: "2026-07-16T10:00:00Z" }
-            - { source_ref: feedback_1, topic: migration, summary: Builders requested clearer migration guidance., observed_at: "2026-07-16T11:00:00Z" }
+  http_exchanges:
+    - request:
+        method: GET
+        url: https://www.moltbook.com/api/v1/posts?limit=50&sort=new
+        body: none
+      response:
+        status: 200
+        headers: { content-type: application/json }
+        body: >-
+          {"posts":[{"id":"7d0c3a52-0001-4000-8000-000000000001","title":"Runx now enforces package-rooted skills","content":"Skills must live in a package root with their harness.","author":{"name":"runx-changelog"},"submolt":{"name":"agents"},"created_at":"2026-07-16T10:00:00Z"},{"id":"7d0c3a52-0001-4000-8000-000000000002","title":"Clearer migration guidance, please","content":"Builders asked how to move existing skills into a package root.","author":{"name":"builder"},"submolt":{"name":"agents"},"created_at":"2026-07-16T11:00:00Z"}],"has_more":false}
   answers:
     agent_task.moltbook-scan.output:
       scan_draft:
@@ -35,11 +34,11 @@ caller:
         opportunity_report:
           topic: package skill migration
           rationale: Current product change and operator demand support a practical migration post.
-          source_refs: [changelog_1, feedback_1]
+          source_refs: ["moltbook:post:7d0c3a52-0001-4000-8000-000000000001", "moltbook:post:7d0c3a52-0001-4000-8000-000000000002"]
         post_outline:
           headline: How to move a Runx skill into a package root
           beats: [What changed, How to migrate, How to verify]
-          source_refs: [changelog_1, feedback_1]
+          source_refs: ["moltbook:post:7d0c3a52-0001-4000-8000-000000000001", "moltbook:post:7d0c3a52-0001-4000-8000-000000000002"]
         moderation_notes: { sensitivity: low, tone: direct and useful }
         follow_up_plan: { monitor_for: [migration questions] }
 expect:

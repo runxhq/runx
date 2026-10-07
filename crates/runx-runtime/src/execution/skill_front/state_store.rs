@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 
 use crate::RuntimeError;
 use crate::execution::orchestrator::SkillRunRequest;
-use crate::services::{ReceiptServices, WorkspaceEnv};
+use crate::services::{ReceiptReadContext, ReceiptServices, WorkspaceEnv};
 
 fn graph_state_path(
     request: &SkillRunRequest,
@@ -36,17 +36,41 @@ pub fn inspect_paused_skill_request(
     else {
         return Ok(None);
     };
-    if !matches!(paused.kind.as_str(), "agent" | "graph") {
-        return Err(invalid("paused native run has no skill request checkpoint"));
-    }
-    let path = receipt_dir.join("runs").join(format!(
-        "{}.{}-state.json",
-        identifier_segment(run_id),
-        paused.kind
-    ));
+    // The journal's `kind` is the receipt projection kind, not the skill
+    // source type. The latter is owned by the exact native checkpoint file.
+    // Require one unambiguous regular file and then bind its contents back to
+    // the paused ledger below; this also reads checkpoints already on disk.
+    let state_path = |kind: &str| {
+        receipt_dir.join("runs").join(format!(
+            "{}.{}-state.json",
+            identifier_segment(run_id),
+            kind
+        ))
+    };
+    let agent_path = state_path("agent");
+    let graph_path = state_path("graph");
+    let exists = |path: &Path| -> Result<bool, SkillRunError> {
+        match fs::symlink_metadata(path) {
+            Ok(metadata) if metadata.file_type().is_file() => Ok(true),
+            Ok(_) => Err(invalid("native skill checkpoint is not a regular file")),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
+            Err(error) => Err(invalid(format!(
+                "inspecting native skill checkpoint: {error}"
+            ))),
+        }
+    };
+    let (kind, path) = match (exists(&agent_path)?, exists(&graph_path)?) {
+        (true, false) => ("agent", agent_path),
+        (false, true) => ("graph", graph_path),
+        _ => {
+            return Err(invalid(
+                "paused native run has no unambiguous skill request checkpoint",
+            ));
+        }
+    };
     let raw = fs::read(&path)
         .map_err(|source| RuntimeError::io(format!("reading {}", path.display()), source))?;
-    if paused.kind == "agent" {
+    if kind == "agent" {
         let state: AgentSkillState = serde_json::from_slice(&raw)
             .map_err(|error| invalid(format!("native agent checkpoint is malformed: {error}")))?;
         if state.run_id != run_id
@@ -95,6 +119,59 @@ pub fn inspect_paused_skill_request(
         ));
     }
     Ok(Some(pending))
+}
+
+/// Inspect one terminal graph run by its native identity in the workspace's
+/// receipt store. The checkpoint and the verified signed receipt must agree;
+/// callers never infer outcome from log text.
+pub fn inspect_sealed_graph_run(
+    workspace: &WorkspaceEnv,
+    run_id: &str,
+) -> Result<Option<SealedGraphRun>, SkillRunError> {
+    let receipts = ReceiptReadContext::resolve(workspace.env(), workspace.cwd())?;
+    let path = receipts
+        .resolved()
+        .path
+        .join("runs")
+        .join(format!("{}.graph-state.json", identifier_segment(run_id)));
+    let raw = match fs::read(&path) {
+        Ok(raw) => raw,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(RuntimeError::io("reading native graph state", error).into()),
+    };
+    let state: GraphSkillRunState = serde_json::from_slice(&raw)
+        .map_err(|error| invalid(format!("native graph state is malformed: {error}")))?;
+    if state.schema != GRAPH_SKILL_STATE_SCHEMA || state.run_id != run_id {
+        return Err(invalid(
+            "native graph state identity differs from requested run",
+        ));
+    }
+    let Some(receipt_id) = state.completed_graph_receipt_id.as_deref() else {
+        return Ok(None);
+    };
+    let receipt = receipts
+        .store()
+        .read_exact_with_policy(receipt_id, receipts.signature_policy())
+        .map_err(|error| invalid(format!("reading native graph receipt: {error}")))?;
+    if state.sealed_graph_receipt.as_ref() != Some(&receipt)
+        || state.completed_receipt_id.as_deref() != Some(receipt.id.as_str())
+    {
+        return Err(invalid("native graph receipt differs from its checkpoint"));
+    }
+    Ok(Some(SealedGraphRun {
+        runner: state.runner_name,
+        package_digest: state.package_digest,
+        inputs: state.graph_inputs,
+        receipt,
+    }))
+}
+
+#[derive(Clone, Debug)]
+pub struct SealedGraphRun {
+    pub runner: String,
+    pub package_digest: String,
+    pub inputs: runx_contracts::JsonObject,
+    pub receipt: runx_contracts::Receipt,
 }
 
 pub(super) fn write_graph_state(
@@ -224,6 +301,40 @@ pub(super) fn try_read_graph_state(
     Ok(Some(state))
 }
 
+pub(super) fn restore_graph_inputs(
+    request: &mut SkillRunRequest,
+    workspace: &WorkspaceEnv,
+    receipts: &ReceiptServices,
+    runner_name: &str,
+    package_digest: &str,
+    execution_closure_digest: &str,
+) -> Result<(), SkillRunError> {
+    let run_id = request
+        .run_id
+        .as_deref()
+        .ok_or_else(|| invalid("graph continuation requires run_id"))?;
+    let state = read_graph_state(
+        request,
+        workspace,
+        receipts,
+        run_id,
+        runner_name,
+        package_digest,
+        execution_closure_digest,
+    )?;
+    if request
+        .inputs
+        .iter()
+        .any(|(name, value)| state.graph_inputs.get(name) != Some(value))
+    {
+        return Err(invalid(
+            "graph run identity cannot replace its original inputs",
+        ));
+    }
+    request.inputs = state.graph_inputs;
+    Ok(())
+}
+
 fn state_temp_path(path: &Path) -> PathBuf {
     use std::sync::atomic::{AtomicU64, Ordering};
     static SEQUENCE: AtomicU64 = AtomicU64::new(0);
@@ -240,6 +351,8 @@ fn state_temp_path(path: &Path) -> PathBuf {
 
 #[derive(serde::Serialize, serde::Deserialize)]
 struct AgentSkillState {
+    current_context: Vec<runx_contracts::ContextEntry>,
+    historical_context: Vec<runx_contracts::ContextEntry>,
     run_id: String,
     runner: String,
     package_digest: String,
@@ -268,6 +381,8 @@ pub(super) fn write_agent_state(
     pending_request: PendingSkillRequest,
 ) -> Result<(), SkillRunError> {
     let state = AgentSkillState {
+        current_context: context.request.current_context.clone(),
+        historical_context: context.request.historical_context.clone(),
         run_id: run_id.to_owned(),
         runner: context.runner.name.clone(),
         package_digest: context.package_digest.to_owned(),
@@ -282,6 +397,27 @@ pub(super) fn write_agent_state(
         &agent_state_path(context.request, context.workspace, context.receipts, run_id),
         &state,
     )
+}
+
+pub(super) fn validate_pending_agent_request(
+    context: &super::SkillExecutionContext<'_>,
+    run_id: &str,
+    request: &runx_contracts::JsonValue,
+) -> Result<(), SkillRunError> {
+    if context.request.answers_path.is_none() {
+        return Ok(());
+    }
+    let path = agent_state_path(context.request, context.workspace, context.receipts, run_id);
+    let raw = fs::read(&path)
+        .map_err(|source| RuntimeError::io("reading pending agent context", source))?;
+    let state: AgentSkillState = serde_json::from_slice(&raw)
+        .map_err(|source| RuntimeError::json("reading pending agent context", source))?;
+    if state.pending_request.as_ref().map(|pending| &pending.value) != Some(request) {
+        return Err(invalid(
+            "continuation cannot replace the pending agent request or its context",
+        ));
+    }
+    Ok(())
 }
 
 pub(super) fn restore_agent_inputs(
@@ -315,6 +451,16 @@ pub(super) fn restore_agent_inputs(
             "agent continuation cannot replace the original inputs",
         ));
     }
+    if (!request.current_context.is_empty() && request.current_context != state.current_context)
+        || (!request.historical_context.is_empty()
+            && request.historical_context != state.historical_context)
+    {
+        return Err(invalid(
+            "agent continuation cannot replace the original agent context",
+        ));
+    }
+    request.current_context = state.current_context;
+    request.historical_context = state.historical_context;
     request.inputs = state.inputs;
     Ok(())
 }

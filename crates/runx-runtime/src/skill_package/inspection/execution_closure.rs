@@ -422,26 +422,6 @@ impl<'a> ExecutionClosureInspector<'a> {
                 );
                 walk.closure.components.insert(component);
             }
-            SourceKind::Mcp => {
-                let component = source
-                    .tool
-                    .as_deref()
-                    .map_or_else(|| "mcp".to_owned(), |tool| format!("mcp:{tool}"));
-                walk.closure.components.insert(component);
-            }
-            SourceKind::A2a => {
-                walk.closure.components.insert("a2a".to_owned());
-            }
-            SourceKind::ExternalAdapter => {
-                walk.closure
-                    .components
-                    .insert("external-adapter".to_owned());
-            }
-            SourceKind::ThreadOutboxProvider => {
-                walk.closure
-                    .components
-                    .insert("thread-outbox-provider".to_owned());
-            }
         }
         Ok(())
     }
@@ -465,6 +445,12 @@ impl<'a> ExecutionClosureInspector<'a> {
         for step in &graph.steps {
             if let Some(tool) = &step.tool {
                 walk.closure.components.insert(format!("tool:{tool}"));
+            }
+            if let Some(target) = &step.operation {
+                walk.closure.components.insert(match &target.operation {
+                    Some(operation) => format!("operation:{}/{operation}", target.requirement),
+                    None => format!("operation:{}", target.requirement),
+                });
             }
             if let Some(resolved) =
                 self.resolve_step_skill(context.directory, context.profile_path, step)?

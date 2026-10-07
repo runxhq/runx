@@ -4,8 +4,6 @@
 //! preserves their values; provider adapters and workers decide
 //! how an admitted requirement is fulfilled.
 
-use std::collections::BTreeMap;
-
 use serde::{Deserialize, Serialize};
 
 use crate::JsonValue;
@@ -36,19 +34,6 @@ impl EnvironmentRequirements {
     }
 }
 
-/// The named credential declaration selected by a runner. This carries only
-/// requirement metadata; credential material travels through the credential
-/// delivery boundary.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
-#[serde(deny_unknown_fields)]
-pub struct ExecutionCredentialRequirement {
-    pub name: String,
-    pub provider: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub audience: Option<String>,
-    pub deliveries: BTreeMap<String, String>,
-}
-
 /// Parser-owned projection of all execution requirements for one act.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
@@ -59,8 +44,6 @@ pub struct ExecutionRequirements {
     pub scopes: Vec<String>,
     #[serde(default, skip_serializing_if = "EnvironmentRequirements::is_empty")]
     pub environment: EnvironmentRequirements,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub credential: Option<ExecutionCredentialRequirement>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub runtime: Option<JsonValue>,
 }

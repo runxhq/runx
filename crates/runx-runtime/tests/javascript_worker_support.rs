@@ -162,6 +162,7 @@ impl JavaScriptPackage {
             ..ExecutionRequirements::default()
         };
         self.adapter.invoke(SkillInvocation {
+            historical_context: Vec::new(),
             skill_name: "deterministic-module".to_owned(),
             step_id: None,
             artifacts: None,
@@ -216,17 +217,10 @@ fn javascript_source() -> SkillSource {
         timeout_seconds: None,
         input_mode: None,
         environment: EnvironmentRequirements::default(),
-        server: None,
-        tool: None,
-        arguments: None,
-        agent_card_url: None,
-        agent_identity: None,
         agent: None,
         task: None,
         outputs: None,
         graph: None,
-        external_adapter: None,
-        thread_outbox_provider: None,
         act: None,
         raw: JsonObject::new(),
     }

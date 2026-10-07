@@ -30,7 +30,7 @@ deny = [
   { name = "hyper", wrappers = ["reqwest", "hyper-rustls", "hyper-util", "runx-runtime"], reason = "Allowed as reqwest transport internals, and (runx-runtime, mcp-http-server feature) as the reviewed inbound server runtime driving rmcp's StreamableHttpService for the governed MCP-over-HTTP surface." },
   { name = "reqwest", wrappers = ["runx-runtime"], reason = "Approved only inside runx-runtime async-http; pure crates must not depend on the HTTP client." },
   # rmcp is intentionally not banned: it is the canonical protocol engine for
-  # runx-runtime's MCP adapter boundary. scripts/check-rust-crate-graph.mjs
+  # runx-runtime's MCP server and connector driver. scripts/check-rust-crate-graph.mjs
   # keeps rmcp out of pure crates and the CLI.
   { name = "serde_yaml", reason = "Unapproved YAML backend; the parser backend is serde_norway." },
   { name = "serde_yml", reason = "Retired YAML backend candidate; the parser backend is serde_norway." },

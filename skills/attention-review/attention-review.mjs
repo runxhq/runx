@@ -10,9 +10,9 @@ export function finalizeAttention(inputs) {
   const refs = new Map(evidence.map((item) => [text(item.source_ref), item]));
   const dispositions = new Map(array(inputs.current_actions).map((item) => [text(item.source_ref), item]));
   const allowed = new Set(array(inputs.allowed_action_ids).map(text));
-  const candidates = new Map(array(inputs.work_candidates).map((item) => [JSON.stringify([text(item.source_ref), text(item.route_id), text(item.target_ref)]), item]));
+  const routes = new Map(array(inputs.work_routes).map((route) => [text(route.route_id), route]));
   const findings = [];
-  if (candidates.size !== array(inputs.work_candidates).length) findings.push("work candidates contain duplicates");
+  if (routes.size !== array(inputs.work_routes).length) findings.push("work routes contain duplicates");
   if (!Number.isFinite(asOf) || refs.size !== evidence.length) findings.push("evaluation time or source references are invalid");
   const min = Number(inputs.min_check_minutes);
   const max = Number(inputs.max_check_minutes);
@@ -45,23 +45,30 @@ export function finalizeAttention(inputs) {
   const work = [];
   const seenWork = new Set();
   const proposedWork = array(draft.work_proposals);
-  const candidateRoutes = new Set(array(inputs.work_candidates).map((item) => text(item.route_id)));
+  const candidateRoutes = new Set(routes.keys());
   const admittedWork = proposedWork.filter((item) => candidateRoutes.has(text(item?.route_id)));
   for (const raw of admittedWork) {
     const sourceRef = text(raw?.source_ref);
     const routeId = text(raw?.route_id);
     const targetRef = text(raw?.target_ref);
     const key = JSON.stringify([sourceRef, routeId, targetRef]);
-    const candidate = candidates.get(key);
+    const route = routes.get(routeId);
     const source = refs.get(sourceRef);
     const state = object(dispositions.get(sourceRef));
-    if (!candidate || !source || text(candidate.source_digest) !== text(source.source_digest)
+    if (!route || !source || targetRef !== text(source.thread_locator || source.source_ref)
+        || (array(route.source_kinds).length && !array(route.source_kinds).includes(text(source.source_kind)))
+        || !raw.inputs || typeof raw.inputs !== "object" || Array.isArray(raw.inputs)
+        || !Number.isSafeInteger(raw.due_at_unix_seconds) || raw.due_at_unix_seconds < 0
         || !seen.has(sourceRef) || (state.disposition && state.disposition !== "open") || seenWork.has(key)) {
       findings.push("work proposal is not an exact candidate for an open selected source");
       continue;
     }
     seenWork.add(key);
-    work.push({ source_ref: sourceRef, source_digest: text(source.source_digest), route_id: routeId, target_ref: targetRef });
+    // Configured route inputs are operator authority, never model input.
+    const fixed = object(route.fixed_inputs);
+    const inputs = Object.fromEntries(Object.entries(raw.inputs)
+      .filter(([key]) => !Object.hasOwn(fixed, key)));
+    work.push({ source_ref: sourceRef, source_digest: text(source.source_digest), route_id: routeId, target_ref: targetRef, inputs, due_at_unix_seconds: raw.due_at_unix_seconds });
   }
   if (work.length > 3 || work.length !== admittedWork.length) findings.push("work proposals exceed the limit or contain an invalid selection");
   const proposedActions = array(draft.recommended_action_ids).map(text);

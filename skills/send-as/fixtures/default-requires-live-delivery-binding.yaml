@@ -10,12 +10,11 @@ env:
   RUNX_PROVIDER_PERMISSION_GRANT_ID: grant-send-demo
   RUNX_PROVIDER_PERMISSION_GRANTED_SCOPES: '["message.send"]'
   RUNX_PROVIDER_PERMISSION_PRINCIPAL_REF: runx:principal:release-bot
-  RUNX_PROVIDER_PERMISSION_TRANSPORT: hosted:grant-send-demo
 inputs:
   objective: Send the digest-bound release notice.
   principal: account:release-bot
   provider_context:
-    provider: provider-send-demo
+    provider: slack
     account_ref: acct_release
     runtime_path: provider.send
     ready: true
@@ -29,7 +28,7 @@ inputs:
   consent_basis: Subscribers opted in to release notices.
   operator_context: Require exact approval before live delivery.
   connector:
-    provider: provider-send-demo
+    provider: slack
     target: account:acct_release/channel:release-subscribers
 caller:
   answers:
@@ -38,7 +37,7 @@ caller:
         decision: ready
         action_family: send-as
         principal: { type: account, ref: account:release-bot }
-        provider: { name: provider-send-demo, account_ref: acct_release, runtime_path: provider.send }
+        provider: { name: slack, account_ref: acct_release, runtime_path: provider.send }
         send_class: status
         channel: email
         audience: { type: channel, ref: release-subscribers, requires_reconfirmation: false }
@@ -49,7 +48,7 @@ caller:
         gates: { preflight_required: true, human_approval_required: true, approval_ref: send-as.live-send.approval }
         blockers: []
         provider_actions: [message.send]
-        evidence_refs: [provider_context:provider-send-demo]
+        evidence_refs: [provider_context:slack]
         success_checkpoint:
           milestone: send_ready_for_approval
           description: The exact digest-bound release notice awaits live-send approval.

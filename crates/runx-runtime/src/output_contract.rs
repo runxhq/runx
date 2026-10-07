@@ -66,6 +66,18 @@ pub(crate) fn project_declared_output_claim(
     Ok(claim)
 }
 
+/// Fold the artifact envelopes into an object payload, so a step exposes
+/// `<step>.<packet>.data` for each declared artifact.
+pub(crate) fn apply_artifact_outputs(
+    value: &mut JsonValue,
+    artifacts: Option<&SkillArtifactContract>,
+) {
+    let projected = project_artifact_outputs(value, artifacts);
+    if let JsonValue::Object(object) = value {
+        object.extend(projected);
+    }
+}
+
 /// Project only the artifact-addressable portion of a producer payload.
 ///
 /// Tool dispatch and step/receipt projection call this same function, so

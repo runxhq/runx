@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 use std::path::Path;
 
-use runx_contracts::{JsonObject, Receipt, Reference};
+use runx_contracts::{JsonObject, Receipt};
 use runx_parser::GraphStep;
 
 use crate::CapabilityContract;
@@ -128,28 +128,14 @@ pub trait RuntimeEffect: Send + Sync {
         Ok(())
     }
 
-    fn authority_grant_refs(
+    /// The authority the step receipt seals for an admission: the grants
+    /// and scopes that admitted it and the execution terms derived for it.
+    fn authority(
         &self,
         admission: &EffectAdmission,
-    ) -> Result<Vec<Reference>, RuntimeEffectError> {
+    ) -> Result<crate::receipts::SealAuthority, RuntimeEffectError> {
         let _ = admission;
-        Ok(Vec::new())
-    }
-
-    fn authority_scope_refs(
-        &self,
-        admission: &EffectAdmission,
-    ) -> Result<Vec<Reference>, RuntimeEffectError> {
-        let _ = admission;
-        Ok(Vec::new())
-    }
-
-    fn replay_authority_grant_refs(
-        &self,
-        replay: &EffectReplay,
-    ) -> Result<Vec<Reference>, RuntimeEffectError> {
-        let _ = replay;
-        Ok(Vec::new())
+        Ok(crate::receipts::SealAuthority::default())
     }
 
     /// Invoke one catalog tool owned by this effect family.
@@ -191,6 +177,7 @@ pub struct EffectStepRequest<'a> {
     pub inputs: &'a JsonObject,
     pub env: &'a BTreeMap<String, String>,
     pub graph_dir: &'a Path,
+    pub run_authority: Option<&'a crate::RunAuthority>,
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]

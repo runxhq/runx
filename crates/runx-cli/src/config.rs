@@ -227,6 +227,7 @@ pub fn is_secret_config_key(key: &str) -> bool {
 fn normalize_config_key(key: &str) -> &str {
     match key {
         "provider" => "agent.provider",
+        "dialect" => "agent.dialect",
         "model" => "agent.model",
         "endpoint-url" => "agent.endpoint_url",
         "auth-mode" => "agent.auth_mode",
@@ -341,6 +342,9 @@ fn flatten_config(config: &RunxConfigFile) -> Vec<(&'static str, &str)> {
     if let Some(agent) = config.agent.as_ref() {
         if let Some(provider) = agent.provider.as_deref() {
             rows.push(("agent.provider", provider));
+        }
+        if let Some(dialect) = agent.dialect.as_deref() {
+            rows.push(("agent.dialect", dialect));
         }
         if let Some(model) = agent.model.as_deref() {
             rows.push(("agent.model", model));

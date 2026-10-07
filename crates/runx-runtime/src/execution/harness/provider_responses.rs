@@ -3,43 +3,67 @@ use runx_parser::{HarnessProviderAccess, HarnessProviderResponsesFixture};
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 
-use crate::effects::{ProviderPermissionEffect, RuntimeEffectRegistry};
 use crate::http::{
-    HttpMethod, RuntimeHttpError, RuntimeHttpRequest, RuntimeHttpResponse, RuntimeHttpTransport,
+    HttpMethod, RuntimeHarnessHttpExchange, RuntimeHttpError, RuntimeHttpRequest,
+    RuntimeHttpResponse, RuntimeHttpTransport, exact_harness_response,
 };
 
 pub(crate) const HARNESS_PROVIDER_BASE_URL: &str = "https://provider-fixture.runx.invalid";
 pub(crate) const HARNESS_PROVIDER_TOKEN: &str = "runx-harness-provider-token";
 
-/// Wire an exact provider fixture beneath the production provider effect. No
-/// public runner input or environment variable can construct this transport;
-/// only the isolated harness front can attach it.
-pub(crate) fn effects_with_harness_provider_responses(
-    effects: &RuntimeEffectRegistry,
-    fixture: Option<&HarnessProviderResponsesFixture>,
-) -> Result<RuntimeEffectRegistry, crate::RuntimeEffectError> {
-    let Some(fixture) = fixture else {
-        return Ok(effects.clone());
-    };
-    let mut effects = effects.clone();
-    effects.replace_effect(ProviderPermissionEffect::with_http_transport(
-        HarnessProviderTransport {
-            fixture: fixture.clone(),
-            mutation_keys: Arc::new(Mutex::new(BTreeMap::new())),
-        },
-    ))?;
-    Ok(effects)
+/// The fixture's grant, injected the way a hosted worker injects one, so the
+/// run resolves it as its instance.
+pub(crate) fn injected_grant_env(
+    fixture: &HarnessProviderResponsesFixture,
+) -> Result<BTreeMap<String, String>, String> {
+    let grant = &fixture.grant;
+    let principal_id = runx_contracts::RunxPrincipalId::new(fixture.principal_id.clone())
+        .ok_or("the fixture principal id is not a runx principal id")?;
+    let principal_ref = runx_contracts::PrincipalReference::from_runx_principal_id(principal_id)
+        .as_reference()
+        .uri
+        .as_str()
+        .to_owned();
+    Ok(BTreeMap::from([
+        (
+            crate::INJECTED_GRANT_ID_ENV.to_owned(),
+            grant.grant_id.clone(),
+        ),
+        (
+            crate::INJECTED_GRANTED_SCOPES_ENV.to_owned(),
+            crate::encode_injected_scopes(&grant.scopes)
+                .ok_or("the fixture grant needs at least one scope")?,
+        ),
+        (crate::INJECTED_PRINCIPAL_REF_ENV.to_owned(), principal_ref),
+    ]))
 }
 
+/// The harness's transport beneath operation steps. It answers the provider
+/// fixture's hosted endpoints and the case's exact HTTP exchanges, and refuses
+/// every other request: a harness run never reaches a live provider.
 #[derive(Clone, Debug)]
-struct HarnessProviderTransport {
-    fixture: HarnessProviderResponsesFixture,
-    mutation_keys: Arc<Mutex<BTreeMap<(String, String), String>>>,
+pub(super) struct HarnessTransport {
+    pub(super) provider: Option<HarnessProviderResponsesFixture>,
+    pub(super) responses: Option<Arc<BTreeMap<String, RuntimeHttpResponse>>>,
+    pub(super) exchanges: Option<Arc<Vec<RuntimeHarnessHttpExchange>>>,
+    pub(super) mutation_keys: Arc<Mutex<BTreeMap<(String, String), String>>>,
 }
 
-impl RuntimeHttpTransport for HarnessProviderTransport {
+impl RuntimeHttpTransport for HarnessTransport {
     fn send(&self, request: RuntimeHttpRequest) -> Result<RuntimeHttpResponse, RuntimeHttpError> {
-        self.validate_authorization(&request)?;
+        if !request.url.starts_with(HARNESS_PROVIDER_BASE_URL) {
+            return exact_harness_response(
+                self.responses.as_deref(),
+                self.exchanges.as_deref().map(Vec::as_slice),
+                &request,
+                false,
+            );
+        }
+        let fixture = self
+            .provider
+            .as_ref()
+            .ok_or_else(|| transport_error("the case declares no provider fixture".to_owned()))?;
+        validate_authorization(&request)?;
         match (request.method, request.url.as_str()) {
             (HttpMethod::Get, url) if url == format!("{HARNESS_PROVIDER_BASE_URL}/v1/me") => {
                 json_response(JsonValue::Object(JsonObject::from([
@@ -48,50 +72,15 @@ impl RuntimeHttpTransport for HarnessProviderTransport {
                         "principal".to_owned(),
                         JsonValue::Object(JsonObject::from([(
                             "principal_id".to_owned(),
-                            JsonValue::String(self.fixture.principal_id.clone()),
+                            JsonValue::String(fixture.principal_id.clone()),
                         )])),
                     ),
-                ])))
-            }
-            (HttpMethod::Get, url) if url == format!("{HARNESS_PROVIDER_BASE_URL}/v1/grants") => {
-                let grants = self
-                    .fixture
-                    .grants
-                    .iter()
-                    .map(|grant| {
-                        JsonValue::Object(JsonObject::from([
-                            (
-                                "grant_id".to_owned(),
-                                JsonValue::String(grant.grant_id.clone()),
-                            ),
-                            (
-                                "provider".to_owned(),
-                                JsonValue::String(grant.provider.clone()),
-                            ),
-                            (
-                                "scopes".to_owned(),
-                                JsonValue::Array(
-                                    grant
-                                        .scopes
-                                        .iter()
-                                        .cloned()
-                                        .map(JsonValue::String)
-                                        .collect(),
-                                ),
-                            ),
-                            ("status".to_owned(), JsonValue::String("active".to_owned())),
-                        ]))
-                    })
-                    .collect();
-                json_response(JsonValue::Object(JsonObject::from([
-                    ("status".to_owned(), JsonValue::String("success".to_owned())),
-                    ("grants".to_owned(), JsonValue::Array(grants)),
                 ])))
             }
             (HttpMethod::Post, url)
                 if url == format!("{HARNESS_PROVIDER_BASE_URL}/v1/provider-operations") =>
             {
-                self.provider_operation(request.body.as_deref())
+                self.provider_operation(fixture, request.body.as_deref())
             }
             _ => Err(transport_error(format!(
                 "the harness provider fixture has no response for {} {}",
@@ -102,21 +91,24 @@ impl RuntimeHttpTransport for HarnessProviderTransport {
     }
 }
 
-impl HarnessProviderTransport {
-    fn validate_authorization(&self, request: &RuntimeHttpRequest) -> Result<(), RuntimeHttpError> {
-        let expected = format!("Bearer {HARNESS_PROVIDER_TOKEN}");
-        if request.headers.iter().any(|header| {
-            header.name.eq_ignore_ascii_case("authorization") && header.value == expected
-        }) {
-            return Ok(());
-        }
-        Err(transport_error(
-            "the harness provider request omitted its isolated bearer binding".to_owned(),
-        ))
+fn validate_authorization(request: &RuntimeHttpRequest) -> Result<(), RuntimeHttpError> {
+    let expected = format!("Bearer {HARNESS_PROVIDER_TOKEN}");
+    if request
+        .headers
+        .iter()
+        .any(|header| header.name.eq_ignore_ascii_case("authorization") && header.value == expected)
+    {
+        return Ok(());
     }
+    Err(transport_error(
+        "the harness provider request omitted its isolated bearer binding".to_owned(),
+    ))
+}
 
+impl HarnessTransport {
     fn provider_operation(
         &self,
+        fixture: &HarnessProviderResponsesFixture,
         body: Option<&str>,
     ) -> Result<RuntimeHttpResponse, RuntimeHttpError> {
         let request = serde_json::from_str::<JsonObject>(
@@ -136,28 +128,25 @@ impl HarnessProviderTransport {
                 )));
             }
         };
-        let fixture = self
-            .fixture
+        if grant_id != fixture.grant.grant_id {
+            return Err(transport_error(format!(
+                "the harness provider fixture holds no grant {grant_id:?}"
+            )));
+        }
+        let provider = fixture.grant.provider.clone();
+        let fixture = fixture
             .operations
             .iter()
             .find(|fixture| {
-                fixture.grant_id == grant_id
-                    && fixture.operation == operation
+                fixture.operation == operation
                     && fixture.target == target
                     && fixture.access == access
             })
             .ok_or_else(|| {
                 transport_error(format!(
-                    "the harness provider fixture has no exact {access:?} operation {operation:?} for target {target:?} and grant {grant_id:?}"
+                    "the harness provider fixture has no exact {access:?} operation {operation:?} for target {target:?}"
                 ))
             })?;
-        let provider = self
-            .fixture
-            .grants
-            .iter()
-            .find(|grant| grant.grant_id == grant_id)
-            .map(|grant| grant.provider.clone())
-            .ok_or_else(|| transport_error(format!("unknown harness grant {grant_id:?}")))?;
         let identity = runx_contracts::sha256_prefixed(
             format!("{grant_id}\0{operation}\0{target}").as_bytes(),
         );

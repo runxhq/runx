@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 use std::ffi::OsString;
 use std::fmt;
 use std::path::Path;
-use std::process::{Command, ExitCode};
+use std::process::ExitCode;
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -23,7 +23,9 @@ pub struct LoginPlan {
     pub api_base_url: Option<String>,
     pub provider: Option<String>,
     pub purpose: Option<HostedApiCredentialPurpose>,
-    pub from_gh: bool,
+    /// Sign in with a token from the provider, piped on stdin, instead of
+    /// the browser.
+    pub token_stdin: bool,
     pub allow_local_api: bool,
     pub json: bool,
 }
@@ -37,10 +39,8 @@ pub enum LoginCliError {
     LoginTimedOut,
     MissingToken,
     MissingPrincipal,
-    InvalidFromGhProvider,
-    GithubCliUnavailable(std::io::Error),
-    GithubCliFailed,
-    MissingGithubCliToken,
+    TokenStdinNeedsProvider,
+    Stdin(String),
     Environment(String),
     Serialize(serde_json::Error),
 }
@@ -69,22 +69,11 @@ impl fmt::Display for LoginCliError {
                     "public API login completed without a principal identity"
                 )
             }
-            Self::InvalidFromGhProvider => {
-                write!(formatter, "--from-gh is only valid with --provider github")
-            }
-            Self::GithubCliUnavailable(error) => write!(
+            Self::TokenStdinNeedsProvider => write!(
                 formatter,
-                "failed to run `gh auth token`: {error}; install GitHub CLI and run `gh auth login`"
+                "--token-stdin needs --provider, the provider that issued the token"
             ),
-            Self::GithubCliFailed => write!(
-                formatter,
-                "`gh auth token` failed; run `gh auth login` and retry"
-            ),
-            Self::MissingGithubCliToken => write!(
-                formatter,
-                "`gh auth token` returned no credential; run `gh auth login` and retry"
-            ),
-            Self::Environment(error) => write!(formatter, "{error}"),
+            Self::Stdin(error) | Self::Environment(error) => write!(formatter, "{error}"),
             Self::Serialize(error) => {
                 write!(formatter, "failed to serialize login result: {error}")
             }
@@ -125,7 +114,7 @@ pub fn parse_login_plan(args: &[OsString]) -> Result<LoginPlan, String> {
     let mut api_base_url = None;
     let mut provider = None;
     let mut purpose = None;
-    let mut from_gh = false;
+    let mut token_stdin = false;
     let mut allow_local_api = false;
     let mut json = false;
     let mut index = 1;
@@ -169,11 +158,11 @@ pub fn parse_login_plan(args: &[OsString]) -> Result<LoginPlan, String> {
                 allow_local_api = true;
                 index += 1;
             }
-            "--from-gh" => {
+            "--token-stdin" => {
                 if inline_value.is_some() {
-                    return Err("--from-gh does not take a value".to_owned());
+                    return Err("--token-stdin does not take a value".to_owned());
                 }
-                from_gh = true;
+                token_stdin = true;
                 index += 1;
             }
             _ => return Err(LoginCliError::UnknownFlag(flag.to_owned()).to_string()),
@@ -183,7 +172,7 @@ pub fn parse_login_plan(args: &[OsString]) -> Result<LoginPlan, String> {
         api_base_url,
         provider,
         purpose,
-        from_gh,
+        token_stdin,
         allow_local_api,
         json,
     })
@@ -212,10 +201,16 @@ pub fn run_login_command(
 ) -> Result<String, LoginCliError> {
     let transport = runx_runtime::hosted_api_transport(allow_local_api(plan, env))
         .map_err(LoginCliError::TransportInit)?;
-    if plan.from_gh {
-        validate_from_gh_provider(plan)?;
-        let github_token = github_cli_token()?;
-        return run_provider_token_login_with_transport(plan, env, cwd, &transport, &github_token);
+    if plan.token_stdin {
+        let provider = plan
+            .provider
+            .as_deref()
+            .ok_or(LoginCliError::TokenStdinNeedsProvider)?;
+        let token =
+            crate::cli_io::read_stdin_secret("provider token").map_err(LoginCliError::Stdin)?;
+        return run_provider_token_login_with_transport(
+            plan, env, cwd, &transport, provider, &token,
+        );
     }
     run_login_command_with_transport(plan, env, cwd, &transport, thread::sleep)
 }
@@ -225,9 +220,9 @@ fn run_provider_token_login_with_transport<T: Transport>(
     env: &BTreeMap<String, String>,
     cwd: &Path,
     transport: &T,
-    github_token: &str,
+    provider: &str,
+    provider_token: &str,
 ) -> Result<String, LoginCliError> {
-    validate_from_gh_provider(plan)?;
     let environment = runx_runtime::HostedApiEnvironment::resolve_unauthenticated(
         plan.api_base_url.as_deref(),
         env,
@@ -237,9 +232,9 @@ fn run_provider_token_login_with_transport<T: Transport>(
     let completed = runx_runtime::exchange_hosted_provider_token(
         transport,
         base_url,
-        plan.provider.as_deref().unwrap_or("github"),
+        provider,
         plan.purpose.map(HostedApiCredentialPurpose::as_str),
-        github_token,
+        provider_token,
     )?;
     if completed.status != "success" || completed.token.trim().is_empty() {
         return Err(LoginCliError::MissingToken);
@@ -264,32 +259,6 @@ fn run_provider_token_login_with_transport<T: Transport>(
             credential_id: completed.credential_id,
         },
     )
-}
-
-fn validate_from_gh_provider(plan: &LoginPlan) -> Result<(), LoginCliError> {
-    if plan
-        .provider
-        .as_deref()
-        .is_some_and(|provider| provider != "github")
-    {
-        return Err(LoginCliError::InvalidFromGhProvider);
-    }
-    Ok(())
-}
-
-fn github_cli_token() -> Result<String, LoginCliError> {
-    let output = Command::new("gh")
-        .args(["auth", "token"])
-        .output()
-        .map_err(LoginCliError::GithubCliUnavailable)?;
-    if !output.status.success() {
-        return Err(LoginCliError::GithubCliFailed);
-    }
-    let token = String::from_utf8_lossy(&output.stdout).trim().to_owned();
-    if token.is_empty() || token.chars().any(char::is_whitespace) {
-        return Err(LoginCliError::MissingGithubCliToken);
-    }
-    Ok(token)
 }
 
 fn run_login_command_with_transport<T: Transport>(

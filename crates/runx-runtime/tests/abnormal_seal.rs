@@ -192,6 +192,8 @@ impl Drop for TempCase {
 
 fn runtime_options() -> RuntimeOptions {
     RuntimeOptions {
+        current_context: Vec::new(),
+        historical_context: Vec::new(),
         created_at: FIXTURE_CREATED_AT.to_owned(),
         ..RuntimeOptions::local_development(std::env::vars().collect())
     }

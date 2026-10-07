@@ -17,10 +17,12 @@ pub mod approval;
 mod bytes;
 mod capability;
 pub mod config;
-pub mod credential_resolver;
+pub mod credential_profiles;
 pub mod credentials;
 pub mod dev;
 pub mod doctor;
+#[cfg(feature = "async-http")]
+mod drivers;
 pub mod effects;
 pub mod error;
 pub mod execution;
@@ -35,12 +37,9 @@ mod init;
 mod input_contract;
 pub mod interrupt;
 pub mod journal;
-#[cfg(feature = "mcp")]
-mod json_render;
+pub mod kernel;
 mod lifecycle;
 pub mod list;
-#[cfg(feature = "thread-outbox-provider")]
-pub mod outbox_provider;
 mod output_contract;
 mod packet_schemas;
 mod packet_validation;
@@ -81,22 +80,19 @@ pub use capability::{
     CapabilityEffect, CapabilityField, CapabilityInput, CapabilityOutput, TypedCapability,
 };
 pub use config::{
-    ConfigError, ConfigKey, ManagedAgentAuthMode, ManagedAgentConfig, RunxAgentConfig,
-    RunxConfigFile, RunxCredentialProfile, RunxCredentialsConfig, RunxPublicConfig,
-    clear_runx_agent_endpoint_url, load_local_agent_api_key, load_local_credential_secret,
-    load_local_public_api_token, load_managed_agent_config, load_runx_config_file,
-    lookup_runx_config_value, managed_agent_provider, mask_runx_config_file, parse_config_key,
-    remove_local_credential_secret, resolve_path_from_user_input, resolve_runx_global_home_dir,
-    resolve_runx_home_dir, resolve_runx_workspace_base, store_local_credential_secret,
-    update_runx_config_value, write_runx_config_file,
+    ConfigError, ConfigKey, MODEL_PROVIDERS, ManagedAgentAuthMode, ManagedAgentConfig,
+    ModelDialect, ModelProvider, RunxAgentConfig, RunxConfigFile, RunxCredentialProfile,
+    RunxCredentialsConfig, RunxPublicConfig, clear_runx_agent_endpoint_url,
+    load_local_agent_api_key, load_local_credential_secret, load_local_public_api_token,
+    load_managed_agent_config, load_runx_config_file, lookup_runx_config_value,
+    mask_runx_config_file, model_provider, parse_config_key, remove_local_credential_secret,
+    resolve_path_from_user_input, resolve_runx_global_home_dir, resolve_runx_home_dir,
+    resolve_runx_workspace_base, store_local_credential_secret, update_runx_config_value,
+    write_runx_config_file,
 };
-pub use credential_resolver::{
-    CredentialBindingsFile, CredentialProfileSummary, ResolvedSkillCredential,
-    SkillCredentialContext, SkillCredentialError, SkillCredentialRequest,
-    SkillCredentialResolution, SkillCredentialSource, bind_project_credential,
-    bind_project_provider_transport, list_local_credential_profiles, load_project_bindings,
-    remove_local_credential_profile, resolve_skill_credential, resolve_skill_credential_for_path,
-    set_local_credential_profile,
+pub use credential_profiles::{
+    CredentialProfileError, CredentialProfileSummary, list_local_credential_profiles,
+    remove_local_credential_profile, set_local_credential_profile,
 };
 pub use credentials::{
     CredentialDelivery, CredentialDeliveryError, CredentialDeliveryProfile, CredentialMaterialRole,
@@ -110,34 +106,15 @@ pub use dev::{
     discover_fixture_paths, render_dev_result, run_dev_once, should_ignore_dev_watch_path,
 };
 pub use doctor::{DoctorOptions, default_doctor_options, run_doctor};
-pub use effects::{
-    ASSISTANT_CONFIDENTIAL_TERMS_ENV, ASSISTANT_REQUIRE_MUTATION_APPROVAL_ENV, EffectAdmission,
-    EffectOutputRequest, EffectPreparationOutcome, EffectReceiptRequest, EffectReplay,
-    EffectReplayOutputRequest, EffectReplayReceiptRequest, EffectStepRequest, EffectToolRequest,
-    NOTIFICATION_AUTHORITY_ID_ENV, NOTIFICATION_SOURCE_SET_DIGEST_ENV, NotificationAuthorityError,
-    NotificationAuthorityGrant, NotificationAuthorityGrantSpec, NotificationAuthorityStatus,
-    PROVIDER_MUTATE_TOOL, PROVIDER_PERMISSION_EFFECT_FAMILY, PROVIDER_PERMISSION_GRANT_ID_ENV,
-    PROVIDER_PERMISSION_GRANTED_SCOPES_ENV, PROVIDER_PERMISSION_PAID_EXTERNAL_JOB_AUTHORITY_ENV,
-    PROVIDER_PERMISSION_PRINCIPAL_REF_ENV, PROVIDER_READ_TOOL, ProviderAcknowledgementEvidence,
-    ProviderApprovalEvidence, ProviderEffectAcknowledged, ProviderEffectAmount,
-    ProviderEffectAttempt, ProviderEffectAuthority, ProviderEffectClass, ProviderEffectError,
-    ProviderEffectFinality, ProviderEffectIntent, ProviderEffectIntentInput,
-    ProviderEffectReadback, ProviderEffectReadbackEvidence, ProviderEffectResolved,
-    ProviderEffectUnknown, ProviderPermissionAdmission, ProviderPermissionEffect,
-    ProviderScopeTransportError, RuntimeEffect, RuntimeEffectError, RuntimeEffectRegistry,
-    assistant_text_is_safe, decode_provider_scopes_env, encode_provider_scopes_env,
-    insert_effect_verification_ref, install_notification_authority, notification_authority_status,
-    notification_intent_has_reservation, revoke_notification_authority,
-};
 #[cfg(feature = "catalog")]
 pub use effects::{
     EXTERNAL_RECEIPT_EFFECT_FAMILY, EXTERNAL_RECEIPT_VERIFY_TOOL, ExternalReceiptEffect,
 };
-#[cfg(feature = "catalog")]
 pub use effects::{
-    LocalProviderTransportReadiness, PROVIDER_PERMISSION_TRANSPORT_ENV,
-    ProviderTransportPreference, preflight_local_provider_transport,
-    resolve_provider_transport_preference,
+    EffectAdmission, EffectOutputRequest, EffectPreparationOutcome, EffectReceiptRequest,
+    EffectReplay, EffectReplayOutputRequest, EffectReplayReceiptRequest, EffectStepRequest,
+    EffectToolRequest, RuntimeEffect, RuntimeEffectError, RuntimeEffectRegistry,
+    insert_effect_verification_ref,
 };
 pub use error::RuntimeError;
 pub use harness::{
@@ -167,6 +144,27 @@ pub use init::{
     RunxProjectState, ensure_runx_install_state, ensure_runx_project_state, runx_init,
 };
 pub use journal::ExecutionJournal;
+pub use kernel::authority::RunAuthority;
+pub use kernel::connectors::{
+    ConnectorOrigin, ConnectorRegistryError, ConnectorScope, LoadedConnector,
+};
+pub use kernel::instances::{
+    INJECTED_GRANT_ID_ENV, INJECTED_GRANTED_SCOPES_ENV, INJECTED_PRINCIPAL_REF_ENV, InstanceError,
+    InstanceRecord, Instances, decode_injected_scopes, encode_injected_scopes,
+};
+#[cfg(feature = "async-http")]
+pub use kernel::operation::egress::{
+    CONFIDENTIAL_TERMS_ENV, REQUIRE_MUTATION_APPROVAL_ENV, outbound_text_is_safe,
+};
+#[cfg(feature = "async-http")]
+pub use kernel::operation::{
+    OPERATION_EFFECT_FAMILY, OperationEffect, PAID_EXTERNAL_JOB_AUTHORITY_ENV,
+};
+pub use kernel::standing::{
+    STANDING_APPROVAL_ID_ENV, STANDING_DELEGATE_DIGEST_ENV, StandingApproval, StandingApprovals,
+    StandingError, StandingStatus,
+};
+pub use kernel::store::{KernelStore, KernelStoreError};
 pub use list::{
     RunxListItem, RunxListItemKind, RunxListOptions, RunxListRequestedKind, RunxListStatus,
     list_authoring_primitives, list_authoring_primitives_with_effects,
@@ -176,16 +174,10 @@ pub use orchestrator::{
     MANAGED_AGENT_MAX_ROUNDS_LIMIT, ManagedAgentPolicy, OrchestratorError, PackageHarnessRequest,
     RunContinuation, RunRequest, RunResult, RunStatus, SkillRunRequest,
 };
-#[cfg(feature = "thread-outbox-provider")]
-pub use outbox_provider::{
-    ThreadOutboxProviderProcessOutcome, ThreadOutboxProviderProcessSupervisor,
-    ThreadOutboxProviderSupervisorError, ThreadOutboxProviderSupervisorOptions,
-};
 #[cfg(feature = "async-http")]
 pub use provider_operations::{
-    HostedProviderGrant, ProviderOperationAccess, ProviderOperationError, ProviderOperationRequest,
-    invoke_provider_operation, list_provider_grants, validate_provider_grant_id,
-    validate_provider_operation,
+    HostedProviderGrant, ProviderOperationError, ProviderOperationRequest, list_provider_grants,
+    validate_provider_grant_id, validate_provider_operation,
 };
 pub use receipts::paths::{
     INIT_CWD_ENV, RUNTIME_RECEIPTS_DIR_CONFIG_KEY, RUNX_CWD_ENV, RUNX_PROJECT_DIR_ENV,
@@ -216,15 +208,16 @@ pub use runner::{
 pub use runx_core::kernel_eval;
 pub use runx_core::policy::{ScopeGrantPolicy, missing_granted_scopes, scope_grant_allows};
 pub use runx_parser::{
-    CredentialRequirement, SkillArtifactContract, SkillExternalAdapterManifest, SkillPackageSource,
-    SkillRunnerDefinition, SkillRunnerManifest, SkillSource, SkillThreadOutboxProviderSource,
-    ValidatedSkillPackage,
+    SkillArtifactContract, SkillPackageSource, SkillRunnerDefinition, SkillRunnerManifest,
+    SkillSource, ValidatedSkillPackage,
 };
 pub use runx_receipts::ReceiptTreeConfig;
 pub use services::{
     VerifiedReceiptStore, WorkspaceEnv, WorkspaceEnvError, WorkspaceFileError, read_workspace_text,
 };
 pub use skill_front::PackageHarnessReport;
+#[cfg(feature = "async-http")]
+pub use skill_package::inspect_connector_readiness;
 pub use skill_package::{
     LoadedSkillPackage, SkillInspectionError, SkillRetentionError, inspect_local_skill_binding,
     inspect_skill_package, load_validated_skill_package, resolve_retained_skill_binding,
@@ -242,3 +235,9 @@ pub const PACKAGE_NAME: &str = env!("CARGO_PKG_NAME");
 /// value prevents a queued or resumed run from silently crossing a runtime
 /// upgrade while retaining the same closure digest.
 pub const EXECUTION_RUNTIME_RELEASE: &str = "0.9.1";
+
+pub use services::{persist_json_artifact, read_json_artifact};
+
+pub use skill_package::validate_skill_runner_inputs;
+
+pub use execution::skill_context::load_context_skills;

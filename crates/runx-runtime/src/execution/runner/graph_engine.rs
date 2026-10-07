@@ -1174,7 +1174,7 @@ impl GraphExecution {
         graph_dir: &Path,
         step: &GraphStep,
     ) -> Result<Option<LoadedStepSkill>, RuntimeError> {
-        if step.run.is_some() || step.tool.is_some() {
+        if step.skill.is_none() {
             return Ok(None);
         }
         self.step_skill_cache

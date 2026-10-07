@@ -99,15 +99,33 @@ fn assert_harness_path(relative: &str, mode: &str) -> Result<(), RuntimeError> {
 
 pub(super) fn reject_secret_material(relative: &str, contents: &str) -> Result<(), RuntimeError> {
     let contains_private_key = contents.lines().any(is_private_key_header);
-    let contains_nitrosend_key = contents
-        .split(|character: char| !character.is_ascii_alphanumeric() && character != '_')
-        .any(|token| token.starts_with("nskey_live_") || token.starts_with("nskey_test_"));
-    if contains_private_key || contains_nitrosend_key {
+    let contains_declared_secret = declared_secret_prefixes()?
+        .iter()
+        .any(|prefix| contents.contains(prefix.as_str()));
+    if contains_private_key || contains_declared_secret {
         return Err(invalid_skill_change(format!(
             "refusing secret-like material in {relative}"
         )));
     }
     Ok(())
+}
+
+/// The prefixes official connectors declare for their secrets.
+fn declared_secret_prefixes() -> Result<&'static [String], RuntimeError> {
+    static PREFIXES: std::sync::OnceLock<Vec<String>> = std::sync::OnceLock::new();
+    if let Some(prefixes) = PREFIXES.get() {
+        return Ok(prefixes);
+    }
+    let connectors = crate::kernel::connectors::ConnectorScope::official_connectors()
+        .map_err(|error| invalid_skill_change(error.to_string()))?;
+    let prefixes = connectors
+        .iter()
+        .flat_map(|connector| connector.manifest.auth.credentials.values())
+        .flat_map(|declaration| declaration.fields.iter())
+        .flat_map(|field| &field.prefixes)
+        .map(|prefix| prefix.as_str().to_owned())
+        .collect();
+    Ok(PREFIXES.get_or_init(|| prefixes))
 }
 
 fn is_private_key_header(line: &str) -> bool {
@@ -211,7 +229,7 @@ mod tests {
     }
 
     #[test]
-    fn secret_material_rejection_detects_nitrosend_keys() {
+    fn secret_material_rejection_detects_declared_key_prefixes() {
         let key = ["nskey", "live", "fixture"].join("_");
         assert!(reject_secret_material("tools/provider.mjs", &key).is_err());
         assert!(reject_secret_material("tools/provider.mjs", "nskey_fixture").is_ok());

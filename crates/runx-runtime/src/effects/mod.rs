@@ -2,8 +2,6 @@ mod error;
 #[cfg(feature = "catalog")]
 mod external_receipt;
 mod metadata;
-mod provider_effect;
-mod provider_permission;
 mod registry;
 mod state;
 mod types;
@@ -15,30 +13,6 @@ pub use external_receipt::{
 };
 pub(crate) use metadata::effect_verification_refs;
 pub use metadata::{EFFECT_VERIFICATION_REFS_METADATA, insert_effect_verification_ref};
-pub use provider_effect::{
-    ProviderAcknowledgementEvidence, ProviderApprovalEvidence, ProviderEffectAcknowledged,
-    ProviderEffectAmount, ProviderEffectAttempt, ProviderEffectAuthority, ProviderEffectClass,
-    ProviderEffectError, ProviderEffectFinality, ProviderEffectIntent, ProviderEffectIntentInput,
-    ProviderEffectReadback, ProviderEffectReadbackEvidence, ProviderEffectResolved,
-    ProviderEffectUnknown,
-};
-pub use provider_permission::{
-    ASSISTANT_CONFIDENTIAL_TERMS_ENV, ASSISTANT_REQUIRE_MUTATION_APPROVAL_ENV,
-    NOTIFICATION_AUTHORITY_ID_ENV, NOTIFICATION_SOURCE_SET_DIGEST_ENV, NotificationAuthorityError,
-    NotificationAuthorityGrant, NotificationAuthorityGrantSpec, NotificationAuthorityStatus,
-    PROVIDER_MUTATE_TOOL, PROVIDER_PERMISSION_EFFECT_FAMILY, PROVIDER_PERMISSION_GRANT_ID_ENV,
-    PROVIDER_PERMISSION_GRANTED_SCOPES_ENV, PROVIDER_PERMISSION_PAID_EXTERNAL_JOB_AUTHORITY_ENV,
-    PROVIDER_PERMISSION_PRINCIPAL_REF_ENV, PROVIDER_PERMISSION_TRANSPORT_ENV, PROVIDER_READ_TOOL,
-    ProviderPermissionAdmission, ProviderPermissionEffect, ProviderScopeTransportError,
-    assistant_text_is_safe, decode_provider_scopes_env, encode_provider_scopes_env,
-    install_notification_authority, notification_authority_status,
-    notification_intent_has_reservation, revoke_notification_authority,
-};
-#[cfg(feature = "catalog")]
-pub use provider_permission::{
-    LocalProviderTransportReadiness, ProviderTransportPreference,
-    preflight_local_provider_transport, resolve_provider_transport_preference,
-};
 pub use registry::RuntimeEffectRegistry;
 pub use state::{EffectAdmission, EffectReplay};
 pub use types::{
@@ -170,6 +144,7 @@ mod tests {
             inputs: &inputs,
             env: &env,
             graph_dir: Path::new("."),
+            run_authority: None,
         });
         assert!(
             matches!(
@@ -211,6 +186,7 @@ mod tests {
             inputs: &inputs,
             env: &env,
             graph_dir: Path::new("."),
+            run_authority: None,
         });
 
         assert!(
@@ -252,6 +228,7 @@ mod tests {
             inputs: &inputs,
             env: &env,
             graph_dir: Path::new("."),
+            run_authority: None,
         });
 
         assert!(
@@ -329,7 +306,6 @@ mod tests {
                 query: "deploy".to_owned(),
                 source: Some("mock-deploy".to_owned()),
                 limit: 20,
-                fixture_catalog_enabled: false,
             },
             &registry,
         );
@@ -342,7 +318,6 @@ mod tests {
                 query: "deploy".to_owned(),
                 source: Some("runx-runtime".to_owned()),
                 limit: 20,
-                fixture_catalog_enabled: false,
             },
             &registry,
         );
@@ -423,8 +398,9 @@ mod tests {
             fanout_group: None,
             when: None,
             idempotency_key: None,
-            mint_authority: None,
-            requested_scope_from: None,
+            operation: None,
+            on_uncertain: None,
+            duplicates: None,
         }
     }
 }

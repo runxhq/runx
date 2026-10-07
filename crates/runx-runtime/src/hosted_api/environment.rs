@@ -83,13 +83,11 @@ impl fmt::Debug for AuthenticatedHostedApiEnvironment {
 impl HostedApiEnvironment {
     pub fn resolve(
         explicit_base_url: Option<&str>,
-        explicit_token: Option<&str>,
         env: &BTreeMap<String, String>,
         cwd: &Path,
     ) -> Result<Self, HostedApiError> {
         Self::resolve_inner(
             explicit_base_url,
-            explicit_token,
             env,
             cwd,
             Some(HostedApiCredentialPurpose::Default),
@@ -98,13 +96,11 @@ impl HostedApiEnvironment {
 
     pub fn resolve_publish(
         explicit_base_url: Option<&str>,
-        explicit_token: Option<&str>,
         env: &BTreeMap<String, String>,
         cwd: &Path,
     ) -> Result<Self, HostedApiError> {
         Self::resolve_inner(
             explicit_base_url,
-            explicit_token,
             env,
             cwd,
             Some(HostedApiCredentialPurpose::Publish),
@@ -116,12 +112,13 @@ impl HostedApiEnvironment {
         env: &BTreeMap<String, String>,
         cwd: &Path,
     ) -> Result<Self, HostedApiError> {
-        Self::resolve_inner(explicit_base_url, None, env, cwd, None)
+        Self::resolve_inner(explicit_base_url, env, cwd, None)
     }
 
+    /// The token is the environment's, else the stored login's; it is never
+    /// taken from a command argument.
     fn resolve_inner(
         explicit_base_url: Option<&str>,
-        explicit_token: Option<&str>,
         env: &BTreeMap<String, String>,
         cwd: &Path,
         credential_purpose: Option<HostedApiCredentialPurpose>,
@@ -142,10 +139,7 @@ impl HostedApiEnvironment {
             .unwrap_or_else(|| stored_base_url.clone());
         let direct_token = credential_purpose
             .is_some()
-            .then(|| {
-                non_empty(explicit_token)
-                    .or_else(|| non_empty(env.get(HOSTED_API_TOKEN_ENV).map(String::as_str)))
-            })
+            .then(|| non_empty(env.get(HOSTED_API_TOKEN_ENV).map(String::as_str)))
             .flatten();
         let stored_token_allowed = base_url == stored_base_url;
         let (stored_token_ref, stored_principal_id) = match credential_purpose {

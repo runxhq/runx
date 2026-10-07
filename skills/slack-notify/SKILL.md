@@ -22,6 +22,7 @@ owns the final channel-post boundary.
 <!-- Generated from the native execution closure; run pnpm core-skills:composes:generate. -->
 
 - `send-as#plan`
+- `slack#read_thread`
 
 ## Runners
 

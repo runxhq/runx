@@ -22,14 +22,16 @@ use runx_contracts::schema::{IsoDateTime, NonEmptyString};
 use runx_contracts::{
     AuthorityBounds, AuthorityCapability, AuthorityResourceFamily, AuthoritySubsetComparison,
     AuthoritySubsetProof, AuthoritySubsetRelation, AuthoritySubsetResult, AuthorityTerm,
-    AuthorityVerb, Reference, sha256_hex,
+    AuthorityUseLimit, AuthorityVerb, Reference, sha256_hex,
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use super::authority_algebra::{
-    items_subset, optional_ref_bound_subset, parent_items_preserved, same_reference_address,
+    items_subset, optional_ref_bound_subset, parent_items_preserved, patterns_subset,
+    same_reference_address,
 };
+use super::rfc3339::parse_rfc3339_moment;
 
 /// The family seam for [`mint_attenuated`]. A comparator owns two
 /// responsibilities for one authority family, and nothing else:
@@ -78,8 +80,8 @@ pub trait FamilySubsetComparator {
 /// audiences) to [`AuthorityBounds`]; the mint works on terms and bounds, never
 /// on a second string-scope vocabulary.
 ///
-/// It does not inspect `effect_limits` or `effects`; those are family bounds and
-/// belong to a family comparator (for example a domain bounds comparator).
+/// It governs neither effect bounds (`effect_limits`, `effects`) nor connector
+/// bounds; a term carrying either is incomparable here and denied.
 #[derive(Clone, Debug, Default)]
 pub struct ScopeBoundsComparator;
 
@@ -93,72 +95,134 @@ impl FamilySubsetComparator for ScopeBoundsComparator {
         Self::ALGORITHM
     }
 
-    // Function rationale: the exhaustive destructure of both bounds
-    // sides plus the single subset conjunction is one trust-boundary comparison;
-    // splitting it would let a forgotten field fail open.
     fn bounds_subset(&self, child: &AuthorityTerm, parent: &AuthorityTerm) -> bool {
-        // Exhaustively destructure both sides so growing `AuthorityBounds` breaks
-        // this function until the new field is classified as generic-narrowable
-        // (compared below) or family-owned (bound to `_` with a reason). Silent
-        // fail-open on a forgotten field is what the no-brittleness rule forbids,
-        // and this sits on the trust boundary.
-        let AuthorityBounds {
-            repo_path_globs: child_repo_path_globs,
-            branch_patterns: child_branch_patterns,
-            filesystem_roots: child_filesystem_roots,
-            network_destinations: child_network_destinations,
-            deployment_environments: child_deployment_environments,
-            token_audiences: child_token_audiences,
-            max_cost_units: _, // compared via max_cost_units_subset (non-Ord projection)
-            // Family bounds: the scope family does not govern effect ceilings or
-            // guards, so a term carrying them is incomparable here and denied
-            // below. Bound (not `_`-ignored) so they cannot be silently dropped.
-            effect_limits: child_effect_limits,
-            effects: child_effects,
-            max_runtime_ms: child_max_runtime_ms,
-            max_fanout: child_max_fanout,
-            max_child_depth: child_max_child_depth,
-        } = &child.bounds;
-        let AuthorityBounds {
-            repo_path_globs: parent_repo_path_globs,
-            branch_patterns: parent_branch_patterns,
-            filesystem_roots: parent_filesystem_roots,
-            network_destinations: parent_network_destinations,
-            deployment_environments: parent_deployment_environments,
-            token_audiences: parent_token_audiences,
-            max_cost_units: _, // compared via max_cost_units_subset
-            effect_limits: _,  // family bounds, see child denial above
-            effects: _,        // family bounds, see child denial above
-            max_runtime_ms: parent_max_runtime_ms,
-            max_fanout: parent_max_fanout,
-            max_child_depth: parent_max_child_depth,
-        } = &parent.bounds;
-
-        // Fail closed on bounds this comparator does not model: an effect-bearing
-        // term must be minted under the family comparator that governs it (for
-        // example a domain bounds comparator), never silently waved through here.
-        child_effect_limits.is_empty()
-            && child_effects.is_empty()
-            && items_subset(child_repo_path_globs, parent_repo_path_globs)
-            && items_subset(child_branch_patterns, parent_branch_patterns)
-            && items_subset(child_filesystem_roots, parent_filesystem_roots)
-            && items_subset(child_network_destinations, parent_network_destinations)
-            && items_subset(
-                child_deployment_environments,
-                parent_deployment_environments,
-            )
-            && items_subset(child_token_audiences, parent_token_audiences)
-            && max_cost_units_subset(&child.bounds, &parent.bounds)
-            && optional_ref_bound_subset(
-                child_max_runtime_ms.as_ref(),
-                parent_max_runtime_ms.as_ref(),
-            )
-            && optional_ref_bound_subset(child_max_fanout.as_ref(), parent_max_fanout.as_ref())
-            && optional_ref_bound_subset(
-                child_max_child_depth.as_ref(),
-                parent_max_child_depth.as_ref(),
-            )
+        bounds_subset(&child.bounds, &parent.bounds, ConnectorBounds::Deny)
     }
+}
+
+/// The comparator for operations on a connector instance: the generic bounds
+/// plus operation and target patterns, grant scopes and use limits.
+#[derive(Clone, Debug, Default)]
+pub struct ConnectorBoundsComparator;
+
+impl ConnectorBoundsComparator {
+    pub const ALGORITHM: &'static str = "runx.connector-bounds-subset.v1";
+}
+
+impl FamilySubsetComparator for ConnectorBoundsComparator {
+    fn comparison_algorithm(&self) -> &str {
+        Self::ALGORITHM
+    }
+
+    fn bounds_subset(&self, child: &AuthorityTerm, parent: &AuthorityTerm) -> bool {
+        child.resource_family == AuthorityResourceFamily::Connector
+            && bounds_subset(&child.bounds, &parent.bounds, ConnectorBounds::Compare)
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ConnectorBounds {
+    Deny,
+    Compare,
+}
+
+// Function rationale: the exhaustive destructure of both bounds sides plus the
+// single subset conjunction is one trust-boundary comparison; splitting it would
+// let a forgotten field fail open.
+fn bounds_subset(
+    child: &AuthorityBounds,
+    parent: &AuthorityBounds,
+    connector: ConnectorBounds,
+) -> bool {
+    // Exhaustively destructure both sides so growing `AuthorityBounds` breaks
+    // this function until the new field is classified as generic-narrowable
+    // (compared below) or family-owned (denied on the child). Silent fail-open
+    // on a forgotten field is what the no-brittleness rule forbids, and this
+    // sits on the trust boundary.
+    let AuthorityBounds {
+        repo_path_globs: child_repo_path_globs,
+        branch_patterns: child_branch_patterns,
+        filesystem_roots: child_filesystem_roots,
+        network_destinations: child_network_destinations,
+        deployment_environments: child_deployment_environments,
+        token_audiences: child_token_audiences,
+        max_cost_units: _, // compared via max_cost_units_subset (non-Ord projection)
+        // Effect bounds belong to a domain comparator: denied on the child.
+        effect_limits: child_effect_limits,
+        effects: child_effects,
+        max_runtime_ms: child_max_runtime_ms,
+        max_fanout: child_max_fanout,
+        max_child_depth: child_max_child_depth,
+        operations: child_operations,
+        scopes: child_scopes,
+        targets: child_targets,
+        uses: child_uses,
+    } = child;
+    let AuthorityBounds {
+        repo_path_globs: parent_repo_path_globs,
+        branch_patterns: parent_branch_patterns,
+        filesystem_roots: parent_filesystem_roots,
+        network_destinations: parent_network_destinations,
+        deployment_environments: parent_deployment_environments,
+        token_audiences: parent_token_audiences,
+        max_cost_units: _, // compared via max_cost_units_subset
+        effect_limits: _,  // effect bounds, see child denial
+        effects: _,        // effect bounds, see child denial
+        max_runtime_ms: parent_max_runtime_ms,
+        max_fanout: parent_max_fanout,
+        max_child_depth: parent_max_child_depth,
+        operations: parent_operations,
+        scopes: parent_scopes,
+        targets: parent_targets,
+        uses: parent_uses,
+    } = parent;
+
+    let connector_bounds = match connector {
+        ConnectorBounds::Deny => {
+            child_operations.is_empty()
+                && child_scopes.is_empty()
+                && child_targets.is_empty()
+                && child_uses.is_none()
+        }
+        ConnectorBounds::Compare => {
+            patterns_subset(child_operations, parent_operations)
+                && items_subset(child_scopes, parent_scopes)
+                && patterns_subset(child_targets, parent_targets)
+                && uses_subset(child_uses.as_ref(), parent_uses.as_ref())
+        }
+    };
+    child_effect_limits.is_empty()
+        && child_effects.is_empty()
+        && connector_bounds
+        && items_subset(child_repo_path_globs, parent_repo_path_globs)
+        && items_subset(child_branch_patterns, parent_branch_patterns)
+        && items_subset(child_filesystem_roots, parent_filesystem_roots)
+        && items_subset(child_network_destinations, parent_network_destinations)
+        && items_subset(
+            child_deployment_environments,
+            parent_deployment_environments,
+        )
+        && items_subset(child_token_audiences, parent_token_audiences)
+        && max_cost_units_subset(child, parent)
+        && optional_ref_bound_subset(
+            child_max_runtime_ms.as_ref(),
+            parent_max_runtime_ms.as_ref(),
+        )
+        && optional_ref_bound_subset(child_max_fanout.as_ref(), parent_max_fanout.as_ref())
+        && optional_ref_bound_subset(
+            child_max_child_depth.as_ref(),
+            parent_max_child_depth.as_ref(),
+        )
+}
+
+/// A use limit is no wider than its parent's on each axis the parent bounds.
+fn uses_subset(child: Option<&AuthorityUseLimit>, parent: Option<&AuthorityUseLimit>) -> bool {
+    let Some(parent) = parent else {
+        return true;
+    };
+    let child = child.cloned().unwrap_or_default();
+    optional_ref_bound_subset(child.total.as_ref(), parent.total.as_ref())
+        && optional_ref_bound_subset(child.per_day.as_ref(), parent.per_day.as_ref())
 }
 
 /// `max_cost_units` is an optional [`JsonNumber`](runx_contracts::JsonNumber),
@@ -220,6 +284,9 @@ pub struct AttenuationRequest {
 /// Why a mint failed. Fail-closed: any failure yields NO proof.
 #[derive(Clone, Debug, Error, PartialEq, Eq)]
 pub enum AttenuationError {
+    /// A parent or requested child is already expired at the proof time.
+    #[error("parent or requested authority is expired or has an invalid proof time")]
+    Expired,
     /// The requested resource family does not match the parent's family.
     #[error("requested resource family does not match the parent authority")]
     ResourceFamilyMismatch,
@@ -268,6 +335,11 @@ pub fn mint_attenuated(
     comparator: &dyn FamilySubsetComparator,
     checked_at: IsoDateTime,
 ) -> Result<(AuthorityTerm, AuthoritySubsetProof), AttenuationError> {
+    if !authority_live(parent.expires_at.as_ref(), &checked_at)
+        || !authority_live(request.expires_at.as_ref(), &checked_at)
+    {
+        return Err(AttenuationError::Expired);
+    }
     // Cheap generic guards first, so the error is specific. The derived-child
     // subset check below is the authoritative fail-closed gate; these only make
     // the common widening mistakes legible.
@@ -283,7 +355,7 @@ pub fn mint_attenuated(
     if !items_subset(&request.capabilities, &parent.capabilities) {
         return Err(AttenuationError::CapabilitiesNotSubset);
     }
-    if !optional_ref_bound_subset(request.expires_at.as_ref(), parent.expires_at.as_ref()) {
+    if !expiry_subset(request.expires_at.as_ref(), parent.expires_at.as_ref()) {
         return Err(AttenuationError::ExpiryNotSubset);
     }
 
@@ -331,6 +403,31 @@ pub fn mint_attenuated(
     Ok((child, proof))
 }
 
+pub(super) fn authority_live(expires_at: Option<&IsoDateTime>, checked_at: &IsoDateTime) -> bool {
+    let Some(now) = parse_rfc3339_moment(checked_at.as_str()) else {
+        return false;
+    };
+    expires_at
+        .is_none_or(|expiry| parse_rfc3339_moment(expiry.as_str()).is_some_and(|end| now < end))
+}
+
+pub(super) fn expiry_subset(child: Option<&IsoDateTime>, parent: Option<&IsoDateTime>) -> bool {
+    match (child, parent) {
+        (None, None) => true,
+        (None, Some(_)) => false,
+        (Some(child), None) => parse_rfc3339_moment(child.as_str()).is_some(),
+        (Some(child), Some(parent)) => {
+            match (
+                parse_rfc3339_moment(child.as_str()),
+                parse_rfc3339_moment(parent.as_str()),
+            ) {
+                (Some(child), Some(parent)) => child <= parent,
+                _ => false,
+            }
+        }
+    }
+}
+
 /// The generic subset check: `child` is no broader than `parent` under the
 /// shared algebra (resource address, verbs, capabilities, preserved conditions
 /// and approvals, expiry) plus the family `comparator`'s bounds rule. This is
@@ -351,7 +448,7 @@ pub fn is_authority_subset(
         && items_subset(&child.capabilities, &parent.capabilities)
         && parent_items_preserved(&child.conditions, &parent.conditions)
         && parent_items_preserved(&child.approvals, &parent.approvals)
-        && optional_ref_bound_subset(child.expires_at.as_ref(), parent.expires_at.as_ref())
+        && expiry_subset(child.expires_at.as_ref(), parent.expires_at.as_ref())
         && comparator.bounds_subset(child, parent)
 }
 
@@ -585,6 +682,49 @@ mod tests {
         assert_eq!(first.term_id, second.term_id);
         assert!(first.term_id.as_str().starts_with("mint-"));
         Ok(())
+    }
+
+    #[test]
+    fn an_expired_parent_cannot_mint_a_fresh_child() {
+        let parent = parent_charter();
+        assert_eq!(
+            mint_attenuated(
+                &parent,
+                &member_request(),
+                &ScopeBoundsComparator,
+                "2026-12-31T00:00:00Z".into(),
+            ),
+            Err(AttenuationError::Expired)
+        );
+    }
+
+    #[test]
+    fn expiry_subset_compares_moments_across_timezones() {
+        let mut parent = parent_charter();
+        let mut request = member_request();
+        parent.expires_at = Some("2026-06-29T23:00:00Z".into());
+        request.expires_at = Some("2026-06-30T00:00:00+02:00".into());
+        assert!(
+            mint_attenuated(
+                &parent,
+                &request,
+                &ScopeBoundsComparator,
+                "2026-06-29T21:00:00Z".into(),
+            )
+            .is_ok()
+        );
+
+        parent.expires_at = Some("2026-06-30T00:00:00+02:00".into());
+        request.expires_at = Some("2026-06-29T23:00:00Z".into());
+        assert_eq!(
+            mint_attenuated(
+                &parent,
+                &request,
+                &ScopeBoundsComparator,
+                "2026-06-29T21:00:00Z".into(),
+            ),
+            Err(AttenuationError::ExpiryNotSubset)
+        );
     }
 
     #[test]

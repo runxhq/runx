@@ -34,7 +34,7 @@ fn parse_rejections_cover_every_error_kind() -> Result<(), String> {
 #[test]
 fn tool_manifests_reject_retired_http_and_catalog_sources() -> Result<(), String> {
     for (source_type, replacement) in [
-        ("http", "http.read, http.query, or http.execute"),
+        ("http", "connector operation"),
         ("catalog", "graph tool step"),
     ] {
         let raw = parse_tool_manifest_yaml(&format!(
@@ -491,33 +491,6 @@ runners:
 
     assert!(
         error.to_string().contains("terminal output-producing step"),
-        "{error}"
-    );
-    Ok(())
-}
-
-#[test]
-fn external_adapter_manifest_path_is_rejected_at_parser_boundary() -> Result<(), String> {
-    let raw = parse_runner_manifest_yaml(
-        r#"
-skill: unsafe-external-adapter
-runners:
-  execute:
-    source:
-      type: external-adapter
-      external_adapter:
-        manifest_path: ../adapter.manifest.json
-"#,
-    )
-    .map_err(|error| error.to_string())?;
-    let error = runx_parser::validate_runner_manifest(raw)
-        .err()
-        .ok_or_else(|| "expected unsafe external-adapter path to be rejected".to_owned())?;
-
-    assert!(
-        error
-            .to_string()
-            .contains("must be a relative path below the skill directory"),
         "{error}"
     );
     Ok(())

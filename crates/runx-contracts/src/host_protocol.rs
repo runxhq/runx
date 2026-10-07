@@ -85,6 +85,13 @@ pub enum ResolutionRequest {
         id: NonEmptyString,
         invocation: Box<AgentActInvocation>,
     },
+    /// A native checkpoint can be resumed after a bounded delay. The host
+    /// acknowledges this exact request; it supplies no model or human verdict.
+    Retry {
+        id: NonEmptyString,
+        reason: NonEmptyString,
+        retry_after_seconds: u64,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]

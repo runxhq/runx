@@ -1,5 +1,5 @@
 skill: vuln-disclosure
-version: "0.4.3"
+version: "0.4.4"
 
 catalog:
   kind: graph
@@ -12,6 +12,11 @@ catalog:
   requires_adapter: true
   approval: required
 
+connectors:
+  advisory:
+    operations: [advisory.publish, advisory.read]
+    connector_from: $input.provider
+    allowed_connectors: [github]
 runners:
   disclose:
     default: true
@@ -338,17 +343,9 @@ runners:
           when:
             field: bind-payload.comparison.data.equal
             equals: true
-          tool: provider.mutate
+          operation: advisory/advisory.publish
           idempotency_key: $input.idempotency_key
-          scopes:
-            - advisory.publish
-          policy:
-            provider_permission:
-              verb: write
           inputs:
-            operation: advisory.publish
-            target: $input.disclosure_packet.target.locator
-            expected_provider: $input.provider
             approval:
               reason: Approve publishing this exact vulnerability advisory.
               type: vulnerability_disclosure
@@ -367,16 +364,8 @@ runners:
           when:
             field: bind-payload.comparison.data.equal
             equals: true
-          tool: provider.read
-          scopes:
-            - advisory.read
-          policy:
-            provider_permission:
-              verb: read
+          operation: advisory/advisory.read
           inputs:
-            operation: advisory.read
-            target: $input.disclosure_packet.target.locator
-            expected_provider: $input.provider
             result_fields: [advisory_ref, payload_digest, status]
           context:
             expected_result: publish.provider_operation.data.result

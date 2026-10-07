@@ -109,21 +109,11 @@
     "source": {
       "additionalProperties": false,
       "properties": {
-        "agent_card_url": {
-          "type": "string"
-        },
-        "agent_identity": {
-          "type": "string"
-        },
         "args": {
           "items": {
             "type": "string"
           },
           "type": "array"
-        },
-        "arguments": {
-          "additionalProperties": {},
-          "type": "object"
         },
         "command": {
           "type": "string"
@@ -163,39 +153,13 @@
         "module": {
           "type": "string"
         },
-        "server": {
-          "additionalProperties": false,
-          "properties": {
-            "args": {
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
-            },
-            "command": {
-              "type": "string"
-            },
-            "cwd": {
-              "type": "string"
-            }
-          },
-          "required": [
-            "command"
-          ],
-          "type": "object"
-        },
         "timeout_seconds": {
           "type": "integer"
-        },
-        "tool": {
-          "type": "string"
         },
         "type": {
           "enum": [
             "cli-tool",
-            "javascript",
-            "mcp",
-            "a2a"
+            "javascript"
           ],
           "type": "string"
         }

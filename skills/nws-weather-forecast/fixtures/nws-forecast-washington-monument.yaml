@@ -32,19 +32,19 @@ expect:
   step_outputs:
     forecast:
       subset:
-        http_execution:
+        provider_operation:
           data:
-            decision: completed
-            request_count: 1
-            responses:
-              - id: forecast
-                status: 200
-                json:
-                  type: Feature
-                  properties:
-                    units: us
-                    elevation:
-                      unitCode: "wmoUnit:m"
+            status: success
+            provider: national-weather-service
+            operation: forecast.read
+            transport: local_http
+            result:
+              forecast:
+                type: Feature
+                properties:
+                  units: us
+                  elevation:
+                    unitCode: "wmoUnit:m"
 metadata:
   public_skill: nws-weather-forecast
   source_case: nws-forecast-washington-monument

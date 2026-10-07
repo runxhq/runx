@@ -13,13 +13,13 @@
     ],
     "requests": [
       {
-        "id": "req_credentials",
+        "id": "req_review_focus",
         "kind": "input",
         "questions": [
           {
-            "description": "Credential broker handle for the provider API call.",
-            "id": "credential_handle",
-            "prompt": "Provide the credential handle.",
+            "description": "What the review weighs first.",
+            "id": "review_focus",
+            "prompt": "Name the review focus.",
             "required": true,
             "type": "string"
           }
@@ -37,36 +37,6 @@
     ]
   },
   "name": "runtime-service-host-continuation",
-  "request": {
-    "credential_handles": [
-      {
-        "credential_ref": {
-          "type": "credential",
-          "uri": "runx:credential:github-installation:123"
-        },
-        "provider": "github",
-        "purpose": "provider_api"
-      }
-    ],
-    "inputs": {
-      "issue_number": 77,
-      "repo": "runxhq/runx"
-    },
-    "operation": "start",
-    "principal_ref": {
-      "type": "principal",
-      "uri": "runx:principal:cloud-worker"
-    },
-    "receipt_dir": "/var/runx/receipts/run_embedded_service_001",
-    "run_id": "run_embedded_service_001",
-    "runx_home": "/var/runx/home",
-    "skill_ref": "runx/hosted-review",
-    "step_id": "review",
-    "workspace_policy": {
-      "network": true,
-      "profile": "hosted-worker"
-    }
-  },
   "schema": "runx.embedded_sdk_migration.fixture.v1",
   "semantics": [
     "auth_resolution",

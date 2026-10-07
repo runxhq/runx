@@ -1,0 +1,1745 @@
+{
+  "$id": "https://schemas.runx.ai/runx/connector/v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "auth": {
+      "additionalProperties": false,
+      "properties": {
+        "credentials": {
+          "additionalProperties": {
+            "additionalProperties": false,
+            "properties": {
+              "audience": {
+                "items": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "minItems": 1,
+                "type": "array"
+              },
+              "delivery": {
+                "additionalProperties": false,
+                "properties": {
+                  "env": {
+                    "maxLength": 128,
+                    "pattern": "^[A-Z][A-Z0-9_]{0,127}$",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "env"
+                ],
+                "type": "object"
+              },
+              "fields": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "label": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "name": {
+                      "maxLength": 64,
+                      "pattern": "^[a-z][a-z0-9_]{0,63}$",
+                      "type": "string"
+                    },
+                    "prefixes": {
+                      "items": {
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "required": {
+                      "type": "boolean"
+                    },
+                    "secret": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "name"
+                  ],
+                  "type": "object"
+                },
+                "minItems": 1,
+                "type": "array"
+              },
+              "kind": {
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "fields",
+              "delivery",
+              "audience"
+            ],
+            "type": "object"
+          },
+          "propertyNames": {
+            "pattern": "^[a-z][a-z0-9_]{0,63}$"
+          },
+          "type": "object"
+        },
+        "delegated": {
+          "additionalProperties": false,
+          "properties": {},
+          "type": "object"
+        },
+        "none": {
+          "additionalProperties": false,
+          "properties": {},
+          "type": "object"
+        },
+        "session": {
+          "anyOf": [
+            {
+              "additionalProperties": false,
+              "properties": {
+                "command": {
+                  "items": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "minItems": 1,
+                  "type": "array"
+                },
+                "credential": {
+                  "maxLength": 64,
+                  "pattern": "^[a-z][a-z0-9_]{0,63}$",
+                  "type": "string"
+                },
+                "kind": {
+                  "const": "command",
+                  "type": "string"
+                },
+                "principal": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "id": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "login": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "url": {
+                      "minLength": 1,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "url",
+                    "id",
+                    "login"
+                  ],
+                  "type": "object"
+                }
+              },
+              "required": [
+                "kind",
+                "command",
+                "credential",
+                "principal"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "kind": {
+                  "const": "host_browser",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind"
+              ],
+              "type": "object"
+            }
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "description": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "id": {
+      "maxLength": 64,
+      "pattern": "^[a-z][a-z0-9-]{0,62}[a-z0-9]$",
+      "type": "string"
+    },
+    "messages": {
+      "additionalProperties": false,
+      "properties": {
+        "active": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "actor": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "inert": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "pattern": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "replace": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "pattern",
+              "replace"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "mention": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "readback_normalization": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "actor",
+        "mention",
+        "active"
+      ],
+      "type": "object"
+    },
+    "name": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "operations": {
+      "additionalProperties": {
+        "additionalProperties": false,
+        "properties": {
+          "amount": {
+            "enum": [
+              "none",
+              "required"
+            ],
+            "type": "string"
+          },
+          "approval": {
+            "enum": [
+              "none",
+              "required"
+            ],
+            "type": "string"
+          },
+          "credentials": {
+            "items": {
+              "maxLength": 64,
+              "pattern": "^[a-z][a-z0-9_]{0,63}$",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "description": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "guarantees": {
+            "additionalProperties": false,
+            "properties": {
+              "provider_idempotency": {
+                "enum": [
+                  "none",
+                  "enforced",
+                  "inherent"
+                ],
+                "type": "string"
+              },
+              "readback": {
+                "enum": [
+                  "none",
+                  "eventual",
+                  "exact",
+                  "unavailable"
+                ],
+                "type": "string"
+              },
+              "reconcile": {
+                "maxLength": 100,
+                "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$",
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "hosted": {
+            "additionalProperties": false,
+            "properties": {
+              "provider_scopes": {
+                "items": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "type": "array"
+              }
+            },
+            "type": "object"
+          },
+          "idempotency_key_format": {
+            "enum": [
+              "runx",
+              "uuid"
+            ],
+            "type": "string"
+          },
+          "implementation": {
+            "anyOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "http": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "allowed_hosts": {
+                        "items": {
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "minItems": 1,
+                        "type": "array"
+                      },
+                      "auth": {
+                        "additionalProperties": {
+                          "anyOf": [
+                            {
+                              "additionalProperties": false,
+                              "properties": {
+                                "field": {
+                                  "maxLength": 64,
+                                  "pattern": "^[a-z][a-z0-9_]{0,63}$",
+                                  "type": "string"
+                                },
+                                "type": {
+                                  "const": "bearer",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "type"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "additionalProperties": false,
+                              "properties": {
+                                "type": {
+                                  "const": "oauth1",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "type"
+                              ],
+                              "type": "object"
+                            }
+                          ]
+                        },
+                        "propertyNames": {
+                          "pattern": "^[a-z][a-z0-9_]{0,63}$"
+                        },
+                        "type": "object"
+                      },
+                      "decode": {
+                        "items": {
+                          "anyOf": [
+                            {
+                              "additionalProperties": false,
+                              "properties": {
+                                "op": {
+                                  "const": "auto_json",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "op"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "additionalProperties": false,
+                              "properties": {
+                                "op": {
+                                  "const": "text",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "op"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "additionalProperties": false,
+                              "properties": {
+                                "op": {
+                                  "const": "status",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "op"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "additionalProperties": false,
+                              "properties": {
+                                "op": {
+                                  "const": "field",
+                                  "type": "string"
+                                },
+                                "path": {
+                                  "minLength": 1,
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "op",
+                                "path"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "additionalProperties": false,
+                              "properties": {
+                                "op": {
+                                  "const": "parse_json",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "op"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "additionalProperties": false,
+                              "properties": {
+                                "op": {
+                                  "const": "reject_true",
+                                  "type": "string"
+                                },
+                                "path": {
+                                  "minLength": 1,
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "op",
+                                "path"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "additionalProperties": false,
+                              "properties": {
+                                "op": {
+                                  "const": "reject_present",
+                                  "type": "string"
+                                },
+                                "path": {
+                                  "minLength": 1,
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "op",
+                                "path"
+                              ],
+                              "type": "object"
+                            }
+                          ]
+                        },
+                        "type": "array"
+                      },
+                      "operation_id_path": {
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      "preconditions": {
+                        "items": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "decode": {
+                              "items": {
+                                "anyOf": [
+                                  {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "op": {
+                                        "const": "auto_json",
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "op"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "op": {
+                                        "const": "text",
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "op"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "op": {
+                                        "const": "status",
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "op"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "op": {
+                                        "const": "field",
+                                        "type": "string"
+                                      },
+                                      "path": {
+                                        "minLength": 1,
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "op",
+                                      "path"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "op": {
+                                        "const": "parse_json",
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "op"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "op": {
+                                        "const": "reject_true",
+                                        "type": "string"
+                                      },
+                                      "path": {
+                                        "minLength": 1,
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "op",
+                                      "path"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "op": {
+                                        "const": "reject_present",
+                                        "type": "string"
+                                      },
+                                      "path": {
+                                        "minLength": 1,
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "op",
+                                      "path"
+                                    ],
+                                    "type": "object"
+                                  }
+                                ]
+                              },
+                              "type": "array"
+                            },
+                            "expected_status": {
+                              "type": "integer"
+                            },
+                            "matches": {
+                              "items": {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "expected": {
+                                    "anyOf": [
+                                      {
+                                        "additionalProperties": false,
+                                        "properties": {
+                                          "path": {
+                                            "minLength": 1,
+                                            "type": "string"
+                                          },
+                                          "source": {
+                                            "const": "acknowledgement",
+                                            "type": "string"
+                                          }
+                                        },
+                                        "required": [
+                                          "source",
+                                          "path"
+                                        ],
+                                        "type": "object"
+                                      },
+                                      {
+                                        "additionalProperties": false,
+                                        "properties": {
+                                          "path": {
+                                            "minLength": 1,
+                                            "type": "string"
+                                          },
+                                          "source": {
+                                            "const": "argument",
+                                            "type": "string"
+                                          }
+                                        },
+                                        "required": [
+                                          "source",
+                                          "path"
+                                        ],
+                                        "type": "object"
+                                      },
+                                      {
+                                        "additionalProperties": false,
+                                        "properties": {
+                                          "path": {
+                                            "minLength": 1,
+                                            "type": "string"
+                                          },
+                                          "source": {
+                                            "const": "item",
+                                            "type": "string"
+                                          }
+                                        },
+                                        "required": [
+                                          "source",
+                                          "path"
+                                        ],
+                                        "type": "object"
+                                      },
+                                      {
+                                        "additionalProperties": false,
+                                        "properties": {
+                                          "source": {
+                                            "const": "literal",
+                                            "type": "string"
+                                          },
+                                          "value": {}
+                                        },
+                                        "required": [
+                                          "source",
+                                          "value"
+                                        ],
+                                        "type": "object"
+                                      }
+                                    ]
+                                  },
+                                  "observed": {
+                                    "minLength": 1,
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "expected",
+                                  "observed"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array"
+                            },
+                            "request": {
+                              "additionalProperties": false,
+                              "properties": {
+                                "body": {},
+                                "each": {},
+                                "headers": {
+                                  "additionalProperties": {},
+                                  "type": "object"
+                                },
+                                "id": {
+                                  "minLength": 1,
+                                  "type": "string"
+                                },
+                                "method": {
+                                  "enum": [
+                                    "GET",
+                                    "POST",
+                                    "PUT",
+                                    "PATCH",
+                                    "DELETE"
+                                  ],
+                                  "type": "string"
+                                },
+                                "pages": {
+                                  "additionalProperties": false,
+                                  "properties": {
+                                    "cursor": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    },
+                                    "items": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    },
+                                    "limit": {},
+                                    "param": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "param",
+                                    "cursor",
+                                    "items"
+                                  ],
+                                  "type": "object"
+                                },
+                                "query": {
+                                  "additionalProperties": {},
+                                  "type": "object"
+                                },
+                                "url": {}
+                              },
+                              "required": [
+                                "id",
+                                "method",
+                                "url"
+                              ],
+                              "type": "object"
+                            }
+                          },
+                          "required": [
+                            "request"
+                          ],
+                          "type": "object"
+                        },
+                        "type": "array"
+                      },
+                      "rate_limit": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "reset_header": {
+                            "minLength": 1,
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "reset_header"
+                        ],
+                        "type": "object"
+                      },
+                      "readbacks": {
+                        "items": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "decode": {
+                              "items": {
+                                "anyOf": [
+                                  {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "op": {
+                                        "const": "auto_json",
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "op"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "op": {
+                                        "const": "text",
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "op"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "op": {
+                                        "const": "status",
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "op"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "op": {
+                                        "const": "field",
+                                        "type": "string"
+                                      },
+                                      "path": {
+                                        "minLength": 1,
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "op",
+                                      "path"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "op": {
+                                        "const": "parse_json",
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "op"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "op": {
+                                        "const": "reject_true",
+                                        "type": "string"
+                                      },
+                                      "path": {
+                                        "minLength": 1,
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "op",
+                                      "path"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "op": {
+                                        "const": "reject_present",
+                                        "type": "string"
+                                      },
+                                      "path": {
+                                        "minLength": 1,
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "op",
+                                      "path"
+                                    ],
+                                    "type": "object"
+                                  }
+                                ]
+                              },
+                              "type": "array"
+                            },
+                            "expected_status": {
+                              "type": "integer"
+                            },
+                            "matches": {
+                              "items": {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "expected": {
+                                    "anyOf": [
+                                      {
+                                        "additionalProperties": false,
+                                        "properties": {
+                                          "path": {
+                                            "minLength": 1,
+                                            "type": "string"
+                                          },
+                                          "source": {
+                                            "const": "acknowledgement",
+                                            "type": "string"
+                                          }
+                                        },
+                                        "required": [
+                                          "source",
+                                          "path"
+                                        ],
+                                        "type": "object"
+                                      },
+                                      {
+                                        "additionalProperties": false,
+                                        "properties": {
+                                          "path": {
+                                            "minLength": 1,
+                                            "type": "string"
+                                          },
+                                          "source": {
+                                            "const": "argument",
+                                            "type": "string"
+                                          }
+                                        },
+                                        "required": [
+                                          "source",
+                                          "path"
+                                        ],
+                                        "type": "object"
+                                      },
+                                      {
+                                        "additionalProperties": false,
+                                        "properties": {
+                                          "path": {
+                                            "minLength": 1,
+                                            "type": "string"
+                                          },
+                                          "source": {
+                                            "const": "item",
+                                            "type": "string"
+                                          }
+                                        },
+                                        "required": [
+                                          "source",
+                                          "path"
+                                        ],
+                                        "type": "object"
+                                      },
+                                      {
+                                        "additionalProperties": false,
+                                        "properties": {
+                                          "source": {
+                                            "const": "literal",
+                                            "type": "string"
+                                          },
+                                          "value": {}
+                                        },
+                                        "required": [
+                                          "source",
+                                          "value"
+                                        ],
+                                        "type": "object"
+                                      }
+                                    ]
+                                  },
+                                  "observed": {
+                                    "minLength": 1,
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "expected",
+                                  "observed"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array"
+                            },
+                            "request": {
+                              "additionalProperties": false,
+                              "properties": {
+                                "body": {},
+                                "each": {},
+                                "headers": {
+                                  "additionalProperties": {},
+                                  "type": "object"
+                                },
+                                "id": {
+                                  "minLength": 1,
+                                  "type": "string"
+                                },
+                                "method": {
+                                  "enum": [
+                                    "GET",
+                                    "POST",
+                                    "PUT",
+                                    "PATCH",
+                                    "DELETE"
+                                  ],
+                                  "type": "string"
+                                },
+                                "pages": {
+                                  "additionalProperties": false,
+                                  "properties": {
+                                    "cursor": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    },
+                                    "items": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    },
+                                    "limit": {},
+                                    "param": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "param",
+                                    "cursor",
+                                    "items"
+                                  ],
+                                  "type": "object"
+                                },
+                                "query": {
+                                  "additionalProperties": {},
+                                  "type": "object"
+                                },
+                                "url": {}
+                              },
+                              "required": [
+                                "id",
+                                "method",
+                                "url"
+                              ],
+                              "type": "object"
+                            }
+                          },
+                          "required": [
+                            "request"
+                          ],
+                          "type": "object"
+                        },
+                        "type": "array"
+                      },
+                      "requests": {
+                        "items": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "body": {},
+                            "each": {},
+                            "headers": {
+                              "additionalProperties": {},
+                              "type": "object"
+                            },
+                            "id": {
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "method": {
+                              "enum": [
+                                "GET",
+                                "POST",
+                                "PUT",
+                                "PATCH",
+                                "DELETE"
+                              ],
+                              "type": "string"
+                            },
+                            "pages": {
+                              "additionalProperties": false,
+                              "properties": {
+                                "cursor": {
+                                  "minLength": 1,
+                                  "type": "string"
+                                },
+                                "items": {
+                                  "minLength": 1,
+                                  "type": "string"
+                                },
+                                "limit": {},
+                                "param": {
+                                  "minLength": 1,
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "param",
+                                "cursor",
+                                "items"
+                              ],
+                              "type": "object"
+                            },
+                            "query": {
+                              "additionalProperties": {},
+                              "type": "object"
+                            },
+                            "url": {}
+                          },
+                          "required": [
+                            "id",
+                            "method",
+                            "url"
+                          ],
+                          "type": "object"
+                        },
+                        "minItems": 1,
+                        "type": "array"
+                      },
+                      "result_paths": {
+                        "additionalProperties": {
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "type": "object"
+                      }
+                    },
+                    "required": [
+                      "allowed_hosts",
+                      "requests",
+                      "decode",
+                      "result_paths"
+                    ],
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "http"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "mcp": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "arguments": {},
+                      "readback": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "arguments": {},
+                          "matches": {
+                            "items": {
+                              "additionalProperties": false,
+                              "properties": {
+                                "expected": {
+                                  "anyOf": [
+                                    {
+                                      "additionalProperties": false,
+                                      "properties": {
+                                        "path": {
+                                          "minLength": 1,
+                                          "type": "string"
+                                        },
+                                        "source": {
+                                          "const": "acknowledgement",
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "source",
+                                        "path"
+                                      ],
+                                      "type": "object"
+                                    },
+                                    {
+                                      "additionalProperties": false,
+                                      "properties": {
+                                        "path": {
+                                          "minLength": 1,
+                                          "type": "string"
+                                        },
+                                        "source": {
+                                          "const": "argument",
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "source",
+                                        "path"
+                                      ],
+                                      "type": "object"
+                                    },
+                                    {
+                                      "additionalProperties": false,
+                                      "properties": {
+                                        "path": {
+                                          "minLength": 1,
+                                          "type": "string"
+                                        },
+                                        "source": {
+                                          "const": "item",
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "source",
+                                        "path"
+                                      ],
+                                      "type": "object"
+                                    },
+                                    {
+                                      "additionalProperties": false,
+                                      "properties": {
+                                        "source": {
+                                          "const": "literal",
+                                          "type": "string"
+                                        },
+                                        "value": {}
+                                      },
+                                      "required": [
+                                        "source",
+                                        "value"
+                                      ],
+                                      "type": "object"
+                                    }
+                                  ]
+                                },
+                                "observed": {
+                                  "minLength": 1,
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "expected",
+                                "observed"
+                              ],
+                              "type": "object"
+                            },
+                            "type": "array"
+                          },
+                          "tool": {
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          "tool_digest": {
+                            "maxLength": 71,
+                            "pattern": "^sha256:[0-9a-f]{64}$",
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "tool",
+                          "arguments",
+                          "tool_digest"
+                        ],
+                        "type": "object"
+                      },
+                      "tool": {
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      "tool_digest": {
+                        "maxLength": 71,
+                        "pattern": "^sha256:[0-9a-f]{64}$",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "tool",
+                      "arguments",
+                      "tool_digest"
+                    ],
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "mcp"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "process": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "readback": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "matches": {
+                            "items": {
+                              "additionalProperties": false,
+                              "properties": {
+                                "expected": {
+                                  "anyOf": [
+                                    {
+                                      "additionalProperties": false,
+                                      "properties": {
+                                        "path": {
+                                          "minLength": 1,
+                                          "type": "string"
+                                        },
+                                        "source": {
+                                          "const": "acknowledgement",
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "source",
+                                        "path"
+                                      ],
+                                      "type": "object"
+                                    },
+                                    {
+                                      "additionalProperties": false,
+                                      "properties": {
+                                        "path": {
+                                          "minLength": 1,
+                                          "type": "string"
+                                        },
+                                        "source": {
+                                          "const": "argument",
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "source",
+                                        "path"
+                                      ],
+                                      "type": "object"
+                                    },
+                                    {
+                                      "additionalProperties": false,
+                                      "properties": {
+                                        "path": {
+                                          "minLength": 1,
+                                          "type": "string"
+                                        },
+                                        "source": {
+                                          "const": "item",
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "source",
+                                        "path"
+                                      ],
+                                      "type": "object"
+                                    },
+                                    {
+                                      "additionalProperties": false,
+                                      "properties": {
+                                        "source": {
+                                          "const": "literal",
+                                          "type": "string"
+                                        },
+                                        "value": {}
+                                      },
+                                      "required": [
+                                        "source",
+                                        "value"
+                                      ],
+                                      "type": "object"
+                                    }
+                                  ]
+                                },
+                                "observed": {
+                                  "minLength": 1,
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "expected",
+                                "observed"
+                              ],
+                              "type": "object"
+                            },
+                            "minItems": 1,
+                            "type": "array"
+                          }
+                        },
+                        "required": [
+                          "matches"
+                        ],
+                        "type": "object"
+                      },
+                      "runtime_scopes": {
+                        "items": {
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "type": "array"
+                      },
+                      "tool": {
+                        "minLength": 1,
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "tool"
+                    ],
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "process"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "web": {
+                    "additionalProperties": false,
+                    "properties": {},
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "web"
+                ],
+                "type": "object"
+              }
+            ]
+          },
+          "input_schema": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "readback": {
+            "maxLength": 100,
+            "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$",
+            "type": "string"
+          },
+          "result_fields": {
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "scopes": {
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "standing": {
+            "anyOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "kind": {
+                    "const": "notification",
+                    "type": "string"
+                  },
+                  "target_field": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "text_field": {
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "target_field",
+                  "text_field"
+                ],
+                "type": "object"
+              }
+            ]
+          },
+          "target": {
+            "additionalProperties": false,
+            "properties": {
+              "pattern": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "template": {}
+            },
+            "required": [
+              "template"
+            ],
+            "type": "object"
+          },
+          "verb": {
+            "enum": [
+              "read",
+              "write",
+              "comment",
+              "review",
+              "merge",
+              "create",
+              "update",
+              "delete",
+              "execute",
+              "revoke"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "description",
+          "verb",
+          "scopes",
+          "target"
+        ],
+        "type": "object"
+      },
+      "propertyNames": {
+        "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$"
+      },
+      "type": "object"
+    },
+    "placements": {
+      "additionalProperties": false,
+      "properties": {
+        "hosted": {
+          "additionalProperties": false,
+          "properties": {
+            "auth": {
+              "enum": [
+                "delegated",
+                "credential"
+              ],
+              "type": "string"
+            },
+            "callers": {
+              "enum": [
+                "public",
+                "runtime"
+              ],
+              "type": "string"
+            },
+            "credential": {
+              "maxLength": 64,
+              "pattern": "^[a-z][a-z0-9_]{0,63}$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "auth"
+          ],
+          "type": "object"
+        },
+        "local": {
+          "additionalProperties": false,
+          "properties": {
+            "auth": {
+              "items": {
+                "enum": [
+                  "credentials",
+                  "session",
+                  "none"
+                ],
+                "type": "string"
+              },
+              "minItems": 1,
+              "type": "array"
+            },
+            "mcp_server": {
+              "anyOf": [
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "auth": {
+                      "additionalProperties": {
+                        "anyOf": [
+                          {
+                            "additionalProperties": false,
+                            "properties": {
+                              "field": {
+                                "maxLength": 64,
+                                "pattern": "^[a-z][a-z0-9_]{0,63}$",
+                                "type": "string"
+                              },
+                              "type": {
+                                "const": "bearer",
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "type"
+                            ],
+                            "type": "object"
+                          },
+                          {
+                            "additionalProperties": false,
+                            "properties": {
+                              "type": {
+                                "const": "oauth1",
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "type"
+                            ],
+                            "type": "object"
+                          }
+                        ]
+                      },
+                      "propertyNames": {
+                        "pattern": "^[a-z][a-z0-9_]{0,63}$"
+                      },
+                      "type": "object"
+                    },
+                    "headers": {
+                      "additionalProperties": {},
+                      "type": "object"
+                    },
+                    "transport": {
+                      "const": "streamable_http",
+                      "type": "string"
+                    },
+                    "url": {
+                      "minLength": 1,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "transport",
+                    "url"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "args": {
+                      "items": {
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "command": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "transport": {
+                      "const": "stdio",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "transport",
+                    "command"
+                  ],
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "required": [
+            "auth"
+          ],
+          "type": "object"
+        }
+      },
+      "type": "object"
+    },
+    "references": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "enum": [
+              "thread",
+              "comment",
+              "event",
+              "tracking_item",
+              "change_request",
+              "repository",
+              "signal",
+              "act",
+              "receipt",
+              "graph_receipt",
+              "artifact",
+              "verification",
+              "harness",
+              "host",
+              "deployment",
+              "surface",
+              "target",
+              "opportunity",
+              "thesis_assessment",
+              "selection",
+              "skill_binding",
+              "target_transition_entry",
+              "selection_cycle",
+              "decision",
+              "reflection_entry",
+              "feed_entry",
+              "principal",
+              "authority_proof",
+              "scope_admission",
+              "grant",
+              "mandate",
+              "credential",
+              "webhook_delivery",
+              "redaction_policy",
+              "external_url",
+              "connector_instance",
+              "connector_operation"
+            ],
+            "type": "string"
+          },
+          "locator": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "locator"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "schema": {
+      "enum": [
+        "runx.connector.v1"
+      ],
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema",
+    "id",
+    "name",
+    "description",
+    "auth",
+    "placements",
+    "operations"
+  ],
+  "type": "object",
+  "x-runx-schema": "runx.connector.v1"
+}

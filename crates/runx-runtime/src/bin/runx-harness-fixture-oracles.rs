@@ -417,6 +417,8 @@ impl Error for MessageError {}
 
 fn fixture_runtime_options() -> RuntimeOptions {
     RuntimeOptions {
+        current_context: Vec::new(),
+        historical_context: Vec::new(),
         created_at: "2026-05-18T00:00:00Z".to_owned(),
         ..RuntimeOptions::local_development(std::env::vars().collect())
     }

@@ -81,15 +81,79 @@ pub fn inspect_skill_package(
     inspect_loaded_skill_package(loaded, selected_runner, env)
 }
 
-pub(crate) fn inspect_loaded_skill_package(
-    loaded: LoadedSkillPackage,
+/// The readiness of each connector operation the selected runner calls,
+/// projected by the kernel from the instances and evidence present for `cwd`.
+#[cfg(feature = "async-http")]
+pub fn inspect_connector_readiness(
+    skill_path: &Path,
     selected_runner: Option<&str>,
-    env: Option<&BTreeMap<String, String>>,
-) -> Result<JsonValue, SkillInspectionError> {
-    let loaded = Arc::new(loaded);
-    let mut output = base_inspection(&loaded)?;
+    env: &BTreeMap<String, String>,
+    cwd: &Path,
+) -> Result<Vec<runx_contracts::Readiness>, SkillInspectionError> {
+    let loaded = super::load_validated_skill_package(skill_path)?;
     let manifest = loaded.manifest();
-    let runner = match (manifest, selected_runner) {
+    let Some((manifest, runner)) = manifest.zip(inspected_runner(manifest, selected_runner)?)
+    else {
+        return Ok(Vec::new());
+    };
+    crate::kernel::admission::skill_readiness(
+        &loaded.directory,
+        &runner_requirements(&manifest.connectors, runner),
+        env,
+        cwd,
+    )
+    .map_err(|message| {
+        SkillInspectionError::Runtime(Box::new(RuntimeError::SkillFailed {
+            skill_name: "connectors".to_owned(),
+            message,
+        }))
+    })
+}
+
+/// The requirements a runner's operation steps use, narrowed to the
+/// operations they call. A step that binds its operation at run time may call
+/// any operation its requirement lists.
+#[cfg(feature = "async-http")]
+fn runner_requirements(
+    connectors: &BTreeMap<String, runx_parser::ConnectorRequirement>,
+    runner: &runx_parser::SkillRunnerDefinition,
+) -> BTreeMap<String, runx_parser::ConnectorRequirement> {
+    let mut used = BTreeMap::<String, runx_parser::ConnectorRequirement>::new();
+    let targets = runner
+        .source
+        .graph
+        .iter()
+        .flat_map(|graph| &graph.steps)
+        .filter_map(|step| step.operation.as_ref());
+    for target in targets {
+        let Some(declared) = connectors.get(&target.requirement) else {
+            continue;
+        };
+        let requirement = used.entry(target.requirement.clone()).or_insert_with(|| {
+            runx_parser::ConnectorRequirement {
+                operations: Vec::new(),
+                ..declared.clone()
+            }
+        });
+        let operations = target
+            .operation
+            .as_ref()
+            .map_or(declared.operations.as_slice(), std::slice::from_ref);
+        for operation in operations {
+            if !requirement.operations.contains(operation) {
+                requirement.operations.push(operation.clone());
+            }
+        }
+    }
+    used
+}
+
+/// The runner inspection describes: the named one, else the default.
+fn inspected_runner<'a>(
+    manifest: Option<&'a runx_parser::SkillRunnerManifest>,
+    selected_runner: Option<&str>,
+) -> Result<Option<&'a runx_parser::SkillRunnerDefinition>, SkillInspectionError> {
+    Ok(match (manifest, selected_runner) {
         (Some(manifest), Some(name)) => Some(manifest.runners.get(name).ok_or_else(|| {
             SkillInspectionError::RunnerNotFound {
                 runner: name.to_owned(),
@@ -110,7 +174,18 @@ pub(crate) fn inspect_loaded_skill_package(
             });
         }
         (None, None) => None,
-    };
+    })
+}
+
+pub(crate) fn inspect_loaded_skill_package(
+    loaded: LoadedSkillPackage,
+    selected_runner: Option<&str>,
+    env: Option<&BTreeMap<String, String>>,
+) -> Result<JsonValue, SkillInspectionError> {
+    let loaded = Arc::new(loaded);
+    let mut output = base_inspection(&loaded)?;
+    let manifest = loaded.manifest();
+    let runner = inspected_runner(manifest, selected_runner)?;
     let mut execution_closures = inspect_execution_closures(loaded.clone(), env)?;
     if let Some(manifest) = manifest {
         output.insert(

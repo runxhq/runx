@@ -9,11 +9,16 @@ inputs:
     goal: Welcome new trial users.
     name: Trial welcome series
   brand_sid: brnd_demo123
+setup:
+  credentials:
+  - nitrosend
 env:
   NITROSEND_API_KEY: harness-nitrosend-token
 expect:
   status: sealed
-  steps: [preflight, blocked]
+  steps:
+  - preflight
+  - blocked
   step_outputs:
     blocked:
       subset:
@@ -24,7 +29,10 @@ expect:
             mode: act
             operation: compose_flow
             evidence: null
-  receipt: { schema: runx.receipt.v1, state: sealed, disposition: closed }
+  receipt:
+    schema: runx.receipt.v1
+    state: sealed
+    disposition: closed
 metadata:
   public_skill: nitrosend
   source_case: apply-draft-refuses-intent-before-approval

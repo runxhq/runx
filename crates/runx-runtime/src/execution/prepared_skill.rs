@@ -21,7 +21,7 @@ use super::operator_context::{
     load_skill_operator_context_chain_from_package,
 };
 use super::orchestrator::ManagedAgentPolicy;
-use super::orchestrator::{LocalCredentialDescriptor, SkillRunRequest};
+use super::orchestrator::SkillRunRequest;
 use super::skill_front::SkillRunError;
 use super::skill_front::runner_manifest::selected_runner;
 use crate::RuntimeError;
@@ -66,15 +66,6 @@ pub struct PreparedInputSummary {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct PreparedCredentialSummary {
-    pub provider: String,
-    pub auth_mode: String,
-    pub env_var: String,
-    pub material_ref_sha256: String,
-    pub scopes: Vec<String>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PreparedRequestSummary {
     pub skill_path: PathBuf,
     pub cwd: PathBuf,
@@ -83,7 +74,6 @@ pub struct PreparedRequestSummary {
     pub run_id: Option<String>,
     pub answers_path: Option<PathBuf>,
     pub inputs: Vec<PreparedInputSummary>,
-    pub credential: Option<PreparedCredentialSummary>,
     pub managed_agent: ManagedAgentPolicy,
     pub entry: PreparedEntryProvenance,
 }
@@ -293,7 +283,7 @@ struct PreparedContextPreimage<'a> {
     runner: &'a str,
     answers_path: Option<&'a Path>,
     inputs: &'a BTreeMap<String, JsonValue>,
-    credential: Option<PreparedCredentialSummary>,
+    run_authority: Option<&'a crate::RunAuthority>,
     managed_agent: &'a ManagedAgentPolicy,
     entry: &'a PreparedEntryProvenance,
     chain: Option<&'a SkillOperatorContextChain>,
@@ -340,6 +330,22 @@ pub(crate) fn prepare_skill_run_with_effects(
     .map_err(|error| SkillRunError::Invalid(error.to_string()))?;
     if entry.execution_closure_digest.is_none() {
         entry.execution_closure_digest = execution_closure_digest.clone();
+    }
+    if request.answers_path.is_some() {
+        let workspace =
+            crate::services::WorkspaceEnv::new(request.env.clone(), request.cwd.clone())
+                .map_err(RuntimeError::from)?;
+        let receipts =
+            crate::services::ReceiptServices::from_env_or_local_development(workspace.env())
+                .map_err(|error| SkillRunError::Invalid(error.to_string()))?;
+        super::skill_front::restore_continuation_inputs(
+            &mut request,
+            &runner,
+            &workspace,
+            &receipts,
+            &package_digest,
+            execution_closure_digest.as_deref(),
+        )?;
     }
     crate::input_contract::apply_defaults(&runner.inputs, &mut request.inputs);
     let input_failure = match crate::input_contract::materialize_present_runner_inputs(
@@ -472,7 +478,7 @@ fn prepared_context_digest(
         runner: &summary.runner,
         answers_path: summary.answers_path.as_deref(),
         inputs: &request.inputs,
-        credential: summary.credential.clone(),
+        run_authority: request.run_authority.as_ref(),
         managed_agent: &request.managed_agent,
         entry: &summary.entry,
         chain: context.chain.as_ref(),
@@ -646,19 +652,8 @@ fn request_summary(
                 }
             })
             .collect(),
-        credential: request.local_credential.as_ref().map(credential_summary),
         managed_agent: request.managed_agent.clone(),
         entry,
-    }
-}
-
-fn credential_summary(value: &LocalCredentialDescriptor) -> PreparedCredentialSummary {
-    PreparedCredentialSummary {
-        provider: value.provider.clone(),
-        auth_mode: value.auth_mode.clone(),
-        env_var: value.env_var.clone(),
-        material_ref_sha256: sha256_prefixed(value.material_ref.as_bytes()),
-        scopes: value.scopes.clone(),
     }
 }
 
@@ -860,6 +855,9 @@ mod tests {
 
     fn request(path: &Path) -> SkillRunRequest {
         SkillRunRequest {
+            current_context: Vec::new(),
+            historical_context: Vec::new(),
+            run_authority: None,
             skill_path: path.to_path_buf(),
             receipt_dir: None,
             run_id: None,
@@ -871,7 +869,6 @@ mod tests {
             env: BTreeMap::from([("RUNX_HOME".to_owned(), path.to_string_lossy().into_owned())]),
             cwd: path.to_path_buf(),
             managed_agent: ManagedAgentPolicy::HostDriven,
-            local_credential: None,
         }
     }
 
@@ -1209,30 +1206,6 @@ mod tests {
     }
 
     #[test]
-    fn prepared_skill_secret_never_appears_in_public_output_or_debug() -> Result<(), Box<dyn Error>>
-    {
-        let temp = tempdir()?;
-        write_skill(temp.path(), "", "# Prepared")?;
-        let sentinel = "SECRET-SENTINEL-DO-NOT-PRINT";
-        let mut request = request(temp.path());
-        request.local_credential = Some(LocalCredentialDescriptor {
-            profile: Some("example-main".to_owned()),
-            provider: "example".to_owned(),
-            audience: None,
-            auth_mode: "token".to_owned(),
-            env_var: "EXAMPLE_TOKEN".to_owned(),
-            material_ref: "opaque-material".to_owned(),
-            scopes: vec!["read".to_owned()],
-            secret: sentinel.to_owned(),
-        });
-        let prepared = prepare_skill_run(request, None, PreparedEntryProvenance::default())?;
-        let public = serde_json::to_string(prepared.report())?;
-        assert!(!public.contains(sentinel));
-        assert!(!format!("{prepared:?}").contains(sentinel));
-        Ok(())
-    }
-
-    #[test]
     fn prepared_skill_strict_tool_resolution_blocks_with_trace() -> Result<(), Box<dyn Error>> {
         let temp = tempdir()?;
         write_manual(temp.path(), "prepared", "# Prepared")?;
@@ -1525,8 +1498,7 @@ runners:
                 claim: &projection.outputs,
                 projection_refs: std::mem::take(&mut projection.refs),
                 created_at: "2026-07-12T00:00:00Z",
-                authority_grant_refs: Vec::new(),
-                authority_scope_refs: Vec::new(),
+                authority: crate::receipts::SealAuthority::default(),
                 operator_refs: prepared_receipt_references(&env),
                 child_receipts: &[],
                 descendant_receipts: &[],

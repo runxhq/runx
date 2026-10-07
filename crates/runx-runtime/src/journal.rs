@@ -119,8 +119,6 @@ pub struct PausedRunSummary {
     pub resume_skill_ref: Option<String>,
     pub selected_runner: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub credential_profile: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub package_digest: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub execution_closure_digest: Option<String>,
@@ -144,7 +142,6 @@ pub struct PausedRunCheckpoint {
     pub started_at: Option<String>,
     pub resume_skill_ref: Option<String>,
     pub selected_runner: Option<String>,
-    pub credential_profile: Option<String>,
     pub package_digest: Option<String>,
     pub execution_closure_digest: Option<String>,
     pub step_ids: Vec<String>,
@@ -201,7 +198,6 @@ fn paused_checkpoint_entry(
         "detail": {
             "resume_skill_ref": checkpoint.resume_skill_ref,
             "selected_runner": checkpoint.selected_runner,
-            "credential_profile": checkpoint.credential_profile,
             "package_digest": checkpoint.package_digest,
             "execution_closure_digest": checkpoint.execution_closure_digest,
             "step_ids": checkpoint.step_ids,
@@ -1005,7 +1001,6 @@ fn paused_run_from_checkpoint(checkpoint: &PausedRunCheckpoint) -> PausedRunSumm
         started_at: checkpoint.started_at.clone(),
         resume_skill_ref: checkpoint.resume_skill_ref.clone(),
         selected_runner: checkpoint.selected_runner.clone(),
-        credential_profile: checkpoint.credential_profile.clone(),
         package_digest: checkpoint.package_digest.clone(),
         execution_closure_digest: checkpoint.execution_closure_digest.clone(),
         step_ids: checkpoint.step_ids.clone(),
@@ -1090,8 +1085,6 @@ struct LedgerEventDetail {
     #[serde(default)]
     selected_runner: Option<String>,
     #[serde(default)]
-    credential_profile: Option<String>,
-    #[serde(default)]
     package_digest: Option<String>,
     #[serde(default)]
     execution_closure_digest: Option<String>,
@@ -1125,7 +1118,6 @@ struct LedgerRunEvent {
     runner: Option<String>,
     resume_skill_ref: Option<String>,
     selected_runner: Option<String>,
-    credential_profile: Option<String>,
     package_digest: Option<String>,
     execution_closure_digest: Option<String>,
     step_ids: Vec<String>,
@@ -1145,7 +1137,6 @@ fn ledger_event(value: LedgerLine) -> Option<LedgerRunEvent> {
         runner: producer.and_then(|value| value.runner),
         resume_skill_ref: entry.data.detail.resume_skill_ref,
         selected_runner: entry.data.detail.selected_runner,
-        credential_profile: entry.data.detail.credential_profile,
         package_digest: entry.data.detail.package_digest,
         execution_closure_digest: entry.data.detail.execution_closure_digest,
         step_ids: clean_string_array(entry.data.detail.step_ids),
@@ -1190,7 +1181,6 @@ fn paused_run_from_events(run_id: &str, events: &[LedgerRunEvent]) -> Option<Pau
                     .selected_runner
                     .clone()
                     .or_else(|| event.runner.clone()),
-                credential_profile: event.credential_profile.clone(),
                 package_digest: event.package_digest.clone(),
                 execution_closure_digest: event.execution_closure_digest.clone(),
                 step_ids: event.step_ids.clone(),
@@ -1301,7 +1291,6 @@ fn invalid_paused_run(run_id: &str, reason: String) -> PausedRunSummary {
         started_at: None,
         resume_skill_ref: None,
         selected_runner: None,
-        credential_profile: None,
         package_digest: None,
         execution_closure_digest: None,
         step_ids: Vec::new(),

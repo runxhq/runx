@@ -1,0 +1,46 @@
+schema: runx.connector.v1
+id: stripe-spt
+name: Stripe shared payment tokens
+description: Pay a payment requirement with a Stripe shared payment token. Declared only; no placement implements it yet.
+auth:
+  delegated: {}
+placements:
+  hosted:
+    auth: delegated
+operations:
+  payment.spend:
+    description: Pay one payment requirement under a parent spend authority.
+    verb: write
+    scopes: [payment.spend]
+    target:
+      template: {"$argument": "/payment_signal/counterparty"}
+    approval: required
+    amount: required
+    readback: payment.spend.read
+    input_schema:
+      type: object
+      required: [payment_signal, parent_payment_authority, rail_profile_ref]
+      additionalProperties: false
+      properties:
+        payment_signal:
+          type: object
+          required: [counterparty]
+          properties:
+            counterparty: {type: string, minLength: 1}
+        parent_payment_authority: {type: object}
+        rail_profile_ref: {type: string, minLength: 1}
+        payment_admission: {type: object}
+        realm: {type: string}
+    result_fields: [payment_ref, rail, amount_minor, currency, status]
+  payment.spend.read:
+    description: Read back one payment.
+    verb: read
+    scopes: [payment.spend.read]
+    target:
+      template: {"$argument": "/payment_ref"}
+    input_schema:
+      type: object
+      required: [payment_ref]
+      properties:
+        payment_ref: {type: string, minLength: 1}
+    result_fields: [payment_ref, rail, amount_minor, currency, status]

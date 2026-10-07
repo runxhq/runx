@@ -1,0 +1,108 @@
+name: execute-unfollow-batch-stops-at-rate-limit
+kind: skill
+target: ..
+runner: execute
+operator_journeys:
+  - mode: composed
+    confusors: [send-as, governed-outbound]
+    request: Run the next batch of this approved unfollow plan.
+    expected_outcome: Unfollow the contiguous run of accounts under one approval, settle each act, stop at the provider's rate limit, and record the cursor and reset time.
+    prior_evidence:
+      - The approved plan, its digest, and the empty execution ledger supplied in the fixture.
+    must_not_repeat:
+      - Do not send an act the provider has already settled.
+      - Do not send more acts after the provider rate limits the account.
+setup:
+  credentials: [twitter]
+env:
+  TWITTER_USER_AUTH: '{"consumer_key":"harness-consumer","consumer_secret":"harness-secret","access_token":"harness-access","access_secret":"harness-access-secret"}'
+  RUNX_DATA_SOURCES: '{"data_sources":{"tenant://twitter/sqlite-unfollow":{"adapter":"data.sqlite","database_path":".runx/data/twitter-unfollow.sqlite","resources":{"twitter_execution":{"kind":"event_stream","partition_key":"aggregate_id"}}}}}'
+inputs:
+  plan_json:
+    decision: ready
+    objective: Unfollow accounts that do not follow back.
+    principal: account:@example
+    acts:
+      - { act_id: act-unfollow-3001, kind: unfollow, params: { target_user_id: "3001" }, consequence: live_mutation, rationale: Does not follow back. }
+      - { act_id: act-unfollow-3002, kind: unfollow, params: { target_user_id: "3002" }, consequence: live_mutation, rationale: Does not follow back. }
+      - { act_id: act-unfollow-3003, kind: unfollow, params: { target_user_id: "3003" }, consequence: live_mutation, rationale: Does not follow back. }
+      - { act_id: act-unfollow-3004, kind: unfollow, params: { target_user_id: "3004" }, consequence: live_mutation, rationale: Does not follow back. }
+      - { act_id: act-del-4001, kind: delete_post, params: { post_id: "4001" }, consequence: live_mutation, rationale: Matched the operator predicate. }
+    gates: { human_approval_required: true, approval_ref: approval:granted }
+  plan_digest: sha256:2fae0ac85e11630026e9ee8fbc8abdbd3c97afcda83842ee8e796a6b3b9faf97
+  data_source_ref: tenant://twitter/sqlite-unfollow
+  expected_version: 0
+  idempotency_key: twitter:sha256:2fae0ac85e11630026e9ee8fbc8abdbd3c97afcda83842ee8e796a6b3b9faf97:v1
+caller:
+  http_exchanges:
+    - request:
+        method: GET
+        url: https://api.x.com/2/users/me?user.fields=created_at%2Cdescription%2Cpublic_metrics
+        body: none
+      response:
+        status: 200
+        headers: { content-type: application/json }
+        body: '{"data":{"id":"42","username":"example","name":"Example","description":"","public_metrics":{"followers_count":1,"following_count":4,"tweet_count":1}}}'
+    - request:
+        method: DELETE
+        url: https://api.x.com/2/users/42/following/3001
+        body: none
+      response:
+        status: 200
+        headers: { content-type: application/json }
+        body: '{"data":{"following":false}}'
+    - request:
+        method: DELETE
+        url: https://api.x.com/2/users/42/following/3002
+        body: none
+      response:
+        status: 400
+        headers: { content-type: application/json }
+        body: '{"errors":[{"message":"You cannot unfollow an account that is not active.","detail":"You cannot unfollow an account that is not active."}],"title":"Invalid Request"}'
+    - request:
+        method: DELETE
+        url: https://api.x.com/2/users/42/following/3003
+        body: none
+      response:
+        status: 429
+        headers: { content-type: application/json, x-rate-limit-remaining: "0", x-rate-limit-reset: "1800000000" }
+        body: '{"title":"Too Many Requests","detail":"Too Many Requests","type":"about:blank","status":429}'
+  approvals:
+    "operation:sha256:55b8f45231d03df8d11ec55528654758e21674f73077406714f176c9f191cb8d": true
+expect:
+  status: sealed
+  steps: [ledger, digest, prepare, self, bind, request, apply, persist]
+  step_outputs:
+    request:
+      subset:
+        provider_operation:
+          data:
+            status: success
+            provider: twitter
+            operation: users.unfollow
+            finality: acknowledged
+            result:
+              outcomes:
+                - { status: applied, acknowledgement: { data: { following: false } } }
+                - { status: refused, code: provider_rejected }
+                - { status: refused, code: rate_limited, retry_at: "2027-01-15T08:00:00Z" }
+                - { status: unsent, code: rate_limited }
+    apply:
+      subset:
+        twitter_execution:
+          data:
+            decision: stopped
+            next_act_index: 2
+            remaining_count: 3
+            rate: { limited: true, remaining: 0, reset_at: "2027-01-15T08:00:00Z" }
+            results:
+              - { act_id: act-unfollow-3001, status: done, provider_ref: "3001" }
+              - { act_id: act-unfollow-3002, status: done, provider_ref: "3002" }
+              - { act_id: act-unfollow-3003, status: failed, provider_ref: "3003" }
+            ledger_delta:
+              account_id: "42"
+              decision: stopped
+              next_act_index: 2
+              batch: { start_act_index: 0, selected_act_count: 4, completed_act_count: 2, failed: true, rate_limited: true }
+  receipt: { schema: runx.receipt.v1, state: sealed }
+metadata: { public_skill: twitter, source_case: execute-unfollow-rate-limit, source: skills-fixture, runner_kind: graph }

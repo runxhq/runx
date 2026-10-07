@@ -51,3 +51,49 @@ export function finalizeConversation(inputs) {
     },
   };
 }
+
+// The common source packet is the adapter boundary. Domain interpretation stays here.
+export function prepareWork(inputs) {
+  const source = inputs.source_context;
+  const evidence = source?.workflow_inputs;
+  if (source?.schema !== "runx.source_packet.v1" || !evidence
+      || source.source_ref?.uri !== evidence.source_ref
+      || evidence.thread?.source_ref !== evidence.source_ref
+      || evidence.thread?.source_digest !== evidence.source_digest) {
+    throw new Error("conversation work requires bound normalized source evidence");
+  }
+  return { review_inputs: {
+    source_ref: evidence.source_ref, source_digest: evidence.source_digest,
+    thread_locator: evidence.thread_locator, title: evidence.title, body: evidence.body,
+    thread: evidence.thread, source_complete: evidence.source_complete,
+  } };
+}
+
+export function finishWork(inputs) {
+  const review = inputs.conversation_packet;
+  const routes = inputs.handoff_routes || {};
+  const kind = review?.status;
+  const route = routes[kind];
+  let disposition = "held";
+  let summary = review?.reason || "Conversation review requires more context.";
+  const followups = [];
+  const completion_evidence = [];
+  if (review?.validation?.status === "pass" && kind === "no_action") {
+    disposition = "satisfied";
+    summary = review.summary;
+    completion_evidence.push(`${review.source_ref}@${review.source_digest}: no action required`);
+  } else if (review?.validation?.status === "pass" && ["reply", "coding", "follow_up"].includes(kind)) {
+    if (typeof route === "string" && route) {
+      disposition = "follow_up";
+      summary = review.summary;
+      const next = kind === "reply" ? { draft_message: review.draft_message, thread_locator: review.thread_locator }
+        : kind === "coding" ? { request_quote: review.request_quote }
+          : { objective: review.follow_up_task };
+      followups.push({ route_id: route, target_ref: review.thread_locator,
+        inputs: next, due_at_unix_seconds: 0 });
+    } else {
+      summary = `Held: ${kind} needs a configured handoff route. ${review.summary || ""}`.trim();
+    }
+  }
+  return { work_result: { disposition, summary, completion_evidence, followups } };
+}

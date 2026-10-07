@@ -15,7 +15,6 @@ use crate::credentials::CredentialDelivery;
 use crate::effects::{EffectAdmission, RuntimeEffectRegistry};
 use crate::tool_catalogs::ToolCatalogError;
 
-mod artifacts;
 mod data_source;
 mod local;
 
@@ -216,9 +215,9 @@ fn finalize_output(
         invocation_artifacts
     };
     if output.succeeded() {
-        artifacts::apply(&mut output, artifacts.as_ref());
+        crate::output_contract::apply_artifact_outputs(&mut output.value, artifacts.as_ref());
         if let Some(ephemeral) = output.ephemeral.as_value_mut() {
-            artifacts::apply_value(ephemeral, artifacts.as_ref());
+            crate::output_contract::apply_artifact_outputs(ephemeral, artifacts.as_ref());
         }
     }
     Ok(output)
@@ -255,6 +254,7 @@ fn invoke_native_tool(
     let mut output = match invocation.result {
         Ok(payload) => success(payload, started),
         Err(error @ RuntimeError::ProviderEffectUnknown { .. })
+        | Err(error @ RuntimeError::ProviderReadbackPending { .. })
         | Err(error @ RuntimeError::EffectState { .. }) => return Err(error),
         Err(error) => failure(error.to_string(), started),
     };

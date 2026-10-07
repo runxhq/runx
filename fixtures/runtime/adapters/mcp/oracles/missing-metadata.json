@@ -1,9 +1,0 @@
-{
-  "status": "failure",
-  "stdout": "",
-  "stderr": "MCP source requires server and tool metadata.",
-  "exitCode": null,
-  "signal": null,
-  "durationMs": 0,
-  "errorMessage": "MCP source requires server and tool metadata."
-}

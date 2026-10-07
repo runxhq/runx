@@ -15,11 +15,11 @@ inputs:
   rail_profile_ref: "rail-profile:stripe-test"
   idempotency_seed: stripe-test-001
 caller:
-  approvals: { "provider-effect:sha256:da4a5e72b0689566bd4b64fc80d7a373a7e9b562f4fb65b2472c2632081d6af1": true }
+  approvals: { "operation:sha256:762cd3541ebc81f477b89f9a1c1fb158bd80a7bfb77f4a598a036ffa7c4cbae9": true }
   provider_responses:
     principal_id: stripe-fixture
-    grants: [{ grant_id: stripe-fixture, provider: stripe-spt, scopes: [payment.spend, payment.spend.read] }]
+    grant: { grant_id: stripe-fixture, provider: stripe-spt, scopes: [payment.spend, payment.spend.read] }
     operations:
-      - { grant_id: stripe-fixture, operation: payment.spend, target: "merchant:demo", access: mutate, result: { payment_ref: payment_stripe_001, rail: stripe-spt, amount_minor: 125, currency: USD, status: settled } }
-      - { grant_id: stripe-fixture, operation: payment.spend.read, target: "merchant:demo", access: read, result: { payment_ref: payment_stripe_001, rail: stripe-spt, amount_minor: 125, currency: USD, status: settled } }
+      - { operation: payment.spend, target: "merchant:demo", access: mutate, result: { payment_ref: payment_stripe_001, rail: stripe-spt, amount_minor: 125, currency: USD, status: settled } }
+      - { operation: payment.spend.read, target: payment_stripe_001, access: read, result: { payment_ref: payment_stripe_001, rail: stripe-spt, amount_minor: 125, currency: USD, status: settled } }
 expect: { status: sealed, receipt: { schema: runx.receipt.v1 } }

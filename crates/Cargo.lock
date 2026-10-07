@@ -1211,6 +1211,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "hashlink"
+version = "0.12.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a596f1b20ed2cc5ecac41a164aaebc7258057060f06c0cf7a2ba3991ee7990fb"
+dependencies = [
+ "hashbrown 0.17.1",
+]
+
+[[package]]
 name = "heck"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2336,6 +2345,7 @@ dependencies = [
  "base64 0.23.1",
  "bytes",
  "futures-core",
+ "futures-util",
  "h2",
  "http",
  "http-body",
@@ -2355,12 +2365,14 @@ dependencies = [
  "sync_wrapper",
  "tokio",
  "tokio-rustls",
+ "tokio-util",
  "tower",
  "tower-http",
  "tower-service",
  "url",
  "wasm-bindgen",
  "wasm-bindgen-futures",
+ "wasm-streams",
  "web-sys",
 ]
 
@@ -2405,6 +2417,7 @@ dependencies = [
  "pastey",
  "pin-project-lite",
  "rand 0.10.2",
+ "reqwest",
  "schemars",
  "serde",
  "serde_json",
@@ -2419,6 +2432,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "runx-assistant"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "ring",
+ "runx-contracts",
+ "runx-runtime",
+ "serde",
+ "serde_json",
+ "url",
+]
+
+[[package]]
 name = "runx-cli"
 version = "0.9.1"
 dependencies = [
@@ -2426,6 +2452,7 @@ dependencies = [
  "chrono",
  "ctrlc",
  "ring",
+ "runx-assistant",
  "runx-contracts",
  "runx-parser",
  "runx-receipts",
@@ -2594,6 +2621,7 @@ dependencies = [
  "bitflags",
  "fallible-iterator",
  "fallible-streaming-iterator",
+ "hashlink",
  "libsqlite3-sys",
  "smallvec",
 ]
@@ -3562,6 +3590,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7ef64dbcc55df09c7e5a46182d181c2cfa3e925f3da937ea764728b4bbb9dcbf"
 dependencies = [
  "unicode-ident",
+]
+
+[[package]]
+name = "wasm-streams"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9d1ec4f6517c9e11ae630e200b2b65d193279042e28edd4a2cda233e46670bbb"
+dependencies = [
+ "futures-util",
+ "js-sys",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
 ]
 
 [[package]]

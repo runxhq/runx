@@ -5,7 +5,7 @@ fn reference_type_as_str_is_stable_snake_case() {
     assert_eq!(ReferenceType::Receipt.as_str(), "receipt");
     assert_eq!(ReferenceType::Act.as_str(), "act");
     assert_eq!(ReferenceType::Verification.as_str(), "verification");
-    assert_eq!(ReferenceType::ProviderThread.as_str(), "provider_thread");
+    assert_eq!(ReferenceType::Thread.as_str(), "thread");
     assert_eq!(ReferenceType::TrackingItem.as_str(), "tracking_item");
     assert_eq!(ReferenceType::ChangeRequest.as_str(), "change_request");
     assert_eq!(ReferenceType::Repository.as_str(), "repository");

@@ -1,0 +1,45 @@
+schema: runx.connector.v1
+id: stripe
+name: Stripe
+description: File and read payment dispute responses. Declared only; no placement implements it yet.
+auth:
+  delegated: {}
+placements:
+  hosted:
+    auth: delegated
+operations:
+  dispute.file:
+    description: File one evidence-bound response to a payment dispute.
+    verb: write
+    scopes: [dispute.file]
+    target:
+      template: {"$argument": "/dispute_packet/dispute/dispute_id"}
+    approval: required
+    readback: dispute.read
+    input_schema:
+      type: object
+      required: [dispute_packet]
+      additionalProperties: false
+      properties:
+        dispute_packet:
+          type: object
+          required: [dispute]
+          properties:
+            dispute:
+              type: object
+              required: [dispute_id]
+              properties:
+                dispute_id: {type: string, minLength: 1}
+    result_fields: [dispute_id, filing_ref, request_digest, status]
+  dispute.read:
+    description: Read back one dispute filing.
+    verb: read
+    scopes: [dispute.read]
+    target:
+      template: {"$argument": "/dispute_id"}
+    input_schema:
+      type: object
+      required: [dispute_id]
+      properties:
+        dispute_id: {type: string, minLength: 1}
+    result_fields: [dispute_id, filing_ref, request_digest, status]

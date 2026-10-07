@@ -4,26 +4,18 @@ use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
-use runx_contracts::{JsonObject, JsonValue};
+use runx_contracts::{CheckOutcome, JsonObject, JsonValue, Readiness};
 use runx_runtime::skill_front::{PreparedEntryProvenance, PreparedSkillRunStatus};
-use runx_runtime::{
-    ManagedAgentPolicy, OrchestratorError, SkillCredentialContext, SkillRunRequest, WorkspaceEnv,
-    resolve_skill_credential_for_path,
-};
+use runx_runtime::{ManagedAgentPolicy, OrchestratorError, SkillRunRequest, WorkspaceEnv};
 
-mod credential;
 mod environment_readiness;
 mod inputs;
 mod marketplace;
 mod operator_context;
 pub(crate) mod output;
 mod parser;
-mod provider_readiness;
 mod resolver;
 
-use credential::{
-    inspect_context as inspect_credential_context, write_required as write_needs_credential,
-};
 use environment_readiness::{
     append_text as append_environment_readiness_text, inspect as inspect_environment_readiness,
 };
@@ -31,9 +23,6 @@ use inputs::read_input_document;
 use operator_context::write_operator_context;
 use output::{ResumeHint, run_result_exit_code, write_skill_output};
 pub use parser::{parse_skill_plan, parse_skill_plan_with_workspace};
-use provider_readiness::{
-    append_text as append_provider_readiness_text, inspect as inspect_provider_readiness,
-};
 use resolver::{RegistryTrustState, ResolvedSkillRef, resolve_skill_ref_details};
 
 #[derive(Debug, PartialEq)]
@@ -56,9 +45,6 @@ pub struct SkillPlan {
     pub full_operator_context: bool,
     pub inputs: BTreeMap<String, JsonValue>,
     pub input_document: Option<crate::document_input::DocumentInputSource>,
-    /// Optional stored profile selector. Secret resolution happens only after
-    /// the selected runner's manifest credential requirement is known.
-    pub credential_profile: Option<String>,
     pub managed_agent: ManagedAgentPolicy,
 }
 
@@ -92,38 +78,15 @@ pub fn run_native_skill_with_workspace(plan: SkillPlan, workspace: &WorkspaceEnv
         resolved.package_digest = Some(expected_package_digest.clone());
     }
     let skill_path = resolved.runnable_path.clone();
-    let credential = match resolve_skill_credential_for_path(
-        &skill_path,
-        plan.runner.as_deref(),
-        plan.credential_profile.as_deref(),
-        workspace,
-    ) {
-        Ok(credential) => credential,
-        Err(error) => {
-            return write_skill_failure(
-                &error.to_string(),
-                plan.json,
-                "credential_error",
-                1,
-                registry_provenance(&resolved),
-            );
-        }
-    };
     if plan.action == SkillAction::Inspect {
         return write_skill_inspection(
             &skill_path,
             plan.runner.as_deref(),
             plan.json,
             registry_provenance(&resolved),
-            credential.as_ref(),
             &env,
             &cwd,
         );
-    }
-    if let Some(context) = credential.as_ref()
-        && !context.resolution.is_ready()
-    {
-        return write_needs_credential(&context.request, plan.json);
     }
     let inputs = match plan.input_document.as_ref() {
         Some(source) => match read_input_document(source, &env, &cwd) {
@@ -177,6 +140,9 @@ pub fn run_native_skill_with_workspace(plan: SkillPlan, workspace: &WorkspaceEnv
         answers_path: plan.answers.as_deref(),
     };
     let request = SkillRunRequest {
+        current_context: Vec::new(),
+        historical_context: Vec::new(),
+        run_authority: None,
         skill_path,
         receipt_dir: plan.receipt_dir.clone(),
         run_id: plan.run_id.clone(),
@@ -185,9 +151,6 @@ pub fn run_native_skill_with_workspace(plan: SkillPlan, workspace: &WorkspaceEnv
         env,
         cwd,
         managed_agent: plan.managed_agent.clone(),
-        local_credential: credential
-            .as_ref()
-            .and_then(|context| context.resolution.descriptor().cloned()),
     };
     let orchestrator = match crate::runtime::local_orchestrator(&request.env) {
         Ok(orchestrator) => orchestrator,
@@ -341,19 +304,18 @@ fn write_skill_inspection(
     runner: Option<&str>,
     json: bool,
     provenance: Option<JsonObject>,
-    credential: Option<&SkillCredentialContext>,
     env: &BTreeMap<String, String>,
     cwd: &Path,
 ) -> ExitCode {
-    match inspect_skill(skill_path, runner, provenance, credential, env, cwd) {
-        Ok(value) if json => crate::cli_io::write_stdout_code(
+    match inspect_skill(skill_path, runner, provenance, env, cwd) {
+        Ok((value, _)) if json => crate::cli_io::write_stdout_code(
             &format!(
                 "{}\n",
                 serde_json::to_string_pretty(&value).unwrap_or_else(|_| "{}".to_owned())
             ),
             0,
         ),
-        Ok(value) => write_inspection_text(&value),
+        Ok((value, readiness)) => write_inspection_text(&value, &readiness),
         Err(message) => write_skill_failure(&message, json, "skill_error", 1, None),
     }
 }
@@ -363,10 +325,9 @@ fn inspect_skill(
     skill_path: &Path,
     selected_runner: Option<&str>,
     provenance: Option<JsonObject>,
-    credential: Option<&SkillCredentialContext>,
     env: &BTreeMap<String, String>,
     cwd: &Path,
-) -> Result<JsonValue, String> {
+) -> Result<(JsonValue, Vec<Readiness>), String> {
     let mut output = runx_runtime::inspect_skill_package(skill_path, selected_runner, Some(env))
         .map_err(|error| error.to_string())?;
     let JsonValue::Object(object) = &mut output else {
@@ -378,23 +339,29 @@ fn inspect_skill(
             JsonValue::Object(provenance),
         );
     }
-    if object.get("runner").is_some()
-        && let Some(provider) = inspect_provider_readiness(object, env, cwd)
-    {
-        let status = provider
-            .as_object()
-            .and_then(|value| value.get("status"))
-            .and_then(JsonValue::as_str)
-            .unwrap_or("provider_readiness_unknown")
-            .to_owned();
-        object.insert("provider".to_owned(), provider);
-        object.insert(
-            "readiness".to_owned(),
-            JsonValue::Object(JsonObject::from([(
-                "status".to_owned(),
-                JsonValue::String(status),
-            )])),
-        );
+    let mut readiness = Vec::new();
+    if object.get("runner").is_some() {
+        readiness =
+            runx_runtime::inspect_connector_readiness(skill_path, selected_runner, env, cwd)
+                .map_err(|error| error.to_string())?;
+        if !readiness.is_empty() {
+            let status = if readiness.iter().all(|operation| operation.ready) {
+                "ready"
+            } else {
+                "needs_connector_setup"
+            };
+            object.insert(
+                "connector_readiness".to_owned(),
+                JsonValue::from_serialize(&readiness).map_err(|error| error.to_string())?,
+            );
+            object.insert(
+                "readiness".to_owned(),
+                JsonValue::Object(JsonObject::from([(
+                    "status".to_owned(),
+                    JsonValue::String(status.to_owned()),
+                )])),
+            );
+        }
     }
     if object.get("runner").is_some()
         && let Some(environment) = inspect_environment_readiness(object, env)?
@@ -415,31 +382,11 @@ fn inspect_skill(
             );
         }
     }
-    if object.get("runner").is_some()
-        && let Some(credential) = credential
-    {
-        let credential = inspect_credential_context(credential);
-        let ready = credential
-            .as_object()
-            .and_then(|value| value.get("status"))
-            .and_then(JsonValue::as_str)
-            == Some("ready");
-        object.insert("credential".to_owned(), credential);
-        if !ready {
-            object.insert(
-                "readiness".to_owned(),
-                JsonValue::Object(JsonObject::from([(
-                    "status".to_owned(),
-                    JsonValue::String("needs_credential".to_owned()),
-                )])),
-            );
-        }
-    }
-    Ok(output)
+    Ok((output, readiness))
 }
 
 // Function rationale: text rendering mirrors the inspect JSON shape and is kept adjacent to avoid presentation drift.
-fn write_inspection_text(value: &JsonValue) -> ExitCode {
+fn write_inspection_text(value: &JsonValue, readiness: &[Readiness]) -> ExitCode {
     let Some(object) = value.as_object() else {
         return crate::cli_io::write_stdout_code("{}\n", 0);
     };
@@ -467,15 +414,8 @@ fn write_inspection_text(value: &JsonValue) -> ExitCode {
         {
             out.push_str(&format!("readiness: {status}\n"));
         }
-        append_provider_readiness_text(&mut out, object);
+        out.extend(readiness.iter().map(readiness_line));
         append_environment_readiness_text(&mut out, object);
-        if let Some(credential) = object.get("credential").and_then(JsonValue::as_object) {
-            out.push_str(&format!(
-                "credential: {} ({})\n",
-                object_string(credential, "provider").unwrap_or("<unknown>"),
-                object_string(credential, "status").unwrap_or("unknown")
-            ));
-        }
         if let Some(capabilities) = object.get("capabilities").and_then(JsonValue::as_object) {
             for key in ["execution", "completion", "requires_adapter", "approval"] {
                 if let Some(value) = capabilities.get(key) {
@@ -729,4 +669,31 @@ fn skill_json_failure_output(
     serde_json::to_string_pretty(&JsonValue::Object(output))
         .map(|json| format!("{json}\n"))
         .unwrap_or_else(|_| crate::router::json_failure_output(message, code))
+}
+
+/// One required operation: where it would run and what it still needs.
+pub(crate) fn readiness_line(readiness: &Readiness) -> String {
+    let blocker = readiness
+        .reasons
+        .iter()
+        .find(|reason| reason.outcome == CheckOutcome::Fail)
+        .map(|reason| reason.detail.as_str());
+    format!(
+        "connector: {}/{} ({}{})\n",
+        readiness
+            .connector
+            .as_ref()
+            .map_or(readiness.requirement.as_str(), |connector| connector
+                .as_str()),
+        readiness.operation,
+        readiness
+            .instance_id
+            .as_ref()
+            .map_or("no instance", |instance| instance.as_str()),
+        match (readiness.ready, blocker) {
+            (true, _) => ", ready".to_owned(),
+            (false, Some(detail)) => format!(", {detail}"),
+            (false, None) => ", not ready".to_owned(),
+        }
+    )
 }

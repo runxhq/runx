@@ -35,9 +35,8 @@ const windowsPatterns = [
   /^crates\/Cargo\.lock$/u,
   /^rust-toolchain\.toml$/u,
   /^crates\/runx-runtime\/Cargo\.toml$/u,
-  /^crates\/runx-runtime\/src\/(?:adapters\/javascript\/supervisor\/(?:process|session)|outbox_provider|path_util|process|receipts\/store)\.rs$/u,
+  /^crates\/runx-runtime\/src\/(?:adapters\/javascript\/supervisor\/(?:process|session)|path_util|process|receipts\/store)\.rs$/u,
   /^crates\/runx-runtime\/src\/process\//u,
-  /^crates\/runx-runtime\/tests\/mcp_adapter\.rs$/u,
   /^scripts\/harness-sweep\.mjs$/u,
 ];
 

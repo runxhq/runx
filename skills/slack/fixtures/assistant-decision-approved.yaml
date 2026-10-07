@@ -1,0 +1,49 @@
+name: slack-assistant-decision-approved
+kind: skill
+target: ..
+runner: assistant_decide
+inputs:
+  presentation_ref: slack://T123ABC/C123ABC/1791095930.000001
+  request_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  nonce: 0123456789abcdef
+  authorized_actor_ref: U123ABC
+caller:
+  provider_responses:
+    principal_id: operator-fixture
+    grant:
+        grant_id: slack-decision-fixture
+        provider: slack
+        scopes: [thread.read]
+    operations:
+      - operation: thread.read
+        target: slack://T123ABC/C123ABC/1791095930.000001
+        access: read
+        result:
+          external_tenant_ref: T123ABC
+          connected_subject_ref: U123ABC
+          thread_locator: slack://T123ABC/C123ABC/1791095930.000001
+          messages:
+            - message_locator: slack://T123ABC/C123ABC/1791095930.000001
+              author: { external_id: U123ABC, provider_actor_type: user_account }
+              occurred_at: "2026-10-05T00:00:00Z"
+              preview: "Approval needed for a paused Runx action. Request: 0123456789abcdef Digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+              attachments: []
+            - message_locator: slack://T123ABC/C123ABC/1791095931.000001
+              author: { external_id: U123ABC, provider_actor_type: user_account }
+              occurred_at: "2026-10-05T00:01:00Z"
+              preview: approve 0123456789abcdef
+              attachments: []
+          next_cursor: ""
+expect:
+  status: sealed
+  steps: [thread, judge]
+  step_outputs:
+    judge:
+      subset:
+        decision_observation:
+          data:
+            status: decided
+            origin: human_account
+            approved: true
+            actor_ref: U123ABC
+  receipt: { schema: runx.receipt.v1, state: sealed, disposition: closed }

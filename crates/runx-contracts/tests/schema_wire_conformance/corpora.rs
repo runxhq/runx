@@ -1557,11 +1557,11 @@ pub(super) fn operational_proposal_corpus() -> Vec<(&'static str, Value)> {
             "fingerprint": "sha256:proposal-123-source-action-target",
         },
         "source_ref": {
-            "type": "provider_thread",
+            "type": "thread",
             "uri": "slack://team/T123/channel/CBUGS/thread/1710000000.000100",
         },
         "source_thread_ref": {
-            "type": "provider_thread",
+            "type": "thread",
             "uri": "slack://team/T123/channel/CBUGS/thread/1710000000.000100",
         },
         "hydrated_context_ref": {
@@ -1612,13 +1612,13 @@ pub(super) fn operational_proposal_corpus() -> Vec<(&'static str, Value)> {
         "publication_refs": [{
             "role": "source_thread_update",
             "ref": {
-                "type": "provider_thread",
+                "type": "thread",
                 "uri": "slack://team/T123/channel/CBUGS/thread/1710000000.000100",
             },
         }, {
             "role": "tracking_item_comment",
             "ref": {
-                "type": "provider_comment",
+                "type": "comment",
                 "uri": "https://github.com/example/api/issues/123#issuecomment-1",
             },
         }],
@@ -1724,7 +1724,7 @@ fn authority_term() -> Value {
         "term_id": "term_1",
         "principal_ref": a_ref(),
         "resource_ref": a_ref(),
-        "resource_family": "github_repo",
+        "resource_family": "connector",
         "verbs": ["read", "write"],
         "bounds": {},
         "conditions": [],
@@ -1778,7 +1778,6 @@ pub(super) fn orchestrator_handoff_context_corpus() -> Vec<(&'static str, Value)
             "idempotency_key": "evt_demo_001",
         },
         "receiver_validation": {
-            "require_bearer": true,
             "require_scope": "orchestrator.n8n.workflow.invoke",
             "require_audience": "n8n:workflow:demo",
             "require_event_id": "evt_demo_001",
@@ -1790,25 +1789,13 @@ pub(super) fn orchestrator_handoff_context_corpus() -> Vec<(&'static str, Value)
             "receiver_response_must_be_captured": true,
             "delivered_credential_material_absent": true,
         },
-        "stop_conditions": [],
     });
     vec![
         ("valid preflight", valid.clone()),
         ("missing delivery", drop_field(valid.clone(), "delivery")),
         (
-            "invalid request method type",
-            set_field(
-                valid.clone(),
-                "requests",
-                json!([{
-                    "id": "n8n-handoff",
-                    "method": 42,
-                    "url": "https://{host}/webhook/{slug}",
-                    "path": { "host": "n8n.example.com", "slug": "demo" },
-                    "headers": { "content-type": "application/json" },
-                    "body": valid["delivery"],
-                }]),
-            ),
+            "invalid delivery payload source type",
+            set_field(valid.clone(), "delivery", json!({ "source": 42 })),
         ),
         (
             "additional property",
@@ -2286,251 +2273,6 @@ pub(super) fn credential_delivery_observation_corpus() -> Vec<(&'static str, Val
     ]
 }
 
-pub(super) fn external_adapter_manifest_corpus() -> Vec<(&'static str, Value)> {
-    let valid = json!({
-        "schema": "runx.external_adapter.manifest.v1",
-        "protocol_version": "runx.external_adapter.v1",
-        "adapter_id": "ad_1",
-        "name": "Adapter",
-        "version": "1.0.0",
-        "supported_source_types": ["github_issue"],
-        "transport": { "kind": "process", "command": "node" },
-        "timeouts": { "startup_ms": 1000, "invocation_ms": 5000 },
-    });
-    vec![
-        ("minimal valid", valid.clone()),
-        (
-            "missing adapter_id",
-            drop_field(valid.clone(), "adapter_id"),
-        ),
-        ("missing schema", drop_field(valid.clone(), "schema")),
-        (
-            "wrong protocol_version",
-            set_field(valid.clone(), "protocol_version", json!("nope")),
-        ),
-        (
-            "empty adapter_id",
-            set_field(valid.clone(), "adapter_id", json!("")),
-        ),
-        (
-            "empty version",
-            set_field(valid.clone(), "version", json!("")),
-        ),
-        (
-            "empty supported_source_types item",
-            set_field(valid.clone(), "supported_source_types", json!([""])),
-        ),
-        (
-            "transport unknown kind",
-            set_field(
-                valid.clone(),
-                "transport",
-                json!({ "kind": "carrier-pigeon" }),
-            ),
-        ),
-        (
-            "additional property",
-            set_field(valid.clone(), "bogus", json!(true)),
-        ),
-    ]
-}
-
-pub(super) fn external_adapter_invocation_corpus() -> Vec<(&'static str, Value)> {
-    let valid = json!({
-        "schema": "runx.external_adapter.invocation.v1",
-        "protocol_version": "runx.external_adapter.v1",
-        "invocation_id": "inv_1",
-        "adapter_id": "ad_1",
-        "run_id": "run_1",
-        "step_id": "step_1",
-        "source_type": "github_issue",
-        "skill_ref": "skill:1",
-        "harness_ref": a_ref(),
-        "host_ref": a_ref(),
-        "inputs": {},
-    });
-    vec![
-        ("minimal valid", valid.clone()),
-        (
-            "missing invocation_id",
-            drop_field(valid.clone(), "invocation_id"),
-        ),
-        ("missing schema", drop_field(valid.clone(), "schema")),
-        (
-            "wrong schema const",
-            set_field(valid.clone(), "schema", json!("runx.x.v1")),
-        ),
-        (
-            "empty run_id",
-            set_field(valid.clone(), "run_id", json!("")),
-        ),
-        (
-            "empty skill_ref",
-            set_field(valid.clone(), "skill_ref", json!("")),
-        ),
-        (
-            "missing harness_ref",
-            drop_field(valid.clone(), "harness_ref"),
-        ),
-        (
-            "inputs as array",
-            set_field(valid.clone(), "inputs", json!([])),
-        ),
-        (
-            "additional property",
-            set_field(valid.clone(), "bogus", json!(true)),
-        ),
-    ]
-}
-
-pub(super) fn external_adapter_credential_request_corpus() -> Vec<(&'static str, Value)> {
-    let valid = json!({
-        "schema": "runx.external_adapter.credential_request.v1",
-        "protocol_version": "runx.external_adapter.v1",
-        "request_id": "req_1",
-        "adapter_id": "ad_1",
-        "invocation_id": "inv_1",
-        "credential_refs": [{ "credential_ref": a_ref(), "provider": "github", "purpose": "provider_api" }],
-        "requested_at": "2026-01-01T00:00:00Z",
-    });
-    vec![
-        ("valid", valid.clone()),
-        (
-            "missing request_id",
-            drop_field(valid.clone(), "request_id"),
-        ),
-        ("missing schema", drop_field(valid.clone(), "schema")),
-        (
-            "empty request_id",
-            set_field(valid.clone(), "request_id", json!("")),
-        ),
-        (
-            "credential ref unknown purpose",
-            set_field(
-                valid.clone(),
-                "credential_refs",
-                json!([{ "credential_ref": a_ref(), "provider": "github", "purpose": "nope" }]),
-            ),
-        ),
-        (
-            "credential ref empty provider",
-            set_field(
-                valid.clone(),
-                "credential_refs",
-                json!([{ "credential_ref": a_ref(), "provider": "", "purpose": "provider_api" }]),
-            ),
-        ),
-        (
-            "malformed requested_at",
-            set_field(valid.clone(), "requested_at", json!("nope")),
-        ),
-        (
-            "missing requested_at",
-            drop_field(valid.clone(), "requested_at"),
-        ),
-        (
-            "additional property",
-            set_field(valid.clone(), "bogus", json!(true)),
-        ),
-    ]
-}
-
-pub(super) fn external_adapter_host_resolution_corpus() -> Vec<(&'static str, Value)> {
-    let valid = json!({
-        "schema": "runx.external_adapter.host_resolution.v1",
-        "protocol_version": "runx.external_adapter.v1",
-        "frame_id": "frame_1",
-        "invocation_id": "inv_1",
-        "adapter_id": "ad_1",
-        "request": {
-            "kind": "input",
-            "id": "q_1",
-            "questions": [{ "id": "name", "prompt": "Name?", "required": true, "type": "string" }],
-        },
-        "requested_at": "2026-01-01T00:00:00Z",
-    });
-    vec![
-        ("valid input request", valid.clone()),
-        ("valid approval request", {
-            let mut v = valid.clone();
-            v["request"] = json!({
-                "kind": "approval",
-                "id": "ap_1",
-                "gate": { "id": "g1", "reason": "needs approval" },
-            });
-            v
-        }),
-        ("missing frame_id", drop_field(valid.clone(), "frame_id")),
-        ("missing schema", drop_field(valid.clone(), "schema")),
-        (
-            "empty frame_id",
-            set_field(valid.clone(), "frame_id", json!("")),
-        ),
-        (
-            "request unknown kind",
-            set_field(
-                valid.clone(),
-                "request",
-                json!({ "kind": "nope", "id": "x" }),
-            ),
-        ),
-        (
-            "request missing id",
-            set_field(
-                valid.clone(),
-                "request",
-                json!({ "kind": "input", "questions": [] }),
-            ),
-        ),
-        (
-            "malformed requested_at",
-            set_field(valid.clone(), "requested_at", json!("nope")),
-        ),
-        (
-            "additional property",
-            set_field(valid.clone(), "bogus", json!(true)),
-        ),
-    ]
-}
-
-pub(super) fn external_adapter_cancellation_corpus() -> Vec<(&'static str, Value)> {
-    let valid = json!({
-        "schema": "runx.external_adapter.cancellation.v1",
-        "protocol_version": "runx.external_adapter.v1",
-        "frame_id": "frame_1",
-        "invocation_id": "inv_1",
-        "adapter_id": "ad_1",
-        "reason": "user cancelled",
-        "requested_at": "2026-01-01T00:00:00Z",
-    });
-    vec![
-        ("valid", valid.clone()),
-        ("missing frame_id", drop_field(valid.clone(), "frame_id")),
-        ("missing schema", drop_field(valid.clone(), "schema")),
-        (
-            "wrong protocol_version",
-            set_field(valid.clone(), "protocol_version", json!("x")),
-        ),
-        (
-            "empty frame_id",
-            set_field(valid.clone(), "frame_id", json!("")),
-        ),
-        (
-            "empty reason",
-            set_field(valid.clone(), "reason", json!("")),
-        ),
-        (
-            "malformed requested_at",
-            set_field(valid.clone(), "requested_at", json!("nope")),
-        ),
-        ("missing reason", drop_field(valid.clone(), "reason")),
-        (
-            "additional property",
-            set_field(valid.clone(), "bogus", json!(true)),
-        ),
-    ]
-}
-
 pub(super) fn question_corpus() -> Vec<(&'static str, Value)> {
     let valid = json!({ "id": "q1", "prompt": "What?", "required": true, "type": "string" });
     vec![
@@ -2733,212 +2475,6 @@ pub(super) fn resolution_request_corpus() -> Vec<(&'static str, Value)> {
                 "questions",
                 json!([{ "id": "name", "prompt": "Name?", "required": true, "type": "string", "bogus": 1 }]),
             ),
-        ),
-    ]
-}
-
-pub(super) fn thread_outbox_manifest_corpus() -> Vec<(&'static str, Value)> {
-    let valid = json!({
-        "schema": "runx.thread_outbox_provider.manifest.v1",
-        "protocol_version": "runx.thread_outbox_provider.v1",
-        "adapter_id": "ad_1",
-        "provider": "github",
-        "name": "Provider",
-        "version": "1.0.0",
-        "supported_operations": ["push"],
-        "transport": { "kind": "process", "command": "node" },
-        "receipt_capabilities": { "idempotent_push": true, "readback": true, "stable_provider_event_hash": true },
-        "redaction_capabilities": { "redacts_credentials": true, "redacts_provider_payloads": true, "supports_redaction_refs": true },
-    });
-    vec![
-        ("minimal valid", valid.clone()),
-        (
-            "missing adapter_id",
-            drop_field(valid.clone(), "adapter_id"),
-        ),
-        ("missing schema", drop_field(valid.clone(), "schema")),
-        (
-            "wrong protocol_version",
-            set_field(valid.clone(), "protocol_version", json!("x")),
-        ),
-        (
-            "empty provider",
-            set_field(valid.clone(), "provider", json!("")),
-        ),
-        (
-            "empty version",
-            set_field(valid.clone(), "version", json!("")),
-        ),
-        (
-            "unknown operation",
-            set_field(valid.clone(), "supported_operations", json!(["fly"])),
-        ),
-        (
-            "transport unknown kind",
-            set_field(valid.clone(), "transport", json!({ "kind": "http" })),
-        ),
-        (
-            "additional property",
-            set_field(valid.clone(), "bogus", json!(true)),
-        ),
-    ]
-}
-
-pub(super) fn thread_outbox_push_corpus() -> Vec<(&'static str, Value)> {
-    let thread_locator =
-        json!({ "provider": "github", "thread_ref": a_ref(), "locator": "owner/repo#1" });
-    let profile = json!({ "provider": "github", "purpose": "provider_api", "profile_id": "github-env", "delivery_mode": "process_env", "credential_refs": [] });
-    let receipt_context = json!({ "harness_ref": a_ref(), "host_ref": a_ref() });
-    let valid = json!({
-        "schema": "runx.thread_outbox_provider.push.v1",
-        "protocol_version": "runx.thread_outbox_provider.v1",
-        "push_id": "push_1",
-        "adapter_id": "ad_1",
-        "provider": "github",
-        "outbox_entry_id": "oe_1",
-        "thread_locator": thread_locator,
-        "idempotency": { "key": "k1" },
-        "payload": { "format": "markdown", "body": "hello" },
-        "provider_profile": profile,
-        "credential_delivery_refs": [],
-        "receipt_context": receipt_context,
-        "requested_at": "2026-01-01T00:00:00Z",
-    });
-    vec![
-        ("minimal valid", valid.clone()),
-        ("missing push_id", drop_field(valid.clone(), "push_id")),
-        ("missing schema", drop_field(valid.clone(), "schema")),
-        (
-            "empty push_id",
-            set_field(valid.clone(), "push_id", json!("")),
-        ),
-        (
-            "empty idempotency key",
-            set_field(valid.clone(), "idempotency", json!({ "key": "" })),
-        ),
-        (
-            "unknown payload format",
-            set_field(
-                valid.clone(),
-                "payload",
-                json!({ "format": "rtf", "body": "x" }),
-            ),
-        ),
-        (
-            "empty payload body",
-            set_field(
-                valid.clone(),
-                "payload",
-                json!({ "format": "markdown", "body": "" }),
-            ),
-        ),
-        (
-            "malformed requested_at",
-            set_field(valid.clone(), "requested_at", json!("nope")),
-        ),
-        (
-            "additional property",
-            set_field(valid.clone(), "bogus", json!(true)),
-        ),
-    ]
-}
-
-pub(super) fn thread_outbox_fetch_corpus() -> Vec<(&'static str, Value)> {
-    let profile = json!({ "provider": "github", "purpose": "provider_api", "profile_id": "github-env", "delivery_mode": "process_env", "credential_refs": [] });
-    let receipt_context = json!({ "harness_ref": a_ref(), "host_ref": a_ref() });
-    let valid = json!({
-        "schema": "runx.thread_outbox_provider.fetch.v1",
-        "protocol_version": "runx.thread_outbox_provider.v1",
-        "fetch_id": "fetch_1",
-        "adapter_id": "ad_1",
-        "provider": "github",
-        "target": { "thread_locator": { "provider": "github", "thread_ref": a_ref(), "locator": "owner/repo#1" } },
-        "idempotency": { "key": "k1" },
-        "provider_profile": profile,
-        "credential_delivery_refs": [],
-        "receipt_context": receipt_context,
-        "requested_at": "2026-01-01T00:00:00Z",
-    });
-    vec![
-        ("valid thread target", valid.clone()),
-        ("valid provider target", {
-            let mut v = valid.clone();
-            v["target"] =
-                json!({ "provider_locator": { "provider": "github", "locator": "owner/repo" } });
-            v
-        }),
-        ("missing fetch_id", drop_field(valid.clone(), "fetch_id")),
-        ("missing schema", drop_field(valid.clone(), "schema")),
-        (
-            "empty fetch_id",
-            set_field(valid.clone(), "fetch_id", json!("")),
-        ),
-        (
-            "target empty (matches neither variant)",
-            set_field(valid.clone(), "target", json!({})),
-        ),
-        (
-            "empty readback_cursor",
-            set_field(valid.clone(), "readback_cursor", json!("")),
-        ),
-        (
-            "malformed requested_at",
-            set_field(valid.clone(), "requested_at", json!("nope")),
-        ),
-        (
-            "additional property",
-            set_field(valid.clone(), "bogus", json!(true)),
-        ),
-    ]
-}
-
-pub(super) fn thread_outbox_observation_corpus() -> Vec<(&'static str, Value)> {
-    let valid = json!({
-        "schema": "runx.thread_outbox_provider.observation.v1",
-        "protocol_version": "runx.thread_outbox_provider.v1",
-        "observation_id": "obs_1",
-        "adapter_id": "ad_1",
-        "provider": "github",
-        "operation": "push",
-        "request_id": "push_1",
-        "status": "accepted",
-        "idempotency": { "key": "k1", "status": "created" },
-        "observed_at": "2026-01-01T00:00:00Z",
-    });
-    vec![
-        ("minimal valid", valid.clone()),
-        (
-            "missing observation_id",
-            drop_field(valid.clone(), "observation_id"),
-        ),
-        ("missing schema", drop_field(valid.clone(), "schema")),
-        (
-            "empty observation_id",
-            set_field(valid.clone(), "observation_id", json!("")),
-        ),
-        (
-            "unknown operation",
-            set_field(valid.clone(), "operation", json!("fly")),
-        ),
-        (
-            "unknown status",
-            set_field(valid.clone(), "status", json!("nope")),
-        ),
-        (
-            "unknown idempotency status",
-            set_field(
-                valid.clone(),
-                "idempotency",
-                json!({ "key": "k1", "status": "nope" }),
-            ),
-        ),
-        (
-            "malformed observed_at",
-            set_field(valid.clone(), "observed_at", json!("nope")),
-        ),
-        (
-            "additional property",
-            set_field(valid.clone(), "bogus", json!(true)),
         ),
     ]
 }
@@ -3325,77 +2861,6 @@ pub(super) fn source_packet_corpus() -> Vec<(&'static str, Value)> {
     ]
 }
 
-pub(super) fn external_adapter_response_corpus() -> Vec<(&'static str, Value)> {
-    let valid = json!({
-        "schema": "runx.external_adapter.response.v1",
-        "protocol_version": "runx.external_adapter.v1",
-        "invocation_id": "inv_1",
-        "adapter_id": "ad_1",
-        "status": "completed",
-        "observed_at": "2026-01-01T00:00:00Z",
-    });
-    let full = json!({
-        "schema": "runx.external_adapter.response.v1",
-        "protocol_version": "runx.external_adapter.v1",
-        "invocation_id": "inv_1",
-        "adapter_id": "ad_1",
-        "status": "completed",
-        "stdout": "out",
-        "exit_code": 0,
-        "telemetry": [
-            { "name": "latency", "value": 12.5 },
-            { "name": "label", "value": "ok" },
-            { "name": "flag", "value": true },
-        ],
-        "errors": [{ "code": "e1", "message": "m", "retryable": false }],
-        "observed_at": "2026-01-01T00:00:00Z",
-    });
-    vec![
-        ("minimal valid", valid.clone()),
-        ("full valid", full),
-        ("missing status", {
-            let mut v = valid.clone();
-            remove_field(&mut v, "status");
-            v
-        }),
-        ("missing invocation_id", {
-            let mut v = valid.clone();
-            remove_field(&mut v, "invocation_id");
-            v
-        }),
-        ("unknown status variant", {
-            let mut v = valid.clone();
-            v["status"] = json!("frozen");
-            v
-        }),
-        ("telemetry value as object rejected by untagged union", {
-            let mut v = valid.clone();
-            v["telemetry"] = json!([{ "name": "x", "value": { "nested": 1 } }]);
-            v
-        }),
-        ("telemetry value as null rejected by untagged union", {
-            let mut v = valid.clone();
-            v["telemetry"] = json!([{ "name": "x", "value": null }]);
-            v
-        }),
-        ("telemetry value string accepted", {
-            let mut v = valid.clone();
-            v["telemetry"] = json!([{ "name": "x", "value": "text" }]);
-            v
-        }),
-        ("telemetry missing required value", {
-            let mut v = valid.clone();
-            v["telemetry"] = json!([{ "name": "x" }]);
-            v
-        }),
-        ("additional property", {
-            let mut v = valid.clone();
-            v["bogus"] = json!(true);
-            v
-        }),
-    ]
-}
-
 fn a_ref() -> Value {
     json!({ "type": "act", "uri": "runx:act:1" })
 }
@@ -3675,7 +3140,7 @@ pub(super) fn reference_link_corpus() -> Vec<(&'static str, Value)> {
     let valid = json!({
         "role": "source_thread",
         "ref": {
-            "type": "provider_thread",
+            "type": "thread",
             "uri": "provider://workspace/channel/thread",
             "provider": "example",
             "locator": "workspace/channel/thread",

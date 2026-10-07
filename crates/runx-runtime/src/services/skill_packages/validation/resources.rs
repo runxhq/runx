@@ -73,6 +73,10 @@ fn classify_runner(
 }
 
 fn classify_graph_step(step: &runx_parser::GraphStep, usage: &mut CandidateResourceUsage) {
+    // Every operation is external I/O.
+    if step.operation.is_some() {
+        usage.network = true;
+    }
     if let Some(tool) = &step.tool {
         classify_native_tool(tool, usage);
     }
@@ -92,11 +96,10 @@ fn classify_source(kind: SourceKind, usage: &mut CandidateResourceUsage) {
 fn classify_source_name(kind: &str, usage: &mut CandidateResourceUsage) {
     match kind {
         "javascript" => usage.domain_modules = true,
-        "cli-tool" | "mcp" | "external-adapter" | "thread-outbox-provider" => {
+        "cli-tool" => {
             usage.process_spawns = usage.process_spawns.saturating_add(1);
             usage.network = true;
         }
-        "a2a" => usage.network = true,
         _ => {}
     }
 }
@@ -106,10 +109,7 @@ fn classify_native_tool(tool: &str, usage: &mut CandidateResourceUsage) {
         usage.process_spawns = usage.process_spawns.saturating_add(1);
         usage.network = true;
     }
-    if tool.starts_with("http.")
-        || tool.starts_with("provider.")
-        || matches!(tool, "web.fetch" | "artifact.allocate" | "artifact.handoff")
-    {
+    if matches!(tool, "artifact.allocate" | "artifact.handoff") {
         usage.network = true;
     }
 }
@@ -163,13 +163,7 @@ mod tests {
 
     #[test]
     fn actual_network_tools_claim_network_access() {
-        for tool in [
-            "http.read",
-            "provider.read",
-            "web.fetch",
-            "artifact.allocate",
-            "artifact.handoff",
-        ] {
+        for tool in ["artifact.allocate", "artifact.handoff"] {
             let mut usage = CandidateResourceUsage::default();
             classify_native_tool(tool, &mut usage);
             assert!(usage.network, "{tool} must consume the network budget");
@@ -178,16 +172,9 @@ mod tests {
 
     #[test]
     fn trusted_host_processes_are_network_capable() {
-        for source in [
-            "cli-tool",
-            "mcp",
-            "external-adapter",
-            "thread-outbox-provider",
-        ] {
-            let mut usage = CandidateResourceUsage::default();
-            classify_source_name(source, &mut usage);
-            assert!(usage.network, "{source} must consume the network budget");
-        }
+        let mut usage = CandidateResourceUsage::default();
+        classify_source_name("cli-tool", &mut usage);
+        assert!(usage.network, "cli-tool must consume the network budget");
 
         let mut command = CandidateResourceUsage::default();
         classify_native_tool("command.execute", &mut command);

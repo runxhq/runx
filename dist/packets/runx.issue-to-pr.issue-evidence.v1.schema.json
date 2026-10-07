@@ -3,7 +3,7 @@
   "$id": "https://schemas.runx.ai/runx/issue-to-pr/issue-evidence/v1.json",
   "x-runx-packet-id": "runx.issue_to_pr.issue_evidence.v1",
   "type": "object",
-  "required": ["schema", "repository", "number", "title", "state", "body", "url", "labels", "assignees", "source", "checkout_resolved"],
+  "required": ["schema", "repository", "number", "title", "state", "body", "url", "labels", "assignees", "source"],
   "properties": {
     "schema": { "const": "runx.issue_to_pr.issue_evidence.v1" },
     "repository": { "type": "string", "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$" },
@@ -19,13 +19,12 @@
       "required": ["provider", "transport", "principal_ref", "readback_ref"],
       "properties": {
         "provider": { "const": "github" },
-        "transport": { "type": "string", "enum": ["local_github", "hosted_connect"] },
+        "transport": { "type": "string", "enum": ["local_http", "runx_connect"] },
         "principal_ref": { "type": "string", "minLength": 1 },
         "readback_ref": { "type": "string", "minLength": 1 }
       },
       "additionalProperties": false
-    },
-    "checkout_resolved": { "type": "boolean" }
+    }
   },
   "additionalProperties": false
 }

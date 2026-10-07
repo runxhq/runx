@@ -54,33 +54,6 @@ impl fmt::Display for OperationalPolicyAction {
     }
 }
 
-/// Canonical source provider identifiers for operational policies. Documented
-/// for discoverability; the wire form is an open `NonEmptyString` so adapters
-/// implementing source ingestion can publish their own identifier without a
-/// contract edit.
-pub mod operational_policy_source_provider {
-    /// Slack workspaces and threads.
-    pub const SLACK: &str = "slack";
-    /// Sentry issue/event streams.
-    pub const SENTRY: &str = "sentry";
-    /// GitHub issues and pull requests.
-    pub const GITHUB: &str = "github";
-    /// Files on a workspace volume.
-    pub const FILE: &str = "file";
-    /// Generic HTTP API source.
-    pub const API: &str = "api";
-}
-
-/// Canonical runner kind identifiers for operational policies. The wire form
-/// is an open `NonEmptyString`; adapters that schedule work on a new substrate
-/// can publish their own identifier without a contract edit.
-pub mod operational_policy_runner_kind {
-    /// In-process local runner.
-    pub const LOCAL: &str = "local";
-    /// GitHub Actions hosted runner.
-    pub const GITHUB_ACTIONS: &str = "github-actions";
-}
-
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, RunxSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum OperationalPolicyRunnerState {
@@ -168,9 +141,8 @@ pub struct OperationalPolicy {
 #[serde(deny_unknown_fields)]
 pub struct OperationalPolicySourceRule {
     pub source_id: NonEmptyString,
-    /// Open provider identifier (e.g.
-    /// `operational_policy_source_provider::SLACK`). Any value an adapter
-    /// publishes is accepted on the wire.
+    /// Open provider identifier, the id of the connector the source arrives
+    /// through. Any value an adapter publishes is accepted on the wire.
     pub provider: NonEmptyString,
     pub allowed_locators: Vec<NonEmptyString>,
     pub allowed_actions: Vec<OperationalPolicyAction>,
@@ -197,9 +169,8 @@ pub struct OperationalPolicySourceThreadPolicy {
 #[serde(deny_unknown_fields)]
 pub struct OperationalPolicyRunnerRule {
     pub runner_id: NonEmptyString,
-    /// Open runner kind identifier (e.g.
-    /// `operational_policy_runner_kind::LOCAL`). Any value an adapter publishes
-    /// is accepted on the wire.
+    /// Open runner kind identifier. Any value an adapter publishes is accepted
+    /// on the wire.
     pub kind: NonEmptyString,
     pub state: OperationalPolicyRunnerState,
     pub allowed_actions: Vec<OperationalPolicyAction>,

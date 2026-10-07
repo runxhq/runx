@@ -216,11 +216,6 @@ fn validate_pure_javascript_boundary(request: &SkillInvocation) -> Result<(), Ru
         || !source.args.is_empty()
         || source.cwd.is_some()
         || source.input_mode.is_some()
-        || source.server.is_some()
-        || source.tool.is_some()
-        || source.arguments.is_some()
-        || source.agent_card_url.is_some()
-        || source.agent_identity.is_some()
         || source.agent.is_some()
         || source.task.is_some()
         || source.graph.is_some();

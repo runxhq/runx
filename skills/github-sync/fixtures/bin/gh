@@ -1,20 +1,8 @@
 #!/bin/sh
-set -eu
-
-if [ -n "${RUNX_GITHUB_SYNC_GH_LOG:-}" ]; then
-  printf '%s\n' "$*" >> "$RUNX_GITHUB_SYNC_GH_LOG"
+# The signed-in GitHub CLI, as far as a session needs it: a token.
+if [ "$1 $2" = "auth token" ]; then
+  echo gho_fixture_token
+  exit 0
 fi
-
-case "$*" in
-  *graphql*)
-    /bin/cat >/dev/null
-    printf '%s\n' '{"data":{"viewer":{"id":"U_operator","login":"operator"},"repository":{"nameWithOwner":"runxhq/runx","viewerPermission":"READ"}}}'
-    ;;
-  *"--method GET repos/runxhq/runx/issues?per_page=25&state=open&labels=triage"*)
-    printf '%s\n' '[{"number":442,"title":"Make GitHub reads operator-first","state":"open","body":"Use the existing local gh session for routine reads.","html_url":"https://github.com/runxhq/runx/issues/442","labels":[{"name":"triage"}],"assignees":[]}]'
-    ;;
-  *)
-    printf '%s\n' "unexpected fixture gh invocation: $*" >&2
-    exit 2
-    ;;
-esac
+echo "fixture gh does not implement: gh $*" >&2
+exit 1

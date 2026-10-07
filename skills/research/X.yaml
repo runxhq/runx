@@ -1,5 +1,5 @@
 skill: research
-version: "0.3.2"
+version: "0.3.3"
 
 catalog:
   kind: graph
@@ -116,12 +116,11 @@ runners:
     examples:
       - objective: Decide whether the supplied API evidence supports a native integration.
         source_packets:
-          - decision: ready
-            final_url: https://example.com/api
+          - final_url: https://example.com/api
             status: 200
             content_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
             extracted: The API exposes a stable bounded operation contract.
-            provenance: { fetched_at: '2026-07-18T00:00:00Z', bytes: 52, truncated: false, redirects: [] }
+            provenance: { fetched_at: '2026-07-18T00:00:00Z', bytes: 52, redirects: [] }
     graph:
       name: research
       result_from: [analyze]

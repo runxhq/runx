@@ -24,7 +24,6 @@ const SKILL_FIXTURES: &[&str] = &[
 ];
 
 const RUNNER_MANIFEST_FIXTURES: &[&str] = &[
-    include_str!("../../../fixtures/parser/runner-manifests/a2a-runner.json"),
     include_str!("../../../fixtures/parser/runner-manifests/execution-evidence-refs.json"),
     include_str!("../../../fixtures/parser/runner-manifests/harness-basic.json"),
     include_str!(

@@ -171,6 +171,8 @@ fn run_fixture_with_test_adapter(
 
 fn fixture_runtime_options() -> RuntimeOptions {
     RuntimeOptions {
+        current_context: Vec::new(),
+        historical_context: Vec::new(),
         created_at: FIXTURE_CREATED_AT.to_owned(),
         ..RuntimeOptions::local_development(std::env::vars().collect())
     }

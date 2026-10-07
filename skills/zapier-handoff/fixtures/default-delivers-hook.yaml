@@ -22,27 +22,45 @@ inputs:
   execution_context: { caller: runx-cli, workflow_ref: operator-zap-demo }
   payload: { hello: zap }
 caller:
-  provider_responses:
-    principal_id: zapier-fixture
-    grants:
-      - grant_id: zapier-fixture
-        provider: zapier
-        scopes: [orchestrator.zapier.workflow.invoke, orchestrator.zapier.workflow.read]
-    operations:
-      - grant_id: zapier-fixture
-        operation: hook.invoke
-        target: "12345678"
-        access: mutate
-        result: { event_id: evt_zapier_demo_001, invocation_ref: zapier:run:001, status: accepted, idempotency_key: $request.idempotency_key }
-      - grant_id: zapier-fixture
-        operation: hook.invocation.read
-        target: "12345678"
-        access: read
-        result: { event_id: evt_zapier_demo_001, invocation_ref: zapier:run:001, status: accepted, idempotency_key: $previous.idempotency_key }
+  http_exchanges:
+    - request:
+        method: POST
+        url: https://hooks.zapier.com/hooks/catch/12345678/abcDEF123/
+        body:
+          json:
+            event_id: evt_zapier_demo_001
+            execution_context:
+              caller: runx-cli
+              event_id: evt_zapier_demo_001
+              handoff_audience: zapier:zap:runx-governed-effect
+              handoff_scope: orchestrator.zapier.workflow.invoke
+              idempotency_key: evt_zapier_demo_001
+              platform: zapier
+              workflow_ref: operator-zap-demo
+            handoff_audience: zapier:zap:runx-governed-effect
+            handoff_scope: orchestrator.zapier.workflow.invoke
+            idempotency_key: evt_zapier_demo_001
+            payload: { hello: zap }
+            source: runx
+      response:
+        status: 200
+        headers: { content-type: application/json }
+        body: '{"attempt":"0192a1b2-0000-7000-8000-000000000001","id":"0192a1b2-0000-7000-8000-000000000002","request_id":"0192a1b2-0000-7000-8000-000000000003","status":"success"}'
   approvals:
-    "provider-effect:sha256:fa4be495e37188964928552e869b3d1ed6a84eb56381b89e0fb84b1da6b5d645": true
+    "operation:sha256:ff52517c7806fa7be13e25ae5e5c356cdd0f446a4f834c065f45d626b6e9482f": true
 expect:
   status: sealed
-  steps: [build-handoff-context, invoke, readback]
+  steps: [build-handoff-context, address, invoke]
+  step_outputs:
+    invoke:
+      subset:
+        provider_operation:
+          data:
+            status: success
+            provider: zapier
+            operation: hook.invoke
+            finality: acknowledged
+            result:
+              acknowledgement: { status: success, request_id: 0192a1b2-0000-7000-8000-000000000003 }
   receipt: { schema: runx.receipt.v1, state: sealed, disposition: closed }
 metadata: { public_skill: zapier-handoff, source_case: direct-default-success, source: skills-fixture }

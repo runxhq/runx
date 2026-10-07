@@ -774,7 +774,6 @@ mod tests {
                 started_at: Some("2026-04-28T01:00:00.000Z".to_owned()),
                 resume_skill_ref: resume_skill_ref.map(str::to_owned),
                 selected_runner: Some("agent-task".to_owned()),
-                credential_profile: None,
                 package_digest: Some("sha256:package".to_owned()),
                 execution_closure_digest: Some("sha256:closure".to_owned()),
                 step_ids: vec!["discover".to_owned()],

@@ -1,7 +1,5 @@
 use std::fs;
 use std::io::Write;
-#[cfg(unix)]
-use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 use std::process::{Command, Output, Stdio};
 
@@ -315,7 +313,18 @@ fn provider_failure_is_not_success_and_readiness_is_actionable() -> TestResult {
         .arg("--json")
         .output()?;
     let incomplete = assert_json(&incomplete, 0)?;
-    assert_ne!(incomplete["provider"]["status"], "ready");
+    assert_eq!(incomplete["readiness"]["status"], "needs_connector_setup");
+    let refusal = incomplete["connector_readiness"][0]["reasons"]
+        .as_array()
+        .and_then(|reasons| reasons.iter().find(|reason| reason["outcome"] == "fail"))
+        .ok_or("an incomplete injected grant must fail readiness")?;
+    assert_eq!(refusal["check"], "instance");
+    assert!(
+        refusal["detail"]
+            .as_str()
+            .is_some_and(|detail| detail.contains("incomplete")),
+        "{refusal}"
+    );
 
     let inspect = command(&root)
         .env("RUNX_PROVIDER_PERMISSION_GRANT_ID", "grant_google_read")
@@ -335,19 +344,17 @@ fn provider_failure_is_not_success_and_readiness_is_actionable() -> TestResult {
         .output()?;
     let inspect = assert_json(&inspect, 0)?;
     assert_eq!(inspect["readiness"]["status"], "ready");
-    assert_eq!(inspect["provider"]["status"], "ready");
-    assert_eq!(
-        inspect["provider"]["requirements"][0]["provider"],
-        "google-analytics"
-    );
-    assert_eq!(
-        inspect["provider"]["requirements"][0]["operation"],
-        "properties.list"
-    );
-    assert_eq!(
-        inspect["provider"]["requirements"][0]["grant_ref"],
-        "runx:grant:grant_google_read"
-    );
+    let readiness = inspect["connector_readiness"]
+        .as_array()
+        .and_then(|operations| {
+            operations
+                .iter()
+                .find(|operation| operation["operation"] == "properties.list")
+        })
+        .ok_or("properties.list readiness missing")?;
+    assert_eq!(readiness["connector"], "google-analytics");
+    assert_eq!(readiness["instance_id"], "injected.google-analytics");
+    assert_eq!(readiness["ready"], true);
 
     let denied = command(&root)
         .env(
@@ -379,132 +386,6 @@ fn provider_failure_is_not_success_and_readiness_is_actionable() -> TestResult {
     assert_receipt_verifies(&root, &receipt_dir, receipt_id)?;
     assert_history_contains_local_receipt(&root, &receipt_dir, receipt_id)?;
 
-    Ok(())
-}
-
-#[cfg(unix)]
-#[test]
-fn issue_442_local_github_replay_resolves_checkout_before_transport_and_skips_hosted_grant()
--> TestResult {
-    let root = crate::support::temp_root("runx-issue-442-local-github-replay");
-    let skill_dir = root.join("skills/github-issue-inspect");
-    let fake_bin = root.join("fake-bin");
-    let receipt_dir = root.join(".runx/receipts");
-    fs::create_dir_all(&skill_dir)?;
-    fs::create_dir_all(&fake_bin)?;
-    fs::write(
-        skill_dir.join("SKILL.md"),
-        "---\nname: github-issue-inspect\ndescription: Inspect one GitHub issue from the owning checkout.\n---\n# GitHub Issue Inspect\n\nReturn the requested issue as bounded provider evidence.\n",
-    )?;
-    fs::write(
-        skill_dir.join("X.yaml"),
-        r#"skill: github-issue-inspect
-version: "0.1.0"
-runners:
-  inspect:
-    default: true
-    type: graph
-    graph:
-      name: github-issue-inspect
-      result_from: [read-issue]
-      steps:
-        - id: read-issue
-          tool: provider.read
-          scopes: [repo.read]
-          policy:
-            provider_permission:
-              verb: read
-          inputs:
-            expected_provider: github
-            operation: issue.read
-            target: .
-            expected_result:
-              repository: nitrosend/nitrosend
-            result_fields: [repository, number, title, state, body, url, labels]
-            input:
-              issue_number: 442
-"#,
-    )?;
-    let git = |args: &[&str]| -> TestResult {
-        let output = Command::new("git").current_dir(&root).args(args).output()?;
-        assert!(
-            output.status.success(),
-            "git {:?} failed: {}",
-            args,
-            String::from_utf8_lossy(&output.stderr)
-        );
-        Ok(())
-    };
-    git(&["init", "--quiet"])?;
-    git(&[
-        "remote",
-        "add",
-        "origin",
-        "git@github.com:nitrosend/nitrosend.git",
-    ])?;
-
-    let gh = fake_bin.join("gh");
-    fs::write(
-        &gh,
-        r#"#!/bin/sh
-dir=$(CDPATH= cd -- "$(/usr/bin/dirname -- "$0")" && pwd)
-printf '%s\n' "$*" >> "$dir/gh.log"
-case "$*" in
-  *graphql*)
-    /bin/cat >/dev/null
-    printf '%s\n' '{"data":{"viewer":{"id":"U_operator","login":"operator"},"repository":{"nameWithOwner":"nitrosend/nitrosend","viewerPermission":"WRITE"}}}'
-    ;;
-  *"repos/nitrosend/nitrosend/issues/442"*)
-    printf '%s\n' '{"number":442,"title":"Use local GitHub transport","state":"open","body":"Operator regression","html_url":"https://github.com/nitrosend/nitrosend/issues/442","labels":[]}'
-    ;;
-  *)
-    printf '%s\n' '{"message":"unexpected gh invocation"}' >&2
-    exit 2
-    ;;
-esac
-"#,
-    )?;
-    let mut permissions = fs::metadata(&gh)?.permissions();
-    permissions.set_mode(0o700);
-    fs::set_permissions(&gh, permissions)?;
-
-    let run = command(&root)
-        .env("PATH", format!("{}:/usr/bin:/bin", fake_bin.display()))
-        .env("RUNX_PUBLIC_API_BASE_URL", "https://wrong-hosted.invalid")
-        .env("RUNX_PUBLIC_API_TOKEN", "wrong-hosted-grant")
-        .arg("skill")
-        .arg(&skill_dir)
-        .arg("--receipt-dir")
-        .arg(&receipt_dir)
-        .arg("--json")
-        .output()?;
-    let run = assert_json(&run, 0)?;
-    assert_eq!(run["status"], "sealed");
-    assert_eq!(run["outcome"], "completed");
-    let operation = run["result"]["provider_operation"]["data"]
-        .as_object()
-        .or_else(|| run["result"]["provider_operation"].as_object())
-        .ok_or("provider operation result missing")?;
-    assert_eq!(
-        operation.get("transport").and_then(Value::as_str),
-        Some("local_github")
-    );
-    assert_eq!(
-        operation
-            .get("result")
-            .and_then(Value::as_object)
-            .and_then(|result| result.get("number"))
-            .and_then(Value::as_str),
-        Some("442")
-    );
-    let log = fs::read_to_string(fake_bin.join("gh.log"))?;
-    assert_eq!(
-        log.lines()
-            .filter(|line| line.contains("repos/nitrosend/nitrosend/issues/442"))
-            .count(),
-        1
-    );
-    assert!(log.lines().all(|line| !line.contains("sourcey/catalog")));
     Ok(())
 }
 
@@ -569,6 +450,8 @@ fn reference_skill_journeys_execute_or_block_truthfully_without_repeating_phase_
         })
         .to_string(),
     )?;
+    // Slack declares message.send but no placement implements it yet, so the
+    // send refuses at admission, before any approval or request.
     let send = command(&root)
         .env("RUNX_PROVIDER_PERMISSION_GRANT_ID", "grant_slack_send")
         .env(
@@ -579,7 +462,7 @@ fn reference_skill_journeys_execute_or_block_truthfully_without_repeating_phase_
             "RUNX_PROVIDER_PERMISSION_PRINCIPAL_REF",
             "runx:principal:operator:test",
         )
-        .env("RUNX_PUBLIC_API_TOKEN", "not-used-before-approval")
+        .env("RUNX_PUBLIC_API_TOKEN", "not-used-before-admission")
         .env("RUNX_PUBLIC_API_BASE_URL", "https://wrong-hosted.invalid")
         .arg("skill")
         .arg(repo_root.join("skills/send-as"))
@@ -588,67 +471,21 @@ fn reference_skill_journeys_execute_or_block_truthfully_without_repeating_phase_
         .arg("send-apply.json")
         .arg("--receipt-dir")
         .arg(&receipt_dir)
-        .args(["--json", "--diagnostics"])
+        .arg("--json")
         .output()?;
-    let send = assert_json(&send, 2)?;
-    assert_eq!(send["status"], "needs_approval", "{send}");
-    assert_eq!(send["outcome"], "deferred");
-    assert_eq!(send["requests"].as_array().map(Vec::len), Some(1));
-    assert_eq!(send["requests"][0]["kind"], "approval");
+    let send = assert_json(&send, 1)?;
+    assert_eq!(send["outcome"], "blocked", "{send}");
     assert!(
-        send["requests"][0]["id"]
+        send["closure"]["summary"]
             .as_str()
-            .is_some_and(|request| request.starts_with("provider-effect:"))
+            .is_some_and(|summary| summary
+                .contains("slack/message.send: the hosted placement does not implement it")),
+        "{send}"
     );
 
-    let fake_bin = root.join("fake-bin");
-    fs::create_dir_all(&fake_bin)?;
-    let git = |args: &[&str]| -> TestResult {
-        let output = Command::new("git").current_dir(&root).args(args).output()?;
-        assert!(
-            output.status.success(),
-            "git {:?} failed: {}",
-            args,
-            String::from_utf8_lossy(&output.stderr)
-        );
-        Ok(())
-    };
-    git(&["init", "--quiet"])?;
-    git(&[
-        "remote",
-        "add",
-        "origin",
-        "git@github.com:nitrosend/nitrosend.git",
-    ])?;
-    let gh = fake_bin.join("gh");
-    fs::write(
-        &gh,
-        r#"#!/bin/sh
-dir=$(CDPATH= cd -- "$(/usr/bin/dirname -- "$0")" && pwd)
-printf '%s\n' "$*" >> "$dir/gh.log"
-case "$*" in
-  *graphql*)
-    /bin/cat >/dev/null
-    printf '%s\n' '{"data":{"viewer":{"id":"U_operator","login":"operator"},"repository":{"nameWithOwner":"nitrosend/nitrosend","viewerPermission":"WRITE"}}}'
-    ;;
-  *"repos/nitrosend/nitrosend/issues?"*)
-    printf '%s\n' '[{"number":442,"title":"Use local GitHub transport","state":"open","body":"Operator regression","html_url":"https://github.com/nitrosend/nitrosend/issues/442","labels":[]}]'
-    ;;
-  *)
-    printf '%s\n' '{"message":"unexpected gh invocation"}' >&2
-    exit 2
-    ;;
-esac
-"#,
-    )?;
-    let mut permissions = fs::metadata(&gh)?.permissions();
-    permissions.set_mode(0o700);
-    fs::set_permissions(&gh, permissions)?;
-
+    // With no GitHub instance selected, the pull plans its read and refuses
+    // it before any request leaves.
     let github = command(&root)
-        .env("PATH", format!("{}:/usr/bin:/bin", fake_bin.display()))
-        .env("RUNX_PUBLIC_API_BASE_URL", "https://wrong-hosted.invalid")
-        .env("RUNX_PUBLIC_API_TOKEN", "wrong-hosted-grant")
         .arg("skill")
         .arg(repo_root.join("skills/github-sync"))
         .args([
@@ -665,20 +502,17 @@ esac
         .arg(&receipt_dir)
         .arg("--json")
         .output()?;
-    let github = assert_json(&github, 0)?;
-    assert_eq!(github["status"], "sealed");
-    assert_eq!(github["outcome"], "completed");
+    let github = assert_json(&github, 1)?;
+    assert_eq!(github["outcome"], "blocked", "{github}");
     assert_eq!(
-        github["result"]["provider_operation"]["data"]["transport"],
-        "local_github"
+        github["result"]["sync_plan"]["data"]["provider_operation"],
+        "issues.list"
     );
-    let gh_log = fs::read_to_string(fake_bin.join("gh.log"))?;
-    assert_eq!(
-        gh_log
-            .lines()
-            .filter(|line| line.contains("/issues?"))
-            .count(),
-        1
+    assert!(
+        github["closure"]["summary"]
+            .as_str()
+            .is_some_and(|summary| summary.contains("no instance is selected for connector github")),
+        "{github}"
     );
 
     let spend_inputs = root.join("spend-no-rail.json");
@@ -716,292 +550,6 @@ esac
             .as_str()
             .is_some_and(|message| message.contains("rail"))
     );
-
-    Ok(())
-}
-
-#[cfg(unix)]
-#[test]
-fn issue_to_pr_journey_publishes_once_with_readback_and_no_secondary_work() -> TestResult {
-    let root = crate::support::temp_root("runx-issue-to-pr-journey");
-    let repo_root = crate::support::repo_root()?;
-    let receipt_dir = root.join(".runx/receipts");
-    let fake_bin = root.join("fake-bin");
-    fs::create_dir_all(&fake_bin)?;
-
-    let git = |args: &[&str]| -> TestResult {
-        let output = Command::new("git").current_dir(&root).args(args).output()?;
-        assert!(
-            output.status.success(),
-            "git {:?} failed: {}",
-            args,
-            String::from_utf8_lossy(&output.stderr)
-        );
-        Ok(())
-    };
-    git(&["init", "--quiet"])?;
-    git(&["remote", "add", "origin", "git@github.com:runxhq/runx.git"])?;
-
-    let commit = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
-    let contract_digest = "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd";
-    fs::write(
-        root.join("scafld-receipt.json"),
-        serde_json::json!({
-            "body": {
-                "task_id": "issue-to-pr-integration",
-                "verdict": "pass",
-                "head_commit": commit,
-                "spec_fingerprint": contract_digest.trim_start_matches("sha256:"),
-                "open_blockers": []
-            }
-        })
-        .to_string(),
-    )?;
-
-    let fake_git = fake_bin.join("git");
-    fs::write(
-        &fake_git,
-        r#"#!/bin/sh
-set -eu
-dir=$(CDPATH= cd -- "$(/usr/bin/dirname -- "$0")" && pwd)
-commit=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-printf '%s\n' "$*" >> "$dir/git.log"
-case "$*" in
-  "-c core.fsmonitor=false remote get-url origin"|"config --get remote.origin.url")
-    printf '%s\n' 'git@github.com:runxhq/runx.git'
-    ;;
-  "rev-parse --verify ${commit}^{commit}")
-    printf '%s\n' "$commit"
-    ;;
-  "ls-remote --refs origin refs/heads/fix/442-operator-first")
-    if [ -f "$dir/pushed-ref" ]; then
-      printf '%s\t%s\n' "$commit" 'refs/heads/fix/442-operator-first'
-    fi
-    ;;
-  "push --porcelain origin ${commit}:refs/heads/fix/442-operator-first")
-    : > "$dir/pushed-ref"
-    printf '%s\n' 'To git@github.com:runxhq/runx.git'
-    ;;
-  *)
-    printf '%s\n' "unexpected git invocation: $*" >&2
-    exit 2
-    ;;
-esac
-"#,
-    )?;
-    let mut permissions = fs::metadata(&fake_git)?.permissions();
-    permissions.set_mode(0o700);
-    fs::set_permissions(&fake_git, permissions)?;
-
-    let scafld = fake_bin.join("scafld");
-    fs::write(
-        &scafld,
-        r#"#!/bin/sh
-set -eu
-dir=$(CDPATH= cd -- "$(/usr/bin/dirname -- "$0")" && pwd)
-printf '%s\n' "$*" >> "$dir/scafld.log"
-case "$*" in
-  verify*" --target aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --root "*" --json")
-    printf '%s\n' '{"ok":true,"command":"verify"}'
-    ;;
-  *)
-    printf '%s\n' "unexpected scafld invocation: $*" >&2
-    exit 2
-    ;;
-esac
-"#,
-    )?;
-    let mut permissions = fs::metadata(&scafld)?.permissions();
-    permissions.set_mode(0o700);
-    fs::set_permissions(&scafld, permissions)?;
-
-    let gh = fake_bin.join("gh");
-    fs::write(
-        &gh,
-        r#"#!/bin/sh
-dir=$(CDPATH= cd -- "$(/usr/bin/dirname -- "$0")" && pwd)
-printf '%s\n' "$*" >> "$dir/gh.log"
-case "$*" in
-  *graphql*)
-    /bin/cat >/dev/null
-    printf '%s\n' '{"data":{"viewer":{"id":"U_operator","login":"operator"},"repository":{"nameWithOwner":"runxhq/runx","viewerPermission":"WRITE"}}}'
-    ;;
-  *"--method POST repos/runxhq/runx/pulls"*)
-    /bin/cat > "$dir/approved-pr-body.json"
-    : > "$dir/published-pr"
-    printf '%s\n' '{"number":77,"title":"Make issue-to-PR operator-first","state":"open","body":"Closes #442.","html_url":"https://github.com/runxhq/runx/pull/77","head":{"ref":"fix/442-operator-first","sha":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},"base":{"ref":"main"},"draft":false}'
-    ;;
-  *"--method GET repos/runxhq/runx/pulls?"*)
-    if [ -f "$dir/published-pr" ]; then
-      printf '%s\n' '[{"number":77,"title":"Make issue-to-PR operator-first","state":"open","body":"Closes #442.","html_url":"https://github.com/runxhq/runx/pull/77","head":{"ref":"fix/442-operator-first","sha":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},"base":{"ref":"main"},"draft":false}]'
-    else
-      printf '%s\n' '[]'
-    fi
-    ;;
-  *"--method GET repos/runxhq/runx/pulls/77"*)
-    printf '%s\n' '{"number":77,"title":"Make issue-to-PR operator-first","state":"open","body":"Closes #442.","html_url":"https://github.com/runxhq/runx/pull/77","head":{"ref":"fix/442-operator-first","sha":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},"base":{"ref":"main"},"draft":false}'
-    ;;
-  *)
-    printf '%s\n' "unexpected gh invocation: $*" >&2
-    exit 2
-    ;;
-esac
-"#,
-    )?;
-    let mut permissions = fs::metadata(&gh)?.permissions();
-    permissions.set_mode(0o700);
-    fs::set_permissions(&gh, permissions)?;
-
-    let inputs = root.join("issue-to-pr-inputs.json");
-    fs::write(
-        &inputs,
-        serde_json::json!({
-            "issue_evidence": {
-                "schema": "runx.issue_to_pr.issue_evidence.v1",
-                "repository": "runxhq/runx",
-                "number": "442",
-                "title": "Make issue-to-PR operator-first",
-                "state": "open",
-                "body": "Use normal host tools and govern only PR publication.",
-                "url": "https://github.com/runxhq/runx/issues/442",
-                "labels": ["operator-experience"],
-                "assignees": [],
-                "source": {
-                    "provider": "github",
-                    "transport": "local_github",
-                    "principal_ref": "runx:principal:github:github.com:operator:U_operator",
-                    "readback_ref": "runx:github-readback:sha256:prior-issue-evidence"
-                },
-                "checkout_resolved": true
-            },
-            "host_result": {
-                "schema": "runx.issue_to_pr.host_result.v1",
-                "status": "completed",
-                "repository": "runxhq/runx",
-                "issue_number": "442",
-                "repo_root": ".",
-                "branch": "fix/442-operator-first",
-                "commit": commit,
-                "files": ["skills/issue-to-pr/X.yaml"],
-                "tests": [{
-                    "command": "cargo test -p runx-cli --test integration issue_to_pr_journey",
-                    "status": "passed",
-                    "evidence": "receipt:test:issue-to-pr"
-                }],
-                "finalization": {
-                    "receipt_path": "scafld-receipt.json",
-                    "contract_digest": contract_digest
-                },
-                "publication": {
-                    "decision": "ready",
-                    "title": "Make issue-to-PR operator-first",
-                    "body": "Closes #442.",
-                    "head": "fix/442-operator-first",
-                    "base": "main",
-                    "draft": false,
-                    "idempotency_key": "issue-to-pr-442-integration"
-                },
-                "errors": []
-            }
-        })
-        .to_string(),
-    )?;
-
-    let local_env = |command: &mut Command| {
-        command
-            .env("PATH", format!("{}:/usr/bin:/bin", fake_bin.display()))
-            .env("RUNX_SCAFLD_BIN", &scafld)
-            .env("RUNX_PROVIDER_PERMISSION_TRANSPORT", "local:github")
-            .env_remove("RUNX_PROVIDER_PERMISSION_GRANT_ID")
-            .env_remove("RUNX_PROVIDER_PERMISSION_GRANTED_SCOPES")
-            .env_remove("RUNX_PROVIDER_PERMISSION_PRINCIPAL_REF")
-            .env_remove("RUNX_PUBLIC_API_BASE_URL")
-            .env_remove("RUNX_PUBLIC_API_TOKEN");
-    };
-
-    let mut start = command(&root);
-    local_env(&mut start);
-    let start = start
-        .arg("skill")
-        .arg(repo_root.join("skills/issue-to-pr"))
-        .arg("resume")
-        .arg("--inputs")
-        .arg("issue-to-pr-inputs.json")
-        .arg("--receipt-dir")
-        .arg(&receipt_dir)
-        .args(["--json", "--diagnostics"])
-        .output()?;
-    let result = assert_json(&start, 0)?;
-    assert_eq!(result["status"], "sealed", "{result}");
-    assert_eq!(result["outcome"], "completed");
-    assert_eq!(
-        result["result"]["issue_to_pr_result"]["data"]["publication"]["status"],
-        "published"
-    );
-    assert_eq!(
-        result["result"]["issue_to_pr_result"]["data"]["publication"]["pr_number"],
-        "77"
-    );
-
-    let gh_log = fs::read_to_string(fake_bin.join("gh.log"))?;
-    assert_eq!(
-        gh_log
-            .lines()
-            .filter(|line| line.contains("--method POST repos/runxhq/runx/pulls"))
-            .count(),
-        1,
-        "PR publication must occur exactly once: {gh_log}"
-    );
-    assert_eq!(
-        gh_log
-            .lines()
-            .filter(|line| line.contains("--method GET repos/runxhq/runx/pulls/77"))
-            .count(),
-        1,
-        "PR readback must occur exactly once: {gh_log}"
-    );
-    assert_eq!(
-        gh_log
-            .lines()
-            .filter(|line| line.contains("graphql"))
-            .count(),
-        1,
-        "the scoped write must validate GitHub identity exactly once: {gh_log}"
-    );
-    assert!(
-        gh_log.lines().all(|line| !line.contains("/issues/442")),
-        "publication must not repeat issue discovery: {gh_log}"
-    );
-    let approved_body: Value =
-        serde_json::from_slice(&fs::read(fake_bin.join("approved-pr-body.json"))?)?;
-    assert_eq!(approved_body["title"], "Make issue-to-PR operator-first");
-    assert_eq!(approved_body["head"], "fix/442-operator-first");
-    assert_eq!(approved_body["base"], "main");
-
-    let git_log = fs::read_to_string(fake_bin.join("git.log"))?;
-    assert_eq!(
-        git_log
-            .lines()
-            .filter(|line| line.starts_with("push --porcelain"))
-            .count(),
-        1,
-        "the exact tested commit must be pushed once: {git_log}"
-    );
-    assert_eq!(
-        git_log
-            .lines()
-            .filter(|line| line.starts_with("rev-parse --verify"))
-            .count(),
-        1,
-        "the exact commit must be verified once before publication: {git_log}"
-    );
-    let scafld_log = fs::read_to_string(fake_bin.join("scafld.log"))?;
-    assert_eq!(
-        scafld_log.lines().count(),
-        1,
-        "finalization must verify once"
-    );
-    assert!(scafld_log.contains(" --target aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa "));
 
     Ok(())
 }

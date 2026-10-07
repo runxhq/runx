@@ -61,6 +61,11 @@ pub(super) fn execute_agent_skill_run(
     );
     let resolution_request = agent_request(&invocation, source_type)?;
     let resolution_request_value = contract_json_value(&resolution_request)?;
+    super::state_store::validate_pending_agent_request(
+        context,
+        &run_id,
+        &resolution_request_value,
+    )?;
 
     // Seeded answers (inline, single pass) take priority over the file-based
     // resume channel; absent both, the run yields to the public agent loop.
@@ -194,11 +199,6 @@ fn write_paused_agent_checkpoint(
         started_at: Some(crate::time::now_iso8601()),
         resume_skill_ref: Some(context.request.skill_path.to_string_lossy().into_owned()),
         selected_runner: Some(context.runner.name.clone()),
-        credential_profile: context
-            .request
-            .local_credential
-            .as_ref()
-            .and_then(|credential| credential.profile.clone()),
         package_digest: Some(context.package_digest.to_owned()),
         execution_closure_digest: context.execution_closure_digest.map(str::to_owned),
         step_ids: vec![request_id.to_owned()],
@@ -261,7 +261,6 @@ fn try_inline_agent_resolution(
         ManagedAgentResolverOptions {
             env: invocation.env.clone(),
             skill_directory: invocation.skill_directory.clone(),
-            credential_delivery: invocation.credential_delivery.clone(),
             effects: effects.clone(),
             observed_at: crate::time::now_iso8601(),
             max_rounds,
@@ -408,7 +407,7 @@ fn agent_run_id(
             manifest,
             runner,
             Some(request_id),
-            &request.inputs,
+            request,
             package_digest,
             execution_closure_digest,
         ),
@@ -467,6 +466,9 @@ runners:
                 .get("managed-agent-failure")
                 .ok_or("fixture runner missing")?;
             let request = SkillRunRequest {
+                current_context: Vec::new(),
+                historical_context: Vec::new(),
+                run_authority: None,
                 skill_path: skill_dir,
                 receipt_dir: Some(receipt_dir.clone()),
                 run_id: None,
@@ -475,7 +477,6 @@ runners:
                 env: Default::default(),
                 cwd: temp.path().to_path_buf(),
                 managed_agent: Default::default(),
-                local_credential: None,
             };
             let workspace = WorkspaceEnv::new(Default::default(), temp.path().to_path_buf())?;
             let receipts = ReceiptServices::from_env_or_local_development(workspace.env())?;

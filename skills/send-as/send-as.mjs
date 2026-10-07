@@ -80,7 +80,10 @@ export function bindDelivery(inputs) {
     delivery_request: {
       provider: requiredText(draft.provider, "delivery_draft.provider"),
       target: requiredText(draft.target, "delivery_draft.target"),
-      payload: requiredObject(draft.payload, "delivery_draft.payload"),
+      input: {
+        target: requiredText(draft.target, "delivery_draft.target"),
+        message: requiredObject(draft.payload, "delivery_draft.payload"),
+      },
       expected_result: requiredObject(draft.expected_result, "delivery_draft.expected_result"),
       idempotency_key: `send-as:${digest}`,
     },

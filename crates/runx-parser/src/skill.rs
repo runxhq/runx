@@ -3,7 +3,7 @@ use runx_contracts::{ExecutionSemantics, JsonObject, JsonValue};
 use crate::{ValidationError, json_fields::JsonFieldReader};
 
 mod catalog;
-mod credential;
+mod connectors;
 mod environment;
 mod execution_semantics;
 mod fixtures;
@@ -19,27 +19,26 @@ pub use catalog::{
     CatalogSemanticDiagnostic, CatalogSemanticReport, CatalogVisibility, analyze_catalog_semantics,
     analyze_package_catalog_semantics,
 };
+pub use connectors::ConnectorRequirement;
+pub(crate) use connectors::{bind_operation_steps, validate_connector_requirements};
 pub use fixtures::{
     HarnessCallerFixture, HarnessExpectation, HarnessHttpExchangeFixture,
-    HarnessHttpRequestBodyFixture, HarnessHttpResponseFixture, OperatorJourneyClaim,
-    OperatorJourneyMode, ReceiptExpectation, RunnerHarnessCase, RunnerHarnessManifest,
+    HarnessHttpRequestBodyFixture, HarnessHttpResponseFixture, HarnessMcpCallFixture,
+    OperatorJourneyClaim, OperatorJourneyMode, ReceiptExpectation, RunnerHarnessCase,
+    RunnerHarnessManifest,
 };
 pub use governance::validate_skill_artifact_contract;
 pub use markdown::parse_skill_markdown;
 pub use runner_definition::validate_input_examples;
 pub use source::validate_skill_source;
 pub use types::{
-    ActDeclaration, ArtifactPageFraming, ArtifactPageSource, CredentialRequirement, InputMode,
-    RawSkillIr, SkillArtifactContract, SkillExternalAdapterManifest, SkillIdempotencyPolicy,
-    SkillInput, SkillMcpServer, SkillRetryPolicy, SkillRunnerDefinition, SkillSource,
-    SkillThreadOutboxProviderSource, SourceKind, ValidateSkillMode, ValidateSkillOptions,
+    ActDeclaration, ArtifactPageFraming, ArtifactPageSource, InputMode, RawSkillIr,
+    SkillArtifactContract, SkillIdempotencyPolicy, SkillInput, SkillRetryPolicy,
+    SkillRunnerDefinition, SkillSource, SourceKind, ValidateSkillMode, ValidateSkillOptions,
     ValidatedSkill,
 };
 
 pub(crate) use catalog::validate_catalog_metadata;
-pub(crate) use credential::{
-    validate_credential_requirements, validate_runner_credential_references,
-};
 pub(crate) use environment::validate_environment_requirements;
 pub(crate) use fixtures::validate_harness_manifest;
 pub(crate) use governance::validate_inputs;

@@ -49,21 +49,6 @@ impl SkillAdapter for SkillSourceAdapter {
                 Some(package) => self.javascript.invoke_from_package(request, package),
                 None => self.javascript.invoke(request),
             },
-            #[cfg(feature = "external-adapter")]
-            SourceKind::ExternalAdapter => {
-                crate::adapters::external_adapter::ExternalAdapterSkillAdapter::default()
-                    .invoke(request)
-            }
-            #[cfg(feature = "mcp")]
-            SourceKind::Mcp => crate::adapter::SkillAdapter::invoke(
-                &crate::adapters::mcp::McpAdapter::default(),
-                request,
-            ),
-            #[cfg(feature = "thread-outbox-provider")]
-            SourceKind::ThreadOutboxProvider => {
-                crate::adapters::thread_outbox_provider::ThreadOutboxProviderSkillAdapter::default()
-                    .invoke(request)
-            }
             unsupported => Err(RuntimeError::UnsupportedSource {
                 source_kind: unsupported.as_str().to_owned(),
             }),

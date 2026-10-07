@@ -16,11 +16,11 @@ inputs:
   settlement_family: mpp
   idempotency_key: refund-test-001
 caller:
-  approvals: { "provider-effect:sha256:7c512a719088567cc6500876078c9ce72221d0e628e2474e2fd12aedd4a5ace2": true }
+  approvals: { "operation:sha256:a79b632897c2aa439b06460b7ddfbad92de7d81c348ab372e83adf1b9c43ab48": true }
   provider_responses:
     principal_id: refund-fixture
-    grants: [{ grant_id: refund-fixture, provider: mpp, scopes: [payment.refund, payment.refund.read] }]
+    grant: { grant_id: refund-fixture, provider: mpp, scopes: [payment.refund, payment.refund.read] }
     operations:
-      - { grant_id: refund-fixture, operation: payment.refund, target: "receipt:test:charge-001", access: mutate, result: { refund_ref: refund_test_001, original_receipt_ref: "receipt:test:charge-001", amount_minor: 125, currency: USD, status: refunded } }
-      - { grant_id: refund-fixture, operation: payment.refund.read, target: "receipt:test:charge-001", access: read, result: { refund_ref: refund_test_001, original_receipt_ref: "receipt:test:charge-001", amount_minor: 125, currency: USD, status: refunded } }
+      - { operation: payment.refund, target: "receipt:test:charge-001", access: mutate, result: { refund_ref: refund_test_001, original_receipt_ref: "receipt:test:charge-001", amount_minor: 125, currency: USD, status: refunded } }
+      - { operation: payment.refund.read, target: "receipt:test:charge-001", access: read, result: { refund_ref: refund_test_001, original_receipt_ref: "receipt:test:charge-001", amount_minor: 125, currency: USD, status: refunded } }
 expect: { status: sealed, receipt: { schema: runx.receipt.v1 } }

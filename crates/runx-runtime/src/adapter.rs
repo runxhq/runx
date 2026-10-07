@@ -29,6 +29,7 @@ pub enum InvocationStatus {
 
 #[derive(Clone, Debug)]
 pub struct SkillInvocation {
+    pub historical_context: Vec<ContextEntry>,
     pub skill_name: String,
     /// Graph step identity when the invocation is owned by a graph act.
     pub step_id: Option<String>,
@@ -69,7 +70,7 @@ impl EphemeralValue {
         self.0.as_ref()
     }
 
-    #[cfg(feature = "catalog")]
+    #[cfg(feature = "async-http")]
     pub(crate) fn as_value_mut(&mut self) -> Option<&mut JsonValue> {
         self.0.as_mut()
     }

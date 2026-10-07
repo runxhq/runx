@@ -107,6 +107,11 @@ export function checkRetiredRuntimeSurfaces(findings) {
     "crates/runx-contracts/src/schema_artifacts.rs",
   );
   const contractsLib = path.join(workspaceRoot, "crates/runx-contracts/src/lib.rs");
+  // Generated from connectors/*/connector.yaml: manifest data, not runtime code.
+  const officialConnectors = path.join(
+    workspaceRoot,
+    "crates/runx-runtime/src/kernel/connectors/official.rs",
+  );
   for (const root of [
     "crates/runx-runtime/src",
     "crates/runx-core/src",
@@ -138,7 +143,11 @@ export function checkRetiredRuntimeSurfaces(findings) {
         }
         continue;
       }
-      if (filePath === paidInvocationFixtureProducer || filePath === x402FixtureProducer) continue;
+      if (
+        filePath === paidInvocationFixtureProducer
+        || filePath === x402FixtureProducer
+        || filePath === officialConnectors
+      ) continue;
       if (filePath === contractsLib) {
         source = source
           .replace(/pub mod paid_invocation;\s*/gu, "")
@@ -196,7 +205,7 @@ export function checkRetiredRuntimeSurfaces(findings) {
   }
 
   const providerClientMarkers = [/\breqwest\b/u, /\bapi\.github\.com\b/u, /\bGITHUB_TOKEN\b/u, /\bbearer_auth\b/u];
-  for (const root of ["crates/runx-runtime/src/adapters", "crates/runx-runtime/src/outbox_provider"]) {
+  for (const root of ["crates/runx-runtime/src/adapters"]) {
     for (const filePath of rustFiles(root)) {
       const source = readFileSync(filePath, "utf8");
       const marker = providerClientMarkers.find((pattern) => pattern.test(source));

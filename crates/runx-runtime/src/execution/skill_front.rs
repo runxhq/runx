@@ -32,8 +32,6 @@ use crate::receipts::{
 use crate::services::{ReceiptServices, WorkspaceEnv};
 
 mod agent;
-#[cfg(test)]
-mod credential_tests;
 mod graph;
 #[cfg(feature = "cli-tool")]
 mod inline_harness;
@@ -42,7 +40,9 @@ pub(crate) mod runner_manifest;
 mod source_adapter;
 mod state_store;
 
-pub use self::state_store::inspect_paused_skill_request;
+pub use self::state_store::{
+    SealedGraphRun, inspect_paused_skill_request, inspect_sealed_graph_run,
+};
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct PendingSkillRequest {
@@ -66,9 +66,9 @@ pub use super::operator_context::{
     SkillOperatorContextTerminal, SkillOperatorContextTool, load_skill_operator_context_chain,
 };
 pub use super::prepared_skill::{
-    PREPARED_SKILL_REPORT_SCHEMA, PreparedCredentialSummary, PreparedEntryProvenance,
-    PreparedGovernanceSummary, PreparedInputSummary, PreparedRequestSummary, PreparedSkillRun,
-    PreparedSkillRunReport, PreparedSkillRunStatus, PreparedTraceEntry, prepare_skill_run,
+    PREPARED_SKILL_REPORT_SCHEMA, PreparedEntryProvenance, PreparedGovernanceSummary,
+    PreparedInputSummary, PreparedRequestSummary, PreparedSkillRun, PreparedSkillRunReport,
+    PreparedSkillRunStatus, PreparedTraceEntry, prepare_skill_run,
 };
 
 // The canonical public boundary is a bounded result envelope. Full receipts
@@ -105,7 +105,6 @@ pub(crate) struct SkillRunOverrides {
     pub(crate) seeded_answers: Option<resolution_answers::ResolutionAnswers>,
     /// Native host services shared for the lifetime of a local server session.
     pub(crate) javascript: Option<crate::adapters::javascript::JavaScriptAdapter>,
-    pub(crate) credential_delivery: Option<crate::credentials::CredentialDelivery>,
 }
 
 pub(crate) struct ResolvedSkillRun<'a> {
@@ -232,27 +231,10 @@ fn execute_skill_run_with_resolved_trust(
             .with_effects(effects.clone()),
         )?;
     }
-    if let Some(delivery) = &overrides.credential_delivery {
-        validate_resolved_credential(manifest, runner, delivery)?;
-    } else {
-        validate_declared_credential(
-            manifest,
-            runner,
-            request.local_credential.as_ref(),
-            &skill_env,
-        )?;
-    }
-    let mut invocation = runner_invocation(
-        skill_dir,
-        manifest,
-        runner,
-        &request.inputs,
-        &skill_env,
-        request.local_credential.as_ref(),
-    )?;
-    if let Some(delivery) = &overrides.credential_delivery {
-        invocation.credential_delivery = delivery.clone();
-    }
+    let mut invocation =
+        runner_invocation(skill_dir, manifest, runner, &request.inputs, &skill_env);
+    invocation.current_context = request.current_context.clone();
+    invocation.historical_context = request.historical_context.clone();
     crate::execution_environment::resolve_declared_environment(
         &invocation.requirements,
         &invocation.env,
@@ -282,36 +264,6 @@ fn execute_skill_run_with_resolved_trust(
     execute_agent_skill_run(&context, invocation)
 }
 
-fn validate_resolved_credential(
-    manifest: &SkillRunnerManifest,
-    runner: &SkillRunnerDefinition,
-    delivery: &crate::credentials::CredentialDelivery,
-) -> Result<(), SkillRunError> {
-    let observation = delivery.public_observation();
-    let requirement = runner
-        .credential
-        .as_ref()
-        .and_then(|name| manifest.credentials.get(name));
-    match (requirement, observation) {
-        (None, None) if delivery.secret_env().is_empty() => Ok(()),
-        (Some(requirement), Some(observation))
-            if observation.provider.as_str() == requirement.provider
-                && delivery.secret_env().iter().all(|(name, _)| {
-                    requirement
-                        .deliveries
-                        .values()
-                        .any(|allowed| allowed == name)
-                }) =>
-        {
-            Ok(())
-        }
-        _ => Err(invalid(format!(
-            "resolved credential does not satisfy runner '{}' requirement",
-            runner.name
-        ))),
-    }
-}
-
 #[derive(Serialize)]
 struct GeneratedRunIdentity<'a> {
     schema: &'static str,
@@ -320,6 +272,9 @@ struct GeneratedRunIdentity<'a> {
     source_type: &'a str,
     request_id: Option<&'a str>,
     inputs: &'a BTreeMap<String, JsonValue>,
+    current_context: &'a [runx_contracts::ContextEntry],
+    historical_context: &'a [runx_contracts::ContextEntry],
+    run_authority: Option<&'a crate::RunAuthority>,
     package_digest: &'a str,
     execution_closure_digest: &'a str,
 }
@@ -329,7 +284,7 @@ fn generated_run_id(
     manifest: &SkillRunnerManifest,
     runner: &SkillRunnerDefinition,
     request_id: Option<&str>,
-    inputs: &BTreeMap<String, JsonValue>,
+    request: &SkillRunRequest,
     package_digest: &str,
     execution_closure_digest: Option<&str>,
 ) -> Result<String, SkillRunError> {
@@ -342,7 +297,10 @@ fn generated_run_id(
         runner: &runner.name,
         source_type: runner.source.source_type.as_str(),
         request_id,
-        inputs,
+        inputs: &request.inputs,
+        current_context: &request.current_context,
+        historical_context: &request.historical_context,
+        run_authority: request.run_authority.as_ref(),
         package_digest,
         execution_closure_digest,
     };
@@ -375,7 +333,7 @@ pub(super) fn seal_skill_preflight_refusal(
             manifest,
             runner,
             None,
-            &request.inputs,
+            request,
             package_digest,
             execution_closure_digest,
         )?,
@@ -421,21 +379,14 @@ fn prepare_skill_execution(
         WorkspaceEnv::new(request.env.clone(), request.cwd.clone()).map_err(RuntimeError::from)?;
     let receipts = ReceiptServices::from_env_or_local_development(raw_workspace.env())
         .map_err(|error| SkillRunError::Invalid(error.to_string()))?;
-    if request.answers_path.is_some()
-        && matches!(
-            runner.source.source_type,
-            runx_parser::SourceKind::Agent | runx_parser::SourceKind::AgentStep
-        )
-    {
-        state_store::restore_agent_inputs(
-            &mut request,
-            &raw_workspace,
-            &receipts,
-            &runner.name,
-            package_digest,
-            execution_closure_digest,
-        )?;
-    }
+    restore_continuation_inputs(
+        &mut request,
+        runner,
+        &raw_workspace,
+        &receipts,
+        package_digest,
+        execution_closure_digest,
+    )?;
     crate::input_contract::apply_defaults(&runner.inputs, &mut request.inputs);
     let materialize = if request.answers_path.is_some() {
         crate::input_contract::materialize_present_runner_inputs
@@ -481,77 +432,40 @@ fn prepare_skill_execution(
     Ok((request, workspace, receipts))
 }
 
-fn validate_declared_credential(
-    manifest: &SkillRunnerManifest,
+pub(crate) fn restore_continuation_inputs(
+    request: &mut SkillRunRequest,
     runner: &SkillRunnerDefinition,
-    local: Option<&crate::execution::orchestrator::LocalCredentialDescriptor>,
-    env: &std::collections::BTreeMap<String, String>,
+    workspace: &WorkspaceEnv,
+    receipts: &ReceiptServices,
+    package_digest: &str,
+    execution_closure_digest: Option<&str>,
 ) -> Result<(), SkillRunError> {
-    let hosted = env
-        .get(crate::credentials::RUNX_HOSTED_CREDENTIAL_HANDLES_JSON_ENV)
-        .filter(|value| !value.trim().is_empty());
-    let Some(requirement_name) = runner.credential.as_ref() else {
-        if local.is_some() || hosted.is_some() {
-            return Err(invalid(format!(
-                "runner '{}' received a credential but declares no credential requirement",
-                runner.name
-            )));
+    if request.answers_path.is_none() {
+        return Ok(());
+    }
+    match runner.source.source_type {
+        runx_parser::SourceKind::Agent | runx_parser::SourceKind::AgentStep => {
+            state_store::restore_agent_inputs(
+                request,
+                workspace,
+                receipts,
+                &runner.name,
+                package_digest,
+                execution_closure_digest,
+            )
         }
-        return Ok(());
-    };
-    let requirement = manifest.credentials.get(requirement_name).ok_or_else(|| {
-        invalid(format!(
-            "runner '{}' references undeclared credential '{}'",
-            runner.name, requirement_name
-        ))
-    })?;
-    if let Some(local) = local {
-        return validate_local_credential(local, requirement, runner, requirement_name);
+        runx_parser::SourceKind::Graph => state_store::restore_graph_inputs(
+            request,
+            workspace,
+            receipts,
+            &runner.name,
+            package_digest,
+            execution_closure_digest.ok_or_else(|| {
+                invalid("graph continuation requires an execution-closure digest")
+            })?,
+        ),
+        _ => Ok(()),
     }
-    if let Some(hosted) = hosted {
-        return validate_hosted_credential(hosted, &requirement.provider, runner);
-    }
-    Err(invalid(format!(
-        "runner '{}' requires credential '{}' for provider '{}'",
-        runner.name, requirement_name, requirement.provider
-    )))
-}
-
-fn validate_local_credential(
-    local: &crate::execution::orchestrator::LocalCredentialDescriptor,
-    requirement: &runx_parser::CredentialRequirement,
-    runner: &SkillRunnerDefinition,
-    requirement_name: &str,
-) -> Result<(), SkillRunError> {
-    if local.provider == requirement.provider
-        && requirement.deliveries.get(&local.auth_mode) == Some(&local.env_var)
-    {
-        return Ok(());
-    }
-    Err(invalid(format!(
-        "credential provision does not satisfy runner '{}' requirement '{}'",
-        runner.name, requirement_name
-    )))
-}
-
-fn validate_hosted_credential(
-    hosted: &str,
-    required_provider: &str,
-    runner: &SkillRunnerDefinition,
-) -> Result<(), SkillRunError> {
-    let provider = crate::credentials::CredentialDelivery::hosted_handles_provider(hosted)
-        .map_err(|error| {
-            invalid(format!(
-                "hosted credential handle admission failed: {error}"
-            ))
-        })?;
-    if provider.as_deref() == Some(required_provider) {
-        return Ok(());
-    }
-    Err(invalid(format!(
-        "hosted credential does not satisfy runner '{}' provider '{}'",
-        runner.name, required_provider
-    )))
 }
 
 /// Aggregate result of running a package's inline and conventional fixture
@@ -762,21 +676,9 @@ fn domain_act_frame(
     governed_effect: Option<&JsonValue>,
 ) -> Option<DomainActFrame> {
     let act = invocation.source.act.as_ref()?;
-    // Promote the delivered credential into the act's held authority: a governed
-    // turn's receipt records the grants it actually carried, not just the
-    // declared scope.
-    let authority_grant_refs = invocation
-        .credential_delivery
-        .public_observation()
-        .map(|observation| observation.credential_refs.clone())
-        .unwrap_or_default();
-    build_domain_act_frame(
-        act,
-        &invocation.inputs,
-        answer,
-        governed_effect,
-        authority_grant_refs,
-    )
+    // An agent turn carries no credential; its held authority is the declared
+    // scope.
+    build_domain_act_frame(act, &invocation.inputs, answer, governed_effect, Vec::new())
 }
 
 /// The core of [`domain_act_frame`], reusable by the graph path: build the domain
@@ -861,10 +763,11 @@ fn build_domain_act_frame(
         "act" => ReferenceType::Act,
         "tracking_item" => ReferenceType::TrackingItem,
         "receipt" => ReferenceType::Receipt,
-        "provider" | "provider_event" => ReferenceType::ProviderEvent,
-        "provider_thread" => ReferenceType::ProviderThread,
-        "provider_comment" => ReferenceType::ProviderComment,
-        "github_issue" => ReferenceType::GithubIssue,
+        "event" => ReferenceType::Event,
+        "thread" => ReferenceType::Thread,
+        "comment" => ReferenceType::Comment,
+        "change_request" => ReferenceType::ChangeRequest,
+        "repository" => ReferenceType::Repository,
         "external_url" => ReferenceType::ExternalUrl,
         _ => ReferenceType::Artifact,
     };
@@ -1006,8 +909,7 @@ impl SkillSealContext<'_> {
                 claim: &projection.outputs,
                 projection_refs: std::mem::take(&mut projection.refs),
                 created_at: &crate::time::now_iso8601(),
-                authority_grant_refs: Vec::new(),
-                authority_scope_refs: Vec::new(),
+                authority: crate::receipts::SealAuthority::default(),
                 operator_refs: super::prepared_skill::prepared_receipt_references(self.env),
                 child_receipts: &[],
                 descendant_receipts: &[],
@@ -1211,6 +1113,24 @@ mod domain_act_frame_tests {
 #[cfg(test)]
 mod run_identity_tests {
     use super::*;
+    use crate::ManagedAgentPolicy;
+    use std::path::PathBuf;
+
+    fn identity_request(inputs: BTreeMap<String, JsonValue>) -> SkillRunRequest {
+        SkillRunRequest {
+            inputs,
+            current_context: Vec::new(),
+            historical_context: Vec::new(),
+            run_authority: None,
+            skill_path: PathBuf::from("."),
+            receipt_dir: None,
+            run_id: None,
+            answers_path: None,
+            env: BTreeMap::new(),
+            cwd: PathBuf::from("."),
+            managed_agent: ManagedAgentPolicy::HostDriven,
+        }
+    }
 
     fn manifest() -> Result<SkillRunnerManifest, Box<dyn std::error::Error>> {
         let raw = runx_parser::parse_runner_manifest_yaml(
@@ -1246,7 +1166,7 @@ runners:
             &manifest,
             runner,
             None,
-            &inputs,
+            &identity_request(inputs.clone()),
             "sha256:package-a",
             Some("sha256:closure-a"),
         )?;
@@ -1255,7 +1175,7 @@ runners:
             &manifest,
             runner,
             None,
-            &inputs,
+            &identity_request(inputs.clone()),
             "sha256:package-a",
             Some("sha256:closure-a"),
         )?;
@@ -1264,7 +1184,7 @@ runners:
             &manifest,
             runner,
             None,
-            &inputs,
+            &identity_request(inputs.clone()),
             "sha256:package-b",
             Some("sha256:closure-a"),
         )?;
@@ -1273,7 +1193,7 @@ runners:
             &manifest,
             runner,
             None,
-            &inputs,
+            &identity_request(inputs.clone()),
             "sha256:package-a",
             Some("sha256:closure-b"),
         )?;
@@ -1297,7 +1217,7 @@ runners:
             &manifest,
             runner,
             None,
-            &BTreeMap::new(),
+            &identity_request(BTreeMap::new()),
             "sha256:package",
             None,
         )

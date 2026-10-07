@@ -51,19 +51,12 @@ Rust runtime. Each crossing has a contract surface that owns the wire shape.
    contract is versioned, documented HTTP endpoints.
 4. **Language-neutral extension protocols.** Anything the Rust runtime launches
    or calls outside the trusted local runtime. This is a family of protocols, not
-   one catch-all plugin API: skill subprocess ABI, external execution adapter,
-   source-event ingress, hosted/embedded runtime binding, tool catalog/read
-   model access, and thread/outbox provider adapters are distinct lanes. The
-   contract is the lane-specific language-neutral protocol and manifest shape,
-   not a TypeScript package API or an in-process Rust trait. External authors can
-   implement these protocols in TypeScript, Python, Rust, or another language
-   without a core fork. `external-adapter-plugin-protocol-v1` is the external
-   execution-adapter lane only; it must not be used as the umbrella answer for
-   source ingress, hosted runtime binding, catalog/read-model, or outbox queues.
-   Thread/outbox provider mutation is owned by
-   `thread-outbox-provider-protocol-v1`; provider adapters that need tokens must
-   consume Rust-supervised `CredentialDelivery`, while the existing file-thread
-   helper remains a credential-free local persistence path.
+   one catch-all plugin API: skill subprocess ABI, source-event ingress,
+   hosted/embedded runtime binding, and tool catalog/read model access are
+   distinct lanes. The contract is the lane-specific language-neutral protocol
+   and manifest shape, not a TypeScript package API or an in-process Rust trait.
+   External authors can implement these protocols in TypeScript, Python, Rust,
+   or another language without a core fork.
 
 No fifth boundary is added without updating this document. No published
 TypeScript package is silently broken: each package disposition is named here.
@@ -73,35 +66,30 @@ cutover; old executor package names must not survive as aliases.
 
 ### Shipped vs defined, and current boundary debt
 
-The crossing families above describe the intended boundary. The shipped CLI is
-narrower than the contracts suggest, and that gap is itself part of the boundary
-truth, so it is recorded here rather than implied.
+The crossing families above describe the intended boundary. Where specific
+work belongs, and the boundary debt that remains, is recorded here rather than
+implied.
 
-- **Family-4 lanes are contract-defined but not all shipped.** The `a2a` runtime
-  supervisor is `#[cfg(feature = ...)]`-gated and is NOT enabled in `runx-cli`.
-  The shipped binary enables the local `external-adapter` lane; future integration
-  work should land there instead of adding provider HTTP clients to the kernel.
+- **Provider integrations are connector operations.** Connector manifests
+  declare the HTTP or MCP implementation behind each operation. New integration
+  work lands there instead of adding provider HTTP clients to the kernel.
 - **Effects: authority is Rust, domain interpretation stays outside the generic
   kernel.** Admission, capability binding, proof validation, and receipt sealing
   are Rust and stay Rust. Domain network legs such as payment settlement
   provider calls or external-signer calls are not kernel work: they are
   non-deterministic, secret-bearing or network-bearing, and offline-impossible,
-  so they belong on family-4 external-adapter lanes behind the generic effect
-  kernel.
+  so they belong in connector operations behind the generic effect kernel.
 - **Provider clients belong outside the kernel.** GitHub PR creation, provider
   outcome observation, and source-thread publication are owned by adapters or
   product workflows, not by in-kernel provider clients. When provider calls are
-  wired for real, they belong on family-4 provider/external-adapter lanes rather
-  than as token-bearing kernel `reqwest` clients. Payment's inert rail dispatcher
+  wired for real, they belong in connector operations rather than as
+  token-bearing kernel `reqwest` clients. Payment's inert rail dispatcher
   and HTTP clients were also removed; real rails are rebuilt as generic effect-family
-  adapters behind the kernel. The unbuilt GitHub post-merge publisher (mutation
-  half) likewise belongs on the `thread-outbox-provider` lane, not a new
-  in-kernel client. The deterministic halves these feed are pure and correctly
-  stay in the kernel; only the network legs move.
+  adapters behind the kernel. The deterministic halves these feed are pure and
+  correctly stay in the kernel; only the network legs move.
 - **One local execution path.** Native CLI and MCP skill calls use the same
   `LocalOrchestrator` and skill front for preparation, invocation, pause/resume,
-  and typed results. MCP retains its supervised session worker. The Rust
-  managed-agent loop is opt-in; host-driven judgment remains the default.
+  and typed results. The Rust managed-agent loop is opt-in; host-driven judgment remains the default.
   Cloud's `@runx/mcp` exposes hosted registry/auth/control-plane operations;
   submitted hosted execution invokes the native worker boundary. It is not a
   duplicate local MCP skill executor. The unused Cloud agent runner is deleted.
@@ -111,7 +99,7 @@ truth, so it is recorded here rather than implied.
 | Package | Disposition |
 | --- | --- |
 | `@runxhq/contracts` | Publishes portable packet definitions and the generated TypeScript view of Rust-owned wire schemas, maintained with fixture cross-validation. |
-| `@runxhq/extension-sdk` | Owns only the process/protocol helpers needed by genuine external extensions. It does not author skills or own trusted local execution. |
+| `@runxhq/extension-sdk` | Owns only the process tool helpers needed by genuine external extensions. It does not author skills or own trusted local execution. |
 | `@runxhq/cli` | Stays as a platform-aware npm launcher that resolves and execs the Rust binary. It must remain useful from an installed package without TypeScript sources and must fail closed instead of falling back to TypeScript local execution. It also carries the drift-free cold-start: `npx @runxhq/cli new <name> --objective <outcome>` downloads the launcher and enters the same canonical Skill Lab authoring lane without a prior Runx install. The launcher owns no templates or authoring logic. |
 | `@runxhq/core` | Deleted. Its registry/config/parser remnants were not a shipped execution boundary; live OSS code uses Rust crates, generated contracts, tool-local modules, or explicit protocol packages instead. Cloud uses its owning feature packages and the small `@runx/protocol` contract/utility subpaths. |
 | `@runxhq/host-adapters` | Stays as thin host response adapters over the runx host protocol, retargeted to `@runxhq/contracts` types. It can shape host/client responses, not execute trusted local runtime behavior. |
@@ -140,12 +128,10 @@ tests use durable fixtures under `fixtures/`. End-to-end tests should spawn the
 `runx` binary and assert stdout, exit codes, and JSON instead of importing
 TypeScript internals. Trusted local graph, harness, receipt, authority,
 registry/policy config, and payment behavior needs Rust coverage or a TS-free
-Rust CLI fixture before wrapper tests can count as proof. External
-execution-adapter tests prove protocol conformance by spawning or simulating the
-external process through the documented wire contract, not by importing
-TypeScript runtime-local internals. Other extension-lane tests must use their
-own wire contract and must not borrow the execution-adapter protocol as a
-stand-in.
+Rust CLI fixture before wrapper tests can count as proof. Extension-lane tests
+prove protocol conformance by spawning or simulating the external process
+through the lane's documented wire contract, not by importing TypeScript
+runtime-local internals.
 
 Kernel fixture generation calls the native Rust evaluator. TypeScript fixture
 tools are serialization and conformance harnesses, not alternate local policy

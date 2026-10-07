@@ -226,28 +226,6 @@ runners:
 }
 
 #[test]
-fn javascript_runner_rejects_credential_delivery() -> Result<(), String> {
-    let raw = parse_runner_manifest_yaml(
-        r#"skill: credentialed-javascript
-runners:
-  transform:
-    type: javascript
-    module: domain.mjs
-    credential: provider-user
-"#,
-    )
-    .map_err(|error| error.to_string())?;
-    let error = validate_runner_manifest(raw)
-        .err()
-        .ok_or_else(|| "credentialed javascript source unexpectedly passed".to_owned())?;
-    assert!(
-        error.to_string().contains("native provider tool"),
-        "{error}"
-    );
-    Ok(())
-}
-
-#[test]
 fn default_source_is_agent_kind() -> Result<(), String> {
     // A skill with no explicit source defaults to the `agent` source; the typed
     // `SourceKind` must carry an `Agent` variant for that (the built-in default).
@@ -286,7 +264,7 @@ source:
         .err()
         .ok_or_else(|| "retired http source unexpectedly validated".to_owned())?;
     assert!(error.to_string().contains(
-        "source.type http was removed; compose http.read, http.query, or http.execute in a graph"
+        "source.type http was removed; call a connector operation from a graph operation step"
     ));
     Ok(())
 }
@@ -312,26 +290,6 @@ source:
             "source.type catalog was removed; invoke catalog tools from a graph tool step"
         )
     );
-    Ok(())
-}
-
-#[test]
-fn thread_outbox_provider_source_parses_as_closed_builtin() -> Result<(), String> {
-    let skill = parse_strict(
-        r#"---
-name: thread-outbox-provider-push
-source:
-  type: thread-outbox-provider
-  thread_outbox_provider:
-    operation: push
-    manifest_path: manifest.json
-    push_path: push.json
----
-# Thread outbox provider
-"#,
-    )?;
-    assert_eq!(skill.source.source_type, SourceKind::ThreadOutboxProvider);
-    assert_eq!(skill.source.source_type.as_str(), "thread-outbox-provider");
     Ok(())
 }
 

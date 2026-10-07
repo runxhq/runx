@@ -1,16 +1,13 @@
 // Module rationale: tool inspection keeps local manifest
-// resolution, fixture fallback, provenance, and JSON projection in one
-// read-only diagnostic surface.
-use std::collections::BTreeMap;
+// resolution, provenance, and JSON projection in one read-only diagnostic
+// surface.
 use std::path::{Component, Path, PathBuf};
 
 use runx_contracts::tools::{
-    ToolBuildStatus, ToolInput, ToolInspectOrigin, ToolInspectProvenance, ToolInspectReport,
-    ToolInspectResult,
+    ToolBuildStatus, ToolInspectOrigin, ToolInspectProvenance, ToolInspectReport, ToolInspectResult,
 };
 
 use super::error::ToolCatalogError;
-use super::search::{FixtureTool, fixture_catalog_allowed, fixture_tool};
 use crate::path_util::display_path;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -20,7 +17,6 @@ pub struct ToolInspectOptions {
     pub source: Option<String>,
     pub search_from_directory: PathBuf,
     pub tool_roots: Vec<PathBuf>,
-    pub fixture_catalog_enabled: bool,
     pub allow_explicit_manifest_path: bool,
 }
 
@@ -44,29 +40,12 @@ pub fn inspect_tool_with_effects(
     {
         return Ok(report);
     }
-    match resolve_local_manifest(options) {
-        Ok(manifest_path) => {
-            let tool = read_local_tool_manifest(&manifest_path)?;
-            return Ok(ToolInspectReport {
-                status: ToolBuildStatus::Success,
-                tool: inspect_local_tool(options, &manifest_path, tool)?,
-            });
-        }
-        Err(ToolCatalogError::NotFound(_)) => {}
-        Err(error) => return Err(error),
-    }
-
-    if let Some(tool) = resolve_fixture_tool(options) {
-        return Ok(ToolInspectReport {
-            status: ToolBuildStatus::Success,
-            tool: inspect_fixture_tool(&options.tool_ref, &tool, &options.root),
-        });
-    }
-
-    Err(ToolCatalogError::NotFound(format!(
-        "Tool '{}' was not found in configured tool roots.",
-        options.tool_ref
-    )))
+    let manifest_path = resolve_local_manifest(options)?;
+    let tool = read_local_tool_manifest(&manifest_path)?;
+    Ok(ToolInspectReport {
+        status: ToolBuildStatus::Success,
+        tool: inspect_local_tool(options, &manifest_path, tool)?,
+    })
 }
 
 fn native_source_allowed(
@@ -94,21 +73,6 @@ pub fn resolve_local_tool(
         manifest_source: document.source,
         tool: document.tool,
     })
-}
-
-fn resolve_fixture_tool(options: &ToolInspectOptions) -> Option<FixtureTool> {
-    let normalized_source = options
-        .source
-        .as_deref()
-        .map(|source| source.trim().to_ascii_lowercase());
-
-    if !fixture_catalog_allowed(
-        options.fixture_catalog_enabled,
-        normalized_source.as_deref(),
-    ) {
-        return None;
-    }
-    fixture_tool(&options.tool_ref)
 }
 
 fn read_local_tool_manifest(
@@ -152,52 +116,6 @@ fn local_provenance() -> ToolInspectProvenance {
         tool_id: None,
         tags: None,
     }
-}
-
-fn inspect_fixture_tool(tool_ref: &str, tool: &FixtureTool, root: &Path) -> ToolInspectResult {
-    ToolInspectResult {
-        tool_ref: tool_ref.to_owned(),
-        name: tool.qualified_name(),
-        description: tool.description.map(str::to_owned),
-        execution_source_type: "catalog".to_owned(),
-        inputs: fixture_inputs(tool),
-        scopes: vec![tool.qualified_name()],
-        runtime: None,
-        risk: None,
-        reference_path: format!("catalog:{}:{}", tool.source, tool.qualified_name()),
-        skill_directory: display_path(root),
-        provenance: ToolInspectProvenance {
-            origin: ToolInspectOrigin::Imported,
-            source: Some(tool.source.to_owned()),
-            source_label: Some(tool.source_label.to_owned()),
-            source_type: Some(tool.source_type.to_owned()),
-            namespace: Some(tool.namespace.to_owned()),
-            external_name: Some(tool.external_name.to_owned()),
-            catalog_ref: Some(tool.catalog_ref()),
-            tool_id: Some(tool.tool_id()),
-            tags: Some(tool.tags.iter().map(|tag| (*tag).to_owned()).collect()),
-        },
-    }
-}
-
-fn fixture_inputs(tool: &FixtureTool) -> BTreeMap<String, ToolInput> {
-    tool.inputs
-        .iter()
-        .map(|input| {
-            (
-                input.name.to_owned(),
-                ToolInput {
-                    input_type: input.input_type.to_owned(),
-                    required: input.required,
-                    description: input.description.map(str::to_owned),
-                    default: None,
-                    artifact: None,
-                    packet: None,
-                    schema: None,
-                },
-            )
-        })
-        .collect()
 }
 
 fn resolve_local_manifest(options: &ToolInspectOptions) -> Result<PathBuf, ToolCatalogError> {

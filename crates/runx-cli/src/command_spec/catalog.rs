@@ -117,13 +117,13 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
         name: "login",
         top_level_usage: &[],
         usage: &[
-            "runx login [--provider github|google|gitlab] [--for default|publish] [--from-gh] [--api-base-url url] [--allow-local-api] [-j|--json]",
+            "runx login [--provider name] [--for default|publish] [--token-stdin] [--api-base-url url] [--allow-local-api] [-j|--json]",
         ],
         notes: &[],
         options: &[
             "--provider provider",
             "--for purpose",
-            "--from-gh            Use the active GitHub CLI identity instead of browser OAuth",
+            "--token-stdin        Sign in with a token from --provider, piped on stdin, instead of the browser",
             "--api-base-url url",
             "--allow-local-api",
             "-j, --json",
@@ -131,22 +131,20 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
     },
     CommandSpec {
         name: "connect",
-        top_level_usage: &["runx connect list|bind|start|status|revoke ... [-j|--json]"],
+        top_level_usage: &["runx connect list|start|status|revoke ... [-j|--json]"],
         usage: &[
             "runx connect list [-j|--json]",
-            "runx connect bind <provider> <auto|local|hosted|hosted:grant-id> [-j|--json]",
             "runx connect start <provider> --scope <capability> [--scope <capability>...] [--credentials-from-stdin|--credential-grant grant-id] [--scope-family family] [--authority-kind kind] [--target-repo repo] [--target-locator locator] [--binding id] [-j|--json]",
             "runx connect status <session-id> [-j|--json]",
             "runx connect revoke <grant-id> [-j|--json]",
         ],
         notes: &[
-            "Host-injected provider grant environment selects hosted authority and cannot coexist with an explicit local transport binding.",
+            "An active grant becomes a connector instance with `runx connector use <provider> --grant <grant-id>`.",
             "BYO credential JSON is accepted only from stdin and is delivered directly to hosted credential custody; secret fields are never rendered.",
             "--credential-grant reuses the retained material of one active verified BYO grant without exposing it locally.",
         ],
         options: &[
             "--api-base-url url",
-            "--token token",
             "--allow-local-api",
             "--credentials-from-stdin",
             "--credential-grant grant-id",
@@ -156,7 +154,7 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
     CommandSpec {
         name: "config",
         top_level_usage: &[
-            "runx config set|get|list|unset [provider|model|api-key|public-token|endpoint-url] [value] [-j|--json]",
+            "runx config set|get|list|unset [provider|dialect|model|api-key|public-token|endpoint-url] [value] [-j|--json]",
         ],
         usage: &[
             "runx config set <key> <value> [-j|--json]",
@@ -166,38 +164,66 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
             "runx config unset endpoint-url [-j|--json]",
         ],
         notes: &[
-            "Short keys: provider, model, api-key, and public-token. Fully qualified config keys are also accepted. Secret values are accepted only on stdin.",
+            "Short keys: provider, dialect, model, api-key, and public-token. Fully qualified config keys are also accepted. Secret values are accepted only on stdin.",
+            "anthropic, openai and gemini are built-in providers. Any other provider also sets dialect (chat_completions or anthropic_messages) and endpoint-url.",
         ],
         options: &["--from-stdin", "-j, --json"],
     },
     CommandSpec {
-        name: "credential",
-        top_level_usage: &["runx credential set|list|remove|bind ... [-j|--json]"],
+        name: "connector",
+        top_level_usage: &[
+            "runx connector list|inspect|instances|use|revoke|import-mcp ... [-j|--json]",
+        ],
         usage: &[
-            "runx credential set <provider> [--profile name] [--auth-mode mode] [--audience https://host] --from-stdin [-j|--json]",
-            "runx credential list [-j|--json]",
-            "runx credential remove <profile> [-j|--json]",
-            "runx credential bind <profile> --provider <provider> [-j|--json]",
-            "runx credential bind <profile> --skill <skill> --credential <name> [-j|--json]",
+            "runx connector list [-j|--json]",
+            "runx connector inspect <connector> [-j|--json]",
+            "runx connector instances [-j|--json]",
+            "runx connector revoke <instance> [-j|--json]",
+            "runx connector use <connector> <instance> [-j|--json]",
+            "runx connector use <connector> --session [-j|--json]",
+            "runx connector use <connector> --profile <name> [--scope <scope>...] [-j|--json]",
+            "runx connector use <connector> --grant <grant-id> [-j|--json]",
+            "runx connector import-mcp <url> [--bearer-stdin] [-j|--json]",
+            "runx connector import-mcp [-j|--json] -- <command> [args...]",
         ],
         notes: &[
-            "Secret material is accepted only on stdin. Profiles are stored locally with encrypted-at-rest private files; project bindings contain names only.",
+            "An instance binds a connector to one account. `use` confirms the signed-in local session, stored credential profile, or active runx Connect grant as an instance, or selects one confirmed earlier, as the connector's default.",
+            "A run never falls back to another instance or account. Instances live with the receipt root (RUNX_RECEIPT_DIR, else .runx/receipts).",
+            "`import-mcp` lists the tools an MCP server serves with the digest a connector manifest pins each by; the bearer token, when the server needs one, is read from stdin. After `--`, it starts the stdio server that command line names and reads its tools.",
         ],
         options: &[
+            "--session",
+            "--profile name",
+            "--scope scope",
+            "--grant grant-id",
+            "--bearer-stdin",
+            "-j, --json",
+        ],
+    },
+    CommandSpec {
+        name: "credential",
+        top_level_usage: &["runx credential set|list|remove ... [-j|--json]"],
+        usage: &[
+            "runx credential set <connector> --credential <name> [--profile name] [--scope scope...] --from-stdin [-j|--json]",
+            "runx credential list [-j|--json]",
+            "runx credential remove <profile> [-j|--json]",
+        ],
+        notes: &[
+            "Secret material is accepted only on stdin and is checked against the connector's credential declaration. `set` stores the profile and selects it as the connector's instance; --scope narrows what it may do.",
+            "Profiles are stored locally with encrypted-at-rest private files.",
+        ],
+        options: &[
+            "--credential name",
             "--from-stdin",
             "--profile name",
-            "--auth-mode mode",
-            "--audience https://host",
-            "--provider provider",
-            "--skill skill",
-            "--credential name",
+            "--scope scope",
             "-j, --json",
         ],
     },
     CommandSpec {
         name: "assistant",
         top_level_usage: &[
-            "runx assistant check|tick|status|report|pause|resume|grant|revoke|discard-notification|install-timer|remove-timer|work|memories|remember|forget --profile path [-j|--json]",
+            "runx assistant check|tick|execute|status|report|pause|resume|grant|revoke|discard-notification|reconcile-notification|install-timer|remove-timer|work|retry-work|memories|remember|forget --profile path [-j|--json]",
         ],
         usage: &["runx assistant <action> --profile path [-j|--json]"],
         notes: &[
@@ -242,12 +268,11 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
         name: "publish",
         top_level_usage: &[],
         usage: &[
-            "runx publish <receipt.json> [--api-base-url url] [--token token] [--allow-local-api] [-j|--json]",
+            "runx publish <receipt.json> [--api-base-url url] [--allow-local-api] [-j|--json]",
         ],
         notes: &[],
         options: &[
             "--api-base-url url  Public API base URL (default: RUNX_PUBLIC_API_BASE_URL or https://api.runx.ai)",
-            "--token token       Public API token (default: RUNX_PUBLIC_API_TOKEN or runx login)",
             "--allow-local-api   Allow loopback/private public API URLs for local dogfood only",
             "-j, --json          Print the raw notary response as JSON",
         ],
@@ -310,13 +335,11 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
         name: "skill",
         top_level_usage: &[],
         usage: &[
-            "runx skill <skill-ref|owner/name@version|skill-dir|SKILL.md> [runner] [-p profile] [-i key=value] [--input-json key=json] [--inputs file|-] [-j] [--diagnostics] [--managed-agent [--managed-agent-rounds n]] [--full-operator-context] [--registry url|path] [--digest sha256] [--package-digest sha256 --execution-closure-digest sha256] [--flag value] [-R dir]",
+            "runx skill <skill-ref|owner/name@version|skill-dir|SKILL.md> [runner] [-i key=value] [--input-json key=json] [--inputs file|-] [-j] [--diagnostics] [--managed-agent [--managed-agent-rounds n]] [--full-operator-context] [--registry url|path] [--digest sha256] [--package-digest sha256 --execution-closure-digest sha256] [--flag value] [-R dir]",
             "runx skill inspect <skill-ref|owner/name@version|skill-dir|SKILL.md> [runner] [-j] [--registry url|path] [--digest sha256]",
         ],
         notes: &[],
         options: &[
-            "-p, --profile name       Use a stored local credential profile",
-            "--credential-profile name  Alias for --profile",
             "-i, --input key=value    Set a structured input; repeat for multiple inputs",
             "--input-json key=json    Set an input that must parse as JSON",
             "--inputs file|-          Read the complete JSON input object from a file or stdin; do not mix with per-key inputs",
@@ -339,7 +362,7 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
         name: "add",
         top_level_usage: &[],
         usage: &[
-            "runx add <skill-ref|github-url> [--registry url|path] [--version version] [--ref git-ref] [--digest sha256] [--to dir] [--api-base-url url] [--json]",
+            "runx add <skill-ref|repository-url> [--registry url|path] [--version version] [--ref git-ref] [--digest sha256] [--to dir] [--api-base-url url] [--json]",
         ],
         notes: &[],
         options: &[

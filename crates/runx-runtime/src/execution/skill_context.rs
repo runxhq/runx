@@ -20,7 +20,7 @@ use entry::{SkillContextEntryInput, insert_string, skill_context_entry};
 const MAX_CONTEXT_SKILLS: usize = 128;
 const MAX_CONTEXT_SKILLS_TOTAL_BYTES: usize = 4 * 1024 * 1024;
 
-pub(crate) fn load_context_skills(
+pub fn load_context_skills(
     step_id: &str,
     graph_dir: &Path,
     refs: &[String],

@@ -1,5 +1,5 @@
 skill: nws-weather-forecast
-version: "0.1.3"
+version: "0.1.4"
 catalog:
   kind: graph
   audience: public
@@ -12,6 +12,9 @@ catalog:
   completion: provider_readback
   requires_adapter: false
   approval: none
+connectors:
+  national-weather-service:
+    operations: [forecast.read, points.read]
 runners:
   forecast:
     default: true
@@ -36,22 +39,12 @@ runners:
       result_from: [forecast]
       steps:
         - id: forecast
-          tool: http.read
-          scopes: [net:http]
+          operation: national-weather-service/forecast.read
           inputs:
-            requests:
-              - id: forecast
-                method: GET
-                url: https://api.weather.gov/gridpoints/{office}/{grid_x},{grid_y}/forecast
-                path:
-                  office: $input.office
-                  grid_x: $input.grid_x
-                  grid_y: $input.grid_y
-                headers:
-                  user-agent: "runx-weather-catalog/0.1 (https://github.com/runxhq/runx)"
-                  accept: "application/geo+json, application/json"
-            allowed_hosts: [api.weather.gov]
-            stop_on_error: true
+            input:
+              office: $input.office
+              grid_x: $input.grid_x
+              grid_y: $input.grid_y
   locate:
     type: graph
     inputs:
@@ -68,18 +61,8 @@ runners:
       result_from: [points]
       steps:
         - id: points
-          tool: http.read
-          scopes: [net:http]
+          operation: national-weather-service/points.read
           inputs:
-            requests:
-              - id: points
-                method: GET
-                url: https://api.weather.gov/points/{lat},{lon}
-                path:
-                  lat: $input.lat
-                  lon: $input.lon
-                headers:
-                  user-agent: "runx-weather-catalog/0.1 (https://github.com/runxhq/runx)"
-                  accept: "application/geo+json, application/json"
-            allowed_hosts: [api.weather.gov]
-            stop_on_error: true
+            input:
+              lat: $input.lat
+              lon: $input.lon

@@ -24,11 +24,11 @@ describe("outbox.build_feed_entry tool", () => {
           signal_id: "sig_fixture_123",
           title: "Fix fixture behavior",
           source_ref: {
-            type: "github_issue",
+            type: "thread",
             uri: "github://example/repo/issues/123",
           },
           thread_ref: {
-            type: "github_issue",
+            type: "thread",
             uri: "github://example/repo/issues/123",
           },
           fingerprint: {

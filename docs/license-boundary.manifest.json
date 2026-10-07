@@ -2,6 +2,11 @@
   "schema": "runx.license_boundary_manifest.v1",
   "inventory_command": "rg -n 'oauth|RUNX_CONNECT|connection_id|material_ref|credential|auth' crates --glob '*.rs'",
   "crate_classes": {
+    "runx-assistant": {
+      "class": "apache-oss",
+      "phase1_state": "keep",
+      "decision": "Keep Apache-2.0. The local assistant is an OSS host over the native runtime; it performs no hosted connect brokerage or private payment execution."
+    },
     "runx-cli": {
       "class": "apache-oss",
       "phase1_state": "keep",

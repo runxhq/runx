@@ -3,10 +3,21 @@ import test from "node:test";
 
 import { prepareReadback, requireCompleteReadback } from "./readback.mjs";
 
-test("projects the only durable connector read input", () => {
-  assert.deepEqual(prepareReadback({ payment_ref: "runx:x402-payment:test" }), {
-    readback_request: { payment_ref: "runx:x402-payment:test" },
+test("reads one payment against the resource it paid for", () => {
+  assert.deepEqual(prepareReadback({
+    payment_ref: "runx:x402-payment:test",
+    resource_url: "https://vendor.example/v1/invocations",
+  }), {
+    readback_request: {
+      payment_ref: "runx:x402-payment:test",
+      resource_url: "https://vendor.example/v1/invocations",
+    },
+    expected_result: { payment_ref: "runx:x402-payment:test" },
   });
+  assert.throws(() => prepareReadback({
+    payment_ref: "runx:x402-payment:test",
+    resource_url: "http://vendor.example/v1/invocations",
+  }), /exact HTTPS URL/);
 });
 
 test("requires terminal confirmed receipt for synchronous pay", () => {

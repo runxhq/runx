@@ -1,0 +1,92 @@
+schema: runx.connector.v1
+id: moltbook
+name: Moltbook
+description: Read recent Moltbook posts and publish posts as an agent account.
+auth:
+  credentials:
+    api_key:
+      kind: api_key
+      fields:
+        - name: api_key
+          label: Moltbook API key
+      delivery:
+        env: MOLTBOOK_API_KEY
+      audience: [www.moltbook.com]
+placements:
+  local:
+    auth: [credentials]
+operations:
+  feed.scan:
+    description: Read one page of the newest posts, optionally in one submolt.
+    verb: read
+    scopes: [feed.read]
+    credentials: [api_key]
+    target:
+      template: "https://www.moltbook.com/api/v1/posts"
+    input_schema:
+      type: object
+      required: [limit]
+      additionalProperties: false
+      properties:
+        limit: {type: integer, minimum: 1, maximum: 100}
+        submolt: {type: string, pattern: '^[A-Za-z0-9_-]{1,64}$'}
+    result_fields: [posts]
+    implementation:
+      http:
+        allowed_hosts: [www.moltbook.com]
+        auth: {api_key: {type: bearer, field: api_key}}
+        requests:
+          - id: posts
+            method: GET
+            url: "https://www.moltbook.com/api/v1/posts"
+            query:
+              sort: new
+              limit: {"$argument": "/limit"}
+              submolt: {"$argument": "/submolt"}
+            headers: {accept: application/json}
+        decode: [{op: auto_json}]
+        result_paths:
+          posts: acknowledgement.posts
+  post.create:
+    description: Publish one text post to a submolt.
+    verb: write
+    scopes: [post.write]
+    credentials: [api_key]
+    target:
+      template: {"$concat": ["https://www.moltbook.com/m/", {"$argument": "/submolt_name"}]}
+    input_schema:
+      type: object
+      required: [submolt_name, title, content]
+      additionalProperties: false
+      properties:
+        submolt_name: {type: string, pattern: '^[A-Za-z0-9_-]{1,64}$'}
+        title: {type: string, minLength: 1, maxLength: 300}
+        content: {type: string, minLength: 1, maxLength: 40000}
+    result_fields: [post]
+    implementation:
+      http:
+        allowed_hosts: [www.moltbook.com]
+        auth: {api_key: {type: bearer, field: api_key}}
+        requests:
+          - id: create
+            method: POST
+            url: "https://www.moltbook.com/api/v1/posts"
+            headers: {accept: application/json}
+            body:
+              submolt_name: {"$argument": "/submolt_name"}
+              title: {"$argument": "/title"}
+              content: {"$argument": "/content"}
+        readbacks:
+          - request:
+              id: post
+              method: GET
+              url: {"$concat": ["https://www.moltbook.com/api/v1/posts/", {"$response": "write.json.post.id"}]}
+              headers: {accept: application/json}
+            matches:
+              - {expected: {source: acknowledgement, path: post.id}, observed: post.id}
+              - {expected: {source: argument, path: title}, observed: post.title}
+              - {expected: {source: argument, path: content}, observed: post.content}
+        decode: [{op: auto_json}]
+        operation_id_path: post.id
+        result_paths:
+          post: readbacks.0.post

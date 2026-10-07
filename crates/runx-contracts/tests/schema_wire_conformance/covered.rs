@@ -11,11 +11,6 @@ use runx_contracts::credential_delivery::{
 use runx_contracts::decision::Decision;
 use runx_contracts::dev::DevReport;
 use runx_contracts::doctor::DoctorReport;
-use runx_contracts::external_adapter::{
-    ExternalAdapterCancellationFrame, ExternalAdapterCredentialRequest,
-    ExternalAdapterHostResolutionFrame, ExternalAdapterInvocation, ExternalAdapterManifest,
-    ExternalAdapterResponse,
-};
 use runx_contracts::fixture::Fixture;
 use runx_contracts::handoff::{HandoffSignal, HandoffState};
 use runx_contracts::host_protocol::{
@@ -41,10 +36,6 @@ use runx_contracts::schema::RunxSchema;
 use runx_contracts::signal::Signal;
 use runx_contracts::source_packet::SourcePacket;
 use runx_contracts::suppression::SuppressionRecord;
-use runx_contracts::thread_outbox_provider::{
-    ThreadOutboxProviderFetch, ThreadOutboxProviderManifest, ThreadOutboxProviderObservation,
-    ThreadOutboxProviderPush,
-};
 use runx_contracts::tools::ToolManifest;
 use runx_contracts::verification::Verification;
 
@@ -101,11 +92,6 @@ pub(super) fn covered() -> Vec<Covered> {
             corpus: source_packet_corpus(),
         },
         Covered {
-            file_name: "external-adapter-response.schema.json",
-            emitted: ExternalAdapterResponse::json_schema(),
-            corpus: external_adapter_response_corpus(),
-        },
-        Covered {
             file_name: "decision.schema.json",
             emitted: Decision::json_schema(),
             corpus: decision_corpus(),
@@ -131,31 +117,6 @@ pub(super) fn covered() -> Vec<Covered> {
             corpus: credential_delivery_observation_corpus(),
         },
         Covered {
-            file_name: "external-adapter-manifest.schema.json",
-            emitted: ExternalAdapterManifest::json_schema(),
-            corpus: external_adapter_manifest_corpus(),
-        },
-        Covered {
-            file_name: "external-adapter-invocation.schema.json",
-            emitted: ExternalAdapterInvocation::json_schema(),
-            corpus: external_adapter_invocation_corpus(),
-        },
-        Covered {
-            file_name: "external-adapter-credential-request.schema.json",
-            emitted: ExternalAdapterCredentialRequest::json_schema(),
-            corpus: external_adapter_credential_request_corpus(),
-        },
-        Covered {
-            file_name: "external-adapter-host-resolution.schema.json",
-            emitted: ExternalAdapterHostResolutionFrame::json_schema(),
-            corpus: external_adapter_host_resolution_corpus(),
-        },
-        Covered {
-            file_name: "external-adapter-cancellation.schema.json",
-            emitted: ExternalAdapterCancellationFrame::json_schema(),
-            corpus: external_adapter_cancellation_corpus(),
-        },
-        Covered {
             file_name: "question.schema.json",
             emitted: Question::json_schema(),
             corpus: question_corpus(),
@@ -174,26 +135,6 @@ pub(super) fn covered() -> Vec<Covered> {
             file_name: "resolution-request.schema.json",
             emitted: ResolutionRequest::json_schema(),
             corpus: resolution_request_corpus(),
-        },
-        Covered {
-            file_name: "thread-outbox-provider-manifest.schema.json",
-            emitted: ThreadOutboxProviderManifest::json_schema(),
-            corpus: thread_outbox_manifest_corpus(),
-        },
-        Covered {
-            file_name: "thread-outbox-provider-push.schema.json",
-            emitted: ThreadOutboxProviderPush::json_schema(),
-            corpus: thread_outbox_push_corpus(),
-        },
-        Covered {
-            file_name: "thread-outbox-provider-fetch.schema.json",
-            emitted: ThreadOutboxProviderFetch::json_schema(),
-            corpus: thread_outbox_fetch_corpus(),
-        },
-        Covered {
-            file_name: "thread-outbox-provider-observation.schema.json",
-            emitted: ThreadOutboxProviderObservation::json_schema(),
-            corpus: thread_outbox_observation_corpus(),
         },
         Covered {
             file_name: "act-assignment.schema.json",

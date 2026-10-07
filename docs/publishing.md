@@ -71,15 +71,15 @@ runx login --for publish
 runx registry publish ./skills/<your-skill>/SKILL.md --registry https://api.runx.ai
 ```
 
-If GitHub's browser consent control is unavailable, use the identity already
-authenticated by GitHub CLI:
+If the browser consent step is unavailable, pipe a token from the provider
+instead, for example from GitHub CLI:
 
 ```bash
-runx login --provider github --for publish --from-gh
+gh auth token | runx login --provider github --for publish --token-stdin
 ```
 
-This verifies the active `gh` identity once and stores only the resulting
-purpose-scoped runx credential. It does not store the GitHub CLI credential.
+This verifies the provider identity once and stores only the resulting
+purpose-scoped runx credential. It does not store the provider token.
 
 For remote publishes the CLI sends a bounded skill package:
 
@@ -121,15 +121,15 @@ instead of trusting a client-supplied summary, while keeping local credentials,
 fixtures, source trees, and build trash out of the registry. The local harness
 still runs first for fast feedback.
 
-`runx login --for publish` opens the hosted sign-in flow. Add `--from-gh` to use
-the active GitHub CLI identity without the browser consent step. Both paths store
+`runx login --for publish` opens the hosted sign-in flow. Add `--provider` and
+`--token-stdin` to sign in with a provider token instead of the browser consent
+step. Both paths store
 a purpose-scoped public API token in the encrypted local config at
 `public.publish_api_token`. The token can publish and report skills, but it
 cannot move money, mutate hosted billing state, or operate unrelated hosted
-surfaces. Hosted CLI commands use token precedence in this order: an explicit
-`--token` when the command has one, then `RUNX_PUBLIC_API_TOKEN`, then the stored
-token from `runx login --for publish`. `runx registry publish` uses the env or
-stored publish-token sources. The default operator credential is stored separately;
+surfaces. Hosted CLI commands take the token from `RUNX_PUBLIC_API_TOKEN`, else
+the stored token from `runx login --for publish`; no command takes a token as an
+argument, so it never appears in a process listing. The default operator credential is stored separately;
 signing in for publication cannot replace or attenuate it.
 
 After a public URL publish, use the claim flow from the registry listing to prove

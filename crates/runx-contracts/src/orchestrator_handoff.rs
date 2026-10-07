@@ -1,7 +1,5 @@
 //! Extensible caller context carried across governed workflow handoffs.
 
-use std::collections::BTreeMap;
-
 use serde::{Deserialize, Serialize};
 
 use crate::schema::RunxSchema;
@@ -141,9 +139,6 @@ pub struct OrchestratorHandoffContext {
     pub delivery: OrchestratorHandoffDelivery,
     pub receiver_validation: OrchestratorReceiverValidation,
     pub receipt_expectations: OrchestratorReceiptExpectations,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub requests: Vec<OrchestratorHandoffRequest>,
-    pub stop_conditions: Vec<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
@@ -175,20 +170,7 @@ pub struct OrchestratorHandoffDelivery {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
-pub struct OrchestratorHandoffRequest {
-    pub id: String,
-    pub method: String,
-    pub url: String,
-    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
-    pub path: BTreeMap<String, String>,
-    pub headers: BTreeMap<String, String>,
-    pub body: OrchestratorHandoffDelivery,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
-#[serde(deny_unknown_fields)]
 pub struct OrchestratorReceiverValidation {
-    pub require_bearer: bool,
     pub require_scope: String,
     pub require_audience: String,
     pub require_event_id: String,

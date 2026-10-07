@@ -1,4 +1,4 @@
-//! GitHub repository indexing CLI: thin orchestrator over the runtime's `/v1/index`
+//! Repository indexing CLI: thin orchestrator over the runtime's `/v1/index`
 //! client. This module owns argument resolution (env + plan defaults) and
 //! presentation (human text vs JSON envelope); it owns no parsing, HTTP, or
 //! response shaping logic — those live in `runx_runtime::registry::index`.
@@ -8,8 +8,8 @@ use std::process::ExitCode;
 
 use runx_runtime::WorkspaceEnv;
 use runx_runtime::registry::{
-    GithubRepoRef, IndexGithubRepoOptions, IndexResponse, IndexWarning, IndexedListing,
-    IndexedRepo, TrustTier, index_github_repo, parse_github_repo_ref,
+    IndexRepositoryOptions, IndexResponse, IndexWarning, IndexedListing, IndexedRepo, TrustTier,
+    index_repository,
 };
 use serde::Serialize;
 
@@ -22,11 +22,7 @@ pub fn run_native_add(plan: AddUrlPlan, workspace: &WorkspaceEnv) -> ExitCode {
         Err(error) => return fail(&error.to_string()),
     };
 
-    let repo_ref = match parse_github_repo_ref(&plan.repo) {
-        Ok(parsed) => parsed,
-        Err(error) => return fail(&error.to_string()),
-    };
-
+    let repo_url = plan.repo.trim();
     let transport = match runx_runtime::hosted_api_transport(
         runx_runtime::hosted_private_network_allowed(false, workspace.env()),
     ) {
@@ -34,14 +30,14 @@ pub fn run_native_add(plan: AddUrlPlan, workspace: &WorkspaceEnv) -> ExitCode {
         Err(error) => return fail(&format!("failed to initialize HTTP transport: {error}")),
     };
 
-    let options = IndexGithubRepoOptions {
+    let options = IndexRepositoryOptions {
         base_url: environment.base_url(),
-        repo_url: &repo_ref.canonical_url,
+        repo_url,
         repo_ref: plan.repo_ref.as_deref(),
     };
 
-    match index_github_repo(&transport, &options) {
-        Ok(response) => render_result(plan.json, &repo_ref, &response),
+    match index_repository(&transport, &options) {
+        Ok(response) => render_result(plan.json, repo_url, &response),
         Err(error) => fail(&error.to_string()),
     }
 }
@@ -58,15 +54,11 @@ fn resolve_public_api_environment(
     )
 }
 
-fn render_result(json: bool, repo_ref: &GithubRepoRef, response: &IndexResponse) -> ExitCode {
+fn render_result(json: bool, repo_url: &str, response: &IndexResponse) -> ExitCode {
     if json {
         let envelope = AddUrlJsonResult {
             status: "success",
-            requested: AddUrlRequestedRef {
-                canonical_url: &repo_ref.canonical_url,
-                owner: &repo_ref.owner,
-                repo: &repo_ref.repo,
-            },
+            requested: AddUrlRequestedRef { repo_url },
             repo: &response.repo,
             listings: &response.listings,
             warnings: &response.warnings,
@@ -153,9 +145,7 @@ struct AddUrlJsonResult<'a> {
 
 #[derive(Serialize)]
 struct AddUrlRequestedRef<'a> {
-    canonical_url: &'a str,
-    owner: &'a str,
-    repo: &'a str,
+    repo_url: &'a str,
 }
 
 #[cfg(test)]

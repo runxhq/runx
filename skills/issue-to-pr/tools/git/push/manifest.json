@@ -1,0 +1,47 @@
+{
+  "schema": "runx.tool.manifest.v1",
+  "name": "git.push",
+  "version": "0.1.0",
+  "description": "Push an exact local commit to a GitHub branch without forcing it, and read the branch back: the github connector's branch.push implementation.",
+  "source": {
+    "type": "cli-tool",
+    "command": "sh",
+    "args": [
+      "./push.sh",
+      "{{phase}}",
+      "{{repository}}",
+      "{{branch}}",
+      "{{commit}}"
+    ]
+  },
+  "inputs": {
+    "repository": {
+      "type": "string",
+      "required": true,
+      "description": "Exact owner/name."
+    },
+    "branch": {
+      "type": "string",
+      "required": true,
+      "description": "Branch to create or confirm."
+    },
+    "commit": {
+      "type": "string",
+      "required": true,
+      "description": "Exact local commit the branch must point at."
+    },
+    "phase": {
+      "type": "string",
+      "required": true,
+      "description": "perform pushes; readback reads the branch."
+    },
+    "acknowledgement": {
+      "type": "json",
+      "required": false,
+      "description": "The recorded push, for readback."
+    }
+  },
+  "retry": {
+    "max_attempts": 1
+  }
+}

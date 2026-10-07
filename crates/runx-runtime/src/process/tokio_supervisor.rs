@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 use std::io;
 use std::path::PathBuf;
-use std::process::{ExitStatus, Stdio};
+use std::process::Stdio;
 
 use thiserror::Error;
 use tokio::process::{ChildStderr, ChildStdin, ChildStdout};
@@ -93,8 +93,8 @@ fn configure_process_group(_command: &mut tokio::process::Command) {}
 ///
 /// Unix gives every child a dedicated process group. Windows creates the child
 /// suspended, assigns it to a per-execution Job Object, and only then resumes
-/// it. The wrapper remains intact for the complete MCP session so timeout,
-/// reset, close, and drop retain tree ownership.
+/// it. The wrapper remains intact for the complete MCP session so stopping the
+/// session retains tree ownership.
 pub(crate) struct OwnedTokioProcess {
     #[cfg(not(windows))]
     child: tokio::process::Child,
@@ -159,9 +159,5 @@ impl OwnedTokioProcess {
 
     pub(crate) fn start_kill(&mut self) -> io::Result<()> {
         self.child.start_kill()
-    }
-
-    pub(crate) async fn wait(&mut self) -> io::Result<ExitStatus> {
-        self.child.wait().await
     }
 }

@@ -234,8 +234,8 @@ guaranteed:
 - **CLI tools** are intentional trusted local executables under an exact
   resolved grant. Runx controls argv, cwd, delivered environment, credentials,
   supervision, and evidence; it does not claim portable OS confinement.
-- **Provider adapters** perform governed HTTP, MCP, external-adapter, outbox,
-  or Connect operations under typed authority and effect contracts.
+- **Provider adapters** perform governed HTTP, MCP connector, or Connect
+  operations under typed authority and effect contracts.
 
 Required mutations, API calls, payments, and provider writes belong in
 deterministic effect-owning lanes. An agent or graph author cannot acquire an
@@ -243,18 +243,18 @@ effect merely by naming it in prose or input data.
 
 ## authority without secret leakage
 
-Provider-backed skills declare credential requirements in `X.yaml`. Configure
-a durable local profile by piping material on stdin:
+Credentials belong to connectors, and skills only name the connector
+operations they call. Bind an account once by piping material on stdin:
 
 ```bash
 printf '%s' "$NITROSEND_API_KEY" |
-  runx credential set nitrosend --profile account-one --from-stdin
+  runx credential set nitrosend --credential api_key --from-stdin
 
-runx skill ./skills/nitrosend status --profile account-one --json
+runx skill ./skills/nitrosend status --json
 ```
 
-Runx resolves explicit profiles, project bindings, global defaults, hosted
-handles, and the workspace environment through one canonical path. Skill runs,
+The kernel delivers the bound instance's credential to each operation it
+admits, so no skill, prompt, input, or receipt holds the material. Skill runs,
 resume, inspect, managed agents, and MCP use the same readiness contract.
 
 Receipts may include requested and granted scopes, grant references, typed
@@ -262,7 +262,7 @@ execution-boundary observations, approval decisions, provider observations,
 and hashes. They must not contain raw tokens, passwords, ambient environment
 dumps, or unchecked private provider bodies.
 
-See [Credential Resolution](docs/credentials.md) and
+See [Credentials](docs/credentials.md) and
 [Security Authority Proof](docs/security-authority-proof.md).
 
 ## what a receipt proves
@@ -308,9 +308,7 @@ claims:
 | --- | --- | --- |
 | `examples/hello-world` | Native CLI skill path and sealed receipt baseline | `runx harness examples/hello-world` |
 | `skills/business-ops` | One signal fans through governed lanes and preserves a graph receipt | `runx harness skills/business-ops` |
-| `examples/github-mcp-hero` | Governed read succeeds and an out-of-scope write is refused | `sh examples/github-mcp-hero/run.sh` |
 | `examples/http-graph` | Native governed HTTP executes against a local fixture | `sh examples/http-graph/run.sh` |
-| `examples/openapi-graph` | An OpenAPI operation uses the external-adapter lane | `sh examples/openapi-graph/run.sh` |
 
 See [Demos](docs/demos.md).
 
@@ -365,7 +363,7 @@ notes explain how the repository arrived here but do not override it.
 | --- | --- |
 | [getting started](docs/getting-started.md) | first skill, first receipt |
 | [system architecture](docs/architecture/runx-system.md) | ownership, execution lanes, boundaries |
-| [credential resolution](docs/credentials.md) | profiles, bindings, `.env`, hosted grants |
+| [credentials](docs/credentials.md) | connector credentials, instances, hosted grants |
 | [skill to graph](docs/skill-to-graph.md) | compose governed acts |
 | [security authority proof](docs/security-authority-proof.md) | scope, credentials, grants, verification |
 | [demos](docs/demos.md) | runnable proof paths |

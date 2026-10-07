@@ -1,11 +1,10 @@
 skill: google-calendar
-version: "0.1.0"
+version: "0.1.1"
 catalog:
   kind: graph
   audience: public
   visibility: public
-  role: branded
-  canonical_skill: runx/chief-of-staff
+  role: canonical
   provider: google-calendar
   runtime_path: provider
   execution: read
@@ -103,7 +102,55 @@ harness:
                 data: { decision: partial, coverage: partial, provider_status: not_called }
         receipt: { schema: runx.receipt.v1 }
 
+connectors:
+  google-calendar:
+    operations: [events.list, freebusy.query]
 runners:
+  assistant-brief:
+    type: graph
+    inputs:
+      calendar_id: { definition: calendar_id }
+      occurrence_ref:
+        type: string
+        required: true
+        description: Exact scheduled goal occurrence admitted by the local operator.
+        schema: { pattern: '^runx://assistant/goal/[a-z0-9_-]+/schedule/sha256:[0-9a-f]{64}/occurrence/[0-9]+$' }
+      window_hours:
+        type: integer
+        required: true
+        description: Bounded upcoming calendar window in hours.
+        schema: { minimum: 1, maximum: 168 }
+    graph:
+      name: google-calendar-assistant-brief
+      result_from: [finish]
+      steps:
+        - id: window
+          inputs: { calendar_id: $input.calendar_id, occurrence_ref: $input.occurrence_ref, window_hours: $input.window_hours }
+          run:
+            type: javascript
+            module: google-calendar.mjs
+            export: prepareAssistantWindow
+            outputs: { calendar_window: object }
+        - id: read
+          skill: .
+          runner: events
+          context:
+            calendar_id: window.calendar_window.calendar_id
+            time_min: window.calendar_window.time_min
+            time_max: window.calendar_window.time_max
+        - id: finish
+          inputs: { calendar_id: $input.calendar_id, occurrence_ref: $input.occurrence_ref }
+          context:
+            window: window.calendar_window
+            calendar_context: read.calendar_context.data
+          run:
+            type: javascript
+            module: google-calendar.mjs
+            export: finishAssistantBrief
+            outputs: { work_result: object }
+          artifacts:
+            named_emits: { work_result: work_result }
+            packets: { work_result: runx.work_outcome.v1 }
   events:
     default: true
     type: graph
@@ -118,13 +165,8 @@ runners:
       result_from: [normalize]
       steps:
         - id: read
-          tool: provider.read
-          scopes: [events.read]
-          policy: { provider_permission: { verb: read } }
+          operation: google-calendar/events.list
           inputs:
-            operation: events.list
-            target: $input.calendar_id
-            expected_provider: google-calendar
             result_fields: [calendar_id, time_min, time_max, events, complete, fetched_at]
             input:
               calendar_id: $input.calendar_id
@@ -151,13 +193,8 @@ runners:
       result_from: [normalize]
       steps:
         - id: read
-          tool: provider.read
-          scopes: [freebusy.read]
-          policy: { provider_permission: { verb: read } }
+          operation: google-calendar/freebusy.query
           inputs:
-            operation: freebusy.query
-            target: $input.calendar_id
-            expected_provider: google-calendar
             result_fields: [calendar_id, time_min, time_max, complete, errors, busy, fetched_at]
             input:
               calendar_id: $input.calendar_id

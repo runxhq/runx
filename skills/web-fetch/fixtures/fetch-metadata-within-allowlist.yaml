@@ -7,7 +7,6 @@ inputs:
   allowlist:
     - fixture.runx.invalid
   extract: metadata
-  max_bytes: 2000000
 caller:
   http_responses:
     "https://fixture.runx.invalid/rfc9110":

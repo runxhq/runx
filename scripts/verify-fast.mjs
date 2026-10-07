@@ -88,6 +88,7 @@ await runParallelGroup("source checks", [
   step("license identifiers", "node", ["scripts/check-license-edges.mjs", "--check", "identifiers"]),
   step("runtime architecture", "pnpm", ["runtime:architecture-check"]),
   step("test:boundary", "pnpm", ["test:boundary"]),
+  step("test:skills", "pnpm", ["test:skills"]),
   step("typecheck", "pnpm", ["typecheck"]),
   step("bindings:check", "pnpm", ["bindings:check"]),
   step("command drift", "pnpm", ["commands:check-drift"]),
@@ -158,6 +159,7 @@ if (rustBuild.status === 0) {
     [
       step("catalog version drift", "pnpm", ["catalog:check"]),
       step("official skill lock", "pnpm", ["official-lock:check"]),
+      step("official connectors", "pnpm", ["official-connectors:check"]),
       step("build workspace", "node", ["scripts/build-workspace.mjs"]),
       step("extension SDK package contract", "node", ["scripts/check-extension-sdk-package-contract.mjs"]),
       step("publishable manifests", "node", ["scripts/check-publishable-package-manifests.mjs"]),

@@ -1,9 +1,12 @@
-use std::fs;
 use std::io::{self, Write};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::ExitCode;
 
 use runx_contracts::{ClosureDisposition, JsonObject, JsonValue, sha256_prefixed};
+
+use runx_runtime::persist_json_artifact;
+#[cfg(test)]
+use runx_runtime::read_json_artifact;
 
 const MAX_COMPACT_OUTPUT_BYTES: usize = 16 * 1024;
 const MAX_COMPACT_SUMMARY_CHARS: usize = 512;
@@ -410,170 +413,6 @@ fn append_artifact_refs(object: &mut JsonObject, refs: Vec<JsonValue>) {
     }
 }
 
-pub(crate) fn persist_json_artifact(
-    project_runx_dir: &Path,
-    run_id: &str,
-    kind: &str,
-    label: &str,
-    value: &JsonValue,
-) -> Result<JsonValue, String> {
-    let bytes = serde_json::to_vec(value).map_err(|error| error.to_string())?;
-    let digest = sha256_prefixed(&bytes);
-    let digest_label = digest.strip_prefix("sha256:").unwrap_or(&digest);
-    let artifact_root = project_runx_dir.join("artifacts");
-    let skill_runs = artifact_root.join("skill-runs");
-    let run_directory = skill_runs.join(safe_path_segment(run_id));
-    let directory = run_directory.join(kind);
-    fs::create_dir_all(&directory)
-        .map_err(|error| format!("creating {}: {error}", directory.display()))?;
-    // Protect the whole subtree before writing any result or temporary file.
-    restrict_artifact_directory(&artifact_root)?;
-    restrict_artifact_directory(&skill_runs)?;
-    restrict_artifact_directory(&run_directory)?;
-    restrict_artifact_directory(&directory)?;
-    let path = directory.join(format!(
-        "{}-{}.json",
-        safe_path_segment(label),
-        digest_label
-    ));
-    match fs::symlink_metadata(&path) {
-        Ok(metadata) if !metadata.file_type().is_file() => {
-            return Err(format!(
-                "artifact target {} is not a regular file",
-                path.display()
-            ));
-        }
-        Ok(_) => {}
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-        Err(error) => return Err(format!("checking {}: {error}", path.display())),
-    }
-    if !path.exists() {
-        write_atomic(&path, &bytes)?;
-    }
-    restrict_artifact_file(&path)?;
-    Ok(JsonValue::Object(JsonObject::from([
-        (
-            "schema".to_owned(),
-            JsonValue::String("runx.project_artifact_ref.v1".to_owned()),
-        ),
-        (
-            "ref".to_owned(),
-            JsonValue::String(format!("runx:project-artifact:{digest}")),
-        ),
-        ("digest".to_owned(), JsonValue::String(digest)),
-        (
-            "bytes".to_owned(),
-            JsonValue::Number(runx_contracts::JsonNumber::U64(bytes.len() as u64)),
-        ),
-        (
-            "media_type".to_owned(),
-            JsonValue::String("application/json".to_owned()),
-        ),
-        (
-            "path".to_owned(),
-            JsonValue::String(path.to_string_lossy().into_owned()),
-        ),
-    ])))
-}
-
-pub(crate) fn read_json_artifact(
-    project_runx_dir: &Path,
-    reference: &JsonValue,
-) -> Result<JsonValue, String> {
-    let field = |name| reference.as_object().and_then(|object| object.get(name));
-    if field("schema").and_then(JsonValue::as_str) != Some("runx.project_artifact_ref.v1") {
-        return Err("assistant intent artifact reference has an unsupported schema".to_owned());
-    }
-    let raw_path = field("path")
-        .and_then(JsonValue::as_str)
-        .ok_or("assistant intent artifact lacks a path")?;
-    let path = Path::new(raw_path)
-        .canonicalize()
-        .map_err(|error| format!("resolving assistant intent artifact: {error}"))?;
-    let root = project_runx_dir
-        .join("artifacts")
-        .canonicalize()
-        .map_err(|error| format!("resolving assistant artifact root: {error}"))?;
-    if !path.starts_with(&root) || !path.is_file() {
-        return Err("assistant intent artifact escapes the project artifact root".to_owned());
-    }
-    let bytes =
-        fs::read(&path).map_err(|error| format!("reading assistant intent artifact: {error}"))?;
-    if bytes.len() > 128 * 1024 {
-        return Err("assistant intent artifact exceeds 128 KiB".to_owned());
-    }
-    let digest = sha256_prefixed(&bytes);
-    if field("digest").and_then(JsonValue::as_str) != Some(digest.as_str()) {
-        return Err(
-            "assistant intent artifact digest differs from the stored reference".to_owned(),
-        );
-    }
-    serde_json::from_slice(&bytes)
-        .map_err(|error| format!("assistant intent artifact is invalid JSON: {error}"))
-}
-
-#[cfg(unix)]
-fn restrict_artifact_directory(path: &Path) -> Result<(), String> {
-    use std::os::unix::fs::PermissionsExt;
-
-    fs::set_permissions(path, fs::Permissions::from_mode(0o700))
-        .map_err(|error| format!("restricting {}: {error}", path.display()))
-}
-
-#[cfg(not(unix))]
-fn restrict_artifact_directory(_path: &Path) -> Result<(), String> {
-    Ok(())
-}
-
-#[cfg(unix)]
-fn restrict_artifact_file(path: &Path) -> Result<(), String> {
-    use std::os::unix::fs::PermissionsExt;
-
-    fs::set_permissions(path, fs::Permissions::from_mode(0o600))
-        .map_err(|error| format!("restricting {}: {error}", path.display()))
-}
-
-#[cfg(not(unix))]
-fn restrict_artifact_file(_path: &Path) -> Result<(), String> {
-    Ok(())
-}
-
-fn write_atomic(path: &Path, bytes: &[u8]) -> Result<(), String> {
-    let mut temporary = PathBuf::from(path);
-    temporary.set_extension(format!("json.tmp-{}", std::process::id()));
-    fs::write(&temporary, bytes)
-        .map_err(|error| format!("writing {}: {error}", temporary.display()))?;
-    match fs::rename(&temporary, path) {
-        Ok(()) => Ok(()),
-        Err(_error) if path.exists() => {
-            let _ = fs::remove_file(&temporary);
-            Ok(())
-        }
-        Err(error) => {
-            let _ = fs::remove_file(&temporary);
-            Err(format!("committing {}: {error}", path.display()))
-        }
-    }
-}
-
-fn safe_path_segment(value: &str) -> String {
-    let value = value
-        .chars()
-        .map(|character| {
-            if character.is_ascii_alphanumeric() || matches!(character, '-' | '_' | '.') {
-                character
-            } else {
-                '_'
-            }
-        })
-        .collect::<String>();
-    if value.is_empty() {
-        "item".to_owned()
-    } else {
-        value
-    }
-}
-
 fn compact_identity(object: &JsonObject) -> JsonObject {
     let mut minimal = JsonObject::new();
     for key in [
@@ -790,6 +629,7 @@ fn object_string<'a>(object: &'a JsonObject, key: &str) -> Option<&'a str> {
 
 #[cfg(test)]
 mod tests {
+    #[cfg(test)]
     use std::fs;
     use std::path::Path;
     use std::process::ExitCode;

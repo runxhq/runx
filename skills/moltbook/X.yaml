@@ -1,5 +1,5 @@
 skill: moltbook
-version: "0.4.3"
+version: "0.4.4"
 
 catalog:
   kind: skill
@@ -143,6 +143,7 @@ harness:
         outline:
           headline: How to move a Runx skill into a package root
           beats: [What changed, How to migrate]
+        submolt: agents
         community_context: OSS operators.
         operator_guidance: Keep it factual.
       caller:
@@ -152,6 +153,8 @@ harness:
               decision: ready_for_handoff
               post_payload:
                 channel: moltbook
+                submolt: agents
+                title: How to move a Runx skill into a package root
                 body: Package-rooted skills make inspection and harness verification explicit.
                 claim_refs:
                   - { claim: Package-rooted skills are the migration subject., source_refs: [changelog_1] }
@@ -170,6 +173,33 @@ harness:
                   validation: { status: pass }
         receipt: { schema: runx.receipt.v1 }
 
+    - name: moltbook-post-refuses-an-unready-scan
+      runner: post
+      inputs:
+        scan_packet:
+          decision: needs_more_evidence
+          delivery_status: not_posted
+          validation: { status: fail, findings: [] }
+        outline:
+          headline: How to move a Runx skill into a package root
+          beats: [What changed]
+        submolt: agents
+      expect:
+        status: sealed
+        steps: [admit-scan, reject-post]
+        step_outputs:
+          reject-post:
+            subset:
+              moltbook_post_packet:
+                data:
+                  decision: needs_more_evidence
+                  delivery_status: not_posted
+                  validation: { status: fail }
+        receipt: { schema: runx.receipt.v1 }
+
+connectors:
+  moltbook:
+    operations: [feed.scan, post.create]
 runners:
   scan-provider:
     default: true
@@ -196,7 +226,11 @@ runners:
         type: number
         required: false
         default: 50
-        description: Maximum provider feed items, capped by the provider grant.
+        description: Newest posts to read, at most 100.
+      submolt:
+        type: string
+        required: false
+        description: Read only this submolt's posts.
     examples:
       - objective: Find one useful post for Runx builders.
         community_context: OSS operators evaluating governed agent workflows.
@@ -208,20 +242,12 @@ runners:
       result_from: [reject, finalize]
       steps:
         - id: read-feed
-          tool: provider.read
-          scopes:
-            - feed.read
-          policy:
-            provider_permission:
-              verb: read
+          operation: moltbook/feed.scan
           inputs:
-            operation: feed.scan
-            target: moltbook://feed
-            expected_provider: moltbook
-            result_fields: [items]
+            result_fields: [posts]
             input:
-              objective: $input.objective
-              max_items: $input.max_items
+              limit: $input.max_items
+              submolt: $input.submolt
 
         - id: admit
           inputs:
@@ -229,7 +255,7 @@ runners:
             as_of: $input.as_of
             max_age_hours: $input.max_age_hours
           context:
-            feed_snapshot: read-feed.provider_operation.data.result.items
+            posts: read-feed.provider_operation.data.result.posts
           run:
             type: javascript
             module: moltbook.mjs
@@ -430,6 +456,11 @@ runners:
         description: Validated ready Moltbook scan packet.
       outline:
         definition: outline
+      submolt:
+        type: string
+        required: true
+        description: The submolt the post is written for.
+        schema: { pattern: '^[A-Za-z0-9_-]{1,64}$' }
       community_context:
         type: string
         required: false
@@ -457,11 +488,12 @@ runners:
         outline:
           headline: How to move a Runx skill into a package root
           beats: [What changed, How to migrate]
+        submolt: agents
         community_context: OSS operators.
         operator_guidance: Keep it factual.
     graph:
       name: moltbook-post
-      result_from: [finalize-post]
+      result_from: [reject-post, finalize-post]
       steps:
         - id: admit-scan
           inputs:
@@ -488,6 +520,7 @@ runners:
             outputs:
               post_draft: object
           inputs:
+            submolt: $input.submolt
             community_context: $input.community_context
             operator_guidance: $input.operator_guidance
           context:
@@ -504,7 +537,32 @@ runners:
           context:
             value: author.post_draft.data.post_payload
 
+        - id: reject-post
+          when:
+            field: admit-scan.post_context.data.decision
+            equals: needs_more_evidence
+          inputs:
+            submolt: $input.submolt
+          context:
+            post_context: admit-scan.post_context.data
+          run:
+            type: javascript
+            module: moltbook.mjs
+            export: finalizePost
+            outputs:
+              moltbook_post_packet: object
+          artifacts:
+            named_emits:
+              moltbook_post_packet: moltbook_post_packet
+            packets:
+              moltbook_post_packet: runx.moltbook.post.v1
+
         - id: finalize-post
+          when:
+            field: admit-scan.post_context.data.decision
+            equals: ready
+          inputs:
+            submolt: $input.submolt
           context:
             post_context: admit-scan.post_context.data
             post_draft: author.post_draft.data
@@ -538,11 +596,13 @@ runners:
           decision: ready_for_handoff
           post_payload:
             channel: moltbook
+            submolt: agents
+            title: How to move a Runx skill into a package root
             body: Package-rooted skills make inspection and harness verification explicit.
             claim_refs:
               - claim: Package-rooted skills are the migration subject.
                 source_refs: [changelog_1]
-          payload_digest: sha256:27329a1f0e5fa8da7598ac0bdc5079aa9bbec68bdc2cee2c14526f55d1a32f7d
+          payload_digest: sha256:22d50f9adab4c26e2408063ce226b8eccf65415f8abb5eb8205791cf2202c251
           moderation_notes: { final_check: [No unsupported claims.] }
           follow_up_plan: { monitor_for: [migration questions] }
           source_evidence:
@@ -552,7 +612,7 @@ runners:
         idempotency_key: fixture-moltbook-publish-001
     graph:
       name: moltbook-publish
-      result_from: [readback]
+      result_from: [publish]
       steps:
         - id: validate
           tool: data.compare
@@ -590,43 +650,15 @@ runners:
           when:
             field: bind-payload.comparison.data.equal
             equals: true
-          tool: provider.mutate
+          operation: moltbook/post.create
           idempotency_key: $input.idempotency_key
-          scopes:
-            - post.write
-          policy:
-            provider_permission:
-              verb: write
           inputs:
-            operation: post.create
-            target: moltbook://posts
-            expected_provider: moltbook
             approval:
               reason: Approve publishing this exact post to Moltbook.
               type: moltbook_post
             idempotency_key: $input.idempotency_key
-            expected_result:
-              payload_digest: $input.post_packet.payload_digest
-            result_fields: [post_ref, payload_digest]
+            result_fields: [post]
             input:
-              post_payload: $input.post_packet.post_payload
-              evidence: $input.post_packet.source_evidence
-
-        - id: readback
-          when:
-            field: bind-payload.comparison.data.equal
-            equals: true
-          tool: provider.read
-          scopes:
-            - post.read
-          policy:
-            provider_permission:
-              verb: read
-          inputs:
-            operation: post.read
-            target: moltbook://posts
-            expected_provider: moltbook
-            result_fields: [post_ref, payload_digest, body, status]
-          context:
-            expected_result: publish.provider_operation.data.result
-            input: publish.provider_operation.data.result
+              submolt_name: $input.post_packet.post_payload.submolt
+              title: $input.post_packet.post_payload.title
+              content: $input.post_packet.post_payload.body

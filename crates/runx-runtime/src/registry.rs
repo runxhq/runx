@@ -21,8 +21,8 @@ use runx_contracts::{JsonNumber, JsonObject, JsonValue};
 pub use http::{AcquireOptions, RegistryClient, RegistryClientError};
 #[cfg(feature = "async-http")]
 pub use index::{
-    GithubRepoRef, IndexError, IndexGithubRepoOptions, IndexResponse, IndexWarning, IndexedListing,
-    IndexedRepo, index_github_repo, parse_github_repo_ref,
+    IndexError, IndexRepositoryOptions, IndexResponse, IndexWarning, IndexedListing, IndexedRepo,
+    index_repository,
 };
 pub use install::{
     InstallCandidate, InstallError, InstallLocalSkillOptions, InstallLocalSkillResult,

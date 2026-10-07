@@ -252,9 +252,8 @@ fn invoke<I>(
         hosted_private_network_allowed(false, invocation.env),
     )
     .map_err(|error| runtime_failure(operation, error.to_string()))?;
-    let resolved =
-        HostedApiEnvironment::resolve(None, None, invocation.env, invocation.skill_directory)
-            .map_err(|error| runtime_failure(operation, error.to_string()))?;
+    let resolved = HostedApiEnvironment::resolve(None, invocation.env, invocation.skill_directory)
+        .map_err(|error| runtime_failure(operation, error.to_string()))?;
     let authenticated = resolved
         .authenticate(&transport)
         .map_err(|error| runtime_failure(operation, error.to_string()))?;
@@ -846,6 +845,8 @@ mod tests {
             idempotency_key: Some("runx.artifact.allocate:test".to_owned()),
             host: None,
             account_ref: None,
+            operation_digest: None,
+            implementation_digest: None,
         };
         validate_packet(
             &packet,
@@ -1007,6 +1008,8 @@ mod tests {
             idempotency_key: Some(idempotency_key),
             host: None,
             account_ref: None,
+            operation_digest: None,
+            implementation_digest: None,
         };
         let responses = BTreeMap::from([
             (
@@ -1021,7 +1024,8 @@ mod tests {
                 RuntimeHttpResponse::new(200, serde_json::to_string(&packet).expect("packet JSON")),
             ),
         ]);
-        let effects = RuntimeEffectRegistry::default().with_harness_http_responses(responses);
+        let effects = RuntimeEffectRegistry::default()
+            .with_harness_http(Some(std::sync::Arc::new(responses)));
         let credentials = CredentialDelivery::none();
         let output = allocate(&NativeInvocation {
             inputs: &input,
@@ -1094,6 +1098,8 @@ mod tests {
             idempotency_key: Some("runx.artifact.allocate:test".to_owned()),
             host: None,
             account_ref: None,
+            operation_digest: None,
+            implementation_digest: None,
         };
 
         validate_allocation_result(&packet, expected_digest, "application/json", 1)
@@ -1212,6 +1218,8 @@ mod tests {
             idempotency_key: Some(idempotency_key),
             host: None,
             account_ref: None,
+            operation_digest: None,
+            implementation_digest: None,
         };
         let env = BTreeMap::from([
             (
@@ -1240,7 +1248,8 @@ mod tests {
                 RuntimeHttpResponse::new(200, serde_json::to_string(&packet).expect("packet JSON")),
             ),
         ]);
-        let effects = RuntimeEffectRegistry::default().with_harness_http_responses(responses);
+        let effects = RuntimeEffectRegistry::default()
+            .with_harness_http(Some(std::sync::Arc::new(responses)));
         let credentials = CredentialDelivery::none();
         let output = handoff(&NativeInvocation {
             inputs: &input,

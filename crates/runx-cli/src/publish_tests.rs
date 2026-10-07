@@ -40,8 +40,6 @@ fn parses_publish_plan() -> Result<(), String> {
         OsString::from("receipt.json"),
         OsString::from("--api-base-url"),
         OsString::from("https://runx.test/"),
-        OsString::from("--token"),
-        OsString::from("rxk_test"),
         OsString::from("--allow-local-api"),
         OsString::from("-j"),
     ];
@@ -51,7 +49,6 @@ fn parses_publish_plan() -> Result<(), String> {
         PublishPlan {
             receipt_path: PathBuf::from("receipt.json"),
             api_base_url: Some("https://runx.test/".to_owned()),
-            token: Some("rxk_test".to_owned()),
             allow_local_api: true,
             json: true,
         }
@@ -75,62 +72,29 @@ fn resolves_global_api_environment_precedence() -> Result<(), Box<dyn std::error
     let plan = PublishPlan {
         receipt_path: PathBuf::from("receipt.json"),
         api_base_url: Some("https://plan.runx.test/".to_owned()),
-        token: Some("plan-token".to_owned()),
         allow_local_api: false,
         json: false,
     };
 
     let explicit = runx_runtime::HostedApiEnvironment::resolve_publish(
         plan.api_base_url.as_deref(),
-        plan.token.as_deref(),
         &env,
         &temp,
     )?;
     assert_eq!(explicit.base_url(), "https://plan.runx.test");
-    assert_eq!(explicit.require_token()?, "plan-token");
+    assert_eq!(explicit.require_token()?, "public-token");
 
-    let env_plan = PublishPlan {
-        token: None,
-        api_base_url: None,
-        ..plan
-    };
-    let from_env = runx_runtime::HostedApiEnvironment::resolve_publish(
-        env_plan.api_base_url.as_deref(),
-        env_plan.token.as_deref(),
-        &env,
-        &temp,
-    )?;
+    let from_env = runx_runtime::HostedApiEnvironment::resolve_publish(None, &env, &temp)?;
     assert_eq!(from_env.base_url(), "https://env.runx.test");
     assert_eq!(from_env.require_token()?, "public-token");
 
-    let empty_token_plan = PublishPlan {
-        receipt_path: PathBuf::from("receipt.json"),
-        token: Some("   ".to_owned()),
-        api_base_url: None,
-        allow_local_api: false,
-        json: false,
-    };
-    let blank_explicit = runx_runtime::HostedApiEnvironment::resolve_publish(
-        empty_token_plan.api_base_url.as_deref(),
-        empty_token_plan.token.as_deref(),
-        &env,
-        &temp,
-    )?;
-    assert_eq!(blank_explicit.require_token()?, "public-token");
-
     env.insert("RUNX_PUBLIC_API_TOKEN".to_owned(), " ".to_owned());
-    let blank = runx_runtime::HostedApiEnvironment::resolve_publish(
-        empty_token_plan.api_base_url.as_deref(),
-        empty_token_plan.token.as_deref(),
-        &env,
-        &temp,
-    )?;
+    let blank = runx_runtime::HostedApiEnvironment::resolve_publish(None, &env, &temp)?;
     assert!(blank.require_token().is_err());
 
     let empty_url_plan = PublishPlan {
         receipt_path: PathBuf::from("receipt.json"),
         api_base_url: Some("   ".to_owned()),
-        token: None,
         allow_local_api: false,
         json: false,
     };
@@ -141,7 +105,6 @@ fn resolves_global_api_environment_precedence() -> Result<(), Box<dyn std::error
     assert_eq!(
         runx_runtime::HostedApiEnvironment::resolve_publish(
             empty_url_plan.api_base_url.as_deref(),
-            None,
             &isolated_env,
             &temp,
         )?
@@ -152,7 +115,7 @@ fn resolves_global_api_environment_precedence() -> Result<(), Box<dyn std::error
 }
 
 #[test]
-fn resolves_only_the_stored_publish_token_after_explicit_sources()
+fn resolves_only_the_stored_publish_token_after_the_environment()
 -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempfile_dir()?;
     let env = BTreeMap::from([("RUNX_HOME".to_owned(), temp.to_string_lossy().to_string())]);
@@ -164,17 +127,16 @@ fn resolves_only_the_stored_publish_token_after_explicit_sources()
         "user_1",
         "stored-token",
     )?;
-    let environment = runx_runtime::HostedApiEnvironment::resolve_publish(None, None, &env, &temp)?;
+    let environment = runx_runtime::HostedApiEnvironment::resolve_publish(None, &env, &temp)?;
     assert_eq!(environment.require_token()?, "stored-token");
     assert!(
-        runx_runtime::HostedApiEnvironment::resolve(None, None, &env, &temp)?
+        runx_runtime::HostedApiEnvironment::resolve(None, &env, &temp)?
             .require_token()
             .is_err()
     );
 
     let mismatched = runx_runtime::HostedApiEnvironment::resolve_publish(
         Some("https://other.runx.test"),
-        None,
         &env,
         &temp,
     )?;
@@ -228,7 +190,6 @@ fn parses_and_resolves_local_api_override() -> Result<(), String> {
     let plan = PublishPlan {
         receipt_path: PathBuf::from("receipt.json"),
         api_base_url: None,
-        token: None,
         allow_local_api: false,
         json: false,
     };
@@ -320,7 +281,7 @@ fn publish_error_explains_receipt_scope_mismatch() {
 
     assert!(message.contains("can publish skills but not receipts"));
     assert!(message.contains("receipts:write"));
-    assert!(message.contains("runx publish --token"));
+    assert!(message.contains("RUNX_PUBLIC_API_TOKEN"));
 }
 
 fn request_json_body(request: &HttpRequest) -> Result<JsonValue, String> {

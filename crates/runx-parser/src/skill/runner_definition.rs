@@ -12,15 +12,11 @@ use super::{
 const RUNNER_FIELDS: &[&str] = &[
     "act",
     "agent",
-    "agent_card_url",
-    "agent_identity",
     "allowed_tools",
     "args",
-    "arguments",
     "artifacts",
     "auth",
     "command",
-    "credential",
     "context",
     "context_skills",
     "cwd",
@@ -28,7 +24,6 @@ const RUNNER_FIELDS: &[&str] = &[
     "environment",
     "examples",
     "execution",
-    "external_adapter",
     "export",
     "graph",
     "headers",
@@ -46,13 +41,10 @@ const RUNNER_FIELDS: &[&str] = &[
     "risk",
     "runx",
     "runtime",
-    "server",
     "scopes",
     "source",
     "task",
-    "thread_outbox_provider",
     "timeout_seconds",
-    "tool",
     "type",
     "url",
     "allow_private_network",
@@ -107,7 +99,7 @@ pub(crate) fn validate_runner_definition(
         };
     let governance = validate_runner_governance(name, &runner, runx.as_ref())?;
     let source = validate_source(&source_record)?;
-    validate_runner_lane_constraints(name, &runner, &source, governance.artifacts.as_ref())?;
+    validate_runner_lane_constraints(name, &source, governance.artifacts.as_ref())?;
     let inputs = validate_inputs(
         FIELDS
             .optional_object(runner.get("inputs"), &format!("runners.{name}.inputs"))?
@@ -129,10 +121,6 @@ pub(crate) fn validate_runner_definition(
                 .optional_string_array(runner.get("scopes"), &format!("runners.{name}.scopes"))?
                 .unwrap_or_default(),
             &format!("runners.{name}.scopes"),
-        )?,
-        credential: FIELDS.optional_non_empty_string(
-            runner.get("credential"),
-            &format!("runners.{name}.credential"),
         )?,
         auth: runner.get("auth").cloned(),
         risk: runner.get("risk").cloned(),
@@ -198,15 +186,9 @@ pub fn validate_input_examples(
 
 fn validate_runner_lane_constraints(
     name: &str,
-    runner: &JsonObject,
     source: &super::SkillSource,
     artifacts: Option<&super::SkillArtifactContract>,
 ) -> Result<(), ValidationError> {
-    if source.source_type == super::SourceKind::JavaScript && runner.contains_key("credential") {
-        return Err(FIELDS.validation_error(format!(
-            "runners.{name}.credential is not valid for a pure javascript source; route credentials through a native provider tool"
-        )));
-    }
     if source.source_type == super::SourceKind::Graph && artifacts.is_some() {
         return Err(FIELDS.validation_error(format!(
             "runners.{name}.artifacts is ambiguous for a graph source; declare the packet on the graph's terminal output-producing step"

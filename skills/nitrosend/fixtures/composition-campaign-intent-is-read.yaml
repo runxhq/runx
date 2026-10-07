@@ -8,36 +8,39 @@ inputs:
   arguments:
     goal: Announce two shipped product improvements.
     name: Product update
-    audience: { audience_type: segment, segment_id: 42 }
+    audience:
+      audience_type: segment
+      segment_id: 42
   brand_sid: brnd_demo123
+setup:
+  credentials:
+  - nitrosend
 env:
   NITROSEND_API_KEY: harness-nitrosend-token
 caller:
-  http_exchanges:
-    - request:
-        method: POST
-        url: https://api.nitrosend.com/mcp
-        body:
-          json:
-            jsonrpc: "2.0"
-            id: nitrosend-compose_email
-            method: tools/call
-            params:
-              name: nitro_compose_campaign
-              arguments:
-                goal: Announce two shipped product improvements.
-                name: Product update
-                audience: { audience_type: segment, segment_id: 42 }
-                composition_mode: intent
-      response:
-        status: 200
-        headers: { content-type: application/json }
-        body: >-
-          {"jsonrpc":"2.0","id":"nitrosend-compose_email","result":{"content":[{"type":"text","text":"{\"meta\":{\"tool\":\"nitro_compose_campaign\"},\"result\":{\"composition_status\":\"draft_required\",\"contract_id\":\"ecc_campaign_fixture\",\"next_call\":{\"tool\":\"nitro_compose_campaign\",\"input\":{\"composition_mode\":\"draft\",\"contract_id\":\"ecc_campaign_fixture\",\"idempotency_key\":\"ecr_campaign_fixture\"}}}}"}]}}
+  mcp_calls:
+  - tool: nitro_compose_campaign
+    arguments:
+      goal: Announce two shipped product improvements.
+      name: Product update
+      audience:
+        audience_type: segment
+        segment_id: 42
+      composition_mode: intent
+    headers:
+      x-brand-sid: brnd_demo123
+    result:
+      content:
+      - type: text
+        text: '{"meta":{"tool":"nitro_compose_campaign"},"result":{"composition_status":"draft_required","contract_id":"ecc_campaign_fixture","next_call":{"tool":"nitro_compose_campaign","input":{"composition_mode":"draft","contract_id":"ecc_campaign_fixture","idempotency_key":"ecr_campaign_fixture"}}}}'
 expect:
   status: sealed
-  steps: [compose]
-  receipt: { schema: runx.receipt.v1, state: sealed, disposition: closed }
+  steps:
+  - compose
+  receipt:
+    schema: runx.receipt.v1
+    state: sealed
+    disposition: closed
 metadata:
   public_skill: nitrosend
   source_case: composition-campaign-intent-is-read

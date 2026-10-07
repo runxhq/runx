@@ -4,18 +4,29 @@ use std::net::TcpListener;
 use std::thread;
 use std::time::{Duration, Instant};
 
+const THREAD: &str = "slack://T123ABC/C123ABC/1750000000.000001";
+const OTHER_THREAD: &str = "slack://T123ABC/C123ABC/1750000000.000009";
+const REPLY: &str = "I\u{2019}ll verify this now.";
+const REPLY_DIGEST: &str =
+    "sha256:8604f5c08db8d76b6fa8066c769fbdc6a4992101373d0d17bcfe426cf8e77647";
+
 #[derive(Debug)]
 struct ProviderRequestTrace {
     operation: String,
-    access: String,
     provider_target: String,
     idempotency_key: Option<String>,
 }
 
-type ProviderServer = thread::JoinHandle<Result<Vec<ProviderRequestTrace>, String>>;
-type ProviderFixture = (String, ProviderServer);
+type ConnectFixture = (
+    String,
+    thread::JoinHandle<Result<Vec<ProviderRequestTrace>, String>>,
+);
 
-fn spawn_send_provider() -> TestResult<ProviderFixture> {
+/// A runx Connect stand-in for the Slack grant. It answers the operator's
+/// session and the first `answers` of `operations` provider operations; an
+/// operation past `answers` is read and its connection closed unanswered, as
+/// a transport failure after the provider may have acted.
+fn spawn_slack_connect(operations: usize, answers: usize) -> TestResult<ConnectFixture> {
     let listener = TcpListener::bind("127.0.0.1:0")?;
     listener
         .set_nonblocking(true)
@@ -23,13 +34,12 @@ fn spawn_send_provider() -> TestResult<ProviderFixture> {
     let address = listener.local_addr()?;
     let server = thread::spawn(move || -> Result<Vec<ProviderRequestTrace>, String> {
         let deadline = Instant::now() + Duration::from_secs(30);
-        let mut operations = Vec::new();
-        let mut mutation_key = None;
-        while operations.len() < 2 {
+        let mut traces = Vec::new();
+        while traces.len() < operations {
             if Instant::now() >= deadline {
                 return Err(format!(
-                    "provider fixture timed out after {} operations",
-                    operations.len()
+                    "Connect fixture timed out after {} operations",
+                    traces.len()
                 ));
             }
             let (mut stream, _) = match listener.accept() {
@@ -56,160 +66,58 @@ fn spawn_send_provider() -> TestResult<ProviderFixture> {
                 continue;
             }
             if !request_line.starts_with("POST /v1/provider-operations HTTP/1.1") {
-                return Err(format!("unexpected provider request: {request_line}"));
+                return Err(format!("unexpected Connect request: {request_line}"));
             }
             let body = request
                 .split_once("\r\n\r\n")
                 .map(|(_, body)| body)
-                .ok_or_else(|| "provider request omitted its body".to_owned())?;
+                .ok_or_else(|| "Connect request omitted its body".to_owned())?;
             let value: Value = serde_json::from_str(body)
-                .map_err(|error| format!("invalid provider request JSON: {error}"))?;
-            let operation = value["operation"]
-                .as_str()
-                .ok_or_else(|| "provider request omitted operation".to_owned())?
-                .to_owned();
-            let access = value["access"]
-                .as_str()
-                .ok_or_else(|| "provider request omitted access".to_owned())?
-                .to_owned();
-            let target = value["target"]
-                .as_str()
-                .ok_or_else(|| "provider request omitted target".to_owned())?
-                .to_owned();
-            let key = value["input"]["idempotency_key"]
-                .as_str()
-                .map(str::to_owned);
-            if operation == "message.send" {
-                mutation_key = key.clone();
-            }
-            let key = key.or_else(|| mutation_key.clone());
-            operations.push(ProviderRequestTrace {
-                operation: operation.clone(),
-                access: access.clone(),
-                provider_target: target.clone(),
-                idempotency_key: key.clone(),
-            });
-            let mut response = serde_json::json!({
-                "status": "success",
-                "provider": "provider-send-demo",
-                "operation": operation,
-                "target": target,
-                "access": access,
-                "readback_ref": format!("runx:provider_readback:message-001:{}", operations.len()),
-                "result": {
-                    "message_id": "message-001",
-                    "principal_ref": "account:release-bot",
-                    "audience_ref": "release-subscribers",
-                    "content_digest": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
-                    "status": "sent",
-                    "sent_at": "2026-08-11T00:00:00Z",
-                    "idempotency_key": key
-                }
-            });
-            if response["access"] == "mutate" {
-                response["operation_id"] = Value::String("provider-operation-message-001".into());
-                response["idempotency_key"] = response["result"]["idempotency_key"].clone();
-            } else {
-                response["idempotency_key"] = response["result"]["idempotency_key"].clone();
-            }
-            write_http_json(&mut stream, &response)?;
-        }
-        Ok(operations)
-    });
-    Ok((format!("http://{address}"), server))
-}
-
-fn spawn_mutation_provider(
-    provider: &'static str,
-    return_readback: bool,
-) -> TestResult<(
-    String,
-    thread::JoinHandle<Result<ProviderRequestTrace, String>>,
-)> {
-    let listener = TcpListener::bind("127.0.0.1:0")?;
-    listener
-        .set_nonblocking(true)
-        .map_err(|error| error.to_string())?;
-    let address = listener.local_addr()?;
-    let server = thread::spawn(move || -> Result<ProviderRequestTrace, String> {
-        let deadline = Instant::now() + Duration::from_secs(30);
-        loop {
-            if Instant::now() >= deadline {
-                return Err("provider mutation fixture timed out".to_owned());
-            }
-            let (mut stream, _) = match listener.accept() {
-                Ok(connection) => connection,
-                Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
-                    thread::sleep(Duration::from_millis(5));
-                    continue;
-                }
-                Err(error) => return Err(error.to_string()),
-            };
-            stream
-                .set_read_timeout(Some(Duration::from_secs(5)))
-                .map_err(|error| error.to_string())?;
-            let request = read_http_request(&mut stream)?;
-            let request_line = request.lines().next().unwrap_or_default();
-            if request_line.starts_with("GET /v1/me HTTP/1.1") {
-                write_http_json(
-                    &mut stream,
-                    &serde_json::json!({
-                        "status": "success",
-                        "principal": {"principal_id": "operator:test", "role": "user"}
-                    }),
-                )?;
-                continue;
-            }
-            if !request_line.starts_with("POST /v1/provider-operations HTTP/1.1") {
-                return Err(format!("unexpected provider request: {request_line}"));
-            }
-            let body = request
-                .split_once("\r\n\r\n")
-                .map(|(_, body)| body)
-                .ok_or_else(|| "provider request omitted its body".to_owned())?;
-            let value: Value = serde_json::from_str(body)
-                .map_err(|error| format!("invalid provider request JSON: {error}"))?;
+                .map_err(|error| format!("invalid Connect request JSON: {error}"))?;
             let trace = ProviderRequestTrace {
                 operation: value["operation"].as_str().unwrap_or_default().to_owned(),
-                access: value["access"].as_str().unwrap_or_default().to_owned(),
                 provider_target: value["target"].as_str().unwrap_or_default().to_owned(),
                 idempotency_key: value["input"]["idempotency_key"]
                     .as_str()
                     .map(str::to_owned),
             };
-            if !return_readback {
-                // Closing after reading the mutation models acceptance followed
-                // by an ambiguous transport failure.
-                return Ok(trace);
+            if traces.len() >= answers {
+                traces.push(trace);
+                continue;
             }
-            let key = trace
-                .idempotency_key
-                .clone()
-                .ok_or_else(|| "mutation omitted its idempotency key".to_owned())?;
-            write_http_json(
-                &mut stream,
-                &serde_json::json!({
-                    "status": "success",
-                    "provider": provider,
-                    "operation": trace.operation.clone(),
-                    "target": trace.provider_target.clone(),
-                    "access": trace.access.clone(),
-                    "operation_id": "provider-operation-recovered-001",
-                    "idempotency_key": key.clone(),
-                    "readback_ref": "runx:provider_readback:recovered-001",
-                    "result": {
-                        "message_id": "message-recovered-001",
-                        "principal_ref": "account:release-bot",
-                        "audience_ref": "release-subscribers",
-                        "content_digest": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
-                        "status": "sent",
-                        "sent_at": "2026-08-11T00:00:00Z",
-                        "idempotency_key": key
-                    }
-                }),
-            )?;
-            return Ok(trace);
+            let mutation = trace.operation == "thread.reply";
+            let mut result = serde_json::json!({
+                "provider": "slack",
+                "external_tenant_ref": "slack:T123ABC",
+                "connected_subject_ref": "slack:U123ABC",
+                "conversation_locator": "slack://T123ABC/C123ABC",
+                "thread_locator": trace.provider_target.clone(),
+                "message_locator": "slack://T123ABC/C123ABC/1750000000.000002",
+                "occurred_at": "2026-08-11T00:00:00Z",
+                "content_digest": REPLY_DIGEST
+            });
+            let mut response = serde_json::json!({
+                "status": "success",
+                "provider": "slack",
+                "operation": trace.operation.clone(),
+                "target": trace.provider_target.clone(),
+                "access": if mutation { "mutate" } else { "read" },
+                "readback_ref": format!("runx:provider_readback:slack-reply:{}", traces.len() + 1)
+            });
+            if mutation {
+                let key = trace
+                    .idempotency_key
+                    .clone()
+                    .ok_or_else(|| "the reply omitted its idempotency key".to_owned())?;
+                result["idempotency_key"] = Value::String(key.clone());
+                response["operation_id"] = Value::String("slack-message-001".to_owned());
+                response["idempotency_key"] = Value::String(key);
+            }
+            response["result"] = result;
+            write_http_json(&mut stream, &response)?;
+            traces.push(trace);
         }
+        Ok(traces)
     });
     Ok((format!("http://{address}"), server))
 }
@@ -264,18 +172,14 @@ fn write_http_json(stream: &mut std::net::TcpStream, body: &Value) -> Result<(),
 fn provider_command(root: &Path, base_url: &str) -> Command {
     let mut command = command(root);
     command
-        .env("RUNX_PROVIDER_PERMISSION_GRANT_ID", "grant-send-demo")
+        .env("RUNX_PROVIDER_PERMISSION_GRANT_ID", "grant-slack-demo")
         .env(
             "RUNX_PROVIDER_PERMISSION_GRANTED_SCOPES",
-            r#"["message.send","message.read"]"#,
+            r#"["thread.reply","thread.reply.read"]"#,
         )
         .env(
             "RUNX_PROVIDER_PERMISSION_PRINCIPAL_REF",
             "runx:principal:operator:test",
-        )
-        .env(
-            "RUNX_PROVIDER_PERMISSION_TRANSPORT",
-            "hosted:grant-send-demo",
         )
         .env("RUNX_PUBLIC_API_BASE_URL", base_url)
         .env("RUNX_PUBLIC_API_TOKEN", "rxk_operator_journey")
@@ -283,122 +187,133 @@ fn provider_command(root: &Path, base_url: &str) -> Command {
     command
 }
 
-#[test]
-fn publishing_journey_plans_once_gates_once_and_closes_on_provider_readback() -> TestResult {
-    let root = crate::support::temp_root("runx-publishing-provider-journey");
-    let repo_root = crate::support::repo_root()?;
-    let receipt_dir = root.join(".runx/receipts");
-    fs::create_dir_all(&root)?;
-    let (base_url, server) = spawn_send_provider()?;
-
-    let pause = provider_command(&root, &base_url)
-        .arg("skill")
-        .arg(repo_root.join("skills/send-as"))
-        .args([
-            "--input",
-            "objective=Send the digest-bound release notice.",
-            "--input",
-            "principal=account:release-bot",
-            "--input",
-            r#"provider_context={"provider":"provider-send-demo","account_ref":"acct_release","runtime_path":"provider.send","ready":true}"#,
-            "--input",
-            r#"audience={"type":"channel","ref":"release-subscribers"}"#,
-            "--input",
-            r#"content_ref={"draft_ref":"message:release-notice","digest":"sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee","subject_or_title":"Release notice"}"#,
-            "--input",
-            "consent_basis=Subscribers opted in to release notices.",
-            "--input",
-            "operator_context=Require exact approval before live delivery.",
-            "--input",
-            r#"connector={"provider":"provider-send-demo","target":"account:acct_release/channel:release-subscribers"}"#,
-        ])
-        .arg("--receipt-dir")
-        .arg(&receipt_dir)
-        .args(["--json"])
-        .output()?;
-    let pause = assert_json(&pause, 2)?;
-    assert_eq!(pause["status"], "needs_agent", "{pause}");
-    let run_id = json_string(&pause, "run_id")?;
-    let plan_request = pause["requests"]
-        .as_array()
-        .and_then(|requests| requests.first())
-        .and_then(|request| request["id"].as_str())
-        .ok_or("publishing pause omitted its planning request")?;
-    let plan_answer = serde_json::json!({
-        "answers": {
-            (plan_request): {
-                "send_plan": send_plan("provider-send-demo")
+fn reply_inputs(thread_locator: &str, idempotency_key: &str) -> Value {
+    serde_json::json!({
+        "send_plan": {
+            "decision": "ready",
+            "action_family": "send-as",
+            "principal": {"type": "user", "ref": "user:kam"},
+            "provider": {"name": "slack", "account_ref": "workspace:T123ABC", "runtime_path": "slack"},
+            "send_class": "internal",
+            "channel": "chat",
+            "audience": {"type": "thread", "ref": thread_locator, "requires_reconfirmation": false},
+            "content": {"draft_ref": "inline", "digest": REPLY_DIGEST, "subject_or_title": "Slack thread reply"},
+            "gates": {"preflight_required": true, "human_approval_required": true, "approval_ref": "slack.deliver-reply.approval"},
+            "blockers": [],
+            "provider_actions": ["thread.reply"],
+            "evidence_refs": [],
+            "success_checkpoint": {
+                "milestone": "plan_ready",
+                "description": "Digest-bound Slack reply awaits approved provider execution."
             }
-        }
+        },
+        "thread_locator": thread_locator,
+        "text": REPLY,
+        "idempotency_key": idempotency_key
     })
-    .to_string();
-    let mut plan_resume = provider_command(&root, &base_url);
-    plan_resume
-        .arg("resume")
-        .arg(run_id)
-        .arg("-")
+}
+
+fn deliver_reply(
+    root: &Path,
+    base_url: &str,
+    receipt_dir: &Path,
+    inputs: &str,
+) -> TestResult<Output> {
+    let repo_root = crate::support::repo_root()?;
+    Ok(provider_command(root, base_url)
+        .arg("skill")
+        .arg(repo_root.join("skills/slack"))
+        .arg("deliver_reply")
+        .arg("--inputs")
+        .arg(inputs)
         .arg("--receipt-dir")
-        .arg(&receipt_dir)
-        .arg("--json");
-    let approval_pause = output_with_stdin(&mut plan_resume, &plan_answer)?;
-    let approval_pause = assert_json(&approval_pause, 2)?;
-    assert_eq!(
-        approval_pause["status"], "needs_approval",
-        "{approval_pause}"
-    );
-    assert_eq!(approval_pause["run_id"], run_id);
-    let approval_id = approval_pause["requests"]
+        .arg(receipt_dir)
+        .arg("--json")
+        .output()?)
+}
+
+/// Start `deliver_reply` from `inputs` and expect its one exact approval.
+fn reply_pause(
+    root: &Path,
+    base_url: &str,
+    receipt_dir: &Path,
+    inputs: &str,
+) -> TestResult<(String, String)> {
+    let pause = assert_json(&deliver_reply(root, base_url, receipt_dir, inputs)?, 2)?;
+    assert_eq!(pause["status"], "needs_approval", "{pause}");
+    let requests = pause["requests"]
         .as_array()
-        .and_then(|requests| requests.first())
-        .and_then(|request| request["id"].as_str())
-        .ok_or("publishing pause omitted its live-send approval")?;
+        .ok_or("the reply pause listed no requests")?;
+    assert_eq!(requests.len(), 1, "one exact approval gates the reply");
+    let approval_id = requests[0]["id"]
+        .as_str()
+        .ok_or("the reply pause omitted its approval")?
+        .to_owned();
+    Ok((json_string(&pause, "run_id")?.to_owned(), approval_id))
+}
+
+fn approve(
+    root: &Path,
+    base_url: &str,
+    receipt_dir: &Path,
+    run_id: &str,
+    approval_id: &str,
+) -> TestResult<Output> {
     let approval = serde_json::json!({
         "approvals": {
             (approval_id): {
                 "approved": true,
-                "reason": "Publish this exact content digest to this exact audience."
+                "reason": "Post this exact reply to this exact thread once."
             }
         }
     })
     .to_string();
-    let mut send = provider_command(&root, &base_url);
-    send.arg("resume")
+    let mut resume = provider_command(root, base_url);
+    resume
+        .arg("resume")
         .arg(run_id)
         .arg("-")
         .arg("--receipt-dir")
-        .arg(&receipt_dir)
+        .arg(receipt_dir)
         .arg("--json");
-    let sent = output_with_stdin(&mut send, &approval)?;
-    let sent = assert_json(&sent, 0)?;
+    output_with_stdin(&mut resume, &approval)
+}
+
+#[test]
+fn slack_reply_journey_gates_once_and_closes_on_provider_readback() -> TestResult {
+    let root = crate::support::temp_root("runx-slack-reply-journey");
+    let receipt_dir = root.join(".runx/receipts");
+    fs::create_dir_all(&root)?;
+    fs::write(
+        root.join("reply.json"),
+        reply_inputs(THREAD, "00000000-0000-4000-8000-000000000001").to_string(),
+    )?;
+    let (base_url, server) = spawn_slack_connect(2, 2)?;
+
+    let (run_id, approval_id) = reply_pause(&root, &base_url, &receipt_dir, "reply.json")?;
+    let sent = assert_json(
+        &approve(&root, &base_url, &receipt_dir, &run_id, &approval_id)?,
+        0,
+    )?;
     let server = server
         .join()
-        .map_err(|_| "provider fixture panicked")?
+        .map_err(|_| "Connect fixture panicked")?
         .map_err(|error| -> Box<dyn std::error::Error> { error.into() })?;
 
     assert_eq!(sent["status"], "sealed", "{sent}");
     assert_eq!(sent["outcome"], "completed");
-    assert_eq!(sent["run_id"], run_id);
-    let result = &sent["result"]["send_result"]["data"];
-    assert_eq!(result["status"], "sent", "{result}");
-    assert_eq!(result["outcome"], "completed");
-    assert_eq!(result["provider"], "provider-send-demo");
-    assert_eq!(
-        result["content_digest"],
-        send_plan("provider-send-demo")["content"]["digest"]
-    );
+    assert_eq!(sent["run_id"], run_id.as_str());
+    let readback = &sent["result"]["provider_operation"]["data"];
+    assert_eq!(readback["operation"], "thread.reply.read", "{sent}");
+    assert_eq!(readback["result"]["thread_locator"], THREAD);
+    assert_eq!(readback["result"]["content_digest"], REPLY_DIGEST);
     assert_eq!(server.len(), 2);
-    assert_eq!(server[0].operation, "message.send");
-    assert_eq!(server[0].access, "mutate");
-    assert_eq!(server[1].operation, "message.read");
-    assert_eq!(server[1].access, "read");
-    assert_eq!(server[0].provider_target, server[1].provider_target);
-    assert_eq!(server[0].idempotency_key, server[1].idempotency_key);
-    assert!(
-        server[0]
-            .idempotency_key
-            .as_deref()
-            .is_some_and(|key| key.starts_with("runx:sha256:") && key.len() == 76)
-    );
+    assert_eq!(server[0].operation, "thread.reply");
+    assert_eq!(server[1].operation, "thread.reply.read");
+    assert_eq!(server[0].provider_target, THREAD);
+    assert_eq!(server[1].provider_target, THREAD);
+    assert!(server[0].idempotency_key.is_some());
+    assert!(server[1].idempotency_key.is_none(), "a read carries no key");
     assert!(sent.get("execution").is_none());
     assert!(
         sent.to_string().len() < 16_384,
@@ -410,163 +325,68 @@ fn publishing_journey_plans_once_gates_once_and_closes_on_provider_readback() ->
     assert!(
         history["pendingRuns"]
             .as_array()
-            .is_some_and(|runs| runs.iter().all(|run| run["id"] != run_id))
+            .is_some_and(|runs| runs.iter().all(|run| run["id"] != run_id.as_str()))
     );
     Ok(())
 }
 
 #[test]
-fn ambiguous_publish_recovers_same_provider_and_never_silently_fails_over() -> TestResult {
-    let root = crate::support::temp_root("runx-provider-recovery-journey");
-    let repo_root = crate::support::repo_root()?;
+fn ambiguous_reply_holds_for_reconciliation_and_another_thread_needs_its_own_approval() -> TestResult
+{
+    let root = crate::support::temp_root("runx-slack-reply-recovery-journey");
     let receipt_dir = root.join(".runx/receipts");
     fs::create_dir_all(&root)?;
-    let provider_a = "provider-send-demo";
-    let provider_b = "provider-send-backup";
-    let provider_a_inputs = root.join("provider-a-send.json");
-    let provider_b_inputs = root.join("provider-b-send.json");
+    let key = "00000000-0000-4000-8000-000000000003";
     fs::write(
-        &provider_a_inputs,
-        send_apply_inputs(provider_a).to_string(),
+        root.join("reply.json"),
+        reply_inputs(THREAD, key).to_string(),
     )?;
     fs::write(
-        &provider_b_inputs,
-        send_apply_inputs(provider_b).to_string(),
+        root.join("other-reply.json"),
+        reply_inputs(OTHER_THREAD, key).to_string(),
     )?;
-    let (ambiguous_url, ambiguous_server) = spawn_mutation_provider(provider_a, false)?;
 
-    let pause = provider_command(&root, &ambiguous_url)
-        .arg("skill")
-        .arg(repo_root.join("skills/send-as"))
-        .arg("apply")
-        .arg("--inputs")
-        .arg("provider-a-send.json")
-        .arg("--receipt-dir")
-        .arg(&receipt_dir)
-        .arg("--json")
-        .output()?;
-    let pause = assert_json(&pause, 2)?;
-    assert_eq!(pause["status"], "needs_approval", "{pause}");
-    let run_id = json_string(&pause, "run_id")?;
-    let approval_id = pause["requests"]
-        .as_array()
-        .and_then(|requests| requests.first())
-        .and_then(|request| request["id"].as_str())
-        .ok_or("provider recovery pause omitted approval")?;
-    let approval = serde_json::json!({
-        "approvals": {
-            (approval_id): {
-                "approved": true,
-                "reason": "Attempt this exact provider mutation once."
-            }
-        }
-    })
-    .to_string();
-    let mut attempt = provider_command(&root, &ambiguous_url);
-    attempt
-        .arg("resume")
-        .arg(run_id)
-        .arg("-")
-        .arg("--receipt-dir")
-        .arg(&receipt_dir)
-        .arg("--json");
-    let ambiguous = output_with_stdin(&mut attempt, &approval)?;
-    let ambiguous = assert_json(&ambiguous, 1)?;
+    // The reply reaches Connect and the connection drops before any answer.
+    let (ambiguous_url, ambiguous_server) = spawn_slack_connect(1, 0)?;
+    let (run_id, approval_id) = reply_pause(&root, &ambiguous_url, &receipt_dir, "reply.json")?;
+    let ambiguous = assert_json(
+        &approve(&root, &ambiguous_url, &receipt_dir, &run_id, &approval_id)?,
+        1,
+    )?;
     assert_eq!(ambiguous["status"], "failure", "{ambiguous}");
     assert!(
         ambiguous["error"]["message"]
             .as_str()
-            .is_some_and(|message| message.contains("outcome is unknown"))
+            .is_some_and(|message| message.contains("outcome is unknown")),
+        "{ambiguous}"
     );
     let ambiguous_trace = ambiguous_server
         .join()
-        .map_err(|_| "ambiguous provider fixture panicked")?
+        .map_err(|_| "ambiguous Connect fixture panicked")?
         .map_err(|error| -> Box<dyn std::error::Error> { error.into() })?;
-    assert_eq!(ambiguous_trace.operation, "message.send");
-    assert_eq!(ambiguous_trace.access, "mutate");
+    assert_eq!(ambiguous_trace.len(), 1);
+    assert_eq!(ambiguous_trace[0].operation, "thread.reply");
 
-    // A different provider is a different consequential act. The runtime must
-    // require a fresh exact approval instead of treating it as recovery.
-    let failover = provider_command(&root, &ambiguous_url)
-        .arg("skill")
-        .arg(repo_root.join("skills/send-as"))
-        .arg("apply")
-        .arg("--inputs")
-        .arg("provider-b-send.json")
-        .arg("--receipt-dir")
-        .arg(&receipt_dir)
-        .arg("--json")
-        .output()?;
-    let failover = assert_json(&failover, 2)?;
-    assert_eq!(failover["status"], "needs_approval", "{failover}");
-    assert_ne!(failover["run_id"], run_id);
+    // A reply to another thread is a different consequential act: it needs
+    // its own exact approval, never the first one's.
+    let (_, other_approval) = reply_pause(&root, &ambiguous_url, &receipt_dir, "other-reply.json")?;
+    assert_ne!(other_approval, approval_id);
 
-    // Retrying the original act uses its recorded authority and exact key. It
-    // does not make the operator approve the same mutation a second time.
-    let (recovery_url, recovery_server) = spawn_mutation_provider(provider_a, true)?;
-    let recovered = provider_command(&root, &recovery_url)
-        .arg("skill")
-        .arg(repo_root.join("skills/send-as"))
-        .arg("apply")
-        .arg("--inputs")
-        .arg("provider-a-send.json")
-        .arg("--receipt-dir")
-        .arg(&receipt_dir)
-        .arg("--json")
-        .output()?;
-    let recovered = assert_json(&recovered, 0)?;
-    let recovered_trace = recovery_server
-        .join()
-        .map_err(|_| "recovery provider fixture panicked")?
-        .map_err(|error| -> Box<dyn std::error::Error> { error.into() })?;
-    assert_eq!(recovered["status"], "sealed", "{recovered}");
-    assert_eq!(recovered["outcome"], "completed");
-    assert_eq!(
-        recovered["result"]["provider_operation"]["data"]["provider"],
-        provider_a
+    // Retrying the first reply finds its unsettled attempt. The reply may have
+    // posted and Slack does not deduplicate it, so the run holds for
+    // reconciliation: it neither posts again nor asks for a new approval.
+    let retried = assert_json(
+        &deliver_reply(&root, &ambiguous_url, &receipt_dir, "reply.json")?,
+        1,
+    )?;
+    assert_eq!(retried["status"], "failure", "{retried}");
+    assert!(
+        retried["error"]["message"]
+            .as_str()
+            .is_some_and(|message| message.contains("reconcile")),
+        "{retried}"
     );
-    assert_eq!(
-        ambiguous_trace.idempotency_key, recovered_trace.idempotency_key,
-        "recovery must preserve the original mutation key"
-    );
-    let receipt_id = json_string(&recovered, "receipt_id")?;
-    assert_receipt_verifies(&root, &receipt_dir, receipt_id)?;
     Ok(())
-}
-
-fn send_apply_inputs(provider: &str) -> Value {
-    serde_json::json!({
-        "send_plan": send_plan(provider),
-        "connector": {
-            "provider": provider,
-            "target": "account:acct_release/channel:release-subscribers"
-        }
-    })
-}
-
-fn send_plan(provider: &str) -> Value {
-    serde_json::json!({
-        "decision": "ready",
-        "action_family": "send-as",
-        "principal": {"type": "account", "ref": "account:release-bot"},
-        "provider": {"name": provider, "account_ref": "acct_release", "runtime_path": "provider.send"},
-        "send_class": "status",
-        "channel": "email",
-        "audience": {"type": "channel", "ref": "release-subscribers", "requires_reconfirmation": false},
-        "content": {
-            "draft_ref": "message:release-notice",
-            "digest": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
-            "subject_or_title": "Release notice"
-        },
-        "gates": {"preflight_required": true, "human_approval_required": true, "approval_ref": "send-as.live-send.approval"},
-        "blockers": [],
-        "provider_actions": ["message.send"],
-        "evidence_refs": ["provider_context:provider-send-demo"],
-        "success_checkpoint": {
-            "milestone": "send_ready_for_approval",
-            "description": "The exact digest-bound release notice awaits live-send approval."
-        }
-    })
 }
 
 #[test]

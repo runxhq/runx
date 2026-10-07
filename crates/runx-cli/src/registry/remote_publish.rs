@@ -50,7 +50,7 @@ pub(super) fn publish_remote_skill_package(
         .map_err(|error| internal_error(error.to_string()));
     }
     let environment =
-        runx_runtime::HostedApiEnvironment::resolve_publish(Some(registry_url), None, env, cwd)
+        runx_runtime::HostedApiEnvironment::resolve_publish(Some(registry_url), env, cwd)
             .map_err(|error| usage_error(error.to_string()))?;
     let transport = runx_runtime::hosted_api_transport(
         runx_runtime::hosted_private_network_allowed(false, env),

@@ -70,7 +70,7 @@ fn provider_read_uses_only_the_idempotent_transport_lane() {
         ),
     ]);
     let environment =
-        HostedApiEnvironment::resolve(Some("https://api.runx.test"), None, &env, Path::new("."))
+        HostedApiEnvironment::resolve(Some("https://api.runx.test"), &env, Path::new("."))
             .expect("environment")
             .authenticate(&transport)
             .expect("authenticated");
@@ -81,10 +81,11 @@ fn provider_read_uses_only_the_idempotent_transport_lane() {
         &ProviderOperationRequest {
             grant_id: "grant_x402_1".to_owned(),
             operation: "payment.x402.read".to_owned(),
+            operation_digest: format!("sha256:{}", "a".repeat(64)),
             target: "https://vendor.example/v1/invocations".to_owned(),
             scopes: vec!["payment.x402.read".to_owned()],
             input: JsonObject::new(),
-            expected_access: Some(ProviderOperationAccess::Read),
+            access: OperationAccess::Read,
         },
     )
     .expect("provider read");
@@ -121,7 +122,7 @@ fn provider_operation_authenticates_and_returns_bounded_readback() {
         ),
     ]);
     let environment =
-        HostedApiEnvironment::resolve(Some("https://api.runx.test"), None, &env, Path::new("."))
+        HostedApiEnvironment::resolve(Some("https://api.runx.test"), &env, Path::new("."))
             .expect("environment")
             .authenticate(&transport)
             .expect("authenticated");
@@ -131,21 +132,19 @@ fn provider_operation_authenticates_and_returns_bounded_readback() {
         &ProviderOperationRequest {
             grant_id: "grant_slack_1".to_owned(),
             operation: "thread.reply".to_owned(),
+            operation_digest: format!("sha256:{}", "a".repeat(64)),
             target: "slack://T/C/2".to_owned(),
             scopes: vec!["thread.reply".to_owned()],
             input: JsonObject::from([(
                 "idempotency_key".to_owned(),
                 JsonValue::String("runx:test-operation".to_owned()),
             )]),
-            expected_access: Some(ProviderOperationAccess::Mutate),
+            access: OperationAccess::Mutate,
         },
     )
     .expect("provider operation");
 
-    assert_eq!(
-        response.get("provider").and_then(JsonValue::as_str),
-        Some("slack")
-    );
+    assert_eq!(response.provider, "slack");
     assert_eq!(transport.requests.borrow().len(), 2);
     assert_eq!(transport.idempotent_requests.get(), 0);
     let request_body: JsonValue = serde_json::from_str(
@@ -198,7 +197,7 @@ fn provider_grant_listing_returns_only_bounded_authority_metadata() {
         ),
     ]);
     let environment =
-        HostedApiEnvironment::resolve(Some("https://api.runx.test"), None, &env, Path::new("."))
+        HostedApiEnvironment::resolve(Some("https://api.runx.test"), &env, Path::new("."))
             .expect("environment")
             .authenticate(&transport)
             .expect("authenticated");
@@ -226,49 +225,27 @@ fn provider_grant_listing_returns_only_bounded_authority_metadata() {
 }
 
 #[test]
-fn provider_operation_rejects_mismatched_readback() {
-    let request = ProviderOperationRequest {
-        grant_id: "grant_github_1".to_owned(),
-        operation: "issue.read".to_owned(),
-        target: "github://runxhq/runx/issues/1".to_owned(),
-        scopes: vec!["repo.read".to_owned()],
-        input: JsonObject::new(),
-        expected_access: Some(ProviderOperationAccess::Read),
-    };
-    let error = parse_provider_operation_response(
-        response_object(serde_json::json!({
-            "status": "success",
-            "provider": "github",
-            "operation": "issue.write",
-            "target": "github://runxhq/runx/issues/1",
-            "result": {}
-        })),
-        &request,
-    )
-    .expect_err("mismatch");
-    assert!(error.to_string().contains("does not match"));
-}
-
-#[test]
 fn provider_operation_rejects_mismatched_access_before_trusting_result() {
     let request = ProviderOperationRequest {
         grant_id: "grant_slack_1".to_owned(),
         operation: "thread.reply".to_owned(),
+        operation_digest: format!("sha256:{}", "a".repeat(64)),
         target: "slack://T/C/2".to_owned(),
         scopes: vec!["thread.reply".to_owned()],
         input: JsonObject::new(),
-        expected_access: Some(ProviderOperationAccess::Read),
+        access: OperationAccess::Read,
     };
-    let error = parse_provider_operation_response(
+    let error = decode_readback(
         response_object(serde_json::json!({
             "status": "success",
             "provider": "slack",
             "operation": "thread.reply",
             "target": "slack://T/C/2",
             "access": "mutate",
+            "readback_ref": "runx:provider-readback:1",
             "result": {"message_locator": "slack://T/C/2"}
         })),
-        &request,
+        request.access,
     )
     .expect_err("access mismatch");
     assert!(error.to_string().contains("response access"));
@@ -279,12 +256,13 @@ fn provider_operation_requires_explicit_success_status() {
     let request = ProviderOperationRequest {
         grant_id: "grant_slack_1".to_owned(),
         operation: "thread.read".to_owned(),
+        operation_digest: format!("sha256:{}", "a".repeat(64)),
         target: "slack://T/C/2".to_owned(),
         scopes: vec!["thread.read".to_owned()],
         input: JsonObject::new(),
-        expected_access: Some(ProviderOperationAccess::Read),
+        access: OperationAccess::Read,
     };
-    let error = parse_provider_operation_response(
+    let error = decode_readback(
         response_object(serde_json::json!({
             "provider": "slack",
             "operation": "thread.read",
@@ -292,11 +270,11 @@ fn provider_operation_requires_explicit_success_status() {
             "access": "read",
             "result": {"messages": []}
         })),
-        &request,
+        request.access,
     )
-    .expect_err("missing success status must fail closed");
+    .expect_err("a missing status must fail closed");
 
-    assert!(error.to_string().contains("status is not success"));
+    assert!(error.to_string().contains("status"));
 }
 
 #[test]
@@ -304,12 +282,13 @@ fn provider_operation_requires_readback_evidence() {
     let request = ProviderOperationRequest {
         grant_id: "grant_slack_1".to_owned(),
         operation: "thread.read".to_owned(),
+        operation_digest: format!("sha256:{}", "a".repeat(64)),
         target: "slack://T/C/2".to_owned(),
         scopes: vec!["thread.read".to_owned()],
         input: JsonObject::new(),
-        expected_access: Some(ProviderOperationAccess::Read),
+        access: OperationAccess::Read,
     };
-    let error = parse_provider_operation_response(
+    let error = decode_readback(
         response_object(serde_json::json!({
             "status": "success",
             "provider": "slack",
@@ -318,43 +297,11 @@ fn provider_operation_requires_readback_evidence() {
             "access": "read",
             "result": {"messages": []}
         })),
-        &request,
+        request.access,
     )
     .expect_err("provider reads require readback evidence");
 
     assert!(error.to_string().contains("readback_ref"));
-}
-
-#[test]
-fn provider_mutation_requires_matching_runtime_idempotency_evidence() {
-    let request = ProviderOperationRequest {
-        grant_id: "grant_slack_1".to_owned(),
-        operation: "thread.reply".to_owned(),
-        target: "slack://T/C/2".to_owned(),
-        scopes: vec!["thread.reply".to_owned()],
-        input: JsonObject::from([(
-            "idempotency_key".to_owned(),
-            JsonValue::String("runx:expected".to_owned()),
-        )]),
-        expected_access: Some(ProviderOperationAccess::Mutate),
-    };
-    let error = parse_provider_operation_response(
-        response_object(serde_json::json!({
-            "status": "success",
-            "provider": "slack",
-            "operation": "thread.reply",
-            "target": "slack://T/C/2",
-            "access": "mutate",
-            "operation_id": "provider-op-1",
-            "idempotency_key": "caller-controlled",
-            "readback_ref": "runx:provider-readback:provider-op-1",
-            "result": {"message_locator": "slack://T/C/2"}
-        })),
-        &request,
-    )
-    .expect_err("mismatched provider idempotency must fail closed");
-
-    assert!(error.to_string().contains("runtime-derived request key"));
 }
 
 fn response_object(value: serde_json::Value) -> JsonObject {
@@ -363,4 +310,20 @@ fn response_object(value: serde_json::Value) -> JsonObject {
         .as_object()
         .expect("provider response fixture must be an object")
         .clone()
+}
+
+#[test]
+fn operation_grammar_admits_underscored_segments() {
+    for operation in ["reports.run_realtime", "sync.write_batch", "thread.reply"] {
+        assert!(
+            super::validate_provider_operation(operation).is_ok(),
+            "{operation}"
+        );
+    }
+    for operation in ["thread", "Thread.reply", "_sync.read", "a..b"] {
+        assert!(
+            super::validate_provider_operation(operation).is_err(),
+            "{operation}"
+        );
+    }
 }

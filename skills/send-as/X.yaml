@@ -1,5 +1,5 @@
 skill: send-as
-version: "0.3.2"
+version: "0.3.3"
 
 catalog:
   kind: graph
@@ -23,6 +23,11 @@ input_definitions:
         provider: { type: string, minLength: 1, maxLength: 100 }
         target: { type: string, minLength: 1, maxLength: 2048 }
 
+connectors:
+  delivery:
+    operations: [message.send, message.read]
+    connector_from: $input.connector.provider
+    allowed_connectors: [slack]
 runners:
   send:
     default: true
@@ -188,23 +193,16 @@ runners:
               delivery_request: object
 
         - id: deliver
-          tool: provider.mutate
+          operation: delivery/message.send
           idempotency_key: bind.delivery_request.idempotency_key
-          scopes: [message.send]
-          policy:
-            provider_permission:
-              verb: write
           inputs:
-            expected_provider: $input.connector.provider
-            operation: message.send
-            target: $input.connector.target
             approval:
               reason: Approve delivering this exact digest-bound message.
               type: message_delivery
             result_fields: [message_id, principal_ref, audience_ref, content_digest, status, sent_at, idempotency_key]
           context:
             idempotency_key: bind.delivery_request.idempotency_key
-            input: bind.delivery_request.payload
+            input: bind.delivery_request.input
             expected_result: bind.delivery_request.expected_result
 
   verify:
@@ -227,17 +225,11 @@ runners:
       result_from: [finalize]
       steps:
         - id: readback
-          tool: provider.read
-          scopes: [message.read]
-          policy:
-            provider_permission:
-              verb: read
+          operation: delivery/message.read
           inputs:
-            expected_provider: $input.connector.provider
-            operation: message.read
-            target: $input.connector.target
             result_fields: [message_id, principal_ref, audience_ref, content_digest, status, sent_at, idempotency_key]
             input:
+              target: $input.connector.target
               message_id: $input.apply_result.result.message_id
             expected_result:
               message_id: $input.apply_result.result.message_id

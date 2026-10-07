@@ -217,6 +217,9 @@ fn native_skill_run_pauses_with_agent_act_request() -> Result<(), Box<dyn std::e
     let skill_dir = write_agent_task_skill(temp.path())?;
     let expected_instructions = fs::read_to_string(skill_dir.join("SKILL.md"))?;
     let result = run_skill(SkillRunRequest {
+        current_context: Vec::new(),
+        historical_context: Vec::new(),
+        run_authority: None,
         skill_path: skill_dir.clone(),
         receipt_dir: None,
         run_id: None,
@@ -230,7 +233,6 @@ fn native_skill_run_pauses_with_agent_act_request() -> Result<(), Box<dyn std::e
         env: BTreeMap::new(),
         cwd: temp.path().to_path_buf(),
         managed_agent: Default::default(),
-        local_credential: None,
     })?;
 
     let output = object(&result.output, "skill run result")?;
@@ -264,6 +266,9 @@ fn native_skill_run_pauses_with_agent_act_request() -> Result<(), Box<dyn std::e
     );
 
     let other = run_skill(SkillRunRequest {
+        current_context: Vec::new(),
+        historical_context: Vec::new(),
+        run_authority: None,
         skill_path: skill_dir,
         receipt_dir: None,
         run_id: None,
@@ -277,7 +282,6 @@ fn native_skill_run_pauses_with_agent_act_request() -> Result<(), Box<dyn std::e
         env: BTreeMap::new(),
         cwd: temp.path().to_path_buf(),
         managed_agent: Default::default(),
-        local_credential: None,
     })?;
     let other = object(&other.output, "second skill run result")?;
     assert_ne!(
@@ -300,6 +304,9 @@ fn configured_model_credentials_do_not_enable_managed_agent_without_run_consent(
         ("RUNX_AGENT_API_KEY".to_owned(), "test-secret".to_owned()),
     ]);
     let result = run_skill(SkillRunRequest {
+        current_context: Vec::new(),
+        historical_context: Vec::new(),
+        run_authority: None,
         skill_path: skill_dir,
         receipt_dir: None,
         run_id: None,
@@ -308,7 +315,6 @@ fn configured_model_credentials_do_not_enable_managed_agent_without_run_consent(
         env,
         cwd: temp.path().to_path_buf(),
         managed_agent: Default::default(),
-        local_credential: None,
     })?;
 
     let output = object(&result.output, "configured no-consent result")?;
@@ -328,6 +334,9 @@ fn native_agent_task_skill_run_infers_bundled_tool_roots() -> Result<(), Box<dyn
     let bundled_tools = bundled_tools.canonicalize()?;
 
     let result = run_skill(SkillRunRequest {
+        current_context: Vec::new(),
+        historical_context: Vec::new(),
+        run_authority: None,
         skill_path: skill_dir,
         receipt_dir: None,
         run_id: None,
@@ -336,7 +345,6 @@ fn native_agent_task_skill_run_infers_bundled_tool_roots() -> Result<(), Box<dyn
         env: BTreeMap::new(),
         cwd: temp.path().to_path_buf(),
         managed_agent: Default::default(),
-        local_credential: None,
     })?;
 
     let output = object(&result.output, "skill run result")?;
@@ -386,6 +394,9 @@ fn native_skill_run_resumes_and_seals_receipt() -> Result<(), Box<dyn std::error
     )?;
 
     let result = complete_agent_fixture(with_test_signing_env(SkillRunRequest {
+        current_context: Vec::new(),
+        historical_context: Vec::new(),
+        run_authority: None,
         skill_path: skill_dir,
         receipt_dir: Some(receipt_dir.clone()),
         run_id: Some("issue-intake-run".to_owned()),
@@ -394,7 +405,6 @@ fn native_skill_run_resumes_and_seals_receipt() -> Result<(), Box<dyn std::error
         env: BTreeMap::new(),
         cwd: temp.path().to_path_buf(),
         managed_agent: Default::default(),
-        local_credential: None,
     }))?;
 
     let output = object(&result.output, "skill run result")?;
@@ -472,6 +482,9 @@ fn native_skill_run_treats_structured_stdout_as_claim_not_receipt_proof()
     )?;
 
     let result = complete_agent_fixture(with_test_signing_env(SkillRunRequest {
+        current_context: Vec::new(),
+        historical_context: Vec::new(),
+        run_authority: None,
         skill_path: skill_dir,
         receipt_dir: Some(receipt_dir.clone()),
         run_id: Some("malicious-stdout-run".to_owned()),
@@ -480,7 +493,6 @@ fn native_skill_run_treats_structured_stdout_as_claim_not_receipt_proof()
         env: BTreeMap::new(),
         cwd: temp.path().to_path_buf(),
         managed_agent: Default::default(),
-        local_credential: None,
     }))?;
 
     let output = object(&result.output, "skill run result")?;
@@ -536,6 +548,9 @@ fn native_skill_run_preserves_deferred_closure_disposition()
     )?;
 
     let result = complete_agent_fixture(with_test_signing_env(SkillRunRequest {
+        current_context: Vec::new(),
+        historical_context: Vec::new(),
+        run_authority: None,
         skill_path: skill_dir,
         receipt_dir: Some(receipt_dir.clone()),
         run_id: Some("issue-intake-deferred".to_owned()),
@@ -544,7 +559,6 @@ fn native_skill_run_preserves_deferred_closure_disposition()
         env: BTreeMap::new(),
         cwd: temp.path().to_path_buf(),
         managed_agent: Default::default(),
-        local_credential: None,
     }))?;
 
     let output = object(&result.output, "skill run result")?;
@@ -584,6 +598,9 @@ fn native_skill_run_uses_runtime_receipt_path_resolution() -> Result<(), Box<dyn
     )?;
 
     let result = complete_agent_fixture(with_test_signing_env(SkillRunRequest {
+        current_context: Vec::new(),
+        historical_context: Vec::new(),
+        run_authority: None,
         skill_path: skill_dir,
         receipt_dir: None,
         run_id: Some("env-receipt-run".to_owned()),
@@ -597,7 +614,6 @@ fn native_skill_run_uses_runtime_receipt_path_resolution() -> Result<(), Box<dyn
         .collect(),
         cwd: temp.path().to_path_buf(),
         managed_agent: Default::default(),
-        local_credential: None,
     }))?;
 
     let output = object(&result.output, "skill run result")?;
@@ -643,6 +659,9 @@ runners:
     )?;
 
     let result = run_skill(SkillRunRequest {
+        current_context: Vec::new(),
+        historical_context: Vec::new(),
+        run_authority: None,
         skill_path: skill_dir,
         receipt_dir: Some(receipt_dir.clone()),
         run_id: None,
@@ -662,7 +681,6 @@ runners:
         .collect(),
         cwd: temp.path().to_path_buf(),
         managed_agent: Default::default(),
-        local_credential: None,
     })?;
 
     let output = object(&result.output, "skill run result")?;
@@ -745,6 +763,9 @@ runners:
     let env = path_env();
 
     let result = run_skill(SkillRunRequest {
+        current_context: Vec::new(),
+        historical_context: Vec::new(),
+        run_authority: None,
         skill_path: skill_dir,
         receipt_dir: Some(temp.path().join("receipts")),
         run_id: None,
@@ -753,7 +774,6 @@ runners:
         env,
         cwd: temp.path().to_path_buf(),
         managed_agent: Default::default(),
-        local_credential: None,
     })?;
 
     let output = object(&result.output, "javascript module result")?;
@@ -831,6 +851,9 @@ runners:
     let env = path_env();
 
     let error = match run_skill(SkillRunRequest {
+        current_context: Vec::new(),
+        historical_context: Vec::new(),
+        run_authority: None,
         skill_path: skill_dir,
         receipt_dir: Some(temp.path().join("receipts")),
         run_id: None,
@@ -839,7 +862,6 @@ runners:
         env,
         cwd: temp.path().to_path_buf(),
         managed_agent: Default::default(),
-        local_credential: None,
     }) {
         Ok(_) => return Err("invalid deterministic packet must fail before sealing".into()),
         Err(error) => error,
@@ -875,6 +897,9 @@ fn native_skill_run_uses_production_receipt_signing_env() -> Result<(), Box<dyn 
     let env = crate::support::test_signing_env();
 
     let result = complete_agent_fixture(with_test_signing_env(SkillRunRequest {
+        current_context: Vec::new(),
+        historical_context: Vec::new(),
+        run_authority: None,
         skill_path: skill_dir,
         receipt_dir: Some(receipt_dir.clone()),
         run_id: Some("production-signed-run".to_owned()),
@@ -883,7 +908,6 @@ fn native_skill_run_uses_production_receipt_signing_env() -> Result<(), Box<dyn 
         env: env.clone(),
         cwd: temp.path().to_path_buf(),
         managed_agent: Default::default(),
-        local_credential: None,
     }))?;
 
     let output = object(&result.output, "skill run result")?;
@@ -921,6 +945,9 @@ fn native_skill_run_uses_local_development_without_production_receipt_signing_en
         .to_string(),
     )?;
     let result = complete_agent_fixture(SkillRunRequest {
+        current_context: Vec::new(),
+        historical_context: Vec::new(),
+        run_authority: None,
         skill_path: skill_dir,
         receipt_dir: None,
         run_id: Some("local-development-signed-run".to_owned()),
@@ -929,7 +956,6 @@ fn native_skill_run_uses_local_development_without_production_receipt_signing_en
         env: BTreeMap::new(),
         cwd: temp.path().to_path_buf(),
         managed_agent: Default::default(),
-        local_credential: None,
     })?;
     assert_eq!(result.status, runx_runtime::RunStatus::Sealed);
     assert_eq!(result.receipt_refs.len(), 1);
@@ -950,6 +976,9 @@ fn native_graph_skill_run_pauses_and_resumes_agent_task() -> Result<(), Box<dyn 
     .collect::<BTreeMap<_, _>>();
 
     let initial = run_skill(SkillRunRequest {
+        current_context: Vec::new(),
+        historical_context: Vec::new(),
+        run_authority: None,
         skill_path: skill_dir.clone(),
         receipt_dir: Some(receipt_dir.clone()),
         run_id: None,
@@ -958,7 +987,6 @@ fn native_graph_skill_run_pauses_and_resumes_agent_task() -> Result<(), Box<dyn 
         env: BTreeMap::new(),
         cwd: temp.path().to_path_buf(),
         managed_agent: Default::default(),
-        local_credential: None,
     })?;
 
     let output = object(&initial.output, "graph skill run result")?;
@@ -996,6 +1024,9 @@ fn native_graph_skill_run_pauses_and_resumes_agent_task() -> Result<(), Box<dyn 
     let malformed_answers_path = temp.path().join("malformed-graph-answers.json");
     fs::write(&malformed_answers_path, "{}")?;
     let malformed = match run_skill(SkillRunRequest {
+        current_context: Vec::new(),
+        historical_context: Vec::new(),
+        run_authority: None,
         skill_path: skill_dir.clone(),
         receipt_dir: Some(receipt_dir.clone()),
         run_id: Some(run_id.to_owned()),
@@ -1004,7 +1035,6 @@ fn native_graph_skill_run_pauses_and_resumes_agent_task() -> Result<(), Box<dyn 
         env: BTreeMap::new(),
         cwd: temp.path().to_path_buf(),
         managed_agent: Default::default(),
-        local_credential: None,
     }) {
         Ok(_) => return Err("malformed graph state should fail".into()),
         Err(error) => error,
@@ -1039,6 +1069,9 @@ fn native_graph_skill_run_pauses_and_resumes_agent_task() -> Result<(), Box<dyn 
         serde_json::to_string_pretty(&mismatched_binding)?,
     )?;
     let binding_mismatch = match run_skill(SkillRunRequest {
+        current_context: Vec::new(),
+        historical_context: Vec::new(),
+        run_authority: None,
         skill_path: skill_dir.clone(),
         receipt_dir: Some(receipt_dir.clone()),
         run_id: Some(run_id.to_owned()),
@@ -1047,7 +1080,6 @@ fn native_graph_skill_run_pauses_and_resumes_agent_task() -> Result<(), Box<dyn 
         env: BTreeMap::new(),
         cwd: temp.path().to_path_buf(),
         managed_agent: Default::default(),
-        local_credential: None,
     }) {
         Ok(_) => return Err("graph state with a stale package binding should fail".into()),
         Err(error) => error,
@@ -1069,6 +1101,9 @@ fn native_graph_skill_run_pauses_and_resumes_agent_task() -> Result<(), Box<dyn 
         serde_json::to_string_pretty(&mismatched_state)?,
     )?;
     let mismatch = match run_skill(SkillRunRequest {
+        current_context: Vec::new(),
+        historical_context: Vec::new(),
+        run_authority: None,
         skill_path: skill_dir.clone(),
         receipt_dir: Some(receipt_dir.clone()),
         run_id: Some(run_id.to_owned()),
@@ -1077,7 +1112,6 @@ fn native_graph_skill_run_pauses_and_resumes_agent_task() -> Result<(), Box<dyn 
         env: BTreeMap::new(),
         cwd: temp.path().to_path_buf(),
         managed_agent: Default::default(),
-        local_credential: None,
     }) {
         Ok(_) => return Err("mismatched graph state should fail".into()),
         Err(error) => error,
@@ -1107,6 +1141,9 @@ fn native_graph_skill_run_pauses_and_resumes_agent_task() -> Result<(), Box<dyn 
         .to_string(),
     )?;
     let resumed = run_skill(SkillRunRequest {
+        current_context: Vec::new(),
+        historical_context: Vec::new(),
+        run_authority: None,
         skill_path: skill_dir,
         receipt_dir: Some(receipt_dir),
         run_id: Some(run_id.to_owned()),
@@ -1115,7 +1152,6 @@ fn native_graph_skill_run_pauses_and_resumes_agent_task() -> Result<(), Box<dyn 
         env: BTreeMap::new(),
         cwd: temp.path().to_path_buf(),
         managed_agent: Default::default(),
-        local_credential: None,
     })?;
 
     let output = object(&resumed.output, "resumed graph skill run result")?;
@@ -1150,6 +1186,9 @@ fn native_graph_transition_gate_allows_declared_agent_output()
     let receipt_dir = temp.path().join("receipts");
 
     let initial = run_skill(SkillRunRequest {
+        current_context: Vec::new(),
+        historical_context: Vec::new(),
+        run_authority: None,
         skill_path: skill_dir.clone(),
         receipt_dir: Some(receipt_dir.clone()),
         run_id: None,
@@ -1158,7 +1197,6 @@ fn native_graph_transition_gate_allows_declared_agent_output()
         env: BTreeMap::new(),
         cwd: temp.path().to_path_buf(),
         managed_agent: Default::default(),
-        local_credential: None,
     })?;
     let output = object(&initial.output, "gated graph result")?;
     let run_id = string_field(output, "run_id").ok_or("missing run_id")?;
@@ -1180,6 +1218,9 @@ fn native_graph_transition_gate_allows_declared_agent_output()
     )?;
 
     let resumed = run_skill(SkillRunRequest {
+        current_context: Vec::new(),
+        historical_context: Vec::new(),
+        run_authority: None,
         skill_path: skill_dir,
         receipt_dir: Some(receipt_dir),
         run_id: Some(run_id.to_owned()),
@@ -1188,7 +1229,6 @@ fn native_graph_transition_gate_allows_declared_agent_output()
         env: BTreeMap::new(),
         cwd: temp.path().to_path_buf(),
         managed_agent: Default::default(),
-        local_credential: None,
     })?;
 
     let output = object(&resumed.output, "resumed gated graph result")?;
@@ -1204,6 +1244,80 @@ fn native_graph_transition_gate_allows_declared_agent_output()
     Ok(())
 }
 
+/// A run started with a non-default value for a defaulted input suspends and
+/// resumes with no inputs supplied: the checkpoint's inputs are restored before
+/// defaults could fill the omitted one.
+#[test]
+fn native_graph_resume_keeps_a_non_default_input() -> Result<(), Box<dyn std::error::Error>> {
+    let temp = tempdir()?;
+    let skill_dir = temp.path().join("skills/continuation");
+    fs::create_dir_all(&skill_dir)?;
+    fs::write(
+        skill_dir.join("SKILL.md"),
+        "---\nname: continuation\ndescription: Resume with a non-default input.\n---\n\nPause for approval.\n",
+    )?;
+    fs::write(
+        skill_dir.join("X.yaml"),
+        r#"skill: continuation
+version: "0.1.0"
+runners:
+  default:
+    default: true
+    type: graph
+    inputs:
+      repo_root:
+        type: string
+        required: false
+        default: "."
+    graph:
+      name: continuation
+      result_from:
+        - approve
+      steps:
+        - id: approve
+          run:
+            type: approval
+          inputs:
+            gate_id: continuation
+            reason: Approve the continuation.
+            repo_root: $input.repo_root
+          artifacts:
+            wrap_as: approval
+"#,
+    )?;
+    let receipt_dir = temp.path().join("receipts");
+    let evidence_root = temp.path().join("evidence").to_string_lossy().into_owned();
+    let request =
+        |answers_path: Option<PathBuf>, inputs: BTreeMap<String, JsonValue>| SkillRunRequest {
+            current_context: Vec::new(),
+            historical_context: Vec::new(),
+            run_authority: None,
+            skill_path: skill_dir.clone(),
+            receipt_dir: Some(receipt_dir.clone()),
+            run_id: Some("run_continuation".to_owned()),
+            answers_path,
+            inputs,
+            env: BTreeMap::new(),
+            cwd: temp.path().to_path_buf(),
+            managed_agent: Default::default(),
+        };
+
+    let paused = run_skill(request(
+        None,
+        BTreeMap::from([("repo_root".to_owned(), JsonValue::String(evidence_root))]),
+    ))?;
+    assert_eq!(paused.status, runx_runtime::RunStatus::NeedsAgent);
+    let answers_path = temp.path().join("answers.json");
+    fs::write(
+        &answers_path,
+        serde_json::json!({ "approvals": { "continuation": true } }).to_string(),
+    )?;
+
+    let resumed = run_skill(request(Some(answers_path), BTreeMap::new()))?;
+    assert_eq!(resumed.status, runx_runtime::RunStatus::Sealed);
+    Ok(())
+}
+
 #[test]
 fn native_graph_guard_rejects_skill_claim_as_fact() -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;
@@ -1211,6 +1325,9 @@ fn native_graph_guard_rejects_skill_claim_as_fact() -> Result<(), Box<dyn std::e
     let receipt_dir = temp.path().join("receipts");
 
     let initial = run_skill(SkillRunRequest {
+        current_context: Vec::new(),
+        historical_context: Vec::new(),
+        run_authority: None,
         skill_path: skill_dir.clone(),
         receipt_dir: Some(receipt_dir.clone()),
         run_id: None,
@@ -1219,7 +1336,6 @@ fn native_graph_guard_rejects_skill_claim_as_fact() -> Result<(), Box<dyn std::e
         env: BTreeMap::new(),
         cwd: temp.path().to_path_buf(),
         managed_agent: Default::default(),
-        local_credential: None,
     })?;
     let output = object(&initial.output, "gated graph result")?;
     let run_id = string_field(output, "run_id").ok_or("missing run_id")?;
@@ -1241,6 +1357,9 @@ fn native_graph_guard_rejects_skill_claim_as_fact() -> Result<(), Box<dyn std::e
     )?;
 
     let blocked = run_skill(SkillRunRequest {
+        current_context: Vec::new(),
+        historical_context: Vec::new(),
+        run_authority: None,
         skill_path: skill_dir,
         receipt_dir: Some(receipt_dir.clone()),
         run_id: Some(run_id.to_owned()),
@@ -1249,7 +1368,6 @@ fn native_graph_guard_rejects_skill_claim_as_fact() -> Result<(), Box<dyn std::e
         env: BTreeMap::new(),
         cwd: temp.path().to_path_buf(),
         managed_agent: Default::default(),
-        local_credential: None,
     })?;
     let output = object(&blocked.output, "blocked graph result")?;
     assert_eq!(string_field(output, "status"), Some("sealed"));
@@ -1280,6 +1398,9 @@ fn native_graph_skill_run_pauses_and_resumes_nested_agent_skill()
     .collect::<BTreeMap<_, _>>();
 
     let initial = run_skill(SkillRunRequest {
+        current_context: Vec::new(),
+        historical_context: Vec::new(),
+        run_authority: None,
         skill_path: skill_dir.clone(),
         receipt_dir: Some(receipt_dir.clone()),
         run_id: None,
@@ -1288,7 +1409,6 @@ fn native_graph_skill_run_pauses_and_resumes_nested_agent_skill()
         env: BTreeMap::new(),
         cwd: temp.path().to_path_buf(),
         managed_agent: Default::default(),
-        local_credential: None,
     })?;
 
     let output = object(&initial.output, "nested agent graph result")?;
@@ -1322,6 +1442,9 @@ fn native_graph_skill_run_pauses_and_resumes_nested_agent_skill()
         .to_string(),
     )?;
     let resumed = run_skill(SkillRunRequest {
+        current_context: Vec::new(),
+        historical_context: Vec::new(),
+        run_authority: None,
         skill_path: skill_dir,
         receipt_dir: Some(receipt_dir),
         run_id: Some(run_id.to_owned()),
@@ -1330,7 +1453,6 @@ fn native_graph_skill_run_pauses_and_resumes_nested_agent_skill()
         env: BTreeMap::new(),
         cwd: temp.path().to_path_buf(),
         managed_agent: Default::default(),
-        local_credential: None,
     })?;
 
     let output = object(&resumed.output, "resumed nested agent graph result")?;
@@ -1355,6 +1477,9 @@ fn native_graph_skill_run_pauses_and_resumes_nested_agent_task_skill()
     let receipt_dir = temp.path().join("receipts");
 
     let initial = run_skill(SkillRunRequest {
+        current_context: Vec::new(),
+        historical_context: Vec::new(),
+        run_authority: None,
         skill_path: skill_dir.clone(),
         receipt_dir: Some(receipt_dir.clone()),
         run_id: None,
@@ -1363,7 +1488,6 @@ fn native_graph_skill_run_pauses_and_resumes_nested_agent_task_skill()
         env: BTreeMap::new(),
         cwd: temp.path().to_path_buf(),
         managed_agent: Default::default(),
-        local_credential: None,
     })?;
 
     let output = object(&initial.output, "nested agent-task graph result")?;
@@ -1397,6 +1521,9 @@ fn native_graph_skill_run_pauses_and_resumes_nested_agent_task_skill()
         .to_string(),
     )?;
     let resumed = run_skill(SkillRunRequest {
+        current_context: Vec::new(),
+        historical_context: Vec::new(),
+        run_authority: None,
         skill_path: skill_dir,
         receipt_dir: Some(receipt_dir),
         run_id: Some(run_id.to_owned()),
@@ -1405,7 +1532,6 @@ fn native_graph_skill_run_pauses_and_resumes_nested_agent_task_skill()
         env: BTreeMap::new(),
         cwd: temp.path().to_path_buf(),
         managed_agent: Default::default(),
-        local_credential: None,
     })?;
 
     let output = object(&resumed.output, "resumed nested agent-task graph result")?;
@@ -1467,6 +1593,9 @@ runners:
     .collect::<BTreeMap<_, _>>();
 
     let result = run_skill(SkillRunRequest {
+        current_context: Vec::new(),
+        historical_context: Vec::new(),
+        run_authority: None,
         skill_path: skill_dir,
         receipt_dir: Some(temp.path().join("receipts")),
         run_id: None,
@@ -1475,7 +1604,6 @@ runners:
         env,
         cwd: temp.path().to_path_buf(),
         managed_agent: Default::default(),
-        local_credential: None,
     })?;
 
     let output = object(&result.output, "registry context graph result")?;
@@ -1526,6 +1654,9 @@ fn graph_agent_task_rejects_parent_path_context_skill() -> Result<(), Box<dyn st
     let skill_dir = write_graph_agent_task_with_context_skill(temp.path(), "../taste-profile")?;
 
     let error = match run_skill(SkillRunRequest {
+        current_context: Vec::new(),
+        historical_context: Vec::new(),
+        run_authority: None,
         skill_path: skill_dir,
         receipt_dir: Some(temp.path().join("receipts")),
         run_id: None,
@@ -1534,7 +1665,6 @@ fn graph_agent_task_rejects_parent_path_context_skill() -> Result<(), Box<dyn st
         env: BTreeMap::new(),
         cwd: temp.path().to_path_buf(),
         managed_agent: Default::default(),
-        local_credential: None,
     }) {
         Ok(_) => return Err("parent-path context skill should fail".into()),
         Err(error) => error,
@@ -1584,6 +1714,9 @@ runners:
     )?;
 
     let error = match run_skill(SkillRunRequest {
+        current_context: Vec::new(),
+        historical_context: Vec::new(),
+        run_authority: None,
         skill_path: skill_dir,
         receipt_dir: Some(temp.path().join("receipts")),
         run_id: None,
@@ -1592,7 +1725,6 @@ runners:
         env: BTreeMap::new(),
         cwd: temp.path().to_path_buf(),
         managed_agent: Default::default(),
-        local_credential: None,
     }) {
         Ok(_) => return Err("graph stage context skill should fail".into()),
         Err(error) => error,
@@ -1657,6 +1789,9 @@ runners:
     .collect::<BTreeMap<_, _>>();
 
     let error = match run_skill(SkillRunRequest {
+        current_context: Vec::new(),
+        historical_context: Vec::new(),
+        run_authority: None,
         skill_path: skill_dir,
         receipt_dir: Some(temp.path().join("receipts")),
         run_id: None,
@@ -1665,7 +1800,6 @@ runners:
         env,
         cwd: temp.path().to_path_buf(),
         managed_agent: Default::default(),
-        local_credential: None,
     }) {
         Ok(_) => return Err("registry runtime-path context skill should fail".into()),
         Err(error) => error,
@@ -1701,6 +1835,9 @@ fn native_graph_skill_run_executes_local_tool_step() -> Result<(), Box<dyn std::
     .collect::<BTreeMap<_, _>>();
 
     let result = run_skill(SkillRunRequest {
+        current_context: Vec::new(),
+        historical_context: Vec::new(),
+        run_authority: None,
         skill_path: skill_dir,
         receipt_dir: Some(receipt_dir),
         run_id: None,
@@ -1709,7 +1846,6 @@ fn native_graph_skill_run_executes_local_tool_step() -> Result<(), Box<dyn std::
         env,
         cwd: temp.path().to_path_buf(),
         managed_agent: Default::default(),
-        local_credential: None,
     })?;
 
     let output = object(&result.output, "graph tool result")?;
@@ -1734,6 +1870,9 @@ fn configured_model_credentials_do_not_enable_graph_agent_without_run_consent()
         ("RUNX_AGENT_API_KEY".to_owned(), "test-secret".to_owned()),
     ]);
     let result = run_skill(SkillRunRequest {
+        current_context: Vec::new(),
+        historical_context: Vec::new(),
+        run_authority: None,
         skill_path: skill_dir,
         receipt_dir: Some(temp.path().join("receipts")),
         run_id: None,
@@ -1742,7 +1881,6 @@ fn configured_model_credentials_do_not_enable_graph_agent_without_run_consent()
         env,
         cwd: temp.path().to_path_buf(),
         managed_agent: Default::default(),
-        local_credential: None,
     })?;
 
     let output = object(&result.output, "configured graph no-consent result")?;
@@ -1783,6 +1921,9 @@ fn native_graph_skill_run_resolves_agent_task_named_emit_context()
     .into_iter()
     .collect::<BTreeMap<_, _>>();
     let pending = run_skill(SkillRunRequest {
+        current_context: Vec::new(),
+        historical_context: Vec::new(),
+        run_authority: None,
         skill_path: skill_dir.clone(),
         receipt_dir: Some(receipt_dir.clone()),
         run_id: None,
@@ -1791,7 +1932,6 @@ fn native_graph_skill_run_resolves_agent_task_named_emit_context()
         env: env.clone(),
         cwd: temp.path().to_path_buf(),
         managed_agent: Default::default(),
-        local_credential: None,
     })?;
     let pending_output = object(&pending.output, "pending graph agent artifact result")?;
     assert_eq!(string_field(pending_output, "status"), Some("needs_agent"));
@@ -1800,6 +1940,9 @@ fn native_graph_skill_run_resolves_agent_task_named_emit_context()
         .to_owned();
 
     let result = run_skill(SkillRunRequest {
+        current_context: Vec::new(),
+        historical_context: Vec::new(),
+        run_authority: None,
         skill_path: skill_dir,
         receipt_dir: Some(receipt_dir),
         run_id: Some(run_id),
@@ -1808,7 +1951,6 @@ fn native_graph_skill_run_resolves_agent_task_named_emit_context()
         env,
         cwd: temp.path().to_path_buf(),
         managed_agent: Default::default(),
-        local_credential: None,
     })?;
 
     let output = object(&result.output, "graph agent artifact result")?;
@@ -1827,7 +1969,10 @@ fn native_graph_skill_resume_preserves_initial_inputs_for_later_tool_steps()
 -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;
     let skill_dir = write_graph_agent_then_input_tool_skill(temp.path())?;
-    write_echo_tool(temp.path())?;
+    write_echo_tool_at(
+        &temp.path().join("tools/test/echo"),
+        "/evidence/non-default",
+    )?;
     let receipt_dir = temp.path().join("receipts");
     let tool_root = temp.path().join("tools");
     let answers_path = temp.path().join("answers.json");
@@ -1853,14 +1998,23 @@ fn native_graph_skill_resume_preserves_initial_inputs_for_later_tool_steps()
     )]
     .into_iter()
     .collect::<BTreeMap<_, _>>();
-    let initial_inputs = [(
-        "thread_title".to_owned(),
-        JsonValue::String("Graph tool bug".to_owned()),
-    )]
+    let initial_inputs = [
+        (
+            "thread_title".to_owned(),
+            JsonValue::String("Graph tool bug".to_owned()),
+        ),
+        (
+            "repo_root".to_owned(),
+            JsonValue::String("/evidence/non-default".to_owned()),
+        ),
+    ]
     .into_iter()
     .collect::<BTreeMap<_, _>>();
 
     let pending = run_skill(SkillRunRequest {
+        current_context: Vec::new(),
+        historical_context: Vec::new(),
+        run_authority: None,
         skill_path: skill_dir.clone(),
         receipt_dir: Some(receipt_dir.clone()),
         run_id: None,
@@ -1869,7 +2023,6 @@ fn native_graph_skill_resume_preserves_initial_inputs_for_later_tool_steps()
         env: env.clone(),
         cwd: temp.path().to_path_buf(),
         managed_agent: Default::default(),
-        local_credential: None,
     })?;
     let pending_output = object(&pending.output, "pending graph input resume result")?;
     assert_eq!(string_field(pending_output, "status"), Some("needs_agent"));
@@ -1877,7 +2030,32 @@ fn native_graph_skill_resume_preserves_initial_inputs_for_later_tool_steps()
         .ok_or("pending graph input resume result missing run_id")?
         .to_owned();
 
+    let changed = run_skill(SkillRunRequest {
+        current_context: Vec::new(),
+        historical_context: Vec::new(),
+        run_authority: None,
+        skill_path: skill_dir.clone(),
+        receipt_dir: Some(receipt_dir.clone()),
+        run_id: Some(run_id.clone()),
+        answers_path: Some(answers_path.clone()),
+        inputs: BTreeMap::from([(
+            "repo_root".to_owned(),
+            JsonValue::String("/evidence/other".to_owned()),
+        )]),
+        env: env.clone(),
+        cwd: temp.path().to_path_buf(),
+        managed_agent: Default::default(),
+    });
+    assert!(changed.err().is_some_and(|error| {
+        error
+            .to_string()
+            .contains("cannot replace its original inputs")
+    }));
+
     let result = run_skill(SkillRunRequest {
+        current_context: Vec::new(),
+        historical_context: Vec::new(),
+        run_authority: None,
         skill_path: skill_dir,
         receipt_dir: Some(receipt_dir),
         run_id: Some(run_id),
@@ -1886,7 +2064,6 @@ fn native_graph_skill_resume_preserves_initial_inputs_for_later_tool_steps()
         env,
         cwd: temp.path().to_path_buf(),
         managed_agent: Default::default(),
-        local_credential: None,
     })?;
 
     let output = object(&result.output, "graph input resume result")?;
@@ -1894,7 +2071,7 @@ fn native_graph_skill_resume_preserves_initial_inputs_for_later_tool_steps()
     let public_result = object_field(output, "result").ok_or("missing result")?;
     let echo = object_field(public_result, "echo").ok_or("missing echo")?;
     let echo = object_field(echo, "data").ok_or("missing echo data envelope")?;
-    assert_eq!(string_field(echo, "message"), Some("Graph tool bug"));
+    assert_eq!(string_field(echo, "message"), Some("/evidence/non-default"));
 
     Ok(())
 }
@@ -1937,6 +2114,9 @@ fn native_graph_skill_run_rejects_agent_task_output_envelope_claim()
     .into_iter()
     .collect::<BTreeMap<_, _>>();
     let pending = run_skill(SkillRunRequest {
+        current_context: Vec::new(),
+        historical_context: Vec::new(),
+        run_authority: None,
         skill_path: skill_dir.clone(),
         receipt_dir: Some(receipt_dir.clone()),
         run_id: None,
@@ -1945,7 +2125,6 @@ fn native_graph_skill_run_rejects_agent_task_output_envelope_claim()
         env: env.clone(),
         cwd: temp.path().to_path_buf(),
         managed_agent: Default::default(),
-        local_credential: None,
     })?;
     let pending_output = object(
         &pending.output,
@@ -1957,6 +2136,9 @@ fn native_graph_skill_run_rejects_agent_task_output_envelope_claim()
         .to_owned();
 
     let rejected = run_skill(SkillRunRequest {
+        current_context: Vec::new(),
+        historical_context: Vec::new(),
+        run_authority: None,
         skill_path: skill_dir,
         receipt_dir: Some(receipt_dir),
         run_id: Some(run_id),
@@ -1965,7 +2147,6 @@ fn native_graph_skill_run_rejects_agent_task_output_envelope_claim()
         env,
         cwd: temp.path().to_path_buf(),
         managed_agent: Default::default(),
-        local_credential: None,
     })?;
     let output = object(&rejected.output, "rejected agent envelope result")?;
     assert_eq!(string_field(output, "status"), Some("sealed"));
@@ -2004,6 +2185,9 @@ fn native_graph_skill_run_omits_missing_optional_graph_input_references()
     .collect::<BTreeMap<_, _>>();
 
     let result = run_skill(SkillRunRequest {
+        current_context: Vec::new(),
+        historical_context: Vec::new(),
+        run_authority: None,
         skill_path: skill_dir,
         receipt_dir: Some(receipt_dir),
         run_id: None,
@@ -2012,7 +2196,6 @@ fn native_graph_skill_run_omits_missing_optional_graph_input_references()
         env,
         cwd: temp.path().to_path_buf(),
         managed_agent: Default::default(),
-        local_credential: None,
     })?;
 
     let output = object(&result.output, "graph optional JSON tool result")?;
@@ -2036,6 +2219,9 @@ fn native_graph_skill_run_requires_declared_graph_inputs() -> Result<(), Box<dyn
     let receipt_dir = temp.path().join("receipts");
 
     let request = with_test_signing_env(SkillRunRequest {
+        current_context: Vec::new(),
+        historical_context: Vec::new(),
+        run_authority: None,
         skill_path: skill_dir,
         receipt_dir: Some(receipt_dir.clone()),
         run_id: None,
@@ -2044,7 +2230,6 @@ fn native_graph_skill_run_requires_declared_graph_inputs() -> Result<(), Box<dyn
         env: BTreeMap::new(),
         cwd: temp.path().to_path_buf(),
         managed_agent: Default::default(),
-        local_credential: None,
     });
     let error = LocalOrchestrator::default()
         .run_skill(&request)
@@ -2087,6 +2272,9 @@ fn native_graph_skill_resume_applies_approval_before_completing_step()
     fs::write(&answers_path, answers.to_string())?;
 
     let pending = run_skill(SkillRunRequest {
+        current_context: Vec::new(),
+        historical_context: Vec::new(),
+        run_authority: None,
         skill_path: skill_dir.clone(),
         receipt_dir: Some(receipt_dir.clone()),
         run_id: None,
@@ -2095,7 +2283,6 @@ fn native_graph_skill_resume_applies_approval_before_completing_step()
         env: BTreeMap::new(),
         cwd: temp.path().to_path_buf(),
         managed_agent: Default::default(),
-        local_credential: None,
     })?;
     let pending_output = object(&pending.output, "pending approval result")?;
     assert_eq!(string_field(pending_output, "status"), Some("needs_agent"));
@@ -2104,6 +2291,9 @@ fn native_graph_skill_resume_applies_approval_before_completing_step()
         .to_owned();
 
     let resumed = run_skill(SkillRunRequest {
+        current_context: Vec::new(),
+        historical_context: Vec::new(),
+        run_authority: None,
         skill_path: skill_dir,
         receipt_dir: Some(receipt_dir),
         run_id: Some(run_id),
@@ -2112,7 +2302,6 @@ fn native_graph_skill_resume_applies_approval_before_completing_step()
         env: BTreeMap::new(),
         cwd: temp.path().to_path_buf(),
         managed_agent: Default::default(),
-        local_credential: None,
     })?;
     let resumed_output = object(&resumed.output, "resumed approval result")?;
     assert_eq!(string_field(resumed_output, "status"), Some("sealed"));
@@ -2127,6 +2316,51 @@ fn native_graph_skill_resume_applies_approval_before_completing_step()
         Some("test.claim-bound")
     );
 
+    Ok(())
+}
+
+#[test]
+fn native_graph_skill_resume_binds_human_approval_to_checkpoint_digest()
+-> Result<(), Box<dyn std::error::Error>> {
+    let temp = tempdir()?;
+    let skill_dir = write_graph_approval_resume_skill(temp.path())?;
+    let receipt_dir = temp.path().join("receipts-digest-bound-approval");
+    let run_id = "run_assistant_work_digest_bound_approval".to_owned();
+    let start = SkillRunRequest {
+        current_context: Vec::new(),
+        historical_context: Vec::new(),
+        run_authority: None,
+        skill_path: skill_dir.clone(),
+        receipt_dir: Some(receipt_dir.clone()),
+        run_id: Some(run_id.clone()),
+        answers_path: None,
+        inputs: BTreeMap::new(),
+        env: BTreeMap::new(),
+        cwd: temp.path().to_path_buf(),
+        managed_agent: Default::default(),
+    };
+    let pending = run_skill(start.clone())?;
+    assert_eq!(pending.status, runx_runtime::RunStatus::NeedsAgent);
+    let request = runx_runtime::skill_front::inspect_paused_skill_request(&receipt_dir, &run_id)?
+        .ok_or("native approval checkpoint is missing")?;
+    let digest = runx_contracts::sha256_prefixed(&serde_json::to_vec(&request.value)?);
+    let answers_path = temp.path().join("native-approval-answer.json");
+    let mut answer = serde_json::json!({
+        "approvals": { request.id.clone(): true },
+        "request_digests": { request.id.clone(): format!("sha256:{}", "0".repeat(64)) }
+    });
+    fs::write(&answers_path, serde_json::to_vec(&answer)?)?;
+    let mut resume = start;
+    resume.answers_path = Some(answers_path.clone());
+    let rejected = run_skill(resume.clone())
+        .err()
+        .ok_or("wrong request digest was accepted")?;
+    assert!(rejected.to_string().contains("request digest mismatch"));
+    answer["request_digests"][&request.id] = serde_json::json!(digest);
+    fs::write(&answers_path, serde_json::to_vec(&answer)?)?;
+    let resumed = run_skill(resume)?;
+    assert_eq!(resumed.status, runx_runtime::RunStatus::Sealed);
+    assert!(resumed.succeeded());
     Ok(())
 }
 
@@ -2146,6 +2380,9 @@ fn native_graph_skill_resume_rejects_agent_answer_for_approval()
     )?;
 
     let pending = run_skill(SkillRunRequest {
+        current_context: Vec::new(),
+        historical_context: Vec::new(),
+        run_authority: None,
         skill_path: skill_dir.clone(),
         receipt_dir: Some(receipt_dir.clone()),
         run_id: None,
@@ -2154,7 +2391,6 @@ fn native_graph_skill_resume_rejects_agent_answer_for_approval()
         env: BTreeMap::new(),
         cwd: temp.path().to_path_buf(),
         managed_agent: Default::default(),
-        local_credential: None,
     })?;
     let pending_output = object(&pending.output, "pending approval result")?;
     let run_id = string_field(pending_output, "run_id")
@@ -2162,6 +2398,9 @@ fn native_graph_skill_resume_rejects_agent_answer_for_approval()
         .to_owned();
 
     let rejected = run_skill(SkillRunRequest {
+        current_context: Vec::new(),
+        historical_context: Vec::new(),
+        run_authority: None,
         skill_path: skill_dir,
         receipt_dir: Some(receipt_dir.clone()),
         run_id: Some(run_id.clone()),
@@ -2170,7 +2409,6 @@ fn native_graph_skill_resume_rejects_agent_answer_for_approval()
         env: BTreeMap::new(),
         cwd: temp.path().to_path_buf(),
         managed_agent: Default::default(),
-        local_credential: None,
     })
     .err()
     .ok_or("agent-authored approval must be rejected without sealing")?;
@@ -2199,6 +2437,9 @@ fn native_graph_skill_run_uses_canonical_tool_root() -> Result<(), Box<dyn std::
     .collect::<BTreeMap<_, _>>();
 
     let result = run_skill(SkillRunRequest {
+        current_context: Vec::new(),
+        historical_context: Vec::new(),
+        run_authority: None,
         skill_path: skill_dir,
         receipt_dir: Some(receipt_dir),
         run_id: None,
@@ -2207,7 +2448,6 @@ fn native_graph_skill_run_uses_canonical_tool_root() -> Result<(), Box<dyn std::
         env: BTreeMap::new(),
         cwd: temp.path().to_path_buf(),
         managed_agent: Default::default(),
-        local_credential: None,
     })?;
 
     let output = object(&result.output, "graph tool result")?;
@@ -2235,6 +2475,9 @@ fn native_graph_skill_run_merges_imported_graph_skill_tool_roots()
     .collect::<BTreeMap<_, _>>();
 
     let result = run_skill(SkillRunRequest {
+        current_context: Vec::new(),
+        historical_context: Vec::new(),
+        run_authority: None,
         skill_path: skill_dir,
         receipt_dir: Some(receipt_dir.clone()),
         run_id: None,
@@ -2243,7 +2486,6 @@ fn native_graph_skill_run_merges_imported_graph_skill_tool_roots()
         env: BTreeMap::new(),
         cwd: temp.path().to_path_buf(),
         managed_agent: Default::default(),
-        local_credential: None,
     })?;
 
     let output = object(&result.output, "nested graph tool root result")?;
@@ -2327,6 +2569,9 @@ fn native_graph_skill_run_executes_nested_cli_tool_skill() -> Result<(), Box<dyn
     .collect::<BTreeMap<_, _>>();
 
     let result = run_skill(SkillRunRequest {
+        current_context: Vec::new(),
+        historical_context: Vec::new(),
+        run_authority: None,
         skill_path: skill_dir,
         receipt_dir: Some(receipt_dir.clone()),
         run_id: None,
@@ -2335,7 +2580,6 @@ fn native_graph_skill_run_executes_nested_cli_tool_skill() -> Result<(), Box<dyn
         env: path_env(),
         cwd: temp.path().to_path_buf(),
         managed_agent: Default::default(),
-        local_credential: None,
     })?;
 
     let output = object(&result.output, "nested graph skill result")?;
@@ -2441,6 +2685,9 @@ fn native_graph_skill_run_executes_nested_registry_skill() -> Result<(), Box<dyn
     );
 
     let result = run_skill(SkillRunRequest {
+        current_context: Vec::new(),
+        historical_context: Vec::new(),
+        run_authority: None,
         skill_path: skill_dir,
         receipt_dir: Some(receipt_dir),
         run_id: None,
@@ -2449,7 +2696,6 @@ fn native_graph_skill_run_executes_nested_registry_skill() -> Result<(), Box<dyn
         env,
         cwd: temp.path().to_path_buf(),
         managed_agent: Default::default(),
-        local_credential: None,
     })?;
 
     let output = object(&result.output, "nested registry skill result")?;
@@ -2493,6 +2739,9 @@ fn native_graph_skill_run_rejects_env_promoted_official_nested_registry_skill()
     );
 
     let error = match run_skill(SkillRunRequest {
+        current_context: Vec::new(),
+        historical_context: Vec::new(),
+        run_authority: None,
         skill_path: skill_dir,
         receipt_dir: Some(receipt_dir),
         run_id: None,
@@ -2501,7 +2750,6 @@ fn native_graph_skill_run_rejects_env_promoted_official_nested_registry_skill()
         env,
         cwd: temp.path().to_path_buf(),
         managed_agent: Default::default(),
-        local_credential: None,
     }) {
         Ok(_) => {
             return Err(
@@ -2549,6 +2797,9 @@ fn native_graph_skill_run_rejects_unsigned_nested_registry_skill()
     );
 
     let error = match run_skill(SkillRunRequest {
+        current_context: Vec::new(),
+        historical_context: Vec::new(),
+        run_authority: None,
         skill_path: skill_dir,
         receipt_dir: Some(receipt_dir),
         run_id: None,
@@ -2557,7 +2808,6 @@ fn native_graph_skill_run_rejects_unsigned_nested_registry_skill()
         env,
         cwd: temp.path().to_path_buf(),
         managed_agent: Default::default(),
-        local_credential: None,
     }) {
         Ok(_) => return Err("unsigned nested registry skill unexpectedly succeeded".into()),
         Err(error) => error,
@@ -2599,6 +2849,9 @@ fn native_graph_skill_run_rejects_tampered_nested_registry_skill()
     );
 
     let error = match run_skill(SkillRunRequest {
+        current_context: Vec::new(),
+        historical_context: Vec::new(),
+        run_authority: None,
         skill_path: skill_dir,
         receipt_dir: Some(receipt_dir),
         run_id: None,
@@ -2607,7 +2860,6 @@ fn native_graph_skill_run_rejects_tampered_nested_registry_skill()
         env,
         cwd: temp.path().to_path_buf(),
         managed_agent: Default::default(),
-        local_credential: None,
     }) {
         Ok(_) => return Err("tampered nested registry skill unexpectedly succeeded".into()),
         Err(error) => error,
@@ -2629,6 +2881,9 @@ fn native_graph_skill_run_rejects_nested_registry_skill_without_registry_dir()
     let receipt_dir = temp.path().join("receipts");
 
     let error = match run_skill(SkillRunRequest {
+        current_context: Vec::new(),
+        historical_context: Vec::new(),
+        run_authority: None,
         skill_path: skill_dir,
         receipt_dir: Some(receipt_dir),
         run_id: None,
@@ -2637,7 +2892,6 @@ fn native_graph_skill_run_rejects_nested_registry_skill_without_registry_dir()
         env: BTreeMap::new(),
         cwd: temp.path().to_path_buf(),
         managed_agent: Default::default(),
-        local_credential: None,
     }) {
         Ok(_) => return Err("nested registry skill unexpectedly succeeded".into()),
         Err(error) => error,
@@ -2668,6 +2922,9 @@ fn native_graph_skill_run_does_not_rerun_final_step() -> Result<(), Box<dyn std:
     .collect::<BTreeMap<_, _>>();
 
     let request = SkillRunRequest {
+        current_context: Vec::new(),
+        historical_context: Vec::new(),
+        run_authority: None,
         skill_path: skill_dir,
         receipt_dir: Some(receipt_dir.clone()),
         run_id: Some("run_pinned_counter".to_owned()),
@@ -2676,7 +2933,6 @@ fn native_graph_skill_run_does_not_rerun_final_step() -> Result<(), Box<dyn std:
         env: path_env(),
         cwd: temp.path().to_path_buf(),
         managed_agent: Default::default(),
-        local_credential: None,
     };
     let result = run_skill(request.clone())?;
 
@@ -2733,10 +2989,13 @@ fn native_graph_skill_run_does_not_rerun_final_step() -> Result<(), Box<dyn std:
     let error = run_skill(request)
         .err()
         .ok_or("tampered sealed receipt must hold")?;
+    // The content-addressed store refuses the tampered bytes before recovery
+    // trusts them, so the sealed step holds instead of rerunning.
     assert!(
         error
             .to_string()
-            .contains("completed graph receipt is invalid")
+            .contains("receipt already exists with different content"),
+        "{error}"
     );
     assert_eq!(fs::read_to_string(count_file)?, "1");
 
@@ -2750,6 +3009,9 @@ fn native_graph_skill_run_recovers_domain_act_receipt() -> Result<(), Box<dyn st
     let skill_dir = write_graph_nested_cli_counter_skill(temp.path(), true)?;
     let count_file = temp.path().join("count.txt");
     let request = SkillRunRequest {
+        current_context: Vec::new(),
+        historical_context: Vec::new(),
+        run_authority: None,
         skill_path: skill_dir,
         receipt_dir: Some(temp.path().join("receipts")),
         run_id: Some("run_pinned_domain_act".to_owned()),
@@ -2763,7 +3025,6 @@ fn native_graph_skill_run_recovers_domain_act_receipt() -> Result<(), Box<dyn st
         env: path_env(),
         cwd: temp.path().to_path_buf(),
         managed_agent: Default::default(),
-        local_credential: None,
     };
     let result = run_skill(request.clone())?;
     let recovered = run_skill(request)?;
@@ -2788,6 +3049,9 @@ fn native_graph_skill_run_executes_graph_stage_cli_tool_skill()
     .collect::<BTreeMap<_, _>>();
 
     let result = run_skill(SkillRunRequest {
+        current_context: Vec::new(),
+        historical_context: Vec::new(),
+        run_authority: None,
         skill_path: skill_dir,
         receipt_dir: Some(receipt_dir),
         run_id: None,
@@ -2796,7 +3060,6 @@ fn native_graph_skill_run_executes_graph_stage_cli_tool_skill()
         env: path_env(),
         cwd: temp.path().to_path_buf(),
         managed_agent: Default::default(),
-        local_credential: None,
     })?;
 
     let output = object(&result.output, "stage graph skill result")?;
@@ -2830,6 +3093,9 @@ fn native_graph_skill_run_executes_nested_x_yaml_runner_skill()
     .collect::<BTreeMap<_, _>>();
 
     let result = run_skill(SkillRunRequest {
+        current_context: Vec::new(),
+        historical_context: Vec::new(),
+        run_authority: None,
         skill_path: skill_dir,
         receipt_dir: Some(receipt_dir),
         run_id: None,
@@ -2838,7 +3104,6 @@ fn native_graph_skill_run_executes_nested_x_yaml_runner_skill()
         env: path_env(),
         cwd: temp.path().to_path_buf(),
         managed_agent: Default::default(),
-        local_credential: None,
     })?;
 
     let output = object(&result.output, "nested X.yaml graph skill result")?;
@@ -2857,6 +3122,9 @@ fn native_skill_run_accepts_named_start_and_requires_identity_for_answers()
     let skill_dir = write_agent_task_skill(temp.path())?;
 
     let named_start = run_skill(SkillRunRequest {
+        current_context: Vec::new(),
+        historical_context: Vec::new(),
+        run_authority: None,
         skill_path: skill_dir.clone(),
         receipt_dir: None,
         run_id: Some("issue-intake-run".to_owned()),
@@ -2865,13 +3133,15 @@ fn native_skill_run_accepts_named_start_and_requires_identity_for_answers()
         env: BTreeMap::new(),
         cwd: temp.path().to_path_buf(),
         managed_agent: Default::default(),
-        local_credential: None,
     })?;
     let output = object(&named_start.output, "named start")?;
     assert_eq!(string_field(output, "status"), Some("needs_agent"));
     assert_eq!(string_field(output, "run_id"), Some("issue-intake-run"));
 
     let answers_only = match run_skill(SkillRunRequest {
+        current_context: Vec::new(),
+        historical_context: Vec::new(),
+        run_authority: None,
         skill_path: skill_dir.clone(),
         receipt_dir: None,
         run_id: None,
@@ -2880,7 +3150,6 @@ fn native_skill_run_accepts_named_start_and_requires_identity_for_answers()
         env: BTreeMap::new(),
         cwd: temp.path().to_path_buf(),
         managed_agent: Default::default(),
-        local_credential: None,
     }) {
         Ok(_) => return Err("answers without run-id should fail".into()),
         Err(error) => error,
@@ -2892,6 +3161,9 @@ fn native_skill_run_accepts_named_start_and_requires_identity_for_answers()
     );
 
     let missing_checkpoint = run_skill(SkillRunRequest {
+        current_context: Vec::new(),
+        historical_context: Vec::new(),
+        run_authority: None,
         skill_path: skill_dir,
         receipt_dir: None,
         run_id: Some("missing".to_owned()),
@@ -2900,7 +3172,6 @@ fn native_skill_run_accepts_named_start_and_requires_identity_for_answers()
         env: BTreeMap::new(),
         cwd: temp.path().to_path_buf(),
         managed_agent: Default::default(),
-        local_credential: None,
     })
     .err()
     .ok_or("an unadmitted run must not accept answers")?;
@@ -3395,6 +3666,9 @@ runners:
       thread_title:
         type: string
         required: true
+      repo_root:
+        type: string
+        default: .
     graph:
       name: graph-agent-then-input-tool
       result_from:
@@ -3411,7 +3685,7 @@ runners:
           tool: test.echo
           scopes: [test.echo]
           inputs:
-            message: $input.thread_title
+            message: $input.repo_root
 "#,
     )?;
     Ok(skill_dir)
@@ -3565,11 +3839,11 @@ fn write_echo_tool_at(tool_dir: &Path, message: &str) -> Result<(), Box<dyn std:
         format!(
             r#"raw="$(cat)"
 case "$raw" in
-  *"Graph tool bug"*) printf '%s\n' '{{"echo":{{"message":"{}"}}}}' ;;
+  *"Graph tool bug"*|*"{}"*) printf '%s\n' '{{"echo":{{"message":"{}"}}}}' ;;
   *) printf '%s\n' '{{"echo":{{"message":"unexpected"}}}}' ;;
 esac
 "#,
-            message
+            message, message
         ),
     )?;
     Ok(())
@@ -4077,6 +4351,9 @@ fn native_graph_when_skips_unselected_branch() -> Result<(), Box<dyn std::error:
     let receipt_dir = temp.path().join("receipts");
 
     let initial = run_skill(SkillRunRequest {
+        current_context: Vec::new(),
+        historical_context: Vec::new(),
+        run_authority: None,
         skill_path: skill_dir.clone(),
         receipt_dir: Some(receipt_dir.clone()),
         run_id: None,
@@ -4085,7 +4362,6 @@ fn native_graph_when_skips_unselected_branch() -> Result<(), Box<dyn std::error:
         env: BTreeMap::new(),
         cwd: temp.path().to_path_buf(),
         managed_agent: Default::default(),
-        local_credential: None,
     })?;
     let output = object(&initial.output, "when graph result")?;
     let run_id = string_field(output, "run_id").ok_or("missing run_id")?;
@@ -4115,6 +4391,9 @@ fn native_graph_when_skips_unselected_branch() -> Result<(), Box<dyn std::error:
     )?;
 
     let sealed = run_skill(SkillRunRequest {
+        current_context: Vec::new(),
+        historical_context: Vec::new(),
+        run_authority: None,
         skill_path: skill_dir,
         receipt_dir: Some(receipt_dir),
         run_id: Some(run_id.to_owned()),
@@ -4123,7 +4402,6 @@ fn native_graph_when_skips_unselected_branch() -> Result<(), Box<dyn std::error:
         env: BTreeMap::new(),
         cwd: temp.path().to_path_buf(),
         managed_agent: Default::default(),
-        local_credential: None,
     })?;
     let output = object(&sealed.output, "sealed when graph result")?;
     assert_eq!(string_field(output, "status"), Some("sealed"));

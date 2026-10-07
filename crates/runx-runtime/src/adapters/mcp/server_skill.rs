@@ -63,11 +63,6 @@ pub(super) fn load_mcp_server_tool(
     .map_err(|error| mcp_runner_error(&skill.name, error))?
     .ok_or_else(|| mcp_runner_error(&skill.name, "skill requires an execution-closure binding"))?;
     let required_scopes = runner.declared_scopes();
-    let credential_delivery = execution
-        .credential_deliveries
-        .get(&skill_path)
-        .cloned()
-        .unwrap_or_default();
     Ok(McpServerTool {
         name: skill.name.clone(),
         description: skill
@@ -84,7 +79,6 @@ pub(super) fn load_mcp_server_tool(
             execution_closure_digest,
             receipt_dir: execution.receipt_dir.clone(),
             env: execution.env.clone(),
-            credential_delivery,
         })),
     })
 }
@@ -109,6 +103,9 @@ pub(super) fn execute_mcp_server_skill(
     let workspace =
         crate::WorkspaceEnv::from_admitted(execution.env.clone()).map_err(RuntimeError::from)?;
     let request = crate::execution::orchestrator::SkillRunRequest {
+        current_context: Vec::new(),
+        historical_context: Vec::new(),
+        run_authority: None,
         skill_path: execution.skill_path,
         receipt_dir: execution.receipt_dir.clone(),
         run_id: Some(run_id.to_owned()),
@@ -117,14 +114,12 @@ pub(super) fn execute_mcp_server_skill(
         env: execution.env,
         cwd: workspace.cwd().to_path_buf(),
         managed_agent: Default::default(),
-        local_credential: None,
     };
     let result = match crate::execution::orchestrator::LocalOrchestrator::default()
         .run_skill_with_services(
             &request,
             &execution.runner,
             javascript,
-            execution.credential_delivery,
             &execution.package_digest,
             &execution.execution_closure_digest,
         ) {

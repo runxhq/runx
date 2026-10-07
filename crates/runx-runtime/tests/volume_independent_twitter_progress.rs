@@ -6,6 +6,7 @@ use serde_json::{Value, json};
 use crate::javascript_worker_support::{JavaScriptPackage, expected_json, success_json};
 
 const DIGEST: &str = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+const ACCOUNT_ID: &str = "42";
 
 #[test]
 fn twitter_execution_progress_is_a_compact_contiguous_cursor()
@@ -16,23 +17,33 @@ fn twitter_execution_progress_is_a_compact_contiguous_cursor()
     let first = prepare_plan(&prepare, &plan, 0, empty_ledger())?;
 
     assert_eq!(field(&first, "decision"), Some(&json!("ready")));
-    assert_eq!(array_field(&first, "act_groups")?.len(), 50);
+    let batch = object_field(&first, "batch")?;
+    assert_eq!(field(batch, "operation"), Some(&json!("posts.delete")));
+    assert_eq!(array_field(batch, "acts")?.len(), 50);
     assert!(first.get("plan_acts").is_none());
     assert!(first.get("remaining_act_ids").is_none());
 
-    let completed = finalize_plan(&finalize, &first, successful_responses(&first)?)?;
+    let outcomes = (0..50)
+        .map(|_| json!({ "status": "applied", "acknowledgement": { "data": { "deleted": true } } }))
+        .collect::<Vec<_>>();
+    let completed = finalize_plan(&finalize, &first, json!({ "outcomes": outcomes }))?;
     assert_eq!(field(&completed, "next_act_index"), Some(&json!(50)));
     assert_eq!(field(&completed, "remaining_count"), Some(&json!(70)));
     assert!(completed.get("executed_act_ids").is_none());
     assert!(completed.get("remaining_act_ids").is_none());
     let progress = object_field(&completed, "ledger_delta")?;
     assert_eq!(field(progress, "next_act_index"), Some(&json!(50)));
+    assert_eq!(field(progress, "account_id"), Some(&json!(ACCOUNT_ID)));
     assert!(serde_json::to_vec(progress)?.len() < 1_024);
 
     let second = prepare_plan(&prepare, &plan, 1, ledger(1, progress.clone()))?;
     assert_eq!(field(&second, "start_act_index"), Some(&json!(50)));
+    assert_eq!(field(&second, "account_id"), Some(&json!(ACCOUNT_ID)));
     assert_eq!(
-        field(&array_field(&second, "act_groups")?[0], "act_index"),
+        field(
+            &array_field(object_field(&second, "batch")?, "acts")?[0],
+            "act_index"
+        ),
         Some(&json!(50)),
     );
     assert!(serde_json::to_vec(&second)?.len() < 100_000);
@@ -40,24 +51,37 @@ fn twitter_execution_progress_is_a_compact_contiguous_cursor()
 }
 
 #[test]
-fn twitter_execution_stops_at_the_first_failed_act() -> Result<(), Box<dyn std::error::Error>> {
+fn twitter_execution_settles_refused_acts_and_stops_where_the_provider_halted()
+-> Result<(), Box<dyn std::error::Error>> {
     let prepare = execution_package("twitter-execution.mjs")?;
     let finalize = execution_package("twitter-execution-result.mjs")?;
-    let plan = delete_plan(3);
+    let plan = delete_plan(4);
     let prepared = prepare_plan(&prepare, &plan, 0, empty_ledger())?;
-    let responses = json!([
-        success_response("act:delete-0", json!({ "deleted": true })),
-        failure_response("act:delete-1", 500, "provider failed")
+    let outcomes = json!([
+        { "status": "applied", "acknowledgement": { "data": { "deleted": true } } },
+        { "status": "refused", "code": "provider_rejected", "reason": "the provider returned HTTP 404", "answer": { "title": "Not Found Error" } },
+        { "status": "refused", "code": "rate_limited", "reason": "the provider rate limited the request", "retry_at": "2027-01-15T08:00:00Z" },
+        { "status": "unsent", "code": "rate_limited", "reason": "item 3 of 4 halted the batch" }
     ]);
-    let completed = finalize_plan(&finalize, &prepared, responses)?;
+    let completed = finalize_plan(&finalize, &prepared, json!({ "outcomes": outcomes }))?;
 
-    assert_eq!(field(&completed, "decision"), Some(&json!("partial")));
-    assert_eq!(field(&completed, "next_act_index"), Some(&json!(1)));
+    assert_eq!(field(&completed, "decision"), Some(&json!("stopped")));
+    assert_eq!(field(&completed, "next_act_index"), Some(&json!(2)));
     assert_eq!(field(&completed, "remaining_count"), Some(&json!(2)));
-    assert_eq!(array_field(&completed, "results")?.len(), 2);
+    let results = array_field(&completed, "results")?;
+    assert_eq!(results.len(), 3);
+    assert_eq!(field(&results[1], "status"), Some(&json!("failed")));
+    assert_eq!(
+        field(&results[1], "detail"),
+        Some(&json!("Not Found Error"))
+    );
+    assert_eq!(
+        field(object_field(&completed, "rate")?, "reset_at"),
+        Some(&json!("2027-01-15T08:00:00Z"))
+    );
     assert_eq!(
         field(object_field(&completed, "ledger_delta")?, "next_act_index"),
-        Some(&json!(1)),
+        Some(&json!(2)),
     );
     Ok(())
 }
@@ -85,49 +109,97 @@ fn twitter_thread_progress_resumes_after_the_last_confirmed_segment()
         "gates": { "human_approval_required": true }
     });
     let prepared = prepare_plan(&prepare, &plan, 0, empty_ledger())?;
-    let responses = json!([
-        success_response("act:thread-1:segment:0", json!({ "id": "tweet-1" })),
-        failure_response("act:thread-1:segment:1", 503, "retry later")
-    ]);
-    let completed = finalize_plan(&finalize, &prepared, responses)?;
+    let batch = object_field(&prepared, "batch")?;
+    assert_eq!(field(batch, "operation"), Some(&json!("post.create")));
+    assert_eq!(field(batch, "input"), Some(&json!({ "text": "one" })));
+
+    let completed = finalize_plan(&finalize, &prepared, json!({ "post": { "id": "tweet-1" } }))?;
+    assert_eq!(field(&completed, "next_act_index"), Some(&json!(0)));
     let progress = object_field(&completed, "ledger_delta")?.clone();
     let active = object_field(&progress, "active_thread")?;
     assert_eq!(field(active, "next_segment_index"), Some(&json!(1)));
     assert_eq!(field(active, "in_reply_to"), Some(&json!("tweet-1")));
 
     let resumed = prepare_plan(&prepare, &plan, 1, ledger(1, progress))?;
-    let requests = array_field(&resumed, "requests")?;
+    let batch = object_field(&resumed, "batch")?;
+    assert_eq!(field(batch, "operation"), Some(&json!("post.reply")));
     assert_eq!(
-        field(&requests[0], "id"),
-        Some(&json!("act:thread-1:segment:1"))
-    );
-    assert_eq!(
-        requests[0].pointer("/body/reply/in_reply_to_tweet_id"),
-        Some(&json!("tweet-1")),
-    );
-    assert!(
-        requests
-            .iter()
-            .all(|request| { field(request, "id") != Some(&json!("act:thread-1:segment:0")) })
+        field(batch, "input"),
+        Some(&json!({ "text": "two", "in_reply_to": "tweet-1" }))
     );
     Ok(())
+}
+
+/// A batch runs only as the plan's principal, and every batch of a plan as
+/// the account the first one ran as.
+#[test]
+fn twitter_execution_binds_only_the_plans_account_and_the_one_it_pinned()
+-> Result<(), Box<dyn std::error::Error>> {
+    let prepare = execution_package("twitter-execution.mjs")?;
+    let finalize = execution_package("twitter-execution-result.mjs")?;
+    let plan = delete_plan(60);
+    let first = prepare_plan(&prepare, &plan, 0, empty_ledger())?;
+
+    let call = bind(
+        &prepare,
+        &first,
+        json!({ "id": ACCOUNT_ID, "username": "Example" }),
+    )?;
+    let reason = field(object_field(&call, "approval")?, "reason")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    assert!(reason.contains("as @Example (account 42)"), "{reason}");
+    assert_eq!(field(&call, "account_id"), Some(&json!(ACCOUNT_ID)));
+    let other = bind(&prepare, &first, json!({ "id": "43", "username": "other" }))
+        .err()
+        .map(|error| error.to_string())
+        .unwrap_or_default();
+    assert!(other.contains("is not the plan's principal"), "{other}");
+
+    let outcomes = (0..50)
+        .map(|_| json!({ "status": "applied", "acknowledgement": { "data": { "deleted": true } } }))
+        .collect::<Vec<_>>();
+    let completed = finalize_plan(&finalize, &first, json!({ "outcomes": outcomes }))?;
+    let second = prepare_plan(
+        &prepare,
+        &plan,
+        1,
+        ledger(1, object_field(&completed, "ledger_delta")?.clone()),
+    )?;
+    // The handle now names another account: the credential was rebound.
+    let moved = bind(
+        &prepare,
+        &second,
+        json!({ "id": "43", "username": "example" }),
+    )
+    .err()
+    .map(|error| error.to_string())
+    .unwrap_or_default();
+    assert!(moved.contains("earlier batches"), "{moved}");
+    Ok(())
+}
+
+fn bind(
+    package: &JavaScriptPackage,
+    plan: &Value,
+    account: Value,
+) -> Result<Value, Box<dyn std::error::Error>> {
+    let output = package.invoke_export(
+        "bindExecution",
+        object(json!({ "execution_plan": plan, "account": account }))?,
+    )?;
+    output_object(success_json(&output)?, "twitter_call")
 }
 
 fn execution_package(entry: &str) -> Result<JavaScriptPackage, Box<dyn std::error::Error>> {
     let root = "../../skills/twitter";
     let source = fs::read_to_string(format!("{root}/{entry}"))?;
+    let batch = fs::read_to_string(format!("{root}/twitter-execution-batch.mjs"))?;
     let values = fs::read_to_string(format!("{root}/twitter-execution-values.mjs"))?;
-    if entry == "twitter-execution-result.mjs" {
-        return JavaScriptPackage::with_modules(
-            &source,
-            [("twitter-execution-values.mjs", values.as_str())],
-        );
-    }
-    let requests = fs::read_to_string(format!("{root}/twitter-execution-requests.mjs"))?;
     JavaScriptPackage::with_modules(
         &source,
         [
-            ("twitter-execution-requests.mjs", requests.as_str()),
+            ("twitter-execution-batch.mjs", batch.as_str()),
             ("twitter-execution-values.mjs", values.as_str()),
         ],
     )
@@ -157,13 +229,14 @@ fn prepare_plan(
 fn finalize_plan(
     package: &JavaScriptPackage,
     plan: &Value,
-    responses: Value,
+    result: Value,
 ) -> Result<Value, Box<dyn std::error::Error>> {
     let output = package.invoke_export(
         "finalizeExecution",
         object(json!({
             "execution_plan": plan,
-            "http_execution": { "responses": responses }
+            "provider_operation": { "status": "success", "result": result },
+            "account_id": ACCOUNT_ID
         }))?,
     )?;
     output_object(success_json(&output)?, "twitter_execution")
@@ -185,31 +258,6 @@ fn delete_plan(count: usize) -> Value {
         "acts": acts,
         "gates": { "human_approval_required": true }
     })
-}
-
-fn successful_responses(plan: &Value) -> Result<Value, Box<dyn std::error::Error>> {
-    Ok(Value::Array(
-        array_field(plan, "requests")?
-            .iter()
-            .map(|request| {
-                success_response(
-                    request
-                        .get("id")
-                        .and_then(Value::as_str)
-                        .unwrap_or_default(),
-                    json!({ "deleted": true }),
-                )
-            })
-            .collect(),
-    ))
-}
-
-fn success_response(id: &str, data: Value) -> Value {
-    json!({ "id": id, "ok": true, "status": 200, "json": { "data": data }, "headers": {} })
-}
-
-fn failure_response(id: &str, status: u64, detail: &str) -> Value {
-    json!({ "id": id, "ok": false, "status": status, "json": { "detail": detail }, "headers": {} })
 }
 
 fn empty_ledger() -> Value {

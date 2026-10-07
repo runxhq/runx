@@ -5,7 +5,7 @@
     "uri": "support://case/ops-123"
   },
   "source_thread_ref": {
-    "type": "provider_thread",
+    "type": "thread",
     "uri": "provider://workspace/thread/ops-123"
   },
   "raw_context_artifact_ref": "artifact://runx/private/ops-123/context",

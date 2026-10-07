@@ -88,9 +88,6 @@ async function searchCases(): Promise<readonly OracleCase[]> {
     name: fixtureCase.name,
     argv: ["tool", "search", fixtureCase.query, "--source", fixtureCase.source, "--json"],
     cwd: workspaceRoot,
-    env: {
-      RUNX_ENABLE_FIXTURE_TOOL_CATALOG: "1",
-    },
     expectedStatus: fixtureCase.expectedStatus,
   }));
 }
@@ -103,9 +100,6 @@ async function inspectCases(): Promise<readonly OracleCase[]> {
       argv.push("--source", fixtureCase.source);
     }
     const env: Record<string, string> = {};
-    if (fixtureCase.source === "fixture-mcp") {
-      env.RUNX_ENABLE_FIXTURE_TOOL_CATALOG = "1";
-    }
     if (fixtureCase.toolRoot) {
       env.RUNX_TOOL_ROOTS = path.join(fixtureRoot, "inspect", fixtureCase.toolRoot);
     }

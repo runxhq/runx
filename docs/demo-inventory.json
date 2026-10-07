@@ -17,18 +17,8 @@
       "command": "runx harness skills/data-store/fixtures/append-read-sqlite-event.yaml"
     },
     {
-      "path": "examples/github-mcp-hero",
-      "proof": "Governed GitHub MCP read succeeds, out-of-scope write is refused, denial receipt verifies offline.",
-      "command": "sh examples/github-mcp-hero/run.sh"
-    },
-    {
-      "path": "examples/openapi-graph",
-      "proof": "OpenAPI-described operation executes through the governed external-adapter lane and seals.",
-      "command": "sh examples/openapi-graph/run.sh"
-    },
-    {
       "path": "skills/nws-weather-forecast",
-      "proof": "The official National Weather Service skill executes through native http.read and seals stable provider metadata.",
+      "proof": "The official National Weather Service skill reads through its national-weather-service connector and seals stable provider metadata.",
       "command": "runx harness skills/nws-weather-forecast/fixtures/nws-forecast-washington-monument.yaml"
     },
     {
@@ -39,33 +29,15 @@
   ],
   "runnable_preview": [
     {
-      "path": "examples/external-adapter-graph",
-      "command": "runx harness examples/external-adapter-graph"
-    },
-    {
       "path": "examples/hello-graph",
       "command": "runx harness examples/hello-graph/harness.yaml"
     },
     {
       "path": "examples/managed-agent",
       "command": "runx harness examples/managed-agent"
-    },
-    {
-      "path": "examples/post-merge-publish",
-      "command": "runx harness examples/post-merge-publish/final-outcome.yaml"
-    },
-    {
-      "path": "examples/thread-outbox-provider-graph",
-      "command": "runx harness examples/thread-outbox-provider-graph"
     }
   ],
   "fixture_support": [
-    "examples/external-adapter-tool",
-    "examples/host-protocol",
-    "examples/openapi-tool",
-    "examples/post-merge-final-outcome-publisher",
-    "examples/thread-outbox-provider-fetch",
-    "examples/thread-outbox-provider-fixture",
-    "examples/thread-outbox-provider-push"
+    "examples/host-protocol"
   ]
 }

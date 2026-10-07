@@ -9,17 +9,22 @@ inputs:
     contract_id: ecc_flow_fixture
     idempotency_key: ecr_flow_fixture
     name: Trial welcome series
-    trigger: { event: contact_add }
+    trigger:
+      event: contact_add
     steps:
-      - type: email
-        action_name: flow-step-0
-        subject: Welcome
+    - type: email
+      action_name: flow-step-0
+      subject: Welcome
   brand_sid: brnd_demo123
+setup:
+  credentials:
+  - nitrosend
 env:
   NITROSEND_API_KEY: harness-nitrosend-token
 expect:
   status: needs_agent
-  steps: [preflight]
+  steps:
+  - preflight
 metadata:
   public_skill: nitrosend
   source_case: apply-draft-requires-approval

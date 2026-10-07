@@ -1,6 +1,6 @@
 ---
 name: mcp-echo
-description: Echo a message through a local MCP stdio fixture server.
+description: Echo a message. Served as a tool by runx mcp serve tests.
 ---
 
-Echo the provided message through a local MCP server fixture.
+Return the provided message unchanged.

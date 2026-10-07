@@ -7,7 +7,6 @@ use crate::{JsonNumber, JsonObject, ProofKind, Reference};
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum AuthorityResourceFamily {
-    GithubRepo,
     Workspace,
     Filesystem,
     Network,
@@ -17,6 +16,8 @@ pub enum AuthorityResourceFamily {
     Artifact,
     Harness,
     Publication,
+    /// Operations on one connector instance.
+    Connector,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
@@ -147,6 +148,29 @@ pub struct AuthorityBounds {
     pub max_fanout: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max_child_depth: Option<u32>,
+    /// Connector operations, as `<connector>/<operation>` or `<connector>/*`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub operations: Vec<NonEmptyString>,
+    /// Provider grant scopes.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub scopes: Vec<NonEmptyString>,
+    /// Provider targets: exact values, `<prefix>*`, or `*`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub targets: Vec<NonEmptyString>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub uses: Option<AuthorityUseLimit>,
+}
+
+/// How many times a term may be used. An execution term is single use; a
+/// standing approval bounds its repeats. Usage is reserved atomically with
+/// each effect attempt, never counted from receipts.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
+#[serde(deny_unknown_fields)]
+pub struct AuthorityUseLimit {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub total: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub per_day: Option<u64>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
@@ -257,6 +281,46 @@ pub struct AuthoritySubsetProof {
 pub struct AuthorityAttenuation {
     pub parent_authority_ref: Option<Reference>,
     pub subset_proof: Option<AuthoritySubsetProof>,
+}
+
+/// The three kinds of evidence admission proves. Each has one job.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum AuthorityEvidenceKind {
+    /// What the principal can do at the provider: a grant, credential or
+    /// session. Authorizes only the principal acting directly.
+    Capability,
+    /// What an actor may do for the principal: a mandate, or child authority
+    /// attenuated from a parent run. Narrows; never creates.
+    Delegation,
+    /// A person's confirmation of this exact intent, or of a bounded kind of
+    /// intent. Satisfies an approval floor; never authorizes alone.
+    Approval,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
+#[serde(deny_unknown_fields)]
+pub struct AuthorityEvidence {
+    pub kind: AuthorityEvidenceKind,
+    pub reference: Reference,
+    /// The capability or delegation term, sealed so the subset proofs can be
+    /// re-checked offline. Approvals carry no term.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub term: Option<AuthorityTerm>,
+}
+
+/// How an execution term was derived: the evidence admission proved, ordered
+/// capability first, then each delegation link from principal to actor, then
+/// any approval; and one subset proof per parent term.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
+#[serde(deny_unknown_fields)]
+#[runx_schema(id = "runx.authority_derivation.v1")]
+pub struct AuthorityDerivation {
+    pub term_id: NonEmptyString,
+    pub intent_digest: NonEmptyString,
+    pub evidence: Vec<AuthorityEvidence>,
+    pub proofs: Vec<AuthoritySubsetProof>,
+    pub derived_at: IsoDateTime,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]

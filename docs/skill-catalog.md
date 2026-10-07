@@ -64,11 +64,10 @@ Defaults follow the public promise:
 - normal output contains one compact domain result and receipt references;
   intermediate graph context is available only with diagnostics.
 
-For GitHub, an explicit project binding wins. Otherwise a compatible existing
-authenticated local `gh` session is preferred for supported reads and writes;
-Runx Connect remains the tenant-agnostic hosted transport when selected or when
-no compatible local driver exists. A connector account never determines the
-repository target. Reads do not acquire approval ceremony. Routine remote
+For GitHub, the selected `github` instance decides the account: a signed-in
+local `gh` session (`runx connector use github --session`), a stored token, or
+a runx Connect grant. A run never falls back to another account, and a
+connector account never determines the repository target. Reads do not acquire approval ceremony. Routine remote
 mutations use their exact scoped grant, stable idempotency, recovery, and
 independent readback regardless of transport. A skill adds one exact resumable
 human approval only when the action itself warrants that extra decision.

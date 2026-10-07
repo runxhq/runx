@@ -79,6 +79,7 @@ fn wall_limit_failure_records_exact_receipt_metadata() -> Result<(), Box<dyn std
 fn invocation(skill_directory: &std::path::Path) -> SkillInvocation {
     let _ = fs::create_dir_all(skill_directory);
     SkillInvocation {
+        historical_context: Vec::new(),
         skill_name: "javascript-test".to_owned(),
         step_id: None,
         artifacts: None,
@@ -95,17 +96,10 @@ fn invocation(skill_directory: &std::path::Path) -> SkillInvocation {
             timeout_seconds: None,
             input_mode: None,
             environment: Default::default(),
-            server: None,
-            tool: None,
-            arguments: None,
-            agent_card_url: None,
-            agent_identity: None,
             agent: None,
             task: None,
             outputs: None,
             graph: None,
-            external_adapter: None,
-            thread_outbox_provider: None,
             act: None,
             raw: JsonObject::new(),
         },

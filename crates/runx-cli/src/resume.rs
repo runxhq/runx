@@ -264,7 +264,6 @@ pub fn run_native_resume_with_workspace(plan: ResumePlan, workspace: &WorkspaceE
         full_operator_context: false,
         inputs: BTreeMap::new(),
         input_document: None,
-        credential_profile: pending.credential_profile.clone(),
         managed_agent: plan.managed_agent,
     };
     crate::skill::run_native_skill_with_workspace(skill_plan, workspace)

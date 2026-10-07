@@ -1,0 +1,65 @@
+schema: runx.connector.v1
+id: national-weather-service
+name: National Weather Service
+description: Resolve US gridpoints and read National Weather Service forecasts.
+auth:
+  none: {}
+placements:
+  local:
+    auth: [none]
+operations:
+  points.read:
+    description: Resolve a latitude and longitude to its NWS office and gridpoint.
+    verb: read
+    scopes: [weather.read]
+    target:
+      template: "https://api.weather.gov/points"
+    input_schema:
+      type: object
+      required: [lat, lon]
+      additionalProperties: false
+      properties:
+        lat: {type: string, pattern: "^-?[0-9]{1,2}(\\.[0-9]{1,4})?$"}
+        lon: {type: string, pattern: "^-?[0-9]{1,3}(\\.[0-9]{1,4})?$"}
+    result_fields: [points]
+    implementation:
+      http:
+        allowed_hosts: [api.weather.gov]
+        requests:
+          - id: points
+            method: GET
+            url: {"$concat": ["https://api.weather.gov/points/", {"$argument": "/lat"}, ",", {"$argument": "/lon"}]}
+            headers:
+              user-agent: "runx-weather-catalog/0.1 (https://github.com/runxhq/runx)"
+              accept: "application/geo+json, application/json"
+        decode: [{op: auto_json}]
+        result_paths:
+          points: acknowledgement
+  forecast.read:
+    description: Read the forecast for one NWS office gridpoint.
+    verb: read
+    scopes: [weather.read]
+    target:
+      template: "https://api.weather.gov/gridpoints"
+    input_schema:
+      type: object
+      required: [office, grid_x, grid_y]
+      additionalProperties: false
+      properties:
+        office: {type: string, pattern: "^[A-Z]{3}$"}
+        grid_x: {type: string, pattern: "^[0-9]{1,3}$"}
+        grid_y: {type: string, pattern: "^[0-9]{1,3}$"}
+    result_fields: [forecast]
+    implementation:
+      http:
+        allowed_hosts: [api.weather.gov]
+        requests:
+          - id: forecast
+            method: GET
+            url: {"$concat": ["https://api.weather.gov/gridpoints/", {"$argument": "/office"}, "/", {"$argument": "/grid_x"}, ",", {"$argument": "/grid_y"}, "/forecast"]}
+            headers:
+              user-agent: "runx-weather-catalog/0.1 (https://github.com/runxhq/runx)"
+              accept: "application/geo+json, application/json"
+        decode: [{op: auto_json}]
+        result_paths:
+          forecast: acknowledgement

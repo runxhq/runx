@@ -1,8 +1,0 @@
-name: post-merge-publish-final-outcome
-owner: runx
-steps:
-  - id: publish-final-outcome
-    skill: ../post-merge-final-outcome-publisher
-    scopes:
-      - thread:push
-    idempotency_key: post-merge-publish-final-outcome

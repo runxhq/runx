@@ -12,7 +12,6 @@ use runx_contracts::{RECEIPT_SCHEMA, Receipt};
 use runx_receipts::{
     ReceiptProofContextProvider, content_addressed_receipt_id, verify_receipt_proof,
 };
-use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -23,9 +22,6 @@ use super::seal::{RuntimeReceiptProofContextProvider, RuntimeReceiptSignaturePol
 
 const RECEIPT_STORE_INDEX_SCHEMA: &str = "runx.receipt_store_index.v1";
 const INDEX_FILE_NAME: &str = "index.json";
-const EFFECT_STATE_FILE_NAME: &str = "effect-state.json";
-pub(crate) const PROVIDER_EFFECT_STATE_FILE_NAME: &str = "provider-effects.json";
-pub(crate) const NOTIFICATION_AUTHORITY_STATE_FILE_NAME: &str = "notification-authorities.json";
 pub(crate) const STORE_LOCK_FILE_NAME: &str = ".receipt-store.lock";
 const SHA256_RECEIPT_ID_PREFIX: &str = "sha256:";
 const SHA256_RECEIPT_FILE_PREFIX: &str = "sha256-";
@@ -179,102 +175,6 @@ impl LocalReceiptStore {
             write_atomic_batch(&self.root, &pending)?;
         }
         self.update_index_after_writes(&index_entries)
-    }
-
-    pub(crate) fn read_provider_effect_state<T>(&self) -> Result<Option<T>, ReceiptStoreError>
-    where
-        T: DeserializeOwned,
-    {
-        self.read_private_state(PROVIDER_EFFECT_STATE_FILE_NAME)
-    }
-
-    pub(crate) fn read_notification_authority_state<T>(
-        &self,
-    ) -> Result<Option<T>, ReceiptStoreError>
-    where
-        T: DeserializeOwned,
-    {
-        self.read_private_state(NOTIFICATION_AUTHORITY_STATE_FILE_NAME)
-    }
-
-    fn read_private_state<T>(&self, file_name: &str) -> Result<Option<T>, ReceiptStoreError>
-    where
-        T: DeserializeOwned,
-    {
-        match self.ensure_store_dir() {
-            Ok(()) => {}
-            Err(ReceiptStoreError::MissingStore { .. }) => return Ok(None),
-            Err(error) => return Err(error),
-        }
-        let _lock = self.lock_mutations()?;
-        let path = self.root.join(file_name);
-        let contents = match fs::read(&path) {
-            Ok(contents) => contents,
-            Err(source) if source.kind() == ErrorKind::NotFound => return Ok(None),
-            Err(source) => {
-                return Err(ReceiptStoreError::StoreUnreadable { path, source });
-            }
-        };
-        serde_json::from_slice(&contents)
-            .map(Some)
-            .map_err(|source| ReceiptStoreError::MalformedEffectState {
-                path,
-                message: source.to_string(),
-            })
-    }
-
-    pub(crate) fn update_provider_effect_state<T, R>(
-        &self,
-        update: impl FnOnce(&mut T) -> Result<R, ReceiptStoreError>,
-    ) -> Result<R, ReceiptStoreError>
-    where
-        T: Default + DeserializeOwned + Serialize,
-    {
-        self.update_private_state(PROVIDER_EFFECT_STATE_FILE_NAME, update)
-    }
-
-    pub(crate) fn update_notification_authority_state<T, R>(
-        &self,
-        update: impl FnOnce(&mut T) -> Result<R, ReceiptStoreError>,
-    ) -> Result<R, ReceiptStoreError>
-    where
-        T: Default + DeserializeOwned + Serialize,
-    {
-        self.update_private_state(NOTIFICATION_AUTHORITY_STATE_FILE_NAME, update)
-    }
-
-    fn update_private_state<T, R>(
-        &self,
-        file_name: &str,
-        update: impl FnOnce(&mut T) -> Result<R, ReceiptStoreError>,
-    ) -> Result<R, ReceiptStoreError>
-    where
-        T: Default + DeserializeOwned + Serialize,
-    {
-        self.ensure_or_create_store_dir()?;
-        let _lock = self.lock_mutations()?;
-        let path = self.root.join(file_name);
-        let mut state = match fs::read(&path) {
-            Ok(contents) => serde_json::from_slice(&contents).map_err(|source| {
-                ReceiptStoreError::MalformedEffectState {
-                    path: path.clone(),
-                    message: source.to_string(),
-                }
-            })?,
-            Err(source) if source.kind() == ErrorKind::NotFound => T::default(),
-            Err(source) => {
-                return Err(ReceiptStoreError::StoreUnreadable { path, source });
-            }
-        };
-        let result = update(&mut state)?;
-        let contents = serde_json::to_vec(&state).map_err(|source| {
-            ReceiptStoreError::MalformedEffectState {
-                path: path.clone(),
-                message: source.to_string(),
-            }
-        })?;
-        write_atomic(&self.root, file_name, &contents)?;
-        Ok(result)
     }
 
     pub fn list(&self) -> Result<Vec<Receipt>, ReceiptStoreError> {
@@ -676,8 +576,6 @@ pub enum ReceiptStoreError {
     MalformedIndex { path: PathBuf, message: String },
     #[error("receipt store index is stale: {message}")]
     ReceiptIndexStale { path: PathBuf, message: String },
-    #[error("provider effect state is malformed: {message}")]
-    MalformedEffectState { path: PathBuf, message: String },
     #[error("receipt store path cannot be projected safely: {reason}")]
     UnsafePathProjection { reason: String },
 }
@@ -722,9 +620,6 @@ impl ReceiptStoreError {
             Self::ReceiptIndexStale { .. } => {
                 format!("receipt store index is stale in store {store_label}")
             }
-            Self::MalformedEffectState { .. } => {
-                format!("provider effect state is malformed in store {store_label}")
-            }
             Self::UnsafePathProjection { .. } => {
                 "receipt store path cannot be projected safely".to_owned()
             }
@@ -747,11 +642,9 @@ fn receipt_file_name(receipt_id: &str) -> Result<String, ReceiptStoreError> {
 
 fn is_receipt_json_path(path: &Path) -> bool {
     path.extension() == Some(OsStr::new("json"))
-        && path.file_name().is_some_and(|file_name| {
-            file_name != OsStr::new(INDEX_FILE_NAME)
-                && file_name != OsStr::new(EFFECT_STATE_FILE_NAME)
-                && file_name != OsStr::new(PROVIDER_EFFECT_STATE_FILE_NAME)
-        })
+        && path
+            .file_name()
+            .is_some_and(|file_name| file_name != OsStr::new(INDEX_FILE_NAME))
         && path
             .file_stem()
             .and_then(OsStr::to_str)
@@ -1011,7 +904,11 @@ fn verify_stored_receipt_proof(
     }
 }
 
-fn write_atomic(dir: &Path, file_name: &str, contents: &[u8]) -> Result<(), ReceiptStoreError> {
+pub(crate) fn write_atomic(
+    dir: &Path,
+    file_name: &str,
+    contents: &[u8],
+) -> Result<(), ReceiptStoreError> {
     write_atomic_with(dir, file_name, contents, true)
 }
 

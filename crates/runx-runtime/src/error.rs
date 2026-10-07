@@ -219,6 +219,7 @@ impl RuntimeError {
             | Self::ParallelHostInteraction { .. }
             | Self::EffectState { .. }
             | Self::ProviderEffectUnknown { .. }
+            | Self::ProviderReadbackPending { .. }
             | Self::ReceiptInvalid { .. }
             | Self::ContinuationRejected { .. } => true,
             Self::Io { .. }
@@ -236,7 +237,6 @@ impl RuntimeError {
             | Self::AuthorityDenied { .. }
             | Self::GraphPaused { .. }
             | Self::GraphEscalated { .. }
-            | Self::ProviderReadbackPending { .. }
             | Self::UnsupportedAdapter { .. }
             | Self::UnsupportedSource { .. }
             | Self::UnsupportedRunnerSelection { .. }

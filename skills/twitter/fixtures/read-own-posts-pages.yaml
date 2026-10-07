@@ -1,0 +1,71 @@
+name: twitter-read-own-posts-pages
+kind: skill
+target: ..
+operator_journeys:
+  - mode: standalone
+    confusors: [moltbook, ecosystem-brief]
+    request: Read my three most recent posts on X.
+    expected_outcome: Read the authenticated account, page its posts until at least the requested count, and return every post of those whole pages with where the next read starts.
+inputs:
+  query: posts
+  max_items: 3
+setup:
+  credentials: [twitter]
+env:
+  TWITTER_USER_AUTH: '{"consumer_key":"harness-consumer","consumer_secret":"harness-secret","access_token":"harness-access","access_secret":"harness-access-secret"}'
+caller:
+  http_exchanges:
+    - request:
+        method: GET
+        url: https://api.x.com/2/users/me?user.fields=created_at%2Cdescription%2Cpublic_metrics
+        body: none
+      response:
+        status: 200
+        headers: { content-type: application/json }
+        body: '{"data":{"id":"42","username":"runx","name":"Runx","description":"Governed runtime for agent skills","public_metrics":{"followers_count":100,"following_count":20,"tweet_count":50}}}'
+    - request:
+        method: GET
+        url: https://api.x.com/2/users/42/tweets?max_results=10&tweet.fields=created_at%2Cpublic_metrics%2Centities%2Creferenced_tweets%2Cin_reply_to_user_id
+        body: none
+      response:
+        status: 200
+        headers: { content-type: application/json }
+        body: '{"data":[{"id":"9004","text":"Fourth","created_at":"2026-07-04T00:00:00Z","public_metrics":{"like_count":4,"retweet_count":1,"reply_count":0,"quote_count":0}},{"id":"9003","text":"Third https://runx.ai","created_at":"2026-07-03T00:00:00Z","public_metrics":{"like_count":3,"retweet_count":0,"reply_count":1,"quote_count":0},"entities":{"urls":[{"url":"https://t.co/x"}]}}],"meta":{"result_count":2,"next_token":"page-2"}}'
+    - request:
+        method: GET
+        url: https://api.x.com/2/users/42/tweets?max_results=10&pagination_token=page-2&tweet.fields=created_at%2Cpublic_metrics%2Centities%2Creferenced_tweets%2Cin_reply_to_user_id
+        body: none
+      response:
+        status: 200
+        headers: { content-type: application/json }
+        body: '{"data":[{"id":"9002","text":"Second","created_at":"2026-07-02T00:00:00Z","public_metrics":{"like_count":2,"retweet_count":0,"reply_count":0,"quote_count":0},"in_reply_to_user_id":"7"},{"id":"9001","text":"First","created_at":"2026-07-01T00:00:00Z","public_metrics":{"like_count":1,"retweet_count":0,"reply_count":0,"quote_count":0}}],"meta":{"result_count":2,"next_token":"page-3"}}'
+expect:
+  status: sealed
+  steps: [prepare, request, normalize, digest, finalize]
+  step_outputs:
+    request:
+      subset:
+        provider_operation:
+          data:
+            status: success
+            provider: twitter
+            operation: account.posts.read
+            result:
+              next: page-3
+    finalize:
+      subset:
+        twitter_evidence:
+          data:
+            decision: ok
+            source: live
+            query: { kind: posts }
+            account: { id: "42", username: runx }
+            item_count: 4
+            truncated: true
+            next_cursor: page-3
+            items:
+              - { id: "9004", text: Fourth, has_link: false, in_reply_to: null }
+              - { id: "9003", has_link: true }
+              - { id: "9002", in_reply_to: "7" }
+              - { id: "9001", text: First }
+metadata: { public_skill: twitter, source_case: live-read-pages, source: skills-fixture }

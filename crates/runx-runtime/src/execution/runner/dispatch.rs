@@ -22,9 +22,8 @@ pub(super) enum StepFault {
     /// The step itself failed and the runtime may seal that failure as the
     /// branch outcome when the graph's failure policy allows continuation.
     Sealable(RuntimeError),
-    /// Runtime integrity failed. This must escape the graph engine unchanged;
-    /// synthesizing a failed step receipt would misrepresent an engine fault as
-    /// an executed skill outcome.
+    /// An engine fault or native suspension must escape the graph unchanged.
+    /// Synthesizing a failed step receipt would lose recovery custody.
     Fatal(RuntimeError),
 }
 

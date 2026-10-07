@@ -563,7 +563,7 @@ esac
 }
 
 #[test]
-fn dispatch_applies_the_native_data_contract_to_external_adapters()
+fn dispatch_applies_the_native_data_contract_to_tool_backed_adapters()
 -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;
     fs::create_dir_all(temp.path().join(".runx"))?;

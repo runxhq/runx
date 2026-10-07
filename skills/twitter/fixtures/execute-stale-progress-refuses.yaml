@@ -27,9 +27,6 @@ inputs:
   data_source_ref: tenant://twitter/sqlite-stale
   expected_version: 1
   idempotency_key: twitter:sha256:1cee12c918caffb15eb97422ce05c0f699bf89e8c415dba05a47a8f1f257569d:v2
-caller:
-  approvals:
-    twitter.execute.approval: true
 expect:
   status: sealed
   receipt:

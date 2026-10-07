@@ -3,10 +3,10 @@ use std::fs;
 use std::path::Path;
 
 use runx_runtime::{
-    ConfigError, ConfigKey, ManagedAgentAuthMode, ManagedAgentConfig, RunxAgentConfig,
-    RunxConfigFile, SecretString, load_local_agent_api_key, load_local_public_api_token,
-    load_managed_agent_config, load_runx_config_file, lookup_runx_config_value,
-    managed_agent_provider, mask_runx_config_file, resolve_runx_global_home_dir,
+    ConfigError, ConfigKey, ManagedAgentAuthMode, ManagedAgentConfig, ModelDialect,
+    RunxAgentConfig, RunxConfigFile, SecretString, load_local_agent_api_key,
+    load_local_public_api_token, load_managed_agent_config, load_runx_config_file,
+    lookup_runx_config_value, mask_runx_config_file, resolve_runx_global_home_dir,
     resolve_runx_workspace_base, update_runx_config_value, write_runx_config_file,
 };
 use tempfile::tempdir;
@@ -216,10 +216,11 @@ fn config_loads_managed_agent_env_precedence_and_local_key_fallback()
     assert_eq!(
         load_managed_agent_config(&explicit_env, temp.path())?,
         Some(ManagedAgentConfig {
-            provider: managed_agent_provider::OPENAI.into(),
+            provider: "openai".into(),
+            dialect: ModelDialect::ChatCompletions,
             model: "gpt-test".to_owned(),
             api_key: Some(SecretString::new("sk-explicit")),
-            endpoint_url: None,
+            endpoint_url: "https://api.openai.com/v1/chat/completions".to_owned(),
             auth_mode: runx_runtime::ManagedAgentAuthMode::ApiKey,
         })
     );
@@ -244,10 +245,11 @@ fn config_loads_managed_agent_env_precedence_and_local_key_fallback()
     assert_eq!(
         load_managed_agent_config(&local_env, temp.path())?,
         Some(ManagedAgentConfig {
-            provider: managed_agent_provider::ANTHROPIC.into(),
+            provider: "anthropic".into(),
+            dialect: ModelDialect::AnthropicMessages,
             model: "claude-test".to_owned(),
             api_key: Some(SecretString::new("local-secret")),
-            endpoint_url: None,
+            endpoint_url: "https://api.anthropic.com/v1/messages".to_owned(),
             auth_mode: runx_runtime::ManagedAgentAuthMode::ApiKey,
         })
     );
@@ -263,6 +265,81 @@ fn config_loads_managed_agent_env_precedence_and_local_key_fallback()
     assert!(provider_config.is_some());
     assert!(!debug.contains("anthropic-env-secret"));
     assert!(debug.contains("[redacted-credential]"));
+    Ok(())
+}
+
+#[test]
+fn providers_are_profiles_and_any_other_names_its_dialect_and_endpoint()
+-> Result<(), Box<dyn std::error::Error>> {
+    let temp = tempdir()?;
+    let home = temp.path().to_str().unwrap_or_default();
+    let gemini = load_managed_agent_config(
+        &env_map([
+            ("RUNX_HOME", home),
+            ("RUNX_AGENT_PROVIDER", "gemini"),
+            ("RUNX_AGENT_MODEL", "gemini-test"),
+            ("GEMINI_API_KEY", "gemini-secret"),
+            ("OPENAI_API_KEY", "unrelated-secret"),
+        ]),
+        temp.path(),
+    )?
+    .ok_or("gemini is a built-in profile")?;
+    assert_eq!(gemini.dialect, ModelDialect::ChatCompletions);
+    assert_eq!(gemini.api_key, Some(SecretString::new("gemini-secret")));
+    assert!(
+        gemini
+            .endpoint_url
+            .starts_with("https://generativelanguage.googleapis.com/")
+    );
+
+    let custom = |extra: &[(&str, &str)]| {
+        let mut env = env_map([
+            ("RUNX_HOME", home),
+            ("RUNX_AGENT_PROVIDER", "gateway"),
+            ("RUNX_AGENT_MODEL", "any-model"),
+            ("RUNX_AGENT_API_KEY", "gateway-secret"),
+            ("GATEWAY_API_KEY", "ambient-secret"),
+        ]);
+        env.extend(
+            extra
+                .iter()
+                .map(|(key, value)| ((*key).to_owned(), (*value).to_owned())),
+        );
+        load_managed_agent_config(&env, temp.path())
+    };
+    assert!(matches!(
+        custom(&[]),
+        Err(ConfigError::InvalidAgentSetting {
+            key: "agent.dialect",
+            ..
+        })
+    ));
+    let gateway = custom(&[
+        ("RUNX_AGENT_DIALECT", "anthropic_messages"),
+        (
+            "RUNX_AGENT_ENDPOINT_URL",
+            "https://gateway.example/v1/messages",
+        ),
+    ])?
+    .ok_or("a configured provider resolves")?;
+    assert_eq!(gateway.dialect, ModelDialect::AnthropicMessages);
+    assert_eq!(gateway.api_key, Some(SecretString::new("gateway-secret")));
+    assert!(matches!(
+        load_managed_agent_config(
+            &env_map([
+                ("RUNX_HOME", home),
+                ("RUNX_AGENT_PROVIDER", "openai"),
+                ("RUNX_AGENT_DIALECT", "anthropic_messages"),
+                ("RUNX_AGENT_MODEL", "gpt-test"),
+                ("RUNX_AGENT_API_KEY", "sk"),
+            ]),
+            temp.path(),
+        ),
+        Err(ConfigError::InvalidAgentSetting {
+            key: "agent.dialect",
+            ..
+        })
+    ));
     Ok(())
 }
 
@@ -298,13 +375,17 @@ fn config_matches_blank_env_overlay_edges() -> Result<(), Box<dyn std::error::Er
         None
     );
 
+    // A blank model is no model: the provider's default applies.
     let blank_model = env_map([
         ("RUNX_HOME", runx_home),
         ("RUNX_AGENT_PROVIDER", "anthropic"),
         ("RUNX_AGENT_MODEL", ""),
         ("RUNX_AGENT_API_KEY", "sk-explicit"),
     ]);
-    assert_eq!(load_managed_agent_config(&blank_model, temp.path())?, None);
+    assert_eq!(
+        load_managed_agent_config(&blank_model, temp.path())?.map(|config| config.model),
+        Some("claude-opus-5-5".to_owned())
+    );
 
     let blank_generic_key = env_map([
         ("RUNX_HOME", runx_home),
@@ -342,10 +423,11 @@ fn explicit_keyless_mode_requires_exact_loopback_and_remains_repairable()
     assert_eq!(
         load_managed_agent_config(&env, temp.path())?,
         Some(ManagedAgentConfig {
-            provider: managed_agent_provider::OPENAI.into(),
+            provider: "openai".into(),
+            dialect: ModelDialect::ChatCompletions,
             model: "qwen2.5".to_owned(),
             api_key: None,
-            endpoint_url: Some(endpoint.to_owned()),
+            endpoint_url: endpoint.to_owned(),
             auth_mode: ManagedAgentAuthMode::LocalNone,
         })
     );

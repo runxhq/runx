@@ -72,6 +72,9 @@ fn sdk_decodes_embedded_runtime_service_fixture_without_typescript_fallback()
     assert_eq!(fixture.target.sdk_disposition, "runx-sdk-cli-backed");
     assert!(fixture.semantics.contains(&"host_continuation".to_owned()));
     assert!(fixture.semantics.contains(&"auth_resolution".to_owned()));
+    // The runtime resolves a connector's credential itself; a paused run
+    // never asks its host for one.
+    assert!(!expected_json.contains("credential"));
     assert!(
         !fixture
             .target

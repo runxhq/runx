@@ -144,13 +144,14 @@ authoring.
   procedure, operator decision, or state into Cloud. If that operator surface is
   missing, return work to OSS or the product owner; never extend a Cloud script
   or hosted service as a substitute.
-- For hosted provider work, compose native `provider.read` or
-  `provider.mutate`; declare exact scopes and provider operations, and require
-  provider readback. A scoped provider grant is sufficient by default. When an
-  act genuinely needs a human decision, put one typed `approval` request in the
-  `provider.mutate` inputs with a concrete reason and action-specific type. The
-  native provider effect constructs the exact operator summary, binds the
-  request to the plan, and suspends for `runx resume`; never add an adjacent
+- For provider work, list the connector and its operations under
+  `connectors:` and call them from `operation` steps; the connector declares
+  the scopes, target and readbacks. A scoped grant is sufficient by default.
+  When an act genuinely needs a human decision, put one typed `approval`
+  request in the operation step's inputs with a concrete reason and
+  action-specific type, or rely on the operation's `approval: required`. The
+  kernel constructs the exact operator summary, binds the request to the
+  intent, and suspends for `runx resume`; never add an adjacent
   graph approval for the same action. Use an explicit graph approval only for a
   consequential decision no native capability owns. One action has one
   approval owner. Payment effects must also provide the typed
@@ -174,9 +175,9 @@ authoring.
   authority.
 - Treat the selected runner's typed execution requirements as the complete
   permission request. Put opaque scope strings, exact non-secret environment
-  names, the named credential requirement, and runtime metadata on their
-  canonical runner or source fields—never under `runx`, in prose, or in a
-  package loader. Runx resolves and records those declarations without
+  names, and runtime metadata on their canonical runner or source fields, never
+  under `runx`, in prose, or in a package loader; credentials belong to the
+  connectors the runner calls. Runx resolves and records those declarations without
   inventing a scope vocabulary; the native capability or provider that owns a
   scope enforces it.
 - Make every public runner contract recursively complete at the authoring

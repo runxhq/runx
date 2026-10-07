@@ -1,7 +1,7 @@
 {
   "name": "@runxhq/extension-sdk",
   "version": "0.1.0",
-  "description": "Narrow SDK for Runx external process and protocol extensions.",
+  "description": "Narrow SDK for Runx process tool extensions.",
   "private": false,
   "license": "Apache-2.0",
   "type": "module",

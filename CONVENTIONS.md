@@ -143,9 +143,8 @@ Exact exchanges are checked first; unmatched mutations fail closed, while the
 legacy URL lane retains its existing method rules. Declaring either lane
 activates harness-only transport with no live-network fallback. Fixture bytes
 still pass through the production admission, allowlist, redirect, extraction,
-digest, redaction, and response-bound logic for the selected capability. Live
-`http.execute` mutations are single-attempt. Keep live-provider availability
-checks in a separate opt-in smoke lane.
+digest, redaction, and response-bound logic for the selected capability. Keep
+live-provider availability checks in a separate opt-in smoke lane.
 
 A sealed status is engine coverage, not operator-value proof. Every kept public
 skill must have at least one semantic oracle through `expect.output`,

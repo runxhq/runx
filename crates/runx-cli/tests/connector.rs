@@ -1,0 +1,176 @@
+use std::fs;
+use std::io::Write;
+use std::os::unix::fs::PermissionsExt;
+use std::path::Path;
+use std::process::Stdio;
+
+use crate::support::{temp_root, unsigned_runx_command_at};
+
+type TestResult = Result<(), Box<dyn std::error::Error>>;
+
+/// A `gh` that is signed out.
+fn signed_out_gh(bin: &Path) -> TestResult {
+    fs::create_dir_all(bin)?;
+    let gh = bin.join("gh");
+    fs::write(
+        &gh,
+        "#!/bin/sh\necho 'You are not logged into any GitHub hosts.' >&2\nexit 1\n",
+    )?;
+    fs::set_permissions(&gh, fs::Permissions::from_mode(0o755))?;
+    Ok(())
+}
+
+fn runx(
+    root: &Path,
+    args: &[&str],
+    stdin: Option<&str>,
+) -> Result<(bool, serde_json::Value), Box<dyn std::error::Error>> {
+    let mut child = unsigned_runx_command_at(root)
+        .env(
+            "PATH",
+            format!("{}:/usr/bin:/bin", root.join("bin").display()),
+        )
+        .args(args)
+        .arg("--json")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()?;
+    let mut input = child.stdin.take().ok_or("stdin was not piped")?;
+    if let Some(stdin) = stdin {
+        input.write_all(stdin.as_bytes())?;
+    }
+    drop(input);
+    let output = child.wait_with_output()?;
+    Ok((
+        output.status.success(),
+        serde_json::from_slice(&output.stdout)
+            .map_err(|error| format!("{error}: {}", String::from_utf8_lossy(&output.stderr)))?,
+    ))
+}
+
+fn connector(
+    root: &Path,
+    args: &[&str],
+) -> Result<(bool, serde_json::Value), Box<dyn std::error::Error>> {
+    runx(root, &[&["connector"], args].concat(), None)
+}
+
+/// Store a GitHub token as the `operator` profile.
+fn stored_token(root: &Path) -> TestResult {
+    fs::create_dir_all(root.join(".runx"))?;
+    let (ok, set) = runx(
+        root,
+        &[
+            "credential",
+            "set",
+            "github",
+            "--credential",
+            "token",
+            "--profile",
+            "operator",
+            "--from-stdin",
+        ],
+        Some("ghp_connector_test_token"),
+    )?;
+    assert!(ok, "{set}");
+    assert_eq!(
+        set["credential"]["instance"]["instance_id"],
+        "credential.github.operator"
+    );
+    Ok(())
+}
+
+#[test]
+fn an_instance_selects_only_for_its_own_connector() -> TestResult {
+    let root = temp_root("runx-connector-select");
+    let result = (|| -> TestResult {
+        stored_token(&root)?;
+        let (ok, used) = connector(&root, &["use", "github", "credential.github.operator"])?;
+        assert!(ok, "{used}");
+        assert_eq!(
+            used["selected"]["instance_id"],
+            "credential.github.operator"
+        );
+
+        let (ok, listed) = connector(&root, &["instances"])?;
+        assert!(ok, "{listed}");
+        assert_eq!(listed["instances"][0]["selected"], true);
+
+        // A refused selection records nothing.
+        let (ok, refused) = connector(&root, &["use", "slack", "credential.github.operator"])?;
+        assert!(!ok);
+        assert!(
+            refused["error"]["message"]
+                .as_str()
+                .is_some_and(|message| message.contains("belongs to connector github")),
+            "{refused}"
+        );
+        let (_, listed) = connector(&root, &["list"])?;
+        let slack = listed["connectors"]
+            .as_array()
+            .and_then(|connectors| {
+                connectors
+                    .iter()
+                    .find(|connector| connector["id"] == "slack")
+            })
+            .ok_or("slack is an official connector")?;
+        assert_eq!(slack["selected_instance"], serde_json::Value::Null);
+        Ok(())
+    })();
+    fs::remove_dir_all(&root)?;
+    result
+}
+
+#[test]
+fn inspect_projects_readiness_from_the_selected_instance() -> TestResult {
+    let root = temp_root("runx-connector-inspect");
+    fs::create_dir_all(&root)?;
+    let result = (|| -> TestResult {
+        let (ok, before) = connector(&root, &["inspect", "github"])?;
+        assert!(ok, "{before}");
+        assert!(before["readiness"].as_array().is_some_and(|operations| {
+            !operations.is_empty()
+                && operations
+                    .iter()
+                    .all(|operation| operation["ready"] == false)
+        }));
+        stored_token(&root)?;
+        let (ok, _) = connector(&root, &["use", "github", "credential.github.operator"])?;
+        assert!(ok);
+        let (_, after) = connector(&root, &["inspect", "github"])?;
+        assert_eq!(
+            after["instances"][0]["instance_id"],
+            "credential.github.operator"
+        );
+        assert!(after["readiness"].as_array().is_some_and(|operations| {
+            operations
+                .iter()
+                .all(|operation| operation["instance_id"] == "credential.github.operator")
+        }));
+        Ok(())
+    })();
+    fs::remove_dir_all(&root)?;
+    result
+}
+
+#[test]
+fn a_session_that_prints_no_token_is_refused_and_records_nothing() -> TestResult {
+    let root = temp_root("runx-connector-session");
+    signed_out_gh(&root.join("bin"))?;
+    let result = (|| -> TestResult {
+        let (ok, refused) = connector(&root, &["use", "github", "--session"])?;
+        assert!(!ok);
+        assert!(
+            refused["error"]["message"]
+                .as_str()
+                .is_some_and(|message| message.contains("sign in")),
+            "{refused}"
+        );
+        let (_, listed) = connector(&root, &["instances"])?;
+        assert_eq!(listed["instances"], serde_json::json!([]));
+        Ok(())
+    })();
+    fs::remove_dir_all(&root)?;
+    result
+}

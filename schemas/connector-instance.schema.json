@@ -1,0 +1,172 @@
+{
+  "$id": "https://schemas.runx.ai/runx/connector-instance/v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "account_ref": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "authority": {
+      "anyOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "grant_id": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "kind": {
+              "const": "hosted_grant",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "grant_id"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "credential": {
+              "maxLength": 64,
+              "pattern": "^[a-z][a-z0-9_]{0,63}$",
+              "type": "string"
+            },
+            "kind": {
+              "const": "credential",
+              "type": "string"
+            },
+            "material_ref": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "profile": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "scopes": {
+              "items": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "kind",
+            "profile",
+            "credential",
+            "scopes",
+            "material_ref"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "session",
+              "type": "string"
+            },
+            "session": {
+              "enum": [
+                "command",
+                "host_browser"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "session"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "public",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "confirmed_at": {
+      "minLength": 1,
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
+      "type": "string"
+    },
+    "connector": {
+      "maxLength": 64,
+      "pattern": "^[a-z][a-z0-9-]{0,62}[a-z0-9]$",
+      "type": "string"
+    },
+    "credential_declaration_digest": {
+      "maxLength": 71,
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "instance_id": {
+      "maxLength": 128,
+      "pattern": "^[a-z0-9][a-z0-9._-]{0,127}$",
+      "type": "string"
+    },
+    "operation_digests": {
+      "additionalProperties": {
+        "maxLength": 71,
+        "pattern": "^sha256:[0-9a-f]{64}$",
+        "type": "string"
+      },
+      "propertyNames": {
+        "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$"
+      },
+      "type": "object"
+    },
+    "parameters": {
+      "additionalProperties": {},
+      "type": "object"
+    },
+    "placement": {
+      "enum": [
+        "hosted",
+        "local"
+      ],
+      "type": "string"
+    },
+    "plugin_root": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "principal_ref": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "schema": {
+      "enum": [
+        "runx.connector_instance.v1"
+      ],
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema",
+    "instance_id",
+    "connector",
+    "placement",
+    "principal_ref",
+    "authority",
+    "operation_digests",
+    "confirmed_at"
+  ],
+  "type": "object",
+  "x-runx-schema": "runx.connector_instance.v1"
+}

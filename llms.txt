@@ -19,6 +19,3 @@
 ## Examples
 
 - [Hello World](examples/hello-world)
-- [OpenAPI Tool](examples/openapi-tool)
-- [OpenAPI Graph](examples/openapi-graph)
-- [GitHub MCP Hero](examples/github-mcp-hero)

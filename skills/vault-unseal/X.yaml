@@ -1,5 +1,5 @@
 skill: vault-unseal
-version: "0.4.2"
+version: "0.4.3"
 
 catalog:
   kind: skill
@@ -39,6 +39,11 @@ input_definitions:
         action: { type: string, minLength: 1, maxLength: 128 }
         path: { type: string, minLength: 1, maxLength: 2048 }
 
+connectors:
+  vault:
+    operations: [secret.unseal, handle.read]
+    connector_from: $input.provider
+    allowed_connectors: [vault]
 runners:
   vault-unseal:
     type: javascript
@@ -139,17 +144,9 @@ runners:
           when:
             field: plan.unseal_plan.data.decision
             equals: ready_for_approval
-          tool: provider.mutate
+          operation: vault/secret.unseal
           idempotency_key: $input.idempotency_key
-          scopes:
-            - secret.unseal
-          policy:
-            provider_permission:
-              verb: write
           inputs:
-            operation: secret.unseal
-            target: $input.secret_ref
-            expected_provider: $input.provider
             approval:
               reason: Approve issuing this exact time-bounded secret handle.
               type: vault_unseal
@@ -166,16 +163,8 @@ runners:
           when:
             field: plan.unseal_plan.data.decision
             equals: ready_for_approval
-          tool: provider.read
-          scopes:
-            - handle.read
-          policy:
-            provider_permission:
-              verb: read
+          operation: vault/handle.read
           inputs:
-            operation: handle.read
-            target: $input.secret_ref
-            expected_provider: $input.provider
             result_fields: [handle_ref, expires_at, status]
           context:
             expected_result: issue-handle.provider_operation.data.result

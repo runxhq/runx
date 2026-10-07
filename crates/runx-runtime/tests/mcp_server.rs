@@ -64,7 +64,7 @@ fn mcp_server_preserves_recorded_stdio_semantics() -> Result<(), Box<dyn std::er
         let expected = frame_jsonl_fixture(fixture_name, "responses")?;
         let output = run_raw_output_with_options(input, server_options())?;
 
-        assert_content_length_framing(&output)?;
+        assert_newline_framing(&output)?;
         assert_eq!(
             normalize_fixture_messages(sort_responses_by_id(parse_frames(&output)?)),
             normalize_fixture_messages(sort_responses_by_id(parse_frames(&expected)?)),
@@ -563,8 +563,7 @@ fn mcp_server_json_rpc_errors_match_lifecycle_contract() -> Result<(), Box<dyn s
 #[test]
 #[cfg(feature = "mcp")]
 fn mcp_server_rejects_oversized_requests() -> Result<(), Box<dyn std::error::Error>> {
-    let mut input = b"Content-Length: 4194305\r\n\r\n".to_vec();
-    input.extend(std::iter::repeat_n(b' ', 4_194_305));
+    let input = vec![b' '; 4_194_305];
     let error = match serve_mcp_json_rpc(Cursor::new(input), Vec::new(), server_options()) {
         Ok(()) => return Err("oversized request fails".into()),
         Err(error) => error,
@@ -580,7 +579,7 @@ fn mcp_server_rejects_oversized_requests() -> Result<(), Box<dyn std::error::Err
 #[test]
 #[cfg(feature = "mcp")]
 fn mcp_server_parse_error_is_transport_error() -> Result<(), Box<dyn std::error::Error>> {
-    let error = match run_raw(b"Content-Length: 1\r\n\r\n{".to_vec()) {
+    let error = match run_raw(b"{\n".to_vec()) {
         Ok(_) => return Err("malformed JSON fails at the transport boundary".into()),
         Err(error) => error,
     };
@@ -603,7 +602,7 @@ fn mcp_server_mid_session_transport_error_keeps_recorded_diagnostic()
         frame(&initialized_notification())?,
     ]
     .concat();
-    input.extend_from_slice(b"Content-Length: 1\r\n\r\n{");
+    input.extend_from_slice(b"{\n");
 
     let error = match run_raw(input) {
         Ok(_) => return Err("mid-session malformed JSON fails at the transport boundary".into()),
@@ -784,7 +783,6 @@ fn mcp_server_execution_options(
         runner: None,
         receipt_dir,
         env,
-        credential_deliveries: Default::default(),
     })
 }
 
@@ -896,10 +894,9 @@ fn initialized_notification() -> JsonValue {
 }
 
 fn frame(message: &JsonValue) -> Result<Vec<u8>, serde_json::Error> {
-    let body = serde_json::to_vec(message)?;
-    let mut framed = format!("Content-Length: {}\r\n\r\n", body.len()).into_bytes();
-    framed.extend(body);
-    Ok(framed)
+    let mut line = serde_json::to_vec(message)?;
+    line.push(b'\n');
+    Ok(line)
 }
 
 #[cfg(feature = "mcp")]
@@ -916,49 +913,31 @@ fn frame_jsonl_fixture(
         .filter(|line| !line.is_empty())
     {
         let _: JsonValue = serde_json::from_str(line)?;
-        framed.extend(format!("Content-Length: {}\r\n\r\n", line.len()).as_bytes());
         framed.extend(line.as_bytes());
+        framed.push(b'\n');
     }
     Ok(framed)
 }
 
-fn parse_frames(mut bytes: &[u8]) -> Result<Vec<JsonValue>, Box<dyn std::error::Error>> {
-    let mut messages = Vec::new();
-    while !bytes.is_empty() {
-        let header_end = bytes
-            .windows(4)
-            .position(|window| window == b"\r\n\r\n")
-            .ok_or("missing frame header")?;
-        let header = std::str::from_utf8(&bytes[..header_end])?;
-        let length = header
-            .lines()
-            .find_map(|line| line.strip_prefix("Content-Length: "))
-            .ok_or("missing content length")?
-            .parse::<usize>()?;
-        let body_start = header_end + 4;
-        let body_end = body_start + length;
-        messages.push(serde_json::from_slice(&bytes[body_start..body_end])?);
-        bytes = &bytes[body_end..];
-    }
-    Ok(messages)
+fn parse_frames(bytes: &[u8]) -> Result<Vec<JsonValue>, Box<dyn std::error::Error>> {
+    assert_newline_framing(bytes)?;
+    bytes
+        .split(|byte| *byte == b'\n')
+        .filter(|line| !line.is_empty())
+        .map(|line| serde_json::from_slice(line).map_err(Into::into))
+        .collect()
 }
 
-fn assert_content_length_framing(mut bytes: &[u8]) -> Result<(), Box<dyn std::error::Error>> {
-    while !bytes.is_empty() {
-        let header_end = bytes
-            .windows(4)
-            .position(|window| window == b"\r\n\r\n")
-            .ok_or("missing frame header")?;
-        let header = std::str::from_utf8(&bytes[..header_end])?;
-        let length = header
-            .lines()
-            .find_map(|line| line.strip_prefix("Content-Length: "))
-            .ok_or("missing content length")?
-            .parse::<usize>()?;
-        let body_start = header_end + 4;
-        let body_end = body_start + length;
-        let _: JsonValue = serde_json::from_slice(&bytes[body_start..body_end])?;
-        bytes = &bytes[body_end..];
+/// MCP stdio: every message is one line of compact JSON, newline terminated.
+fn assert_newline_framing(bytes: &[u8]) -> Result<(), Box<dyn std::error::Error>> {
+    if !bytes.is_empty() && !bytes.ends_with(b"\n") {
+        return Err("last MCP message is not newline terminated".into());
+    }
+    for line in bytes
+        .split(|byte| *byte == b'\n')
+        .filter(|line| !line.is_empty())
+    {
+        let _: JsonValue = serde_json::from_slice(line)?;
     }
     Ok(())
 }

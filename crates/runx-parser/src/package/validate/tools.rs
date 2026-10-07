@@ -191,20 +191,6 @@ fn source_entries(source: &SkillSource) -> Vec<SourceEntry<'_>> {
             required_local: true,
         });
     }
-    if let Some(server) = source.server.as_ref() {
-        entries.push(SourceEntry {
-            field: "source.server.command".to_owned(),
-            value: &server.command,
-            required_local: server.command.starts_with('.'),
-        });
-        for (index, argument) in server.args.iter().enumerate() {
-            entries.push(SourceEntry {
-                field: format!("source.server.args[{index}]"),
-                value: argument,
-                required_local: looks_like_local_source(argument),
-            });
-        }
-    }
     entries
 }
 

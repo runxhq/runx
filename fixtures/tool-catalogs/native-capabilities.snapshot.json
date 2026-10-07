@@ -8,7 +8,7 @@
       "cli-tool"
     ]
   },
-  "capability_count": 38,
+  "capability_count": 34,
   "capabilities": [
     {
       "id": "artifact.admit",
@@ -370,51 +370,6 @@
       "execution_boundary": "native_capability"
     },
     {
-      "id": "http.execute",
-      "owner": "runx-runtime/http",
-      "scopes": [
-        "net:http"
-      ],
-      "effect": "mutate",
-      "approval": "none",
-      "artifacts": {
-        "kind": "named",
-        "output": "http_execution",
-        "packet": "runx.http.execution.v1"
-      },
-      "execution_boundary": "native_capability"
-    },
-    {
-      "id": "http.query",
-      "owner": "runx-runtime/http",
-      "scopes": [
-        "net:http"
-      ],
-      "effect": "read",
-      "approval": "none",
-      "artifacts": {
-        "kind": "named",
-        "output": "http_execution",
-        "packet": "runx.http.execution.v1"
-      },
-      "execution_boundary": "native_capability"
-    },
-    {
-      "id": "http.read",
-      "owner": "runx-runtime/http",
-      "scopes": [
-        "net:http"
-      ],
-      "effect": "read",
-      "approval": "none",
-      "artifacts": {
-        "kind": "named",
-        "output": "http_execution",
-        "packet": "runx.http.execution.v1"
-      },
-      "execution_boundary": "native_capability"
-    },
-    {
       "id": "policy.lint",
       "owner": "runx-core/policy",
       "scopes": [],
@@ -539,21 +494,6 @@
         "kind": "named",
         "output": "skill_validation",
         "packet": "runx.skill.validation.v1"
-      },
-      "execution_boundary": "native_capability"
-    },
-    {
-      "id": "web.fetch",
-      "owner": "runx-runtime/web",
-      "scopes": [
-        "net:allowlist"
-      ],
-      "effect": "read",
-      "approval": "none",
-      "artifacts": {
-        "kind": "named",
-        "output": "fetch_result",
-        "packet": "runx.fetch.v1"
       },
       "execution_boundary": "native_capability"
     }

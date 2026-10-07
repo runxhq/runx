@@ -1,0 +1,53 @@
+schema: runx.connector.v1
+id: zapier
+name: Zapier
+description: Deliver a governed handoff to a Zapier Catch Hook.
+auth:
+  none: {}
+placements:
+  local:
+    auth: [none]
+operations:
+  hook.invoke:
+    description: Deliver one handoff to a Zapier Catch Hook; Zapier acknowledges it and offers no readback.
+    verb: write
+    scopes: [orchestrator.zapier.workflow.invoke]
+    target:
+      template: {"$concat": ["https://hooks.zapier.com/hooks/catch/", {"$argument": "/zapier_account_id"}, "/", {"$argument": "/hook_id"}, "/"]}
+    approval: required
+    guarantees:
+      readback: unavailable
+    input_schema:
+      type: object
+      required: [zapier_account_id, hook_id, delivery]
+      additionalProperties: false
+      properties:
+        zapier_account_id: {type: string, pattern: '^[0-9]+$', maxLength: 32}
+        hook_id: {type: string, pattern: '^[A-Za-z0-9_-]+$', maxLength: 128}
+        delivery:
+          type: object
+          required: [event_id, handoff_scope, handoff_audience, idempotency_key, payload]
+          properties:
+            event_id: {type: string, pattern: '^[A-Za-z0-9._:-]{3,200}$'}
+            handoff_scope: {const: orchestrator.zapier.workflow.invoke}
+            handoff_audience: {type: string, pattern: '^zapier:'}
+            idempotency_key: {type: string}
+            payload: {}
+    result_fields: [acknowledgement]
+    implementation:
+      http:
+        allowed_hosts: [hooks.zapier.com]
+        requests:
+          - id: deliver
+            method: POST
+            url: {"$concat": ["https://hooks.zapier.com/hooks/catch/", {"$argument": "/zapier_account_id"}, "/", {"$argument": "/hook_id"}, "/"]}
+            headers:
+              accept: application/json
+              x-runx-event-id: {"$argument": "/delivery/event_id"}
+              x-runx-handoff-audience: {"$argument": "/delivery/handoff_audience"}
+              x-runx-handoff-scope: {"$argument": "/delivery/handoff_scope"}
+            body: {"$argument": "/delivery"}
+        decode: [{op: auto_json}]
+        operation_id_path: request_id
+        result_paths:
+          acknowledgement: acknowledgement

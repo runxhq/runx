@@ -173,9 +173,6 @@
         "require_audience": {
           "type": "string"
         },
-        "require_bearer": {
-          "type": "boolean"
-        },
         "require_event_id": {
           "type": "string"
         },
@@ -184,7 +181,6 @@
         }
       },
       "required": [
-        "require_bearer",
         "require_scope",
         "require_audience",
         "require_event_id",
@@ -192,144 +188,12 @@
       ],
       "type": "object"
     },
-    "requests": {
-      "items": {
-        "additionalProperties": false,
-        "properties": {
-          "body": {
-            "additionalProperties": false,
-            "properties": {
-              "event_id": {
-                "type": "string"
-              },
-              "execution_context": {
-                "$id": "https://schemas.runx.ai/runx/orchestrator/execution-context/v1.json",
-                "$schema": "https://json-schema.org/draft/2020-12/schema",
-                "additionalProperties": true,
-                "properties": {
-                  "caller": {
-                    "type": "string"
-                  },
-                  "caller_id": {
-                    "type": "string"
-                  },
-                  "event_id": {
-                    "type": "string"
-                  },
-                  "handoff_audience": {
-                    "type": "string"
-                  },
-                  "handoff_scope": {
-                    "type": "string"
-                  },
-                  "idempotency_key": {
-                    "type": "string"
-                  },
-                  "platform": {
-                    "type": "string"
-                  },
-                  "principal": {
-                    "type": "string"
-                  },
-                  "principal_id": {
-                    "type": "string"
-                  },
-                  "schema": {
-                    "const": "runx.orchestrator.execution_context.v1",
-                    "type": "string"
-                  },
-                  "source_workflow": {
-                    "type": "string"
-                  },
-                  "upstream_execution_id": {
-                    "type": "string"
-                  },
-                  "upstream_run_id": {
-                    "type": "string"
-                  },
-                  "workflow": {
-                    "type": "string"
-                  },
-                  "workflow_id": {
-                    "type": "string"
-                  },
-                  "workflow_ref": {
-                    "type": "string"
-                  }
-                },
-                "type": "object",
-                "x-runx-schema": "runx.orchestrator.execution_context.v1"
-              },
-              "handoff_audience": {
-                "type": "string"
-              },
-              "handoff_scope": {
-                "type": "string"
-              },
-              "idempotency_key": {
-                "type": "string"
-              },
-              "payload": {},
-              "source": {
-                "type": "string"
-              }
-            },
-            "required": [
-              "event_id",
-              "handoff_scope",
-              "handoff_audience",
-              "execution_context",
-              "payload",
-              "source",
-              "idempotency_key"
-            ],
-            "type": "object"
-          },
-          "headers": {
-            "additionalProperties": {
-              "type": "string"
-            },
-            "type": "object"
-          },
-          "id": {
-            "type": "string"
-          },
-          "method": {
-            "type": "string"
-          },
-          "path": {
-            "additionalProperties": {
-              "type": "string"
-            },
-            "type": "object"
-          },
-          "url": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "method",
-          "url",
-          "headers",
-          "body"
-        ],
-        "type": "object"
-      },
-      "type": "array"
-    },
     "schema": {
       "const": "runx.orchestrator.handoff_context.v1",
       "type": "string"
     },
     "status": {
       "type": "string"
-    },
-    "stop_conditions": {
-      "items": {
-        "type": "string"
-      },
-      "type": "array"
     }
   },
   "required": [
@@ -340,8 +204,7 @@
     "handoff",
     "delivery",
     "receiver_validation",
-    "receipt_expectations",
-    "stop_conditions"
+    "receipt_expectations"
   ],
   "type": "object",
   "x-runx-packet": true,

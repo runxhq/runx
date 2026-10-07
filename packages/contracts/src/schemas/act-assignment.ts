@@ -11,7 +11,7 @@ import {
   validateContractSchema,
 } from "../internal.js";
 
-const actAssignmentHostKinds = ["cli", "api", "github_issue_comment", "system"] as const;
+const actAssignmentHostKinds = ["cli", "api", "comment", "system"] as const;
 
 export const actAssignmentActorSchema = Type.Object(
   {

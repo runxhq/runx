@@ -1,5 +1,6 @@
 //! Pure Rust parser parity crate for runx skills, graphs, and tools.
 
+pub mod connector;
 pub mod dev_fixture;
 pub mod error;
 pub mod eval;
@@ -14,6 +15,9 @@ pub mod skill;
 pub mod tool;
 pub mod yaml;
 
+pub use connector::{
+    ValidatedConnector, parse_connector_manifest, validate_connector_manifest, whole_match,
+};
 pub use dev_fixture::{
     DevExpectedStatus, DevFixture, DevFixtureError, DevFixtureExpectation, DevFixtureGit,
     DevFixtureGitConfig, DevFixtureLane, DevFixtureTarget, DevFixtureTargetKind,
@@ -22,11 +26,11 @@ pub use dev_fixture::{
 pub use error::{ParseError, ParseErrorKind, ValidationError, ValidationErrorKind};
 pub use eval::{ParserEvalError, ParserEvalOutput, evaluate_parser_document_str};
 pub use graph::{
-    ExecutionGraph, FanoutBranchFailurePolicy, FanoutConflictAction, FanoutConflictGate,
-    FanoutGroupPolicy, FanoutSyncStrategy, FanoutThresholdAction, FanoutThresholdGate,
-    GraphContextEdge, GraphGuard, GraphPolicy, GraphRetryPolicy, GraphRunTarget, GraphStep,
-    MintAuthorityDirective, MintScopeSource, RawGraphIr, parse_graph_yaml, validate_graph,
-    validate_graph_document,
+    DuplicatePolicy, ExecutionGraph, FanoutBranchFailurePolicy, FanoutConflictAction,
+    FanoutConflictGate, FanoutGroupPolicy, FanoutSyncStrategy, FanoutThresholdAction,
+    FanoutThresholdGate, GraphContextEdge, GraphGuard, GraphPolicy, GraphRetryPolicy,
+    GraphRunTarget, GraphStep, MintAuthorityDirective, OperationStepTarget, RawGraphIr,
+    UncertainOutcome, parse_graph_yaml, validate_graph, validate_graph_document,
 };
 pub use harness_fixture::{
     HarnessProviderAccess, HarnessProviderGrantFixture, HarnessProviderOperationFixture,
@@ -51,13 +55,12 @@ pub use skill::{
     ActDeclaration, ArtifactPageFraming, ArtifactPageSource, CatalogApproval, CatalogAudience,
     CatalogCompletion, CatalogExecution, CatalogKind, CatalogMetadata, CatalogOperatorReadiness,
     CatalogRole, CatalogSemanticCode, CatalogSemanticDiagnostic, CatalogSemanticReport,
-    CatalogVisibility, CredentialRequirement, HarnessCallerFixture, HarnessExpectation,
+    CatalogVisibility, ConnectorRequirement, HarnessCallerFixture, HarnessExpectation,
     HarnessHttpExchangeFixture, HarnessHttpRequestBodyFixture, HarnessHttpResponseFixture,
-    InputMode, OperatorJourneyClaim, OperatorJourneyMode, RawSkillIr, ReceiptExpectation,
-    RunnerHarnessCase, RunnerHarnessManifest, SkillArtifactContract, SkillExternalAdapterManifest,
-    SkillIdempotencyPolicy, SkillInput, SkillMcpServer, SkillRetryPolicy, SkillRunnerDefinition,
-    SkillSource, SkillThreadOutboxProviderSource, SourceKind, ValidateSkillMode,
-    ValidateSkillOptions, ValidatedSkill, analyze_catalog_semantics,
+    HarnessMcpCallFixture, InputMode, OperatorJourneyClaim, OperatorJourneyMode, RawSkillIr,
+    ReceiptExpectation, RunnerHarnessCase, RunnerHarnessManifest, SkillArtifactContract,
+    SkillIdempotencyPolicy, SkillInput, SkillRetryPolicy, SkillRunnerDefinition, SkillSource,
+    SourceKind, ValidateSkillMode, ValidateSkillOptions, ValidatedSkill, analyze_catalog_semantics,
     analyze_package_catalog_semantics, parse_skill_markdown, validate_input_examples,
     validate_skill, validate_skill_artifact_contract, validate_skill_source,
     validate_skill_with_options,

@@ -104,6 +104,9 @@ fn dispatch_command(action: RouterAction, workspace: &runx_runtime::WorkspaceEnv
         RouterAction::RunConnect(plan) => {
             runx_cli::connect::run_native_connect_with_stdin(plan, workspace, io::stdin())
         }
+        RouterAction::RunConnector(plan) => {
+            runx_cli::connector::run_native_connector(plan, workspace)
+        }
         RouterAction::RunCredential(plan) => {
             runx_cli::credential::run_native_credential_with_workspace(plan, workspace)
         }

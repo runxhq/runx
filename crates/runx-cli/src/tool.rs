@@ -28,7 +28,7 @@ struct ToolCliOutput {
 fn run_tool(plan: ToolPlan, workspace: &WorkspaceEnv) -> Result<ToolCliOutput, ToolCliError> {
     match plan.action {
         ToolAction::Build => run_build(plan, workspace.env(), workspace.cwd()),
-        ToolAction::Search => run_search(plan, workspace.env()),
+        ToolAction::Search => run_search(plan),
         ToolAction::Inspect => run_inspect(plan, workspace.env(), workspace.cwd()),
     }
 }
@@ -61,10 +61,7 @@ fn run_build(
     Ok(ToolCliOutput { stdout, exit_code })
 }
 
-fn run_search(
-    plan: ToolPlan,
-    env: &BTreeMap<String, String>,
-) -> Result<ToolCliOutput, ToolCliError> {
+fn run_search(plan: ToolPlan) -> Result<ToolCliOutput, ToolCliError> {
     let query = plan
         .ref_or_query
         .ok_or_else(|| ToolCliError::Usage("runx tool search requires a query".to_owned()))?;
@@ -76,8 +73,6 @@ fn run_search(
             query,
             source: plan.source,
             limit: 20,
-            fixture_catalog_enabled: env_value(env, "RUNX_ENABLE_FIXTURE_TOOL_CATALOG")
-                .is_some_and(|value| value == "1"),
         },
         &effects,
     );
@@ -115,8 +110,6 @@ fn run_inspect(
             source: plan.source,
             search_from_directory,
             tool_roots,
-            fixture_catalog_enabled: env_value(env, "RUNX_ENABLE_FIXTURE_TOOL_CATALOG")
-                .is_some_and(|value| value == "1"),
             allow_explicit_manifest_path: true,
         },
         &effects,
@@ -161,9 +154,9 @@ fn render_build_report(count: usize, errors: &[String]) -> String {
 
 fn render_search_results(results: &[runx_contracts::tools::ToolCatalogSearchResult]) -> String {
     if results.is_empty() {
-        return "\n  No imported tools found.\n\n".to_owned();
+        return "\n  No tools found.\n\n".to_owned();
     }
-    let mut lines = vec!["".to_owned(), "  Imported Tools".to_owned()];
+    let mut lines = vec!["".to_owned(), "  Tools".to_owned()];
     for result in results {
         lines.push(format!("  {}  {}", result.name, result.source_label));
         lines.push(format!("  type      {}", result.source_type));
@@ -183,12 +176,6 @@ fn render_search_results(results: &[runx_contracts::tools::ToolCatalogSearchResu
 
 fn render_inspect_result(result: &runx_contracts::tools::ToolInspectResult) -> String {
     let mut lines = inspect_header_lines(result);
-    if matches!(
-        result.provenance.origin,
-        runx_contracts::tools::ToolInspectOrigin::Imported
-    ) {
-        lines.extend(imported_tool_lines(result));
-    }
     if !result.scopes.is_empty() {
         lines.push(format!("  scopes    {}", result.scopes.join(", ")));
     }
@@ -206,7 +193,6 @@ fn render_inspect_result(result: &runx_contracts::tools::ToolInspectResult) -> S
 fn inspect_header_lines(result: &runx_contracts::tools::ToolInspectResult) -> Vec<String> {
     let origin = match result.provenance.origin {
         runx_contracts::tools::ToolInspectOrigin::Local => "local",
-        runx_contracts::tools::ToolInspectOrigin::Imported => "imported",
         runx_contracts::tools::ToolInspectOrigin::Native => "native",
     };
     vec![
@@ -216,45 +202,6 @@ fn inspect_header_lines(result: &runx_contracts::tools::ToolInspectResult) -> Ve
         format!("  path      {}", result.reference_path),
         format!("  root      {}", result.skill_directory),
     ]
-}
-
-fn imported_tool_lines(result: &runx_contracts::tools::ToolInspectResult) -> Vec<String> {
-    vec![
-        format!(
-            "  catalog   {}",
-            result
-                .provenance
-                .catalog_ref
-                .as_deref()
-                .unwrap_or("unknown")
-        ),
-        format!("  source    {}", inspect_source_label(result)),
-        format!(
-            "  kind      {}",
-            result
-                .provenance
-                .source_type
-                .as_deref()
-                .unwrap_or("unknown")
-        ),
-        format!(
-            "  external  {}",
-            result
-                .provenance
-                .external_name
-                .as_deref()
-                .unwrap_or("unknown")
-        ),
-    ]
-}
-
-fn inspect_source_label(result: &runx_contracts::tools::ToolInspectResult) -> &str {
-    result
-        .provenance
-        .source_label
-        .as_deref()
-        .or(result.provenance.source.as_deref())
-        .unwrap_or("unknown")
 }
 
 fn input_lines(result: &runx_contracts::tools::ToolInspectResult) -> Vec<String> {

@@ -1,6 +1,11 @@
 skill: refund
-version: "0.6.1"
+version: "0.6.2"
 catalog: { kind: graph, audience: operator, visibility: public, role: canonical, runtime_path: hosted, execution: execute, completion: provider_readback, requires_adapter: true, approval: required }
+connectors:
+  payment:
+    operations: [payment.refund, payment.refund.read]
+    connector_from: $input.settlement_family
+    allowed_connectors: [mpp]
 runners:
   refund:
     default: true
@@ -16,14 +21,9 @@ runners:
       result_from: [readback]
       steps:
         - id: refund
-          tool: provider.mutate
+          operation: payment/payment.refund
           idempotency_key: $input.idempotency_key
-          scopes: [payment.refund]
-          policy: { provider_permission: { verb: write } }
           inputs:
-            operation: payment.refund
-            target: $input.original_receipt_ref
-            expected_provider: $input.settlement_family
             approval:
               reason: Approve this exact refund against the original payment.
               type: payment_refund
@@ -32,8 +32,6 @@ runners:
             result_fields: [refund_ref, original_receipt_ref, amount_minor, currency, status]
             input: { original_receipt_ref: $input.original_receipt_ref, refund_request: $input.refund_request, parent_payment_authority: $input.parent_payment_authority }
         - id: readback
-          tool: provider.read
-          scopes: [payment.refund.read]
-          policy: { provider_permission: { verb: read } }
-          inputs: { operation: payment.refund.read, target: $input.original_receipt_ref, expected_provider: $input.settlement_family, result_fields: [refund_ref, original_receipt_ref, amount_minor, currency, status] }
+          operation: payment/payment.refund.read
+          inputs: { result_fields: [refund_ref, original_receipt_ref, amount_minor, currency, status] }
           context: { input: refund.provider_operation.data.result, expected_result: refund.provider_operation.data.result }

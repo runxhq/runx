@@ -6,14 +6,11 @@ operator_journeys:
   - mode: standalone
     confusors: [issue-triage, issue-to-pr]
     request: List the open triage issues in runxhq/runx using the GitHub account already authenticated on this machine.
-    expected_outcome: Preflight the local gh identity once, read the bounded issue list without approval, and return compact typed provider evidence.
+    expected_outcome: Read the bounded issue list once with the signed-in gh session, without approval, and return GitHub's issues as provider evidence.
+setup:
+  sessions: [github]
 env:
   PATH: fixtures/bin:/usr/bin:/bin
-  RUNX_GITHUB_SYNC_GH_LOG: /tmp/runx-github-sync-read-gh.log
-  RUNX_PROVIDER_PERMISSION_GRANT_ID: ""
-  RUNX_PROVIDER_PERMISSION_GRANTED_SCOPES: ""
-  RUNX_PROVIDER_PERMISSION_PRINCIPAL_REF: ""
-  RUNX_PROVIDER_PERMISSION_TRANSPORT: local:github
 inputs:
   repo: runxhq/runx
   direction: pull
@@ -21,6 +18,16 @@ inputs:
     kind: issues
     filters: { state: open, labels: [triage], limit: 25 }
   scope: read
+caller:
+  http_responses:
+    "https://api.github.com/user":
+      status: 200
+      headers: { content-type: application/json }
+      body: '{"id": 7, "login": "operator"}'
+    "https://api.github.com/repos/runxhq/runx/issues?labels=triage&per_page=25&state=open":
+      status: 200
+      headers: { content-type: application/json }
+      body: '[{"number": 442, "title": "Make GitHub reads operator-first", "state": "open", "body": "Use the existing local gh session for routine reads.", "html_url": "https://github.com/runxhq/runx/issues/442", "labels": [{"name": "triage"}], "assignees": []}]'
 expect:
   status: sealed
   output:
@@ -29,10 +36,12 @@ expect:
         data:
           status: success
           provider: github
-          operation: issues.read
+          operation: issues.list
           target: runxhq/runx
-          transport: local_github
+          transport: local_http
           result:
-            repository: runxhq/runx
+            issues:
+              - number: 442
+                title: Make GitHub reads operator-first
   receipt: { schema: runx.receipt.v1 }
 metadata: { public_skill: github-sync, source_case: bounded-pull-local-gh, source: operator-journey }

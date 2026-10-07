@@ -16,7 +16,6 @@ use crate::cli_args::{flag_value, os_arg, split_flag};
 pub struct PublishPlan {
     pub receipt_path: PathBuf,
     pub api_base_url: Option<String>,
-    pub token: Option<String>,
     pub allow_local_api: bool,
     pub json: bool,
 }
@@ -92,7 +91,7 @@ fn publish_error_message(code: &str, detail: &str, hint: Option<&str>) -> String
         return [
             "This token can publish skills but not receipts.",
             "The receipt notary requires `receipts:write`.",
-            "Use `runx publish --token <receipt-token> <receipt.json>` or set `RUNX_PUBLIC_API_TOKEN` to a receipt-capable token.",
+            "Set `RUNX_PUBLIC_API_TOKEN` to a receipt-capable token.",
             "Your stored login token is still valid for the scopes it was issued with.",
         ]
         .join(" ");
@@ -107,7 +106,6 @@ fn publish_error_message(code: &str, detail: &str, hint: Option<&str>) -> String
 pub fn parse_publish_plan(args: &[OsString]) -> Result<PublishPlan, String> {
     let mut receipt_path = None;
     let mut api_base_url = None;
-    let mut token = None;
     let mut allow_local_api = false;
     let mut json = false;
     let mut index = 1;
@@ -135,11 +133,6 @@ pub fn parse_publish_plan(args: &[OsString]) -> Result<PublishPlan, String> {
                 api_base_url = Some(value);
                 index = next_index;
             }
-            "--token" => {
-                let (value, next_index) = flag_value(args, index, flag, inline_value, "publish")?;
-                token = Some(value);
-                index = next_index;
-            }
             "--allow-local-api" => {
                 if inline_value.is_some() {
                     return Err("--allow-local-api does not take a value".to_owned());
@@ -153,7 +146,6 @@ pub fn parse_publish_plan(args: &[OsString]) -> Result<PublishPlan, String> {
     Ok(PublishPlan {
         receipt_path: receipt_path.ok_or_else(|| PublishCliError::MissingReceipt.to_string())?,
         api_base_url,
-        token,
         allow_local_api,
         json,
     })
@@ -189,7 +181,6 @@ fn run_publish_command(
     let receipt = read_receipt_json(&plan.receipt_path)?;
     let environment = runx_runtime::HostedApiEnvironment::resolve_publish(
         plan.api_base_url.as_deref(),
-        plan.token.as_deref(),
         env,
         cwd,
     )?;

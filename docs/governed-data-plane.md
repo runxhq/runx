@@ -113,7 +113,7 @@ call this adapter envelope directly:
 }
 ```
 
-External adapter implementations are responsible for translating the operation
+Provider adapter implementations are responsible for translating the operation
 into provider-specific calls. A Postgres adapter may execute SQL internally; a
 Redis adapter may call Redis commands internally; a D1 adapter may use
 Cloudflare APIs internally. The model and domain skill still see only the
@@ -124,9 +124,9 @@ They should return `provider_unavailable` only when no commit can be proven, and
 must include enough provider evidence to diagnose the failure without exposing
 credentials or private payloads.
 
-## External Adapter Envelope
+## Provider Adapter Envelope
 
-Every external provider adapter accepts the same internal envelope:
+Every provider adapter accepts the same internal envelope:
 
 ```json
 {

@@ -22,18 +22,12 @@ use std::time::Duration;
 use url::Url;
 
 #[cfg(feature = "async-http")]
-pub(crate) use self::types::sensitive_header_name;
 pub use self::types::{
     ExactLoopbackHttpTransport, HttpMethod, ReqwestHttpTransport, RuntimeHttpHeader,
     RuntimeHttpRequest, RuntimeHttpResponse, RuntimeHttpTransport,
 };
 pub(crate) use self::types::{RuntimeHarnessHttpExchange, RuntimeHarnessHttpRequestBody};
 
-/// Standard decoded response-body bound for runtime-owned HTTP. Callers may
-/// select a lower bound for a narrower operation, but must not invent a second
-/// generic ceiling.
-#[cfg(feature = "async-http")]
-pub(crate) const STANDARD_HTTP_RESPONSE_BYTES: usize = 8 * 1024 * 1024;
 #[cfg(feature = "async-http")]
 const DEFAULT_HTTP_REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 #[cfg(feature = "async-http")]
@@ -44,7 +38,7 @@ const MANAGED_AGENT_REQUEST_TIMEOUT: Duration = Duration::from_secs(180);
 /// to 120 seconds. Keep the control-plane envelope above that budget so the
 /// caller never abandons a still-running, idempotently recoverable effect.
 #[cfg(feature = "async-http")]
-const PROVIDER_OPERATION_REQUEST_TIMEOUT: Duration = Duration::from_secs(180);
+pub(crate) const PROVIDER_OPERATION_REQUEST_TIMEOUT: Duration = Duration::from_secs(180);
 #[cfg(feature = "async-http")]
 const MAX_SAFE_READ_ATTEMPTS: usize = 3;
 #[cfg(feature = "async-http")]
@@ -55,6 +49,10 @@ const MAX_SAFE_READ_RETRY_DELAY: Duration = Duration::from_secs(2);
 static HTTP_CLIENT_RUNTIME: RetryableCell<tokio::runtime::Runtime> = RetryableCell::new();
 #[cfg(feature = "async-http")]
 const HTTP_CLIENT_PROFILE_COUNT: usize = 6;
+/// rmcp's streamable HTTP client, carried by the guarded client.
+#[cfg(feature = "mcp")]
+pub(crate) type McpTransport = rmcp::transport::StreamableHttpClientTransport<reqwest::Client>;
+
 #[cfg(feature = "async-http")]
 static HTTP_CLIENTS: [RetryableCell<reqwest::Client>; HTTP_CLIENT_PROFILE_COUNT] =
     [const { RetryableCell::new() }; HTTP_CLIENT_PROFILE_COUNT];
@@ -239,6 +237,55 @@ impl ReqwestHttpTransport {
         })
     }
 
+    /// The deadline of each request the guarded client sends.
+    #[cfg(feature = "mcp")]
+    pub(crate) const fn request_timeout(&self) -> Duration {
+        self.request_timeout
+    }
+
+    /// An MCP client transport to `url` carried by the guarded client, for
+    /// rmcp to drive its own requests. The URL is held to the same network
+    /// policy as every other request first: the DNS guard never sees a
+    /// literal address. It starts a task, so it is built on the HTTP runtime.
+    #[cfg(feature = "mcp")]
+    pub(crate) fn mcp(
+        &self,
+        url: &str,
+        bearer: Option<&str>,
+        headers: &BTreeMap<String, String>,
+    ) -> Result<McpTransport, RuntimeHttpError> {
+        validate_http_url(url, self.allow_private_networks)?;
+        let custom_headers = headers
+            .iter()
+            .map(|(name, value)| {
+                Ok((
+                    reqwest::header::HeaderName::from_bytes(name.as_bytes()).map_err(|error| {
+                        RuntimeHttpError::InvalidHeaderName {
+                            name: name.clone(),
+                            message: error.to_string(),
+                        }
+                    })?,
+                    reqwest::header::HeaderValue::from_str(value).map_err(|error| {
+                        RuntimeHttpError::InvalidHeaderValue {
+                            name: name.clone(),
+                            message: error.to_string(),
+                        }
+                    })?,
+                ))
+            })
+            .collect::<Result<std::collections::HashMap<_, _>, RuntimeHttpError>>()?;
+        let config =
+            rmcp::transport::streamable_http_client::StreamableHttpClientTransportConfig::with_uri(
+                url.to_owned(),
+            )
+            .custom_headers(custom_headers);
+        let config = match bearer {
+            Some(token) => config.auth_header(token.to_owned()),
+            None => config,
+        };
+        Ok(McpTransport::with_client(self.client.clone(), config))
+    }
+
     #[cfg(test)]
     fn with_private_network_access_for_tests() -> Result<Self, RuntimeHttpError> {
         Self::with_private_network_access()
@@ -280,6 +327,7 @@ impl<'a> NativeHttpTransport<'a> {
         }
     }
 
+    #[cfg(feature = "catalog")]
     pub(crate) fn for_hosted_api(
         harness_responses: Option<&'a BTreeMap<String, RuntimeHttpResponse>>,
         allow_private_network: bool,
@@ -293,23 +341,6 @@ impl<'a> NativeHttpTransport<'a> {
                 ReqwestHttpTransport::with_private_network_access()?,
             )),
             None => Self::new(None, None),
-        }
-    }
-
-    pub(crate) fn send_bounded(
-        &self,
-        request: RuntimeHttpRequest,
-        response_limit: usize,
-    ) -> Result<RuntimeHttpResponse, RuntimeHttpError> {
-        match self {
-            Self::Live(transport) => transport.send_bounded(request, response_limit),
-            Self::Harness {
-                responses,
-                exchanges,
-            } => Ok(bound_harness_response(
-                exact_harness_response(*responses, *exchanges, &request, false)?,
-                response_limit,
-            )),
         }
     }
 }
@@ -375,7 +406,7 @@ impl RuntimeHttpTransport for NativeHttpTransport<'_> {
 }
 
 #[cfg(feature = "async-http")]
-fn exact_harness_response(
+pub(crate) fn exact_harness_response(
     responses: Option<&BTreeMap<String, RuntimeHttpResponse>>,
     exchanges: Option<&[RuntimeHarnessHttpExchange]>,
     request: &RuntimeHttpRequest,
@@ -442,22 +473,6 @@ fn enforce_harness_response_limit(
 }
 
 #[cfg(feature = "async-http")]
-fn bound_harness_response(
-    mut response: RuntimeHttpResponse,
-    response_limit: usize,
-) -> RuntimeHttpResponse {
-    if response.body_bytes <= response_limit {
-        return response;
-    }
-    let bounded = response.body.as_bytes()[..response_limit].to_vec();
-    response.body = String::from_utf8_lossy(&bounded).into_owned();
-    response.body_digest = runx_contracts::sha256_prefixed(&bounded);
-    response.body_bytes = bounded.len();
-    response.truncated = true;
-    response
-}
-
-#[cfg(feature = "async-http")]
 fn build_http_client(config: TransportConfig) -> Result<reqwest::Client, String> {
     // reqwest is built with `rustls-no-provider`, so the process needs a
     // default crypto provider before a TLS client can be constructed.
@@ -503,7 +518,7 @@ fn build_http_client(config: TransportConfig) -> Result<reqwest::Client, String>
 #[cfg(feature = "async-http")]
 impl RuntimeHttpTransport for ReqwestHttpTransport {
     fn send(&self, request: RuntimeHttpRequest) -> Result<RuntimeHttpResponse, RuntimeHttpError> {
-        self.send_with_limit(request, STANDARD_HTTP_RESPONSE_BYTES, false, false)
+        self.send_with_limit(request, None, false)
     }
 
     fn send_limited(
@@ -511,14 +526,14 @@ impl RuntimeHttpTransport for ReqwestHttpTransport {
         request: RuntimeHttpRequest,
         response_limit: usize,
     ) -> Result<RuntimeHttpResponse, RuntimeHttpError> {
-        self.send_with_limit(request, response_limit, false, false)
+        self.send_with_limit(request, Some(response_limit), false)
     }
 
     fn send_idempotent(
         &self,
         request: RuntimeHttpRequest,
     ) -> Result<RuntimeHttpResponse, RuntimeHttpError> {
-        self.send_with_limit(request, STANDARD_HTTP_RESPONSE_BYTES, false, true)
+        self.send_with_limit(request, None, true)
     }
 
     fn send_idempotent_limited(
@@ -526,7 +541,7 @@ impl RuntimeHttpTransport for ReqwestHttpTransport {
         request: RuntimeHttpRequest,
         response_limit: usize,
     ) -> Result<RuntimeHttpResponse, RuntimeHttpError> {
-        self.send_with_limit(request, response_limit, false, true)
+        self.send_with_limit(request, Some(response_limit), true)
     }
 }
 
@@ -547,21 +562,12 @@ impl RuntimeHttpTransport for ExactLoopbackHttpTransport {
 
 #[cfg(feature = "async-http")]
 impl ReqwestHttpTransport {
-    /// Send one governed request with a caller-selected response cap. The body is
-    /// returned truncated at the cap instead of allocating beyond it.
-    pub fn send_bounded(
-        &self,
-        request: RuntimeHttpRequest,
-        response_limit: usize,
-    ) -> Result<RuntimeHttpResponse, RuntimeHttpError> {
-        self.send_with_limit(request, response_limit, true, false)
-    }
-
+    /// Send and read the whole body, refusing one longer than `response_limit`
+    /// when a limit is given. A body is never clipped.
     fn send_with_limit(
         &self,
         request: RuntimeHttpRequest,
-        response_limit: usize,
-        truncate: bool,
+        response_limit: Option<usize>,
         retry_as_idempotent: bool,
     ) -> Result<RuntimeHttpResponse, RuntimeHttpError> {
         validate_http_url(&request.url, self.allow_private_networks)?;
@@ -576,7 +582,6 @@ impl ReqwestHttpTransport {
                     request,
                     headers,
                     response_limit,
-                    truncate,
                     retry_as_idempotent,
                 ),
             )
@@ -620,8 +625,7 @@ async fn send_reqwest_with_safe_read_retries(
     client: reqwest::Client,
     request: RuntimeHttpRequest,
     headers: reqwest::header::HeaderMap,
-    response_limit: usize,
-    truncate: bool,
+    response_limit: Option<usize>,
     retry_as_idempotent: bool,
 ) -> Result<RuntimeHttpResponse, RuntimeHttpError> {
     let mut attempt = 1_usize;
@@ -650,8 +654,7 @@ async fn send_reqwest_with_safe_read_retries(
             continue;
         }
         let response_headers = safe_response_headers(&response);
-        let (body, truncated) =
-            read_limited_response_body(response, response_limit, truncate).await?;
+        let body = read_response_body(response, response_limit).await?;
         let body_bytes = body.len();
         let body_digest = runx_contracts::sha256_prefixed(&body);
         return Ok(RuntimeHttpResponse {
@@ -660,7 +663,6 @@ async fn send_reqwest_with_safe_read_retries(
             headers: response_headers,
             body_digest,
             body_bytes,
-            truncated,
         });
     }
 }
@@ -1017,12 +1019,12 @@ fn six_to_four_embedded_ipv4(ip: Ipv6Addr) -> Option<Ipv4Addr> {
 }
 
 #[cfg(feature = "async-http")]
-async fn read_limited_response_body(
+async fn read_response_body(
     mut response: reqwest::Response,
-    limit: usize,
-    truncate: bool,
-) -> Result<(Vec<u8>, bool), RuntimeHttpError> {
-    if declared_response_length(&response)?.is_some_and(|length| length > limit as u64) && !truncate
+    limit: Option<usize>,
+) -> Result<Vec<u8>, RuntimeHttpError> {
+    if let Some(limit) = limit
+        && declared_response_length(&response)?.is_some_and(|length| length > limit as u64)
     {
         return Err(RuntimeHttpError::ResponseBodyTooLarge { limit });
     }
@@ -1035,17 +1037,14 @@ async fn read_limited_response_body(
                 message: error.to_string(),
             })?
     {
-        if body.len().saturating_add(chunk.len()) > limit {
-            if !truncate {
-                return Err(RuntimeHttpError::ResponseBodyTooLarge { limit });
-            }
-            let remaining = limit.saturating_sub(body.len());
-            body.extend_from_slice(&chunk[..remaining]);
-            return Ok((body, true));
+        if let Some(limit) = limit
+            && body.len().saturating_add(chunk.len()) > limit
+        {
+            return Err(RuntimeHttpError::ResponseBodyTooLarge { limit });
         }
         body.extend_from_slice(&chunk);
     }
-    Ok((body, false))
+    Ok(body)
 }
 
 #[cfg(feature = "async-http")]
@@ -1089,7 +1088,7 @@ where
 }
 
 #[cfg(feature = "async-http")]
-fn http_runtime() -> Result<&'static tokio::runtime::Runtime, RuntimeHttpError> {
+pub(crate) fn http_runtime() -> Result<&'static tokio::runtime::Runtime, RuntimeHttpError> {
     HTTP_CLIENT_RUNTIME
         .get_or_try_init(|| {
             tokio::runtime::Builder::new_multi_thread()
@@ -1145,8 +1144,7 @@ mod tests {
     #[cfg(feature = "async-http")]
     use super::{
         GuardedDnsResolver, NativeHttpTransport, PROVIDER_OPERATION_REQUEST_TIMEOUT,
-        ReqwestHttpTransport, STANDARD_HTTP_RESPONSE_BYTES, TransportProfile, block_on_http,
-        http_runtime,
+        ReqwestHttpTransport, TransportProfile, block_on_http, http_runtime,
     };
     use super::{HttpMethod, RuntimeHttpError, RuntimeHttpHeader, RuntimeHttpRequest};
     #[cfg(feature = "async-http")]
@@ -1181,24 +1179,24 @@ mod tests {
 
     #[cfg(feature = "async-http")]
     #[test]
-    fn harness_http_transport_is_exact_bounded_and_never_falls_through()
+    fn harness_http_transport_is_exact_limited_and_never_falls_through()
     -> Result<(), RuntimeHttpTestError> {
         let url = "https://fixture.runx.invalid/source";
         let responses =
             BTreeMap::from([(url.to_owned(), RuntimeHttpResponse::new(200, "hello world"))]);
         let transport = NativeHttpTransport::new(Some(&responses), None)?;
+        let read = || RuntimeHttpRequest {
+            method: HttpMethod::Get,
+            url: url.to_owned(),
+            headers: Vec::new(),
+            body: None,
+        };
 
-        let exact = transport.send_bounded(
-            RuntimeHttpRequest {
-                method: HttpMethod::Get,
-                url: url.to_owned(),
-                headers: Vec::new(),
-                body: None,
-            },
-            5,
-        )?;
-        assert_eq!(exact.body, "hello");
-        assert!(exact.truncated);
+        assert_eq!(transport.send(read())?.body, "hello world");
+        assert!(matches!(
+            transport.send_limited(read(), 5),
+            Err(RuntimeHttpError::ResponseBodyTooLarge { limit: 5 })
+        ));
 
         let missing = transport.send(RuntimeHttpRequest {
             method: HttpMethod::Get,
@@ -1754,29 +1752,29 @@ mod tests {
 
     #[cfg(feature = "async-http")]
     #[test]
-    fn reqwest_transport_rejects_oversized_content_length() -> Result<(), RuntimeHttpTestError> {
+    fn reqwest_transport_refuses_a_declared_length_over_the_limit()
+    -> Result<(), RuntimeHttpTestError> {
         let listener = TcpListener::bind("127.0.0.1:0")?;
         let address = listener.local_addr()?;
         let server = std::thread::spawn(move || -> Result<(), std::io::Error> {
             let (mut stream, _) = listener.accept()?;
             let mut buffer = [0_u8; 1024];
             let _ = stream.read(&mut buffer)?;
-            let response = format!(
-                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n",
-                STANDARD_HTTP_RESPONSE_BYTES + 1
-            );
-            stream.write_all(response.as_bytes())?;
+            stream.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 17\r\n\r\n")?;
             Ok(())
         });
 
         let transport = ReqwestHttpTransport::with_private_network_access_for_tests()?;
         let error = transport
-            .send(RuntimeHttpRequest {
-                method: HttpMethod::Get,
-                url: format!("http://{address}/too-large"),
-                headers: Vec::new(),
-                body: None,
-            })
+            .send_limited(
+                RuntimeHttpRequest {
+                    method: HttpMethod::Get,
+                    url: format!("http://{address}/too-large"),
+                    headers: Vec::new(),
+                    body: None,
+                },
+                16,
+            )
             .err();
         server
             .join()
@@ -1784,51 +1782,53 @@ mod tests {
 
         assert!(matches!(
             error,
-            Some(RuntimeHttpError::ResponseBodyTooLarge { limit })
-                if limit == STANDARD_HTTP_RESPONSE_BYTES
+            Some(RuntimeHttpError::ResponseBodyTooLarge { limit: 16 })
         ));
         Ok(())
     }
 
     #[cfg(feature = "async-http")]
     #[test]
-    fn reqwest_transport_caps_streamed_response_body() -> Result<(), RuntimeHttpTestError> {
+    fn reqwest_transport_reads_whole_bodies_and_refuses_a_stream_over_the_limit()
+    -> Result<(), RuntimeHttpTestError> {
+        const BODY_BYTES: usize = 9 * 1024 * 1024;
         let listener = TcpListener::bind("127.0.0.1:0")?;
         let address = listener.local_addr()?;
         let server = std::thread::spawn(move || -> Result<(), std::io::Error> {
-            let (mut stream, _) = listener.accept()?;
-            let mut buffer = [0_u8; 1024];
-            let _ = stream.read(&mut buffer)?;
-            stream.write_all(b"HTTP/1.1 200 OK\r\nConnection: close\r\n\r\n")?;
-            let _ = stream.write_all(&vec![b'a'; STANDARD_HTTP_RESPONSE_BYTES + 1]);
+            for _ in 0..2 {
+                let (mut stream, _) = listener.accept()?;
+                let mut buffer = [0_u8; 1024];
+                let _ = stream.read(&mut buffer)?;
+                stream.write_all(b"HTTP/1.1 200 OK\r\nConnection: close\r\n\r\n")?;
+                let _ = stream.write_all(&vec![b'a'; BODY_BYTES]);
+            }
             Ok(())
         });
+        let request = || RuntimeHttpRequest {
+            method: HttpMethod::Get,
+            url: format!("http://{address}/stream"),
+            headers: Vec::new(),
+            body: None,
+        };
 
         let transport = ReqwestHttpTransport::with_private_network_access_for_tests()?;
-        let error = transport
-            .send(RuntimeHttpRequest {
-                method: HttpMethod::Get,
-                url: format!("http://{address}/stream-too-large"),
-                headers: Vec::new(),
-                body: None,
-            })
-            .err();
+        let whole = transport.send(request())?;
+        let limited = transport.send_limited(request(), BODY_BYTES - 1).err();
         server
             .join()
             .map_err(|_| RuntimeHttpTestError::ServerThread)??;
 
+        assert_eq!(whole.body_bytes, BODY_BYTES);
         assert!(matches!(
-            error,
-            Some(RuntimeHttpError::ResponseBodyTooLarge { limit })
-                if limit == STANDARD_HTTP_RESPONSE_BYTES
+            limited,
+            Some(RuntimeHttpError::ResponseBodyTooLarge { limit }) if limit == BODY_BYTES - 1
         ));
         Ok(())
     }
 
     #[cfg(feature = "async-http")]
     #[test]
-    fn bounded_transport_truncates_and_filters_response_secrets() -> Result<(), RuntimeHttpTestError>
-    {
+    fn transport_filters_response_secrets() -> Result<(), RuntimeHttpTestError> {
         let listener = TcpListener::bind("127.0.0.1:0")?;
         let address = listener.local_addr()?;
         let server = std::thread::spawn(move || -> Result<(), std::io::Error> {
@@ -1842,26 +1842,22 @@ mod tests {
         });
 
         let transport = ReqwestHttpTransport::with_private_network_access_for_tests()?;
-        let response = transport.send_bounded(
-            RuntimeHttpRequest {
-                method: HttpMethod::Get,
-                url: format!("http://{address}/bounded"),
-                headers: Vec::new(),
-                body: None,
-            },
-            3,
-        )?;
+        let response = transport.send(RuntimeHttpRequest {
+            method: HttpMethod::Get,
+            url: format!("http://{address}/secrets"),
+            headers: Vec::new(),
+            body: None,
+        })?;
         server
             .join()
             .map_err(|_| RuntimeHttpTestError::ServerThread)??;
 
-        assert_eq!(response.body, "abc");
-        assert_eq!(response.body_bytes, 3);
+        assert_eq!(response.body, "abcdef");
+        assert_eq!(response.body_bytes, 6);
         assert_eq!(
             response.body_digest,
-            runx_contracts::sha256_prefixed(b"abc")
+            runx_contracts::sha256_prefixed(b"abcdef")
         );
-        assert!(response.truncated);
         assert!(response.headers.iter().any(|header| {
             header.name.eq_ignore_ascii_case("content-type") && header.value == "text/plain"
         }));

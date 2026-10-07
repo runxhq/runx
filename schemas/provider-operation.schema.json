@@ -21,7 +21,13 @@
     "idempotency_key": {
       "type": "string"
     },
+    "implementation_digest": {
+      "type": "string"
+    },
     "operation": {
+      "type": "string"
+    },
+    "operation_digest": {
       "type": "string"
     },
     "operation_id": {

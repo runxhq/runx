@@ -38,7 +38,7 @@
     "push_result": {
       "type": "json",
       "required": false,
-      "description": "Provider push result from the thread-outbox-provider front."
+      "description": "Provider push result for the published outbox entry."
     },
     "review_result": {
       "type": "json",

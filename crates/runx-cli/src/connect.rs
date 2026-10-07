@@ -2,8 +2,9 @@
 //!
 //! OAuth custody and bounded provider calls stay in Cloud. The native CLI owns
 //! environment/principal resolution and grant setup, inspection, and revocation.
-//! Provider calls execute only inside governed skills through native
-//! `provider.read` and `provider.mutate` tools.
+//! An active grant becomes a connector instance through `runx connector use
+//! <provider> --grant <grant-id>`; provider calls execute only as operation
+//! steps of governed skills.
 
 use std::collections::BTreeMap;
 use std::fmt;
@@ -30,16 +31,6 @@ pub fn run_native_connect_with_stdin(
     workspace: &WorkspaceEnv,
     stdin: impl Read,
 ) -> ExitCode {
-    if let ConnectAction::Bind {
-        provider,
-        transport,
-    } = &plan.action
-    {
-        return match run_connect_binding(&plan, workspace, provider, transport) {
-            Ok(output) => crate::cli_io::write_stdout_code(&output, 0),
-            Err(error) => fail(&plan, &error),
-        };
-    }
     let transport = match runx_runtime::hosted_api_transport(
         runx_runtime::hosted_private_network_allowed(plan.allow_local_api, workspace.env()),
     ) {
@@ -101,21 +92,13 @@ fn run_connect_with_transport<T: Transport>(
     transport: &T,
     credentials: Option<&Value>,
 ) -> Result<String, ConnectError> {
-    let environment = runx_runtime::HostedApiEnvironment::resolve(
-        plan.api_base_url.as_deref(),
-        plan.token.as_deref(),
-        env,
-        cwd,
-    )
-    .map_err(|error| ConnectError::Environment(error.to_string()))?;
+    let environment =
+        runx_runtime::HostedApiEnvironment::resolve(plan.api_base_url.as_deref(), env, cwd)
+            .map_err(|error| ConnectError::Environment(error.to_string()))?;
     let authenticated = environment
         .authenticate(transport)
         .map_err(|error| ConnectError::Environment(error.to_string()))?;
-    let action = hosted_connect_action(&plan.action).ok_or_else(|| {
-        ConnectError::Environment(
-            "project transport binding cannot use hosted execution".to_owned(),
-        )
-    })?;
+    let action = hosted_connect_action(&plan.action);
     let mut response = runx_runtime::execute_hosted_connect(transport, &authenticated, action)?;
     if let Some(credentials) = credentials {
         let status = string_field(&response, "status").unwrap_or("unknown");
@@ -148,13 +131,12 @@ fn run_connect_with_transport<T: Transport>(
     )
 }
 
-fn hosted_connect_action(action: &ConnectAction) -> Option<HostedConnectAction<'_>> {
+fn hosted_connect_action(action: &ConnectAction) -> HostedConnectAction<'_> {
     match action {
-        ConnectAction::List => Some(HostedConnectAction::List),
-        ConnectAction::Bind { .. } => None,
-        ConnectAction::Status { session_id } => Some(HostedConnectAction::Status { session_id }),
-        ConnectAction::Revoke { grant_id } => Some(HostedConnectAction::Revoke { grant_id }),
-        ConnectAction::Start(start) => Some(HostedConnectAction::Start(HostedConnectStart {
+        ConnectAction::List => HostedConnectAction::List,
+        ConnectAction::Status { session_id } => HostedConnectAction::Status { session_id },
+        ConnectAction::Revoke { grant_id } => HostedConnectAction::Revoke { grant_id },
+        ConnectAction::Start(start) => HostedConnectAction::Start(HostedConnectStart {
             provider: &start.provider,
             scopes: &start.scopes,
             scope_family: start.scope_family.as_deref(),
@@ -163,7 +145,7 @@ fn hosted_connect_action(action: &ConnectAction) -> Option<HostedConnectAction<'
             target_locator: start.target_locator.as_deref(),
             binding_id: start.binding_id.as_deref(),
             credential_grant_id: start.credential_grant_id.as_deref(),
-        })),
+        }),
     }
 }
 
@@ -188,48 +170,12 @@ fn render_connect_result(
     }
     let body = match action {
         ConnectAction::List => render_grants(&response)?,
-        ConnectAction::Bind { .. } => {
-            return Err(ConnectError::InvalidJson(
-                "project transport binding has no hosted response".to_owned(),
-            ));
-        }
-        ConnectAction::Start(_) => render_start(&response),
+        ConnectAction::Start(start) => render_start(&start.provider, &response),
         ConnectAction::Status { .. } | ConnectAction::Revoke { .. } => pretty_json(&response)?,
     };
     let mut output = format!("runx connect · {principal_id} · {base_url}\n");
     output.push_str(&body);
     Ok(output)
-}
-
-fn run_connect_binding(
-    plan: &ConnectPlan,
-    workspace: &WorkspaceEnv,
-    provider: &str,
-    transport: &str,
-) -> Result<String, String> {
-    let path = runx_runtime::bind_project_provider_transport(workspace, provider, transport)
-        .map_err(|error| error.to_string())?;
-    let normalized = match transport {
-        "local" if provider == "github" => "local:github",
-        "runx-connect" => "hosted",
-        value => value,
-    };
-    if plan.json {
-        return serde_json::to_string_pretty(&serde_json::json!({
-            "status": "success",
-            "binding": {
-                "provider": provider,
-                "transport": normalized,
-                "path": path,
-            }
-        }))
-        .map(|value| format!("{value}\n"))
-        .map_err(|error| error.to_string());
-    }
-    Ok(format!(
-        "provider {provider} uses {normalized} in {}\n",
-        path.display()
-    ))
 }
 
 fn render_grants(response: &Value) -> Result<String, ConnectError> {
@@ -260,7 +206,7 @@ fn render_grants(response: &Value) -> Result<String, ConnectError> {
     Ok(rows.collect())
 }
 
-fn render_start(response: &Value) -> String {
+fn render_start(provider: &str, response: &Value) -> String {
     let mut output = format!(
         "status: {}\n",
         string_field(response, "status").unwrap_or("unknown")
@@ -275,7 +221,9 @@ fn render_start(response: &Value) -> String {
         .get("grant")
         .and_then(|grant| string_field(grant, "grant_id"))
     {
-        output.push_str(&format!("grant: {grant_id}\n"));
+        output.push_str(&format!(
+            "grant: {grant_id}\nuse it: runx connector use {provider} --grant {grant_id}\n"
+        ));
     }
     output
 }
@@ -330,6 +278,11 @@ impl From<HostedApiOperationError> for ConnectError {
 
 #[cfg(test)]
 mod tests {
+
+    /// The operator's token, as the environment supplies it.
+    fn token_env() -> BTreeMap<String, String> {
+        BTreeMap::from([("RUNX_PUBLIC_API_TOKEN".to_owned(), "rxk_test".to_owned())])
+    }
     use std::cell::RefCell;
 
     use runx_runtime::{
@@ -375,14 +328,13 @@ mod tests {
         let plan = ConnectPlan {
             action: ConnectAction::List,
             api_base_url: Some("https://runx.test/".to_owned()),
-            token: Some("rxk_test".to_owned()),
             allow_local_api: false,
             json: true,
         };
 
         let output = run_connect_with_transport(
             &plan,
-            &BTreeMap::new(),
+            &token_env(),
             &std::env::temp_dir(),
             &transport,
             None,
@@ -423,8 +375,6 @@ mod tests {
             scopes[4].clone().into(),
             "--api-base-url".into(),
             "https://runx.test/".into(),
-            "--token".into(),
-            "rxk_test".into(),
             "--credential-grant".into(),
             "grant_x402_existing".into(),
             "--json".into(),
@@ -450,13 +400,7 @@ mod tests {
             ),
         ]);
 
-        run_connect_with_transport(
-            &plan,
-            &BTreeMap::new(),
-            &std::env::temp_dir(),
-            &transport,
-            None,
-        )?;
+        run_connect_with_transport(&plan, &token_env(), &std::env::temp_dir(), &transport, None)?;
 
         let requests = transport.requests.borrow();
         let body = requests[1]
@@ -482,8 +426,6 @@ mod tests {
             "--credentials-from-stdin".into(),
             "--api-base-url".into(),
             "https://runx.test/".into(),
-            "--token".into(),
-            "rxk_test".into(),
             "--json".into(),
         ])?;
         let transport = StubTransport::new(vec![
@@ -520,7 +462,7 @@ mod tests {
 
         let output = run_connect_with_transport(
             &plan,
-            &BTreeMap::new(),
+            &token_env(),
             &std::env::temp_dir(),
             &transport,
             Some(&credentials),

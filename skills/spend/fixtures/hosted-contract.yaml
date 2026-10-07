@@ -16,11 +16,11 @@ inputs:
   rail_profile_ref: "rail-profile:test"
   idempotency_seed: spend-test-001
 caller:
-  approvals: { "provider-effect:sha256:7fc69ef4807d994272280e28866eab0ab6b2abbf5d4cb7b595072a0ac8a6be1b": true }
+  approvals: { "operation:sha256:9e1077fa982e0ffffd11bcc1419780cf6bc95ca195e6dfd4d24c034456b10397": true }
   provider_responses:
     principal_id: spend-fixture
-    grants: [{ grant_id: spend-fixture, provider: mpp, scopes: [payment.spend, payment.spend.read] }]
+    grant: { grant_id: spend-fixture, provider: mpp, scopes: [payment.spend, payment.spend.read] }
     operations:
-      - { grant_id: spend-fixture, operation: payment.spend, target: "merchant:demo", access: mutate, result: { payment_ref: payment_test_001, rail: mpp, amount_minor: 125, currency: USD, status: settled } }
-      - { grant_id: spend-fixture, operation: payment.spend.read, target: "merchant:demo", access: read, result: { payment_ref: payment_test_001, rail: mpp, amount_minor: 125, currency: USD, status: settled } }
+      - { operation: payment.spend, target: "merchant:demo", access: mutate, result: { payment_ref: payment_test_001, rail: mpp, amount_minor: 125, currency: USD, status: settled } }
+      - { operation: payment.spend.read, target: payment_test_001, access: read, result: { payment_ref: payment_test_001, rail: mpp, amount_minor: 125, currency: USD, status: settled } }
 expect: { status: sealed, receipt: { schema: runx.receipt.v1 } }

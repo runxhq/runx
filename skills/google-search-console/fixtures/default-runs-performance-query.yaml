@@ -16,13 +16,12 @@ inputs:
 caller:
   provider_responses:
     principal_id: operator-fixture
-    grants:
-      - grant_id: gsc-performance-fixture
+    grant:
+        grant_id: gsc-performance-fixture
         provider: google-search-console
         scopes: [search.analytics.read]
     operations:
-      - grant_id: gsc-performance-fixture
-        operation: search.analytics.query
+      - operation: search.analytics.query
         target: sc-domain:example.com
         access: read
         result:

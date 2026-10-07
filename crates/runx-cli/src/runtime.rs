@@ -3,9 +3,7 @@
 // the OSS binary never embeds live payment rails or settlement state.
 use std::collections::BTreeMap;
 
-use runx_runtime::{
-    ExternalReceiptEffect, LocalOrchestrator, ProviderPermissionEffect, RuntimeEffectRegistry,
-};
+use runx_runtime::{LocalOrchestrator, RuntimeEffectRegistry};
 
 pub fn local_orchestrator(
     env: &BTreeMap<String, String>,
@@ -16,7 +14,5 @@ pub fn local_orchestrator(
 
 pub fn runtime_effect_registry() -> Result<RuntimeEffectRegistry, runx_runtime::RuntimeEffectError>
 {
-    let mut registry = RuntimeEffectRegistry::with_effect(ProviderPermissionEffect::default())?;
-    registry.register_effect(ExternalReceiptEffect)?;
-    Ok(registry)
+    RuntimeEffectRegistry::local()
 }

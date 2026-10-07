@@ -1,6 +1,6 @@
 ---
 name: nitrosend-provider-operation
-description: Execute one bounded Nitrosend MCP operation through Runx native HTTP.
+description: Run one bounded Nitrosend connector operation and project its result as provider evidence.
 runx:
   category: communications
 ---
@@ -8,9 +8,9 @@ runx:
 # Nitrosend provider operation
 
 Internal graph stage for the public `nitrosend` skill. It owns only the
-Nitrosend operation allowlist, argument validation, MCP request mapping, and
-provider-result projection. Runx native HTTP owns transport, credential
-delivery, destination admission, response limits, retries, and secret
-redaction.
+skill's operation allowlist, argument validation, the choice of Nitrosend
+connector operation, and provider-result projection. The connector manifest
+owns the MCP tool, its pinned digest and the arguments each operation sends;
+the kernel owns admission, approval, credential delivery and custody.
 
 Do not call this stage as an operator entrypoint. Use `nitrosend`.

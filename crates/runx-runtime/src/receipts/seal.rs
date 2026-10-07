@@ -88,8 +88,10 @@ pub fn step_receipt_with_authority_grant_refs(
         projection_refs: refs,
         child_receipts: &[],
         descendant_receipts: &[],
-        authority_grant_refs,
-        authority_scope_refs: Vec::new(),
+        authority: SealAuthority {
+            grant_refs: authority_grant_refs,
+            ..SealAuthority::default()
+        },
         receipt_metadata: None,
         signature_policy: RuntimeReceiptSignaturePolicy::local_development(),
     })
@@ -112,8 +114,7 @@ struct StepReceiptSeal<'a> {
     projection_refs: StepOutputRefs,
     child_receipts: &'a [Receipt],
     descendant_receipts: &'a [Receipt],
-    authority_grant_refs: Vec<Reference>,
-    authority_scope_refs: Vec<Reference>,
+    authority: SealAuthority,
     receipt_metadata: Option<JsonObject>,
     signature_policy: RuntimeReceiptSignaturePolicy<'a>,
 }
@@ -169,8 +170,7 @@ pub(crate) fn step_receipt_with_declared_claim_and_policy(
         projection_refs,
         child_receipts: &[],
         descendant_receipts: &[],
-        authority_grant_refs: Vec::new(),
-        authority_scope_refs: Vec::new(),
+        authority: SealAuthority::default(),
         receipt_metadata: None,
         signature_policy,
     })
@@ -185,8 +185,7 @@ fn step_receipt_with_disposition_projection_authority_and_policy(
         projection_refs,
         child_receipts,
         descendant_receipts,
-        authority_grant_refs,
-        authority_scope_refs,
+        authority,
         receipt_metadata,
         signature_policy,
     } = request;
@@ -234,8 +233,7 @@ fn step_receipt_with_disposition_projection_authority_and_policy(
         children: child_receipts.iter().map(child_receipt_reference).collect(),
         sync_points: Vec::new(),
         signals: output_refs.signal_refs,
-        authority_grant_refs,
-        authority_scope_refs,
+        authority,
         authority_override: None,
         previous: None,
     });
@@ -305,8 +303,7 @@ pub(crate) struct StepSeal<'a> {
     pub(crate) claim: &'a JsonObject,
     pub(crate) projection_refs: StepOutputRefs,
     pub(crate) created_at: &'a str,
-    pub(crate) authority_grant_refs: Vec<Reference>,
-    pub(crate) authority_scope_refs: Vec<Reference>,
+    pub(crate) authority: SealAuthority,
     pub(crate) operator_refs: Vec<Reference>,
     /// Direct child receipts for a composed step such as a nested graph. The
     /// step receipt commits their ids and digests; their descendants remain
@@ -355,8 +352,7 @@ pub(crate) fn seal_step(
         claim,
         mut projection_refs,
         created_at,
-        authority_grant_refs,
-        authority_scope_refs,
+        authority,
         operator_refs,
         child_receipts,
         descendant_receipts,
@@ -392,8 +388,7 @@ pub(crate) fn seal_step(
         projection_refs,
         child_receipts,
         descendant_receipts,
-        authority_grant_refs,
-        authority_scope_refs,
+        authority,
         receipt_metadata,
         signature_policy,
     })
@@ -804,8 +799,7 @@ fn build_graph_receipt(
         children,
         sync_points: sync_points.to_vec(),
         signals: Vec::new(),
-        authority_grant_refs: Vec::new(),
-        authority_scope_refs: Vec::new(),
+        authority: SealAuthority::default(),
         authority_override: None,
         previous: None,
     });
@@ -939,8 +933,7 @@ struct BuildReceipt<'a> {
     children: Vec<Reference>,
     sync_points: Vec<FanoutReceiptSyncPoint>,
     signals: Vec<Reference>,
-    authority_grant_refs: Vec<Reference>,
-    authority_scope_refs: Vec<Reference>,
+    authority: SealAuthority,
     /// Fully-built authority for a domain act seal. When `None`, the generic
     /// `local_runtime` authority is used (unchanged for every existing caller).
     authority_override: Option<ReceiptAuthority>,
@@ -989,8 +982,7 @@ fn build_unsealed_receipt(parts: BuildReceipt<'_>) -> UnsealedReceipt {
         children,
         sync_points,
         signals,
-        authority_grant_refs,
-        authority_scope_refs,
+        authority,
         authority_override,
         previous,
     } = parts;
@@ -1012,8 +1004,7 @@ fn build_unsealed_receipt(parts: BuildReceipt<'_>) -> UnsealedReceipt {
         idempotency: idempotency(graph_name, node_id),
         class,
         subject: subject(graph_name, node_id, kind),
-        authority: authority_override
-            .unwrap_or_else(|| authority(authority_grant_refs, authority_scope_refs)),
+        authority: authority_override.unwrap_or_else(|| local_authority(authority)),
         signals,
         decisions,
         acts,
@@ -1113,7 +1104,23 @@ fn enforcement_profile_hash(
     format!("sha256:{}", sha256_hex(&canonical)).into()
 }
 
-fn authority(grant_refs: Vec<Reference>, scope_refs: Vec<Reference>) -> ReceiptAuthority {
+/// The authority a step receipt seals: the grants and scopes that admitted
+/// the step, and the execution terms derived for it with their proofs.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct SealAuthority {
+    pub grant_refs: Vec<Reference>,
+    pub scope_refs: Vec<Reference>,
+    pub terms: Vec<runx_contracts::AuthorityTerm>,
+    pub derivations: Vec<runx_contracts::AuthorityDerivation>,
+}
+
+fn local_authority(authority: SealAuthority) -> ReceiptAuthority {
+    let SealAuthority {
+        grant_refs,
+        scope_refs,
+        terms,
+        derivations,
+    } = authority;
     let redaction_refs = Vec::new();
     let setup_refs = Vec::new();
     let teardown_refs = Vec::new();
@@ -1122,7 +1129,8 @@ fn authority(grant_refs: Vec<Reference>, scope_refs: Vec<Reference>) -> ReceiptA
         authority_proof_refs: Vec::new(),
         grant_refs,
         scope_refs,
-        terms: Vec::new(),
+        terms,
+        derivations,
         attenuation: AuthorityAttenuation {
             parent_authority_ref: None,
             subset_proof: None,
@@ -1268,6 +1276,7 @@ pub(crate) fn domain_act_receipt(
         grant_refs: frame.authority_grant_refs,
         scope_refs: frame.authority_scope_refs,
         terms: frame.authority_terms,
+        derivations: Vec::new(),
         attenuation: frame.authority_attenuation.unwrap_or(AuthorityAttenuation {
             parent_authority_ref: None,
             subset_proof: None,
@@ -1303,8 +1312,7 @@ pub(crate) fn domain_act_receipt(
         children: Vec::new(),
         sync_points: Vec::new(),
         signals: Vec::new(),
-        authority_grant_refs: Vec::new(),
-        authority_scope_refs: Vec::new(),
+        authority: SealAuthority::default(),
         authority_override: Some(authority),
         previous: frame.previous,
     });
@@ -1978,8 +1986,7 @@ mod tests {
                 projection_refs: StepOutputRefs::default(),
                 child_receipts: &[],
                 descendant_receipts: &[],
-                authority_grant_refs: Vec::new(),
-                authority_scope_refs: Vec::new(),
+                authority: SealAuthority::default(),
                 receipt_metadata: None,
                 signature_policy: RuntimeReceiptSignaturePolicy::local_development(),
             })?,
@@ -2051,8 +2058,7 @@ mod tests {
                 projection_refs: StepOutputRefs::default(),
                 child_receipts: std::slice::from_ref(child),
                 descendant_receipts: &[],
-                authority_grant_refs: Vec::new(),
-                authority_scope_refs: Vec::new(),
+                authority: SealAuthority::default(),
                 receipt_metadata: None,
                 signature_policy: RuntimeReceiptSignaturePolicy::local_development(),
             })

@@ -1,6 +1,6 @@
 ---
 name: n8n-handoff
-description: Validate a runx execution context and hand off a governed payload to an n8n workflow through any compatible provider binding, with idempotency and receipt-backed readback.
+description: Validate a runx execution context and deliver a governed payload to an n8n Cloud workflow webhook once, with exact approval and the workflow's acknowledgement receipted.
 runx:
   category: ops
 ---
@@ -11,23 +11,23 @@ Hand off governed runx work to an n8n workflow without turning n8n into the
 authority holder.
 
 This skill is for the outbound side of the n8n integration story. runx owns the
-policy decision, credential delivery, execution context, and receipt. n8n owns
-its workflow webhook, canvas, branching, fan-out, and downstream notifications.
+policy decision, execution context, and receipt. n8n owns its workflow webhook,
+canvas, branching, fan-out, and downstream notifications.
 
 
 ## Runners
 
 - `preflight`: validates and normalizes the handoff context without network.
-- `send`: validates the context, invokes the selected n8n workflow, and reads the invocation back.
+- `send`: validates the context and delivers it to the selected n8n workflow.
 
 Use `preflight` for reviews, CI, and local harnesses; it never needs approval.
 The `send` runner first calls native `control.prepare_handoff`, which validates
 the execution identity and produces the canonical delivery envelope. It then
-uses the provider boundary for `workflow.invoke`; that boundary owns the exact
-approval, credential custody, idempotency, and provider operation. A separate
-provider read verifies the same event and invocation reference. The binding may
-be local or hosted and may target self-hosted or cloud n8n; the skill never
-assumes who holds the credential.
+runs `n8n/workflow.invoke`, which posts that envelope to
+`https://<workspace>.app.n8n.cloud/webhook/<slug>` after exact approval. The
+webhook takes no credential and n8n offers no way to read a delivery back, so
+the receipt records the workflow's answer with finality `acknowledged`, not a
+confirmed readback.
 
 ## Execution context
 
@@ -54,9 +54,10 @@ receiver must validate before starting its workflow.
 
 ## Edge cases
 
-- A compatible n8n binding must resolve the selected `webhook_host`; absence is
-  an actionable preflight blocker, not permission to fall back to ambient HTTP.
-- Self-hosted and cloud bindings must both dedupe `event_id` before branching.
+- Only n8n Cloud hosts are reachable. A self-hosted instance needs its own
+  connector that declares its host.
+- Anyone who knows the webhook path can post to it, so have the workflow check
+  `handoff_scope` and `handoff_audience` before acting.
 - Do not put raw provider credentials into `payload` or `execution_context`.
   Pass credential references or let runx hold the provider secret.
 - If the workflow slug changes, update `handoff_audience` to the matching
@@ -71,7 +72,8 @@ receiver must validate before starting its workflow.
 - `payload` (required): business payload delivered to n8n.
 - `handoff_audience` (optional): defaults to
   `n8n:workflow:runx-governed-effect`.
-- `webhook_host` and `workflow_slug` (send runner): exact n8n binding target and workflow selector.
+- `webhook_host` and `workflow_slug` (send runner): the n8n Cloud host and the
+  webhook path segment that selects the workflow.
 
 `event_id` is also the Runx mutation idempotency key and the value delivered as
 `idempotency_key`; there is no second retry identity that can drift from it.

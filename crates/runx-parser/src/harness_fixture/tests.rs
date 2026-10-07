@@ -95,19 +95,6 @@ fn rejects_retired_receipt_fields() {
 }
 
 #[test]
-fn rejects_unsupported_fixture_kind_at_parser_boundary() {
-    let error =
-        parse_harness_fixture("name: old\nkind: mcp\ntarget: ..\nexpect:\n  status: sealed\n")
-            .expect_err("unsupported fixture kind must fail");
-
-    assert!(matches!(
-        error,
-        HarnessFixtureError::UnsupportedFixtureMode { mode, field_path }
-            if mode == "mcp" && field_path == "kind"
-    ));
-}
-
-#[test]
 fn validates_package_relative_receipt_setup() -> Result<(), HarnessFixtureError> {
     let fixture = parse_harness_fixture(
         "name: receipt-proof\nkind: skill\ntarget: ..\nsetup:\n  receipts:\n    - fixtures/receipt-store/sha256-demo.json\n",

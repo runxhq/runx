@@ -55,7 +55,7 @@ export function finalizeDiscovery(inputs) {
 export function admitIssue(inputs) {
   const issue = object(inputs.issue_snapshot);
   const providerOperation = object(inputs.provider_operation);
-  const repository = text(issue.repository);
+  const repository = text(inputs.repository) || text(issue.repository);
   const number = text(issue.number || issue.id);
   const title = text(issue.title);
   const state = text(issue.state);

@@ -16,8 +16,6 @@ const RETIRED_RECEIPT_FIELDS: &[&str] =
 pub enum HarnessFixtureKind {
     Skill,
     Graph,
-    Mcp,
-    A2a,
     Agent,
     #[serde(rename = "agent_task")]
     AgentStep,
@@ -92,6 +90,20 @@ pub enum HarnessHttpRequestBodyFixture {
     Json { json: JsonValue },
 }
 
+/// One tool call the harness answers in place of an MCP server: the exact
+/// tool, arguments and session headers a call renders, and the result the
+/// server gives (`content`, `structuredContent`, `isError`).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct HarnessMcpCallFixture {
+    pub tool: String,
+    #[serde(default)]
+    pub arguments: JsonObject,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub headers: BTreeMap<String, String>,
+    pub result: JsonObject,
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct HarnessHttpExchangeFixture {
@@ -118,12 +130,11 @@ pub enum HarnessProviderAccess {
 }
 
 /// One exact provider operation and readback result admitted by the harness.
-/// The runtime still performs its normal authentication, grant selection,
-/// approval, operation validation, finality, and receipt transitions.
+/// The runtime still performs its normal admission, approval, custody,
+/// finality, and receipt transitions.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct HarnessProviderOperationFixture {
-    pub grant_id: String,
     pub operation: String,
     pub target: String,
     pub access: HarnessProviderAccess,
@@ -134,7 +145,8 @@ pub struct HarnessProviderOperationFixture {
 #[serde(deny_unknown_fields)]
 pub struct HarnessProviderResponsesFixture {
     pub principal_id: String,
-    pub grants: Vec<HarnessProviderGrantFixture>,
+    /// The grant the harness injects as the run's hosted instance.
+    pub grant: HarnessProviderGrantFixture,
     pub operations: Vec<HarnessProviderOperationFixture>,
 }
 
@@ -158,6 +170,15 @@ pub struct HarnessFixture {
 pub struct HarnessSetup {
     #[serde(default)]
     pub receipts: Vec<String>,
+    /// Connectors whose local session the case confirms and selects before
+    /// it runs, the way `runx connector use <connector> --session` would.
+    #[serde(default)]
+    pub sessions: Vec<runx_contracts::connector::ConnectorId>,
+    /// Connectors whose credential the case stores from its environment and
+    /// selects, the way `runx credential set` would: the one declared
+    /// credential whose variable the case sets.
+    #[serde(default)]
+    pub credentials: Vec<runx_contracts::connector::ConnectorId>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -267,8 +288,6 @@ pub enum HarnessFixtureError {
     RetiredReceiptField { field_path: String },
     #[error("unknown receipt expectation field {field_path}")]
     UnknownReceiptField { field_path: String },
-    #[error("harness fixture mode {mode} at {field_path} is not yet supported by the Rust harness")]
-    UnsupportedFixtureMode { mode: String, field_path: String },
 }
 
 pub fn parse_harness_fixture(contents: &str) -> Result<HarnessFixture, HarnessFixtureError> {
@@ -310,7 +329,6 @@ pub fn parse_harness_expectation(
 
 fn validate_fixture(fixture: RawHarnessFixture) -> Result<HarnessFixture, HarnessFixtureError> {
     require_non_empty(&fixture.name, "name")?;
-    validate_supported_fixture_kind(&fixture.kind, "kind")?;
     let target = fixture.target.unwrap_or_default();
     if !matches!(fixture.kind, HarnessFixtureKind::AgentStep) {
         require_non_empty(&target, "target")?;
@@ -336,6 +354,7 @@ fn validate_fixture(fixture: RawHarnessFixture) -> Result<HarnessFixture, Harnes
         fixture.caller.get("provider_responses"),
         "caller.provider_responses",
     )?;
+    parse_harness_mcp_calls(fixture.caller.get("mcp_calls"), "caller.mcp_calls")?;
     Ok(HarnessFixture {
         name: fixture.name,
         kind: fixture.kind,
@@ -365,16 +384,12 @@ pub fn parse_harness_provider_responses(
     let Some(value) = value else {
         return Ok(None);
     };
-    let encoded = serde_json::to_value(value).map_err(|error| HarnessFixtureError::Invalid {
-        field: field.to_owned(),
-        message: error.to_string(),
-    })?;
-    let fixture =
-        serde_json::from_value::<HarnessProviderResponsesFixture>(encoded).map_err(|error| {
-            HarnessFixtureError::Invalid {
-                field: field.to_owned(),
-                message: error.to_string(),
-            }
+    let fixture = value
+        .clone()
+        .deserialize_into::<HarnessProviderResponsesFixture>()
+        .map_err(|error| HarnessFixtureError::Invalid {
+            field: field.to_owned(),
+            message: error.to_string(),
         })?;
     validate_harness_provider_responses(fixture, field).map(Some)
 }
@@ -385,74 +400,53 @@ fn validate_harness_provider_responses(
 ) -> Result<HarnessProviderResponsesFixture, HarnessFixtureError> {
     use std::collections::BTreeSet;
 
-    const MAX_GRANTS: usize = 16;
     const MAX_OPERATIONS: usize = 32;
+    let invalid = |field: String, message: &str| HarnessFixtureError::Invalid {
+        field,
+        message: message.to_owned(),
+    };
     if fixture.principal_id.trim().is_empty() || fixture.principal_id.len() > 256 {
-        return Err(HarnessFixtureError::Invalid {
-            field: format!("{field}.principal_id"),
-            message: "must be a non-empty principal id no longer than 256 characters".to_owned(),
-        });
+        return Err(invalid(
+            format!("{field}.principal_id"),
+            "must be a non-empty principal id no longer than 256 characters",
+        ));
     }
-    if fixture.grants.is_empty() || fixture.grants.len() > MAX_GRANTS {
-        return Err(HarnessFixtureError::Invalid {
-            field: format!("{field}.grants"),
-            message: format!("must contain between 1 and {MAX_GRANTS} grants"),
-        });
+    let grant = &fixture.grant;
+    if grant.grant_id.trim().is_empty()
+        || grant.provider.trim().is_empty()
+        || grant.scopes.is_empty()
+        || grant.scopes.iter().any(|scope| scope.trim().is_empty())
+    {
+        return Err(invalid(
+            format!("{field}.grant"),
+            "grant_id, provider, and every declared scope must be non-empty",
+        ));
     }
     if fixture.operations.is_empty() || fixture.operations.len() > MAX_OPERATIONS {
-        return Err(HarnessFixtureError::Invalid {
-            field: format!("{field}.operations"),
-            message: format!("must contain between 1 and {MAX_OPERATIONS} operations"),
-        });
-    }
-    let mut grant_ids = BTreeSet::new();
-    for (index, grant) in fixture.grants.iter().enumerate() {
-        let grant_field = format!("{field}.grants[{index}]");
-        if grant.grant_id.trim().is_empty()
-            || grant.provider.trim().is_empty()
-            || grant.scopes.is_empty()
-            || grant.scopes.iter().any(|scope| scope.trim().is_empty())
-        {
-            return Err(HarnessFixtureError::Invalid {
-                field: grant_field,
-                message: "grant_id, provider, and every declared scope must be non-empty"
-                    .to_owned(),
-            });
-        }
-        if !grant_ids.insert(grant.grant_id.as_str()) {
-            return Err(HarnessFixtureError::Invalid {
-                field: grant_field,
-                message: format!("duplicates grant id {:?}", grant.grant_id),
-            });
-        }
+        return Err(invalid(
+            format!("{field}.operations"),
+            "must contain between 1 and 32 operations",
+        ));
     }
     let mut operations = BTreeSet::new();
     for (index, operation) in fixture.operations.iter().enumerate() {
         let operation_field = format!("{field}.operations[{index}]");
-        if !grant_ids.contains(operation.grant_id.as_str()) {
-            return Err(HarnessFixtureError::Invalid {
-                field: format!("{operation_field}.grant_id"),
-                message: "must reference a declared harness grant".to_owned(),
-            });
-        }
         if operation.operation.trim().is_empty() || operation.target.trim().is_empty() {
-            return Err(HarnessFixtureError::Invalid {
-                field: operation_field,
-                message: "operation and target must be non-empty".to_owned(),
-            });
+            return Err(invalid(
+                operation_field,
+                "operation and target must be non-empty",
+            ));
         }
         let identity = (
-            operation.grant_id.as_str(),
             operation.operation.as_str(),
             operation.target.as_str(),
             operation.access,
         );
         if !operations.insert(identity) {
-            return Err(HarnessFixtureError::Invalid {
-                field: operation_field,
-                message: "duplicates an earlier grant, operation, target, and access tuple"
-                    .to_owned(),
-            });
+            return Err(invalid(
+                operation_field,
+                "duplicates an earlier operation, target, and access tuple",
+            ));
         }
     }
     Ok(fixture)
@@ -490,6 +484,32 @@ pub fn parse_harness_http_responses(
 /// Parse request-sensitive deterministic exchanges. Unlike URL-only response
 /// fixtures, an exact exchange may admit a mutation because the harness proves
 /// the complete outbound request and never reaches the network.
+pub fn parse_harness_mcp_calls(
+    value: Option<&JsonValue>,
+    field: &str,
+) -> Result<Vec<HarnessMcpCallFixture>, HarnessFixtureError> {
+    const MAX_CALLS: usize = 32;
+    let Some(value) = value else {
+        return Ok(Vec::new());
+    };
+    let invalid = |message: String| HarnessFixtureError::Invalid {
+        field: field.to_owned(),
+        message,
+    };
+    let encoded = serde_json::to_value(value).map_err(|error| invalid(error.to_string()))?;
+    let calls = serde_json::from_value::<Vec<HarnessMcpCallFixture>>(encoded)
+        .map_err(|error| invalid(error.to_string()))?;
+    if calls.is_empty() || calls.len() > MAX_CALLS {
+        return Err(invalid(format!(
+            "must contain one to {MAX_CALLS} exact calls when declared"
+        )));
+    }
+    if calls.iter().any(|call| call.tool.trim().is_empty()) {
+        return Err(invalid("every call names its tool".to_owned()));
+    }
+    Ok(calls)
+}
+
 pub fn parse_harness_http_exchanges(
     value: Option<&JsonValue>,
     field: &str,
@@ -753,6 +773,29 @@ fn validate_setup(setup: HarnessSetup) -> Result<HarnessSetup, HarnessFixtureErr
             });
         }
     }
+    // A connector runs under one selected instance: a session or a
+    // credential, named once.
+    let mut connectors = std::collections::BTreeSet::new();
+    for (field, connector) in setup
+        .sessions
+        .iter()
+        .enumerate()
+        .map(|(index, connector)| (format!("setup.sessions[{index}]"), connector))
+        .chain(
+            setup
+                .credentials
+                .iter()
+                .enumerate()
+                .map(|(index, connector)| (format!("setup.credentials[{index}]"), connector)),
+        )
+    {
+        if !connectors.insert(connector) {
+            return Err(HarnessFixtureError::Invalid {
+                field,
+                message: "names a connector twice".to_owned(),
+            });
+        }
+    }
     Ok(setup)
 }
 
@@ -829,35 +872,6 @@ fn is_retired_receipt_field(field: &str) -> bool {
 
 fn retired_execution_receipt_field(prefix: &str) -> String {
     format!("{prefix}_{}", "execution")
-}
-
-fn validate_supported_fixture_kind(
-    kind: &HarnessFixtureKind,
-    field_path: &'static str,
-) -> Result<(), HarnessFixtureError> {
-    match kind {
-        HarnessFixtureKind::Skill
-        | HarnessFixtureKind::Graph
-        | HarnessFixtureKind::A2a
-        | HarnessFixtureKind::Agent
-        | HarnessFixtureKind::AgentStep => Ok(()),
-        HarnessFixtureKind::Mcp => Err(HarnessFixtureError::UnsupportedFixtureMode {
-            mode: fixture_kind_name(kind).to_owned(),
-            field_path: field_path.to_owned(),
-        }),
-    }
-}
-
-#[must_use]
-pub fn fixture_kind_name(kind: &HarnessFixtureKind) -> &'static str {
-    match kind {
-        HarnessFixtureKind::Skill => "skill",
-        HarnessFixtureKind::Graph => "graph",
-        HarnessFixtureKind::Mcp => "mcp",
-        HarnessFixtureKind::A2a => "a2a",
-        HarnessFixtureKind::Agent => "agent",
-        HarnessFixtureKind::AgentStep => "agent_task",
-    }
 }
 
 fn require_non_empty(value: &str, field: &'static str) -> Result<(), HarnessFixtureError> {

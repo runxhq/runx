@@ -1,3 +1,4 @@
+use runx_contracts::connector::OperationAccess;
 use runx_contracts::{JsonObject, JsonValue};
 
 use crate::hosted_api::{
@@ -14,16 +15,14 @@ pub use error::ProviderOperationError;
 pub struct ProviderOperationRequest {
     pub grant_id: String,
     pub operation: String,
+    /// What the caller admitted the operation as; the route refuses a digest
+    /// it does not know.
+    pub operation_digest: String,
     pub target: String,
     pub scopes: Vec<String>,
     pub input: JsonObject,
-    pub expected_access: Option<ProviderOperationAccess>,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ProviderOperationAccess {
-    Read,
-    Mutate,
+    /// What the operation declares; the answer must state the same.
+    pub access: OperationAccess,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -33,16 +32,6 @@ pub struct HostedProviderGrant {
     pub scopes: Vec<String>,
     pub status: String,
     pub target_locator: Option<String>,
-}
-
-impl ProviderOperationAccess {
-    #[must_use]
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Self::Read => "read",
-            Self::Mutate => "mutate",
-        }
-    }
 }
 
 pub fn list_provider_grants<T: Transport + ?Sized>(
@@ -121,17 +110,17 @@ fn parse_provider_grant(value: &JsonValue) -> Result<HostedProviderGrant, Provid
     })
 }
 
-pub fn invoke_provider_operation<T: Transport + ?Sized>(
+pub(crate) fn invoke_provider_operation<T: Transport + ?Sized>(
     transport: &T,
     environment: &AuthenticatedHostedApiEnvironment,
     request: &ProviderOperationRequest,
-) -> Result<JsonObject, ProviderOperationError> {
+) -> Result<crate::kernel::operation::packet::Readback, ProviderOperationError> {
     validate_provider_grant_id(&request.grant_id)?;
     validate_provider_operation(&request.operation)?;
     if request.scopes.is_empty() || request.scopes.iter().any(|scope| scope.trim().is_empty()) {
         return Err(ProviderOperationError::InvalidScopes);
     }
-    let mut body = JsonObject::from([
+    let body = JsonObject::from([
         (
             "grant_id".to_owned(),
             JsonValue::String(request.grant_id.clone()),
@@ -139,6 +128,10 @@ pub fn invoke_provider_operation<T: Transport + ?Sized>(
         (
             "operation".to_owned(),
             JsonValue::String(request.operation.clone()),
+        ),
+        (
+            "operation_digest".to_owned(),
+            JsonValue::String(request.operation_digest.clone()),
         ),
         (
             "target".to_owned(),
@@ -156,21 +149,19 @@ pub fn invoke_provider_operation<T: Transport + ?Sized>(
             ),
         ),
         ("input".to_owned(), JsonValue::Object(request.input.clone())),
-    ]);
-    if let Some(access) = request.expected_access {
-        body.insert(
+        (
             "access".to_owned(),
-            JsonValue::String(access.as_str().to_owned()),
-        );
-    }
+            JsonValue::String(request.access.as_str().to_owned()),
+        ),
+    ]);
     let body = serde_json::to_string(&body).map_err(|error| {
         crate::hosted_api::HostedApiOperationError::InvalidRequest {
             operation: "provider operation request",
             message: error.to_string(),
         }
     })?;
-    let response: JsonObject = match request.expected_access {
-        Some(ProviderOperationAccess::Read) => send_json_idempotent(
+    let response: JsonObject = match request.access {
+        OperationAccess::Read => send_json_idempotent(
             transport,
             environment.base_url(),
             "provider operation",
@@ -179,7 +170,7 @@ pub fn invoke_provider_operation<T: Transport + ?Sized>(
             Some(environment.token()),
             Some(body),
         )?,
-        _ => send_json(
+        OperationAccess::Mutate => send_json(
             transport,
             environment.base_url(),
             "provider operation",
@@ -189,96 +180,161 @@ pub fn invoke_provider_operation<T: Transport + ?Sized>(
             Some(body),
         )?,
     };
-    parse_provider_operation_response(response, request)
+    decode_readback(response, request.access)
 }
 
-fn parse_provider_operation_response(
+/// One declared request of a hosted operation. runx Connect renders it from
+/// its own copy of the declaration, refuses one whose digests differ from
+/// what the caller admitted, and sends it through the provider gateway.
+pub(crate) struct ProviderRequest<'a> {
+    pub grant_id: &'a str,
+    pub operation: &'a str,
+    pub operation_digest: &'a str,
+    pub implementation_digest: &'a str,
+    pub input: &'a JsonObject,
+    pub idempotency_key: Option<&'a str>,
+    /// The declared request's id.
+    pub request: &'a str,
+    /// The element of a repeated request, by position.
+    pub item: Option<usize>,
+    /// The write's decoded answer, for a checking read whose request binds
+    /// it. Connect accepts earlier answers only for checking reads, which are
+    /// GETs inside the operation's declared requests.
+    pub responses: Option<&'a std::collections::BTreeMap<String, JsonObject>>,
+}
+
+/// The provider's answer to one declared request, whole.
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ProviderAnswer {
+    status: u16,
+    body: String,
+}
+
+pub(crate) fn send_provider_request<T: Transport + ?Sized>(
+    transport: &T,
+    environment: &AuthenticatedHostedApiEnvironment,
+    request: &ProviderRequest<'_>,
+    idempotent: bool,
+) -> Result<crate::http::RuntimeHttpResponse, ProviderOperationError> {
+    validate_provider_grant_id(request.grant_id)?;
+    validate_provider_operation(request.operation)?;
+    let text = |value: &str| JsonValue::String(value.to_owned());
+    let mut body = JsonObject::from([
+        ("grant_id".to_owned(), text(request.grant_id)),
+        ("operation".to_owned(), text(request.operation)),
+        (
+            "operation_digest".to_owned(),
+            text(request.operation_digest),
+        ),
+        (
+            "implementation_digest".to_owned(),
+            text(request.implementation_digest),
+        ),
+        ("input".to_owned(), JsonValue::Object(request.input.clone())),
+        ("request".to_owned(), text(request.request)),
+    ]);
+    if let Some(key) = request.idempotency_key {
+        body.insert("idempotency_key".to_owned(), text(key));
+    }
+    if let Some(item) = request.item {
+        body.insert(
+            "item".to_owned(),
+            JsonValue::Number(runx_contracts::JsonNumber::from(item as u64)),
+        );
+    }
+    if let Some(responses) = request.responses {
+        body.insert(
+            "responses".to_owned(),
+            JsonValue::Object(
+                responses
+                    .iter()
+                    .map(|(id, answer)| (id.clone(), JsonValue::Object(answer.clone())))
+                    .collect(),
+            ),
+        );
+    }
+    let body = serde_json::to_string(&body).map_err(|error| {
+        crate::hosted_api::HostedApiOperationError::InvalidRequest {
+            operation: "provider request",
+            message: error.to_string(),
+        }
+    })?;
+    let (base_url, token) = (environment.base_url(), Some(environment.token()));
+    let path = "/v1/provider-requests";
+    let answer: ProviderAnswer = if idempotent {
+        send_json_idempotent(
+            transport,
+            base_url,
+            "provider request",
+            HttpMethod::Post,
+            path,
+            token,
+            Some(body),
+        )?
+    } else {
+        send_json(
+            transport,
+            base_url,
+            "provider request",
+            HttpMethod::Post,
+            path,
+            token,
+            Some(body),
+        )?
+    };
+    Ok(crate::http::RuntimeHttpResponse::new(
+        answer.status,
+        answer.body,
+    ))
+}
+
+/// The hosted response as a readback. The route answers for one exact call;
+/// the kernel checks that it is this call's answer.
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct HostedReadback {
+    status: String,
+    access: String,
+    provider: String,
+    operation: String,
+    target: String,
+    result: JsonValue,
+    readback_ref: String,
+    #[serde(default)]
+    operation_id: Option<String>,
+    #[serde(default)]
+    idempotency_key: Option<String>,
+}
+
+fn decode_readback(
     response: JsonObject,
-    request: &ProviderOperationRequest,
-) -> Result<JsonObject, ProviderOperationError> {
-    validate_operation_readback(&response, request)?;
-    project_operation_readback(response)
-}
-
-fn validate_operation_readback(
-    response: &JsonObject,
-    request: &ProviderOperationRequest,
-) -> Result<(), ProviderOperationError> {
-    if response.get("status").and_then(JsonValue::as_str) != Some("success") {
+    access: OperationAccess,
+) -> Result<crate::kernel::operation::packet::Readback, ProviderOperationError> {
+    let response = JsonValue::Object(response)
+        .deserialize_into::<HostedReadback>()
+        .map_err(|error| ProviderOperationError::InvalidResponse(error.to_string()))?;
+    if response.status != "success" {
         return Err(ProviderOperationError::InvalidResponse(
             "response status is not success".to_owned(),
         ));
     }
-    required_response_string(response, "provider")?;
-    let operation = required_response_string(response, "operation")?;
-    if operation != request.operation {
+    if response.access != access.as_str() {
         return Err(ProviderOperationError::InvalidResponse(format!(
-            "response operation {operation:?} does not match requested operation {:?}",
-            request.operation
+            "response access {:?} does not match requested access {:?}",
+            response.access,
+            access.as_str()
         )));
     }
-    let target = required_response_string(response, "target")?;
-    if target != request.target {
-        return Err(ProviderOperationError::InvalidResponse(format!(
-            "response target {target:?} does not match requested target {:?}",
-            request.target
-        )));
-    }
-    let access = response.get("access").and_then(JsonValue::as_str);
-    if let Some(expected) = request.expected_access
-        && access != Some(expected.as_str())
-    {
-        return Err(ProviderOperationError::InvalidResponse(format!(
-            "response access {access:?} does not match requested access {:?}",
-            expected.as_str()
-        )));
-    }
-    if response.get("result").is_none() {
-        return Err(ProviderOperationError::InvalidResponse(
-            "response result is missing".to_owned(),
-        ));
-    }
-    required_response_string(response, "readback_ref")?;
-    if request.expected_access == Some(ProviderOperationAccess::Mutate) {
-        required_response_string(response, "operation_id")?;
-        let expected_idempotency_key = required_response_string(&request.input, "idempotency_key")?;
-        let actual_idempotency_key = required_response_string(response, "idempotency_key")?;
-        if actual_idempotency_key != expected_idempotency_key {
-            return Err(ProviderOperationError::InvalidResponse(
-                "response idempotency_key does not match the runtime-derived request key"
-                    .to_owned(),
-            ));
-        }
-    }
-    Ok(())
-}
-
-fn project_operation_readback(response: JsonObject) -> Result<JsonObject, ProviderOperationError> {
-    let provider = required_response_string(&response, "provider")?;
-    let operation = required_response_string(&response, "operation")?;
-    let target = required_response_string(&response, "target")?;
-    let result = response.get("result").cloned().ok_or_else(|| {
-        ProviderOperationError::InvalidResponse("response result is missing".to_owned())
-    })?;
-    let mut readback = JsonObject::from([
-        ("status".to_owned(), JsonValue::String("success".to_owned())),
-        (
-            "provider".to_owned(),
-            JsonValue::String(provider.to_owned()),
-        ),
-        (
-            "operation".to_owned(),
-            JsonValue::String(operation.to_owned()),
-        ),
-        ("target".to_owned(), JsonValue::String(target.to_owned())),
-        ("result".to_owned(), result),
-    ]);
-    for field in ["operation_id", "idempotency_key", "readback_ref"] {
-        if let Some(value) = response.get(field) {
-            readback.insert(field.to_owned(), value.clone());
-        }
-    }
-    Ok(readback)
+    Ok(crate::kernel::operation::packet::Readback {
+        provider: response.provider,
+        operation: response.operation,
+        target: response.target,
+        result: response.result,
+        readback_ref: response.readback_ref,
+        operation_id: response.operation_id,
+        idempotency_key: response.idempotency_key,
+    })
 }
 
 fn required_response_string<'a>(
@@ -305,25 +361,11 @@ pub fn validate_provider_grant_id(value: &str) -> Result<(), ProviderOperationEr
 }
 
 pub fn validate_provider_operation(value: &str) -> Result<(), ProviderOperationError> {
-    let value = value.trim();
-    let mut segments = value.split('.');
-    let first = segments.next().unwrap_or_default();
-    if value.len() > 100
-        || !valid_operation_segment(first)
-        || !segments.next().is_some_and(valid_operation_segment)
-        || !segments.all(valid_operation_segment)
-    {
-        return Err(ProviderOperationError::InvalidOperation);
+    if runx_contracts::connector::is_operation_name(value) {
+        Ok(())
+    } else {
+        Err(ProviderOperationError::InvalidOperation)
     }
-    Ok(())
-}
-
-fn valid_operation_segment(segment: &str) -> bool {
-    let mut characters = segment.chars();
-    characters
-        .next()
-        .is_some_and(|character| character.is_ascii_lowercase())
-        && characters.all(|character| character.is_ascii_lowercase() || character.is_ascii_digit())
 }
 
 #[cfg(test)]

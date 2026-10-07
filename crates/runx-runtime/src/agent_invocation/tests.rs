@@ -3,8 +3,8 @@ use std::fs;
 use std::path::PathBuf;
 
 use runx_contracts::{
-    EnvironmentRequirements, ExecutionCredentialRequirement, ExecutionRequirements, JsonObject,
-    JsonValue, ProvenanceEntry, sha256_prefixed,
+    EnvironmentRequirements, ExecutionRequirements, JsonObject, JsonValue, ProvenanceEntry,
+    sha256_prefixed,
 };
 use runx_parser::{SkillArtifactContract, SkillSource, SourceKind};
 
@@ -25,6 +25,7 @@ fn temp_skill(body: &str) -> Result<tempfile::TempDir, std::io::Error> {
 
 fn invocation(skill_directory: PathBuf, outputs: Option<JsonObject>) -> SkillInvocation {
     SkillInvocation {
+        historical_context: Vec::new(),
         skill_name: "contract-test".to_owned(),
         step_id: None,
         artifacts: None,
@@ -40,17 +41,10 @@ fn invocation(skill_directory: PathBuf, outputs: Option<JsonObject>) -> SkillInv
             timeout_seconds: None,
             input_mode: None,
             environment: EnvironmentRequirements::default(),
-            server: None,
-            tool: None,
-            arguments: None,
-            agent_card_url: None,
-            agent_identity: None,
             agent: None,
             task: None,
             outputs,
             graph: None,
-            external_adapter: None,
-            thread_outbox_provider: None,
             act: None,
             raw: JsonObject::new(),
         },
@@ -279,12 +273,6 @@ fn agent_context_carries_exact_non_secret_requirements_and_environment_readiness
             required: vec!["REGION".to_owned()],
             optional: vec!["TRACE_LABEL".to_owned()],
         },
-        credential: Some(ExecutionCredentialRequirement {
-            name: "primary".to_owned(),
-            provider: "example".to_owned(),
-            audience: Some("operator".to_owned()),
-            deliveries: BTreeMap::from([("api_key".to_owned(), "EXAMPLE_TOKEN".to_owned())]),
-        }),
         runtime: Some(JsonValue::Object(JsonObject::from([(
             "engine".to_owned(),
             JsonValue::String("managed-agent".to_owned()),

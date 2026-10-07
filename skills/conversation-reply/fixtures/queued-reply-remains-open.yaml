@@ -1,0 +1,39 @@
+name: queued-reply-remains-open
+kind: skill
+target: ..
+runner: verify
+inputs:
+  expected_provider: nitrosend
+  thread_locator: nitrosend://brnd_demo123/42
+  conversation_id: 42
+  message_id: 77
+  content_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  attempt: 1
+  delivery_route: reply_delivery
+caller:
+  provider_responses:
+    principal_id: operator-fixture
+    grant:
+        grant_id: reply-read-fixture
+        provider: nitrosend
+        scopes: [thread.reply.read]
+    operations:
+      - operation: thread.reply.read
+        target: nitrosend://brnd_demo123/42
+        access: read
+        result: { message_id: 77, status: queued, to: recipient@example.com, subject: 'Re: example' }
+expect:
+  status: sealed
+  steps: [prepare_check, readback, finish]
+  step_outputs:
+    finish:
+      subset:
+        work_result:
+          data:
+            disposition: follow_up
+            followups:
+              - route_id: reply_delivery
+                target_ref: nitrosend://brnd_demo123/42
+                due_at_unix_seconds: 0
+                due_after_seconds: 600
+  receipt: { schema: runx.receipt.v1, state: sealed, disposition: closed }

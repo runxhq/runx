@@ -6,8 +6,8 @@ import {
 } from "./runtime-architecture/delivery.mjs";
 import {
   checkAuthoringOwnership,
+  checkAdapterOwnership,
   checkContractBindingOwnership,
-  checkExternalAdapterOwnership,
   checkGeneratedMirrorOwnership,
 } from "./runtime-architecture/extensions.mjs";
 import { checkCanonicalParserOwnership } from "./runtime-architecture/parser.mjs";
@@ -46,7 +46,7 @@ for (const check of [
   checkCliCommandOwnership,
   checkRegistryOwnership,
   checkHttpTransportOwnership,
-  checkExternalAdapterOwnership,
+  checkAdapterOwnership,
   checkAuthoringOwnership,
   checkContractBindingOwnership,
   checkGeneratedMirrorOwnership,

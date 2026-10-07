@@ -1,37 +1,9 @@
-#[cfg(any(
-    feature = "a2a",
-    feature = "agent",
-    feature = "catalog",
-    feature = "mcp"
-))]
+#[cfg(feature = "async-http")]
 use std::time::Instant;
 
 use runx_contracts::{JsonObject, JsonValue};
 
 use crate::adapter::{InvocationOutput, InvocationStatus};
-
-#[derive(Clone, Debug)]
-#[cfg(feature = "mcp")]
-pub(crate) struct AdapterExecutionContext {
-    started: Instant,
-}
-
-#[cfg(feature = "mcp")]
-impl AdapterExecutionContext {
-    pub(crate) fn start() -> Self {
-        Self {
-            started: Instant::now(),
-        }
-    }
-
-    pub(crate) fn duration_ms(&self) -> u64 {
-        duration_ms(self.started)
-    }
-
-    pub(crate) fn projection(&self) -> AdapterProjection {
-        AdapterProjection::from_duration_ms(self.duration_ms())
-    }
-}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct AdapterProjection {
@@ -43,7 +15,7 @@ impl AdapterProjection {
         Self { duration_ms }
     }
 
-    #[cfg(any(feature = "a2a", feature = "agent", feature = "catalog"))]
+    #[cfg(feature = "async-http")]
     pub(crate) fn from_started(started: Instant) -> Self {
         Self::from_duration_ms(duration_ms(started))
     }
@@ -68,7 +40,7 @@ impl AdapterProjection {
         }
     }
 
-    #[cfg(any(feature = "cli-tool", feature = "external-adapter"))]
+    #[cfg(feature = "cli-tool")]
     pub(crate) fn process_output(
         &self,
         status: InvocationStatus,
@@ -87,12 +59,7 @@ impl AdapterProjection {
         )
     }
 
-    #[cfg(any(
-        feature = "a2a",
-        feature = "agent",
-        feature = "catalog",
-        feature = "mcp"
-    ))]
+    #[cfg(feature = "async-http")]
     pub(crate) fn failure(self, message: String, metadata: JsonObject) -> InvocationOutput {
         self.runtime_output(
             InvocationStatus::Failure,
@@ -103,12 +70,7 @@ impl AdapterProjection {
     }
 }
 
-#[cfg(any(
-    feature = "a2a",
-    feature = "agent",
-    feature = "catalog",
-    feature = "mcp"
-))]
+#[cfg(feature = "async-http")]
 pub(crate) fn duration_ms(started: Instant) -> u64 {
     u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX)
 }

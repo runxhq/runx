@@ -6,18 +6,25 @@ operator_journeys:
     confusors: [issue-triage, github-sync]
     request: Fix issue 442 in this checkout, run the tests, finalize once, and stop before an unauthorized PR.
     expected_outcome: Resolve the repository, inspect the issue locally, preserve host edit and test results, finalize once, and return a compact blocked-before-publish result.
+setup:
+  sessions: [github]
 env:
   PATH: fixtures/bin:/usr/bin:/bin
   RUNX_CWD: ../..
-  RUNX_PROVIDER_PERMISSION_GRANT_ID: ""
-  RUNX_PROVIDER_PERMISSION_GRANTED_SCOPES: ""
-  RUNX_PROVIDER_PERMISSION_PRINCIPAL_REF: ""
-  RUNX_PROVIDER_PERMISSION_TRANSPORT: local:github
 inputs:
-  repository: .
+  repository: runxhq/runx
   issue_number: "442"
   objective: Make the issue-to-PR lane operator-first.
 caller:
+  http_responses:
+    "https://api.github.com/user":
+      status: 200
+      headers: { content-type: application/json }
+      body: '{"id": 7, "login": "operator"}'
+    "https://api.github.com/repos/runxhq/runx/issues/442":
+      status: 200
+      headers: { content-type: application/json }
+      body: '{"number": 442, "title": "Make issue-to-PR operator-first", "state": "open", "body": "Use normal host editing and test tools, then govern only publication.", "html_url": "https://github.com/runxhq/runx/issues/442", "labels": [{"name": "operator-experience"}], "assignees": []}'
   answers:
     agent_task.issue-to-pr-host-work.output:
       host_result:

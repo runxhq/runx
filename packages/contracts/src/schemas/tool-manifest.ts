@@ -1,14 +1,8 @@
 import type { DeepReadonly, JsonSchema, UnknownRecord } from "../internal.js";
 import { runxSchemaArtifacts } from "../schema-artifacts.js";
 
-export type ToolManifestSourceTypeContract = "cli-tool" | "javascript" | "mcp" | "a2a";
+export type ToolManifestSourceTypeContract = "cli-tool" | "javascript";
 export type ToolCommandInputModeContract = "args" | "stdin" | "none";
-
-export type ToolManifestMcpServerContract = DeepReadonly<{
-  command: string;
-  args?: readonly string[];
-  cwd?: string;
-}>;
 
 export type ToolManifestSourceContract = DeepReadonly<{
   type: ToolManifestSourceTypeContract;
@@ -23,11 +17,6 @@ export type ToolManifestSourceContract = DeepReadonly<{
     required?: readonly string[];
     optional?: readonly string[];
   };
-  server?: ToolManifestMcpServerContract;
-  tool?: string;
-  arguments?: UnknownRecord;
-  agent_card_url?: string;
-  agent_identity?: string;
 }>;
 
 export type ToolManifestInputContract = DeepReadonly<{

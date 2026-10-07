@@ -20,7 +20,7 @@ export function checkCliCommandOwnership(findings) {
 
   const catalogPath = path.join(workspaceRoot, "crates/runx-cli/src/command_spec/catalog.rs");
   const catalog = existsSync(catalogPath) ? readFileSync(catalogPath, "utf8") : "";
-  if (!/ROOT_COMMAND_SPEC/u.test(catalog) || !/--audience https:\/\/host/u.test(catalog)) {
+  if (!/ROOT_COMMAND_SPEC/u.test(catalog) || !/--bearer-stdin/u.test(catalog)) {
     findings.push(`${relative(catalogPath)} must own root help and the complete native option catalog`);
   }
 
@@ -55,11 +55,6 @@ export function checkCliCommandOwnership(findings) {
     if (existsSync(path.join(workspaceRoot, relPath))) {
       findings.push(`${relPath} is a generated CLI parity projection over the native command catalog`);
     }
-  }
-  const cliManifestPath = path.join(workspaceRoot, "crates/runx-cli/Cargo.toml");
-  const cliManifest = existsSync(cliManifestPath) ? readFileSync(cliManifestPath, "utf8") : "";
-  if (!/features\s*=\s*\[[^\]]*"a2a"/su.test(cliManifest) && /adapter-a2a/u.test(parity)) {
-    findings.push(`${relative(parityPath)} claims A2A parity although runx-cli does not ship the A2A feature`);
   }
 
   const driftPath = path.join(workspaceRoot, "scripts/check-command-drift.mjs");
@@ -215,12 +210,13 @@ export function checkHttpTransportOwnership(findings) {
     "crates/runx-runtime/src/hosted_api/request.rs",
     "crates/runx-runtime/src/hosted_api/skill_endpoint.rs",
     "crates/runx-runtime/src/registry/http.rs",
-    "crates/runx-runtime/src/adapters/agent_anthropic.rs",
-    "crates/runx-runtime/src/adapters/agent_openai.rs",
-    "crates/runx-runtime/src/tool_catalogs/native/web.rs",
+    "crates/runx-runtime/src/adapters/agent_anthropic_messages.rs",
+    "crates/runx-runtime/src/adapters/agent_chat_completions.rs",
+    "crates/runx-runtime/src/kernel/session.rs",
   ];
   const requestOwnerRoots = [
     "crates/runx-runtime/src/http/",
+    "crates/runx-runtime/src/drivers/",
     "crates/runx-runtime/src/tool_catalogs/native/http/",
   ];
   for (const filePath of rustFiles("crates")) {
@@ -251,7 +247,7 @@ export function checkHttpTransportOwnership(findings) {
     const rel = relative(filePath);
     const marker = allowed.get(rel);
     if (!marker || !source.includes(marker)) {
-      findings.push(`${rel} implements skill-owned HTTP; use native http.read/query/execute`);
+      findings.push(`${rel} implements skill-owned HTTP; call a connector operation`);
     }
   }
 }

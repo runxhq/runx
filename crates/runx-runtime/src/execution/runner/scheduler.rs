@@ -71,7 +71,7 @@ impl FanoutScheduler {
 }
 
 pub(super) fn parallel_safe_step_shape(step: &GraphStep, effects: &RuntimeEffectRegistry) -> bool {
-    step.run.is_none() && step.tool.is_none() && effects.allows_parallel_step(step)
+    step.skill.is_some() && effects.allows_parallel_step(step)
 }
 
 pub(super) fn configured_max_concurrency(env: &BTreeMap<String, String>) -> usize {

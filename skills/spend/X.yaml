@@ -1,6 +1,11 @@
 skill: spend
-version: "0.5.1"
+version: "0.5.2"
 catalog: { kind: graph, audience: operator, visibility: public, role: canonical, runtime_path: hosted, execution: execute, completion: provider_readback, requires_adapter: true, approval: required }
+connectors:
+  payment:
+    operations: [payment.spend, payment.spend.read]
+    connector_from: $input.rail
+    allowed_connectors: [mpp, stripe-spt]
 runners:
   spend:
     default: true
@@ -18,14 +23,9 @@ runners:
       result_from: [readback]
       steps:
         - id: spend
-          tool: provider.mutate
+          operation: payment/payment.spend
           idempotency_key: $input.idempotency_seed
-          scopes: [payment.spend]
-          policy: { provider_permission: { verb: write } }
           inputs:
-            operation: payment.spend
-            target: $input.payment_signal.counterparty
-            expected_provider: $input.rail
             approval:
               reason: Approve this exact outbound payment.
               type: payment_spend
@@ -34,8 +34,6 @@ runners:
             result_fields: [payment_ref, rail, amount_minor, currency, status]
             input: { payment_signal: $input.payment_signal, parent_payment_authority: $input.parent_payment_authority, rail_profile_ref: $input.rail_profile_ref, payment_admission: $input.payment_admission, realm: $input.realm }
         - id: readback
-          tool: provider.read
-          scopes: [payment.spend.read]
-          policy: { provider_permission: { verb: read } }
-          inputs: { operation: payment.spend.read, target: $input.payment_signal.counterparty, expected_provider: $input.rail, result_fields: [payment_ref, rail, amount_minor, currency, status] }
+          operation: payment/payment.spend.read
+          inputs: { result_fields: [payment_ref, rail, amount_minor, currency, status] }
           context: { input: spend.provider_operation.data.result, expected_result: spend.provider_operation.data.result }

@@ -19,12 +19,6 @@ import {
   devV1Schema,
   doctorV1Schema,
   effectFinalityReceiptV1Schema,
-  externalAdapterCancellationFrameV1Schema,
-  externalAdapterCredentialRequestV1Schema,
-  externalAdapterHostResolutionFrameV1Schema,
-  externalAdapterInvocationV1Schema,
-  externalAdapterManifestV1Schema,
-  externalAdapterResponseV1Schema,
   fixtureV1Schema,
   handoffSignalV1Schema,
   handoffStateV1Schema,
@@ -52,10 +46,6 @@ import {
   runxGeneratedSchemaArtifacts,
   scopeAdmissionSchema,
   suppressionRecordV1Schema,
-  threadOutboxProviderFetchV1Schema,
-  threadOutboxProviderManifestV1Schema,
-  threadOutboxProviderObservationV1Schema,
-  threadOutboxProviderPushV1Schema,
   toolManifestV1Schema,
   contractSchemaMatches,
   validateActResultEnvelopeContract,
@@ -142,17 +132,7 @@ describe("@runxhq/contracts", () => {
     expect(credentialDeliveryRequestV1Schema).toBe(runxContractSchemas.credentialDeliveryRequest);
     expect(credentialDeliveryResponseV1Schema).toBe(runxContractSchemas.credentialDeliveryResponse);
     expect(credentialDeliveryObservationV1Schema).toBe(runxContractSchemas.credentialDeliveryObservation);
-    expect(threadOutboxProviderManifestV1Schema).toBe(runxContractSchemas.threadOutboxProviderManifest);
-    expect(threadOutboxProviderPushV1Schema).toBe(runxContractSchemas.threadOutboxProviderPush);
-    expect(threadOutboxProviderFetchV1Schema).toBe(runxContractSchemas.threadOutboxProviderFetch);
-    expect(threadOutboxProviderObservationV1Schema).toBe(runxContractSchemas.threadOutboxProviderObservation);
     expect(dataOperationResultV1Schema).toBe(runxContractSchemas.dataOperationResult);
-    expect(externalAdapterManifestV1Schema).toBe(runxContractSchemas.externalAdapterManifest);
-    expect(externalAdapterCredentialRequestV1Schema).toBe(runxContractSchemas.externalAdapterCredentialRequest);
-    expect(externalAdapterInvocationV1Schema).toBe(runxContractSchemas.externalAdapterInvocation);
-    expect(externalAdapterResponseV1Schema).toBe(runxContractSchemas.externalAdapterResponse);
-    expect(externalAdapterHostResolutionFrameV1Schema).toBe(runxContractSchemas.externalAdapterHostResolution);
-    expect(externalAdapterCancellationFrameV1Schema).toBe(runxContractSchemas.externalAdapterCancellation);
     expect(receiptV1Schema).toBe(runxContractSchemas.receipt);
     expect(receiptClassSchema).toBeDefined();
     expect(receiptPaidInvocationBindingSchema).toBeDefined();
@@ -542,14 +522,6 @@ describe("@runxhq/contracts", () => {
     expect(runxGeneratedSchemaArtifacts["suppression-record.schema.json"]).toBe(runxContractSchemas.suppressionRecord);
     expect(runxGeneratedSchemaArtifacts["operational-policy.schema.json"]).toBe(runxContractSchemas.operationalPolicy);
     expect(runxGeneratedSchemaArtifacts["operational-proposal.schema.json"]).toBe(runxContractSchemas.operationalProposal);
-    expect(runxGeneratedSchemaArtifacts["thread-outbox-provider-manifest.schema.json"])
-      .toBe(runxContractSchemas.threadOutboxProviderManifest);
-    expect(runxGeneratedSchemaArtifacts["thread-outbox-provider-push.schema.json"])
-      .toBe(runxContractSchemas.threadOutboxProviderPush);
-    expect(runxGeneratedSchemaArtifacts["thread-outbox-provider-fetch.schema.json"])
-      .toBe(runxContractSchemas.threadOutboxProviderFetch);
-    expect(runxGeneratedSchemaArtifacts["thread-outbox-provider-observation.schema.json"])
-      .toBe(runxContractSchemas.threadOutboxProviderObservation);
     const retiredIssueArtifact = `${"issue"}-to-pr-${"out"}come.schema.json` as keyof typeof runxGeneratedSchemaArtifacts;
     expect(runxGeneratedSchemaArtifacts[retiredIssueArtifact]).toBeUndefined();
     expect(runxGeneratedSchemaArtifacts["review-receipt-output.schema.json"].$id).toBe(reviewReceiptOutputSchema.$id);
@@ -638,11 +610,11 @@ describe("@runxhq/contracts", () => {
         fingerprint: "sha256:proposal-123-source-action-target",
       },
       source_ref: {
-        type: "provider_thread",
+        type: "thread",
         uri: "slack://team/T123/channel/CBUGS/thread/1710000000.000100",
       },
       source_thread_ref: {
-        type: "provider_thread",
+        type: "thread",
         uri: "slack://team/T123/channel/CBUGS/thread/1710000000.000100",
       },
       hydrated_context_ref: {
@@ -697,7 +669,7 @@ describe("@runxhq/contracts", () => {
       publication_refs: [{
         role: "source_thread_update",
         ref: {
-          type: "provider_thread",
+          type: "thread",
           uri: "slack://team/T123/channel/CBUGS/thread/1710000000.000100",
           provider: "slack",
           locator: "T123/CBUGS/1710000000.000100",
@@ -756,7 +728,7 @@ describe("@runxhq/contracts", () => {
 
   it("validates a source signal and its complete execution receipt", () => {
     const issueRef = {
-      type: "github_issue",
+      type: "thread",
       uri: "github://runxhq/example/issues/101",
       provider: "github",
       locator: "runxhq/example#101",
@@ -781,10 +753,10 @@ describe("@runxhq/contracts", () => {
         check_id: "check_pr_open",
         criterion_ids: ["crit_revision_reviewable"],
         status: "passed",
-        evidence_refs: [{ type: "github_pull_request", uri: "github://runxhq/example/pulls/102" }],
+        evidence_refs: [{ type: "change_request", uri: "github://runxhq/example/pulls/102" }],
       }],
       verified_at: "2026-05-18T00:02:00Z",
-      evidence_refs: [{ type: "github_pull_request", uri: "github://runxhq/example/pulls/102" }],
+      evidence_refs: [{ type: "change_request", uri: "github://runxhq/example/pulls/102" }],
     };
     const seal = {
       disposition: "closed",
@@ -796,7 +768,7 @@ describe("@runxhq/contracts", () => {
         criterion_id: "crit_revision_reviewable",
         status: "verified",
         verification_refs: [{ type: "verification", uri: "runx:verification:check_pr_open" }],
-        evidence_refs: [{ type: "github_pull_request", uri: "github://runxhq/example/pulls/102" }],
+        evidence_refs: [{ type: "change_request", uri: "github://runxhq/example/pulls/102" }],
       }],
     };
 
@@ -858,8 +830,8 @@ describe("@runxhq/contracts", () => {
         terms: [{
           term_id: "term_repo_write",
           principal_ref: principalRef,
-          resource_ref: { type: "github_repo", uri: "github://runxhq/example" },
-          resource_family: "github_repo",
+          resource_ref: { type: "repository", uri: "github://runxhq/example" },
+          resource_family: "connector",
           verbs: ["read", "write", "create"],
           bounds: {
             repo_path_globs: ["app/checkout/**"],
@@ -911,12 +883,12 @@ describe("@runxhq/contracts", () => {
         criterion_bindings: [{
           criterion_id: "crit_revision_reviewable",
           status: "verified",
-          evidence_refs: [{ type: "github_pull_request", uri: "github://runxhq/example/pulls/102" }],
+          evidence_refs: [{ type: "change_request", uri: "github://runxhq/example/pulls/102" }],
           verification_refs: [{ type: "verification", uri: "runx:verification:check_pr_open" }],
           summary: "Reviewable PR observed.",
         }],
         source_refs: [issueRef],
-        target_refs: [{ type: "github_repo", uri: "github://runxhq/example" }],
+        target_refs: [{ type: "repository", uri: "github://runxhq/example" }],
         artifact_refs: [{ type: "artifact", uri: "runx:artifact:summary_1" }],
         context_ref: { type: "act", uri: "runx:act:act_revision_context" },
         closure: {
@@ -1056,7 +1028,7 @@ describe("@runxhq/contracts", () => {
         role: "maintainer",
       },
       source_ref: {
-        type: "provider_comment",
+        type: "comment",
         uri: "https://github.com/example/repo/pull/42#issuecomment-1",
       },
     })).toMatchObject({
@@ -1103,7 +1075,7 @@ describe("@runxhq/contracts", () => {
       source_ref: "github://sourcey/sourcey.com/issues/3",
       requested_at: "2026-04-25T13:45:00Z",
       host: {
-        kind: "github_issue_comment",
+        kind: "comment",
         trigger_ref: "https://github.com/sourcey/sourcey.com/issues/3#issuecomment-1",
         scope_set: ["docs.write", "thread:push"],
         actor: {
@@ -1126,7 +1098,7 @@ describe("@runxhq/contracts", () => {
       skill_ref: "outreach",
       runner: "rerun",
       host: {
-        kind: "github_issue_comment",
+        kind: "comment",
       },
       idempotency: {
         algorithm: "sha256",

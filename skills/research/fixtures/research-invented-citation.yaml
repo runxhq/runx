@@ -13,7 +13,6 @@ inputs:
       provenance:
         fetched_at: "2026-07-17T00:00:00Z"
         bytes: 63
-        truncated: false
         redirects: []
 caller:
   answers:

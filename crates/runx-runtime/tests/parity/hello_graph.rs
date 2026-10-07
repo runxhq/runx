@@ -29,6 +29,8 @@ fn hello_graph_matches_post_cutover_fixture() -> Result<(), Box<dyn std::error::
     let runtime = Runtime::new(
         CliToolAdapter,
         RuntimeOptions {
+            current_context: Vec::new(),
+            historical_context: Vec::new(),
             created_at: expected.created_at.clone(),
             ..RuntimeOptions::local_development(std::env::vars().collect())
         },

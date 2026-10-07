@@ -1,5 +1,5 @@
 skill: issue-triage
-version: "0.4.1"
+version: "0.4.3"
 
 catalog:
   kind: graph
@@ -59,6 +59,9 @@ input_definitions:
           body: { type: string, maxLength: 20000, pattern: '^[^\u0000]*$' }
           source_ref: { type: string, minLength: 1, maxLength: 1024 }
 
+connectors:
+  github:
+    operations: [issue.read, comments.create]
 runners:
   provider-respond:
     default: true
@@ -83,32 +86,22 @@ runners:
       result_from: [finalize]
       steps:
         - id: read-issue
-          tool: provider.read
-          scopes:
-            - repo.read
-          policy:
-            provider_permission:
-              verb: read
+          operation: github/issue.read
           inputs:
-            operation: issue.read
-            target: $input.repository
-            expected_provider: github
-            expected_result:
-              repository: $input.repository
-              number: $input.issue_number
-            result_fields: [repository, number, title, state, body]
             input:
               repository: $input.repository
-              issue_number: $input.issue_number
+              number: $input.issue_number
 
         - id: digest-snapshot
           tool: data.digest
           context:
-            value: read-issue.provider_operation.data.result
+            value: read-issue.provider_operation.data.result.issue
 
         - id: admit
+          inputs:
+            repository: $input.repository
           context:
-            issue_snapshot: read-issue.provider_operation.data.result
+            issue_snapshot: read-issue.provider_operation.data.result.issue
             provider_operation: read-issue.provider_operation.data
             snapshot_digest: digest-snapshot.digest_result.data.digest
           run:
@@ -318,7 +311,7 @@ runners:
         description: Stable retry key for this exact issue comment.
     graph:
       name: issue-triage-post
-      result_from: [readback]
+      result_from: [post-comment]
       steps:
         - id: validate
           tool: data.compare
@@ -333,46 +326,14 @@ runners:
               validation: pass
               delivery_status: not_sent
               channel: github_issue_comment
-        - id: digest-comment
-          when: { field: validate.comparison.data.equal, equals: true }
-          tool: data.digest
-          inputs:
-            value: $input.issue_triage_packet.response_draft.body
         - id: post-comment
           when: { field: validate.comparison.data.equal, equals: true }
-          tool: provider.mutate
+          operation: github/comments.create
           idempotency_key: $input.idempotency_key
-          scopes: [issue.comment]
-          policy:
-            provider_permission:
-              verb: write
           inputs:
-            operation: issue.comment
-            target: $input.issue_triage_packet.issue_profile.repository
-            expected_provider: github
             idempotency_key: $input.idempotency_key
-            result_fields: [comment_locator, repository, number, content_digest]
-            expected_result:
-              repository: $input.issue_triage_packet.issue_profile.repository
-              number: $input.issue_triage_packet.issue_profile.number
-              content_digest: $input.content_digest
             input:
               repository: $input.issue_triage_packet.issue_profile.repository
-              issue_number: $input.issue_triage_packet.issue_profile.number
-              body: $input.issue_triage_packet.response_draft.body
-          context:
-            content_digest: digest-comment.digest_result.data.digest
-        - id: readback
-          when: { field: validate.comparison.data.equal, equals: true }
-          tool: provider.read
-          scopes: [issue.comment.read]
-          policy:
-            provider_permission: { verb: read }
-          inputs:
-            operation: issue.comment.read
-            target: $input.issue_triage_packet.issue_profile.repository
-            expected_provider: github
-            result_fields: [comment_locator, repository, number, content_digest]
-          context:
-            input: post-comment.provider_operation.data.result
-            expected_result: post-comment.provider_operation.data.result
+              comments:
+                - number: $input.issue_triage_packet.issue_profile.number
+                  body: $input.issue_triage_packet.response_draft.body

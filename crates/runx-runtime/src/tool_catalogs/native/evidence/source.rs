@@ -32,17 +32,14 @@ impl IndexedSource {
         let provenance = object(source.get("provenance"));
         let status = coerced_nonnegative_integer(source.get("status"));
         let bytes = coerced_nonnegative_integer(provenance.get("bytes"));
-        let truncated = provenance.get("truncated").and_then(JsonValue::as_bool);
         let observed_at = text(provenance.get("fetched_at"));
         let blockers = fetch_blockers(FetchFields {
-            source,
             extracted: &extracted,
             final_url: &final_url,
             content_digest: &content_digest,
             observed_at: &observed_at,
             status,
             bytes,
-            truncated,
             max_characters,
         });
         if !blockers.is_empty() {
@@ -60,10 +57,6 @@ impl IndexedSource {
                 (
                     "bytes".to_owned(),
                     JsonValue::Number(JsonNumber::U64(bytes.unwrap_or_default())),
-                ),
-                (
-                    "truncated".to_owned(),
-                    JsonValue::Bool(truncated.unwrap_or_default()),
                 ),
                 (
                     "status".to_owned(),
@@ -147,7 +140,6 @@ impl IndexedSource {
                     "bytes".to_owned(),
                     JsonValue::Number(JsonNumber::U64(bytes.unwrap_or_default())),
                 ),
-                ("truncated".to_owned(), JsonValue::Bool(false)),
                 ("path".to_owned(), JsonValue::String(path)),
             ]),
         })
@@ -225,24 +217,17 @@ impl IndexedSource {
 }
 
 struct FetchFields<'a> {
-    source: &'a JsonObject,
     extracted: &'a str,
     final_url: &'a str,
     content_digest: &'a str,
     observed_at: &'a str,
     status: Option<u64>,
     bytes: Option<u64>,
-    truncated: Option<bool>,
     max_characters: u64,
 }
 
 fn fetch_blockers(fields: FetchFields<'_>) -> Vec<String> {
     let mut blockers = Vec::new();
-    check(
-        text(fields.source.get("decision")) == "ready",
-        "decision is not ready",
-        &mut blockers,
-    );
     check(
         matches!(fields.status, Some(200..=299)),
         "status is not 2xx",
@@ -279,11 +264,6 @@ fn fetch_blockers(fields: FetchFields<'_>) -> Vec<String> {
         "provenance.bytes is invalid",
         &mut blockers,
     );
-    check(
-        fields.truncated.is_some(),
-        "provenance.truncated is missing",
-        &mut blockers,
-    );
     blockers
 }
 
@@ -293,22 +273,21 @@ fn check(condition: bool, message: &str, blockers: &mut Vec<String>) {
     }
 }
 
+/// The source fields of a packet: a `web/page.read` operation's result, a
+/// file read's data, or the fields themselves.
 pub(super) fn unwrap_source_packet(value: &JsonValue) -> &JsonObject {
     let packet = object(Some(value));
-    if let Some(data) = packet.get("data").and_then(JsonValue::as_object) {
-        return data;
-    }
-    for output in ["fetch_result", "file_read"] {
-        if let Some(data) = packet
-            .get(output)
-            .and_then(JsonValue::as_object)
-            .and_then(|result| result.get("data"))
-            .and_then(JsonValue::as_object)
-        {
-            return data;
-        }
-    }
-    packet
+    let packet = ["provider_operation", "file_read"]
+        .into_iter()
+        .find_map(|output| packet.get(output).and_then(JsonValue::as_object))
+        .unwrap_or(packet);
+    let data = packet
+        .get("data")
+        .and_then(JsonValue::as_object)
+        .unwrap_or(packet);
+    data.get("result")
+        .and_then(JsonValue::as_object)
+        .unwrap_or(data)
 }
 
 fn coerced_nonnegative_integer(value: Option<&JsonValue>) -> Option<u64> {

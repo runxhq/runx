@@ -97,7 +97,7 @@ mod tests {
             let help = command_help_text(spec.name);
             assert!(help.is_some(), "missing help for {}", spec.name);
         }
-        assert_eq!(COMMAND_SPECS.len(), 25);
+        assert_eq!(COMMAND_SPECS.len(), 26);
     }
 
     #[test]
@@ -140,7 +140,7 @@ mod tests {
                 .is_some_and(|options| options.iter().any(|option| {
                     option
                         .as_str()
-                        .is_some_and(|option| option.starts_with("--audience "))
+                        .is_some_and(|option| option.starts_with("--credential "))
                 }))
         );
         Ok(())

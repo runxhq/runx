@@ -26,7 +26,7 @@ Version: `0.4.1`
 
 ## @runxhq/extension-sdk
 
-Narrow SDK for Runx external process and protocol extensions.
+Narrow SDK for Runx process tool extensions.
 
 Version: `0.1.0`
 

@@ -6,6 +6,9 @@ use sha2::{Digest as _, Sha256};
 use thiserror::Error;
 
 mod artifacts;
+mod project_artifacts;
+
+pub use project_artifacts::{persist_json_artifact, read_json_artifact};
 
 pub(crate) use artifacts::{
     ArtifactPageEncoding, ArtifactRecordPage, DEFAULT_ARTIFACT_PAGE_BYTES, LocalArtifact,

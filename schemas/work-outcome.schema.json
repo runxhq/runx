@@ -1,0 +1,68 @@
+{
+  "$id": "https://schemas.runx.ai/runx/work-outcome/v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "completion_evidence": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "disposition": {
+      "enum": [
+        "satisfied",
+        "follow_up",
+        "held"
+      ],
+      "type": "string"
+    },
+    "followups": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "due_after_seconds": {
+            "type": "integer"
+          },
+          "due_at_unix_seconds": {
+            "type": "integer"
+          },
+          "inputs": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "route_id": {
+            "type": "string"
+          },
+          "target_ref": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "route_id",
+          "target_ref",
+          "inputs",
+          "due_at_unix_seconds"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "schema": {
+      "const": "runx.work_outcome.v1",
+      "type": "string"
+    },
+    "summary": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "disposition",
+    "summary",
+    "completion_evidence",
+    "followups"
+  ],
+  "type": "object",
+  "x-runx-packet": true,
+  "x-runx-schema": "runx.work_outcome.v1"
+}

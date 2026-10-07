@@ -1,24 +1,27 @@
 use crate::ReceiptError;
-use runx_contracts::{Receipt, sha256_prefixed, write_canonical_json_fragment};
+use runx_contracts::receipt::{
+    Lineage, ReceiptAct, ReceiptAuthority, ReceiptClass, ReceiptEvidence, ReceiptIdempotency,
+    ReceiptIssuer, ReceiptSchema, Seal, Subject,
+};
+use runx_contracts::schema::{IsoDateTime, NonEmptyString};
+use runx_contracts::{Decision, Receipt, Reference, sha256_prefixed, to_canonical_bytes};
 use serde::Serialize;
 
 pub fn canonical_receipt_json(receipt: &Receipt) -> Result<String, ReceiptError> {
-    let value = receipt_value(receipt)?;
-    canonical_receipt_value(&value)
+    canonical_string(receipt)
 }
 
 pub fn canonical_receipt_digest(receipt: &Receipt) -> Result<String, ReceiptError> {
-    canonical_receipt_json(receipt).map(|json| sha256_prefixed(json.as_bytes()))
+    canonical_bytes(receipt).map(|bytes| sha256_prefixed(&bytes))
 }
 
 pub fn canonical_receipt_body_json(receipt: &Receipt) -> Result<String, ReceiptError> {
-    let mut value = receipt_value(receipt)?;
-    strip_body_proof_fields(&mut value);
-    canonical_receipt_value(&value)
+    canonical_string(&ReceiptView::of(receipt, Commitment::Body))
 }
 
 pub fn canonical_receipt_body_digest(receipt: &Receipt) -> Result<String, ReceiptError> {
-    canonical_receipt_body_json(receipt).map(|json| sha256_prefixed(json.as_bytes()))
+    canonical_bytes(&ReceiptView::of(receipt, Commitment::Body))
+        .map(|bytes| sha256_prefixed(&bytes))
 }
 
 /// The canonical body that the content-addressed `id` commits: every intrinsic
@@ -28,90 +31,104 @@ pub fn canonical_receipt_body_digest(receipt: &Receipt) -> Result<String, Receip
 /// own ids are known; excluding it breaks the parent<->child id circularity
 /// while keeping the address stable. The full `digest` still commits `lineage`.
 pub fn canonical_receipt_identity_json(receipt: &Receipt) -> Result<String, ReceiptError> {
-    let mut value = receipt_value(receipt)?;
-    strip_body_proof_fields(&mut value);
-    if let serde_json::Value::Object(map) = &mut value {
-        map.remove("id");
-        map.remove("lineage");
-    }
-    canonical_receipt_value(&value)
+    canonical_string(&ReceiptView::of(receipt, Commitment::Identity))
 }
 
 /// `id = hash(canonical_body)` under `runx.receipt.c14n.v1`: the content address
 /// of this receipt. References to a receipt use this id.
 pub fn content_addressed_receipt_id(receipt: &Receipt) -> Result<String, ReceiptError> {
-    canonical_receipt_identity_json(receipt).map(|json| sha256_prefixed(json.as_bytes()))
+    canonical_bytes(&ReceiptView::of(receipt, Commitment::Identity))
+        .map(|bytes| sha256_prefixed(&bytes))
 }
 
-fn receipt_value(receipt: &Receipt) -> Result<serde_json::Value, ReceiptError> {
-    serde_json::to_value(receipt).map_err(|source| ReceiptError::Serialization {
+fn canonical_bytes<T: Serialize + ?Sized>(value: &T) -> Result<Vec<u8>, ReceiptError> {
+    to_canonical_bytes(value).map_err(|source| ReceiptError::Serialization {
         message: source.to_string(),
     })
 }
 
-/// The signed body commits every flat field except the envelope's own
-/// `signature` and `digest`. `metadata` is a runtime-local read aid and is not
-/// part of the signed body.
-fn strip_body_proof_fields(value: &mut serde_json::Value) {
-    if let serde_json::Value::Object(map) = value {
-        map.remove("signature");
-        map.remove("digest");
-        map.remove("metadata");
-    }
-}
-
-fn canonical_receipt_value(value: &serde_json::Value) -> Result<String, ReceiptError> {
-    let mut output = String::new();
-    write_canonical_receipt_value(value, &mut output)?;
-    Ok(output)
-}
-
-/// Receipt structs already serialize into a key-sorted `serde_json::Value`.
-/// Writing that tree directly avoids the former serialize-to-text/reparse or
-/// second value-tree conversion while preserving the byte-pinned canonical
-/// JSON oracle.
-fn write_canonical_receipt_value(
-    value: &serde_json::Value,
-    output: &mut String,
-) -> Result<(), ReceiptError> {
-    match value {
-        serde_json::Value::Null => output.push_str("null"),
-        serde_json::Value::Bool(value) => output.push_str(if *value { "true" } else { "false" }),
-        serde_json::Value::Number(value) => write_receipt_json_fragment(value, output)?,
-        serde_json::Value::String(value) => write_receipt_json_fragment(value, output)?,
-        serde_json::Value::Array(items) => {
-            output.push('[');
-            for (index, item) in items.iter().enumerate() {
-                if index > 0 {
-                    output.push(',');
-                }
-                write_canonical_receipt_value(item, output)?;
-            }
-            output.push(']');
-        }
-        serde_json::Value::Object(map) => {
-            output.push('{');
-            for (index, (key, value)) in map.iter().enumerate() {
-                if index > 0 {
-                    output.push(',');
-                }
-                write_receipt_json_fragment(key, output)?;
-                output.push(':');
-                write_canonical_receipt_value(value, output)?;
-            }
-            output.push('}');
-        }
-    }
-    Ok(())
-}
-
-fn write_receipt_json_fragment<T: Serialize + ?Sized>(
-    value: &T,
-    output: &mut String,
-) -> Result<(), ReceiptError> {
-    write_canonical_json_fragment(value, output).map_err(|source| ReceiptError::Serialization {
+fn canonical_string<T: Serialize + ?Sized>(value: &T) -> Result<String, ReceiptError> {
+    String::from_utf8(canonical_bytes(value)?).map_err(|source| ReceiptError::Serialization {
         message: source.to_string(),
     })
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Commitment {
+    /// The signed body: every field except `signature`, `digest` and the
+    /// runtime-local `metadata` read aid.
+    Body,
+    /// The content address: the body without `id` and `lineage`.
+    Identity,
+}
+
+/// A borrowed projection of a receipt for one commitment. Serialized straight
+/// into canonical bytes; nothing is copied or converted.
+#[derive(Serialize)]
+struct ReceiptView<'a> {
+    schema: &'a ReceiptSchema,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    id: Option<&'a NonEmptyString>,
+    created_at: &'a IsoDateTime,
+    canonicalization: &'a NonEmptyString,
+    issuer: &'a ReceiptIssuer,
+    idempotency: &'a ReceiptIdempotency,
+    class: &'a ReceiptClass,
+    subject: &'a Subject,
+    authority: &'a ReceiptAuthority,
+    signals: &'a [Reference],
+    decisions: &'a [Decision],
+    acts: &'a [ReceiptAct],
+    #[serde(skip_serializing_if = "<[_]>::is_empty")]
+    evidence: &'a [ReceiptEvidence],
+    seal: &'a Seal,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    lineage: Option<&'a Lineage>,
+}
+
+impl<'a> ReceiptView<'a> {
+    fn of(receipt: &'a Receipt, commitment: Commitment) -> Self {
+        // Exhaustive: a new receipt field fails to compile here until it is
+        // classified as committed or excluded.
+        let Receipt {
+            schema,
+            id,
+            created_at,
+            canonicalization,
+            issuer,
+            signature: _,
+            digest: _,
+            idempotency,
+            class,
+            subject,
+            authority,
+            signals,
+            decisions,
+            acts,
+            evidence,
+            seal,
+            lineage,
+            metadata: _,
+        } = receipt;
+        let identity = commitment == Commitment::Identity;
+        Self {
+            schema,
+            id: (!identity).then_some(id),
+            created_at,
+            canonicalization,
+            issuer,
+            idempotency,
+            class,
+            subject,
+            authority,
+            signals,
+            decisions,
+            acts,
+            evidence,
+            seal,
+            lineage: lineage.as_ref().filter(|_| !identity),
+        }
+    }
 }
 
 #[cfg(test)]

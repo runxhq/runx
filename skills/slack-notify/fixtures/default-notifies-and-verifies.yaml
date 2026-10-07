@@ -36,13 +36,12 @@ caller:
           description: The exact Slack notification is ready for provider delivery.
   provider_responses:
     principal_id: operator-fixture
-    grants:
-      - grant_id: slack-notify-fixture
+    grant:
+        grant_id: slack-notify-fixture
         provider: slack
         scopes: [channel.post, channel.post.read]
     operations:
-      - grant_id: slack-notify-fixture
-        operation: channel.post
+      - operation: channel.post
         target: slack://T123/C456
         access: mutate
         result:
@@ -50,8 +49,7 @@ caller:
           conversation_locator: slack://T123/C456
           content_digest: sha256:2497ff7c585df614f84f034872869ceff21afbaaab7230fb9b1fa0d271a122fb
           occurred_at: "2026-08-11T00:00:00Z"
-      - grant_id: slack-notify-fixture
-        operation: channel.post.read
+      - operation: channel.post.read
         target: slack://T123/C456
         access: read
         result:
@@ -60,7 +58,7 @@ caller:
           content_digest: sha256:2497ff7c585df614f84f034872869ceff21afbaaab7230fb9b1fa0d271a122fb
           occurred_at: "2026-08-11T00:00:00Z"
   approvals:
-    "provider-effect:sha256:995c71dec6a6ace149997ab4a602feeb6e6079cccfc9b1fb11dcdd62f1ba4c1a": true
+    "operation:sha256:5cfd6679c6cd59f0edacd9ed27a7b2a5816fdd5bf83c7b68be1c956c3ce47988": true
 expect:
   status: sealed
   steps: [plan, deliver]

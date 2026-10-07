@@ -43,4 +43,10 @@ pub struct ProviderOperationPacket {
     pub host: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub account_ref: Option<String>,
+    /// What the operation meant when the call was admitted.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub operation_digest: Option<String>,
+    /// The local implementation that ran; absent for hosted calls.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub implementation_digest: Option<String>,
 }

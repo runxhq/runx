@@ -22,6 +22,8 @@ pub enum OperationalProposalSchema {
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, RunxSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum OperationalProposalRedactionStatus {
+    /// Private source evidence which has not crossed an outward sharing boundary.
+    Unredacted,
     Redacted,
     SummaryOnly,
     Blocked,

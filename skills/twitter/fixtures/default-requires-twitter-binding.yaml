@@ -5,19 +5,36 @@ operator_journeys:
   - mode: standalone
     confusors: [moltbook, ecosystem-brief]
     request: Read the bounded current snapshot for this X account.
-    expected_outcome: Use the live account read runner by default and return bounded provider evidence through an explicitly supplied tenant credential binding.
-env:
-  TWITTER_USER_AUTH: '{"consumer_key":"harness-consumer","consumer_secret":"harness-secret","access_token":"harness-access","access_secret":"harness-access-secret"}'
+    expected_outcome: Use the live account read runner by default and return bounded provider evidence through the account's bound credential.
 inputs:
   query: snapshot
-  auth: user
   max_items: 200
+setup:
+  credentials: [twitter]
+env:
+  TWITTER_USER_AUTH: '{"consumer_key":"harness-consumer","consumer_secret":"harness-secret","access_token":"harness-access","access_secret":"harness-access-secret"}'
 caller:
-  http_responses:
-    "https://api.x.com/2/users/me?user.fields=created_at%2Cdescription%2Cpublic_metrics":
-      status: 200
-      headers: { content-type: application/json, x-rate-limit-remaining: "99", x-rate-limit-reset: "1800000000" }
-      body: '{"data":{"id":"42","username":"runx","name":"Runx","created_at":"2026-01-01T00:00:00Z","description":"Governed runtime for agent skills","public_metrics":{"followers_count":100,"following_count":20,"tweet_count":50,"listed_count":3}}}'
+  http_exchanges:
+    - request:
+        method: GET
+        url: https://api.x.com/2/users/me?user.fields=created_at%2Cdescription%2Cpublic_metrics
+        body: none
+      response:
+        status: 200
+        headers: { content-type: application/json }
+        body: '{"data":{"id":"42","username":"runx","name":"Runx","created_at":"2026-01-01T00:00:00Z","description":"Governed runtime for agent skills","public_metrics":{"followers_count":100,"following_count":20,"tweet_count":50,"listed_count":3}}}'
 expect:
   status: sealed
+  steps: [prepare, request, normalize, digest, finalize]
+  step_outputs:
+    finalize:
+      subset:
+        twitter_evidence:
+          data:
+            decision: ok
+            source: live
+            account: { id: "42", username: runx, name: Runx, description: Governed runtime for agent skills, metrics: { followers: 100, following: 20, posts: 50 } }
+            items: []
+            item_count: 0
+            truncated: false
 metadata: { public_skill: twitter, source_case: direct-default-preflight, source: skills-fixture }

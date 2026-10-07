@@ -29,6 +29,7 @@ pub(super) fn find_effect_replay(
             inputs,
             env,
             graph_dir,
+            run_authority: None,
         })
         .map_err(|source| runtime_effect_error(step, source))
 }
@@ -48,6 +49,7 @@ pub(super) fn recover_pending_effects(
             inputs,
             env,
             graph_dir,
+            run_authority: None,
         })
         .map_err(|source| runtime_effect_error(step, source))
 }
@@ -58,6 +60,7 @@ pub(super) fn enforce_step_authority_admission(
     inputs: &JsonObject,
     env: &BTreeMap<String, String>,
     graph_dir: &Path,
+    run_authority: Option<&crate::RunAuthority>,
     effects: &RuntimeEffectRegistry,
 ) -> Result<Option<StepAuthorityContext>, RuntimeError> {
     effects
@@ -67,6 +70,7 @@ pub(super) fn enforce_step_authority_admission(
             inputs,
             env,
             graph_dir,
+            run_authority,
         })
         .map(|admission| admission.map(StepAuthorityContext::new))
         .map_err(|source| runtime_effect_error(step, source))
@@ -241,28 +245,17 @@ impl StepAuthorityContext {
         self.admission.witness()
     }
 
-    #[cfg(feature = "catalog")]
+    #[cfg(feature = "async-http")]
     pub(super) fn admission(&self) -> &EffectAdmission {
         &self.admission
     }
 
-    pub(super) fn authority_grant_refs(
+    pub(super) fn authority(
         &self,
         effects: &RuntimeEffectRegistry,
-    ) -> Result<Vec<runx_contracts::Reference>, RuntimeError> {
+    ) -> Result<crate::receipts::SealAuthority, RuntimeError> {
         effects
-            .authority_grant_refs(&self.admission)
-            .map_err(|source| RuntimeError::ReceiptInvalid {
-                message: source.to_string(),
-            })
-    }
-
-    pub(super) fn authority_scope_refs(
-        &self,
-        effects: &RuntimeEffectRegistry,
-    ) -> Result<Vec<runx_contracts::Reference>, RuntimeError> {
-        effects
-            .authority_scope_refs(&self.admission)
+            .authority(&self.admission)
             .map_err(|source| RuntimeError::ReceiptInvalid {
                 message: source.to_string(),
             })

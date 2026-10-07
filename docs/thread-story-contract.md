@@ -7,8 +7,8 @@ observations; it is not the source of truth.
 ## Current Shape
 
 The shared runtime implementation for bundled tools lives in
-`tools/outbox/story.mjs`; handoff-state validation remains in the typed
-`tools/thread/handoff.ts` contract helper. There is one story implementation,
+`tools/outbox/story.mjs`; handoff-state validation lives in
+`@runxhq/contracts`. There is one story implementation,
 not a thread alias beside the outbox owner:
 
 - `StoryMilestoneId`
@@ -25,7 +25,7 @@ hints, and dedupe keys that story builders may reference. It does not own the
 durable reviewer projection, and it must not publish to Slack, GitHub, or
 Sentry directly.
 
-The thread outbox tools use those helpers to produce:
+The outbox tools use those helpers to produce:
 
 - `story.schema`: `runx.thread-story.control.v1`
 - `story.data.thread_locator`
@@ -39,53 +39,10 @@ The thread outbox tools use those helpers to produce:
 - `outbox_entry.metadata.idempotency.content_hash`
 - `outbox_entry.metadata.body_markdown`
 
-Provider publication is not owned by these helpers. Local file-thread outbox
-pushes are credential-free persistence for fixtures and local dogfood. GitHub,
-Slack, support-channel, or other provider mutations require the separate
-`thread-outbox-provider-protocol-v1` lane and Rust-supervised credential
-delivery; they must not be implemented as hidden provider side effects in a
-local helper module.
-
-A source (a bounty board, an issue queue, any system of record) uses that
-provider lane for source-thread continuity
-through a generic, declarative reconcile. The source publishes a
-`thread_desired_state` document: per thread, the state it should be in now
-(`title`, `body`, full `labels` + the `managed_labels` the source controls,
-`state` open/closed, and an append-only `comments` log). The contract is
-domain-agnostic: `identity_key` and `ref` are opaque to the engine, and the only
-source-specific value is `source`, supplied as config. runx translates each
-desired thread into provider push frames with
-`tools/thread/thread_desired_state.mjs` and applies them through the GitHub
-provider adapter: locate-or-create the issue by marker, reconcile labels and
-open/closed to the desired state, and append any comment not already present
-(deduped by outbox marker). The source remains the completion authority: open vs
-closed is the source's decision expressed as desired state, and GitHub state
-never completes or reopens anything on the source.
-
-The operational driver is `scripts/thread-reconcile-sync.mjs`
-(`pnpm thread:reconcile-sync` in `oss/`). It pulls the source's desired-thread
-state, reconciles each thread's provider representation to match, and posts
-observations back so the source can re-link the resulting threads. It is
-stateless and idempotent: every run compares desired vs live and applies only
-the difference, so there is no cursor and drift self-heals on the next run.
-Sources should default to incremental desired-state reads. For provider-side
-repair sweeps, the driver accepts `THREAD_SYNC_FULL_RECONCILE=1` or
-`THREAD_SYNC_MODE=full` and sends `mode=full` to the source, asking it to return
-every mirrorable thread rather than only changed threads.
-
-Full reconcile also audits the provider for issues carrying any label declared
-in the source threads' `managed_labels`. A provider issue with managed labels but
-no matching desired thread is an orphan: the driver removes the managed labels
-and reconciles it closed. This keeps provider notice boards from retaining stale
-source-owned labels after the source has cancelled, retired, or otherwise
-stopped publishing a thread.
-
-The driver flushes observations after each reconciled thread. That is deliberate:
-if a long repair run is cancelled after a provider mutation, the source still
-records the provider locator/cursor for work already completed. Long runs also
-emit `[thread-sync]` progress lines on stderr; set `THREAD_SYNC_PROGRESS_EVERY`
-to reduce or increase progress frequency, and use `THREAD_SYNC_LIMIT` only for
-bounded manual proof runs.
+Provider publication is not owned by these helpers. GitHub, Slack,
+support-channel, or other provider mutations run as governed connector
+operations with Rust-supervised credential delivery; they must not be
+implemented as hidden provider side effects in a local helper module.
 
 The canonical v1 milestone ids are:
 
@@ -146,7 +103,7 @@ That boundary is deliberate:
 
 - current consumers are first-party tools and tests inside OSS runx
 - the provider surface is the outbox entry, not a separate registry packet
-- external adapters can already consume the rendered message and metadata
+- provider integrations can already consume the rendered message and metadata
 - delaying a public schema avoids freezing fields before live dogfood proves the
   final reviewer shape
 
@@ -184,8 +141,7 @@ reviewer-safe while preserving artifact refs for reconstruction.
 ## Non-goals
 
 - This contract does not admit Slack, Sentry, or support-channel messages.
-- This contract does not push outbox entries to providers; provider mutation is
-  blocked on `thread-outbox-provider-protocol-v1`.
+- This contract does not push outbox entries to providers.
 - This contract does not decide whether an issue deserves a PR.
 - This contract does not merge PRs.
 - This contract does not replace receipts, ledgers, or scafld status.

@@ -1,0 +1,179 @@
+{
+  "$id": "https://schemas.runx.ai/runx/readiness/v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "connector": {
+      "maxLength": 64,
+      "pattern": "^[a-z][a-z0-9-]{0,62}[a-z0-9]$",
+      "type": "string"
+    },
+    "instance_id": {
+      "maxLength": 128,
+      "pattern": "^[a-z0-9][a-z0-9._-]{0,127}$",
+      "type": "string"
+    },
+    "operation": {
+      "maxLength": 100,
+      "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$",
+      "type": "string"
+    },
+    "placement": {
+      "enum": [
+        "hosted",
+        "local"
+      ],
+      "type": "string"
+    },
+    "ready": {
+      "type": "boolean"
+    },
+    "reasons": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "check": {
+            "enum": [
+              "requirement",
+              "instance",
+              "capability",
+              "delegation",
+              "approval",
+              "implementation",
+              "tolerance"
+            ],
+            "type": "string"
+          },
+          "detail": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "outcome": {
+            "enum": [
+              "pass",
+              "fail",
+              "required",
+              "unknown"
+            ],
+            "type": "string"
+          },
+          "refs": {
+            "items": {
+              "$id": "https://schemas.runx.ai/runx/reference/v1.json",
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "additionalProperties": false,
+              "properties": {
+                "label": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "locator": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "observed_at": {
+                  "minLength": 1,
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
+                  "type": "string"
+                },
+                "proof_kind": {
+                  "enum": [
+                    "effect_evidence",
+                    "effect_finality",
+                    "credential_resolution"
+                  ],
+                  "type": "string"
+                },
+                "provider": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "schema": {
+                  "const": "runx.reference.v1",
+                  "type": "string"
+                },
+                "type": {
+                  "enum": [
+                    "thread",
+                    "comment",
+                    "event",
+                    "tracking_item",
+                    "change_request",
+                    "repository",
+                    "signal",
+                    "act",
+                    "receipt",
+                    "graph_receipt",
+                    "artifact",
+                    "verification",
+                    "harness",
+                    "host",
+                    "deployment",
+                    "surface",
+                    "target",
+                    "opportunity",
+                    "thesis_assessment",
+                    "selection",
+                    "skill_binding",
+                    "target_transition_entry",
+                    "selection_cycle",
+                    "decision",
+                    "reflection_entry",
+                    "feed_entry",
+                    "principal",
+                    "authority_proof",
+                    "scope_admission",
+                    "grant",
+                    "mandate",
+                    "credential",
+                    "webhook_delivery",
+                    "redaction_policy",
+                    "external_url",
+                    "connector_instance",
+                    "connector_operation"
+                  ],
+                  "type": "string"
+                },
+                "uri": {
+                  "minLength": 1,
+                  "type": "string"
+                }
+              },
+              "required": [
+                "type",
+                "uri"
+              ],
+              "type": "object",
+              "x-runx-schema": "runx.reference.v1"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "check",
+          "outcome",
+          "detail"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "requirement": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "schema": {
+      "const": "runx.readiness.v1",
+      "type": "string"
+    }
+  },
+  "required": [
+    "requirement",
+    "operation",
+    "ready",
+    "reasons"
+  ],
+  "type": "object",
+  "x-runx-packet": true,
+  "x-runx-schema": "runx.readiness.v1"
+}

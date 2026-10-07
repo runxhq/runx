@@ -10,8 +10,8 @@ use runx_runtime::adapters::agent::{
     AgentToolExecutionTrace,
 };
 use runx_runtime::{
-    InvocationStatus, ManagedAgentConfig, RuntimeError, RuntimeOptions, SecretString, SkillAdapter,
-    SkillInvocation, managed_agent_provider, run_harness_fixture_with_adapter,
+    InvocationStatus, ManagedAgentConfig, ModelDialect, RuntimeError, RuntimeOptions, SecretString,
+    SkillAdapter, SkillInvocation, run_harness_fixture_with_adapter,
 };
 
 const FIXTURE_CREATED_AT: &str = "2026-05-18T00:00:00Z";
@@ -36,6 +36,7 @@ fn agent_task_invocation_id_and_envelope_shape() -> Result<(), Box<dyn std::erro
     );
 
     let output = AgentAdapter::agent_task(config(), &resolver).invoke(SkillInvocation {
+        historical_context: Vec::new(),
         env,
         ..invocation(
             runx_parser::SourceKind::AgentStep,
@@ -484,6 +485,8 @@ expect:
 
 fn fixture_runtime_options() -> RuntimeOptions {
     RuntimeOptions {
+        current_context: Vec::new(),
+        historical_context: Vec::new(),
         created_at: FIXTURE_CREATED_AT.to_owned(),
         ..RuntimeOptions::local_development(std::env::vars().collect())
     }
@@ -542,6 +545,7 @@ fn invocation(
         .join("../..")
         .join("fixtures/skills/agent-task");
     let mut request = SkillInvocation {
+        historical_context: Vec::new(),
         skill_name: skill_name.to_owned(),
         step_id: None,
         requirements: Default::default(),
@@ -578,27 +582,21 @@ fn source(
         timeout_seconds: None,
         input_mode: None,
         environment: Default::default(),
-        server: None,
-        tool: None,
-        arguments: None,
-        agent_card_url: None,
-        agent_identity: None,
         agent: agent.map(str::to_owned),
         task: task.map(str::to_owned),
         outputs,
         graph: None,
-        external_adapter: None,
-        thread_outbox_provider: None,
         raw: JsonObject::new(),
     }
 }
 
 fn config() -> ManagedAgentConfig {
     ManagedAgentConfig {
-        provider: managed_agent_provider::OPENAI.into(),
+        provider: "openai".into(),
+        dialect: ModelDialect::ChatCompletions,
         model: "gpt-test".to_owned(),
         api_key: Some(SecretString::new("sk-test")),
-        endpoint_url: None,
+        endpoint_url: "https://api.openai.com/v1/chat/completions".to_owned(),
         auth_mode: runx_runtime::ManagedAgentAuthMode::ApiKey,
     }
 }

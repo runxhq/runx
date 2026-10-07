@@ -11,12 +11,6 @@ pub(crate) fn runtime_command(source: &SkillSource) -> Option<RuntimeCommand> {
             cwd: source.cwd.clone(),
             env: BTreeMap::new(),
         }),
-        SourceKind::Mcp => source.server.as_ref().map(|server| RuntimeCommand {
-            command: server.command.clone(),
-            args: server.args.clone(),
-            cwd: server.cwd.clone(),
-            env: BTreeMap::new(),
-        }),
         _ => None,
     }
 }

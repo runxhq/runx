@@ -55,8 +55,8 @@ consume those owners; none is a parallel implementation.
   authoring engine, or provider client.
 - `@runxhq/contracts` is a generated or mechanically checked binding over the
   portable contract owner.
-- `@runxhq/extension-sdk` owns the narrow protocol helpers required by genuine
-  external process or provider extensions. It does not recreate Runx.
+- `@runxhq/extension-sdk` owns the narrow process tool helpers required by
+  genuine external extensions. It does not recreate Runx.
 - `skills/*` and product-local skill trees own operator knowledge, declarative
   composition, harnesses, and irreducible deterministic domain computation.
 - `runx/cloud` owns hosted control-plane state, credential custody, grant
@@ -120,9 +120,9 @@ Each target has one meaning and one authority boundary:
   syscall confinement. Bundled tool manifests and their local
   source closure are parser-owned skill-package truth, not a second runtime or
   registry scan.
-- **Provider adapter:** a supervised HTTP, MCP, A2A, external-adapter, outbox,
-  or Connect operation under typed authority and effect contracts. Hosted
-  credentials remain opaque.
+- **Provider adapter:** a supervised HTTP, MCP connector, or Connect operation
+  under typed authority and effect contracts. Hosted credentials remain
+  opaque.
 
 Harness fixtures are test data interpreted by the runtime harness. They are not
 an execution source and cannot become selectable production behavior.
@@ -308,10 +308,10 @@ below those features.
 Performance is measured by named, replayable workloads rather than line-count
 intuition. Baselines cover graph planning and context projection, native
 dispatch, deterministic module cold and warm execution, large payloads,
-bounded fan-out, provider-effect transitions, MCP session reuse, receipt
-sealing/storage, and process launch.
+bounded fan-out, provider-effect transitions, receipt sealing/storage, and
+process launch.
 
-Session-safe adapters reuse supervised workers. Arbitrary CLI commands are
+The deterministic JavaScript adapter reuses supervised workers. Arbitrary CLI commands are
 never pooled. Every workload records throughput, p99 latency, allocation or
 resource signals where available, and process spawn count. Release gates compare
 against a captured baseline; performance exceptions require explicit evidence,

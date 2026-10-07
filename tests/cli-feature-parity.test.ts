@@ -73,6 +73,7 @@ describe("CLI feature parity matrix", () => {
             RUNX_HOME: path.join(tempDir, "home"),
             RUNX_RECEIPT_DIR: receiptDir,
             RUNX_BANNER: "0",
+            ...testCase.env,
           },
         });
         if (result.error) {

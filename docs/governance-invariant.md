@@ -22,8 +22,7 @@ unadmitted act never reaches an adapter.
 ### 2. Resolve grant
 
 The request is the selected runner's `ExecutionRequirements`: auth, arbitrary
-scope strings, declared environment names, credential requirement, and runtime
-metadata. Connected grant resolution and attenuation produce the authority
+scope strings, declared environment names, and runtime metadata. Connected grant resolution and attenuation produce the authority
 decision. Adapters consume that decision; they do not reinterpret YAML or
 invent scopes.
 
@@ -42,9 +41,8 @@ Execution truth is lane-specific:
 - native capabilities enforce their own typed scope and effect contract;
 - deterministic JavaScript receives an in-memory module bundle, JSON,
   declared non-secret environment, fixed limits, and no host APIs;
-- managed agent and A2A work record a remote-provider boundary;
-- CLI tools, local MCP servers, external adapters, and process protocols are
-  trusted host code.
+- managed agent work records a remote-provider boundary;
+- CLI tools, local MCP servers, and process protocols are trusted host code.
 
 For host processes Runx controls exact argv, cwd, delivered environment,
 credentials, stdin, timeout, bounded output, interruption, process groups or
@@ -80,6 +78,6 @@ calls, not the process's operating-system syscalls.
 | --- | --- |
 | admission and sealing | `crates/runx-runtime/tests/governance_witness.rs` |
 | exact environment and credential delivery | `credential_grant_policy.rs`, `credential_delivery.rs`, `process_invocation_contract.rs` |
-| process lifecycle and kill-tree behavior | process supervisor unit tests, external-adapter and thread-outbox-provider integration tests |
+| process lifecycle and kill-tree behavior | process supervisor unit tests |
 | deterministic worker isolation and limits | JavaScript worker hostile-module and supervisor tests |
 | typed execution-boundary evidence | adapter, native-dispatch, agent-context, and receipt-history tests |

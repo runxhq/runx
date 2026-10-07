@@ -88,7 +88,6 @@ fn parse_skill_plan_inner(args: &[OsString]) -> Result<SkillPlan, String> {
         full_operator_context: state.full_operator_context,
         inputs: state.inputs,
         input_document: state.input_document,
-        credential_profile: state.credential_profile,
         managed_agent,
     })
 }
@@ -111,7 +110,6 @@ struct SkillParseState {
     force_run: bool,
     inputs: BTreeMap<String, JsonValue>,
     input_document: Option<crate::document_input::DocumentInputSource>,
-    credential_profile: Option<String>,
     managed_agent: bool,
     managed_agent_rounds: Option<u32>,
 }
@@ -147,7 +145,7 @@ fn is_skill_management_action(skill_path: &Path) -> bool {
 }
 
 // Function rationale: this is the single skill-flag dispatch
-// match (--receipt-dir/--json/--profile and positionals); splitting the
+// match (--receipt-dir/--json and positionals); splitting the
 // arms would scatter the CLI parse contract.
 fn parse_skill_arg(
     args: &[OsString],
@@ -294,43 +292,19 @@ fn parse_skill_arg(
         "-i" => index = parse_input_arg(args, index, None, &mut state.inputs)?,
         "--run" => state.force_run = true,
         value
-            if value == "--credential"
-                || value.starts_with("--credential=")
-                || value == "--credential-scope"
-                || value.starts_with("--credential-scope=")
-                || value == "--secret-env"
-                || value.starts_with("--secret-env=") =>
+            if [
+                "--credential",
+                "--credential-profile",
+                "--credential-scope",
+                "--secret-env",
+            ]
+            .iter()
+            .any(|flag| value == *flag || value.starts_with(&format!("{flag}="))) =>
         {
             return Err(
-                "one-shot credential flags are retired; declare the runner credential and use `runx credential set <provider> --from-stdin`"
+                "a run takes no credential: bind the connector's account once with `runx credential set <connector> --credential <name> --from-stdin`"
                     .to_owned(),
             );
-        }
-        value if value.starts_with("--credential-profile=") => {
-            state.credential_profile = Some(non_empty_flag_value(
-                "--credential-profile",
-                value.trim_start_matches("--credential-profile="),
-            )?);
-        }
-        value if value.starts_with("--profile=") => {
-            state.credential_profile = Some(non_empty_flag_value(
-                "--profile",
-                value.trim_start_matches("--profile="),
-            )?);
-        }
-        "--credential-profile" => {
-            index += 1;
-            state.credential_profile = Some(non_empty_flag_value(
-                "--credential-profile",
-                &string_arg(args, index)?,
-            )?);
-        }
-        "--profile" | "-p" => {
-            index += 1;
-            state.credential_profile = Some(non_empty_flag_value(
-                "--profile",
-                &string_arg(args, index)?,
-            )?);
         }
         "--json" | "-j" => state.json = true,
         "--diagnostics" => state.diagnostics = true,
@@ -467,27 +441,40 @@ mod tests {
     }
 
     #[test]
+    fn a_run_refuses_credential_flags() {
+        for flag in [
+            "--credential",
+            "--credential-profile=main",
+            "--credential-scope",
+            "--secret-env=TOKEN",
+        ] {
+            let error = super::parse_skill_plan(
+                &["skill", "skills/release", flag, "value"]
+                    .into_iter()
+                    .map(std::ffi::OsString::from)
+                    .collect::<Vec<_>>(),
+            )
+            .err()
+            .unwrap_or_default();
+            assert!(
+                error.contains("a run takes no credential"),
+                "{flag}: {error}"
+            );
+        }
+    }
+
+    #[test]
     fn short_human_flags_parse_for_skill_runs() -> Result<(), String> {
-        let args = [
-            "skill",
-            "-p",
-            "operator",
-            "-i",
-            "claim=abc",
-            "-R",
-            "receipts",
-            "-j",
-        ]
-        .into_iter()
-        .map(std::ffi::OsString::from)
-        .collect::<Vec<_>>();
+        let args = ["skill", "-i", "claim=abc", "-R", "receipts", "-j"]
+            .into_iter()
+            .map(std::ffi::OsString::from)
+            .collect::<Vec<_>>();
         let mut state = SkillParseState::default();
         let mut index = 1;
         while index < args.len() {
             index = super::parse_skill_arg(&args, index, &mut state)?;
             index += 1;
         }
-        assert_eq!(state.credential_profile.as_deref(), Some("operator"));
         assert_eq!(
             state.inputs.get("claim"),
             Some(&runx_contracts::JsonValue::String("abc".to_owned()))

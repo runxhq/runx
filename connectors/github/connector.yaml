@@ -1,0 +1,638 @@
+schema: runx.connector.v1
+id: github
+name: GitHub
+description: Read and update issues, pull requests and comments in GitHub repositories, and push branches to them.
+auth:
+  delegated: {}
+  credentials:
+    token:
+      kind: api_key
+      fields:
+        - name: token
+          label: GitHub token
+      delivery:
+        env: GITHUB_TOKEN
+      audience: [api.github.com, github.com]
+  session:
+    kind: command
+    command: [gh, auth, token, --hostname, github.com]
+    credential: token
+    principal: {url: "https://api.github.com/user", id: id, login: login}
+references:
+  - {kind: thread, locator: "github://[^/]+/[^/]+/issues/[1-9][0-9]*"}
+  - {kind: change_request, locator: "github://[^/]+/[^/]+/pulls/[1-9][0-9]*"}
+  - {kind: comment, locator: "github://[^/]+/[^/]+/issues/comments/[1-9][0-9]*"}
+  - {kind: repository, locator: "github://[^/]+/[^/]+"}
+placements:
+  hosted:
+    auth: delegated
+  local:
+    auth: [session, credentials]
+operations:
+  issue.read:
+    description: Read one issue or pull request as an issue.
+    verb: read
+    scopes: [repo.read]
+    credentials: [token]
+    target:
+      template: {"$argument": "/repository"}
+    input_schema:
+      type: object
+      required: [repository, number]
+      additionalProperties: false
+      properties:
+        repository: {type: string, pattern: "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"}
+        number: {type: [integer, string], minimum: 1, pattern: "^[1-9][0-9]{0,9}$"}
+    result_fields: [issue]
+    hosted: {provider_scopes: [repo]}
+    implementation:
+      http:
+        allowed_hosts: [api.github.com]
+        auth: {token: {type: bearer}}
+        requests:
+          - id: issue
+            method: GET
+            url: {"$concat": ["https://api.github.com/repos/", {"$argument": "/repository"}, "/issues/", {"$argument": "/number"}]}
+            headers: {accept: application/vnd.github+json}
+        decode: [{op: auto_json}]
+        result_paths:
+          issue: acknowledgement
+  issues.list:
+    description: List one page of a repository's issues; GitHub includes pull requests, which carry a pull_request field.
+    verb: read
+    scopes: [repo.read]
+    credentials: [token]
+    target:
+      template: {"$argument": "/repository"}
+    input_schema:
+      type: object
+      required: [repository]
+      additionalProperties: false
+      properties:
+        repository: {type: string, pattern: "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"}
+        state: {enum: [open, closed, all]}
+        labels: {type: string, maxLength: 1000}
+        since: {type: string, format: date-time, maxLength: 64}
+        per_page: {type: integer, minimum: 1, maximum: 100}
+        page: {type: integer, minimum: 1, maximum: 100000}
+    result_fields: [issues]
+    hosted: {provider_scopes: [repo]}
+    implementation:
+      http:
+        allowed_hosts: [api.github.com]
+        auth: {token: {type: bearer}}
+        requests:
+          - id: issues
+            method: GET
+            url: {"$concat": ["https://api.github.com/repos/", {"$argument": "/repository"}, "/issues"]}
+            query:
+              state: {"$argument": "/state"}
+              labels: {"$argument": "/labels"}
+              since: {"$argument": "/since"}
+              per_page: {"$argument": "/per_page"}
+              page: {"$argument": "/page"}
+            headers: {accept: application/vnd.github+json}
+        decode: [{op: auto_json}]
+        result_paths:
+          issues: acknowledgement
+  issues.read:
+    description: Read issues by number.
+    verb: read
+    scopes: [repo.read]
+    credentials: [token]
+    target:
+      template: {"$argument": "/repository"}
+    input_schema:
+      type: object
+      required: [repository, numbers]
+      additionalProperties: false
+      properties:
+        repository: {type: string, pattern: "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"}
+        numbers: {type: array, minItems: 1, maxItems: 100, uniqueItems: true, items: {type: [integer, string], minimum: 1, pattern: "^[1-9][0-9]{0,9}$"}}
+    result_fields: [issues]
+    hosted: {provider_scopes: [repo]}
+    implementation:
+      http:
+        allowed_hosts: [api.github.com]
+        auth: {token: {type: bearer}}
+        requests:
+          - id: issue
+            each: {"$argument": "/numbers"}
+            method: GET
+            url: {"$concat": ["https://api.github.com/repos/", {"$argument": "/repository"}, "/issues/", {"$item": ""}]}
+            headers: {accept: application/vnd.github+json}
+        decode: [{op: auto_json}]
+        result_paths:
+          issues: acknowledgement
+  issues.update:
+    description: Update issues, each with its own patch of title, body, state, labels, assignees or milestone.
+    verb: write
+    scopes: [repo.write]
+    credentials: [token]
+    target:
+      template: {"$argument": "/repository"}
+    guarantees:
+      provider_idempotency: enforced
+    input_schema:
+      type: object
+      required: [repository, updates]
+      additionalProperties: false
+      properties:
+        repository: {type: string, pattern: "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"}
+        updates:
+          type: array
+          minItems: 1
+          maxItems: 20
+          items:
+            type: object
+            required: [number, patch]
+            additionalProperties: false
+            properties:
+              number: {type: [integer, string], minimum: 1, pattern: "^[1-9][0-9]{0,9}$"}
+              patch:
+                type: object
+                minProperties: 1
+                additionalProperties: false
+                properties:
+                  title: {type: string, minLength: 1, maxLength: 256}
+                  body: {type: [string, "null"], maxLength: 65536}
+                  state: {enum: [open, closed]}
+                  state_reason: {enum: [completed, not_planned, reopened]}
+                  labels: {type: array, maxItems: 100, items: {type: string}}
+                  assignees: {type: array, maxItems: 10, items: {type: string}}
+                  milestone: {type: [integer, "null"]}
+    result_fields: [updates]
+    hosted: {provider_scopes: [repo]}
+    implementation:
+      http:
+        allowed_hosts: [api.github.com]
+        auth: {token: {type: bearer}}
+        requests:
+          - id: update
+            each: {"$argument": "/updates"}
+            method: PATCH
+            url: {"$concat": ["https://api.github.com/repos/", {"$argument": "/repository"}, "/issues/", {"$item": "/number"}]}
+            headers: {accept: application/vnd.github+json}
+            body: {"$item": "/patch"}
+        readbacks:
+          - request:
+              id: issue
+              method: GET
+              url: {"$concat": ["https://api.github.com/repos/", {"$argument": "/repository"}, "/issues/", {"$item": "/number"}]}
+              headers: {accept: application/vnd.github+json}
+            matches:
+              - {expected: {source: acknowledgement, path: number}, observed: number}
+              - {expected: {source: item, path: patch.title}, observed: title}
+              - {expected: {source: item, path: patch.body}, observed: body}
+              - {expected: {source: item, path: patch.state}, observed: state}
+              - {expected: {source: item, path: patch.state_reason}, observed: state_reason}
+              - {expected: {source: item, path: patch.labels}, observed: labels.*.name}
+              - {expected: {source: item, path: patch.assignees}, observed: assignees.*.login}
+              - {expected: {source: item, path: patch.milestone}, observed: milestone.number}
+        decode: [{op: auto_json}]
+        result_paths:
+          updates: acknowledgement
+  pullrequests.list:
+    description: List one page of a repository's pull requests.
+    verb: read
+    scopes: [repo.read]
+    credentials: [token]
+    target:
+      template: {"$argument": "/repository"}
+    input_schema:
+      type: object
+      required: [repository]
+      additionalProperties: false
+      properties:
+        repository: {type: string, pattern: "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"}
+        state: {enum: [open, closed, all]}
+        head: {type: string, maxLength: 300}
+        base: {type: string, maxLength: 255}
+        sort: {enum: [created, updated, popularity, long-running]}
+        direction: {enum: [asc, desc]}
+        per_page: {type: integer, minimum: 1, maximum: 100}
+        page: {type: integer, minimum: 1, maximum: 100000}
+    result_fields: [pulls]
+    hosted: {provider_scopes: [repo]}
+    implementation:
+      http:
+        allowed_hosts: [api.github.com]
+        auth: {token: {type: bearer}}
+        requests:
+          - id: pulls
+            method: GET
+            url: {"$concat": ["https://api.github.com/repos/", {"$argument": "/repository"}, "/pulls"]}
+            query:
+              state: {"$argument": "/state"}
+              head: {"$argument": "/head"}
+              base: {"$argument": "/base"}
+              sort: {"$argument": "/sort"}
+              direction: {"$argument": "/direction"}
+              per_page: {"$argument": "/per_page"}
+              page: {"$argument": "/page"}
+            headers: {accept: application/vnd.github+json}
+        decode: [{op: auto_json}]
+        result_paths:
+          pulls: acknowledgement
+  pullrequests.read:
+    description: Read pull requests by number.
+    verb: read
+    scopes: [repo.read]
+    credentials: [token]
+    target:
+      template: {"$argument": "/repository"}
+    input_schema:
+      type: object
+      required: [repository, numbers]
+      additionalProperties: false
+      properties:
+        repository: {type: string, pattern: "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"}
+        numbers: {type: array, minItems: 1, maxItems: 100, uniqueItems: true, items: {type: [integer, string], minimum: 1, pattern: "^[1-9][0-9]{0,9}$"}}
+    result_fields: [pulls]
+    hosted: {provider_scopes: [repo]}
+    implementation:
+      http:
+        allowed_hosts: [api.github.com]
+        auth: {token: {type: bearer}}
+        requests:
+          - id: pull
+            each: {"$argument": "/numbers"}
+            method: GET
+            url: {"$concat": ["https://api.github.com/repos/", {"$argument": "/repository"}, "/pulls/", {"$item": ""}]}
+            headers: {accept: application/vnd.github+json}
+        decode: [{op: auto_json}]
+        result_paths:
+          pulls: acknowledgement
+  pullrequest.read:
+    description: Read one pull request.
+    verb: read
+    scopes: [repo.read]
+    credentials: [token]
+    target:
+      template: {"$argument": "/repository"}
+    input_schema:
+      type: object
+      required: [repository, number]
+      additionalProperties: false
+      properties:
+        repository: {type: string, pattern: "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"}
+        number: {type: [integer, string], minimum: 1, pattern: "^[1-9][0-9]{0,9}$"}
+    result_fields: [pull]
+    hosted: {provider_scopes: [repo]}
+    implementation:
+      http:
+        allowed_hosts: [api.github.com]
+        auth: {token: {type: bearer}}
+        requests:
+          - id: pull
+            method: GET
+            url: {"$concat": ["https://api.github.com/repos/", {"$argument": "/repository"}, "/pulls/", {"$argument": "/number"}]}
+            headers: {accept: application/vnd.github+json}
+        decode: [{op: auto_json}]
+        result_paths:
+          pull: acknowledgement
+  pullrequests.update:
+    description: Update pull requests, each with its own patch of title, body, state, base or maintainer_can_modify.
+    verb: write
+    scopes: [repo.write]
+    credentials: [token]
+    target:
+      template: {"$argument": "/repository"}
+    guarantees:
+      provider_idempotency: enforced
+    input_schema:
+      type: object
+      required: [repository, updates]
+      additionalProperties: false
+      properties:
+        repository: {type: string, pattern: "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"}
+        updates:
+          type: array
+          minItems: 1
+          maxItems: 20
+          items:
+            type: object
+            required: [number, patch]
+            additionalProperties: false
+            properties:
+              number: {type: [integer, string], minimum: 1, pattern: "^[1-9][0-9]{0,9}$"}
+              patch:
+                type: object
+                minProperties: 1
+                additionalProperties: false
+                properties:
+                  title: {type: string, minLength: 1, maxLength: 256}
+                  body: {type: [string, "null"], maxLength: 65536}
+                  state: {enum: [open, closed]}
+                  base: {type: string, minLength: 1, maxLength: 255}
+                  maintainer_can_modify: {type: boolean}
+    result_fields: [updates]
+    hosted: {provider_scopes: [repo]}
+    implementation:
+      http:
+        allowed_hosts: [api.github.com]
+        auth: {token: {type: bearer}}
+        requests:
+          - id: update
+            each: {"$argument": "/updates"}
+            method: PATCH
+            url: {"$concat": ["https://api.github.com/repos/", {"$argument": "/repository"}, "/pulls/", {"$item": "/number"}]}
+            headers: {accept: application/vnd.github+json}
+            body: {"$item": "/patch"}
+        readbacks:
+          - request:
+              id: pull
+              method: GET
+              url: {"$concat": ["https://api.github.com/repos/", {"$argument": "/repository"}, "/pulls/", {"$item": "/number"}]}
+              headers: {accept: application/vnd.github+json}
+            matches:
+              - {expected: {source: acknowledgement, path: number}, observed: number}
+              - {expected: {source: item, path: patch.title}, observed: title}
+              - {expected: {source: item, path: patch.body}, observed: body}
+              - {expected: {source: item, path: patch.state}, observed: state}
+              - {expected: {source: item, path: patch.base}, observed: base.ref}
+              - {expected: {source: item, path: patch.maintainer_can_modify}, observed: maintainer_can_modify}
+        decode: [{op: auto_json}]
+        result_paths:
+          updates: acknowledgement
+  pullrequest.open:
+    description: Open a pull request from a pushed branch.
+    verb: write
+    scopes: [pr.write]
+    credentials: [token]
+    target:
+      template: {"$argument": "/repository"}
+    input_schema:
+      type: object
+      required: [repository, title, body, head, base, draft]
+      additionalProperties: false
+      properties:
+        repository: {type: string, pattern: "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"}
+        title: {type: string, minLength: 1, maxLength: 256}
+        body: {type: string, minLength: 1, maxLength: 65536}
+        head: {type: string, minLength: 1, maxLength: 255}
+        base: {type: string, minLength: 1, maxLength: 255}
+        draft: {type: boolean}
+    result_fields: [pull]
+    hosted: {provider_scopes: [repo]}
+    implementation:
+      http:
+        allowed_hosts: [api.github.com]
+        auth: {token: {type: bearer}}
+        requests:
+          - id: open
+            method: POST
+            url: {"$concat": ["https://api.github.com/repos/", {"$argument": "/repository"}, "/pulls"]}
+            headers: {accept: application/vnd.github+json}
+            body:
+              title: {"$argument": "/title"}
+              body: {"$argument": "/body"}
+              head: {"$argument": "/head"}
+              base: {"$argument": "/base"}
+              draft: {"$argument": "/draft"}
+        readbacks:
+          - request:
+              id: pull
+              method: GET
+              url: {"$concat": ["https://api.github.com/repos/", {"$argument": "/repository"}, "/pulls/", {"$response": "write.json.number"}]}
+              headers: {accept: application/vnd.github+json}
+            matches:
+              - {expected: {source: acknowledgement, path: number}, observed: number}
+              - {expected: {source: argument, path: title}, observed: title}
+              - {expected: {source: argument, path: body}, observed: body}
+              - {expected: {source: argument, path: head}, observed: head.ref}
+              - {expected: {source: argument, path: base}, observed: base.ref}
+              - {expected: {source: argument, path: draft}, observed: draft}
+        decode: [{op: auto_json}]
+        operation_id_path: number
+        result_paths:
+          pull: readbacks.0
+  comments.list:
+    description: List one page of the comments on an issue or pull request.
+    verb: read
+    scopes: [repo.read]
+    credentials: [token]
+    target:
+      template: {"$argument": "/repository"}
+    input_schema:
+      type: object
+      required: [repository, number]
+      additionalProperties: false
+      properties:
+        repository: {type: string, pattern: "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"}
+        number: {type: [integer, string], minimum: 1, pattern: "^[1-9][0-9]{0,9}$"}
+        per_page: {type: integer, minimum: 1, maximum: 100}
+    result_fields: [comments]
+    hosted: {provider_scopes: [repo]}
+    implementation:
+      http:
+        allowed_hosts: [api.github.com]
+        auth: {token: {type: bearer}}
+        requests:
+          - id: comments
+            method: GET
+            url: {"$concat": ["https://api.github.com/repos/", {"$argument": "/repository"}, "/issues/", {"$argument": "/number"}, "/comments"]}
+            query:
+              per_page: {"$argument": "/per_page"}
+            headers: {accept: application/vnd.github+json}
+        decode: [{op: auto_json}]
+        result_paths:
+          comments: acknowledgement
+  comment.read:
+    description: Read one issue or pull request comment.
+    verb: read
+    scopes: [repo.read]
+    credentials: [token]
+    target:
+      template: {"$argument": "/repository"}
+    input_schema:
+      type: object
+      required: [repository, comment_id]
+      additionalProperties: false
+      properties:
+        repository: {type: string, pattern: "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"}
+        comment_id: {type: [integer, string], minimum: 1, pattern: "^[1-9][0-9]{0,9}$"}
+    result_fields: [comment]
+    hosted: {provider_scopes: [repo]}
+    implementation:
+      http:
+        allowed_hosts: [api.github.com]
+        auth: {token: {type: bearer}}
+        requests:
+          - id: comment
+            method: GET
+            url: {"$concat": ["https://api.github.com/repos/", {"$argument": "/repository"}, "/issues/comments/", {"$argument": "/comment_id"}]}
+            headers: {accept: application/vnd.github+json}
+        decode: [{op: auto_json}]
+        result_paths:
+          comment: acknowledgement
+  comments.create:
+    description: Comment on issues or pull requests, one comment per item.
+    verb: comment
+    scopes: [issue.comment]
+    credentials: [token]
+    target:
+      template: {"$argument": "/repository"}
+    input_schema:
+      type: object
+      required: [repository, comments]
+      additionalProperties: false
+      properties:
+        repository: {type: string, pattern: "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"}
+        comments:
+          type: array
+          minItems: 1
+          maxItems: 20
+          items:
+            type: object
+            required: [number, body]
+            additionalProperties: false
+            properties:
+              number: {type: [integer, string], minimum: 1, pattern: "^[1-9][0-9]{0,9}$"}
+              body: {type: string, minLength: 1, maxLength: 65536}
+    result_fields: [comments]
+    hosted: {provider_scopes: [repo]}
+    implementation:
+      http:
+        allowed_hosts: [api.github.com]
+        auth: {token: {type: bearer}}
+        requests:
+          - id: create
+            each: {"$argument": "/comments"}
+            method: POST
+            url: {"$concat": ["https://api.github.com/repos/", {"$argument": "/repository"}, "/issues/", {"$item": "/number"}, "/comments"]}
+            headers: {accept: application/vnd.github+json}
+            body:
+              body: {"$item": "/body"}
+        readbacks:
+          - request:
+              id: comment
+              method: GET
+              url: {"$concat": ["https://api.github.com/repos/", {"$argument": "/repository"}, "/issues/comments/", {"$response": "write.json.id"}]}
+              headers: {accept: application/vnd.github+json}
+            matches:
+              - {expected: {source: acknowledgement, path: id}, observed: id}
+              - {expected: {source: item, path: body}, observed: body}
+        decode: [{op: auto_json}]
+        result_paths:
+          comments: acknowledgement
+  comments.update:
+    description: Edit comments, one new body per item.
+    verb: write
+    scopes: [issue.comment]
+    credentials: [token]
+    target:
+      template: {"$argument": "/repository"}
+    guarantees:
+      provider_idempotency: enforced
+    input_schema:
+      type: object
+      required: [repository, comments]
+      additionalProperties: false
+      properties:
+        repository: {type: string, pattern: "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"}
+        comments:
+          type: array
+          minItems: 1
+          maxItems: 20
+          items:
+            type: object
+            required: [comment_id, body]
+            additionalProperties: false
+            properties:
+              comment_id: {type: [integer, string], minimum: 1, pattern: "^[1-9][0-9]{0,9}$"}
+              body: {type: string, minLength: 1, maxLength: 65536}
+    result_fields: [comments]
+    hosted: {provider_scopes: [repo]}
+    implementation:
+      http:
+        allowed_hosts: [api.github.com]
+        auth: {token: {type: bearer}}
+        requests:
+          - id: update
+            each: {"$argument": "/comments"}
+            method: PATCH
+            url: {"$concat": ["https://api.github.com/repos/", {"$argument": "/repository"}, "/issues/comments/", {"$item": "/comment_id"}]}
+            headers: {accept: application/vnd.github+json}
+            body:
+              body: {"$item": "/body"}
+        readbacks:
+          - request:
+              id: comment
+              method: GET
+              url: {"$concat": ["https://api.github.com/repos/", {"$argument": "/repository"}, "/issues/comments/", {"$item": "/comment_id"}]}
+              headers: {accept: application/vnd.github+json}
+            matches:
+              - {expected: {source: acknowledgement, path: id}, observed: id}
+              - {expected: {source: item, path: body}, observed: body}
+        decode: [{op: auto_json}]
+        result_paths:
+          comments: acknowledgement
+  branch.push:
+    description: Push an exact local commit to a branch of the repository, never forcing it.
+    verb: write
+    scopes: [repo.write]
+    credentials: [token]
+    target:
+      template: {"$argument": "/repository"}
+    guarantees:
+      provider_idempotency: enforced
+    input_schema:
+      type: object
+      required: [repository, branch, commit]
+      additionalProperties: false
+      properties:
+        repository: {type: string, pattern: "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"}
+        branch: {type: string, pattern: "^[A-Za-z0-9._/-]{1,200}$"}
+        commit: {type: string, pattern: "^[0-9a-f]{40}([0-9a-f]{24})?$"}
+    result_fields: [branch, commit]
+    implementation:
+      process:
+        tool: git.push
+        readback:
+          matches:
+            - {expected: {source: argument, path: commit}, observed: commit}
+            - {expected: {source: argument, path: branch}, observed: branch}
+  pullrequest.merge:
+    description: Merge a pull request.
+    verb: merge
+    scopes: [pr.merge]
+    target:
+      template: {"$argument": "/repository"}
+    approval: required
+  advisory.publish:
+    description: Publish one evidence-bound security advisory for a repository. Declared only; no placement implements it yet.
+    verb: write
+    scopes: [advisory.publish]
+    target:
+      template: {"$argument": "/target/locator"}
+    approval: required
+    readback: advisory.read
+    input_schema:
+      type: object
+      required: [channel, target, payload, payload_digest, evidence_binding]
+      additionalProperties: false
+      properties:
+        channel: {type: string, minLength: 1}
+        target:
+          type: object
+          required: [locator]
+          properties:
+            locator: {type: string, pattern: "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"}
+        payload: {type: object}
+        payload_digest: {type: string, pattern: '^sha256:[0-9a-f]{64}$'}
+        evidence_binding: {type: object}
+    result_fields: [advisory_ref, payload_digest]
+  advisory.read:
+    description: Read back one published security advisory. Declared only; no placement implements it yet.
+    verb: read
+    scopes: [advisory.read]
+    target:
+      template: {"$argument": "/advisory_ref"}
+    input_schema:
+      type: object
+      required: [advisory_ref]
+      properties:
+        advisory_ref: {type: string, minLength: 1}
+        payload_digest: {type: string}
+    result_fields: [advisory_ref, payload_digest, status]

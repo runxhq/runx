@@ -46,13 +46,14 @@ pub fn validate_graph_document(
     for (index, raw_step) in raw_steps.iter().enumerate() {
         let field = format!("steps.{index}");
         let raw_step = required_object(Some(raw_step), &field)?;
-        let step = validate_step(raw_step, &field, &seen_step_ids, charter_from.is_some())?;
+        let step = validate_step(raw_step, &field, &seen_step_ids)?;
         seen_step_ids.insert(step.id.clone());
         steps.push(step);
     }
 
     validate_fanout_step_bindings(&steps, &fanout_groups)?;
     validate_result_producers(&result_from, &seen_step_ids)?;
+    validate_gated_context(&steps)?;
 
     Ok(ExecutionGraph {
         name,
@@ -85,6 +86,33 @@ fn validate_result_producers(
         if !seen.insert(step_id) {
             return Err(validation_error(format!(
                 "result_from contains duplicate step '{step_id}'."
+            )));
+        }
+    }
+    Ok(())
+}
+
+/// A step with no gate of its own that reads a gated step's output can never
+/// run when that step is skipped, so the graph would block there instead of
+/// finishing. It must carry a gate.
+fn validate_gated_context(steps: &[crate::GraphStep]) -> Result<(), ValidationError> {
+    let gated = steps
+        .iter()
+        .filter(|step| step.when.is_some())
+        .map(|step| step.id.as_str())
+        .collect::<BTreeSet<_>>();
+    for (index, step) in steps.iter().enumerate() {
+        if step.when.is_some() {
+            continue;
+        }
+        if let Some(edge) = step
+            .context_edges
+            .iter()
+            .find(|edge| gated.contains(edge.from_step.as_str()))
+        {
+            return Err(validation_error(format!(
+                "steps.{index} ({}) reads context from gated step '{}' but has no when of its own; it would block whenever that step is skipped.",
+                step.id, edge.from_step
             )));
         }
     }
@@ -229,6 +257,39 @@ steps:
     }
 
     #[test]
+    fn a_step_reading_a_gated_step_carries_a_gate() -> Result<(), String> {
+        let graph = |consumer_when: &str| {
+            format!(
+                r#"
+name: gated
+steps:
+  - id: admit
+    run:
+      type: agent-task
+  - id: draft
+    when: {{field: admit.result.decision, equals: ready}}
+    run:
+      type: agent-task
+  - id: finalize{consumer_when}
+    context:
+      draft: draft.result
+    run:
+      type: agent-task
+"#
+            )
+        };
+        let error = validate_err(&graph(""))?;
+        assert!(
+            error.contains("steps.2 (finalize) reads context from gated step 'draft'"),
+            "{error}"
+        );
+        validate_yaml(&graph(
+            "\n    when: {field: admit.result.decision, equals: ready}",
+        ))?;
+        Ok(())
+    }
+
+    #[test]
     fn result_from_rejects_duplicate_steps() -> Result<(), String> {
         let error = validate_err(
             r#"
@@ -260,184 +321,125 @@ steps:
     }
 
     #[test]
-    fn charter_from_and_static_scope_mint_validate() -> Result<(), String> {
+    fn operation_steps_validate_with_tolerance() -> Result<(), String> {
         let graph = validate_yaml(
             r#"
-name: mint-static
-charter_from: charter
+name: deliver
 steps:
-  - id: dispatch
-    run:
-      type: agent-task
-    scopes:
-      - payments:spend
-    mint_authority:
-      source: static_scopes
-"#,
-        )?;
-        assert_eq!(graph.charter_from.as_deref(), Some("charter"));
-        let directive = graph.steps[0]
-            .mint_authority
-            .ok_or_else(|| "expected mint_authority".to_owned())?;
-        assert_eq!(directive.source, crate::MintScopeSource::StaticScopes);
-        Ok(())
-    }
-
-    #[test]
-    fn requested_scope_mint_validates() -> Result<(), String> {
-        let graph = validate_yaml(
-            r#"
-name: mint-dynamic
-charter_from: charter
-steps:
-  - id: dispatch
-    run:
-      type: agent-task
-    requested_scope_from: needed_scope
-    mint_authority:
-      source: requested_scope
+  - id: post
+    operation: slack/channel.post
+    on_uncertain: expire_after 2h
+    duplicates: forbidden
+    inputs:
+      target: slack://acme/C1
+      idempotency_key: notify-1
+      input:
+        channel_locator: slack://acme/C1
+        text: hello
 "#,
         )?;
         let step = &graph.steps[0];
-        assert_eq!(step.requested_scope_from.as_deref(), Some("needed_scope"));
+        let operation = step.operation.as_ref().ok_or("expected an operation")?;
+        assert_eq!(operation.requirement, "slack");
         assert_eq!(
-            step.mint_authority.map(|directive| directive.source),
-            Some(crate::MintScopeSource::RequestedScope)
+            operation.operation.as_ref().map(|name| name.as_str()),
+            Some("channel.post")
         );
+        assert_eq!(
+            step.on_uncertain,
+            Some(crate::UncertainOutcome::ExpireAfter { seconds: 7_200 })
+        );
+        assert_eq!(step.duplicates, Some(crate::DuplicatePolicy::Forbidden));
         Ok(())
     }
 
     #[test]
-    fn mint_authority_without_charter_is_rejected() -> Result<(), String> {
-        let message = validate_err(
+    fn an_operation_chosen_at_run_time_is_bound_as_an_input() -> Result<(), String> {
+        let graph = validate_yaml(
             r#"
-name: mint-no-charter
+name: sync
 steps:
-  - id: dispatch
-    run:
-      type: agent-task
-    scopes:
-      - payments:spend
-    mint_authority:
-      source: static_scopes
+  - id: plan
+    tool: data.digest
+  - id: push
+    operation: github
+    context:
+      operation: plan.sync_plan.data.provider_operation
 "#,
         )?;
-        assert!(message.contains("requires the graph to declare charter_from"));
+        assert_eq!(
+            graph.steps[1]
+                .operation
+                .as_ref()
+                .map(|target| target.operation.is_none()),
+            Some(true)
+        );
+        let message = validate_err(
+            r#"
+name: sync
+steps:
+  - id: push
+    operation: github
+"#,
+        )?;
+        assert!(message.contains("bind the operation name"));
         Ok(())
     }
 
     #[test]
-    fn static_scopes_mint_rejects_requested_scope_from() -> Result<(), String> {
-        let message = validate_err(
-            r#"
-name: mint-two-sources
-charter_from: charter
-steps:
-  - id: dispatch
-    run:
-      type: agent-task
-    scopes:
-      - payments:spend
-    requested_scope_from: needed_scope
-    mint_authority:
-      source: static_scopes
-"#,
-        )?;
-        assert!(message.contains("must not declare requested_scope_from"));
+    fn operation_steps_reject_what_the_connector_owns() -> Result<(), String> {
+        for (fragment, expected) in [
+            (
+                "    scopes: [channel.post]\n",
+                "does not apply to an operation step",
+            ),
+            (
+                "    policy: {provider_permission: {verb: write}}\n",
+                "does not apply to an operation step",
+            ),
+            ("    inputs: {expected_provider: slack}\n", "is retired"),
+            (
+                "    inputs: {operation: channel.post}\n",
+                "also binds an operation input",
+            ),
+        ] {
+            let source = format!(
+                "name: deliver\nsteps:\n  - id: post\n    operation: slack/channel.post\n{fragment}"
+            );
+            let message = validate_err(&source)?;
+            assert!(message.contains(expected), "{fragment}: {message}");
+        }
         Ok(())
     }
 
     #[test]
-    fn static_scopes_mint_requires_non_empty_scopes() -> Result<(), String> {
+    fn tolerance_applies_only_to_operation_steps() -> Result<(), String> {
         let message = validate_err(
             r#"
-name: mint-no-scopes
-charter_from: charter
+name: tool-step
 steps:
-  - id: dispatch
-    run:
-      type: agent-task
-    mint_authority:
-      source: static_scopes
+  - id: digest
+    tool: data.digest
+    on_uncertain: hold
 "#,
         )?;
-        assert!(message.contains("requires a non-empty scopes list"));
+        assert!(message.contains("apply only to operation steps"));
         Ok(())
     }
 
     #[test]
-    fn requested_scope_mint_requires_input_key() -> Result<(), String> {
+    fn unknown_step_fields_fail_closed() -> Result<(), String> {
         let message = validate_err(
             r#"
-name: mint-missing-input
-charter_from: charter
+name: typo
 steps:
-  - id: dispatch
-    run:
-      type: agent-task
-    mint_authority:
-      source: requested_scope
+  - id: digest
+    tool: data.digest
+    contxt:
+      value: input.x
 "#,
         )?;
-        assert!(message.contains("requires requested_scope_from"));
-        Ok(())
-    }
-
-    #[test]
-    fn requested_scope_mint_rejects_static_scopes() -> Result<(), String> {
-        let message = validate_err(
-            r#"
-name: mint-mixed
-charter_from: charter
-steps:
-  - id: dispatch
-    run:
-      type: agent-task
-    scopes:
-      - payments:spend
-    requested_scope_from: needed_scope
-    mint_authority:
-      source: requested_scope
-"#,
-        )?;
-        assert!(message.contains("must not declare a static scopes list"));
-        Ok(())
-    }
-
-    #[test]
-    fn requested_scope_from_without_directive_is_rejected() -> Result<(), String> {
-        let message = validate_err(
-            r#"
-name: dangling-requested-scope
-charter_from: charter
-steps:
-  - id: dispatch
-    run:
-      type: agent-task
-    requested_scope_from: needed_scope
-"#,
-        )?;
-        assert!(message.contains("only valid with a mint_authority directive"));
-        Ok(())
-    }
-
-    #[test]
-    fn unknown_mint_source_is_rejected() -> Result<(), String> {
-        let message = validate_err(
-            r#"
-name: bad-source
-charter_from: charter
-steps:
-  - id: dispatch
-    run:
-      type: agent-task
-    scopes:
-      - payments:spend
-    mint_authority:
-      source: widen_everything
-"#,
-        )?;
-        assert!(message.contains("must be static_scopes or requested_scope"));
+        assert!(message.contains("contxt is not a graph step field"));
         Ok(())
     }
 }

@@ -15,7 +15,7 @@ pub(super) fn resolve_cwd(
     resolve_cwd_value(source.cwd.as_deref(), skill_directory, workspace_cwd)
 }
 
-pub(super) fn resolve_cwd_value(
+fn resolve_cwd_value(
     source_cwd: Option<&str>,
     skill_directory: &Path,
     workspace_cwd: Option<&Path>,

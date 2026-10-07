@@ -5,7 +5,7 @@ use std::process::{Command, Stdio};
 const SECRET: &str = "credential-command-secret-sentinel";
 
 #[test]
-fn credential_command_sets_lists_binds_and_removes_without_exposing_material()
+fn credential_command_sets_lists_and_removes_without_exposing_material()
 -> Result<(), Box<dyn std::error::Error>> {
     let root = crate::support::temp_root("runx-credential-command");
     let home = root.join("home");
@@ -16,22 +16,22 @@ fn credential_command_sets_lists_binds_and_removes_without_exposing_material()
         "credential",
         "set",
         "nitrosend",
+        "--credential",
+        "api_key",
         "--profile",
         "account-one",
-        "--audience",
-        "https://api.nitrosend.com",
         "--from-stdin",
         "--json",
     ]);
     let set = run_with_stdin(set, SECRET)?;
     assert_success_without_secret(&set)?;
     let set_json = serde_json::from_slice::<serde_json::Value>(&set.stdout)?;
-    assert_eq!(set_json["credential"]["profile"]["name"], "account-one");
-    assert_eq!(
-        set_json["credential"]["profile"]["audience"],
-        "https://api.nitrosend.com"
-    );
-    assert_eq!(set_json["credential"]["profile"]["is_default"], true);
+    assert_eq!(set_json["credential"]["profile"], "account-one");
+    let instance = &set_json["credential"]["instance"];
+    assert_eq!(instance["instance_id"], "credential.nitrosend.account-one");
+    assert_eq!(instance["authority"]["kind"], "credential");
+    assert_eq!(instance["authority"]["credential"], "api_key");
+    assert!(instance["credential_declaration_digest"].is_string());
 
     let list = command(&root, &home)?
         .args(["credential", "list", "--json"])
@@ -43,28 +43,69 @@ fn credential_command_sets_lists_binds_and_removes_without_exposing_material()
         "account-one"
     );
 
-    let bind = command(&root, &home)?
-        .args([
-            "credential",
-            "bind",
-            "account-one",
-            "--provider",
-            "nitrosend",
-            "--json",
-        ])
-        .output()?;
-    assert_success_without_secret(&bind)?;
-    let bindings = fs::read_to_string(root.join(".runx/credentials.json"))?;
-    assert!(bindings.contains("provider:nitrosend"));
-    assert!(bindings.contains("account-one"));
-    assert!(!bindings.contains(SECRET));
-
     let remove = command(&root, &home)?
         .args(["credential", "remove", "account-one", "--json"])
         .output()?;
     assert_success_without_secret(&remove)?;
     let remove_json = serde_json::from_slice::<serde_json::Value>(&remove.stdout)?;
     assert_eq!(remove_json["credential"]["removed"], true);
+    Ok(())
+}
+
+#[test]
+fn credential_command_binds_a_connector_of_the_workspace_plugin()
+-> Result<(), Box<dyn std::error::Error>> {
+    let root = crate::support::temp_root("runx-credential-plugin-connector");
+    let home = root.join("home");
+    fs::create_dir_all(root.join("connectors/notes"))?;
+    fs::write(
+        root.join("connectors/notes/connector.yaml"),
+        r#"schema: runx.connector.v1
+id: notes
+name: Notes
+description: A plugin's own notes service.
+auth:
+  credentials:
+    token:
+      kind: api_key
+      fields: [{name: token}]
+      delivery: {env: NOTES_TOKEN}
+      audience: [api.notes.test]
+placements:
+  local: {auth: [credentials]}
+operations:
+  note.read:
+    description: Read one note.
+    verb: read
+    scopes: [notes.read]
+    credentials: [token]
+    target: {template: {"$argument": "/id"}}
+    input_schema: {type: object, required: [id], properties: {id: {type: string}}}
+    implementation:
+      http:
+        allowed_hosts: [api.notes.test]
+        auth: {token: {type: bearer}}
+        requests:
+          - {id: note, method: GET, url: {"$concat": ["https://api.notes.test/notes/", {"$argument": "/id"}]}}
+        decode: [{op: auto_json}]
+        result_paths: {note: acknowledgement}
+"#,
+    )?;
+
+    let mut set = command(&root, &home)?;
+    set.args([
+        "credential",
+        "set",
+        "notes",
+        "--credential",
+        "token",
+        "--from-stdin",
+        "--json",
+    ]);
+    let set = run_with_stdin(set, SECRET)?;
+    assert_success_without_secret(&set)?;
+    let set_json = serde_json::from_slice::<serde_json::Value>(&set.stdout)?;
+    assert_eq!(set_json["credential"]["instance"]["connector"], "notes");
     Ok(())
 }
 

@@ -31,11 +31,16 @@ pub(super) fn assert_expectations(
     signature_policy: RuntimeReceiptSignaturePolicy<'_>,
 ) -> Result<(), HarnessReplayError> {
     if let Some(expected_status) = &output.fixture.expect.status {
-        assert_equal(
-            "expect.status",
-            status_name(expected_status),
-            status_name(&output.status),
-        )?;
+        // A run that stopped short for a request the case did not answer
+        // names it.
+        let (expected, actual) = (status_name(expected_status), status_name(&output.status));
+        if expected != actual {
+            let actual = match output.unanswered.as_slice() {
+                [] => actual.to_owned(),
+                open => format!("{actual} (unanswered: {})", open.join(", ")),
+            };
+            assert_equal("expect.status", expected, actual)?;
+        }
     }
     if let Some(expected_receipt) = &output.fixture.expect.receipt {
         assert_receipt_expectation(expected_receipt, &output.receipt, signature_policy)?;

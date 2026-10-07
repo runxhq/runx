@@ -1,6 +1,8 @@
 export function admitFeed(inputs) {
   const objective = text(inputs.objective);
-  const supplied = Array.isArray(inputs.feed_snapshot) ? inputs.feed_snapshot : [];
+  const supplied = Array.isArray(inputs.feed_snapshot)
+    ? inputs.feed_snapshot
+    : feedFromPosts(inputs.posts);
   const asOfText = text(inputs.as_of);
   const asOf = Date.parse(asOfText);
   const maxAgeHours = Number(inputs.max_age_hours ?? 168);
@@ -121,6 +123,7 @@ export function admitScan(inputs) {
 export function finalizePost(inputs) {
   const context = object(inputs.post_context);
   const draft = object(inputs.post_draft);
+  const submolt = text(inputs.submolt);
   const known = new Set(strings(context.source_refs));
   const findings = strings(context.blockers).map((message) => ({
     code: "moltbook.post.context.invalid",
@@ -132,8 +135,14 @@ export function finalizePost(inputs) {
       findings.push({ code: "moltbook.post.not_ready", message: "post decision is not ready_for_handoff" });
     }
     const payload = object(draft.post_payload);
-    if (text(payload.channel) !== "moltbook" || !text(payload.body)) {
+    if (text(payload.channel) !== "moltbook" || !text(payload.title) || !text(payload.body)) {
       findings.push({ code: "moltbook.post.payload.invalid", message: "post payload is incomplete" });
+    }
+    if (!submolt || payload.submolt !== submolt) {
+      findings.push({ code: "moltbook.post.submolt.mismatch", message: "post payload does not name the selected submolt" });
+    }
+    if (characters(payload.title) > 300 || characters(payload.body) > 40000) {
+      findings.push({ code: "moltbook.post.payload.too_long", message: "post title or body exceeds Moltbook's limits" });
     }
     const refs = Array.isArray(payload.claim_refs) ? payload.claim_refs : [];
     if (refs.length === 0 || refs.some((entry) => {
@@ -160,6 +169,26 @@ export function finalizePost(inputs) {
       validation: { status: ready ? "pass" : "fail", findings },
     },
   };
+}
+
+// A Moltbook post as feed evidence: its id is the source reference and its
+// creation time the observation time.
+function feedFromPosts(posts) {
+  return (Array.isArray(posts) ? posts : []).map((raw) => {
+    const post = object(raw);
+    const id = text(post.id);
+    return {
+      source_ref: id ? `moltbook:post:${id}` : "",
+      topic: text(post.title),
+      summary: text(post.content) || text(post.url) || text(post.title),
+      observed_at: text(post.created_at),
+    };
+  });
+}
+
+// Characters as JSON Schema counts them: code points, not UTF-16 units.
+function characters(value) {
+  return typeof value === "string" ? [...value].length : 0;
 }
 
 function unwrap(value) {

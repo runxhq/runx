@@ -1,5 +1,5 @@
 skill: twitter
-version: "0.4.1"
+version: "0.5.0"
 catalog:
   kind: skill
   audience: public
@@ -12,29 +12,13 @@ catalog:
   completion: provider_readback
   requires_adapter: true
   approval: none
-credentials:
-  twitter-read:
-    provider: twitter
-    audience: https://api.x.com
-    auth:
-      oauth1_user:
-        delivery:
-          env: TWITTER_USER_AUTH
-      bearer:
-        delivery:
-          env: TWITTER_BEARER_TOKEN
-  twitter-user:
-    provider: twitter
-    audience: https://api.x.com
-    auth:
-      oauth1_user:
-        delivery:
-          env: TWITTER_USER_AUTH
+connectors:
+  twitter:
+    operations: [account.snapshot, account.posts.read, account.mentions.read, account.following.read, account.followers.read, posts.read, mentions.read, following.read, followers.read, posts.search, post.create, post.reply, post.quote, posts.delete, users.unfollow, users.follow, users.mute, users.block, posts.like, posts.repost]
 runners:
   read:
     default: true
     type: graph
-    credential: twitter-read
     runx:
       category: growth
     inputs:
@@ -46,7 +30,7 @@ runners:
       params:
         type: object
         required: false
-        description: "Query parameters: user_id, q (search text), pagination_token."
+        description: "Query parameters: user_id (another account; the authenticated account when absent), q (search text), pagination_token (where an earlier read stopped)."
         schema:
           additionalProperties: false
           properties:
@@ -57,21 +41,14 @@ runners:
         type: integer
         required: false
         default: 200
-        description: Maximum items collected across pages.
+        description: Items to read across pages. Pages are whole, so a read may return up to one page (99 items) more; next_cursor says where the next read starts.
         schema: { minimum: 1, maximum: 10000 }
-      auth:
-        type: string
-        required: false
-        default: user
-        description: user (OAuth 1.0a user context) or app (bearer token).
-        schema: { enum: [user, app] }
     examples:
       - query: snapshot
-        auth: user
         max_items: 200
     graph:
       name: twitter-read
-      result_from: [finalize]
+      result_from: [finalize, blocked]
       steps:
         - id: prepare
           inputs:
@@ -79,7 +56,6 @@ runners:
             params: "$input.params"
             source: live
             max_items: "$input.max_items"
-            auth: "$input.auth"
           run:
             type: javascript
             module: twitter-read.mjs
@@ -87,20 +63,20 @@ runners:
             outputs:
               twitter_read_plan: object
         - id: request
-          tool: http.read
-          scopes:
-            - twitter:read
-            - net:http
-          inputs:
-            stop_on_error: true
+          when:
+            field: prepare.twitter_read_plan.decision
+            equals: live
+          operation: twitter
           context:
-            requests: prepare.twitter_read_plan.requests
-            allowed_hosts: prepare.twitter_read_plan.allowed_hosts
-            auth: prepare.twitter_read_plan.auth
+            operation: prepare.twitter_read_plan.connector_operation
+            input: prepare.twitter_read_plan.provider_input
         - id: normalize
+          when:
+            field: prepare.twitter_read_plan.decision
+            equals: live
           context:
             read_plan: prepare.twitter_read_plan
-            http_execution: request.http_execution.data
+            provider_operation: request.provider_operation.data
           run:
             type: javascript
             module: twitter-read.mjs
@@ -108,10 +84,16 @@ runners:
             outputs:
               twitter_read_result: object
         - id: digest
+          when:
+            field: prepare.twitter_read_plan.decision
+            equals: live
           tool: data.digest
           context:
             value: normalize.twitter_read_result.items
         - id: finalize
+          when:
+            field: prepare.twitter_read_plan.decision
+            equals: live
           context:
             read_result: normalize.twitter_read_result
             digest_result: digest.digest_result.data
@@ -123,10 +105,10 @@ runners:
               twitter_evidence:
                 type: object
                 schema:
-                  required: [decision, source, query, account, items, item_count, truncated, provenance, rate, blockers, stop_conditions]
+                  required: [decision, source, query, account, items, item_count, truncated, next_cursor, provenance, blockers]
                   additionalProperties: false
                   properties:
-                    decision: { type: string, enum: [ok, needs_input, provider_error, stopped] }
+                    decision: { type: string, enum: [ok, needs_input] }
                     source: { type: string, enum: [live, archive] }
                     query:
                       type: object
@@ -138,7 +120,7 @@ runners:
                     account: { type: [object, 'null'], maxProperties: 5 }
                     items:
                       type: array
-                      maxItems: 10000
+                      maxItems: 10099
                       items:
                         oneOf:
                           - type: object
@@ -176,26 +158,34 @@ runners:
                                   followers: { type: number }
                                   following: { type: number }
                                   posts: { type: number }
-                    item_count: { type: integer, minimum: 0, maximum: 10000 }
+                    item_count: { type: integer, minimum: 0, maximum: 10099 }
                     truncated: { type: boolean }
+                    next_cursor: { type: [string, 'null'], minLength: 1, maxLength: 512 }
                     provenance:
                       type: object
-                      required: [retrieved_via, request_count, content_digest]
+                      required: [retrieved_via, content_digest]
                       additionalProperties: false
                       properties:
                         retrieved_via: { type: string, maxLength: 4000 }
-                        request_count: { type: integer, minimum: 0 }
                         content_digest: { type: string, pattern: '^sha256:[0-9a-f]{64}$' }
-                    rate:
-                      type: object
-                      required: [limited, remaining, reset_at]
-                      additionalProperties: false
-                      properties:
-                        limited: { type: boolean }
-                        remaining: { type: number }
-                        reset_at: { type: [string, 'null'] }
                     blockers: { type: array, maxItems: 100, items: { type: string, minLength: 1, maxLength: 4000 } }
-                    stop_conditions: { type: array, maxItems: 100, items: { type: string, minLength: 1, maxLength: 1000 } }
+          artifacts:
+            named_emits:
+              twitter_evidence: twitter_evidence
+            packets:
+              twitter_evidence: twitter.evidence.v1
+        - id: blocked
+          when:
+            field: prepare.twitter_read_plan.decision
+            not_equals: live
+          context:
+            read_plan: prepare.twitter_read_plan
+          run:
+            type: javascript
+            module: twitter-read.mjs
+            export: blockedRead
+            outputs:
+              twitter_evidence: object
           artifacts:
             named_emits:
               twitter_evidence: twitter_evidence
@@ -312,9 +302,9 @@ runners:
               additionalProperties: false
             items:
               type: array
-              maxItems: 10000
+              maxItems: 10099
               items: { type: object, additionalProperties: true }
-            item_count: { type: integer, minimum: 0, maximum: 10000 }
+            item_count: { type: integer, minimum: 0, maximum: 10099 }
           additionalProperties: true
       operator_policy:
         type: string
@@ -679,9 +669,8 @@ runners:
               twitter_selection: twitter.selection.v1
   execute:
     type: graph
-    credential: twitter-user
     act:
-      purpose: Execute one approved twitter act plan, act by act, and nothing beyond it.
+      purpose: Execute one approved twitter act plan, batch by batch, and nothing beyond it.
     inputs:
       plan_json:
         type: object
@@ -696,7 +685,7 @@ runners:
             principal: { type: string, minLength: 1, maxLength: 512 }
             acts:
               type: array
-              maxItems: 50
+              maxItems: 5000
               items:
                 type: object
                 required: [act_id, kind, params, consequence, rationale]
@@ -742,7 +731,7 @@ runners:
         type: integer
         required: false
         default: 50
-        description: Requested per-execution act cap; the provider tool enforces a hard maximum of 50.
+        description: Acts one batch may take; a batch is one published act or a run of up to 50 acts of one kind.
         schema: { minimum: 1, maximum: 50 }
       data_source_ref:
         type: string
@@ -806,40 +795,45 @@ runners:
             export: prepareExecution
             outputs:
               twitter_execution_plan: object
-        - id: approve
-          run:
-            type: approval
+        - id: self
           when:
             field: prepare.twitter_execution_plan.decision
             equals: ready
+          operation: twitter/account.snapshot
           inputs:
-            gate_id: twitter.execute.approval
-            reason: Executing this plan publishes to a public timeline or mutates a live X account.
-          artifacts:
-            wrap_as: approval_decision
-            packet: runx.approval.decision.v1
-        - id: request
-          tool: http.execute
-          scopes:
-            - twitter:write
-            - net:http
+            result_fields: [account]
+            input: {}
+        - id: bind
           when:
             field: prepare.twitter_execution_plan.decision
             equals: ready
-          idempotency_key: "$input.idempotency_key"
-          inputs:
-            stop_on_error: true
           context:
-            requests: prepare.twitter_execution_plan.requests
-            allowed_hosts: prepare.twitter_execution_plan.allowed_hosts
-            auth: prepare.twitter_execution_plan.auth
+            execution_plan: prepare.twitter_execution_plan
+            account: self.provider_operation.data.result.account
+          run:
+            type: javascript
+            module: twitter-execution.mjs
+            export: bindExecution
+            outputs:
+              twitter_call: object
+        - id: request
+          when:
+            field: prepare.twitter_execution_plan.decision
+            equals: ready
+          operation: twitter
+          idempotency_key: "$input.idempotency_key"
+          context:
+            operation: bind.twitter_call.operation
+            input: bind.twitter_call.input
+            approval: bind.twitter_call.approval
         - id: apply
           when:
             field: prepare.twitter_execution_plan.decision
             equals: ready
           context:
             execution_plan: prepare.twitter_execution_plan
-            http_execution: request.http_execution.data
+            provider_operation: request.provider_operation.data
+            account_id: bind.twitter_call.account_id
           run:
             type: javascript
             module: twitter-execution-result.mjs
@@ -881,12 +875,13 @@ runners:
                           detail: { type: [string, 'null'], maxLength: 4000 }
                     ledger_delta:
                       type: [object, 'null']
-                      required: [schema, type, plan_digest, decision, next_act_index, total_act_count, active_thread, batch]
+                      required: [schema, type, plan_digest, account_id, decision, next_act_index, total_act_count, active_thread, batch]
                       additionalProperties: false
                       properties:
                         schema: { const: twitter.execution.progress.v1 }
                         type: { const: twitter.execution.progress }
                         plan_digest: { type: string, pattern: '^sha256:[0-9a-f]{64}$' }
+                        account_id: { type: string, pattern: '^[0-9]{1,19}$' }
                         decision: { type: string, enum: [executed, partial, stopped] }
                         next_act_index: { type: integer, minimum: 0 }
                         total_act_count: { type: integer, minimum: 0 }
@@ -955,8 +950,3 @@ runners:
             expected_version: prepare.twitter_execution_plan.expected_version
             idempotency_key: prepare.twitter_execution_plan.idempotency_key
             event: apply.twitter_execution.data.ledger_delta
-      policy:
-        guards:
-          - step: request
-            field: approve.approval_decision.data.approved
-            equals: true

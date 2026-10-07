@@ -1,15 +1,15 @@
 use std::collections::BTreeMap;
 
 use runx_contracts::{
-    ExecutionCredentialRequirement, ExecutionRequirements, JsonObject, JsonValue,
-    PaidSkillFixedOfferTerms, PaidSkillOfferTerms, PaidSkillPreparedOfferTerms,
+    ExecutionRequirements, JsonObject, JsonValue, PaidSkillFixedOfferTerms, PaidSkillOfferTerms,
+    PaidSkillPreparedOfferTerms,
 };
 use serde::{Deserialize, Serialize};
 
 use crate::skill::{
-    CatalogMetadata, CredentialRequirement, RunnerHarnessManifest, SkillRunnerDefinition,
-    validate_catalog_metadata, validate_credential_requirements, validate_harness_manifest,
-    validate_inputs, validate_runner_credential_references, validate_runner_definition,
+    CatalogMetadata, ConnectorRequirement, RunnerHarnessManifest, SkillRunnerDefinition,
+    bind_operation_steps, validate_catalog_metadata, validate_connector_requirements,
+    validate_harness_manifest, validate_inputs, validate_runner_definition,
 };
 use crate::{
     ParseError, ValidationError, assert_execution_profile_yaml_subset,
@@ -24,7 +24,7 @@ const MANIFEST_FIELDS: &[&str] = &[
     "policy",
     "emits",
     "catalog",
-    "credentials",
+    "connectors",
     "input_definitions",
     "marketplace",
     "runners",
@@ -51,8 +51,9 @@ pub struct SkillRunnerManifest {
     pub emits: Option<runx_contracts::JsonValue>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub catalog: Option<CatalogMetadata>,
-    #[serde(default)]
-    pub credentials: BTreeMap<String, CredentialRequirement>,
+    /// The connector operations this skill needs, by requirement key.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub connectors: BTreeMap<String, ConnectorRequirement>,
     /// Manifest-local reusable input declarations. Runner references are
     /// expanded during parsing, so runtime consumers never resolve them again.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
@@ -81,21 +82,10 @@ impl SkillRunnerManifest {
     /// downstream consumers must not rescan raw YAML or normalize scope values.
     #[must_use]
     pub fn execution_requirements(&self, runner: &SkillRunnerDefinition) -> ExecutionRequirements {
-        let credential = runner.credential.as_ref().and_then(|name| {
-            self.credentials
-                .get(name)
-                .map(|requirement| ExecutionCredentialRequirement {
-                    name: name.clone(),
-                    provider: requirement.provider.clone(),
-                    audience: requirement.audience.clone(),
-                    deliveries: requirement.deliveries.clone(),
-                })
-        });
         ExecutionRequirements {
             auth: runner.auth.clone(),
             scopes: runner.declared_scopes(),
             environment: runner.source.environment.clone(),
-            credential,
             runtime: runner.runtime.clone(),
         }
     }
@@ -140,9 +130,8 @@ pub fn validate_runner_manifest(
         runners.insert(name.clone(), validate_runner_definition(name, runner)?);
     }
 
-    let credentials = validate_credential_requirements(raw.document.get("credentials"))?;
-    validate_runner_credential_references(&runners, &credentials)?;
-    validate_credential_environment_separation(&runners, &credentials)?;
+    let connectors = validate_connector_requirements(raw.document.get("connectors"))?;
+    bind_operation_steps(&mut runners, &connectors)?;
     let marketplace = validate_marketplace(raw.document.get("marketplace"), &runners)?;
 
     let harness = validate_harness_manifest(
@@ -162,7 +151,7 @@ pub fn validate_runner_manifest(
         policy: raw.document.get("policy").cloned(),
         emits: raw.document.get("emits").cloned(),
         catalog,
-        credentials,
+        connectors,
         input_definitions,
         marketplace,
         runners,
@@ -253,32 +242,6 @@ fn expand_input_definitions(
     let mut resolved = runner.clone();
     resolved.insert("inputs".to_owned(), JsonValue::Object(expanded));
     Ok(resolved)
-}
-
-fn validate_credential_environment_separation(
-    runners: &BTreeMap<String, SkillRunnerDefinition>,
-    credentials: &BTreeMap<String, CredentialRequirement>,
-) -> Result<(), ValidationError> {
-    for (runner_name, runner) in runners {
-        let Some(credential_name) = runner.credential.as_ref() else {
-            continue;
-        };
-        let Some(credential) = credentials.get(credential_name) else {
-            continue;
-        };
-        for environment_name in runner.source.environment.names() {
-            if credential
-                .deliveries
-                .values()
-                .any(|delivery_name| delivery_name == environment_name)
-            {
-                return Err(FIELDS.validation_error(format!(
-                    "runners.{runner_name}.environment cannot redeclare credential delivery environment variable {environment_name}; credentials and non-secret environment use separate channels"
-                )));
-            }
-        }
-    }
-    Ok(())
 }
 
 pub fn resolve_post_run_reflect_policy(

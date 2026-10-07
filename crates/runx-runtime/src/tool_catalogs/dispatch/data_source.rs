@@ -21,7 +21,7 @@ struct ConfigSource {
 }
 
 /// Resolve one typed data operation to its operator-owned storage binding.
-/// Native adapters keep the typed operation target; genuine external adapters
+/// Native adapters keep the typed operation target; tool-backed data adapters
 /// receive the same operation through their supervised tool boundary.
 pub(super) fn target(
     tool_ref: &str,

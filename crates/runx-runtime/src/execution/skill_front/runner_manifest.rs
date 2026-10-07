@@ -15,9 +15,6 @@ use runx_contracts::ClosureDisposition;
 use runx_contracts::{JsonObject, JsonValue};
 use runx_parser::{SkillRunnerDefinition, SkillRunnerManifest};
 
-#[cfg(test)]
-mod credential_tests;
-
 pub(crate) fn selected_runner<'a>(
     manifest: &'a SkillRunnerManifest,
     requested: Option<&str>,
@@ -51,10 +48,9 @@ pub(super) fn runner_invocation(
     runner: &SkillRunnerDefinition,
     inputs: &BTreeMap<String, JsonValue>,
     env: &BTreeMap<String, String>,
-    local_credential: Option<&crate::execution::orchestrator::LocalCredentialDescriptor>,
-) -> Result<SkillInvocation, SkillRunError> {
-    let credential_delivery = credential_delivery_from_invocation(env, local_credential)?;
-    Ok(SkillInvocation {
+) -> SkillInvocation {
+    SkillInvocation {
+        historical_context: Vec::new(),
         skill_name: runner.name.clone(),
         step_id: None,
         source: runner.source.clone(),
@@ -67,40 +63,8 @@ pub(super) fn runner_invocation(
         provenance: Vec::new(),
         skill_directory: skill_dir.to_path_buf(),
         env: env.clone(),
-        credential_delivery,
-    })
-}
-
-pub(super) fn credential_delivery_from_invocation(
-    env: &BTreeMap<String, String>,
-    local_credential: Option<&crate::execution::orchestrator::LocalCredentialDescriptor>,
-) -> Result<crate::credentials::CredentialDelivery, SkillRunError> {
-    let hosted_handles = env
-        .get(crate::credentials::RUNX_HOSTED_CREDENTIAL_HANDLES_JSON_ENV)
-        .map(String::as_str)
-        .filter(|value| !value.trim().is_empty());
-    if let Some(descriptor) = local_credential {
-        return crate::credentials::CredentialDelivery::from_local_descriptor(
-            descriptor.provider.clone(),
-            descriptor.auth_mode.clone(),
-            descriptor.env_var.clone(),
-            descriptor.material_ref.clone(),
-            descriptor.scopes.clone(),
-            descriptor.secret.clone(),
-        )
-        .and_then(|delivery| delivery.bind_audience(descriptor.audience.as_deref()))
-        .map_err(|error| invalid(format!("local credential provision failed: {error}")));
+        credential_delivery: crate::credentials::CredentialDelivery::none(),
     }
-    if let Some(raw) = hosted_handles {
-        return crate::credentials::CredentialDelivery::from_hosted_handles_json(raw).map_err(
-            |error| {
-                invalid(format!(
-                    "hosted credential handle admission failed: {error}"
-                ))
-            },
-        );
-    }
-    Ok(crate::credentials::CredentialDelivery::none())
 }
 
 pub(super) fn execute_adapter_skill_run(
@@ -129,7 +93,7 @@ pub(super) fn execute_adapter_skill_run(
             manifest,
             runner,
             None,
-            &request.inputs,
+            request,
             package_digest,
             execution_closure_digest,
         )?,

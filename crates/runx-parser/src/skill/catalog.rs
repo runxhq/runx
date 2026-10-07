@@ -71,6 +71,9 @@ pub enum CatalogCompletion {
     Plan,
     RuntimeReceipt,
     ProviderReadback,
+    /// The provider acknowledged the effect and offers no read of it, as a
+    /// webhook does.
+    ProviderAcknowledgement,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -139,6 +142,7 @@ impl CatalogCompletion {
             CatalogCompletion::Plan => "plan",
             CatalogCompletion::RuntimeReceipt => "runtime_receipt",
             CatalogCompletion::ProviderReadback => "provider_readback",
+            CatalogCompletion::ProviderAcknowledgement => "provider_acknowledgement",
         }
     }
 }
@@ -573,9 +577,10 @@ fn parse_catalog_completion(
         Some("plan") => Ok(Some(CatalogCompletion::Plan)),
         Some("runtime_receipt") => Ok(Some(CatalogCompletion::RuntimeReceipt)),
         Some("provider_readback") => Ok(Some(CatalogCompletion::ProviderReadback)),
+        Some("provider_acknowledgement") => Ok(Some(CatalogCompletion::ProviderAcknowledgement)),
         None => Ok(None),
         Some(_) => Err(FIELDS.validation_error(format!(
-            "{label}.completion must be plan, runtime_receipt, or provider_readback."
+            "{label}.completion must be plan, runtime_receipt, provider_readback, or provider_acknowledgement."
         ))),
     }
 }

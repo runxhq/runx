@@ -30,9 +30,17 @@
             "sha256": {
               "minLength": 1,
               "type": "string"
+            },
+            "sharing": {
+              "enum": [
+                "local_only",
+                "configured_model"
+              ],
+              "type": "string"
             }
           },
           "required": [
+            "sharing",
             "root_path",
             "path",
             "sha256",
@@ -57,9 +65,17 @@
             "sha256": {
               "minLength": 1,
               "type": "string"
+            },
+            "sharing": {
+              "enum": [
+                "local_only",
+                "configured_model"
+              ],
+              "type": "string"
             }
           },
           "required": [
+            "sharing",
             "root_path",
             "path",
             "sha256",
@@ -169,6 +185,68 @@
             ],
             "type": "object"
           },
+          "scope": {
+            "additionalProperties": false,
+            "properties": {
+              "goal_id": {
+                "anyOf": [
+                  {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "purpose": {
+                "enum": [
+                  "procedure",
+                  "mandate",
+                  "confirmed_memory",
+                  "observation",
+                  "work_continuity",
+                  "retrieved_history",
+                  "hypothesis"
+                ],
+                "type": "string"
+              },
+              "sharing": {
+                "enum": [
+                  "local_only",
+                  "configured_model"
+                ],
+                "type": "string"
+              },
+              "source_ref": {
+                "anyOf": [
+                  {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "trust": {
+                "enum": [
+                  "operator_confirmed",
+                  "skill_instructions",
+                  "untrusted_evidence"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "purpose",
+              "trust",
+              "sharing",
+              "goal_id",
+              "source_ref"
+            ],
+            "type": "object"
+          },
           "type": {
             "anyOf": [
               {
@@ -190,6 +268,7 @@
         "required": [
           "type",
           "version",
+          "scope",
           "data",
           "meta"
         ],
@@ -316,6 +395,68 @@
             ],
             "type": "object"
           },
+          "scope": {
+            "additionalProperties": false,
+            "properties": {
+              "goal_id": {
+                "anyOf": [
+                  {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "purpose": {
+                "enum": [
+                  "procedure",
+                  "mandate",
+                  "confirmed_memory",
+                  "observation",
+                  "work_continuity",
+                  "retrieved_history",
+                  "hypothesis"
+                ],
+                "type": "string"
+              },
+              "sharing": {
+                "enum": [
+                  "local_only",
+                  "configured_model"
+                ],
+                "type": "string"
+              },
+              "source_ref": {
+                "anyOf": [
+                  {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "trust": {
+                "enum": [
+                  "operator_confirmed",
+                  "skill_instructions",
+                  "untrusted_evidence"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "purpose",
+              "trust",
+              "sharing",
+              "goal_id",
+              "source_ref"
+            ],
+            "type": "object"
+          },
           "type": {
             "anyOf": [
               {
@@ -337,6 +478,7 @@
         "required": [
           "type",
           "version",
+          "scope",
           "data",
           "meta"
         ],
@@ -451,32 +593,6 @@
           "additionalProperties": false,
           "properties": {
             "auth": {},
-            "credential": {
-              "additionalProperties": false,
-              "properties": {
-                "audience": {
-                  "type": "string"
-                },
-                "deliveries": {
-                  "additionalProperties": {
-                    "type": "string"
-                  },
-                  "type": "object"
-                },
-                "name": {
-                  "type": "string"
-                },
-                "provider": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "name",
-                "provider",
-                "deliveries"
-              ],
-              "type": "object"
-            },
             "environment": {
               "additionalProperties": false,
               "properties": {
@@ -586,9 +702,17 @@
         "sha256": {
           "minLength": 1,
           "type": "string"
+        },
+        "sharing": {
+          "enum": [
+            "local_only",
+            "configured_model"
+          ],
+          "type": "string"
         }
       },
       "required": [
+        "sharing",
         "root_path",
         "path",
         "sha256",

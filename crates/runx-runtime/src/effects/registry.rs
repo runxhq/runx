@@ -2,7 +2,6 @@ use std::collections::BTreeMap;
 use std::fmt;
 use std::sync::Arc;
 
-use runx_contracts::Reference;
 use runx_parser::GraphStep;
 
 use super::{
@@ -19,34 +18,35 @@ pub struct RuntimeEffectRegistry {
     /// Exact response bytes admitted by the harness front. This state has no
     /// environment or skill-input loader and is absent from every live registry.
     harness_http_responses: Option<Arc<BTreeMap<String, crate::http::RuntimeHttpResponse>>>,
-    harness_http_exchanges: Option<Arc<Vec<crate::http::RuntimeHarnessHttpExchange>>>,
 }
 
 impl RuntimeEffectRegistry {
+    /// Standard portable local effect owners used by every operator surface.
+    pub fn local() -> Result<Self, RuntimeEffectError> {
+        #[cfg(feature = "async-http")]
+        #[allow(unused_mut)]
+        let mut registry = Self::with_effect(crate::kernel::operation::OperationEffect::default())?;
+        #[cfg(not(feature = "async-http"))]
+        #[allow(unused_mut)]
+        let mut registry = Self::empty();
+        #[cfg(feature = "catalog")]
+        registry.register_effect(super::ExternalReceiptEffect)?;
+        Ok(registry)
+    }
+
     #[must_use]
     pub fn empty() -> Self {
         Self {
             families: BTreeMap::new(),
             harness_http_responses: None,
-            harness_http_exchanges: None,
         }
     }
 
-    pub(crate) fn with_harness_http_responses(
+    pub(crate) fn with_harness_http(
         mut self,
-        responses: BTreeMap<String, crate::http::RuntimeHttpResponse>,
+        responses: Option<Arc<BTreeMap<String, crate::http::RuntimeHttpResponse>>>,
     ) -> Self {
-        self.harness_http_responses = Some(Arc::new(responses));
-        self
-    }
-
-    pub(crate) fn with_harness_http_exchanges(
-        mut self,
-        exchanges: Vec<crate::http::RuntimeHarnessHttpExchange>,
-    ) -> Self {
-        if !exchanges.is_empty() {
-            self.harness_http_exchanges = Some(Arc::new(exchanges));
-        }
+        self.harness_http_responses = responses;
         self
     }
 
@@ -55,13 +55,6 @@ impl RuntimeEffectRegistry {
         &self,
     ) -> Option<&BTreeMap<String, crate::http::RuntimeHttpResponse>> {
         self.harness_http_responses.as_deref()
-    }
-
-    #[cfg(feature = "catalog")]
-    pub(crate) fn harness_http_exchanges(
-        &self,
-    ) -> Option<&[crate::http::RuntimeHarnessHttpExchange]> {
-        self.harness_http_exchanges.as_deref().map(Vec::as_slice)
     }
 
     pub fn with_effect<T>(effect: T) -> Result<Self, RuntimeEffectError>
@@ -114,7 +107,7 @@ impl RuntimeEffectRegistry {
     /// effect. This is crate-private because only isolated runtime assembly
     /// (currently the deterministic harness) may alter an already-wired
     /// registry.
-    #[cfg(feature = "catalog")]
+    #[cfg(feature = "async-http")]
     pub(crate) fn replace_effect<T>(&mut self, effect: T) -> Result<(), RuntimeEffectError>
     where
         T: RuntimeEffect + 'static,
@@ -211,28 +204,12 @@ impl RuntimeEffectRegistry {
         self.require_effect(family)?.validate_replay(request)
     }
 
-    pub(crate) fn authority_grant_refs(
+    pub(crate) fn authority(
         &self,
         admission: &EffectAdmission,
-    ) -> Result<Vec<Reference>, RuntimeEffectError> {
+    ) -> Result<crate::receipts::SealAuthority, RuntimeEffectError> {
         self.require_effect(admission.family())?
-            .authority_grant_refs(admission)
-    }
-
-    pub(crate) fn authority_scope_refs(
-        &self,
-        admission: &EffectAdmission,
-    ) -> Result<Vec<Reference>, RuntimeEffectError> {
-        self.require_effect(admission.family())?
-            .authority_scope_refs(admission)
-    }
-
-    pub(crate) fn replay_authority_grant_refs(
-        &self,
-        replay: &EffectReplay,
-    ) -> Result<Vec<Reference>, RuntimeEffectError> {
-        self.require_effect(replay.family())?
-            .replay_authority_grant_refs(replay)
+            .authority(admission)
     }
 
     pub(crate) fn allows_parallel_step(&self, step: &GraphStep) -> bool {
@@ -293,13 +270,6 @@ impl fmt::Debug for RuntimeEffectRegistry {
                     .harness_http_responses
                     .as_ref()
                     .map_or(0, |responses| responses.len()),
-            )
-            .field(
-                "harness_http_exchange_count",
-                &self
-                    .harness_http_exchanges
-                    .as_ref()
-                    .map_or(0, |exchanges| exchanges.len()),
             )
             .finish()
     }

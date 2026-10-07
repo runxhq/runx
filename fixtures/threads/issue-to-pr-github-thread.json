@@ -26,7 +26,7 @@
   "outbox": [],
   "source_refs": [
     {
-      "type": "provider_thread",
+      "type": "thread",
       "uri": "https://github.com/example/repo/issues/123",
       "recorded_at": "2026-05-14T12:00:00Z"
     }

@@ -81,12 +81,12 @@ A reusable provider operation keeps governance, transport, and proof separate:
    call. The admitted grant is sufficient for a routine bounded write. If the
    action warrants a separate human decision, request it once at the native
    effect boundary, not during harmless planning or inspection. Pass one stable
-   retry identity through native `provider.mutate.idempotency_key`; Runx binds
+   retry identity through the operation step's `idempotency_key`; Runx binds
    it to the attempt outside provider-specific payload JSON.
-3. Execute through a declared tool, adapter, MCP server, or HTTP boundary. For
-   hosted drivers, use native `provider.read` or `provider.mutate`; Runx resolves
-   the unique active provider/scope grant and Cloud verifies the driver's
-   authoritative access class. Agent prose may choose or author inputs but may
+3. Execute through an `operation` step on a connector the skill lists: its
+   declared HTTP requests, MCP tool, or process tool. On the hosted placement
+   Runx resolves the unique active grant and Connect renders only the
+   connector's declared request. Agent prose may choose or author inputs but may
    not stand in for transport.
 4. Bind readback to the expected resource identity. Hosted operations may
    declare `expected_result` fields that must match exactly and `result_fields`
@@ -136,8 +136,8 @@ credentials, and raw provider or tool bodies are never failure telemetry.
 Prepared context is always digest-bound and drift-checked, but it is not an
 approval gate. It proves what was selected and prevents context or artifact
 drift without fabricating human authority. Each consequential action has one
-approval owner at the point of use. A native effect such as `provider.mutate`
-owns any optional exact approval it declares; an explicit graph approval is
+approval owner at the point of use. A connector operation step owns any exact
+approval it declares or its connector requires; an explicit graph approval is
 valid only when no native effect owns the decision. Never place a second
 approval immediately before an effect that already requested exact human
 approval, and never invent approval merely because a capability mutates state.
@@ -286,9 +286,9 @@ Skill authoring must decide ownership before it writes files:
 - Prefer a declarative graph composed from existing native tools and canonical
   skills.
 - Treat the selected runner's execution requirements as the complete
-  permission request. Opaque scopes, exact non-secret environment names, a
-  named credential requirement, and runtime metadata stay on their canonical
-  typed fields. Native capabilities and providers enforce the scopes they own;
+  permission request. Opaque scopes, exact non-secret environment names, and
+  runtime metadata stay on their canonical typed fields; credentials belong to
+  the connectors the runner calls. Native capabilities and providers enforce the scopes they own;
   Runx does not reconstruct authority from prose or `runx` metadata.
 - Prove permission-bearing native and provider paths through the package
   harness using the production catalog, dispatcher, and enforcement owner. A

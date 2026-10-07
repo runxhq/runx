@@ -19,11 +19,11 @@ inputs:
   parent_payment_authority: { term_id: "authority:test" }
   idempotency_seed: invoice-test-001
 caller:
-  approvals: { "provider-effect:sha256:362c93e2c2e675f93a1a82461c5da7a573521c5de3245520fb9ec3be72c1fd98": true }
+  approvals: { "operation:sha256:3d5167877116b91cd43e3d79e6cb008ec84fa5e51de867f10264ace83d054df3": true }
   provider_responses:
     principal_id: invoice-fixture
-    grants: [{ grant_id: invoice-fixture, provider: mpp, scopes: [payment.invoice.settle, payment.invoice.read] }]
+    grant: { grant_id: invoice-fixture, provider: mpp, scopes: [payment.invoice.settle, payment.invoice.read] }
     operations:
-      - { grant_id: invoice-fixture, operation: payment.invoice.settle, target: invoice-test-001, access: mutate, result: { payment_ref: payment_invoice_001, invoice_ref: invoice-test-001, amount_minor: 125, currency: USD, status: settled } }
-      - { grant_id: invoice-fixture, operation: payment.invoice.read, target: invoice-test-001, access: read, result: { payment_ref: payment_invoice_001, invoice_ref: invoice-test-001, amount_minor: 125, currency: USD, status: settled } }
+      - { operation: payment.invoice.settle, target: invoice-test-001, access: mutate, result: { payment_ref: payment_invoice_001, invoice_ref: invoice-test-001, amount_minor: 125, currency: USD, status: settled } }
+      - { operation: payment.invoice.read, target: invoice-test-001, access: read, result: { payment_ref: payment_invoice_001, invoice_ref: invoice-test-001, amount_minor: 125, currency: USD, status: settled } }
 expect: { status: sealed, receipt: { schema: runx.receipt.v1 } }

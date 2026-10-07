@@ -104,21 +104,4 @@ export function checkSessionPooling(findings) {
       findings.push(`${relative(filePath)} appears to pool arbitrary CLI/user commands`);
     }
   }
-  const mcpTransportPath = path.join(workspaceRoot, "crates/runx-runtime/src/adapters/mcp/transport.rs");
-  const mcpTransport = existsSync(mcpTransportPath) ? readFileSync(mcpTransportPath, "utf8") : "";
-  for (const pattern of [
-    /\bstruct\s+McpSessionManager\b/u,
-    /\bstruct\s+McpSessionKey\b/u,
-    /\breset_session_pool\b/u,
-    /\bspawned_process_count\b/u,
-  ]) {
-    if (!pattern.test(mcpTransport)) {
-      findings.push(`${relative(mcpTransportPath)} lacks required MCP session-pooling token ${pattern}`);
-    }
-  }
-  const perfHarnessPath = path.join(workspaceRoot, "scripts/runtime-throughput.mjs");
-  const perfHarness = existsSync(perfHarnessPath) ? readFileSync(perfHarnessPath, "utf8") : "";
-  if (!/\brunx-mcp-session-probe\b/u.test(perfHarness) || /mcp_session_reuse[\s\S]{0,400}source:\s*"node"/u.test(perfHarness)) {
-    findings.push(`${relative(perfHarnessPath)} must measure MCP session workloads through the Rust MCP session probe`);
-  }
 }

@@ -1,7 +1,8 @@
+use std::collections::{BTreeMap, BTreeSet};
+
 use runx_contracts::{JsonObject, JsonValue};
 use runx_parser::{
-    CatalogMetadata, GraphStep, SkillInput, SkillRunnerDefinition, SkillRunnerManifest,
-    ValidatedSkillPackage,
+    CatalogMetadata, SkillInput, SkillRunnerDefinition, SkillRunnerManifest, ValidatedSkillPackage,
 };
 
 use super::SkillInspectionError;
@@ -48,6 +49,10 @@ pub(super) fn inspect_runner(
         ),
     ]);
     output.insert(
+        "declared_result_packets".to_owned(),
+        JsonValue::Object(declared_result_packets(runner)),
+    );
+    output.insert(
         "requirements".to_owned(),
         serde_json::to_value(manifest.execution_requirements(runner))
             .and_then(serde_json::from_value)
@@ -57,14 +62,56 @@ pub(super) fn inspect_runner(
             })?,
     );
     insert_runner_contract_metadata(&mut output, runner)?;
-    let provider_requirements = inspect_provider_requirements(runner);
-    if !provider_requirements.is_empty() {
+    if !manifest.connectors.is_empty() {
         output.insert(
-            "provider_requirements".to_owned(),
-            JsonValue::Array(provider_requirements),
+            "connectors".to_owned(),
+            JsonValue::from_serialize(&manifest.connectors).map_err(|error| {
+                SkillInspectionError::Json {
+                    context: "serializing connector requirements",
+                    source: serde::ser::Error::custom(error),
+                }
+            })?,
         );
     }
     Ok(JsonValue::Object(output))
+}
+
+fn declared_result_packets(runner: &SkillRunnerDefinition) -> JsonObject {
+    let mut packets = BTreeMap::new();
+    let mut conflicting = BTreeSet::new();
+    let mut add = |artifacts: &runx_parser::SkillArtifactContract| {
+        if let (Some(named), Some(schemas)) = (&artifacts.named_emits, &artifacts.packets) {
+            for (name, schema) in schemas {
+                if !named.contains_key(name) {
+                    continue;
+                }
+                if packets.get(name).is_some_and(|prior| prior != schema) {
+                    conflicting.insert(name.clone());
+                } else {
+                    packets.insert(name.clone(), schema.clone());
+                }
+            }
+        }
+    };
+    if let Some(artifacts) = &runner.artifacts {
+        add(artifacts);
+    }
+    if let Some(graph) = &runner.source.graph {
+        for step in &graph.steps {
+            if graph.result_from.contains(&step.id)
+                && let Some(artifacts) = &step.artifacts
+            {
+                add(artifacts);
+            }
+        }
+    }
+    for name in conflicting {
+        packets.remove(&name);
+    }
+    packets
+        .into_iter()
+        .map(|(name, schema)| (name, JsonValue::String(schema)))
+        .collect()
 }
 
 fn insert_runner_contract_metadata(
@@ -108,51 +155,6 @@ fn insert_runner_contract_metadata(
         );
     }
     Ok(())
-}
-
-fn inspect_provider_requirements(runner: &SkillRunnerDefinition) -> Vec<JsonValue> {
-    runner
-        .source
-        .graph
-        .iter()
-        .flat_map(|graph| graph.steps.iter())
-        .filter_map(inspect_provider_requirement)
-        .collect()
-}
-
-fn inspect_provider_requirement(step: &GraphStep) -> Option<JsonValue> {
-    let tool = step.tool.as_deref()?;
-    let access = match tool {
-        "provider.read" => "read",
-        "provider.mutate" => "mutate",
-        _ => return None,
-    };
-    let provider = step.inputs.get("expected_provider")?.as_str()?;
-    if provider.trim().is_empty() || provider.starts_with('$') {
-        return None;
-    }
-    let mut requirement = JsonObject::from([
-        ("step_id".to_owned(), JsonValue::String(step.id.clone())),
-        (
-            "provider".to_owned(),
-            JsonValue::String(provider.to_owned()),
-        ),
-        ("access".to_owned(), JsonValue::String(access.to_owned())),
-        (
-            "scopes".to_owned(),
-            JsonValue::Array(step.scopes.iter().cloned().map(JsonValue::String).collect()),
-        ),
-    ]);
-    if let Some(operation) = step.inputs.get("operation").and_then(JsonValue::as_str) {
-        requirement.insert(
-            "operation".to_owned(),
-            JsonValue::String(operation.to_owned()),
-        );
-    }
-    if let Some(target) = step.inputs.get("target").and_then(JsonValue::as_str) {
-        requirement.insert("target".to_owned(), JsonValue::String(target.to_owned()));
-    }
-    Some(JsonValue::Object(requirement))
 }
 
 pub(super) fn catalog_capabilities(catalog: &CatalogMetadata) -> Option<JsonValue> {

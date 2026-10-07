@@ -13,13 +13,12 @@ inputs:
 caller:
   provider_responses:
     principal_id: nitrosend-fixture
-    grants:
-      - grant_id: nitrosend-content-review-fixture
+    grant:
+        grant_id: nitrosend-content-review-fixture
         provider: nitrosend
         scopes: [content.review]
     operations:
-      - grant_id: nitrosend-content-review-fixture
-        operation: content.review
+      - operation: content.review
         target: nitrosend://content-review
         access: read
         result:

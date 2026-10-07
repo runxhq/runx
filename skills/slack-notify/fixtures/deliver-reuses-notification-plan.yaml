@@ -31,25 +31,23 @@ inputs:
 caller:
   provider_responses:
     principal_id: operator-fixture
-    grants:
-      - grant_id: slack-notify-chain-fixture
+    grant:
+        grant_id: slack-notify-chain-fixture
         provider: slack
         scopes: [channel.post, channel.post.read]
     operations:
-      - grant_id: slack-notify-chain-fixture
-        operation: channel.post
+      - operation: channel.post
         target: slack://T123/C456
         access: mutate
         result: { message_locator: slack://T123/C456/1750000000.000001, conversation_locator: slack://T123/C456, content_digest: sha256:2497ff7c585df614f84f034872869ceff21afbaaab7230fb9b1fa0d271a122fb, occurred_at: "2026-08-11T00:00:00Z" }
-      - grant_id: slack-notify-chain-fixture
-        operation: channel.post.read
+      - operation: channel.post.read
         target: slack://T123/C456
         access: read
         result: { message_locator: slack://T123/C456/1750000000.000001, conversation_locator: slack://T123/C456, content_digest: sha256:2497ff7c585df614f84f034872869ceff21afbaaab7230fb9b1fa0d271a122fb, occurred_at: "2026-08-11T00:00:00Z" }
   approvals:
-    "provider-effect:sha256:c2d20aeee14b921317e19cb74847501dc55772e67fe762029625a0e33a5e5de7": true
+    "operation:sha256:5cfd6679c6cd59f0edacd9ed27a7b2a5816fdd5bf83c7b68be1c956c3ce47988": true
 expect:
   status: sealed
-  steps: [digest, bind-plan, bind-content, deliver, readback]
+  steps: [digest, bind-plan, bind-content, deliver, prepare-readback, readback]
   receipt: { schema: runx.receipt.v1, state: sealed, disposition: closed }
 metadata: { public_skill: slack-notify, source_case: composed-delivery-success, source: skills-fixture }

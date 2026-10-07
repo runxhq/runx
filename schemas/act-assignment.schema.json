@@ -28,7 +28,7 @@
           "enum": [
             "cli",
             "api",
-            "github_issue_comment",
+            "comment",
             "system"
           ],
           "type": "string"

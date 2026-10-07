@@ -1,4 +1,4 @@
-//! Source packet contract: normalized, redacted intake from any source loader.
+//! Source packet contract: normalized intake with an explicit redaction status.
 //!
 //! `SourcePacket` is the canonical wire shape every source adapter produces
 //! before handing off to triage / action skills. It carries provider-neutral
@@ -78,7 +78,7 @@ mod tests {
             schema: SourcePacketSchema::V1,
             packet_id: "src_pkt_001".into(),
             source_ref: Reference {
-                reference_type: ReferenceType::SlackThread,
+                reference_type: ReferenceType::Thread,
                 uri: "slack://team/T1/channel/C1/thread/1700000000.0001".into(),
                 provider: Some("slack".into()),
                 locator: Some("team/C1/1700000000.0001".into()),
@@ -111,7 +111,7 @@ mod tests {
             "schema": "runx.source_packet.v1",
             "packet_id": "src_pkt_001",
             "source_ref": {
-                "type": "slack_thread",
+                "type": "thread",
                 "uri": "slack://team/T1/channel/C1/thread/1700000000.0001",
             },
             "signal_type": "chat_message",

@@ -1,5 +1,5 @@
 skill: web-fetch
-version: "0.4.0"
+version: "0.4.1"
 
 catalog:
   kind: graph
@@ -10,6 +10,10 @@ catalog:
   completion: provider_readback
   requires_adapter: false
   approval: none
+
+connectors:
+  web:
+    operations: [page.read]
 
 runners:
   web-fetch:
@@ -40,15 +44,7 @@ runners:
         type: string
         required: false
         default: text
-        description: "Extraction mode: text, metadata, or links. Defaults to text."
-      max_bytes:
-        type: number
-        required: false
-        default: 1000000
-        description: "Positive cap on response bytes read; a clipped read is flagged truncated."
-        schema:
-          minimum: 1
-          maximum: 8388608
+        description: "Extraction mode: text, metadata, links, or json. Defaults to text."
     examples:
       - url: https://example.com/
         extract: text
@@ -58,11 +54,9 @@ runners:
       steps:
         - id: fetch
           label: fetch one allowlisted web source
-          tool: web.fetch
-          scopes:
-            - net:allowlist
+          operation: web/page.read
           inputs:
-            url: "$input.url"
-            allowlist: "$input.allowlist"
-            extract: "$input.extract"
-            max_bytes: "$input.max_bytes"
+            input:
+              url: "$input.url"
+              allowlist: "$input.allowlist"
+              extract: "$input.extract"

@@ -1,0 +1,21 @@
+[package]
+name = "runx-assistant"
+version = "0.1.0"
+publish = false
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "The local runx assistant: standing work over governed runs."
+
+[lints]
+workspace = true
+
+[dependencies]
+chrono = "0.4.45"
+ring = "0.17.14"
+runx-contracts.workspace = true
+runx-runtime = { workspace = true, features = ["cli-tool", "catalog", "agent"] }
+serde.workspace = true
+serde_json.workspace = true
+url.workspace = true

@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.runx.ai/runx/decision-observation/v1.json",
+  "x-runx-packet-id": "runx.decision_observation.v1",
+  "x-runx-generated-from": "schemas/decision-observation.schema.json",
+  "anyOf": [
+    {
+      "additionalProperties": false,
+      "properties": {
+        "coverage_complete": {
+          "type": "boolean"
+        },
+        "next_cursor": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "nonce": {
+          "type": "string"
+        },
+        "request_digest": {
+          "type": "string"
+        },
+        "status": {
+          "const": "pending",
+          "type": "string"
+        }
+      },
+      "required": [
+        "status",
+        "request_digest",
+        "nonce",
+        "coverage_complete",
+        "next_cursor"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "actor_ref": {
+          "type": "string"
+        },
+        "approved": {
+          "type": "boolean"
+        },
+        "evidence_ref": {
+          "type": "string"
+        },
+        "nonce": {
+          "type": "string"
+        },
+        "occurred_at": {
+          "type": "string"
+        },
+        "origin": {
+          "enum": [
+            "human_account",
+            "app_or_bot",
+            "unknown"
+          ],
+          "type": "string"
+        },
+        "presentation_ref": {
+          "type": "string"
+        },
+        "request_digest": {
+          "type": "string"
+        },
+        "status": {
+          "const": "decided",
+          "type": "string"
+        }
+      },
+      "required": [
+        "status",
+        "request_digest",
+        "nonce",
+        "presentation_ref",
+        "actor_ref",
+        "origin",
+        "evidence_ref",
+        "occurred_at",
+        "approved"
+      ],
+      "type": "object"
+    }
+  ],
+  "x-runx-packet": true,
+  "x-runx-schema": "runx.decision_observation.v1"
+}

@@ -15,7 +15,7 @@ return that slice by digest with the provenance needed to trust it later.
 `web-fetch` retrieves a single public URL,
 extracts text, metadata, or links, and seals the result so a downstream step can
 cite the fetch without re-fetching. It checks the final host against the
-effective host policy before and after redirects, retrieves up to `max_bytes`, and returns
+effective host policy before and after redirects, reads the page whole, and returns
 the final URL, the HTTP status, a `content_digest` over the retrieved body, the
 extracted slice, and a provenance block recording when it ran, every redirect
 hop, and how many bytes it read. The body is referenced by digest; only the
@@ -31,7 +31,8 @@ operator needs to narrow the initial request and every redirect to named hosts.
 
 The request path is native Runx code. Skills do not supply a JavaScript HTTP
 client: the runtime owns public-network enforcement, redirect admission,
-timeouts, retries, byte limits, response digests, and receipt-safe evidence.
+timeouts, retries, the operator's page ceiling, response digests, and
+receipt-safe evidence.
 
 ## When to use this skill
 
@@ -50,7 +51,7 @@ timeouts, retries, byte limits, response digests, and receipt-safe evidence.
 - To reach a private, loopback, link-local, or otherwise non-public address.
 - To reach a host outside an explicitly supplied `allowlist`, including a host
   reached only through a redirect.
-- To write anything. The only scope is `net:allowlist`; there is no repo, file,
+- To write anything. The only scope is `web.read`; there is no repo, file,
   wallet, or send authority here.
 - To inline a large raw body. The extracted slice is the payload; the full body
   lives behind `content_digest`.
@@ -68,15 +69,18 @@ timeouts, retries, byte limits, response digests, and receipt-safe evidence.
    was checked against.
 3. Fetch, following redirects, re-checking each redirect target's host against
    the same `allowlist`. A redirect that lands off-allowlist halts the fetch,
-   returns `policy_denied` with the hop that failed, and discards partial
-   bodies. Cap the read at `max_bytes` when set.
+   fails with `policy_denied` naming the hop that failed. The page is read
+   whole: a page larger than the operator's ceiling (`RUNX_WEB_READ_MAX_BYTES`,
+   64 MiB by default) fails with `response_too_large` instead of being cut.
 4. Compute `content_digest` over the retrieved body.
 5. Extract per `extract`: `text` (readable body text, default), `metadata`
-   (title, description, canonical, declared language, content type), or `links`
-   (absolute hrefs found in the document).
-6. Return `fetch_result` with the final URL, status, digest, extracted slice,
-   and provenance. Flag truncated reads in provenance; never return a clipped
-   read as if whole.
+   (title, description, canonical, declared language, content type), `links`
+   (absolute hrefs found in the document), or `json` (the body as one JSON
+   document).
+6. Return the `provider_operation` packet whose result holds the final URL,
+   status, digest, extracted slice, and provenance. A refused URL, a transport
+   failure, or a non-2xx answer fails the step; no result stands for a page
+   that was not read.
 
 ## Edge cases and stop conditions
 
@@ -86,8 +90,9 @@ timeouts, retries, byte limits, response digests, and receipt-safe evidence.
   record the attempted host, not a response body (there is none).
 - **Redirect off the allowlist:** halt the fetch, return `policy_denied` naming
   the hop that failed, and discard the partial body.
-- **Read clipped by `max_bytes`:** flag `truncated: true` in provenance; the
-  digest is over the bytes actually retrieved.
+- **Page past the ceiling:** fail with `response_too_large`; the operator
+  raises `RUNX_WEB_READ_MAX_BYTES` to read it. A partial page is never
+  returned.
 - **Large raw body:** never inline beyond the extracted slice; anything bigger
   than the requested view is reachable only through `content_digest`.
 - **Authenticated source:** stop and use the relevant provider read skill; this
@@ -96,45 +101,43 @@ timeouts, retries, byte limits, response digests, and receipt-safe evidence.
 ## Output schema
 
 ```yaml
-fetch_result:
-  decision: ready | needs_agent | policy_denied | provider_error
-  final_url: string            # URL after redirects, the one the digest is over
-  status: number               # HTTP status of the final response
-  content_digest: string       # digest of the retrieved body, algorithm prefix included
-  extract_mode: text | metadata | links
-  extracted: string | object | array   # string for text, object for metadata, array of hrefs for links
-  provenance:
-    fetched_at: string         # timestamp of the fetch
-    redirects: array           # ordered host hops, each re-checked against the allowlist
-    bytes: number              # bytes read
-    truncated: boolean         # true when max_bytes clipped the read
-  policy:
-    allowlist_decision: allowed | denied
-    attempted_host: string     # set on policy_denied
-    allowlist_checked: array   # the hosts the request was checked against
+provider_operation:
+  data:
+    provider: web
+    operation: page.read
+    result:
+      final_url: string            # URL after redirects, the one the digest is over
+      status: number               # HTTP status of the final response
+      content_digest: string       # digest of the body, algorithm prefix included
+      extract_mode: text | metadata | links | json
+      extracted: string | object | array   # text, metadata object, hrefs, or the JSON document
+      provenance:
+        fetched_at: string         # timestamp of the fetch
+        redirects: array           # ordered hops, each re-checked against the allowlist
+        bytes: number              # bytes read
 ```
 
 The sealed `runx.receipt.v1` carries the final URL, status, `content_digest`,
-byte count, the redirect chain, and the allowlist decision. It carries no header
+byte count, and the redirect chain. A denied host fails the step with
+`policy_denied` before any request leaves. The receipt carries no header
 values, no cookies, and no raw body beyond the digest.
 
 ## Worked example
 
 Input: `url` of the HTTP Semantics RFC, an `allowlist` of `www.rfc-editor.org`
-and `rfc-editor.org`, `extract: text`, and `max_bytes: 200000`.
+and `rfc-editor.org`, and `extract: text`.
 
-Output: `decision: ready`; the host matched the allowlist before the request
-left; no redirects; status `200`; `content_digest` is taken over the retrieved
-body; `extracted` holds the readable text slice; provenance records
-`fetched_at`, an empty redirect chain, `184302` bytes, and `truncated: false`.
-The receipt seals with the final URL, status, digest, byte count, and the
-allowlist decision; no header value reaches it.
+Output: the host matched the allowlist before the request left; no redirects;
+status `200`; `content_digest` is taken over the whole body; `extracted` holds
+the readable text slice; provenance records `fetched_at`, an empty redirect
+chain, and `184302` bytes.
+The receipt seals with the final URL, status, digest, and byte count; no header
+value reaches it.
 
 ## Inputs
 
 - `url` (required): the single public HTTP(S) URL to fetch.
 - `allowlist` (optional): permitted hosts or host patterns for the URL and every
   redirect target. Omit it for `["*"]`, meaning any publicly routable host.
-- `extract` (optional): `text`, `metadata`, or `links`. Defaults to `text`.
-- `max_bytes` (optional): cap on bytes read; a clipped read is flagged
-  `truncated` in provenance.
+- `extract` (optional): `text`, `metadata`, `links`, or `json`. Defaults to
+  `text`.

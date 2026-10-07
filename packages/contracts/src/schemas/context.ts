@@ -64,22 +64,11 @@ export const environmentRequirementsSchema = Type.Object(
   { additionalProperties: false },
 );
 
-export const executionCredentialRequirementSchema = Type.Object(
-  {
-    name: Type.String(),
-    provider: Type.String(),
-    audience: Type.Optional(Type.String()),
-    deliveries: Type.Record(Type.String(), Type.String()),
-  },
-  { additionalProperties: false },
-);
-
 export const executionRequirementsSchema = Type.Object(
   {
     auth: Type.Optional(Type.Unknown()),
     scopes: Type.Optional(Type.Array(Type.String())),
     environment: Type.Optional(environmentRequirementsSchema),
-    credential: Type.Optional(executionCredentialRequirementSchema),
     runtime: Type.Optional(Type.Unknown()),
   },
   { additionalProperties: false },

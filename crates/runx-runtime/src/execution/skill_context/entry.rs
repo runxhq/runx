@@ -36,6 +36,13 @@ pub(super) fn skill_context_entry(
     Ok(ContextEntry {
         entry_type: Some(non_empty(CONTEXT_ENTRY_TYPE)?),
         version: ContextEntryVersion::V1,
+        scope: runx_contracts::ContextScope {
+            purpose: runx_contracts::ContextPurpose::Procedure,
+            trust: runx_contracts::ContextTrust::SkillInstructions,
+            sharing: runx_contracts::ContextSharing::ConfiguredModel,
+            goal_id: None,
+            source_ref: None,
+        },
         data: input.data,
         meta: ContextArtifactMeta {
             artifact_id: non_empty(artifact_id)?,

@@ -103,9 +103,9 @@ runx history <receipt-id> --detail --json
   package. It never generates a placeholder module. To cold-start without
   installing Runx first, use the same command through `npx @runxhq/cli`.
 - Compose the example into a graph with [Skill To Graph](./skill-to-graph.md).
-- Configure provider-backed skills once with
-  [Credential Resolution](./credentials.md); agents and MCP use the same
-  readiness path automatically.
+- Bind provider accounts once as described in
+  [Credentials](./credentials.md); agents and MCP use the same readiness path
+  automatically.
 - Publish a ready skill from a public repo at https://runx.ai/x/publish, or run
   `crates/target/debug/runx login --for publish` followed by
   `crates/target/debug/runx registry publish ... --registry https://api.runx.ai`.

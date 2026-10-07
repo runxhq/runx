@@ -6,6 +6,25 @@ use crate::tool_catalogs::native::fixture_input;
 const SOURCE_DIGEST: &str =
     "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 
+/// A `web/page.read` step output carrying these source fields.
+fn web_read(result: JsonObject) -> JsonValue {
+    JsonValue::Object(JsonObject::from([(
+        "provider_operation".to_owned(),
+        JsonValue::Object(JsonObject::from([(
+            "data".to_owned(),
+            JsonValue::Object(JsonObject::from([
+                ("status".to_owned(), JsonValue::String("success".to_owned())),
+                ("provider".to_owned(), JsonValue::String("web".to_owned())),
+                (
+                    "operation".to_owned(),
+                    JsonValue::String("page.read".to_owned()),
+                ),
+                ("result".to_owned(), JsonValue::Object(result)),
+            ])),
+        )])),
+    )]))
+}
+
 #[test]
 fn indexes_a_governed_fetch_packet() {
     let inputs = fixture_input::<EvidenceIndexInput>(JsonObject::from([
@@ -15,37 +34,33 @@ fn indexes_a_governed_fetch_packet() {
         ),
         (
             "source_packets".to_owned(),
-            JsonValue::Array(vec![JsonValue::Object(JsonObject::from([(
-                "data".to_owned(),
-                JsonValue::Object(JsonObject::from([
-                    ("decision".to_owned(), JsonValue::String("ready".to_owned())),
-                    ("status".to_owned(), JsonValue::Number(JsonNumber::U64(200))),
-                    (
-                        "final_url".to_owned(),
-                        JsonValue::String("https://example.com/report".to_owned()),
-                    ),
-                    (
-                        "content_digest".to_owned(),
-                        JsonValue::String(SOURCE_DIGEST.to_owned()),
-                    ),
-                    (
-                        "extracted".to_owned(),
-                        JsonValue::String("Verified report text".to_owned()),
-                    ),
-                    (
-                        "provenance".to_owned(),
-                        JsonValue::Object(JsonObject::from([
-                            (
-                                "fetched_at".to_owned(),
-                                JsonValue::String("2026-07-18T00:00:00Z".to_owned()),
-                            ),
-                            ("bytes".to_owned(), JsonValue::Number(JsonNumber::U64(20))),
-                            ("truncated".to_owned(), JsonValue::Bool(false)),
-                            ("redirects".to_owned(), JsonValue::Array(Vec::new())),
-                        ])),
-                    ),
-                ])),
-            )]))]),
+            JsonValue::Array(vec![web_read(JsonObject::from([
+                ("status".to_owned(), JsonValue::Number(JsonNumber::U64(200))),
+                (
+                    "final_url".to_owned(),
+                    JsonValue::String("https://example.com/report".to_owned()),
+                ),
+                (
+                    "content_digest".to_owned(),
+                    JsonValue::String(SOURCE_DIGEST.to_owned()),
+                ),
+                (
+                    "extracted".to_owned(),
+                    JsonValue::String("Verified report text".to_owned()),
+                ),
+                (
+                    "provenance".to_owned(),
+                    JsonValue::Object(JsonObject::from([
+                        (
+                            "fetched_at".to_owned(),
+                            JsonValue::String("2026-07-18T00:00:00Z".to_owned()),
+                        ),
+                        ("bytes".to_owned(), JsonValue::Number(JsonNumber::U64(20))),
+                        ("truncated".to_owned(), JsonValue::Bool(false)),
+                        ("redirects".to_owned(), JsonValue::Array(Vec::new())),
+                    ])),
+                ),
+            ]))]),
         ),
     ]))
     .expect("typed index input");
@@ -80,7 +95,6 @@ fn invalid_fetch_evidence_is_blocked_without_runtime_failure() {
         (
             "source_packets".to_owned(),
             JsonValue::Array(vec![JsonValue::Object(JsonObject::from([
-                ("decision".to_owned(), JsonValue::String("ready".to_owned())),
                 ("status".to_owned(), JsonValue::Number(JsonNumber::U64(200))),
                 (
                     "final_url".to_owned(),

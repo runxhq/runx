@@ -1,12 +1,24 @@
 const TERMINAL = new Set(["complete", "failed", "pending"]);
 
+/**
+ * The read of one payment, targeting the resource it paid for, so the grant
+ * that authorized the payment authorizes reading it back.
+ */
 export function prepareReadback(inputs) {
   const paymentRef = inputs.payment_ref;
   if (typeof paymentRef !== "string" || !paymentRef.trim()
     || paymentRef !== paymentRef.trim() || paymentRef.length > 300) {
     throw new Error("x402 payment reference is invalid.");
   }
-  return { readback_request: Object.freeze({ payment_ref: paymentRef }) };
+  const resourceUrl = inputs.resource_url;
+  if (typeof resourceUrl !== "string" || !/^https:\/\/[^\s/?#]+[^\s]*$/u.test(resourceUrl)
+    || resourceUrl.length > 2048) {
+    throw new Error("x402 resource URL must be the exact HTTPS URL that was paid.");
+  }
+  return {
+    readback_request: Object.freeze({ payment_ref: paymentRef, resource_url: resourceUrl }),
+    expected_result: Object.freeze({ payment_ref: paymentRef }),
+  };
 }
 
 export function requireCompleteReadback(inputs) {

@@ -1,6 +1,6 @@
 ---
 name: moltbook
-description: Scan Moltbook for credible opportunities, prepare evidence-bound posts, and publish an exact approved payload through any compatible provider binding with readback.
+description: Scan Moltbook for credible opportunities, prepare evidence-bound posts, and publish an exact approved post, confirmed by reading it back.
 runx:
   category: content
 ---
@@ -19,8 +19,10 @@ more active.”
 
 ## Runners
 
-The default `scan-provider` reads a bounded feed through the provider boundary,
-then follows the same evidence path as `scan`. Use `scan` explicitly when replaying an
+The default `scan-provider` reads the newest posts, optionally in one submolt,
+through `moltbook/feed.scan`, then follows the same evidence path as `scan`.
+Each post becomes one evidence item whose source reference is
+`moltbook:post:<id>`. Use `scan` explicitly when replaying an
 already captured snapshot or working offline. Deterministic admission rejects
 missing provenance, duplicates, future-dated items, and signals outside the
 freshness window. The analysis may recommend at most one opportunity and must
@@ -29,33 +31,36 @@ outline. Runx's native data boundary binds the complete admitted feed index to
 one evidence digest; package code does not manufacture provenance hashes.
 
 `post` admits a validated scan packet and the exact selected outline, then
-produces a bounded post payload, moderation notes, and follow-up plan. It cannot
-introduce claims unsupported by the scan evidence.
+produces a post payload for the selected submolt, moderation notes, and
+follow-up plan. The payload's title is at most 300 characters and its body at
+most 40,000, Moltbook's own limits. It cannot introduce claims unsupported by
+the scan evidence.
 
 Neither analysis runner publishes. Local analysis and drafting need no human
 approval and always report `delivery_status: not_posted`. `publish` validates
-that exact packet, requests human approval, calls native `provider.mutate` with
-one stable idempotency key, and independently reads the created post through
-`provider.read`. Provider acceptance without the `post.read` result is not
-completion. Tokens and request plumbing remain outside the package.
+that exact packet, binds its payload digest, and runs `moltbook/post.create`
+after exact human approval with one stable idempotency key. The operation
+posts the title and body to the submolt, then reads the created post back and
+requires the same id, title and body. Acceptance without that readback is not
+completion.
 
-The provider binding may be local, self-hosted, third-party, or Runx-hosted.
-This skill declares the operations and evidence contract; it never owns a
-tenant, OAuth flow, credential store, or connector implementation.
+The Moltbook connector holds the agent's API key, set once with
+`runx credential set moltbook --credential api_key --from-stdin`. The package
+never sees the key or makes its own requests.
 
 ## Inputs and result
 
 Provider scanning takes the objective, community context, explicit `as_of`
-time, freshness window, and a bounded maximum item count; supplied scanning
-accepts the equivalent feed snapshot. Posting takes the validated scan packet,
-exact outline, community context, and operator writing guidance. Operator
-guidance shapes the post; it does not authorize publication.
+time, freshness window, at most 100 posts to read, and an optional submolt;
+supplied scanning accepts the equivalent feed snapshot. Posting takes the
+validated scan packet, exact outline, target submolt, community context, and
+operator writing guidance. Operator guidance shapes the post; it does not
+authorize publication.
 
 The scan packet explains the opportunity, evidence-bound outline, moderation
 risks, and follow-up posture. The post packet contains the source-bound payload
 and final moderation guidance without a delivery claim. `publish` additionally
-emits the native mutation and readback packets that prove what the provider
-accepted and what it subsequently returned.
+emits the operation packet carrying the post Moltbook returned on readback.
 
 ## Stop conditions
 
@@ -66,8 +71,8 @@ accepted and what it subsequently returned.
 - Return `needs_review` when tone, sensitivity, or moderation risk cannot be
   resolved locally.
 - Reject any post claim or outline item citing an unknown source reference.
-- Refuse a missing, ambiguous, wrong-provider, or under-scoped provider binding;
-  never fall back to a raw token or package HTTP client.
+- Refuse when no Moltbook credential is set; never fall back to a raw token
+  or package HTTP client.
 - Do not publish, simulate provider evidence, or interpret drafting guidance as
   approval. A mutation without independent post readback is incomplete.
 
@@ -92,6 +97,8 @@ has no credible angle. Never claim a post occurred.
 
 ### `moltbook-post`
 
-Write one post from the admitted outline and source references. Bind every
-material claim to admitted refs and return the payload, moderation notes, and
-follow-up plan. Do not publish or claim delivery.
+Write one post for the selected submolt from the admitted outline and source
+references. Return the payload with `channel: moltbook`, that `submolt`, a
+`title` of at most 300 characters and a `body` of at most 40,000, plus
+moderation notes and a follow-up plan. Bind every material claim to admitted
+refs. Do not publish or claim delivery.

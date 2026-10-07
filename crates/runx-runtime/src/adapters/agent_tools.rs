@@ -23,12 +23,12 @@ use crate::tool_catalogs::dispatch::{ToolDispatchRequest, dispatch_tool};
 const MANAGED_AGENT_SKILL: &str = "managed-agent";
 
 /// Executes the agent's chosen tools through the governed runtime, carrying the
-/// run context (env, skill directory, credential delivery) the resolver captured
-/// from the agent invocation.
+/// run context (env, skill directory) the resolver captured from the agent
+/// invocation. An agent's tools receive no credential; a connector operation
+/// is where credentials are delivered.
 pub struct RuntimeToolExecutor {
     env: BTreeMap<String, String>,
     skill_directory: PathBuf,
-    credential_delivery: CredentialDelivery,
     effects: RuntimeEffectRegistry,
     observed_at: String,
     allowed_tools: BTreeSet<String>,
@@ -42,7 +42,6 @@ impl RuntimeToolExecutor {
     pub fn new(
         env: BTreeMap<String, String>,
         skill_directory: PathBuf,
-        credential_delivery: CredentialDelivery,
         effects: RuntimeEffectRegistry,
         observed_at: impl Into<String>,
         allowed_tools: impl IntoIterator<Item = String>,
@@ -51,7 +50,6 @@ impl RuntimeToolExecutor {
         Self {
             env,
             skill_directory,
-            credential_delivery,
             effects,
             observed_at: observed_at.into(),
             allowed_tools: allowed_tools.into_iter().collect(),
@@ -100,7 +98,7 @@ impl ToolExecutor for RuntimeToolExecutor {
             scopes: &self.scopes,
             env: &self.env,
             skill_directory: &self.skill_directory,
-            credential_delivery: &self.credential_delivery,
+            credential_delivery: &CredentialDelivery::none(),
             local_artifacts: &self.local_artifacts,
             javascript: &self.javascript,
             skill_name: tool,
@@ -134,7 +132,6 @@ mod tests {
                 workspace.path().to_string_lossy().into_owned(),
             )]),
             workspace.path().to_path_buf(),
-            CredentialDelivery::none(),
             RuntimeEffectRegistry::default(),
             "2026-01-01T00:00:00Z",
             ["git.status".to_owned()],
@@ -157,7 +154,6 @@ mod tests {
         let executor = RuntimeToolExecutor::new(
             BTreeMap::new(),
             PathBuf::from("."),
-            CredentialDelivery::none(),
             RuntimeEffectRegistry::default(),
             "2026-01-01T00:00:00Z",
             ["definitely-not-a-real-tool".to_owned()],
@@ -180,7 +176,6 @@ mod tests {
                 workspace.path().to_string_lossy().into_owned(),
             )]),
             workspace.path().to_path_buf(),
-            CredentialDelivery::none(),
             RuntimeEffectRegistry::default(),
             "2026-01-01T00:00:00Z",
             ["fs.write".to_owned()],
@@ -216,7 +211,6 @@ mod tests {
         let executor = RuntimeToolExecutor::new(
             BTreeMap::new(),
             PathBuf::from("."),
-            CredentialDelivery::none(),
             RuntimeEffectRegistry::default(),
             "2026-01-01T00:00:00Z",
             ["fs.read".to_owned()],
@@ -234,7 +228,6 @@ mod tests {
         let executor = RuntimeToolExecutor::new(
             BTreeMap::new(),
             PathBuf::from("."),
-            CredentialDelivery::none(),
             RuntimeEffectRegistry::default(),
             "2026-01-01T00:00:00Z",
             ["/tmp/manifest.json".to_owned()],

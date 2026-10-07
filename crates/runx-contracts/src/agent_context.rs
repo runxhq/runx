@@ -50,8 +50,48 @@ pub struct ContextEntry {
     #[serde(rename = "type")]
     pub entry_type: Option<NonEmptyString>,
     pub version: ContextEntryVersion,
+    pub scope: ContextScope,
     pub data: JsonObject,
     pub meta: ContextArtifactMeta,
+}
+
+/// Declares how context may be interpreted and where it may be shared. These
+/// labels never grant execution authority or manufacture a human decision.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ContextScope {
+    pub purpose: ContextPurpose,
+    pub trust: ContextTrust,
+    pub sharing: ContextSharing,
+    pub goal_id: Option<NonEmptyString>,
+    pub source_ref: Option<NonEmptyString>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum ContextPurpose {
+    Procedure,
+    Mandate,
+    ConfirmedMemory,
+    Observation,
+    WorkContinuity,
+    RetrievedHistory,
+    Hypothesis,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum ContextTrust {
+    OperatorConfirmed,
+    SkillInstructions,
+    UntrustedEvidence,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum ContextSharing {
+    LocalOnly,
+    ConfiguredModel,
 }
 
 /// One input/output provenance edge.
@@ -73,6 +113,7 @@ pub struct ProvenanceEntry {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ProfileFile {
+    pub sharing: ContextSharing,
     pub root_path: NonEmptyString,
     pub path: NonEmptyString,
     pub sha256: NonEmptyString,

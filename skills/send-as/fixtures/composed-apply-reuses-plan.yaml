@@ -16,7 +16,7 @@ inputs:
     decision: ready
     action_family: send-as
     principal: { type: account, ref: account:release-bot }
-    provider: { name: provider-send-demo, account_ref: acct_release, runtime_path: provider.send }
+    provider: { name: slack, account_ref: acct_release, runtime_path: provider.send }
     send_class: status
     channel: email
     audience: { type: channel, ref: release-subscribers, requires_reconfirmation: false }
@@ -27,23 +27,22 @@ inputs:
     gates: { preflight_required: true, human_approval_required: true, approval_ref: send-as.live-send.approval }
     blockers: []
     provider_actions: [message.send]
-    evidence_refs: [provider_context:provider-send-demo]
+    evidence_refs: [provider_context:slack]
     success_checkpoint:
       milestone: send_ready_for_approval
       description: The exact digest-bound release notice awaits live-send approval.
   connector:
-    provider: provider-send-demo
+    provider: slack
     target: account:acct_release/channel:release-subscribers
 caller:
   provider_responses:
     principal_id: release-bot-fixture
-    grants:
-      - grant_id: send-as-composed-fixture
-        provider: provider-send-demo
+    grant:
+        grant_id: send-as-composed-fixture
+        provider: slack
         scopes: [message.send]
     operations:
-      - grant_id: send-as-composed-fixture
-        operation: message.send
+      - operation: message.send
         target: account:acct_release/channel:release-subscribers
         access: mutate
         result:
@@ -55,7 +54,7 @@ caller:
           sent_at: "2026-08-11T00:00:00Z"
           idempotency_key: $request.idempotency_key
   approvals:
-    "provider-effect:sha256:9798897109b5968adf6b38caf3afd31378b16729cbe215778c871c43d8e14aed": true
+    "operation:sha256:64d1a6c856631ef462acc932a1d62a70ca7e6d47b66a0de5c90cbc82ccab29db": true
 expect:
   status: sealed
   receipt:

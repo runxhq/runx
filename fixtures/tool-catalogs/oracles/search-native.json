@@ -1,0 +1,43 @@
+{
+  "status": "success",
+  "query": "fs.read",
+  "source": "native",
+  "results": [
+    {
+      "tool_id": "native/fs.read",
+      "name": "fs.read",
+      "summary": "Read one bounded UTF-8 file through native workspace and symlink containment.",
+      "source": "runx-runtime/filesystem",
+      "source_label": "runx-runtime/filesystem",
+      "source_type": "native",
+      "namespace": "fs",
+      "external_name": "read",
+      "required_scopes": [
+        "fs.read"
+      ],
+      "tags": [
+        "native",
+        "runx"
+      ],
+      "catalog_ref": "fs.read"
+    },
+    {
+      "tool_id": "native/fs.read_bundle",
+      "name": "fs.read_bundle",
+      "summary": "Read a bounded set of UTF-8 files through one native containment boundary.",
+      "source": "runx-runtime/filesystem",
+      "source_label": "runx-runtime/filesystem",
+      "source_type": "native",
+      "namespace": "fs",
+      "external_name": "read_bundle",
+      "required_scopes": [
+        "fs.read"
+      ],
+      "tags": [
+        "native",
+        "runx"
+      ],
+      "catalog_ref": "fs.read_bundle"
+    }
+  ]
+}

@@ -198,8 +198,7 @@ fn writes_and_proves_one_contained_file() -> Result<(), Box<dyn std::error::Erro
 }
 
 #[test]
-fn native_file_tools_cannot_change_receipt_authority_state()
--> Result<(), Box<dyn std::error::Error>> {
+fn native_file_tools_cannot_change_kernel_state() -> Result<(), Box<dyn std::error::Error>> {
     let workspace = tempfile::tempdir()?;
     let alternate = tempfile::tempdir()?;
     let env = BTreeMap::from([(
@@ -211,11 +210,11 @@ fn native_file_tools_cannot_change_receipt_authority_state()
     let effects = RuntimeEffectRegistry::default();
     for root in [workspace.path(), alternate.path()] {
         for filename in [
-            "notification-authorities.json",
-            "provider-effects.json",
+            "kernel.sqlite",
+            "kernel.sqlite-wal",
+            "kernel.sqlite-shm",
             ".receipt-store.lock",
-            ".notification-authorities.json.tmp.123-456",
-            ".provider-effects.json.tmp.123-456",
+            "..receipt-store.lock.tmp.123-456",
         ] {
             let path = format!("receipts/{filename}");
             let protected = root.join(&path);
@@ -301,38 +300,19 @@ fn native_file_tools_cannot_change_receipt_authority_state()
 
 #[cfg(unix)]
 #[test]
-fn file_tool_cannot_replace_lock_while_native_revocation_waits()
+fn file_tool_cannot_replace_lock_while_a_receipt_write_waits()
 -> Result<(), Box<dyn std::error::Error>> {
     use std::fs::OpenOptions;
     use std::os::unix::fs::MetadataExt;
     use std::sync::{Arc, Barrier, mpsc};
-    use std::time::{Duration, SystemTime, UNIX_EPOCH};
+    use std::time::Duration;
 
     use fs2::FileExt;
 
-    use crate::{
-        NotificationAuthorityGrant, NotificationAuthorityGrantSpec, install_notification_authority,
-        notification_authority_status, revoke_notification_authority,
-    };
-
     let workspace = tempfile::tempdir()?;
     let receipt_dir = workspace.path().join("receipts");
-    let now = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
-    install_notification_authority(
-        &receipt_dir,
-        NotificationAuthorityGrant::new(NotificationAuthorityGrantSpec {
-            authority_id: "test-authority".to_owned(),
-            provider_grant_id: "provider-grant".to_owned(),
-            principal_ref: "runx:principal:test".to_owned(),
-            target: "slack://T123/C456".to_owned(),
-            source_set_digest:
-                "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".to_owned(),
-            expires_at_unix_seconds: now + 3600,
-            max_posts_total: 1,
-            max_posts_per_day: 1,
-            max_text_bytes: 400,
-        })?,
-    )?;
+    fs::create_dir_all(&receipt_dir)?;
+    crate::LocalReceiptStore::new(&receipt_dir).rebuild_index()?;
     let lock_path = receipt_dir.join(".receipt-store.lock");
     let lock = OpenOptions::new().read(true).write(true).open(&lock_path)?;
     lock.lock_exclusive()?;
@@ -344,7 +324,7 @@ fn file_tool_cannot_replace_lock_while_native_revocation_waits()
     let worker_started = Arc::clone(&started);
     let worker = std::thread::spawn(move || {
         worker_started.wait();
-        let result = revoke_notification_authority(&worker_root, "test-authority");
+        let result = crate::LocalReceiptStore::new(&worker_root).rebuild_index();
         let _ignored = sender.send(result);
     });
     started.wait();
@@ -387,14 +367,8 @@ fn file_tool_cannot_replace_lock_while_native_revocation_waits()
     assert!(receiver.recv_timeout(Duration::from_millis(50)).is_err());
     FileExt::unlock(&lock)?;
     receiver.recv_timeout(Duration::from_secs(3))??;
-    worker.join().map_err(|_| "revocation worker panicked")?;
+    worker.join().map_err(|_| "receipt worker panicked")?;
     assert_eq!(fs::metadata(&lock_path)?.ino(), original_inode);
-    assert!(
-        notification_authority_status(&receipt_dir, "test-authority")?
-            .ok_or("missing authority")?
-            .revoked_at_unix_seconds
-            .is_some()
-    );
     Ok(())
 }
 

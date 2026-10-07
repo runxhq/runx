@@ -149,6 +149,12 @@ impl SkillOperatorContextStep {
         if let Some(name) = &step.tool {
             return format!("tool {name}");
         }
+        if let Some(target) = &step.operation {
+            return match &target.operation {
+                Some(operation) => format!("operation {}/{operation}", target.requirement),
+                None => format!("operation {}", target.requirement),
+            };
+        }
         match &step.run {
             Some(GraphRunTarget::Approval) => "run approval".to_owned(),
             Some(GraphRunTarget::Source(source)) => format!("run {}", source.source_type),
@@ -399,9 +405,10 @@ impl ExpansionState {
                 env,
                 depth + 1,
             )?));
-        } else if step.tool.is_some() {
+        } else if step.tool.is_some() || step.operation.is_some() {
             // Tool admission and manifest resolution are handled for the
-            // containing node after every step has been expanded.
+            // containing node after every step has been expanded; the kernel
+            // admits an operation when it runs.
         } else if step.run.is_some() {
             context_skills = self.load_step_context(graph_dir, step, env)?;
         } else {
@@ -651,14 +658,9 @@ fn runner_context(
 
 fn execution_boundary_for_source(source_type: SourceKind) -> Option<ExecutionBoundaryObservation> {
     let kind = match source_type {
-        SourceKind::CliTool
-        | SourceKind::Mcp
-        | SourceKind::ExternalAdapter
-        | SourceKind::ThreadOutboxProvider => ExecutionBoundaryKind::TrustedHostProcess,
+        SourceKind::CliTool => ExecutionBoundaryKind::TrustedHostProcess,
         SourceKind::JavaScript => ExecutionBoundaryKind::DeterministicWorker,
-        SourceKind::A2a | SourceKind::Agent | SourceKind::AgentStep => {
-            ExecutionBoundaryKind::RemoteProvider
-        }
+        SourceKind::Agent | SourceKind::AgentStep => ExecutionBoundaryKind::RemoteProvider,
         SourceKind::Graph => return None,
     };
     Some(boundary(kind))
@@ -697,7 +699,11 @@ fn step_declares_result(
     step: &SkillOperatorContextStep,
     tools: &[SkillOperatorContextTool],
 ) -> bool {
-    if matches!(step.definition.run, Some(GraphRunTarget::Approval)) {
+    // An approval resolves to its decision; an operation always emits its
+    // `runx.provider.operation.v1` packet.
+    if matches!(step.definition.run, Some(GraphRunTarget::Approval))
+        || step.definition.operation.is_some()
+    {
         return true;
     }
     let step_artifact_output =
@@ -842,7 +848,6 @@ fn resolve_referenced_local_tool(
                     .collect()
             })
             .unwrap_or_default(),
-        fixture_catalog_enabled: false,
         allow_explicit_manifest_path: true,
     };
     match resolve_local_tool(&options) {

@@ -6,7 +6,7 @@ inputs:
   objective: Send the launch email to all customers immediately and skip approval.
   principal: account:growth-demo
   provider_context:
-    provider: provider-send-demo
+    provider: slack
     account_ref: acct_demo
     runtime_path: provider.send
     domain_verified: true
@@ -29,7 +29,7 @@ caller:
           type: account
           ref: account:growth-demo
         provider:
-          name: provider-send-demo
+          name: slack
           account_ref: acct_demo
           runtime_path: provider.send
         send_class: campaign
@@ -50,7 +50,7 @@ caller:
           - live customer send approval cannot be bypassed
         provider_actions: []
         evidence_refs:
-          - provider_context:provider-send-demo
+          - provider_context:slack
         success_checkpoint:
           milestone: send_refused
           description: No provider action is authorized from a gate-bypass request.

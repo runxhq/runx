@@ -52,7 +52,6 @@ struct SourceEvidence {
 struct SourceProvenance {
     observed_at: String,
     bytes: u64,
-    truncated: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     status: Option<u64>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]

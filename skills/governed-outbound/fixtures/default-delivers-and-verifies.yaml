@@ -49,23 +49,21 @@ caller:
         success_checkpoint: { milestone: send_ready_for_approval, description: The exact scrubbed message is ready for provider delivery. }
   provider_responses:
     principal_id: outbound-fixture
-    grants:
-      - grant_id: outbound-fixture
+    grant:
+        grant_id: outbound-fixture
         provider: slack
         scopes: [message.send, message.read]
     operations:
-      - grant_id: outbound-fixture
-        operation: message.send
+      - operation: message.send
         target: channel:incidents
         access: mutate
         result: { message_id: msg_incident_001, principal_ref: account:ops-bot, audience_ref: "#incidents", content_digest: sha256:b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9, status: sent, sent_at: "2026-08-11T00:00:00Z", idempotency_key: $request.idempotency_key }
-      - grant_id: outbound-fixture
-        operation: message.read
+      - operation: message.read
         target: channel:incidents
         access: read
         result: { message_id: msg_incident_001, principal_ref: account:ops-bot, audience_ref: "#incidents", content_digest: sha256:b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9, status: sent, sent_at: "2026-08-11T00:00:00Z", idempotency_key: $previous.idempotency_key }
   approvals:
-    "provider-effect:sha256:9806544d0c10b0011dbb04ce21acda01217f84c41983312e90996047eaac1d8c": true
+    "operation:sha256:d6904a66a86eb54ae1504f6f046b625b86e4ae0d0c285e29812162b2e00f0ce8": true
 expect:
   status: sealed
   steps: [fetch-source, scrub-content, send]

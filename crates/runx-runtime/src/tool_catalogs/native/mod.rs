@@ -38,15 +38,11 @@ mod git;
 mod handoff;
 #[cfg(feature = "catalog")]
 mod hosted_artifacts;
-#[cfg(feature = "async-http")]
-mod http;
 mod input;
 mod policy;
 mod receipt_tools;
 #[cfg(feature = "catalog")]
 mod snapshot;
-#[cfg(feature = "async-http")]
-mod web;
 mod workspace;
 
 mod catalog;
@@ -80,10 +76,6 @@ const CAPABILITY_GROUPS: &[&[&dyn NativeCapability]] = &[
     git::CAPABILITIES,
     #[cfg(feature = "cli-tool")]
     cli::CAPABILITIES,
-    #[cfg(feature = "async-http")]
-    http::CAPABILITIES,
-    #[cfg(feature = "async-http")]
-    web::CAPABILITIES,
     data::CAPABILITIES,
     handoff::CAPABILITIES,
     event_store::CAPABILITIES,
@@ -146,17 +138,6 @@ impl<I: ?Sized> NativeInvocation<'_, I> {
         #[cfg(feature = "catalog")]
         {
             self.effects.harness_http_responses()
-        }
-        #[cfg(not(feature = "catalog"))]
-        {
-            None
-        }
-    }
-
-    fn harness_http_exchanges(&self) -> Option<&[crate::http::RuntimeHarnessHttpExchange]> {
-        #[cfg(feature = "catalog")]
-        {
-            self.effects.harness_http_exchanges()
         }
         #[cfg(not(feature = "catalog"))]
         {

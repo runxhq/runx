@@ -15,10 +15,12 @@ use runx_contracts::{JsonObject, JsonValue};
 use runx_core::policy::{ScopeGrantPolicy, missing_granted_scopes};
 use tokio::sync::mpsc;
 
-use crate::effects::{PROVIDER_PERMISSION_GRANT_ID_ENV, PROVIDER_PERMISSION_GRANTED_SCOPES_ENV};
+use crate::kernel::instances::{
+    INJECTED_GRANT_ID_ENV, INJECTED_GRANTED_SCOPES_ENV, decode_injected_scopes,
+};
 
-use super::rmcp_content_length::{RmcpContentLengthTransport, RmcpTransportErrorState};
 use super::server_skill::{execute_mcp_server_skill, identifier_segment};
+use super::stdio_transport::{StdioJsonRpcTransport, TransportErrorState};
 use super::types::{
     McpContent, McpServerError, McpServerOptions, McpServerSkillExecution, McpServerTool,
     McpServerToolBehavior, McpToolResult,
@@ -165,8 +167,8 @@ where
     R: Read + Send + Unpin + 'static,
     W: Write + Send + Unpin + 'static,
 {
-    let error_state = RmcpTransportErrorState::default();
-    let transport = RmcpContentLengthTransport::new(
+    let error_state = TransportErrorState::default();
+    let transport = StdioJsonRpcTransport::new(
         ChannelAsyncRead::spawn(input),
         BlockingAsyncWrite::new(output),
         MAX_SERVER_REQUEST_BYTES,
@@ -319,20 +321,23 @@ fn admit_mcp_tool_scopes(
         return Ok(());
     }
     let Some(grant_id) = env
-        .get(PROVIDER_PERMISSION_GRANT_ID_ENV)
+        .get(INJECTED_GRANT_ID_ENV)
         .map(|value| value.trim())
         .filter(|value| !value.is_empty())
     else {
         return Err(rmcp_invalid_params(format!(
-            "MCP tool '{tool_name}' requires scopes [{}], but no operator provider grant id was supplied in {PROVIDER_PERMISSION_GRANT_ID_ENV}",
+            "MCP tool '{tool_name}' requires scopes [{}], but no operator provider grant id was supplied in {INJECTED_GRANT_ID_ENV}",
             required_scopes.join(", ")
         )));
     };
     let granted_scopes = env
-        .get(PROVIDER_PERMISSION_GRANTED_SCOPES_ENV)
+        .get(INJECTED_GRANTED_SCOPES_ENV)
         .map(|value| {
-            crate::decode_provider_scopes_env(value)
-                .map_err(|error| rmcp_invalid_params(error.to_string()))
+            decode_injected_scopes(value).ok_or_else(|| {
+                rmcp_invalid_params(format!(
+                    "{INJECTED_GRANTED_SCOPES_ENV} must be a JSON array of non-blank scopes"
+                ))
+            })
         })
         .transpose()?
         .unwrap_or_default();
@@ -726,13 +731,10 @@ mod tests {
         );
 
         let mut env = BTreeMap::from([
+            (INJECTED_GRANT_ID_ENV.to_owned(), "grant-gh".to_owned()),
             (
-                PROVIDER_PERMISSION_GRANT_ID_ENV.to_owned(),
-                "grant-gh".to_owned(),
-            ),
-            (
-                PROVIDER_PERMISSION_GRANTED_SCOPES_ENV.to_owned(),
-                crate::encode_provider_scopes_env(&["repo.read".to_owned()])?,
+                INJECTED_GRANTED_SCOPES_ENV.to_owned(),
+                crate::encode_injected_scopes(&["repo.read".to_owned()]).ok_or("scopes")?,
             ),
         ]);
         let result = admit_mcp_tool_scopes("github-write", &required_scopes, &env);
@@ -742,11 +744,9 @@ mod tests {
         );
 
         env.insert(
-            PROVIDER_PERMISSION_GRANTED_SCOPES_ENV.to_owned(),
-            crate::encode_provider_scopes_env(&[
-                "repo.read".to_owned(),
-                "issues.write".to_owned(),
-            ])?,
+            INJECTED_GRANTED_SCOPES_ENV.to_owned(),
+            crate::encode_injected_scopes(&["repo.read".to_owned(), "issues.write".to_owned()])
+                .ok_or("scopes")?,
         );
         let result = admit_mcp_tool_scopes("github-write", &required_scopes, &env);
         assert!(
@@ -755,8 +755,8 @@ mod tests {
         );
 
         env.insert(
-            PROVIDER_PERMISSION_GRANTED_SCOPES_ENV.to_owned(),
-            crate::encode_provider_scopes_env(&["repo:*".to_owned()])?,
+            INJECTED_GRANTED_SCOPES_ENV.to_owned(),
+            crate::encode_injected_scopes(&["repo:*".to_owned()]).ok_or("scopes")?,
         );
         assert!(admit_mcp_tool_scopes("github-read", &["repo:read".to_owned()], &env).is_ok());
         assert!(

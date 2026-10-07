@@ -16,6 +16,8 @@ use crate::filesystem::{DirectoryEntry, find_files_named, read_dir_sorted};
 mod inspection;
 mod retention;
 
+#[cfg(feature = "async-http")]
+pub use inspection::inspect_connector_readiness;
 pub(crate) use inspection::inspect_loaded_execution_closure_binding;
 #[cfg(feature = "cli-tool")]
 pub(crate) use inspection::{LocalExecutionClosure, inspect_loaded_local_execution_closure};
@@ -406,6 +408,32 @@ fn relative_path(path: &Path) -> Result<String, RuntimeError> {
 
 pub(crate) fn ignored_package_entry(name: &str) -> bool {
     matches!(name, ".git" | ".runx" | "node_modules" | "target")
+}
+
+/// Validate and materialize a proposed invocation without dispatching it.
+/// Uses the same admitted package and input validator as native execution.
+pub fn validate_skill_runner_inputs(
+    path: &std::path::Path,
+    runner_name: &str,
+    inputs: &runx_contracts::JsonObject,
+) -> Result<runx_contracts::JsonObject, crate::RuntimeError> {
+    let loaded = load_validated_skill_package(path)?;
+    let manifest = loaded
+        .manifest()
+        .ok_or_else(|| crate::RuntimeError::ReceiptInvalid {
+            message: "skill has no runner manifest".to_owned(),
+        })?;
+    let runner =
+        manifest
+            .runners
+            .get(runner_name)
+            .ok_or_else(|| crate::RuntimeError::ReceiptInvalid {
+                message: format!("skill has no runner {runner_name}"),
+            })?;
+    let mut inputs = inputs.clone();
+    crate::input_contract::apply_defaults(&runner.inputs, &mut inputs);
+    crate::input_contract::materialize_complete_runner_inputs(&runner.inputs, &inputs)
+        .map_err(|error| error.into_runtime_error())
 }
 
 #[cfg(test)]

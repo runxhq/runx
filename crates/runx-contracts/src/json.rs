@@ -9,6 +9,9 @@ use serde_json::{Value, json};
 use crate::schema::RunxSchema;
 
 mod deserializer;
+mod serializer;
+
+pub use serializer::Error as JsonValueError;
 
 pub type JsonObject = BTreeMap<String, JsonValue>;
 
@@ -59,6 +62,11 @@ impl JsonValue {
         T: serde::de::DeserializeOwned,
     {
         deserializer::from_json_value(self)
+    }
+
+    /// Serialize a typed value directly into the canonical Runx JSON tree.
+    pub fn from_serialize<T: Serialize + ?Sized>(value: &T) -> Result<Self, JsonValueError> {
+        serializer::to_json_value(value)
     }
 
     #[must_use]
@@ -119,11 +127,40 @@ pub fn json_bool_field(object: &JsonObject, field: &str) -> Option<bool> {
 /// Public serialization rejects non-finite floats. Act assignment idempotency
 /// hashing deliberately uses a separate JSON.stringify-compatible writer that
 /// hashes non-finite floats as `null`.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub enum JsonNumber {
     I64(i64),
     U64(u64),
     F64(f64),
+}
+
+/// Numbers are equal when they serialize, and so digest, as the same JSON
+/// number, whichever variant holds them.
+impl PartialEq for JsonNumber {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::I64(left), Self::I64(right)) => left == right,
+            (Self::U64(left), Self::U64(right)) => left == right,
+            (Self::I64(signed), Self::U64(unsigned)) | (Self::U64(unsigned), Self::I64(signed)) => {
+                u64::try_from(*signed).is_ok_and(|signed| signed == *unsigned)
+            }
+            (Self::F64(float), Self::I64(integer)) | (Self::I64(integer), Self::F64(float)) => {
+                float.fract() == 0.0 && *float == *integer as f64 && *float as i64 == *integer
+            }
+            (Self::F64(float), Self::U64(integer)) | (Self::U64(integer), Self::F64(float)) => {
+                float.fract() == 0.0 && *float == *integer as f64 && *float as u64 == *integer
+            }
+            (Self::F64(left), Self::F64(right)) => left == right,
+        }
+    }
+}
+
+/// An unsigned integer in canonical form: `I64` whenever it fits, so equal
+/// numbers compare equal whatever produced them.
+impl From<u64> for JsonNumber {
+    fn from(value: u64) -> Self {
+        i64::try_from(value).map_or(Self::U64(value), Self::I64)
+    }
 }
 
 impl JsonNumber {
@@ -209,7 +246,7 @@ impl Visitor<'_> for JsonNumberVisitor {
     where
         E: de::Error,
     {
-        Ok(i64::try_from(value).map_or(JsonNumber::U64(value), JsonNumber::I64))
+        Ok(JsonNumber::from(value))
     }
 
     fn visit_f64<E>(self, value: f64) -> Result<Self::Value, E>
@@ -247,6 +284,16 @@ mod tests {
     struct TypedFixture {
         name: String,
         flags: Vec<bool>,
+    }
+
+    #[test]
+    fn numbers_are_equal_when_they_serialize_alike() {
+        assert_eq!(JsonNumber::U64(200), JsonNumber::I64(200));
+        assert_eq!(JsonNumber::from(200), JsonNumber::I64(200));
+        assert_eq!(JsonNumber::F64(3.0), JsonNumber::U64(3));
+        assert_ne!(JsonNumber::I64(-1), JsonNumber::U64(u64::MAX));
+        assert_ne!(JsonNumber::F64(3.5), JsonNumber::I64(3));
+        assert_eq!(JsonNumber::from(u64::MAX), JsonNumber::U64(u64::MAX));
     }
 
     #[test]

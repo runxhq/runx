@@ -5,9 +5,9 @@ use std::hint::black_box;
 
 use criterion::Criterion;
 use runx_contracts::{JsonNumber, JsonObject, JsonValue};
+use runx_runtime::RuntimeEffectRegistry;
 use runx_runtime::adapters::agent_loop::ToolExecutor;
 use runx_runtime::adapters::agent_tools::RuntimeToolExecutor;
-use runx_runtime::{CredentialDelivery, RuntimeEffectRegistry};
 use tempfile::TempDir;
 
 use super::{bool_field, record_native_metric, u64_field, wrapped_data};
@@ -76,7 +76,6 @@ impl ArtifactFixture {
                 directory.path().to_string_lossy().into_owned(),
             )]),
             directory.path().to_path_buf(),
-            CredentialDelivery::none(),
             RuntimeEffectRegistry::default(),
             "2026-07-20T00:00:00Z",
             ["artifact.admit".to_owned(), "artifact.read".to_owned()],

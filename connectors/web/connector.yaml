@@ -1,0 +1,32 @@
+schema: runx.connector.v1
+id: web
+name: Web
+description: Read public web pages over HTTP(S).
+auth:
+  none: {}
+placements:
+  local:
+    auth: [none]
+operations:
+  page.read:
+    description: Fetch one public web page and extract its text, metadata, links or JSON document. Private networks are refused, and redirects must stay inside the call's host allowlist.
+    verb: read
+    scopes: [web.read]
+    target:
+      template: {"$argument": "/url"}
+    input_schema:
+      type: object
+      required: [url]
+      additionalProperties: false
+      properties:
+        url: {type: string, format: uri, pattern: "^https?://"}
+        allowlist:
+          type: array
+          minItems: 1
+          maxItems: 64
+          uniqueItems: true
+          items: {type: string, minLength: 1, maxLength: 253}
+        extract: {type: string, enum: [text, metadata, links, json]}
+    result_fields: [final_url, status, content_digest, extract_mode, extracted, provenance]
+    implementation:
+      web: {}

@@ -30,7 +30,6 @@ pub(super) fn inspect_catalog_tool(
             source: None,
             search_from_directory: skill_directory.to_path_buf(),
             tool_roots: configured_tool_roots(env),
-            fixture_catalog_enabled: false,
             allow_explicit_manifest_path: false,
         },
         effects,
@@ -112,6 +111,7 @@ pub(super) fn invoke(
         InvocationContract::DataAdapter => (request.inputs.as_ref().clone(), JsonObject::new()),
     };
     let invocation = SkillInvocation {
+        historical_context: Vec::new(),
         skill_name: resolution.tool.name,
         step_id: None,
         source: resolution.tool.source,
@@ -172,7 +172,6 @@ fn inspect_options(request: &ToolDispatchRequest<'_>, tool_ref: &str) -> ToolIns
         source: None,
         search_from_directory: request.skill_directory.to_path_buf(),
         tool_roots: configured_tool_roots(request.env),
-        fixture_catalog_enabled: false,
         allow_explicit_manifest_path: request.allow_explicit_manifest_path,
     }
 }

@@ -93,7 +93,13 @@ pub(crate) fn materialize_graph_parameter_inputs(
 ) -> ExecutionGraph {
     for step in &mut graph.steps {
         let declared_inputs = std::mem::take(&mut step.inputs);
-        let mut inputs = graph_inputs.clone();
+        // An operation call is exactly what its step declares; graph
+        // parameters reach it only through `$input` references.
+        let mut inputs = if step.operation.is_some() {
+            JsonObject::new()
+        } else {
+            graph_inputs.clone()
+        };
         // Graph inputs are ambient graph parameters, but a context edge is the
         // explicit producer for its input name. Remove only that ambient value
         // here. The parser separately rejects a real collision between the

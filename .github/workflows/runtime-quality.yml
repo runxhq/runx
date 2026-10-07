@@ -71,7 +71,6 @@ jobs:
         run: |
           pnpm stress:runtime:mcp
           pnpm stress:runtime:cli-tool
-          pnpm stress:runtime:external-adapter
           pnpm stress:runtime:fanout
 
       - name: Verify performance harness

@@ -104,7 +104,6 @@ runx mcp serve ./fixtures/skills/echo
 runx skill ./skills/skill-lab design --objective "build github review skill"
 runx harness ./fixtures/harness/echo-skill.yaml
 runx config set agent.provider openai
-runx config set agent.model gpt-5.1
 printf '%s' "$OPENAI_API_KEY" | runx config set agent.api_key --from-stdin
 ```
 
@@ -153,9 +152,9 @@ the same package and execution-closure digests, so changing a skill, transitive
 child package, or runtime closure cannot merge incompatible checkpoint history.
 
 Execution ceilings remain owned by the capability they constrain rather than
-being flattened into one misleading global number: an MCP call timeout, an
-outbox timeout, a native command argument budget, and a file-bundle budget are
-different contracts. Their constants use capability-qualified names. Limits
+being flattened into one misleading global number: a provider operation request
+timeout, a managed-agent request timeout, a native command argument budget, and
+a file-bundle budget are different contracts. Their constants use capability-qualified names. Limits
 that are selectable per invocation or materially shape a sealed execution are
 typed at the invocation boundary; deterministic-module limits and any limit hit
 are copied into signed receipt metadata.
@@ -168,25 +167,32 @@ reject exact secret-field names before the data can enter receipts. That check
 is not a general text heuristic and never removes URLs or unrelated operator
 diagnostics.
 
-With `agent.provider`, `agent.model`, and `agent.api_key` configured, the CLI
-can now resolve managed agent work directly. Deterministic tools, approvals,
-and required human inputs keep their existing local behavior.
+With `agent.provider` and `agent.api_key` configured, the CLI can resolve
+managed agent work directly. Deterministic tools, approvals, and required human
+inputs keep their existing local behavior. `anthropic`, `openai` and `gemini`
+are built-in providers, each reading its own key variable when `agent.api_key`
+is unset and using its default model (`claude-opus-5-5`, `gpt-6-sol`,
+`gemini-3-pro-preview`) when `agent.model` is unset. Any other provider, and
+any configured `agent.endpoint_url`, also sets `agent.model`; another provider
+sets `agent.dialect` (`chat_completions` or `anthropic_messages`) and
+`agent.endpoint_url` too, and reads only `agent.api_key` or
+`RUNX_AGENT_API_KEY`.
 
 Prepared context never asks for performative approval: it binds the selected
 skill, inputs, execution closure, and drift guards into the receipt. A
-consequential action stops once at its owning boundary. Native
-`provider.mutate` accepts an optional typed `approval` request; when it is
-present, the provider effect suspends for one exact host-attested human
-decision. When it is absent, the admitted provider grant is sufficient and no
-performative gate is invented. Use an explicit graph approval only when no
+consequential action stops once at its owning boundary. An `operation` step
+accepts an optional typed `approval` request, and an operation the connector
+marks `approval: required` always needs one; the kernel then suspends the call
+for one exact host-attested human decision. Otherwise the admitted grant is
+sufficient and no performative gate is invented. Use an explicit graph approval only when no
 native effect owns the consequential decision. There is no persistent or
 environment-based auto-approval override; development configuration must not
 silently acquire live authority.
 
-Provider-backed skills declare requirements in `X.yaml`; configure them with
-`runx credential` or an ignored workspace `.env`. See
-[Credential Resolution](credentials.md) for the exact precedence and storage
-contract.
+Provider-backed skills list the connectors they call in `X.yaml`; bind an
+account with `runx credential set <connector> --credential <name>
+--from-stdin` or `runx connector use`. See
+[Credentials](credentials.md) for the storage contract.
 
 Ctrl-C (or the terminal's configured interrupt shortcut) interrupts the whole
 active Runx context, including supervised tool, JavaScript, adapter, and MCP
@@ -216,7 +222,7 @@ independent inspection:
     "steps": [
       {
         "step_id": "read",
-        "skill": "provider.read",
+        "skill": "operation",
         "status": "success",
         "receipt_id": "sha256:..."
       }
@@ -292,18 +298,16 @@ For the generated package export index, see [docs/api-surface.md](api-surface.md
 
 `runx-runtime` is the canonical local runtime. It owns local skill, graph,
 harness, receipt, history, policy, authority, payment, typed
-execution-boundary evidence, MCP, built-in adapter execution, and external
-execution-adapter supervision for the native CLI path.
+execution-boundary evidence, MCP, and built-in adapter execution for the native
+CLI path.
 
 TypeScript remains for generated contracts, CLI/client wrappers,
 cloud/product integrations, host adapters, and protocol helper SDKs over
 language-neutral protocols. Host adapters can shape host responses over
-the runx host protocol; they do not own local execution. External execution
-adapter authors target manifests and wire protocols, so they do not need Rust,
-`runx-core`, `runx-runtime`, or a fork of the core repository. Source-event
-ingress, hosted runtime binding, catalog/read-model access, and thread/outbox
-provider adapters are separate protocol lanes, not reasons to broaden the
-execution-adapter protocol into a second runtime.
+the runx host protocol; they do not own local execution. Tool authors target
+manifests and process contracts, so they do not need Rust, `runx-core`,
+`runx-runtime`, or a fork of the core repository. Source-event ingress, hosted
+runtime binding, and catalog/read-model access are separate protocol lanes.
 
 Command-surface ownership:
 
@@ -313,8 +317,7 @@ Command-surface ownership:
 | `runx harness <fixture.yaml>` | Rust harness replay | tests and wrapper views |
 | receipts and history | Rust receipt store and journal | display/client views |
 | policy, authority, payment, x402 | Rust core/runtime policy | published type mirrors and product UX |
-| governed data operations | typed native operations plus external provider adapters | generated types, helper SDKs, provider glue |
-| external execution-adapter protocol | `runx-runtime` supervisor | generated types, helper SDKs, host/client wrappers |
+| governed data operations | typed native operations plus provider adapter tools | generated types, helper SDKs, provider glue |
 | non-execution extension protocols | lane-specific Rust/cloud owners | generated types, helper SDKs, provider glue |
 | skill authoring and `runx new` | `runx-runtime` authoring service plus `skill-lab` | npm launcher only |
 | marketplace and docs projection | Rust-owned catalog/contracts | generated docs and client views |
@@ -360,7 +363,7 @@ owner for bounded text; they are not alternate large-file transports.
 
 ### Local Process Boundary
 
-`cli-tool`, MCP, and external-adapter process sources are trusted host code.
+`cli-tool` process sources are trusted host code.
 Their exact non-secret configuration is declared through
 `environment.required` and `environment.optional`; credentials use the
 separate credential contract. Runx controls exact argv, cwd, delivered
@@ -475,39 +478,40 @@ them.
 Every graph runner declares its intentional public result producers:
 
 ```yaml
+connectors:
+  moltbook:
+    operations: [post.create]
 graph:
-  name: publish-and-readback
-  result_from: [readback]
+  name: publish
+  result_from: [publish]
   steps:
     - id: publish
-      tool: provider.mutate
+      operation: moltbook/post.create
       idempotency_key: $input.idempotency_key
-      scopes: [post.write]
-      policy: { provider_permission: { verb: write } }
       inputs:
-        operation: post.create
-        target: $input.target
-        expected_provider: $input.provider
-        idempotency_key: $input.idempotency_key
         approval:
-          reason: Approve publishing this exact digest-bound post.
-          type: post_publication
-    - id: readback
-      tool: provider.read
+          reason: Approve publishing this exact post.
+          type: moltbook_post
+        result_fields: [post]
+        input:
+          submolt_name: $input.submolt
+          title: $input.title
+          content: $input.body
 ```
 
-The approval request is optional. Omit it when the scoped grant is the complete
-authority for the operation. When present, it is part of the provider plan
-digest and the native effect owner returns a resumable approval request before
-dispatch. The runtime constructs the operator summary from the admitted
-provider, operation, target, scopes, payload digest, plan digest, and amount
-when present; package code cannot inject a second free-form account of the act.
-Do not place a `run: approval` step next to the same provider mutation; one
-effect has one approval owner.
+The verb, scopes, target and readbacks come from the connector operation, and
+the kernel confirms a write by its declared readbacks before the step
+succeeds. The approval request is optional unless the operation requires one.
+When present, it is part of the intent digest and the kernel returns a
+resumable approval request, `operation:<intent digest>`, before dispatch. The
+runtime constructs the operator summary from the admitted connector,
+operation, target, scopes, payload digest, intent digest, and amount when
+present; package code cannot inject a second free-form account of the act. Do
+not place a `run: approval` step next to the same operation; one effect has
+one approval owner.
 
-For generic native `fs.write`, `fs.apply_bundle`, `command.execute`, and
-`http.execute` calls, the runner's exact scopes and containment are sufficient
-by default. Add an explicit `run: approval` guard only when the domain action
+For generic native `fs.write`, `fs.apply_bundle`, and `command.execute` calls,
+the runner's exact scopes and containment are sufficient by default. Add an explicit `run: approval` guard only when the domain action
 itself requires a human decision, such as publishing a release. Runx does not
 infer that requirement from the capability's write-shaped effect.
 
@@ -687,8 +691,8 @@ runx publish ./.runx/receipts/<receipt-id>.json
 `runx publish` posts the full sealed receipt to `POST /v1/receipts/notarize`
 with `publish: true`, then prints the public `/r` link and content hash returned
 by the notary. Configure the hosted API with `RUNX_PUBLIC_API_BASE_URL` (default
-`https://api.runx.ai`) and authenticate with `RUNX_PUBLIC_API_TOKEN` or `--token`
-(or run `runx login --for publish`). The stored publish credential is separate
+`https://api.runx.ai`) and authenticate with `RUNX_PUBLIC_API_TOKEN` (or run
+`runx login --for publish`). The stored publish credential is separate
 from the default operator credential used by Connect and provider effects. Runx
 requires HTTPS for non-loopback API origins so the bearer token cannot be sent
 to a public plaintext endpoint.
@@ -697,9 +701,8 @@ For local hosted dogfood only, point at a loopback API and opt into the private
 network escape explicitly:
 
 ```bash
-runx publish ./.runx/receipts/<receipt-id>.json \
+RUNX_PUBLIC_API_TOKEN=dev-token runx publish ./.runx/receipts/<receipt-id>.json \
   --api-base-url http://127.0.0.1:47882 \
-  --token dev-token \
   --allow-local-api
 ```
 
@@ -808,12 +811,14 @@ credentials or a fragment. An exact exchange may admit POST, PUT, PATCH, or
 DELETE; an unmatched mutation
 fails without reaching the network, and the legacy lane keeps its narrower
 method rules. Declaring either lane activates harness-only transport with no
-live fallback. Native `web.fetch`, `http.read`, `http.query`, and
-`http.execute` still own their real admission, request preparation, response
-limits, digests, redaction, and provenance; only transport response bytes come
-from the harness. Live `http.execute` mutations remain single-attempt. Neither
-fixture lane is available to skill inputs, environment configuration, or
-ordinary live runs.
+live fallback. Connector operations still own their real admission, request
+rendering, authentication, decoding, custody and readbacks; only transport
+response bytes come from the harness. `mcp_calls` stands in for a connector's
+MCP server the same way, matched on tool, arguments and session headers, and
+`setup.credentials` stores the one credential of a listed connector whose
+variable the case sets. A case that stops on a request it did not answer names
+that request in its status mismatch. Neither fixture lane is available to
+skill inputs, environment configuration, or ordinary live runs.
 
 Package replay uses a disposable project-owned workspace below `.runx/harness`
 and a separate receipt store for every case, then cleans that scratch state.
@@ -861,13 +866,12 @@ The package must include `dist/index.js` and `dist/index.d.ts`, and `dist/index.
 - `oss/` (this repository) must not import from `cloud/` (the private companion workspace, not part of this checkout).
 - State-machine and policy packages remain pure.
 - Rust owns trusted local runtime/execution, including exact process
-  supervision, receipts, policy, authority, payment, harness, built-in
-  adapters, and external execution-adapter supervision.
+  supervision, receipts, policy, authority, payment, harness, and built-in
+  adapters.
 - TypeScript runtime-local and adapters packages must not be fallback
   executors for trusted local behavior.
-- External execution adapters own their side effects behind language-neutral
-  protocols and manifests; non-execution extension lanes have their own
-  protocol contracts.
+- Tools own their side effects behind language-neutral manifests and process
+  contracts; non-execution extension lanes have their own protocol contracts.
 - External extension authors must not need Rust, a `runx-core` or
   `runx-runtime` dependency, or a core repository fork.
 - CLI, SDK, IDE plugin, host adapter, and MCP entrypoints delegate to runner

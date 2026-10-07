@@ -6,9 +6,10 @@ mod types;
 mod validate;
 
 pub use types::{
-    ExecutionGraph, FanoutBranchFailurePolicy, FanoutConflictAction, FanoutConflictGate,
-    FanoutGroupPolicy, FanoutSyncStrategy, FanoutThresholdAction, FanoutThresholdGate,
-    GraphContextEdge, GraphGuard, GraphPolicy, GraphRetryPolicy, GraphRunTarget, GraphStep,
-    MintAuthorityDirective, MintScopeSource, RawGraphIr,
+    DuplicatePolicy, ExecutionGraph, FanoutBranchFailurePolicy, FanoutConflictAction,
+    FanoutConflictGate, FanoutGroupPolicy, FanoutSyncStrategy, FanoutThresholdAction,
+    FanoutThresholdGate, GraphContextEdge, GraphGuard, GraphPolicy, GraphRetryPolicy,
+    GraphRunTarget, GraphStep, MintAuthorityDirective, OperationStepTarget, RawGraphIr,
+    UncertainOutcome,
 };
 pub use validate::{parse_graph_yaml, validate_graph, validate_graph_document};

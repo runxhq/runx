@@ -1,6 +1,6 @@
 {
   "status": "success",
-  "query": "not-a-fixture-tool",
-  "source": "fixture-mcp",
+  "query": "not-a-native-tool",
+  "source": "native",
   "results": []
 }

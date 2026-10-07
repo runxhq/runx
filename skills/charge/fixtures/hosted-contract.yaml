@@ -16,11 +16,11 @@ inputs:
   verify_capability_ref: "capability:test"
   idempotency_seed: charge-test-001
 caller:
-  approvals: { "provider-effect:sha256:128b3659b1bda65aaf11ee7cf9be37ae8a919aa6be502f8d0ceab9fedf22766a": true }
+  approvals: { "operation:sha256:d72ac0c33c9919bcda2fd10bad5b30c310d9296ea677455c1734f1e1905d2405": true }
   provider_responses:
     principal_id: charge-fixture
-    grants: [{ grant_id: charge-fixture, provider: mpp, scopes: [payment.charge, payment.charge.read] }]
+    grant: { grant_id: charge-fixture, provider: mpp, scopes: [payment.charge, payment.charge.read] }
     operations:
-      - { grant_id: charge-fixture, operation: payment.charge, target: "provider:demo", access: mutate, result: { charge_ref: charge_test_001, settlement_family: mpp, status: settled, credential_ref: "credential:test" } }
-      - { grant_id: charge-fixture, operation: payment.charge.read, target: "provider:demo", access: read, result: { charge_ref: charge_test_001, settlement_family: mpp, status: settled, credential_ref: "credential:test" } }
+      - { operation: payment.charge, target: "provider:demo", access: mutate, result: { charge_ref: charge_test_001, settlement_family: mpp, status: settled, credential_ref: "credential:test" } }
+      - { operation: payment.charge.read, target: charge_test_001, access: read, result: { charge_ref: charge_test_001, settlement_family: mpp, status: settled, credential_ref: "credential:test" } }
 expect: { status: sealed, receipt: { schema: runx.receipt.v1 } }

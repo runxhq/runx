@@ -106,8 +106,6 @@ const receiptBench = {
 const defaultWorkloads = [
   "graph_planning",
   "wide_fanout",
-  "mcp_session_start",
-  "mcp_session_reuse",
   "native_cli_launch",
   "receipt_canonicalization",
   "graph_receipt_sealing",
@@ -127,8 +125,6 @@ const defaultWorkloads = [
   "cli_file_input",
 ];
 const processWorkloads = new Set([
-  "mcp_session_start",
-  "mcp_session_reuse",
   "native_cli_launch",
   "cli_file_input",
 ]);
@@ -218,14 +214,6 @@ function capture(workloads, options) {
   const criterionMetrics = readCriterionMetricsWithRetry(requested);
   const metrics = {};
   for (const workload of requested) {
-    if (workload === "mcp_session_start") {
-      metrics[workload] = measureMcpSessionStart();
-      continue;
-    }
-    if (workload === "mcp_session_reuse") {
-      metrics[workload] = measureMcpSessionReuse();
-      continue;
-    }
     if (workload === "native_cli_launch") {
       metrics[workload] = measureNativeCliLaunch();
       continue;
@@ -564,67 +552,6 @@ function workloadNameFromEstimatePath(estimatesPath) {
   const relative = path.relative(criterionRoot, estimatesPath);
   const segments = relative.split(path.sep);
   return segments[0] ?? "";
-}
-
-function measureMcpSessionStart() {
-  return measureMcpSessionProbe("start");
-}
-
-function measureMcpSessionReuse() {
-  return measureMcpSessionProbe("reuse");
-}
-
-function measureMcpSessionProbe(mode) {
-  const probe = mcpSessionProbe();
-  const result = spawnSync(probe.command, [mode], {
-    cwd: repoRoot,
-    encoding: "utf8",
-    stdio: ["ignore", "pipe", "pipe"],
-  });
-  if (result.status !== 0) {
-    throw new Error(`MCP session probe ${mode} failed with exit ${result.status ?? "signal"}: ${result.stderr.trim()}`);
-  }
-  const metric = JSON.parse(result.stdout);
-  for (const field of ["mean_ns", "p50_ns", "p95_ns", "p99_ns", "throughput", "sample_count", "spawn_count"]) {
-    if (typeof metric[field] !== "number" || !Number.isFinite(metric[field])) {
-      throw new Error(`MCP session probe ${mode} returned invalid ${field}`);
-    }
-  }
-  return metric;
-}
-
-function mcpSessionProbe() {
-  const binaryName = process.platform === "win32"
-    ? "runx-mcp-session-probe.exe"
-    : "runx-mcp-session-probe";
-  const probeBinary = path.join(cargoPerfProfileDir, binaryName);
-  const result = spawnSync(
-    "cargo",
-    [
-      "build",
-      "--manifest-path",
-      "crates/Cargo.toml",
-      "-p",
-      "runx-runtime",
-      "--release",
-      "--features",
-      "mcp",
-      "--bin",
-      "runx-mcp-session-probe",
-    ],
-    {
-      cwd: repoRoot,
-      stdio: "inherit",
-      env: cargoBenchEnv(),
-    },
-  );
-  if (result.status !== 0) {
-    throw new Error(`cargo build runx-mcp-session-probe failed with exit ${result.status ?? "signal"}`);
-  }
-  if (!existsSync(probeBinary)) {
-    throw new Error(`cargo build runx-mcp-session-probe did not produce ${probeBinary}`);
-  }
-  return { command: probeBinary };
 }
 
 function measureNativeCliLaunch() {

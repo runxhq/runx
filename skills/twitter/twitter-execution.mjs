@@ -2,9 +2,10 @@ import {
   MAX_ENGAGEMENT_ACTS,
   MAX_THREAD_SEGMENTS,
   actKind,
-  buildRequestBatch,
+  batchCall,
   executionActLimit,
-} from "./twitter-execution-requests.mjs";
+  selectBatch,
+} from "./twitter-execution-batch.mjs";
 import {
   activeThread,
   array,
@@ -48,9 +49,46 @@ export function prepareExecution(inputs) {
     twitter_execution_plan: {
       ...base,
       decision: "ready",
-      ...buildRequestBatch(acts, progress, executionActLimit(inputs.max_acts)),
+      batch: selectBatch(acts, progress, executionActLimit(inputs.max_acts)),
     },
   };
+}
+
+// The batch's operation call, from the plan and the account it runs as. The
+// bound account must be the plan's principal and, once the ledger has pinned
+// one, the account every earlier batch ran as; otherwise nothing is sent.
+export function bindExecution(inputs) {
+  const plan = record(inputs.execution_plan);
+  const account = record(inputs.account);
+  const id = text(account.id);
+  const username = text(account.username);
+  const handle = principalHandle(plan.principal);
+  if (!X_ID.test(id) || !username) {
+    throw new Error("the account snapshot did not name the bound account");
+  }
+  if (!handle || handle.toLowerCase() !== username.toLowerCase()) {
+    throw new Error(
+      `the bound X account @${username} is not the plan's principal ${text(plan.principal)}`,
+    );
+  }
+  const pinned = text(plan.account_id);
+  if (pinned && pinned !== id) {
+    throw new Error(
+      `the bound X account ${id} is not account ${pinned}, which earlier batches of this plan ran as`,
+    );
+  }
+  return {
+    twitter_call: {
+      ...batchCall(record(plan.batch), { id, username }, plan),
+      account_id: id,
+    },
+  };
+}
+
+// The handle a plan's principal names: `account:@handle`.
+function principalHandle(principal) {
+  const match = /^account:@([A-Za-z0-9_]{1,15})$/.exec(text(principal));
+  return match ? match[1] : null;
 }
 
 function validateBatchBinding(
@@ -86,6 +124,7 @@ function executionPlanBase(
     decision: "refused",
     plan_digest: digest,
     principal: plan.principal ?? null,
+    account_id: progress.accountId,
     expected_version: expectedVersion,
     idempotency_key: idempotencyKey,
     start_act_index: progress.nextActIndex,
@@ -93,11 +132,7 @@ function executionPlanBase(
     total_act_count: totalActCount,
     remaining_count: Math.max(0, totalActCount - progress.nextActIndex),
     active_thread: progress.activeThread,
-    auth: { type: "oauth1", secret_env: "TWITTER_USER_AUTH" },
-    allowed_hosts: ["api.x.com"],
-    requests: [],
-    act_groups: [],
-    selected_act_count: 0,
+    batch: null,
     blockers: [],
   };
 }
@@ -105,7 +140,7 @@ function executionPlanBase(
 function readProgress(ledger, planDigest, acts, blockers) {
   const version = nonNegativeInteger(ledger.after_version);
   const events = array(ledger.events);
-  const empty = { version: version ?? 0, nextActIndex: 0, activeThread: null };
+  const empty = { version: version ?? 0, nextActIndex: 0, activeThread: null, accountId: null };
   if (version === null) {
     blockers.push("execution ledger omitted a valid after_version");
     return empty;
@@ -123,6 +158,13 @@ function readProgress(ledger, planDigest, acts, blockers) {
   const nextActIndex = nonNegativeInteger(event.next_act_index);
   const totalActCount = nonNegativeInteger(event.total_act_count);
   const currentThread = activeThread(event.active_thread);
+  // Events from before the account was pinned carry none.
+  const accountId = event.account_id === undefined || event.account_id === null
+    ? null
+    : text(event.account_id);
+  if (accountId !== null && !X_ID.test(accountId)) {
+    blockers.push("execution ledger progress names an account id that is not an X id");
+  }
   if (nonNegativeInteger(latest.version) !== version) {
     blockers.push("execution ledger tail version does not match after_version");
   }
@@ -139,7 +181,12 @@ function readProgress(ledger, planDigest, acts, blockers) {
     blockers.push("execution ledger next_act_index is outside the plan");
   }
   validateActiveThread(currentThread, acts, nextActIndex, blockers);
-  return { version, nextActIndex: nextActIndex ?? 0, activeThread: currentThread };
+  return {
+    version,
+    nextActIndex: nextActIndex ?? 0,
+    activeThread: currentThread,
+    accountId: accountId || null,
+  };
 }
 
 function validateActiveThread(current, acts, nextActIndex, blockers) {
@@ -167,7 +214,9 @@ function validatePlan(value, acts, canonicalDigest, suppliedDigest) {
     );
   }
   if (value.decision !== "ready") errors.push("plan_json.decision must be ready");
-  if (!text(value.principal)) errors.push("plan_json.principal is required");
+  if (!principalHandle(value.principal)) {
+    errors.push("plan_json.principal must name the account as account:@handle");
+  }
   if (record(value.gates).human_approval_required !== true) {
     errors.push("plan_json must require human approval");
   }
@@ -191,17 +240,43 @@ function validateAct(act, seen, errors) {
     errors.push(`unknown act kind ${act.kind}`);
     return;
   }
-  const missing = requiredParams(act.kind)
-    .filter((field) => missingValue(record(act.params)[field]));
+  const params = record(act.params);
+  const missing = requiredParams(act.kind).filter((field) => missingValue(params[field]));
   if (missing.length > 0) {
     errors.push(`act ${act.act_id} is missing params: ${missing.join(", ")}`);
   }
-  if (
-    act.kind === "thread"
-    && array(record(act.params).texts).length > MAX_THREAD_SEGMENTS
-  ) {
-    errors.push(`thread ${act.act_id} exceeds ${MAX_THREAD_SEGMENTS} segments`);
+  const malformed = ID_PARAMS
+    .filter((field) => params[field] !== undefined && params[field] !== null && params[field] !== "")
+    .filter((field) => typeof params[field] !== "string" || !X_ID.test(params[field]));
+  if (malformed.length > 0) {
+    errors.push(`act ${act.act_id} has ids that are not X ids: ${malformed.join(", ")}`);
   }
+  if (["post", "reply", "quote"].includes(act.kind) && params.text !== undefined && !postText(params.text)) {
+    errors.push(`act ${act.act_id} text must be a non-empty string of at most ${POST_TEXT_LIMIT} characters`);
+  }
+  if (act.kind === "thread" && params.texts !== undefined) {
+    const texts = params.texts;
+    if (
+      !Array.isArray(texts)
+      || texts.length === 0
+      || texts.length > MAX_THREAD_SEGMENTS
+      || !texts.every(postText)
+    ) {
+      errors.push(
+        `thread ${act.act_id} texts must be 1 to ${MAX_THREAD_SEGMENTS} non-empty strings of at most ${POST_TEXT_LIMIT} characters`,
+      );
+    }
+  }
+}
+
+const ID_PARAMS = ["post_id", "target_user_id", "in_reply_to", "quote_of"];
+const X_ID = /^[0-9]{1,19}$/;
+// The connector's bound on one post's text, in characters.
+const POST_TEXT_LIMIT = 4000;
+
+// Text is published verbatim, so it must already be a string.
+function postText(value) {
+  return typeof value === "string" && value.trim() !== "" && [...value].length <= POST_TEXT_LIMIT;
 }
 
 function requiredParams(kind) {

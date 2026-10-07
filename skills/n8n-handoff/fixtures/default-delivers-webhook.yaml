@@ -15,34 +15,52 @@ operator_journeys:
       - Do not rerun the upstream Runx operation.
       - Do not deliver the webhook again after its response is receipted.
 inputs:
-  webhook_host: n8n.example.com
+  webhook_host: acme.app.n8n.cloud
   workflow_slug: runx-governed-effect
   event_id: evt_n8n_demo_001
   handoff_audience: n8n:workflow:runx-governed-effect
-  execution_context: { caller: runx-cli, workflow_ref: self-hosted-n8n-demo }
+  execution_context: { caller: runx-cli, workflow_ref: n8n-cloud-demo }
   payload: { hello: workflow }
 caller:
-  provider_responses:
-    principal_id: n8n-fixture
-    grants:
-      - grant_id: n8n-fixture
-        provider: n8n
-        scopes: [orchestrator.n8n.workflow.invoke, orchestrator.n8n.workflow.read]
-    operations:
-      - grant_id: n8n-fixture
-        operation: workflow.invoke
-        target: n8n.example.com
-        access: mutate
-        result: { event_id: evt_n8n_demo_001, invocation_ref: n8n:execution:001, status: accepted, idempotency_key: $request.idempotency_key }
-      - grant_id: n8n-fixture
-        operation: workflow.invocation.read
-        target: n8n.example.com
-        access: read
-        result: { event_id: evt_n8n_demo_001, invocation_ref: n8n:execution:001, status: accepted, idempotency_key: $previous.idempotency_key }
+  http_exchanges:
+    - request:
+        method: POST
+        url: https://acme.app.n8n.cloud/webhook/runx-governed-effect
+        body:
+          json:
+            event_id: evt_n8n_demo_001
+            execution_context:
+              caller: runx-cli
+              event_id: evt_n8n_demo_001
+              handoff_audience: n8n:workflow:runx-governed-effect
+              handoff_scope: orchestrator.n8n.workflow.invoke
+              idempotency_key: evt_n8n_demo_001
+              platform: n8n
+              workflow_ref: n8n-cloud-demo
+            handoff_audience: n8n:workflow:runx-governed-effect
+            handoff_scope: orchestrator.n8n.workflow.invoke
+            idempotency_key: evt_n8n_demo_001
+            payload: { hello: workflow }
+            source: runx
+      response:
+        status: 200
+        headers: { content-type: application/json }
+        body: '{"message":"Workflow was started"}'
   approvals:
-    "provider-effect:sha256:e3dcd112841e76f19602acf4805e16687319f9b4f81e1867b2d65b176ed1d605": true
+    "operation:sha256:1777e351544b1db2b8d01e779871e9b4f0ae87157897d52abd6b8408c85e751b": true
 expect:
   status: sealed
-  steps: [build-handoff-context, invoke, readback]
+  steps: [build-handoff-context, address, invoke]
+  step_outputs:
+    invoke:
+      subset:
+        provider_operation:
+          data:
+            status: success
+            provider: n8n
+            operation: workflow.invoke
+            finality: acknowledged
+            result:
+              acknowledgement: { message: Workflow was started }
   receipt: { schema: runx.receipt.v1, state: sealed, disposition: closed }
 metadata: { public_skill: n8n-handoff, source_case: direct-default-success, source: skills-fixture }

@@ -1,12 +1,12 @@
 skill: zapier-handoff
-version: "0.2.1"
+version: "0.2.2"
 catalog:
   kind: graph
   audience: operator
   visibility: public
   role: context
   execution: execute
-  completion: provider_readback
+  completion: provider_acknowledgement
   requires_adapter: true
   approval: required
 input_definitions:
@@ -100,6 +100,9 @@ harness:
                   receipt_expectations:
                     outbound_effect_must_be_receipted: true
                     receiver_response_must_be_captured: true
+connectors:
+  zapier:
+    operations: [hook.invoke]
 runners:
   preflight:
     default: false
@@ -168,7 +171,7 @@ runners:
         payload: { hello: zap }
     graph:
       name: zapier-handoff-send
-      result_from: [readback]
+      result_from: [invoke]
       steps:
         - id: build-handoff-context
           tool: control.prepare_handoff
@@ -181,41 +184,27 @@ runners:
             payload: $input.payload
             source: $input.source
             receiver: $input.receiver
-        - id: invoke
-          tool: provider.mutate
-          idempotency_key: $input.event_id
-          scopes: [orchestrator.zapier.workflow.invoke]
-          policy:
-            provider_permission: { verb: write }
+        - id: address
           inputs:
-            expected_provider: zapier
-            operation: hook.invoke
-            target: $input.zapier_account_id
+            zapier_account_id: $input.zapier_account_id
+            hook_id: $input.zapier_hook_id
+          context:
+            delivery: build-handoff-context.handoff_context.data.delivery
+          run:
+            type: javascript
+            module: hook.mjs
+            export: hookRequest
+            outputs:
+              hook_request: object
+
+        - id: invoke
+          operation: zapier/hook.invoke
+          idempotency_key: $input.event_id
+          inputs:
             approval:
-              reason: Approve invoking this exact Zapier handoff.
+              reason: Approve delivering this exact handoff to the Zapier Catch Hook.
               type: workflow_handoff
             idempotency_key: $input.event_id
-            result_fields: [event_id, invocation_ref, status, idempotency_key]
-            expected_result: { event_id: $input.event_id, status: accepted }
-            input:
-              hook_id: $input.zapier_hook_id
+            result_fields: [acknowledgement]
           context:
-            handoff_context: build-handoff-context.handoff_context.data
-
-        - id: readback
-          tool: provider.read
-          scopes: [orchestrator.zapier.workflow.read]
-          policy:
-            provider_permission: { verb: read }
-          inputs:
-            expected_provider: zapier
-            operation: hook.invocation.read
-            target: $input.zapier_account_id
-            result_fields: [event_id, invocation_ref, status, idempotency_key]
-            expected_result:
-              event_id: $input.event_id
-              invocation_ref: $input.invoke_result.invocation_ref
-              status: accepted
-              idempotency_key: $input.invoke_result.idempotency_key
-          context:
-            invoke_result: invoke.provider_operation.data.result
+            input: address.hook_request

@@ -9,11 +9,11 @@ use runx_contracts::{
     DoctorStatus, DoctorSummary, JsonObject, JsonValue,
 };
 use runx_runtime::{
-    HostedApiEnvironment, PROVIDER_PERMISSION_GRANT_ID_ENV, PROVIDER_PERMISSION_GRANTED_SCOPES_ENV,
-    PROVIDER_PERMISSION_PRINCIPAL_REF_ENV, RUNX_RECEIPT_SIGN_ED25519_SEED_BASE64_ENV,
+    HostedApiEnvironment, INJECTED_GRANT_ID_ENV, INJECTED_GRANTED_SCOPES_ENV,
+    INJECTED_PRINCIPAL_REF_ENV, RUNX_RECEIPT_SIGN_ED25519_SEED_BASE64_ENV,
     RUNX_RECEIPT_SIGN_ISSUER_TYPE_ENV, RUNX_RECEIPT_SIGN_KID_ENV, RuntimeError,
     RuntimeReceiptSignatureConfig, RuntimeReceiptVerifierSource, WorkspaceEnv,
-    decode_provider_scopes_env, default_doctor_options, load_managed_agent_config,
+    decode_injected_scopes, default_doctor_options, load_managed_agent_config,
     load_runx_config_file, receipt_verifier_from_env, resolve_runx_home_dir, run_doctor,
 };
 
@@ -218,11 +218,9 @@ fn managed_agent_config_diagnostic(
             JsonValue::String(error.clone()),
         );
     }
-    let provider_supported = provider.is_some_and(|value| matches!(value, "anthropic" | "openai"));
-    let complete = provider_supported
-        && semantic_result
-            .as_ref()
-            .is_some_and(|result| matches!(result, Ok(Some(_))));
+    let complete = semantic_result
+        .as_ref()
+        .is_some_and(|result| matches!(result, Ok(Some(_))));
     let partial = !complete
         && (provider.is_some()
             || model.is_some()
@@ -246,7 +244,7 @@ fn managed_agent_config_diagnostic(
     } else if complete {
         "Managed-agent config is complete; agent-task runners can execute in-process.".to_owned()
     } else {
-        "Managed-agent config is partial; set provider, model, and API key, or select local_none with an exact loopback endpoint. Otherwise agent-task runners may yield to the host or fail later.".to_owned()
+        "Managed-agent config is partial; set provider, model, and API key (a provider without a built-in profile also needs a dialect and an endpoint), or select local_none with an exact loopback endpoint. Otherwise agent-task runners may yield to the host or fail later.".to_owned()
     };
 
     Some(DoctorDiagnostic {
@@ -297,11 +295,8 @@ fn first_non_empty<'a>(values: impl IntoIterator<Item = Option<&'a str>>) -> Opt
 }
 
 fn provider_api_key_env(provider: &str) -> Option<&'static str> {
-    match provider.trim().to_ascii_lowercase().as_str() {
-        "anthropic" => Some("ANTHROPIC_API_KEY"),
-        "openai" => Some("OPENAI_API_KEY"),
-        _ => None,
-    }
+    runx_runtime::model_provider(provider.trim().to_ascii_lowercase().as_str())
+        .map(|profile| profile.key_env)
 }
 
 fn run_registry_doctor(env: &BTreeMap<String, String>, cwd: &Path) -> DoctorReport {
@@ -763,17 +758,17 @@ fn receipt_verification_diagnostic(env: &BTreeMap<String, String>) -> DoctorDiag
 }
 
 fn provider_grant_diagnostic(env: &BTreeMap<String, String>, cwd: &Path) -> DoctorDiagnostic {
-    let explicit_grant = env_contains_non_empty(env, PROVIDER_PERMISSION_GRANT_ID_ENV);
+    let explicit_grant = env_contains_non_empty(env, INJECTED_GRANT_ID_ENV);
     let explicit_scope_value = env
-        .get(PROVIDER_PERMISSION_GRANTED_SCOPES_ENV)
+        .get(INJECTED_GRANTED_SCOPES_ENV)
         .map(|value| value.trim())
         .filter(|value| !value.is_empty());
     let malformed_scopes =
-        explicit_scope_value.is_some_and(|value| decode_provider_scopes_env(value).is_err());
+        explicit_scope_value.is_some_and(|value| decode_injected_scopes(value).is_none());
     let explicit_scopes = explicit_scope_value.is_some() && !malformed_scopes;
-    let explicit_principal = env_contains_non_empty(env, PROVIDER_PERMISSION_PRINCIPAL_REF_ENV);
+    let explicit_principal = env_contains_non_empty(env, INJECTED_PRINCIPAL_REF_ENV);
     let explicit_complete = explicit_grant && explicit_scopes && explicit_principal;
-    let connect_available = HostedApiEnvironment::resolve(None, None, env, cwd)
+    let connect_available = HostedApiEnvironment::resolve(None, env, cwd)
         .and_then(|environment| environment.require_token().map(|_| ()))
         .is_ok();
     let configured = !malformed_scopes && (explicit_complete || connect_available);
@@ -786,9 +781,9 @@ fn provider_grant_diagnostic(env: &BTreeMap<String, String>, cwd: &Path) -> Doct
     );
     let mut evidence = authority_evidence(
         &[
-            PROVIDER_PERMISSION_GRANT_ID_ENV,
-            PROVIDER_PERMISSION_GRANTED_SCOPES_ENV,
-            PROVIDER_PERMISSION_PRINCIPAL_REF_ENV,
+            INJECTED_GRANT_ID_ENV,
+            INJECTED_GRANTED_SCOPES_ENV,
+            INJECTED_PRINCIPAL_REF_ENV,
         ],
         configured,
         None,
@@ -831,9 +826,9 @@ fn provider_grant_diagnostic(env: &BTreeMap<String, String>, cwd: &Path) -> Doct
             vec![manual_env_repair(
                 "runx.authority.provider_grant.configure",
                 &[
-                    PROVIDER_PERMISSION_GRANT_ID_ENV,
-                    PROVIDER_PERMISSION_GRANTED_SCOPES_ENV,
-                    PROVIDER_PERMISSION_PRINCIPAL_REF_ENV,
+                    INJECTED_GRANT_ID_ENV,
+                    INJECTED_GRANTED_SCOPES_ENV,
+                    INJECTED_PRINCIPAL_REF_ENV,
                 ],
                 "Configure Runx Connect for automatic grant discovery, or inject a complete provider grant, JSON scope array, and principal reference from the operator host.",
                 DoctorRepairRisk::Sensitive,
@@ -851,7 +846,7 @@ fn provider_grant_message(
 ) -> String {
     if malformed_scopes {
         return format!(
-            "{PROVIDER_PERMISSION_GRANTED_SCOPES_ENV} is malformed; it must be a JSON array of exact capability strings."
+            "{INJECTED_GRANTED_SCOPES_ENV} is malformed; it must be a JSON array of exact capability strings."
         );
     }
     match (
@@ -866,7 +861,7 @@ fn provider_grant_message(
         (true, _, _, true) => "Provider grant selected by the operator; Runx Connect will resolve its active scopes and principal at execution.".to_owned(),
         (_, _, _, true) => "Runx Connect is configured; native provider tools will resolve the unique active provider/scope grant at execution.".to_owned(),
         _ => format!(
-            "Provider permission grant is unavailable; configure Runx Connect, or set {PROVIDER_PERMISSION_GRANT_ID_ENV}, {PROVIDER_PERMISSION_GRANTED_SCOPES_ENV}, and {PROVIDER_PERMISSION_PRINCIPAL_REF_ENV} for a host-injected grant."
+            "Provider permission grant is unavailable; configure Runx Connect, or set {INJECTED_GRANT_ID_ENV}, {INJECTED_GRANTED_SCOPES_ENV}, and {INJECTED_PRINCIPAL_REF_ENV} for a host-injected grant."
         ),
     }
 }

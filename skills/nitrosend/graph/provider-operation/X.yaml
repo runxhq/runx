@@ -1,5 +1,5 @@
 skill: nitrosend-provider-operation
-version: "0.2.4"
+version: "0.2.6"
 catalog:
   kind: graph
   audience: operator
@@ -27,6 +27,9 @@ harness:
                   operation: unknown
                   evidence: null
         receipt: { schema: runx.receipt.v1 }
+connectors:
+  nitrosend:
+    operations: [status.read, entities.query, inbox.read, sender.read, insights.read, delivery.review, billing.status, billing.plans, checkout.status, campaign.composition.plan, campaign.composition.validate, flow.composition.plan, flow.composition.validate, template.composition.plan, template.composition.validate, test_message.preview, message.preview, contacts.records.preview, plan.checkout, sender.configure, test_message.send, message.send, campaign.approve, flow.approve, campaign.send, campaign.schedule, flow.activate, segment.define, contacts.records.import, campaign.draft, flow.draft, template.draft, image.ingest]
 runners:
   read:
     default: true
@@ -68,23 +71,19 @@ runners:
               operation_plan: object
         - id: request
           when:
-            field: prepare.operation_plan.decision
-            equals: ready
-          tool: http.query
-          scopes: [nitrosend:read, net:http]
-          inputs:
-            stop_on_error: true
+            field: prepare.operation_plan.access
+            equals: read
+          operation: nitrosend
           context:
-            requests: prepare.operation_plan.requests
-            allowed_hosts: prepare.operation_plan.allowed_hosts
-            auth: prepare.operation_plan.auth
+            operation: prepare.operation_plan.connector_operation
+            input: prepare.operation_plan.provider_input
         - id: normalize
           when:
-            field: prepare.operation_plan.decision
-            equals: ready
+            field: prepare.operation_plan.access
+            equals: read
           context:
             operation_plan: prepare.operation_plan
-            http_execution: request.http_execution.data
+            provider_operation: request.provider_operation.data
           run:
             type: javascript
             module: nitrosend-operation.mjs
@@ -93,7 +92,7 @@ runners:
               provider_evidence:
                 type: object
                 schema:
-                  required: [decision, provider, mode, operation, tool, provider_ref, result, evidence, blockers]
+                  required: [decision, provider, mode, operation, tool, provider_ref, result, blockers]
                   additionalProperties: false
                   properties:
                     decision: { type: string, enum: [ok, needs_input, provider_error, refused] }
@@ -106,6 +105,7 @@ runners:
                       type: [object, "null"]
                       additionalProperties: true
                     evidence:
+                      description: A tool's own record of the provider calls it made, when it makes them itself.
                       type: [object, "null"]
                       required: [request_id, http_status, body_digest, credential_material]
                       additionalProperties: false
@@ -114,6 +114,7 @@ runners:
                         http_status: { type: number }
                         body_digest: { type: string }
                         credential_material: { const: redacted }
+                    source_id: { type: string }
                     blockers:
                       type: array
                       maxItems: 100
@@ -146,7 +147,7 @@ runners:
       operation:
         type: string
         required: true
-        description: Bounded Nitrosend mutation operation.
+        description: Bounded Nitrosend write operation.
       arguments:
         type: json
         required: true
@@ -155,15 +156,18 @@ runners:
         type: string
         required: false
         default: nitrosend-provider-operation
-        description: Caller-bound transport retry identity when the parent runner has one; otherwise the existing shared fallback.
         schema: { minLength: 1, pattern: '\S' }
+      approval:
+        type: json
+        required: false
+        description: The reason and type the operator approves this exact operation under.
       brand_sid:
         type: string
         required: false
         description: Optional public Nitrosend brand SID.
     graph:
       name: nitrosend-provider-act
-      result_from: [normalize, blocked]
+      result_from: [normalize_preview, normalize, blocked]
       steps:
         - id: prepare
           inputs:
@@ -177,32 +181,114 @@ runners:
             export: prepareOperation
             outputs:
               operation_plan: object
+        - id: preview
+          when:
+            field: prepare.operation_plan.access
+            equals: read
+          operation: nitrosend
+          context:
+            operation: prepare.operation_plan.connector_operation
+            input: prepare.operation_plan.provider_input
         - id: request
           when:
-            field: prepare.operation_plan.decision
-            equals: ready
-          tool: http.execute
-          scopes: [nitrosend:write, net:http]
-          idempotency_key: "$input.idempotency_key"
+            field: prepare.operation_plan.access
+            equals: write
+          operation: nitrosend
+          idempotency_key: $input.idempotency_key
           inputs:
-            stop_on_error: true
+            approval: $input.approval
           context:
-            requests: prepare.operation_plan.requests
-            allowed_hosts: prepare.operation_plan.allowed_hosts
-            auth: prepare.operation_plan.auth
-        - id: normalize
+            operation: prepare.operation_plan.connector_operation
+            input: prepare.operation_plan.provider_input
+        - id: normalize_preview
           when:
-            field: prepare.operation_plan.decision
-            equals: ready
+            field: prepare.operation_plan.access
+            equals: read
           context:
             operation_plan: prepare.operation_plan
-            http_execution: request.http_execution.data
+            provider_operation: preview.provider_operation.data
           run:
             type: javascript
             module: nitrosend-operation.mjs
             export: normalizeOperation
             outputs:
-              provider_evidence: object
+              provider_evidence:
+                type: object
+                schema:
+                  required: [decision, provider, mode, operation, tool, provider_ref, result, blockers]
+                  additionalProperties: false
+                  properties:
+                    decision: { type: string, enum: [ok, needs_input, provider_error, refused] }
+                    provider: { const: nitrosend }
+                    mode: { type: string, enum: [read, act] }
+                    operation: { type: [string, "null"] }
+                    tool: { type: [string, "null"] }
+                    provider_ref: { type: [string, "null"] }
+                    result:
+                      type: [object, "null"]
+                      additionalProperties: true
+                    evidence:
+                      description: A tool's own record of the provider calls it made, when it makes them itself.
+                      type: [object, "null"]
+                      required: [request_id, http_status, body_digest, credential_material]
+                      additionalProperties: false
+                      properties:
+                        request_id: { type: string }
+                        http_status: { type: number }
+                        body_digest: { type: string }
+                        credential_material: { const: redacted }
+                    source_id: { type: string }
+                    blockers:
+                      type: array
+                      maxItems: 100
+                      items: { type: string, minLength: 1, maxLength: 4000 }
+          artifacts:
+            named_emits:
+              provider_evidence: provider_evidence
+            packets:
+              provider_evidence: nitrosend.provider_evidence.v1
+        - id: normalize
+          when:
+            field: prepare.operation_plan.access
+            equals: write
+          context:
+            operation_plan: prepare.operation_plan
+            provider_operation: request.provider_operation.data
+          run:
+            type: javascript
+            module: nitrosend-operation.mjs
+            export: normalizeOperation
+            outputs:
+              provider_evidence:
+                type: object
+                schema:
+                  required: [decision, provider, mode, operation, tool, provider_ref, result, blockers]
+                  additionalProperties: false
+                  properties:
+                    decision: { type: string, enum: [ok, needs_input, provider_error, refused] }
+                    provider: { const: nitrosend }
+                    mode: { type: string, enum: [read, act] }
+                    operation: { type: [string, "null"] }
+                    tool: { type: [string, "null"] }
+                    provider_ref: { type: [string, "null"] }
+                    result:
+                      type: [object, "null"]
+                      additionalProperties: true
+                    evidence:
+                      description: A tool's own record of the provider calls it made, when it makes them itself.
+                      type: [object, "null"]
+                      required: [request_id, http_status, body_digest, credential_material]
+                      additionalProperties: false
+                      properties:
+                        request_id: { type: string }
+                        http_status: { type: number }
+                        body_digest: { type: string }
+                        credential_material: { const: redacted }
+                    source_id: { type: string }
+                    blockers:
+                      type: array
+                      maxItems: 100
+                      items: { type: string, minLength: 1, maxLength: 4000 }
           artifacts:
             named_emits:
               provider_evidence: provider_evidence

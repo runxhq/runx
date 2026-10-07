@@ -6,6 +6,7 @@ const workspaceRoot = path.resolve(fileURLToPath(new URL("..", import.meta.url))
 const cratesRoot = path.join(workspaceRoot, "crates");
 
 const expectedMembers = [
+  "runx-assistant",
   "runx-cli",
   "runx-contracts",
   "runx-contracts-derive",
@@ -37,9 +38,18 @@ const publishableLibraryCrates = new Set([
 ]);
 
 const allowedRunxDeps = new Map([
+  // The assistant is a host: it drives the runtime and never sits beneath it.
+  ["runx-assistant", new Set(["runx-runtime", "runx-contracts"])],
   [
     "runx-cli",
-    new Set(["runx-runtime", "runx-contracts", "runx-parser", "runx-receipts", "runx-x402"]),
+    new Set([
+      "runx-assistant",
+      "runx-runtime",
+      "runx-contracts",
+      "runx-parser",
+      "runx-receipts",
+      "runx-x402",
+    ]),
   ],
   ["runx-contracts", new Set(["runx-contracts-derive"])],
   ["runx-contracts-derive", new Set()],
@@ -53,6 +63,7 @@ const allowedRunxDeps = new Map([
 ]);
 
 const requiredRunxDeps = new Map([
+  ["runx-assistant", new Set(["runx-runtime", "runx-contracts"])],
   ["runx-core", new Set(["runx-contracts"])],
   ["runx-js-worker", new Set(["runx-contracts", "runx-parser"])],
   ["runx-parser", new Set(["runx-contracts", "runx-core"])],
@@ -260,6 +271,9 @@ function checkPublishingReadiness(crateName, manifest) {
   if (crateName === "runx-cli" && !hasPublishFalse) {
     findings.push("runx-cli must remain unpublished until its internal Rust dependencies have a coordinated library release");
   }
+  if (crateName === "runx-assistant" && !hasPublishFalse) {
+    findings.push("runx-assistant is an application crate and must remain unpublished");
+  }
 }
 
 function checkRunxDependencies(crateName, manifest) {
@@ -333,7 +347,7 @@ function disallowedDependenciesFor(crateName) {
   if (crateName === "runx-runtime") {
     return runtimeDisallowedDeps;
   }
-  if (crateName === "runx-cli") {
+  if (crateName === "runx-cli" || crateName === "runx-assistant") {
     return cliDisallowedDeps;
   }
   return pureCrateDisallowedDeps;
@@ -345,8 +359,10 @@ function checkRuntimeAsyncHttpContract(crateName, manifest) {
   }
 
   const featuresBody = sectionBody(manifest, "features");
-  if (!/^async-http\s*=\s*\["dep:reqwest", "dep:tokio", "dep:rustls", "dep:webpki-root-certs", "tokio\/rt-multi-thread"\]\s*$/mu.test(featuresBody)) {
-    findings.push("runx-runtime async-http feature must be exactly [\"dep:reqwest\", \"dep:tokio\", \"dep:rustls\", \"dep:webpki-root-certs\", \"tokio/rt-multi-thread\"]");
+  // With mcp, the MCP client's streamable HTTP leg rides the guarded reqwest
+  // client (D25).
+  if (!/^async-http\s*=\s*\["dep:reqwest", "dep:tokio", "dep:rustls", "dep:webpki-root-certs", "tokio\/rt-multi-thread", "rmcp\?\/transport-streamable-http-client-reqwest"\]\s*$/mu.test(featuresBody)) {
+    findings.push("runx-runtime async-http feature must be exactly [\"dep:reqwest\", \"dep:tokio\", \"dep:rustls\", \"dep:webpki-root-certs\", \"tokio/rt-multi-thread\", \"rmcp?/transport-streamable-http-client-reqwest\"]");
   }
   if (!/^cli-tool\s*=\s*\["async-http"\]\s*$/mu.test(featuresBody)) {
     findings.push("runx-runtime cli-tool feature must imply async-http so the cargo CLI exercises reviewed HTTP");
@@ -414,7 +430,7 @@ function checkRuntimeAsyncHttpContract(crateName, manifest) {
 
   const rmcp = dependencyInlineSpec(manifest, "dependencies", "rmcp");
   if (!rmcp) {
-    findings.push("runx-runtime must declare optional rmcp for the approved MCP adapter edge");
+    findings.push("runx-runtime must declare optional rmcp for the approved MCP server and connector edge");
   } else {
     if (!/version\s*=\s*"=[^"]+"/u.test(rmcp)) {
       findings.push("runx-runtime rmcp dependency must use an exact version pin");

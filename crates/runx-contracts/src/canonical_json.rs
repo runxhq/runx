@@ -5,7 +5,7 @@ use std::io::{self, Write};
 use serde::Serialize;
 use thiserror::Error;
 
-use crate::{JsonNumber, JsonValue};
+use crate::sha256_prefixed;
 
 pub const STABLE_JSON_CANONICALIZATION: &str = "runx.stable-json.v1";
 
@@ -15,13 +15,26 @@ pub enum CanonicalJsonError {
     Serialization { message: String },
 }
 
-/// Render a [`JsonValue`] under `runx.stable-json.v1`: recursively sorted
-/// object keys with JavaScript `JSON.stringify`-compatible number and string
-/// encoding.
-pub fn canonical_stable_json(value: &JsonValue) -> Result<String, CanonicalJsonError> {
-    let mut output = String::new();
-    write_canonical_value(value, &mut output)?;
-    Ok(output)
+mod serializer;
+
+pub use serializer::to_canonical_bytes;
+
+/// Render any serializable value under `runx.stable-json.v1`: recursively
+/// sorted object keys with JavaScript `JSON.stringify`-compatible number and
+/// string encoding. Written directly from the value; no tree is built.
+pub fn canonical_stable_json<T: Serialize + ?Sized>(
+    value: &T,
+) -> Result<String, CanonicalJsonError> {
+    String::from_utf8(to_canonical_bytes(value)?).map_err(|source| {
+        CanonicalJsonError::Serialization {
+            message: source.to_string(),
+        }
+    })
+}
+
+/// `sha256:<hex>` over the canonical encoding of `value`.
+pub fn canonical_digest<T: Serialize + ?Sized>(value: &T) -> Result<String, CanonicalJsonError> {
+    to_canonical_bytes(value).map(|bytes| sha256_prefixed(&bytes))
 }
 
 /// Append one serde value using the JSON leaf encoding shared by Runx's
@@ -39,47 +52,6 @@ pub fn write_canonical_json_fragment<T: Serialize + ?Sized>(
         .map_err(|source| CanonicalJsonError::Serialization {
             message: source.to_string(),
         })
-}
-
-fn write_canonical_value(value: &JsonValue, output: &mut String) -> Result<(), CanonicalJsonError> {
-    match value {
-        JsonValue::Null => output.push_str("null"),
-        JsonValue::Bool(value) => output.push_str(if *value { "true" } else { "false" }),
-        // JsonNumber's Serialize implementation selects the wire encoding:
-        // whole f64 values become integers and fractional values use ryu.
-        JsonValue::Number(value) => write_canonical_number(value, output)?,
-        JsonValue::String(value) => write_canonical_json_fragment(value, output)?,
-        JsonValue::Array(items) => {
-            output.push('[');
-            for (index, item) in items.iter().enumerate() {
-                if index > 0 {
-                    output.push(',');
-                }
-                write_canonical_value(item, output)?;
-            }
-            output.push(']');
-        }
-        JsonValue::Object(map) => {
-            output.push('{');
-            for (index, (key, value)) in map.iter().enumerate() {
-                if index > 0 {
-                    output.push(',');
-                }
-                write_canonical_json_fragment(key, output)?;
-                output.push(':');
-                write_canonical_value(value, output)?;
-            }
-            output.push('}');
-        }
-    }
-    Ok(())
-}
-
-fn write_canonical_number(
-    value: &JsonNumber,
-    output: &mut String,
-) -> Result<(), CanonicalJsonError> {
-    write_canonical_json_fragment(value, output)
 }
 
 struct JsonStringWriter<'a> {

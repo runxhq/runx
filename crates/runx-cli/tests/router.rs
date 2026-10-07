@@ -44,7 +44,7 @@ fn top_level_help_and_version_are_native() {
     );
     assert_help_line(
         &help,
-        "runx skill <skill-ref|owner/name@version|skill-dir|SKILL.md> [runner] [-p profile] [-i key=value] [--input-json key=json] [--inputs file|-] [-j] [--diagnostics] [--managed-agent [--managed-agent-rounds n]] [--full-operator-context] [--registry url|path] [--digest sha256] [--package-digest sha256 --execution-closure-digest sha256] [--flag value] [-R dir]",
+        "runx skill <skill-ref|owner/name@version|skill-dir|SKILL.md> [runner] [-i key=value] [--input-json key=json] [--inputs file|-] [-j] [--diagnostics] [--managed-agent [--managed-agent-rounds n]] [--full-operator-context] [--registry url|path] [--digest sha256] [--package-digest sha256 --execution-closure-digest sha256] [--flag value] [-R dir]",
     );
     assert_help_line(
         &help,
@@ -60,7 +60,7 @@ fn top_level_help_and_version_are_native() {
     );
     assert_help_line(
         &help,
-        "runx add <skill-ref|github-url> [--registry url|path] [--version version] [--ref git-ref] [--digest sha256] [--to dir] [--api-base-url url] [--json]",
+        "runx add <skill-ref|repository-url> [--registry url|path] [--version version] [--ref git-ref] [--digest sha256] [--to dir] [--api-base-url url] [--json]",
     );
     assert_help_line(&help, "runx parser eval --input <file|-> --json");
     assert_help_line(
@@ -74,11 +74,15 @@ fn top_level_help_and_version_are_native() {
     );
     assert_help_line(
         &help,
-        "runx login [--provider github|google|gitlab] [--for default|publish] [--from-gh] [--api-base-url url] [--allow-local-api] [-j|--json]",
+        "runx login [--provider name] [--for default|publish] [--token-stdin] [--api-base-url url] [--allow-local-api] [-j|--json]",
     );
     assert_help_line(
         &help,
-        "runx connect list|bind|start|status|revoke ... [-j|--json]",
+        "runx connect list|start|status|revoke ... [-j|--json]",
+    );
+    assert_help_line(
+        &help,
+        "runx connector list|inspect|instances|use|revoke|import-mcp ... [-j|--json]",
     );
     assert!(
         !help.contains("runx harness <fixture.yaml|skill-dir|SKILL.md>"),
@@ -147,15 +151,11 @@ fn nested_skill_history_verify_and_publish_help_are_native() {
 
     assert_help_line(
         &skill_help_text(),
-        "runx skill <skill-ref|owner/name@version|skill-dir|SKILL.md> [runner] [-p profile] [-i key=value] [--input-json key=json] [--inputs file|-] [-j] [--diagnostics] [--managed-agent [--managed-agent-rounds n]] [--full-operator-context] [--registry url|path] [--digest sha256] [--package-digest sha256 --execution-closure-digest sha256] [--flag value] [-R dir]",
+        "runx skill <skill-ref|owner/name@version|skill-dir|SKILL.md> [runner] [-i key=value] [--input-json key=json] [--inputs file|-] [-j] [--diagnostics] [--managed-agent [--managed-agent-rounds n]] [--full-operator-context] [--registry url|path] [--digest sha256] [--package-digest sha256 --execution-closure-digest sha256] [--flag value] [-R dir]",
     );
     assert_help_line(
         &skill_help_text(),
         "runx skill inspect <skill-ref|owner/name@version|skill-dir|SKILL.md> [runner] [-j] [--registry url|path] [--digest sha256]",
-    );
-    assert_help_line(
-        &skill_help_text(),
-        "-p, --profile name       Use a stored local credential profile",
     );
     assert_help_line(
         &history_help_text(),
@@ -167,10 +167,9 @@ fn nested_skill_history_verify_and_publish_help_are_native() {
     );
     assert!(verify_help_text().contains("--allow-local-development-signatures"));
     assert!(history_help_text().contains("--limit n"));
-    assert!(skill_help_text().contains("--credential-profile name"));
     assert_help_line(
         &publish_help_text(),
-        "runx publish <receipt.json> [--api-base-url url] [--token token] [--allow-local-api] [-j|--json]",
+        "runx publish <receipt.json> [--api-base-url url] [--allow-local-api] [-j|--json]",
     );
     assert_help_line(
         &harness_help_text(),
@@ -281,7 +280,7 @@ fn documented_command_help_is_native() {
 
     assert_help_line(
         &add_help_text(),
-        "runx add <skill-ref|github-url> [--registry url|path] [--version version] [--ref git-ref] [--digest sha256] [--to dir] [--api-base-url url] [--json]",
+        "runx add <skill-ref|repository-url> [--registry url|path] [--version version] [--ref git-ref] [--digest sha256] [--to dir] [--api-base-url url] [--json]",
     );
     assert!(!add_help_text().contains("--installation-id"));
     assert_help_line(
@@ -290,7 +289,7 @@ fn documented_command_help_is_native() {
     );
     assert_help_line(
         &login_help_text(),
-        "runx login [--provider github|google|gitlab] [--for default|publish] [--from-gh] [--api-base-url url] [--allow-local-api] [-j|--json]",
+        "runx login [--provider name] [--for default|publish] [--token-stdin] [--api-base-url url] [--allow-local-api] [-j|--json]",
     );
     assert!(!connect_help_text().contains("connect invoke"));
     let resume_help = command_help_text("resume").unwrap_or_default();
@@ -339,7 +338,7 @@ fn routes_login_to_native_plan() {
             "github",
             "--for",
             "publish",
-            "--from-gh",
+            "--token-stdin",
             "--api-base-url",
             "https://runx.test",
             "--json",
@@ -348,7 +347,7 @@ fn routes_login_to_native_plan() {
             provider: Some("github".to_owned()),
             purpose: Some(HostedApiCredentialPurpose::Publish),
             api_base_url: Some("https://runx.test".to_owned()),
-            from_gh: true,
+            token_stdin: true,
             allow_local_api: false,
             json: true,
         })
@@ -537,7 +536,6 @@ fn routes_canonical_skill_run_to_native_plan() {
             .into_iter()
             .collect(),
             input_document: None,
-            credential_profile: None,
             managed_agent: Default::default(),
         })
     );
@@ -618,7 +616,6 @@ fn routes_connect_to_native_plan() {
         RouterAction::RunConnect(ConnectPlan {
             action: ConnectAction::List,
             api_base_url: None,
-            token: None,
             allow_local_api: false,
             json: true,
         })
@@ -988,6 +985,16 @@ fn rejects_unsafe_registry_version() {
 }
 
 #[test]
+fn add_indexes_any_repository_url_and_installs_skill_refs_and_paths() {
+    let indexes = |subject: &str| matches!(plan(&["add", subject]), RouterAction::RunAddUrl(_));
+    assert!(indexes("https://git.example.com/acme/skills"));
+    assert!(indexes("codeberg.org/acme/skills"));
+    assert!(!indexes("acme/sourcey@1.0.0"));
+    assert!(!indexes("./skills/sourcey"));
+    assert!(!indexes("https://git.example.com/acme"));
+}
+
+#[test]
 fn routes_add_to_native_plan() {
     assert_eq!(
         plan(&[
@@ -1037,7 +1044,7 @@ fn routes_add_to_native_plan() {
     assert_eq!(
         plan(&["add", "github.com/kam/skills", "--version", "main"]),
         RouterAction::Error(
-            "runx add <github-url> uses --ref for git refs, not --version".to_owned()
+            "runx add <repository-url> uses --ref for git refs, not --version".to_owned()
         )
     );
     assert_eq!(
@@ -1049,7 +1056,7 @@ fn routes_add_to_native_plan() {
             "--json"
         ]),
         RouterAction::JsonError(JsonErrorPlan {
-            message: "runx add <github-url> uses --ref for git refs, not --version".to_owned(),
+            message: "runx add <repository-url> uses --ref for git refs, not --version".to_owned(),
             code: "invalid_args".to_owned(),
             exit_code: 64,
         })
@@ -1071,20 +1078,14 @@ fn routes_tool_to_native_plan_and_rejects_unknown_subcommands() {
     );
     assert_eq!(
         plan(&[
-            "tool",
-            "search",
-            "echo",
-            "writer",
-            "--source",
-            "fixture-mcp",
-            "--json",
+            "tool", "search", "echo", "writer", "--source", "native", "--json",
         ]),
         RouterAction::RunTool(ToolPlan {
             action: ToolAction::Search,
             path: None,
             ref_or_query: Some("echo writer".to_owned()),
             all: false,
-            source: Some("fixture-mcp".to_owned()),
+            source: Some("native".to_owned()),
             json: true,
         })
     );

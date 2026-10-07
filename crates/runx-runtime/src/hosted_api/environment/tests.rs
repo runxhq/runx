@@ -76,9 +76,9 @@ fn stored_default_and_publish_credentials_keep_independent_environment_bindings(
     )
     .expect("store publisher credential");
 
-    let operator = HostedApiEnvironment::resolve(None, None, &env, workspace.path())
+    let operator = HostedApiEnvironment::resolve(None, &env, workspace.path())
         .expect("resolve operator credential");
-    let publisher = HostedApiEnvironment::resolve_publish(None, None, &env, workspace.path())
+    let publisher = HostedApiEnvironment::resolve_publish(None, &env, workspace.path())
         .expect("resolve publisher credential");
     assert_eq!(operator.base_url(), "https://operator.runx.test");
     assert_eq!(
@@ -99,7 +99,7 @@ fn hosted_api_base_url_requires_https_outside_loopback() {
         "http://api.runx.test".to_owned(),
     )]);
 
-    let error = HostedApiEnvironment::resolve(None, None, &env, Path::new("."))
+    let error = HostedApiEnvironment::resolve(None, &env, Path::new("."))
         .expect_err("public HTTP must fail closed");
 
     assert!(
@@ -113,13 +113,9 @@ fn hosted_api_base_url_requires_https_outside_loopback() {
 fn hosted_api_base_url_allows_loopback_http_for_explicit_local_development() {
     let env = BTreeMap::new();
 
-    let environment = HostedApiEnvironment::resolve(
-        Some("http://127.0.0.1:4317/"),
-        Some("rxk_local"),
-        &env,
-        Path::new("."),
-    )
-    .expect("loopback environment");
+    let environment =
+        HostedApiEnvironment::resolve(Some("http://127.0.0.1:4317/"), &env, Path::new("."))
+            .expect("loopback environment");
 
     assert_eq!(environment.base_url(), "http://127.0.0.1:4317");
 }
@@ -135,7 +131,7 @@ fn hosted_api_base_url_rejects_embedded_credentials_and_query_state() {
         "https://api.runx.test#fragment",
     ] {
         assert!(
-            HostedApiEnvironment::resolve(Some(base_url), None, &env, Path::new(".")).is_err(),
+            HostedApiEnvironment::resolve(Some(base_url), &env, Path::new(".")).is_err(),
             "{base_url} must fail closed",
         );
     }

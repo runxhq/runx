@@ -22,9 +22,6 @@ inputs:
   data_source_ref: tenant://twitter/sqlite-mismatch
   expected_version: 0
   idempotency_key: twitter:sha256:0000000000000000000000000000000000000000000000000000000000000000:v1
-caller:
-  approvals:
-    twitter.execute.approval: true
 expect:
   status: sealed
   receipt:

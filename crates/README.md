@@ -48,9 +48,7 @@ before they may be added to `deny.toml`.
   supervision, journals, registry clients, harness replay, doctor, dev loop,
   project initialization, generic authority gating, and the adapter set. Adapter
   families are opt-in features: `async-http`, `cli-tool`, `mcp`,
-  `mcp-http-server`, `a2a`, `agent`, `catalog`, `external-adapter`, and
-  `thread-outbox-provider`; `a2a` is
-  contract-defined but not enabled in `runx-cli`.
+  `mcp-http-server`, `agent`, and `catalog`.
   The `async-http` feature owns runtime HTTP with reqwest over rustls, disables
   redirect following, and uses bounded request/connect timeouts. `cli-tool`
   enables `async-http`; defaults keep the runtime dependency-light.

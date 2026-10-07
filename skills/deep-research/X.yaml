@@ -1,5 +1,5 @@
 skill: deep-research
-version: "0.2.4"
+version: "0.2.5"
 
 catalog:
   kind: graph
@@ -254,7 +254,7 @@ runners:
       source_packets:
         type: array
         required: true
-        description: Bounded governed source packets, normally runx.fetch.v1 evidence.
+        description: Bounded governed source packets, normally web-fetch provider operation evidence.
         schema: { maxItems: 20 }
       audience: { definition: audience }
       channel: { definition: channel }

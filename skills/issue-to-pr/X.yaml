@@ -1,5 +1,5 @@
 skill: issue-to-pr
-version: "0.4.1"
+version: "0.4.3"
 
 catalog:
   kind: graph
@@ -22,9 +22,9 @@ input_definitions:
   repository:
     type: string
     required: true
-    description: Explicit owner/name or '.' to resolve the current checkout remote before transport selection.
+    description: Exact GitHub repository as owner/name.
     schema:
-      pattern: '^(?:\.|[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)$'
+      pattern: '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$'
   issue_number:
     type: string
     required: true
@@ -45,6 +45,9 @@ input_definitions:
     required: true
     description: Tested host change, exact commit, and the workspace-scoped signed receipt produced by one scafld finalize call.
 
+connectors:
+  github:
+    operations: [issue.read, branch.push, pullrequests.list, pullrequest.open]
 runners:
   issue-to-pr:
     default: true
@@ -58,18 +61,11 @@ runners:
       result_from: [host]
       steps:
         - id: read-issue
-          tool: provider.read
-          scopes: [repo.read]
-          policy:
-            provider_permission:
-              verb: read
+          operation: github/issue.read
           inputs:
-            expected_provider: github
-            operation: issue.read
-            target: $input.repository
-            result_fields: [repository, number, title, state, body, url, labels, assignees]
             input:
-              issue_number: $input.issue_number
+              repository: $input.repository
+              number: $input.issue_number
 
         - id: bind-issue-evidence
           inputs:
@@ -162,43 +158,10 @@ runners:
           when:
             field: admit-host-result.host_admission.path
             equals: publish
-          tool: provider.mutate
-          idempotency_key: host-work.host_result.data.publication.idempotency_key
-          scopes: [repo.write, pr.write]
-          policy:
-            provider_permission:
-              verb: write
-          inputs:
-            expected_provider: github
-            operation: pullrequest.publish
-            target: $input.repository
-            idempotency_key: $input.canonical_idempotency_key
-            result_fields: [repository, number, title, state, body, url, head, base, draft, published_commit, branch_ref]
-            input:
-              commit: $input.commit
-              title: $input.title
-              body: $input.body
-              head: $input.head
-              base: $input.base
-              draft: $input.draft
-            expected_result:
-              repository: $input.repository
-              published_commit: $input.commit
-              title: $input.title
-              body: $input.body
-              head: $input.head
-              base: $input.base
-              draft: $input.draft
+          skill: .
+          runner: pull-request
           context:
-            repository: host-work.host_result.data.repository
-            canonical_idempotency_key: host-work.host_result.data.publication.idempotency_key
-            commit: host-work.host_result.data.commit
-            title: host-work.host_result.data.publication.title
-            body: host-work.host_result.data.publication.body
-            head: host-work.host_result.data.publication.head
-            base: host-work.host_result.data.publication.base
-            draft: host-work.host_result.data.publication.draft
-
+            host_result: host-work.host_result.data
         - id: finalize-published
           when:
             field: admit-host-result.host_admission.path
@@ -206,7 +169,7 @@ runners:
           context:
             host_result: host-work.host_result.data
             receipt_verification: verify-publication.external_receipt_verification.data
-            publication_result: publish-pr.provider_operation.data
+            publication_result: publish-pr.publication.data
           run:
             type: javascript
             module: issue-to-pr.mjs
@@ -303,34 +266,10 @@ runners:
           when:
             field: admit-host-result.host_admission.path
             equals: publish
-          tool: provider.mutate
-          idempotency_key: $input.host_result.publication.idempotency_key
-          scopes: [repo.write, pr.write]
-          policy:
-            provider_permission:
-              verb: write
+          skill: .
+          runner: pull-request
           inputs:
-            expected_provider: github
-            operation: pullrequest.publish
-            target: $input.host_result.repository
-            idempotency_key: $input.host_result.publication.idempotency_key
-            result_fields: [repository, number, title, state, body, url, head, base, draft, published_commit, branch_ref]
-            input:
-              commit: $input.host_result.commit
-              title: $input.host_result.publication.title
-              body: $input.host_result.publication.body
-              head: $input.host_result.publication.head
-              base: $input.host_result.publication.base
-              draft: $input.host_result.publication.draft
-            expected_result:
-              repository: $input.host_result.repository
-              published_commit: $input.host_result.commit
-              title: $input.host_result.publication.title
-              body: $input.host_result.publication.body
-              head: $input.host_result.publication.head
-              base: $input.host_result.publication.base
-              draft: $input.host_result.publication.draft
-
+            host_result: $input.host_result
         - id: finalize-published
           when:
             field: admit-host-result.host_admission.path
@@ -339,7 +278,7 @@ runners:
             host_result: $input.host_result
           context:
             receipt_verification: verify-publication.external_receipt_verification.data
-            publication_result: publish-pr.provider_operation.data
+            publication_result: publish-pr.publication.data
           run:
             type: javascript
             module: issue-to-pr.mjs
@@ -465,40 +404,16 @@ runners:
             host_result: $input.host_result
 
         - id: publish-pr
-          tool: provider.mutate
-          idempotency_key: $input.host_result.publication.idempotency_key
-          scopes: [repo.write, pr.write]
-          policy:
-            provider_permission:
-              verb: write
+          skill: .
+          runner: pull-request
           inputs:
-            expected_provider: github
-            operation: pullrequest.publish
-            target: $input.host_result.repository
-            idempotency_key: $input.host_result.publication.idempotency_key
-            result_fields: [repository, number, title, state, body, url, head, base, draft, published_commit, branch_ref]
-            input:
-              commit: $input.host_result.commit
-              title: $input.host_result.publication.title
-              body: $input.host_result.publication.body
-              head: $input.host_result.publication.head
-              base: $input.host_result.publication.base
-              draft: $input.host_result.publication.draft
-            expected_result:
-              repository: $input.host_result.repository
-              published_commit: $input.host_result.commit
-              title: $input.host_result.publication.title
-              body: $input.host_result.publication.body
-              head: $input.host_result.publication.head
-              base: $input.host_result.publication.base
-              draft: $input.host_result.publication.draft
-
+            host_result: $input.host_result
         - id: finalize
           inputs:
             host_result: $input.host_result
           context:
             receipt_verification: verify.external_receipt_verification.data
-            publication_result: publish-pr.provider_operation.data
+            publication_result: publish-pr.publication.data
           run:
             type: javascript
             module: issue-to-pr.mjs
@@ -508,3 +423,96 @@ runners:
           artifacts:
             named_emits: { issue_to_pr_result: issue_to_pr_result }
             packets: { issue_to_pr_result: runx.issue_to_pr.result.v1 }
+
+  pull-request:
+    type: graph
+    inputs:
+      host_result: { definition: host_result }
+    graph:
+      name: issue-to-pr-pull-request
+      result_from: [settle-opened, settle-existing]
+      steps:
+        - id: push
+          operation: github/branch.push
+          idempotency_key: $input.host_result.publication.idempotency_key
+          inputs:
+            idempotency_key: $input.host_result.publication.idempotency_key
+            input:
+              repository: $input.host_result.repository
+              branch: $input.host_result.publication.head
+              commit: $input.host_result.commit
+
+        - id: plan
+          inputs:
+            host_result: $input.host_result
+          run:
+            type: javascript
+            module: issue-to-pr.mjs
+            export: planPullRequest
+            outputs:
+              pull_request_plan: object
+
+        - id: find
+          operation: github/pullrequests.list
+          context:
+            input: plan.pull_request_plan.find
+
+        - id: choose
+          inputs:
+            host_result: $input.host_result
+          context:
+            found: find.provider_operation.data
+          run:
+            type: javascript
+            module: issue-to-pr.mjs
+            export: choosePullRequest
+            outputs:
+              pull_request_choice: object
+
+        - id: open
+          when:
+            field: choose.pull_request_choice.action
+            equals: open
+          operation: github/pullrequest.open
+          idempotency_key: $input.host_result.publication.idempotency_key
+          inputs:
+            idempotency_key: $input.host_result.publication.idempotency_key
+          context:
+            input: choose.pull_request_choice.open
+
+        - id: settle-opened
+          when:
+            field: choose.pull_request_choice.action
+            equals: open
+          inputs:
+            host_result: $input.host_result
+          context:
+            pushed: push.provider_operation.data
+            choice: choose.pull_request_choice
+            opened: open.provider_operation.data
+          run:
+            type: javascript
+            module: issue-to-pr.mjs
+            export: settlePullRequest
+            outputs:
+              publication: object
+          artifacts:
+            named_emits: { publication: publication }
+
+        - id: settle-existing
+          when:
+            field: choose.pull_request_choice.action
+            not_equals: open
+          inputs:
+            host_result: $input.host_result
+          context:
+            pushed: push.provider_operation.data
+            choice: choose.pull_request_choice
+          run:
+            type: javascript
+            module: issue-to-pr.mjs
+            export: settlePullRequest
+            outputs:
+              publication: object
+          artifacts:
+            named_emits: { publication: publication }

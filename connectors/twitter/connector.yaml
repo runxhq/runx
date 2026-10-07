@@ -1,0 +1,749 @@
+schema: runx.connector.v1
+id: twitter
+name: X (Twitter)
+description: Read accounts and posts on X, publish posts, and act on accounts and posts.
+auth:
+  credentials:
+    user:
+      kind: oauth1_user
+      fields:
+        - name: consumer_key
+        - name: consumer_secret
+        - name: access_token
+        - name: access_secret
+      delivery:
+        env: TWITTER_USER_AUTH
+      audience: [api.x.com]
+    app:
+      kind: bearer_token
+      fields:
+        - name: token
+      delivery:
+        env: TWITTER_BEARER_TOKEN
+      audience: [api.x.com]
+placements:
+  local:
+    auth: [credentials]
+operations:
+  account.snapshot:
+    description: Read the authenticated account's profile and public metrics.
+    verb: read
+    scopes: ["twitter:read"]
+    credentials: [user]
+    target:
+      template: "https://api.x.com"
+    input_schema:
+      type: object
+      additionalProperties: false
+    result_fields: [account]
+    implementation:
+      http:
+        allowed_hosts: [api.x.com]
+        auth: {user: {type: oauth1}}
+        requests:
+          - id: self
+            method: GET
+            url: "https://api.x.com/2/users/me"
+            query:
+              user.fields: "created_at,description,public_metrics"
+        decode: [{op: auto_json}]
+        result_paths:
+          account: acknowledgement.data
+  account.posts.read:
+    description: Read the authenticated account's posts, newest first, page by page up to the limit.
+    verb: read
+    scopes: ["twitter:read"]
+    credentials: [user]
+    target:
+      template: "https://api.x.com"
+    input_schema:
+      type: object
+      additionalProperties: false
+      properties:
+        limit: {type: integer, minimum: 1, maximum: 10000}
+        page_size: {type: integer, minimum: 10, maximum: 100}
+        cursor: {type: string, minLength: 1, maxLength: 512}
+    result_fields: [account, posts, next]
+    implementation:
+      http:
+        allowed_hosts: [api.x.com]
+        auth: {user: {type: oauth1}}
+        requests:
+          - id: self
+            method: GET
+            url: "https://api.x.com/2/users/me"
+            query:
+              user.fields: "created_at,description,public_metrics"
+          - id: posts
+            method: GET
+            url: {"$concat": ["https://api.x.com/2/users/", {"$response": "self.json.data.id"}, "/tweets"]}
+            query:
+              tweet.fields: "created_at,public_metrics,entities,referenced_tweets,in_reply_to_user_id"
+              max_results: {"$argument": "/page_size"}
+              pagination_token: {"$argument": "/cursor"}
+            pages:
+              param: pagination_token
+              cursor: meta.next_token
+              items: data
+              limit: {"$argument": "/limit"}
+        decode: [{op: auto_json}]
+        result_paths:
+          account: acknowledgement.0.data
+          posts: acknowledgement.1.items
+          next: acknowledgement.1.next
+  account.mentions.read:
+    description: Read recent posts that mention the authenticated account, page by page up to the limit.
+    verb: read
+    scopes: ["twitter:read"]
+    credentials: [user]
+    target:
+      template: "https://api.x.com"
+    input_schema:
+      type: object
+      additionalProperties: false
+      properties:
+        limit: {type: integer, minimum: 1, maximum: 10000}
+        page_size: {type: integer, minimum: 10, maximum: 100}
+        cursor: {type: string, minLength: 1, maxLength: 512}
+    result_fields: [account, posts, next]
+    implementation:
+      http:
+        allowed_hosts: [api.x.com]
+        auth: {user: {type: oauth1}}
+        requests:
+          - id: self
+            method: GET
+            url: "https://api.x.com/2/users/me"
+            query:
+              user.fields: "created_at,description,public_metrics"
+          - id: posts
+            method: GET
+            url: {"$concat": ["https://api.x.com/2/users/", {"$response": "self.json.data.id"}, "/mentions"]}
+            query:
+              tweet.fields: "created_at,public_metrics,entities,referenced_tweets,in_reply_to_user_id"
+              max_results: {"$argument": "/page_size"}
+              pagination_token: {"$argument": "/cursor"}
+            pages:
+              param: pagination_token
+              cursor: meta.next_token
+              items: data
+              limit: {"$argument": "/limit"}
+        decode: [{op: auto_json}]
+        result_paths:
+          account: acknowledgement.0.data
+          posts: acknowledgement.1.items
+          next: acknowledgement.1.next
+  account.following.read:
+    description: Read the accounts the authenticated account follows, page by page up to the limit.
+    verb: read
+    scopes: ["twitter:read"]
+    credentials: [user]
+    target:
+      template: "https://api.x.com"
+    input_schema:
+      type: object
+      additionalProperties: false
+      properties:
+        limit: {type: integer, minimum: 1, maximum: 10000}
+        page_size: {type: integer, minimum: 10, maximum: 100}
+        cursor: {type: string, minLength: 1, maxLength: 512}
+    result_fields: [account, users, next]
+    implementation:
+      http:
+        allowed_hosts: [api.x.com]
+        auth: {user: {type: oauth1}}
+        requests:
+          - id: self
+            method: GET
+            url: "https://api.x.com/2/users/me"
+            query:
+              user.fields: "created_at,description,public_metrics"
+          - id: users
+            method: GET
+            url: {"$concat": ["https://api.x.com/2/users/", {"$response": "self.json.data.id"}, "/following"]}
+            query:
+              user.fields: "created_at,description,public_metrics"
+              max_results: {"$argument": "/page_size"}
+              pagination_token: {"$argument": "/cursor"}
+            pages:
+              param: pagination_token
+              cursor: meta.next_token
+              items: data
+              limit: {"$argument": "/limit"}
+        decode: [{op: auto_json}]
+        result_paths:
+          account: acknowledgement.0.data
+          users: acknowledgement.1.items
+          next: acknowledgement.1.next
+  account.followers.read:
+    description: Read the accounts that follow the authenticated account, page by page up to the limit.
+    verb: read
+    scopes: ["twitter:read"]
+    credentials: [user]
+    target:
+      template: "https://api.x.com"
+    input_schema:
+      type: object
+      additionalProperties: false
+      properties:
+        limit: {type: integer, minimum: 1, maximum: 10000}
+        page_size: {type: integer, minimum: 10, maximum: 100}
+        cursor: {type: string, minLength: 1, maxLength: 512}
+    result_fields: [account, users, next]
+    implementation:
+      http:
+        allowed_hosts: [api.x.com]
+        auth: {user: {type: oauth1}}
+        requests:
+          - id: self
+            method: GET
+            url: "https://api.x.com/2/users/me"
+            query:
+              user.fields: "created_at,description,public_metrics"
+          - id: users
+            method: GET
+            url: {"$concat": ["https://api.x.com/2/users/", {"$response": "self.json.data.id"}, "/followers"]}
+            query:
+              user.fields: "created_at,description,public_metrics"
+              max_results: {"$argument": "/page_size"}
+              pagination_token: {"$argument": "/cursor"}
+            pages:
+              param: pagination_token
+              cursor: meta.next_token
+              items: data
+              limit: {"$argument": "/limit"}
+        decode: [{op: auto_json}]
+        result_paths:
+          account: acknowledgement.0.data
+          users: acknowledgement.1.items
+          next: acknowledgement.1.next
+  posts.read:
+    description: Read an account's posts, newest first, page by page up to the limit.
+    verb: read
+    scopes: ["twitter:read"]
+    credentials: [user, app]
+    target:
+      template: "https://api.x.com"
+    input_schema:
+      type: object
+      required: [user_id]
+      additionalProperties: false
+      properties:
+        user_id: {type: string, pattern: "^[0-9]{1,19}$"}
+        limit: {type: integer, minimum: 1, maximum: 10000}
+        page_size: {type: integer, minimum: 10, maximum: 100}
+        cursor: {type: string, minLength: 1, maxLength: 512}
+    result_fields: [posts, next]
+    implementation:
+      http:
+        allowed_hosts: [api.x.com]
+        auth: {user: {type: oauth1}, app: {type: bearer}}
+        requests:
+          - id: posts
+            method: GET
+            url: {"$concat": ["https://api.x.com/2/users/", {"$argument": "/user_id"}, "/tweets"]}
+            query:
+              tweet.fields: "created_at,public_metrics,entities,referenced_tweets,in_reply_to_user_id"
+              max_results: {"$argument": "/page_size"}
+              pagination_token: {"$argument": "/cursor"}
+            pages:
+              param: pagination_token
+              cursor: meta.next_token
+              items: data
+              limit: {"$argument": "/limit"}
+        decode: [{op: auto_json}]
+        result_paths:
+          posts: acknowledgement.items
+          next: acknowledgement.next
+  mentions.read:
+    description: Read recent posts that mention an account, page by page up to the limit.
+    verb: read
+    scopes: ["twitter:read"]
+    credentials: [user, app]
+    target:
+      template: "https://api.x.com"
+    input_schema:
+      type: object
+      required: [user_id]
+      additionalProperties: false
+      properties:
+        user_id: {type: string, pattern: "^[0-9]{1,19}$"}
+        limit: {type: integer, minimum: 1, maximum: 10000}
+        page_size: {type: integer, minimum: 10, maximum: 100}
+        cursor: {type: string, minLength: 1, maxLength: 512}
+    result_fields: [posts, next]
+    implementation:
+      http:
+        allowed_hosts: [api.x.com]
+        auth: {user: {type: oauth1}, app: {type: bearer}}
+        requests:
+          - id: posts
+            method: GET
+            url: {"$concat": ["https://api.x.com/2/users/", {"$argument": "/user_id"}, "/mentions"]}
+            query:
+              tweet.fields: "created_at,public_metrics,entities,referenced_tweets,in_reply_to_user_id"
+              max_results: {"$argument": "/page_size"}
+              pagination_token: {"$argument": "/cursor"}
+            pages:
+              param: pagination_token
+              cursor: meta.next_token
+              items: data
+              limit: {"$argument": "/limit"}
+        decode: [{op: auto_json}]
+        result_paths:
+          posts: acknowledgement.items
+          next: acknowledgement.next
+  following.read:
+    description: Read the accounts an account follows, page by page up to the limit.
+    verb: read
+    scopes: ["twitter:read"]
+    credentials: [user, app]
+    target:
+      template: "https://api.x.com"
+    input_schema:
+      type: object
+      required: [user_id]
+      additionalProperties: false
+      properties:
+        user_id: {type: string, pattern: "^[0-9]{1,19}$"}
+        limit: {type: integer, minimum: 1, maximum: 10000}
+        page_size: {type: integer, minimum: 10, maximum: 100}
+        cursor: {type: string, minLength: 1, maxLength: 512}
+    result_fields: [users, next]
+    implementation:
+      http:
+        allowed_hosts: [api.x.com]
+        auth: {user: {type: oauth1}, app: {type: bearer}}
+        requests:
+          - id: users
+            method: GET
+            url: {"$concat": ["https://api.x.com/2/users/", {"$argument": "/user_id"}, "/following"]}
+            query:
+              user.fields: "created_at,description,public_metrics"
+              max_results: {"$argument": "/page_size"}
+              pagination_token: {"$argument": "/cursor"}
+            pages:
+              param: pagination_token
+              cursor: meta.next_token
+              items: data
+              limit: {"$argument": "/limit"}
+        decode: [{op: auto_json}]
+        result_paths:
+          users: acknowledgement.items
+          next: acknowledgement.next
+  followers.read:
+    description: Read the accounts that follow an account, page by page up to the limit.
+    verb: read
+    scopes: ["twitter:read"]
+    credentials: [user, app]
+    target:
+      template: "https://api.x.com"
+    input_schema:
+      type: object
+      required: [user_id]
+      additionalProperties: false
+      properties:
+        user_id: {type: string, pattern: "^[0-9]{1,19}$"}
+        limit: {type: integer, minimum: 1, maximum: 10000}
+        page_size: {type: integer, minimum: 10, maximum: 100}
+        cursor: {type: string, minLength: 1, maxLength: 512}
+    result_fields: [users, next]
+    implementation:
+      http:
+        allowed_hosts: [api.x.com]
+        auth: {user: {type: oauth1}, app: {type: bearer}}
+        requests:
+          - id: users
+            method: GET
+            url: {"$concat": ["https://api.x.com/2/users/", {"$argument": "/user_id"}, "/followers"]}
+            query:
+              user.fields: "created_at,description,public_metrics"
+              max_results: {"$argument": "/page_size"}
+              pagination_token: {"$argument": "/cursor"}
+            pages:
+              param: pagination_token
+              cursor: meta.next_token
+              items: data
+              limit: {"$argument": "/limit"}
+        decode: [{op: auto_json}]
+        result_paths:
+          users: acknowledgement.items
+          next: acknowledgement.next
+  posts.search:
+    description: Search recent posts, page by page up to the limit.
+    verb: read
+    scopes: ["twitter:read"]
+    credentials: [user, app]
+    target:
+      template: "https://api.x.com"
+    input_schema:
+      type: object
+      required: [query]
+      additionalProperties: false
+      properties:
+        query: {type: string, minLength: 1, maxLength: 512}
+        limit: {type: integer, minimum: 1, maximum: 10000}
+        page_size: {type: integer, minimum: 10, maximum: 100}
+        cursor: {type: string, minLength: 1, maxLength: 512}
+    result_fields: [posts, next]
+    implementation:
+      http:
+        allowed_hosts: [api.x.com]
+        auth: {user: {type: oauth1}, app: {type: bearer}}
+        requests:
+          - id: posts
+            method: GET
+            url: "https://api.x.com/2/tweets/search/recent"
+            query:
+              query: {"$argument": "/query"}
+              tweet.fields: "created_at,public_metrics,entities,referenced_tweets,in_reply_to_user_id"
+              max_results: {"$argument": "/page_size"}
+              next_token: {"$argument": "/cursor"}
+            pages:
+              param: next_token
+              cursor: meta.next_token
+              items: data
+              limit: {"$argument": "/limit"}
+        decode: [{op: auto_json}]
+        result_paths:
+          posts: acknowledgement.items
+          next: acknowledgement.next
+  post.create:
+    description: Publish one post to the account's public timeline.
+    verb: write
+    scopes: ["twitter:write"]
+    credentials: [user]
+    target:
+      template: "https://api.x.com/2/tweets"
+    approval: required
+    input_schema:
+      type: object
+      required: [text]
+      additionalProperties: false
+      properties:
+        text: {type: string, minLength: 1, maxLength: 4000}
+    result_fields: [post]
+    implementation:
+      http:
+        allowed_hosts: [api.x.com]
+        auth: {user: {type: oauth1}}
+        requests:
+          - id: post
+            method: POST
+            url: "https://api.x.com/2/tweets"
+            body: {text: {"$argument": "/text"}}
+        readbacks:
+          - request:
+              id: posted
+              method: GET
+              url: {"$concat": ["https://api.x.com/2/tweets/", {"$response": "write.json.data.id"}]}
+            matches:
+              - {expected: {source: acknowledgement, path: data.id}, observed: data.id}
+        decode: [{op: auto_json}]
+        operation_id_path: data.id
+        result_paths:
+          post: readbacks.0.data
+  post.reply:
+    description: Publish one reply to a post.
+    verb: write
+    scopes: ["twitter:write"]
+    credentials: [user]
+    target:
+      template: {"$concat": ["https://api.x.com/2/tweets/", {"$argument": "/in_reply_to"}]}
+    approval: required
+    input_schema:
+      type: object
+      required: [text, in_reply_to]
+      additionalProperties: false
+      properties:
+        text: {type: string, minLength: 1, maxLength: 4000}
+        in_reply_to: {type: string, pattern: "^[0-9]{1,19}$"}
+    result_fields: [post]
+    implementation:
+      http:
+        allowed_hosts: [api.x.com]
+        auth: {user: {type: oauth1}}
+        requests:
+          - id: post
+            method: POST
+            url: "https://api.x.com/2/tweets"
+            body:
+              text: {"$argument": "/text"}
+              reply: {in_reply_to_tweet_id: {"$argument": "/in_reply_to"}}
+        readbacks:
+          - request:
+              id: posted
+              method: GET
+              url: {"$concat": ["https://api.x.com/2/tweets/", {"$response": "write.json.data.id"}]}
+            matches:
+              - {expected: {source: acknowledgement, path: data.id}, observed: data.id}
+        decode: [{op: auto_json}]
+        operation_id_path: data.id
+        result_paths:
+          post: readbacks.0.data
+  post.quote:
+    description: Publish one post that quotes another post.
+    verb: write
+    scopes: ["twitter:write"]
+    credentials: [user]
+    target:
+      template: {"$concat": ["https://api.x.com/2/tweets/", {"$argument": "/quote_of"}]}
+    approval: required
+    input_schema:
+      type: object
+      required: [text, quote_of]
+      additionalProperties: false
+      properties:
+        text: {type: string, minLength: 1, maxLength: 4000}
+        quote_of: {type: string, pattern: "^[0-9]{1,19}$"}
+    result_fields: [post]
+    implementation:
+      http:
+        allowed_hosts: [api.x.com]
+        auth: {user: {type: oauth1}}
+        requests:
+          - id: post
+            method: POST
+            url: "https://api.x.com/2/tweets"
+            body:
+              text: {"$argument": "/text"}
+              quote_tweet_id: {"$argument": "/quote_of"}
+        readbacks:
+          - request:
+              id: posted
+              method: GET
+              url: {"$concat": ["https://api.x.com/2/tweets/", {"$response": "write.json.data.id"}]}
+            matches:
+              - {expected: {source: acknowledgement, path: data.id}, observed: data.id}
+        decode: [{op: auto_json}]
+        operation_id_path: data.id
+        result_paths:
+          post: readbacks.0.data
+  posts.delete:
+    description: Delete each listed post of the account. Each answer states the resulting state, which is the evidence; X offers no read of one item cheap enough to confirm a batch.
+    verb: delete
+    scopes: ["twitter:write"]
+    credentials: [user]
+    target:
+      template: "https://api.x.com/2/tweets"
+    approval: required
+    guarantees:
+      provider_idempotency: inherent
+      readback: unavailable
+    input_schema:
+      type: object
+      required: [post_ids]
+      additionalProperties: false
+      properties:
+        post_ids: {type: array, minItems: 1, maxItems: 50, uniqueItems: true, items: {type: string, pattern: "^[0-9]{1,19}$"}}
+    result_fields: [outcomes]
+    implementation:
+      http:
+        allowed_hosts: [api.x.com]
+        auth: {user: {type: oauth1}}
+        requests:
+          - id: delete
+            each: {"$argument": "/post_ids"}
+            method: DELETE
+            url: {"$concat": ["https://api.x.com/2/tweets/", {"$item": ""}]}
+        decode: [{op: auto_json}]
+        result_paths:
+          outcomes: acknowledgement
+        rate_limit: {reset_header: x-rate-limit-reset}
+  users.unfollow:
+    description: Stop following each listed account. Each answer states the resulting state, which is the evidence; X offers no read of one item cheap enough to confirm a batch.
+    verb: write
+    scopes: ["twitter:write"]
+    credentials: [user]
+    target:
+      template: {"$concat": ["https://api.x.com/2/users/", {"$argument": "/source_user_id"}, "/following"]}
+    approval: required
+    guarantees:
+      provider_idempotency: inherent
+      readback: unavailable
+    input_schema:
+      type: object
+      required: [source_user_id, user_ids]
+      additionalProperties: false
+      properties:
+        source_user_id: {type: string, pattern: "^[0-9]{1,19}$"}
+        user_ids: {type: array, minItems: 1, maxItems: 50, uniqueItems: true, items: {type: string, pattern: "^[0-9]{1,19}$"}}
+    result_fields: [outcomes]
+    implementation:
+      http:
+        allowed_hosts: [api.x.com]
+        auth: {user: {type: oauth1}}
+        requests:
+          - id: unfollow
+            each: {"$argument": "/user_ids"}
+            method: DELETE
+            url: {"$concat": ["https://api.x.com/2/users/", {"$argument": "/source_user_id"}, "/following/", {"$item": ""}]}
+        decode: [{op: auto_json}]
+        result_paths:
+          outcomes: acknowledgement
+        rate_limit: {reset_header: x-rate-limit-reset}
+  users.follow:
+    description: Follow each listed account. Each answer states the resulting state, which is the evidence; X offers no read of one item cheap enough to confirm a batch.
+    verb: write
+    scopes: ["twitter:write"]
+    credentials: [user]
+    target:
+      template: {"$concat": ["https://api.x.com/2/users/", {"$argument": "/source_user_id"}, "/following"]}
+    approval: required
+    guarantees:
+      provider_idempotency: inherent
+      readback: unavailable
+    input_schema:
+      type: object
+      required: [source_user_id, user_ids]
+      additionalProperties: false
+      properties:
+        source_user_id: {type: string, pattern: "^[0-9]{1,19}$"}
+        user_ids: {type: array, minItems: 1, maxItems: 50, uniqueItems: true, items: {type: string, pattern: "^[0-9]{1,19}$"}}
+    result_fields: [outcomes]
+    implementation:
+      http:
+        allowed_hosts: [api.x.com]
+        auth: {user: {type: oauth1}}
+        requests:
+          - id: follow
+            each: {"$argument": "/user_ids"}
+            method: POST
+            url: {"$concat": ["https://api.x.com/2/users/", {"$argument": "/source_user_id"}, "/following"]}
+            body: {target_user_id: {"$item": ""}}
+        decode: [{op: auto_json}]
+        result_paths:
+          outcomes: acknowledgement
+        rate_limit: {reset_header: x-rate-limit-reset}
+  users.mute:
+    description: Mute each listed account. Each answer states the resulting state, which is the evidence; X offers no read of one item cheap enough to confirm a batch.
+    verb: write
+    scopes: ["twitter:write"]
+    credentials: [user]
+    target:
+      template: {"$concat": ["https://api.x.com/2/users/", {"$argument": "/source_user_id"}, "/muting"]}
+    approval: required
+    guarantees:
+      provider_idempotency: inherent
+      readback: unavailable
+    input_schema:
+      type: object
+      required: [source_user_id, user_ids]
+      additionalProperties: false
+      properties:
+        source_user_id: {type: string, pattern: "^[0-9]{1,19}$"}
+        user_ids: {type: array, minItems: 1, maxItems: 50, uniqueItems: true, items: {type: string, pattern: "^[0-9]{1,19}$"}}
+    result_fields: [outcomes]
+    implementation:
+      http:
+        allowed_hosts: [api.x.com]
+        auth: {user: {type: oauth1}}
+        requests:
+          - id: mute
+            each: {"$argument": "/user_ids"}
+            method: POST
+            url: {"$concat": ["https://api.x.com/2/users/", {"$argument": "/source_user_id"}, "/muting"]}
+            body: {target_user_id: {"$item": ""}}
+        decode: [{op: auto_json}]
+        result_paths:
+          outcomes: acknowledgement
+        rate_limit: {reset_header: x-rate-limit-reset}
+  users.block:
+    description: Block each listed account. Each answer states the resulting state, which is the evidence; X offers no read of one item cheap enough to confirm a batch.
+    verb: write
+    scopes: ["twitter:write"]
+    credentials: [user]
+    target:
+      template: {"$concat": ["https://api.x.com/2/users/", {"$argument": "/source_user_id"}, "/blocking"]}
+    approval: required
+    guarantees:
+      provider_idempotency: inherent
+      readback: unavailable
+    input_schema:
+      type: object
+      required: [source_user_id, user_ids]
+      additionalProperties: false
+      properties:
+        source_user_id: {type: string, pattern: "^[0-9]{1,19}$"}
+        user_ids: {type: array, minItems: 1, maxItems: 50, uniqueItems: true, items: {type: string, pattern: "^[0-9]{1,19}$"}}
+    result_fields: [outcomes]
+    implementation:
+      http:
+        allowed_hosts: [api.x.com]
+        auth: {user: {type: oauth1}}
+        requests:
+          - id: block
+            each: {"$argument": "/user_ids"}
+            method: POST
+            url: {"$concat": ["https://api.x.com/2/users/", {"$argument": "/source_user_id"}, "/blocking"]}
+            body: {target_user_id: {"$item": ""}}
+        decode: [{op: auto_json}]
+        result_paths:
+          outcomes: acknowledgement
+        rate_limit: {reset_header: x-rate-limit-reset}
+  posts.like:
+    description: Like each listed post. Each answer states the resulting state, which is the evidence; X offers no read of one item cheap enough to confirm a batch.
+    verb: write
+    scopes: ["twitter:write"]
+    credentials: [user]
+    target:
+      template: {"$concat": ["https://api.x.com/2/users/", {"$argument": "/source_user_id"}, "/likes"]}
+    approval: required
+    guarantees:
+      provider_idempotency: inherent
+      readback: unavailable
+    input_schema:
+      type: object
+      required: [source_user_id, post_ids]
+      additionalProperties: false
+      properties:
+        source_user_id: {type: string, pattern: "^[0-9]{1,19}$"}
+        post_ids: {type: array, minItems: 1, maxItems: 50, uniqueItems: true, items: {type: string, pattern: "^[0-9]{1,19}$"}}
+    result_fields: [outcomes]
+    implementation:
+      http:
+        allowed_hosts: [api.x.com]
+        auth: {user: {type: oauth1}}
+        requests:
+          - id: like
+            each: {"$argument": "/post_ids"}
+            method: POST
+            url: {"$concat": ["https://api.x.com/2/users/", {"$argument": "/source_user_id"}, "/likes"]}
+            body: {tweet_id: {"$item": ""}}
+        decode: [{op: auto_json}]
+        result_paths:
+          outcomes: acknowledgement
+        rate_limit: {reset_header: x-rate-limit-reset}
+  posts.repost:
+    description: Repost each listed post. Each answer states the resulting state, which is the evidence; X offers no read of one item cheap enough to confirm a batch.
+    verb: write
+    scopes: ["twitter:write"]
+    credentials: [user]
+    target:
+      template: {"$concat": ["https://api.x.com/2/users/", {"$argument": "/source_user_id"}, "/retweets"]}
+    approval: required
+    guarantees:
+      provider_idempotency: inherent
+      readback: unavailable
+    input_schema:
+      type: object
+      required: [source_user_id, post_ids]
+      additionalProperties: false
+      properties:
+        source_user_id: {type: string, pattern: "^[0-9]{1,19}$"}
+        post_ids: {type: array, minItems: 1, maxItems: 50, uniqueItems: true, items: {type: string, pattern: "^[0-9]{1,19}$"}}
+    result_fields: [outcomes]
+    implementation:
+      http:
+        allowed_hosts: [api.x.com]
+        auth: {user: {type: oauth1}}
+        requests:
+          - id: repost
+            each: {"$argument": "/post_ids"}
+            method: POST
+            url: {"$concat": ["https://api.x.com/2/users/", {"$argument": "/source_user_id"}, "/retweets"]}
+            body: {tweet_id: {"$item": ""}}
+        decode: [{op: auto_json}]
+        result_paths:
+          outcomes: acknowledgement
+        rate_limit: {reset_header: x-rate-limit-reset}

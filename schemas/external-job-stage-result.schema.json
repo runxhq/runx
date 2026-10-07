@@ -45,18 +45,12 @@
             },
             "type": {
               "enum": [
-                "github_issue",
-                "github_pull_request",
-                "github_repo",
-                "slack_thread",
-                "sentry_event",
-                "provider_thread",
-                "provider_event",
-                "provider_comment",
+                "thread",
+                "comment",
+                "event",
                 "tracking_item",
                 "change_request",
                 "repository",
-                "support_ticket",
                 "signal",
                 "act",
                 "receipt",
@@ -85,7 +79,9 @@
                 "credential",
                 "webhook_delivery",
                 "redaction_policy",
-                "external_url"
+                "external_url",
+                "connector_instance",
+                "connector_operation"
               ],
               "type": "string"
             },
@@ -162,18 +158,12 @@
             },
             "type": {
               "enum": [
-                "github_issue",
-                "github_pull_request",
-                "github_repo",
-                "slack_thread",
-                "sentry_event",
-                "provider_thread",
-                "provider_event",
-                "provider_comment",
+                "thread",
+                "comment",
+                "event",
                 "tracking_item",
                 "change_request",
                 "repository",
-                "support_ticket",
                 "signal",
                 "act",
                 "receipt",
@@ -202,7 +192,9 @@
                 "credential",
                 "webhook_delivery",
                 "redaction_policy",
-                "external_url"
+                "external_url",
+                "connector_instance",
+                "connector_operation"
               ],
               "type": "string"
             },
@@ -279,18 +271,12 @@
             },
             "type": {
               "enum": [
-                "github_issue",
-                "github_pull_request",
-                "github_repo",
-                "slack_thread",
-                "sentry_event",
-                "provider_thread",
-                "provider_event",
-                "provider_comment",
+                "thread",
+                "comment",
+                "event",
                 "tracking_item",
                 "change_request",
                 "repository",
-                "support_ticket",
                 "signal",
                 "act",
                 "receipt",
@@ -319,7 +305,9 @@
                 "credential",
                 "webhook_delivery",
                 "redaction_policy",
-                "external_url"
+                "external_url",
+                "connector_instance",
+                "connector_operation"
               ],
               "type": "string"
             },
@@ -371,18 +359,12 @@
             },
             "type": {
               "enum": [
-                "github_issue",
-                "github_pull_request",
-                "github_repo",
-                "slack_thread",
-                "sentry_event",
-                "provider_thread",
-                "provider_event",
-                "provider_comment",
+                "thread",
+                "comment",
+                "event",
                 "tracking_item",
                 "change_request",
                 "repository",
-                "support_ticket",
                 "signal",
                 "act",
                 "receipt",
@@ -411,7 +393,9 @@
                 "credential",
                 "webhook_delivery",
                 "redaction_policy",
-                "external_url"
+                "external_url",
+                "connector_instance",
+                "connector_operation"
               ],
               "type": "string"
             },
@@ -463,18 +447,12 @@
             },
             "type": {
               "enum": [
-                "github_issue",
-                "github_pull_request",
-                "github_repo",
-                "slack_thread",
-                "sentry_event",
-                "provider_thread",
-                "provider_event",
-                "provider_comment",
+                "thread",
+                "comment",
+                "event",
                 "tracking_item",
                 "change_request",
                 "repository",
-                "support_ticket",
                 "signal",
                 "act",
                 "receipt",
@@ -503,7 +481,9 @@
                 "credential",
                 "webhook_delivery",
                 "redaction_policy",
-                "external_url"
+                "external_url",
+                "connector_instance",
+                "connector_operation"
               ],
               "type": "string"
             },
@@ -576,18 +556,12 @@
             },
             "type": {
               "enum": [
-                "github_issue",
-                "github_pull_request",
-                "github_repo",
-                "slack_thread",
-                "sentry_event",
-                "provider_thread",
-                "provider_event",
-                "provider_comment",
+                "thread",
+                "comment",
+                "event",
                 "tracking_item",
                 "change_request",
                 "repository",
-                "support_ticket",
                 "signal",
                 "act",
                 "receipt",
@@ -616,7 +590,9 @@
                 "credential",
                 "webhook_delivery",
                 "redaction_policy",
-                "external_url"
+                "external_url",
+                "connector_instance",
+                "connector_operation"
               ],
               "type": "string"
             },
@@ -692,18 +668,12 @@
             },
             "type": {
               "enum": [
-                "github_issue",
-                "github_pull_request",
-                "github_repo",
-                "slack_thread",
-                "sentry_event",
-                "provider_thread",
-                "provider_event",
-                "provider_comment",
+                "thread",
+                "comment",
+                "event",
                 "tracking_item",
                 "change_request",
                 "repository",
-                "support_ticket",
                 "signal",
                 "act",
                 "receipt",
@@ -732,7 +702,9 @@
                 "credential",
                 "webhook_delivery",
                 "redaction_policy",
-                "external_url"
+                "external_url",
+                "connector_instance",
+                "connector_operation"
               ],
               "type": "string"
             },

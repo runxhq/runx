@@ -1,0 +1,1940 @@
+//! Operation steps: the kernel's one path for every connector call.
+//!
+//! The graph engine admits an operation step through [`OperationEffect`]:
+//! admission ([`super::admission`]) proves the call, approval evidence is
+//! gathered when its floor requires it, custody records the attempt, the
+//! instance's placement executes it, and the readback becomes the step's
+//! `runx.provider.operation.v1` packet. The admission carries everything the
+//! execution needs, so nothing between admission and execution can swap the
+//! instance, the implementation or the transport.
+
+use std::collections::BTreeMap;
+use std::path::Path;
+use std::sync::Arc;
+
+use runx_contracts::connector::{
+    ApprovalFloor, IdempotencyKeyFormat, Implementation, OperationAccess, Placement,
+    ProviderIdempotency, StandingEligibility, implementation_digest,
+};
+use runx_contracts::schema::{IsoDateTime, NonEmptyString};
+use runx_contracts::{
+    AdmissionDisposition, ApprovalGate, AuthorityApproval, AuthorityVerb, ExecutionBoundaryKind,
+    ExternalJobStageRequest, InstanceAuthority, JsonObject, JsonValue, ProofKind, Reference,
+    ReferenceType,
+};
+use runx_core::state_machine::AuthorityAdmissionWitness;
+use runx_parser::{DuplicatePolicy, GraphStep};
+
+use super::admission::{self, Admitted, Context, Evaluation};
+use super::connectors::ConnectorScope;
+use super::custody::{
+    Acknowledgement, ApprovalActor, ApprovalRecord, Attempt, EffectCustody, Pending,
+};
+use super::instances::Instances;
+use super::standing::{
+    STANDING_APPROVAL_ID_ENV, STANDING_DELEGATE_DIGEST_ENV, StandingApprovals, StandingCall,
+    StandingCover,
+};
+use super::store::KernelStore;
+use super::usage::UsageLedger;
+use crate::approval::ApprovalResolution;
+use crate::drivers::http::Egress;
+use crate::effects::{
+    EffectAdmission, EffectOutputRequest, EffectPreparationOutcome, EffectReceiptRequest,
+    EffectStepRequest, RuntimeEffect, RuntimeEffectError,
+};
+use crate::http::{ReqwestHttpTransport, RuntimeHttpTransport};
+use crate::receipts::paths::{ReceiptPathInputs, resolve_receipt_path};
+use crate::{ProviderOperationRequest, RuntimeError};
+
+pub(crate) mod call;
+pub(crate) mod confirm;
+pub(crate) mod credentials;
+pub mod egress;
+pub(crate) mod hosted;
+pub(crate) mod packet;
+
+use call::{OperationCall, ResultShape};
+use confirm::Checks;
+use hosted::HostedClient;
+use packet::{Expected, Readback, Seal};
+
+pub const OPERATION_EFFECT_FAMILY: &str = "operation";
+
+/// A paid external job a host admitted, carrying its stage's authority.
+pub const PAID_EXTERNAL_JOB_AUTHORITY_ENV: &str =
+    "RUNX_PROVIDER_PERMISSION_PAID_EXTERNAL_JOB_AUTHORITY_JSON";
+
+type Transport = Arc<dyn RuntimeHttpTransport + Send + Sync>;
+
+/// How the kernel reaches each placement.
+#[derive(Default)]
+struct Placements {
+    hosted: HostedClient,
+    /// Injected beneath local implementations; the runtime's own transports
+    /// otherwise.
+    http: Option<Transport>,
+    #[cfg(feature = "mcp")]
+    mcp: crate::drivers::mcp::Sessions,
+    /// The principal each command session token was read as, by token
+    /// digest, so a token's account is read once per process.
+    principals: std::sync::Mutex<std::collections::HashMap<String, String>>,
+}
+
+impl Placements {
+    /// The transport for implementations whose hosts the manifest declares:
+    /// private networks only where the operator allows them.
+    fn declared_hosts(&self, env: &BTreeMap<String, String>) -> Result<Transport, Failure> {
+        if let Some(transport) = &self.http {
+            return Ok(Arc::clone(transport));
+        }
+        ReqwestHttpTransport::for_provider_operation(crate::hosted_private_network_allowed(
+            false, env,
+        ))
+        .map(|transport| Arc::new(transport) as Transport)
+        .map_err(|error| Failure::Rejected {
+            status: 0,
+            code: "transport_unavailable".to_owned(),
+            reason: error.to_string(),
+            release: true,
+        })
+    }
+}
+
+/// The effect that owns every operation step.
+#[derive(Default)]
+pub struct OperationEffect {
+    placements: Arc<Placements>,
+    /// The harness's provider fixture stands in for the hosted implementation
+    /// of a declared operation that has none, so a skill's fixtures run while
+    /// readiness still reports the operation unavailable.
+    fixture_stand_in: bool,
+}
+
+impl std::fmt::Debug for OperationEffect {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("OperationEffect")
+            .field(
+                "transport",
+                &if self.placements.http.is_some() {
+                    "injected"
+                } else {
+                    "runtime-owned"
+                },
+            )
+            .finish()
+    }
+}
+
+impl OperationEffect {
+    /// Inject the transport beneath both placements. Admission, custody,
+    /// sealing and the request shapes stay the production path; only the
+    /// wire is replaced, for the harness and embedders.
+    pub fn with_http_transport<T>(transport: T) -> Self
+    where
+        T: RuntimeHttpTransport + Send + Sync + 'static,
+    {
+        let transport: Transport = Arc::new(transport);
+        Self {
+            placements: Arc::new(Placements {
+                hosted: HostedClient::with_transport(Arc::clone(&transport)),
+                http: Some(transport),
+                #[cfg(feature = "mcp")]
+                mcp: crate::drivers::mcp::Sessions::default(),
+                principals: std::sync::Mutex::default(),
+            }),
+            fixture_stand_in: false,
+        }
+    }
+
+    /// The harness's effect: its provider fixture answers hosted calls and
+    /// stands in for declared operations no placement implements yet, and
+    /// its MCP calls answer in place of every MCP server.
+    pub(crate) fn harness<T>(transport: T, mcp_calls: &[runx_parser::HarnessMcpCallFixture]) -> Self
+    where
+        T: RuntimeHttpTransport + Send + Sync + 'static,
+    {
+        let mut effect = Self::with_http_transport(transport);
+        effect.fixture_stand_in = true;
+        #[cfg(feature = "mcp")]
+        if !mcp_calls.is_empty()
+            && let Some(placements) = Arc::get_mut(&mut effect.placements)
+        {
+            placements.mcp = crate::drivers::mcp::Sessions::standing_in(
+                mcp_calls
+                    .iter()
+                    .map(|call| crate::drivers::mcp::StandInCall {
+                        tool: call.tool.clone(),
+                        arguments: JsonValue::Object(call.arguments.clone()),
+                        headers: call.headers.clone(),
+                        result: call.result.clone(),
+                    })
+                    .collect(),
+            );
+        }
+        #[cfg(not(feature = "mcp"))]
+        let _ = mcp_calls;
+        effect
+    }
+}
+
+/// What a driver may know of an admitted call. Only the kernel builds one,
+/// from an admission, so a driver performs nothing admission did not prove.
+pub(crate) struct AdmittedCall<'a> {
+    pub connector: &'a str,
+    pub operation: &'a str,
+    /// The implementation kind, which names the readback reference.
+    pub implementation: &'static str,
+    pub target: &'a str,
+    pub arguments: &'a JsonValue,
+    pub parameters: &'a JsonObject,
+    pub idempotency_key: Option<&'a str>,
+    pub credential: Option<&'a credentials::CredentialSecret>,
+    pub env: &'a BTreeMap<String, String>,
+    access: OperationAccess,
+    _sealed: Sealed,
+}
+
+/// Only this module makes one, so only the kernel builds an [`AdmittedCall`].
+struct Sealed;
+
+#[cfg(test)]
+impl<'a> AdmittedCall<'a> {
+    /// A call as if admitted, for driver tests.
+    pub(crate) fn for_tests(
+        arguments: &'a JsonValue,
+        parameters: &'a JsonObject,
+        env: &'a BTreeMap<String, String>,
+        access: OperationAccess,
+    ) -> Self {
+        Self {
+            connector: "example",
+            operation: "items.update",
+            implementation: "http",
+            target: "example://items",
+            arguments,
+            parameters,
+            idempotency_key: Some("key-1"),
+            credential: None,
+            env,
+            access,
+            _sealed: Sealed,
+        }
+    }
+}
+
+impl AdmittedCall<'_> {
+    pub(crate) fn mutation(&self) -> bool {
+        self.access == OperationAccess::Mutate
+    }
+
+    /// The host's egress guard over a payload the driver rendered.
+    pub(crate) fn guard(&self, payload: &JsonValue) -> Result<(), String> {
+        egress::check_rendered(self.env, payload)
+    }
+}
+
+/// Runs a declared tool package for a `process` implementation, through the
+/// runtime's tool roots and adapters. The step handler provides it; the
+/// kernel decides everything around the run.
+pub(crate) trait ToolRunner {
+    fn run(
+        &self,
+        tool: &str,
+        inputs: JsonObject,
+        scopes: &[String],
+        delivery: &crate::credentials::CredentialDelivery,
+    ) -> Result<JsonValue, String>;
+}
+
+/// The runner of a runtime built without tool packages: it runs none.
+#[cfg(any(test, not(feature = "catalog")))]
+pub(crate) struct NoTools;
+
+#[cfg(any(test, not(feature = "catalog")))]
+impl ToolRunner for NoTools {
+    fn run(
+        &self,
+        tool: &str,
+        _inputs: JsonObject,
+        _scopes: &[String],
+        _delivery: &crate::credentials::CredentialDelivery,
+    ) -> Result<JsonValue, String> {
+        Err(format!(
+            "tool {tool} needs a runtime built with tool packages"
+        ))
+    }
+}
+
+/// An admitted operation step, carried from admission to sealing.
+#[derive(Clone)]
+pub(crate) struct OperationAdmission {
+    placements: Arc<Placements>,
+    admitted: Admitted,
+    call: OperationCall,
+    shape: ResultShape,
+    duplicates: Option<DuplicatePolicy>,
+    custody: Option<EffectCustody>,
+    pending: Option<Pending>,
+    /// What the host supplied for approval lanes, bound at admission.
+    lanes: LaneInputs,
+    /// Set when the step is prepared for dispatch.
+    attempt: Option<AttemptPlan>,
+}
+
+#[derive(Clone, Debug, Default)]
+struct LaneInputs {
+    paid_job: Option<String>,
+    standing_id: Option<String>,
+    delegate_digest: String,
+    run_id: String,
+}
+
+impl LaneInputs {
+    fn read(env: &BTreeMap<String, String>) -> Self {
+        let value = |name: &str| env.get(name).filter(|value| !value.is_empty()).cloned();
+        Self {
+            paid_job: value(PAID_EXTERNAL_JOB_AUTHORITY_ENV),
+            standing_id: value(STANDING_APPROVAL_ID_ENV),
+            delegate_digest: value(STANDING_DELEGATE_DIGEST_ENV).unwrap_or_default(),
+            run_id: value(crate::execution::runner::RUNX_RUN_ID_ENV).unwrap_or_default(),
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+struct AttemptPlan {
+    number: u32,
+    approval: Option<ApprovalRecord>,
+    standing: Option<StandingCover>,
+    evidence_refs: Vec<Reference>,
+}
+
+impl std::fmt::Debug for OperationAdmission {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("OperationAdmission")
+            .field("intent_digest", self.admitted.intent_digest())
+            .field("instance", &self.admitted.instance.instance.instance_id)
+            .finish_non_exhaustive()
+    }
+}
+
+impl OperationAdmission {
+    /// The step's skill label in its run record.
+    pub(crate) fn skill_label(&self) -> String {
+        format!(
+            "operation:{}/{}",
+            self.admitted.connector.manifest.id, self.admitted.operation
+        )
+    }
+
+    fn mutation(&self) -> bool {
+        self.admitted.operation().access() == OperationAccess::Mutate
+    }
+
+    /// The key the provider sees, stable for the intent.
+    fn provider_key(&self) -> Option<String> {
+        self.mutation().then(|| {
+            idempotency_key(
+                self.admitted.intent_digest().as_str(),
+                self.admitted.operation().idempotency_key_format,
+            )
+        })
+    }
+
+    /// Whether a request that may have reached the provider can be sent
+    /// again: the provider enforces the key, the operation sets a state, or
+    /// the step accepts duplicates.
+    fn resend_safe(&self) -> bool {
+        matches!(
+            self.admitted.operation().guarantees.provider_idempotency,
+            ProviderIdempotency::Enforced | ProviderIdempotency::Inherent
+        ) || self.duplicates == Some(DuplicatePolicy::Visible)
+    }
+
+    /// The implementation that runs: any kind locally; only declared
+    /// requests on the hosted placement, whose private drivers are opaque.
+    fn implementation_digest(&self) -> Option<String> {
+        let operation = self.admitted.operation();
+        let implementation = match self.admitted.instance.instance.placement {
+            Placement::Local => operation.implementation.as_ref()?,
+            Placement::Hosted => operation
+                .hosted_http()
+                .and(operation.implementation.as_ref())?,
+        };
+        let server = self
+            .admitted
+            .connector
+            .manifest
+            .placements
+            .local
+            .as_ref()
+            .and_then(|local| local.mcp_server.as_ref());
+        implementation_digest(implementation, server)
+            .ok()
+            .map(|digest| digest.as_str().to_owned())
+    }
+}
+
+impl RuntimeEffect for OperationEffect {
+    fn family(&self) -> &'static str {
+        OPERATION_EFFECT_FAMILY
+    }
+
+    fn matches_target(&self, request: EffectStepRequest<'_>) -> bool {
+        request.step.operation.is_some()
+    }
+
+    fn admit(
+        &self,
+        request: EffectStepRequest<'_>,
+    ) -> Result<Option<EffectAdmission>, RuntimeEffectError> {
+        let Some(target) = request.step.operation.as_ref() else {
+            return Ok(None);
+        };
+        let call = OperationCall::decode(request.inputs).map_err(invalid)?;
+        let shape = call.shape().map_err(invalid)?;
+        let store = KernelStore::for_workspace(request.env, request.graph_dir).map_err(state)?;
+        let run_id = request
+            .env
+            .get(crate::execution::runner::RUNX_RUN_ID_ENV)
+            .map_or("local", String::as_str);
+        let custody = EffectCustody::open(
+            Arc::clone(&store),
+            run_id,
+            &request.graph_dir.to_string_lossy(),
+            &request.step.id,
+        );
+        let usage = UsageLedger::new(Arc::clone(&store));
+        let scope = ConnectorScope::for_skill(request.graph_dir)
+            .map_err(|error| invalid(error.to_string()))?;
+        let instances = Instances::new(Arc::clone(&store));
+        let admitted = admission::admit(&Evaluation {
+            step: target,
+            call: &call,
+            step_idempotency_key: request.step.idempotency_key.as_deref(),
+            on_uncertain: request.step.on_uncertain,
+            duplicates: request.step.duplicates,
+            fixture_stand_in: self.fixture_stand_in,
+            run_authority: request.run_authority,
+            usage: &usage,
+            call_key: custody.key(),
+            run_id,
+            context: Context {
+                scope: &scope,
+                instances: &instances,
+                hosted: &self.placements.hosted,
+                env: request.env,
+                cwd: request.graph_dir,
+            },
+        })
+        .map_err(|refusal| RuntimeEffectError::Denied {
+            family: OPERATION_EFFECT_FAMILY.to_owned(),
+            message: refusal.message(),
+            // A requirement that names no operation has no verb of its own;
+            // it is refused as the write it might have been.
+            verb: refusal.verb.unwrap_or(AuthorityVerb::Write),
+        })?;
+        let verb = admitted.operation().verb.authority_verb();
+        let mut context = OperationAdmission {
+            placements: Arc::clone(&self.placements),
+            admitted,
+            call,
+            shape,
+            duplicates: request.step.duplicates,
+            custody: None,
+            pending: None,
+            lanes: LaneInputs::read(request.env),
+            attempt: None,
+        };
+        if context.mutation() || !context.admitted.usage_covers.is_empty() {
+            let pending = custody.pending().map_err(state)?;
+            if let Some(pending) = &pending {
+                check_pending(&context, pending)?;
+            }
+            context.custody = Some(custody);
+            context.pending = pending;
+        }
+        let admitted = &context.admitted;
+        let intent = admitted.intent();
+        let witness = AuthorityAdmissionWitness {
+            verb: verb.clone(),
+            parent_term_id: admitted
+                .delegations
+                .last()
+                .map_or(&admitted.capability.term, |term| term)
+                .term_id
+                .as_str()
+                .to_owned(),
+            child_term_id: format!("intent:{}", admitted.intent_digest()),
+            idempotency_key: admitted.request_key.clone(),
+            capability_ref: Some(Reference::with_uri(
+                ReferenceType::ConnectorOperation,
+                format!(
+                    "runx:connector_operation:{}/{}@{}",
+                    intent.connector, intent.operation, intent.operation_digest
+                ),
+            )),
+        };
+        Ok(Some(EffectAdmission::new(
+            OPERATION_EFFECT_FAMILY,
+            verb,
+            witness,
+            context,
+        )))
+    }
+
+    fn prepare_execution(
+        &self,
+        step: &GraphStep,
+        admission: EffectAdmission,
+        host: &mut dyn crate::Host,
+    ) -> Result<EffectPreparationOutcome, RuntimeEffectError> {
+        let mut context = admission
+            .context::<OperationAdmission>()
+            .cloned()
+            .ok_or_else(|| state("the operation admission is missing"))?;
+        let mut plan = AttemptPlan {
+            number: context
+                .pending
+                .as_ref()
+                .map_or(1, |pending| pending.attempt + 1),
+            approval: None,
+            standing: None,
+            evidence_refs: Vec::new(),
+        };
+        if context.admitted.admission.disposition == AdmissionDisposition::NeedsResolution {
+            match approve(&context, step, host)? {
+                Lane::Approved(approved) => {
+                    context
+                        .admitted
+                        .admit_with(vec![approved.evidence])
+                        .map_err(denied)?;
+                    plan.approval = Some(approved.record);
+                    plan.standing = approved.standing;
+                    plan.evidence_refs = approved.refs;
+                }
+                Lane::Pending(reason) => return Ok(EffectPreparationOutcome::Pending { reason }),
+            }
+        }
+        context.attempt = Some(plan);
+        Ok(EffectPreparationOutcome::Ready(Box::new(
+            admission.with_context(context),
+        )))
+    }
+
+    fn prepare_output(&self, request: EffectOutputRequest<'_>) -> Result<(), RuntimeEffectError> {
+        if !request.output.succeeded() {
+            return Ok(());
+        }
+        let context = request
+            .admission
+            .context::<OperationAdmission>()
+            .ok_or_else(|| state("the operation admission is missing"))?;
+        let packet = request
+            .claim
+            .get("provider_operation")
+            .and_then(JsonValue::as_object)
+            .map(|packet| {
+                packet
+                    .get("data")
+                    .and_then(JsonValue::as_object)
+                    .unwrap_or(packet)
+            })
+            .ok_or_else(|| state("the provider_operation packet is missing"))?;
+        let field = |name: &str| packet.get(name).and_then(JsonValue::as_str);
+        let intent_digest = context.admitted.intent_digest().as_str();
+        if field("finality") != Some(context.admitted.operation().finality())
+            || field("plan_digest") != Some(intent_digest)
+            || field("idempotency_key").map(str::to_owned) != context.provider_key()
+        {
+            return Err(state("the packet does not match the admitted intent"));
+        }
+        let provider = context.admitted.connector.manifest.id.as_str();
+        let mut refs = vec![verification(
+            format!("runx:operation_intent:{intent_digest}"),
+            provider,
+            "admitted operation intent",
+            ProofKind::EffectEvidence,
+        )];
+        if let Some(plan) = &context.attempt {
+            if let Some(record) = &plan.approval {
+                refs.push(verification(
+                    format!("runx:approval:{}", record.key),
+                    provider,
+                    record.actor.label(),
+                    ProofKind::EffectEvidence,
+                ));
+            }
+            if let Some(cover) = &plan.standing {
+                refs.push(verification(
+                    format!("runx:standing_approval:{}", cover.approval_id),
+                    provider,
+                    "bounded standing approval",
+                    ProofKind::EffectEvidence,
+                ));
+                refs.push(verification(
+                    cover.usage.receipt_ref(),
+                    provider,
+                    "standing approval use reserved",
+                    ProofKind::EffectEvidence,
+                ));
+            }
+            refs.extend(plan.evidence_refs.iter().cloned());
+        }
+        for cover in &context.admitted.usage_covers {
+            refs.push(verification(
+                cover.receipt_ref(),
+                provider,
+                "bounded authority use reserved",
+                ProofKind::EffectEvidence,
+            ));
+        }
+        if context.mutation() {
+            let operation_id =
+                field("operation_id").ok_or_else(|| state("the packet has no operation id"))?;
+            refs.push(verification(
+                format!("runx:provider_ack:{operation_id}"),
+                provider,
+                "provider acknowledgement",
+                ProofKind::EffectEvidence,
+            ));
+        }
+        let readback_ref =
+            field("readback_ref").ok_or_else(|| state("the packet has no readback"))?;
+        refs.push(verification(
+            readback_ref.to_owned(),
+            provider,
+            "independent provider readback",
+            ProofKind::EffectFinality,
+        ));
+        for reference in refs {
+            crate::effects::insert_effect_verification_ref(
+                &mut request.output.metadata,
+                reference,
+            )?;
+        }
+        Ok(())
+    }
+
+    fn persist(&self, request: EffectReceiptRequest<'_>) -> Result<(), RuntimeEffectError> {
+        if !request.output.succeeded() {
+            return Ok(());
+        }
+        let context = request
+            .admission
+            .context::<OperationAdmission>()
+            .ok_or_else(|| state("the operation admission is missing"))?;
+        let Some(custody) = &context.custody else {
+            return Ok(());
+        };
+        crate::receipts::store::LocalReceiptStore::new(receipt_root(
+            request.env,
+            request.graph_dir,
+        ))
+        .write_receipt_with_policy(request.receipt, request.signature_policy)
+        .map_err(|error| state(error.to_string()))?;
+        custody
+            .finalized(
+                request.receipt.id.as_str().to_owned(),
+                context
+                    .attempt
+                    .as_ref()
+                    .and_then(|plan| plan.standing.as_ref()),
+                &context.admitted.usage_covers,
+            )
+            .map_err(state)
+    }
+
+    fn authority(
+        &self,
+        admission: &EffectAdmission,
+    ) -> Result<crate::receipts::SealAuthority, RuntimeEffectError> {
+        let context = admission
+            .context::<OperationAdmission>()
+            .ok_or_else(|| state("the operation admission is missing"))?;
+        let admitted = &context.admitted;
+        Ok(crate::receipts::SealAuthority {
+            grant_refs: vec![Reference::runx(
+                ReferenceType::Grant,
+                &admitted.capability.grant_id,
+            )],
+            scope_refs: admitted
+                .operation()
+                .scopes
+                .iter()
+                .map(|scope| {
+                    Reference::with_uri(
+                        ReferenceType::ScopeAdmission,
+                        format!("runx:scope_admission:{scope}"),
+                    )
+                })
+                .collect(),
+            terms: admitted.admission.execution_term.iter().cloned().collect(),
+            derivations: admitted.admission.derivation.iter().cloned().collect(),
+        })
+    }
+}
+
+/// An operation step emits one artifact: its `runx.provider.operation.v1`
+/// packet, as `<step>.provider_operation.data`.
+pub(crate) fn packet_artifacts() -> runx_parser::SkillArtifactContract {
+    runx_parser::SkillArtifactContract {
+        emits: None,
+        named_emits: Some(BTreeMap::from([(
+            "provider_operation".to_owned(),
+            "provider_operation".to_owned(),
+        )])),
+        packets: Some(BTreeMap::from([(
+            "provider_operation".to_owned(),
+            "runx.provider.operation.v1".to_owned(),
+        )])),
+        wrap_as: None,
+        packet: None,
+    }
+}
+
+/// The step's output: the packet, the caller-only overlay, and where it ran.
+#[derive(Debug)]
+pub(crate) struct OperationOutcome {
+    pub value: JsonValue,
+    pub ephemeral: Option<JsonValue>,
+    pub boundary: ExecutionBoundaryKind,
+}
+
+/// How a placement failed.
+#[derive(Debug)]
+pub(crate) enum Failure {
+    /// A definitive response or local refusal. `release` records whether the
+    /// implementation proved this attempt did not execute.
+    Rejected {
+        status: u16,
+        code: String,
+        reason: String,
+        /// The implementation proves this attempt did not execute.
+        release: bool,
+    },
+    /// The call may have executed.
+    Unknown(String),
+    /// The write was acknowledged and its readback did not complete.
+    ReadbackPending(String),
+}
+
+/// Execute a prepared operation step.
+pub(crate) fn execute(
+    context: &OperationAdmission,
+    step_id: &str,
+    env: &BTreeMap<String, String>,
+    cwd: &Path,
+    tools: &dyn ToolRunner,
+) -> Result<OperationOutcome, RuntimeError> {
+    let admitted = &context.admitted;
+    let plan = context
+        .attempt
+        .as_ref()
+        .ok_or_else(|| engine("the operation step was not prepared"))?;
+    let intent_digest = admitted.intent_digest().as_str().to_owned();
+    let provider_key = context.provider_key();
+    let unknown = |reason: String| RuntimeError::ProviderEffectUnknown {
+        plan_digest: intent_digest.clone(),
+        idempotency_key: provider_key.clone().unwrap_or_default(),
+        reason,
+    };
+    let implementation_digest = context.implementation_digest();
+    let authority_term_id = admitted
+        .admission
+        .execution_term
+        .as_ref()
+        .ok_or_else(|| engine("the operation has no execution term"))?
+        .term_id
+        .as_str();
+
+    if let Some(pending) = &context.pending
+        && (pending.authority_term_id != authority_term_id
+            || pending.mandate_ref != admitted.mandate_ref)
+    {
+        return Err(unknown(
+            "the authority or mandate changed since the unsettled attempt; reconcile it before resuming"
+                .to_owned(),
+        ));
+    }
+
+    if let Some(pending) = &context.pending {
+        if pending.implementation_digest != implementation_digest {
+            return Err(unknown(
+                "the implementation changed since the unsettled attempt; reconcile it before resuming".to_owned(),
+            ));
+        }
+        // Readback is provider evidence, not permission to settle under a
+        // different implementation or authority than the attempted call.
+        if let Some(readback) = pending.readback.clone() {
+            return finish(context, readback, implementation_digest.as_deref());
+        }
+        if pending.acknowledgement.is_none() && !context.resend_safe() {
+            return Err(unknown(
+                "an earlier attempt has an unknown outcome and this operation cannot be resent safely; reconcile the provider result before resuming".to_owned(),
+            ));
+        }
+    }
+
+    // Everything that can fail before the provider is reached runs before
+    // the attempt is recorded, so a refusal here uses nothing.
+    let session = prepare(context, env, cwd).map_err(|reason| match context.mutation() {
+        true => RuntimeError::ProviderEffectRejected {
+            plan_digest: intent_digest.clone(),
+            idempotency_key: provider_key.clone().unwrap_or_default(),
+            provider_code: "preflight_failed".to_owned(),
+            http_status: 0,
+            reason,
+        },
+        false => failed(context, reason),
+    })?;
+    if let Some(custody) = &context.custody {
+        custody
+            .attempt(
+                &Attempt {
+                    intent_digest: &intent_digest,
+                    authority_term_id,
+                    mandate_ref: admitted.mandate_ref.as_ref(),
+                    idempotency_key: provider_key.as_deref().unwrap_or_default(),
+                    instance_id: admitted.instance.instance.instance_id.as_str(),
+                    attempt: plan.number,
+                    approval: plan.approval.as_ref(),
+                    implementation_digest: implementation_digest.as_deref(),
+                },
+                plan.standing.as_ref(),
+                &admitted.usage_covers,
+            )
+            .map_err(|error| {
+                RuntimeError::effect_state("recording the attempt", error.to_string())
+            })?;
+    }
+
+    let outcome = dispatch(context, session, env, tools).and_then(|readback| {
+        readback
+            .verify(&Expected {
+                connector: admitted.connector.manifest.id.as_str(),
+                operation: admitted.operation.as_str(),
+                target: &admitted.target,
+                idempotency_key: provider_key.as_deref(),
+            })
+            .map(|()| readback)
+            .map_err(Failure::Unknown)
+    });
+    match outcome {
+        Ok(readback) => {
+            if let Some(custody) = &context.custody {
+                custody.read_back(readback.clone()).map_err(|error| {
+                    RuntimeError::effect_state("recording the readback", error.to_string())
+                })?;
+            }
+            finish(context, readback, implementation_digest.as_deref())
+        }
+        Err(Failure::Rejected {
+            status,
+            code,
+            reason,
+            release,
+        }) => {
+            if let Some(custody) = &context.custody {
+                if context.pending.is_some() {
+                    let held =
+                        "a prior attempt may have executed; a later refusal cannot settle it";
+                    custody.unknown(held.to_owned()).map_err(|error| {
+                        RuntimeError::effect_state("holding the earlier attempt", error.to_string())
+                    })?;
+                    return Err(unknown(held.to_owned()));
+                }
+                custody
+                    .rejected(
+                        code.clone(),
+                        plan.standing.as_ref(),
+                        &admitted.usage_covers,
+                        release,
+                    )
+                    .map_err(|error| {
+                        RuntimeError::effect_state("recording the rejection", error.to_string())
+                    })?;
+                return Err(RuntimeError::ProviderEffectRejected {
+                    plan_digest: intent_digest,
+                    idempotency_key: provider_key.unwrap_or_default(),
+                    provider_code: code,
+                    http_status: status,
+                    reason,
+                });
+            }
+            Err(read_failure(context, step_id, reason))
+        }
+        Err(Failure::Unknown(reason) | Failure::ReadbackPending(reason))
+            if context.custody.is_some() =>
+        {
+            if let Some(custody) = &context.custody {
+                custody.unknown(reason.clone()).map_err(|error| {
+                    RuntimeError::effect_state("recording the unknown outcome", error.to_string())
+                })?;
+            }
+            Err(unknown(reason))
+        }
+        Err(Failure::Unknown(reason) | Failure::ReadbackPending(reason)) => {
+            Err(read_failure(context, step_id, reason))
+        }
+    }
+}
+
+/// Session material resolved before anything is sent.
+enum Session {
+    Hosted(hosted::HostedSession),
+    Local(Option<credentials::CredentialSecret>),
+}
+
+fn prepare(
+    context: &OperationAdmission,
+    env: &BTreeMap<String, String>,
+    cwd: &Path,
+) -> Result<Session, String> {
+    let admitted = &context.admitted;
+    let instance = &admitted.instance.instance;
+    match instance.placement {
+        Placement::Hosted => {
+            let session = context.placements.hosted.session(env, cwd)?;
+            if session.principal_ref != instance.principal_ref.as_str() {
+                return Err(
+                    "the authenticated principal is not the instance's principal".to_owned(),
+                );
+            }
+            Ok(Session::Hosted(session))
+        }
+        Placement::Local => match &instance.authority {
+            InstanceAuthority::Credential {
+                profile,
+                credential,
+                material_ref,
+                ..
+            } => credentials::deliver(
+                env,
+                cwd,
+                &admitted.connector.manifest,
+                &credentials::ProfileBinding {
+                    profile,
+                    credential,
+                    material_ref,
+                },
+            )
+            .map(|secret| Session::Local(Some(secret))),
+            InstanceAuthority::Session {
+                session: runx_contracts::connector::SessionKind::Command,
+            } => signed_in(context, env, cwd).map(|secret| Session::Local(Some(secret))),
+            _ => Ok(Session::Local(None)),
+        },
+    }
+}
+
+/// The command session's token, read now and still held by the principal
+/// the instance pinned, as the credential it stands in for.
+fn signed_in(
+    context: &OperationAdmission,
+    env: &BTreeMap<String, String>,
+    cwd: &Path,
+) -> Result<credentials::CredentialSecret, String> {
+    let manifest = &context.admitted.connector.manifest;
+    let instance = &context.admitted.instance.instance;
+    let session = super::session::CommandSession::of(manifest)
+        .ok_or("the connector no longer declares a command session")?;
+    let token = session.token(env, cwd)?;
+    let digest = runx_contracts::sha256_prefixed(token.as_bytes());
+    let cached = context
+        .placements
+        .principals
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .get(&digest)
+        .cloned();
+    let (principal_ref, login) = match cached {
+        Some(principal_ref) => (principal_ref, None),
+        None => {
+            let transport =
+                context
+                    .placements
+                    .declared_hosts(env)
+                    .map_err(|failure| match failure {
+                        Failure::Rejected { reason, .. }
+                        | Failure::Unknown(reason)
+                        | Failure::ReadbackPending(reason) => reason,
+                    })?;
+            let principal = session.principal(&token, transport.as_ref())?;
+            let principal_ref = principal.principal_ref(manifest.id.as_str());
+            context
+                .placements
+                .principals
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .insert(digest, principal_ref.clone());
+            (principal_ref, Some(principal.login))
+        }
+    };
+    if principal_ref != instance.principal_ref.as_str() {
+        return Err(format!(
+            "{} is signed in as {}, not the account instance {} is pinned to; confirm it again with `runx connector use {} --session`",
+            manifest.id,
+            login.as_deref().unwrap_or("another account"),
+            instance.instance_id,
+            manifest.id
+        ));
+    }
+    let field = manifest
+        .auth
+        .credentials
+        .get(session.credential)
+        .and_then(|declaration| declaration.fields.first())
+        .ok_or("the session's credential is no longer declared")?;
+    Ok(credentials::CredentialSecret {
+        name: session.credential.clone(),
+        fields: BTreeMap::from([(field.name.as_str().to_owned(), token)]),
+    })
+}
+
+fn dispatch(
+    context: &OperationAdmission,
+    session: Session,
+    env: &BTreeMap<String, String>,
+    tools: &dyn ToolRunner,
+) -> Result<Readback, Failure> {
+    let admitted = &context.admitted;
+    let operation = admitted.operation();
+    let provider_key = context.provider_key();
+    let (hosted, secret) = match session {
+        Session::Hosted(session) => (Some(session), None),
+        Session::Local(secret) => (None, secret),
+    };
+    let implementation = match (&hosted, operation.hosted_http()) {
+        (Some(session), None) => return private_driver(context, session, provider_key),
+        _ => operation
+            .implementation
+            .as_ref()
+            .ok_or_else(|| Failure::Rejected {
+                status: 0,
+                code: "operation_unsupported".to_owned(),
+                reason: "the local placement does not implement this operation".to_owned(),
+                release: true,
+            })?,
+    };
+    let arguments = JsonValue::Object(context.call.input.clone());
+    let call = AdmittedCall {
+        connector: admitted.connector.manifest.id.as_str(),
+        operation: admitted.operation.as_str(),
+        implementation: implementation.kind(),
+        target: &admitted.target,
+        arguments: &arguments,
+        parameters: &admitted.instance.instance.parameters,
+        idempotency_key: provider_key.as_deref(),
+        credential: secret.as_ref(),
+        env,
+        access: operation.access(),
+        _sealed: Sealed,
+    };
+    let recovery = confirm::Recovery {
+        acknowledged: context
+            .pending
+            .as_ref()
+            .and_then(|pending| pending.acknowledgement.clone()),
+        resend_safe: context.resend_safe(),
+    };
+    let mut record = |acknowledgement: &Acknowledgement| match &context.custody {
+        Some(custody) => custody
+            .acknowledged(acknowledgement.clone())
+            .map_err(|error| error.to_string()),
+        None => Ok(()),
+    };
+    match implementation {
+        Implementation::Http(spec) => {
+            let (direct, gateway, implementation_digest);
+            let egress = match &hosted {
+                Some(session) => {
+                    implementation_digest = context.implementation_digest().ok_or_else(|| {
+                        rejected(
+                            "operation_unsupported",
+                            "the declared requests have no digest".to_owned(),
+                        )
+                    })?;
+                    gateway = hosted::Gateway {
+                        session,
+                        grant_id: hosted_grant(admitted)?,
+                        operation: admitted.operation.as_str(),
+                        operation_digest: admitted.intent().operation_digest.as_str(),
+                        implementation_digest: &implementation_digest,
+                        input: &context.call.input,
+                        idempotency_key: provider_key.as_deref(),
+                    };
+                    Egress::Connect(&gateway)
+                }
+                None => {
+                    direct = context.placements.declared_hosts(env)?;
+                    Egress::Direct(direct.as_ref())
+                }
+            };
+            let matches = |readback: &runx_contracts::connector::HttpReadback| {
+                let mut matches = readback.matches.clone();
+                matches.extend(crate::drivers::http::status_match(readback));
+                matches
+            };
+            let checks = Checks {
+                preconditions: spec.preconditions.iter().map(matches).collect(),
+                readbacks: match call.mutation() {
+                    true => spec.readbacks.iter().map(matches).collect(),
+                    false => Vec::new(),
+                },
+            };
+            let driver = crate::drivers::http::Http::new(egress, &call, spec);
+            confirm::run(&driver, &call, &checks, recovery, &mut record)
+        }
+        Implementation::Web(_) => {
+            // The URL comes from the call, so the transport never
+            // reaches a private network, whatever the operator allows
+            // for declared hosts.
+            let live;
+            let transport: &dyn RuntimeHttpTransport = match context.placements.http.as_ref() {
+                Some(transport) => transport.as_ref(),
+                None => {
+                    live = ReqwestHttpTransport::new().map_err(|error| Failure::Rejected {
+                        status: 0,
+                        code: "transport_unavailable".to_owned(),
+                        reason: error.to_string(),
+                        release: true,
+                    })?;
+                    &live
+                }
+            };
+            let driver = crate::drivers::web::Web {
+                transport,
+                call: &call,
+            };
+            confirm::run(&driver, &call, &Checks::default(), recovery, &mut record)
+        }
+        Implementation::Mcp(spec) => mcp(context, &call, spec, recovery, &mut record),
+        Implementation::Process(spec) => {
+            let delivery = process_delivery(context, call.credential)?;
+            let scopes = spec
+                .runtime_scopes
+                .iter()
+                .map(|scope| scope.as_str().to_owned())
+                .collect::<Vec<_>>();
+            let checks = Checks {
+                preconditions: Vec::new(),
+                readbacks: match (call.mutation(), &spec.readback) {
+                    (true, Some(readback)) => vec![readback.matches.as_slice().to_vec()],
+                    _ => Vec::new(),
+                },
+            };
+            let driver = crate::drivers::process::Process {
+                tools,
+                call: &call,
+                spec,
+                scopes: &scopes,
+                delivery: &delivery,
+            };
+            confirm::run(&driver, &call, &checks, recovery, &mut record)
+        }
+    }
+}
+
+/// The grant a hosted instance holds.
+fn hosted_grant(admitted: &Admitted) -> Result<&str, Failure> {
+    match &admitted.instance.instance.authority {
+        InstanceAuthority::HostedGrant { grant_id } => Ok(grant_id.as_str()),
+        _ => Err(rejected(
+            "binding_unavailable",
+            "a hosted instance must hold a grant".to_owned(),
+        )),
+    }
+}
+
+/// A hosted operation without declared requests, run by Connect's private
+/// driver: the kernel sends the admitted call and records what it answers.
+fn private_driver(
+    context: &OperationAdmission,
+    session: &hosted::HostedSession,
+    provider_key: Option<String>,
+) -> Result<Readback, Failure> {
+    let admitted = &context.admitted;
+    let operation = admitted.operation();
+    let mut input = context.call.input.clone();
+    if let Some(key) = provider_key {
+        input.insert("idempotency_key".to_owned(), JsonValue::String(key));
+    }
+    HostedClient::call(
+        session,
+        &ProviderOperationRequest {
+            grant_id: hosted_grant(admitted)?.to_owned(),
+            operation: admitted.operation.as_str().to_owned(),
+            operation_digest: admitted.intent().operation_digest.as_str().to_owned(),
+            target: admitted.target.clone(),
+            scopes: operation
+                .scopes
+                .iter()
+                .map(|scope| scope.as_str().to_owned())
+                .collect(),
+            input,
+            access: operation.access(),
+        },
+    )
+}
+
+/// The credential a process tool receives: the instance's, in the variable
+/// its declaration names, redacted from everything the tool prints.
+fn process_delivery(
+    context: &OperationAdmission,
+    secret: Option<&credentials::CredentialSecret>,
+) -> Result<crate::credentials::CredentialDelivery, Failure> {
+    let Some(secret) = secret else {
+        return Ok(crate::credentials::CredentialDelivery::none());
+    };
+    let manifest = &context.admitted.connector.manifest;
+    let instance = &context.admitted.instance.instance;
+    let declaration = super::instances::delivered_credential(manifest, &instance.authority)
+        .and_then(|credential| manifest.auth.credentials.get(credential))
+        .ok_or_else(|| {
+            rejected(
+                "binding_unavailable",
+                "the instance delivers no declared credential".to_owned(),
+            )
+        })?;
+    let value = match (declaration.fields.as_slice(), secret.fields.len()) {
+        ([field], 1) => secret.fields.get(field.name.as_str()).cloned(),
+        _ => serde_json::to_string(&secret.fields).ok(),
+    }
+    .ok_or_else(|| {
+        rejected(
+            "binding_unavailable",
+            "the credential is incomplete".to_owned(),
+        )
+    })?;
+    crate::credentials::CredentialDelivery::from_local_descriptor(
+        manifest.id.as_str(),
+        declaration.kind.as_str(),
+        declaration.delivery.env.as_str(),
+        instance.instance_id.as_str(),
+        Vec::new(),
+        value,
+    )
+    .map_err(|error| rejected("binding_unavailable", error.to_string()))
+}
+
+/// A tool call on the connector's MCP server, with every tool it touches
+/// served exactly as the manifest pins it before anything is sent.
+#[cfg(feature = "mcp")]
+fn mcp(
+    context: &OperationAdmission,
+    call: &AdmittedCall<'_>,
+    spec: &runx_contracts::connector::McpImplementation,
+    recovery: confirm::Recovery,
+    record: &mut dyn FnMut(&Acknowledgement) -> Result<(), String>,
+) -> Result<Readback, Failure> {
+    let unsupported = |reason: &str| Failure::Rejected {
+        status: 0,
+        code: "operation_unsupported".to_owned(),
+        reason: reason.to_owned(),
+        release: true,
+    };
+    let Some(server) = context
+        .admitted
+        .connector
+        .manifest
+        .placements
+        .local
+        .as_ref()
+        .and_then(|local| local.mcp_server.as_ref())
+    else {
+        return Err(unsupported("the connector declares no MCP server"));
+    };
+    let acknowledged = context.admitted.operation().finality() == "acknowledged";
+    if call.mutation() && spec.readback.is_none() && !acknowledged {
+        return Err(unsupported("the write declares no readback"));
+    }
+    let session = match server {
+        runx_contracts::connector::McpServer::StreamableHttp { url, auth, headers } => {
+            if context.placements.http.is_some() && !context.placements.mcp.stands_in() {
+                return Err(unsupported("an injected transport reaches no MCP server"));
+            }
+            let headers = mcp_headers(call, headers)?;
+            let bearer = match (auth.is_empty(), call.credential) {
+                (true, _) => None,
+                (false, None) => {
+                    return Err(rejected(
+                        "binding_unavailable",
+                        "the MCP server authenticates but the instance delivered no credential"
+                            .to_owned(),
+                    ));
+                }
+                (false, Some(secret)) => match auth.get(&secret.name) {
+                    Some(runx_contracts::connector::HttpAuth::Bearer { field }) => Some(
+                        secret
+                            .fields
+                            .get(field.as_str())
+                            .filter(|token| !token.is_empty())
+                            .cloned()
+                            .ok_or_else(|| {
+                                rejected(
+                                    "binding_unavailable",
+                                    format!("the instance delivered no {field} for the MCP server"),
+                                )
+                            })?,
+                    ),
+                    _ => {
+                        return Err(unsupported(
+                            "an MCP server authenticates with a bearer token its credential names",
+                        ));
+                    }
+                },
+            };
+            let transport = ReqwestHttpTransport::for_provider_operation(
+                crate::hosted_private_network_allowed(false, call.env),
+            )
+            .map_err(|error| rejected("transport_unavailable", error.to_string()))?;
+            context
+                .placements
+                .mcp
+                .open(&transport, url.as_str(), bearer.as_deref(), &headers)
+        }
+        runx_contracts::connector::McpServer::Stdio { command, args } => {
+            let server = stdio_server(context, call, command.as_str(), args)?;
+            context
+                .placements
+                .mcp
+                .open_stdio(&server, crate::http::PROVIDER_OPERATION_REQUEST_TIMEOUT)
+        }
+    }
+    .map_err(|reason| rejected("mcp_unavailable", reason))?;
+    let served = session
+        .served()
+        .map_err(|reason| rejected("mcp_unavailable", reason))?;
+    if let Some(served) = &served {
+        pinned(served, spec.tool.as_str(), &spec.tool_digest)?;
+        if let Some(readback) = &spec.readback {
+            pinned(served, readback.tool.as_str(), &readback.tool_digest)?;
+        }
+    }
+    let checks = Checks {
+        preconditions: Vec::new(),
+        readbacks: match (call.mutation(), &spec.readback) {
+            (true, Some(readback)) => vec![readback.matches.clone()],
+            _ => Vec::new(),
+        },
+    };
+    let driver = crate::drivers::mcp::Mcp {
+        session: &session,
+        call,
+        spec,
+    };
+    confirm::run(&driver, call, &checks, recovery, record)
+}
+
+/// The session headers the call renders: each from its template, omitted
+/// when its argument is absent, and only as a single-line string.
+#[cfg(feature = "mcp")]
+fn mcp_headers(
+    call: &AdmittedCall<'_>,
+    headers: &BTreeMap<String, runx_contracts::connector::Template>,
+) -> Result<BTreeMap<String, String>, Failure> {
+    let inputs = runx_contracts::connector::TemplateInputs {
+        arguments: Some(call.arguments),
+        parameters: Some(call.parameters),
+        ..runx_contracts::connector::TemplateInputs::default()
+    };
+    let mut rendered = BTreeMap::new();
+    for (name, template) in headers {
+        let value = match template.render(&inputs) {
+            Ok(value) => value,
+            Err(runx_contracts::connector::TemplateError::Unavailable {
+                binding: "$argument",
+                ..
+            }) => continue,
+            Err(error) => return Err(rejected("invalid_request", error.to_string())),
+        };
+        match value {
+            JsonValue::String(value) if !value.chars().any(char::is_control) => {
+                rendered.insert(name.clone(), value);
+            }
+            _ => {
+                return Err(rejected(
+                    "invalid_request",
+                    format!("MCP header {name} must render a single-line string"),
+                ));
+            }
+        }
+    }
+    Ok(rendered)
+}
+
+/// The stdio server as the runtime starts it: the base child environment
+/// and the instance's credential in the variable its declaration names, in
+/// the run's workspace.
+#[cfg(feature = "mcp")]
+fn stdio_server(
+    context: &OperationAdmission,
+    call: &AdmittedCall<'_>,
+    command: &str,
+    args: &[runx_contracts::schema::NonEmptyString],
+) -> Result<crate::drivers::mcp::StdioServer, Failure> {
+    let unavailable = |reason: String| rejected("mcp_unavailable", reason);
+    let delivery = process_delivery(context, call.credential)?;
+    let mut env = crate::process_invocation::process_base_environment(call.env)
+        .map_err(|error| unavailable(error.to_string()))?;
+    delivery
+        .ensure_environment_disjoint(&env)
+        .map_err(|error| unavailable(error.to_string()))?;
+    env.extend(
+        delivery
+            .secret_env()
+            .iter()
+            .map(|(name, value)| (name.to_owned(), value.to_owned())),
+    );
+    Ok(crate::drivers::mcp::StdioServer {
+        command: command.to_owned(),
+        args: args.iter().map(|arg| arg.as_str().to_owned()).collect(),
+        cwd: crate::process_invocation::process_workspace(call.env)
+            .map_err(|error| unavailable(error.to_string()))?,
+        env,
+    })
+}
+
+#[cfg(not(feature = "mcp"))]
+fn mcp(
+    _context: &OperationAdmission,
+    _call: &AdmittedCall<'_>,
+    _spec: &runx_contracts::connector::McpImplementation,
+    _recovery: confirm::Recovery,
+    _record: &mut dyn FnMut(&Acknowledgement) -> Result<(), String>,
+) -> Result<Readback, Failure> {
+    Err(rejected(
+        "operation_unsupported",
+        "this build has no MCP client".to_owned(),
+    ))
+}
+
+/// The tool is served exactly as the manifest pins it.
+#[cfg(feature = "mcp")]
+fn pinned(
+    served: &BTreeMap<String, runx_contracts::connector::Digest>,
+    tool: &str,
+    pin: &runx_contracts::connector::Digest,
+) -> Result<(), Failure> {
+    match served.get(tool) {
+        Some(digest) if digest == pin => Ok(()),
+        Some(_) => Err(rejected(
+            "tool_changed",
+            format!(
+                "the server serves tool {tool} with another definition than the connector pins; confirm it with `runx connector import-mcp`"
+            ),
+        )),
+        None => Err(rejected(
+            "tool_unavailable",
+            format!("the server does not serve tool {tool}"),
+        )),
+    }
+}
+
+fn rejected(code: &str, reason: String) -> Failure {
+    Failure::Rejected {
+        status: 0,
+        code: code.to_owned(),
+        reason,
+        release: true,
+    }
+}
+
+fn finish(
+    context: &OperationAdmission,
+    readback: Readback,
+    implementation_digest: Option<&str>,
+) -> Result<OperationOutcome, RuntimeError> {
+    let admitted = &context.admitted;
+    let instance = &admitted.instance.instance;
+    let operation = admitted.operation();
+    let (transport, boundary) = match (instance.placement, operation.implementation.as_ref()) {
+        (Placement::Hosted, _) => ("runx_connect", ExecutionBoundaryKind::RemoteProvider),
+        (Placement::Local, Some(Implementation::Process(_))) => {
+            ("local_process", ExecutionBoundaryKind::TrustedHostProcess)
+        }
+        (Placement::Local, Some(Implementation::Mcp(_))) => {
+            ("local_mcp", ExecutionBoundaryKind::NativeCapability)
+        }
+        (Placement::Local, Some(Implementation::Web(_))) => {
+            ("local_web", ExecutionBoundaryKind::NativeCapability)
+        }
+        (Placement::Local, _) => ("local_http", ExecutionBoundaryKind::NativeCapability),
+    };
+    let mut packet = readback
+        .into_packet(
+            &context.shape,
+            context.call.expected_result.as_ref(),
+            &Seal {
+                access: operation.access().as_str(),
+                finality: operation.finality(),
+                transport,
+                principal_ref: instance.principal_ref.as_str(),
+                grant_id: &admitted.capability.grant_id,
+                account_ref: instance.account_ref.as_deref(),
+                intent_digest: admitted.intent_digest().as_str(),
+                operation_digest: admitted.intent().operation_digest.as_str(),
+                implementation_digest,
+            },
+        )
+        .map_err(|reason| failed(context, reason))?;
+    let ephemeral = packet::split_ephemeral(&mut packet, &context.shape.ephemeral)
+        .map_err(|reason| failed(context, reason))?;
+    let packet = runx_contracts::JsonValue::from_serialize(&packet)
+        .map_err(|error| engine(format!("the packet cannot be encoded: {error}")))?;
+    Ok(OperationOutcome {
+        value: JsonValue::Object(JsonObject::from([(
+            "provider_operation".to_owned(),
+            packet,
+        )])),
+        ephemeral: ephemeral.map(|result| {
+            JsonValue::Object(JsonObject::from([(
+                "provider_operation".to_owned(),
+                JsonValue::Object(JsonObject::from([(
+                    "result".to_owned(),
+                    JsonValue::Object(result),
+                )])),
+            )]))
+        }),
+        boundary,
+    })
+}
+
+enum Lane {
+    Approved(Box<Approved>),
+    Pending(String),
+}
+
+struct Approved {
+    record: ApprovalRecord,
+    evidence: AuthorityApproval,
+    standing: Option<StandingCover>,
+    refs: Vec<Reference>,
+}
+
+impl Approved {
+    fn new(record: ApprovalRecord, standing: Option<StandingCover>, refs: Vec<Reference>) -> Self {
+        let evidence = AuthorityApproval {
+            approval_ref: Reference::with_uri(
+                ReferenceType::Verification,
+                format!("runx:approval:{}", record.key),
+            ),
+            approved_by_ref: None,
+            approved_at: (record.actor == ApprovalActor::Human)
+                .then(|| IsoDateTime::from(record.recorded_at.clone())),
+            criterion_ids: Vec::new(),
+        };
+        Self {
+            record,
+            evidence,
+            standing,
+            refs,
+        }
+    }
+}
+
+/// Gather approval evidence. A recovered attempt keeps the lane it was
+/// approved under; otherwise a host-admitted paid job, then a standing
+/// approval the operation accepts, then a person.
+fn approve(
+    context: &OperationAdmission,
+    step: &GraphStep,
+    host: &mut dyn crate::Host,
+) -> Result<Lane, RuntimeEffectError> {
+    let admitted = &context.admitted;
+    let operation = admitted.operation();
+    let store = context.custody.as_ref().map(EffectCustody::store);
+    let paid = context.lanes.paid_job.clone();
+    let standing_id = context.lanes.standing_id.clone();
+    let floored = operation.approval == ApprovalFloor::Required
+        || admitted.guarded
+        || context.call.approval.is_some();
+    if let Some(record) = context
+        .pending
+        .as_ref()
+        .and_then(|pending| pending.approval.clone())
+    {
+        return match record.actor {
+            ApprovalActor::Human => Ok(Lane::Approved(Box::new(Approved::new(
+                record,
+                None,
+                Vec::new(),
+            )))),
+            ApprovalActor::Standing => {
+                if context.call.approval.is_some() {
+                    return Err(denied(
+                        "the call's explicit approval gate cannot be satisfied by standing approval",
+                    ));
+                }
+                let id = standing_id
+                    .ok_or_else(|| denied("the pending attempt needs its standing approval"))?;
+                let cover = standing_cover(context, store, &id)?;
+                if cover.approval_key != record.key {
+                    return Err(denied("the pending attempt changed its standing approval"));
+                }
+                Ok(Lane::Approved(Box::new(Approved::new(
+                    record,
+                    Some(cover),
+                    Vec::new(),
+                ))))
+            }
+            ApprovalActor::PaidExternalJob => {
+                let (key, refs) = paid_authority(context, paid.as_deref())?;
+                if key != record.key {
+                    return Err(denied("the pending attempt changed its paid job authority"));
+                }
+                Ok(Lane::Approved(Box::new(Approved::new(record, None, refs))))
+            }
+        };
+    }
+    if paid.is_some() {
+        if floored {
+            return Err(denied(
+                "an explicitly gated, guarded, or approval-floored operation needs exact or standing approval, not paid job authority",
+            ));
+        }
+        let (key, refs) = paid_authority(context, paid.as_deref())?;
+        return Ok(Lane::Approved(Box::new(Approved::new(
+            ApprovalRecord::new(ApprovalActor::PaidExternalJob, key),
+            None,
+            refs,
+        ))));
+    }
+    if let Some(id) = standing_id
+        && operation.standing.is_some()
+        && context.call.approval.is_none()
+    {
+        let cover = standing_cover(context, store, &id)?;
+        let key = cover.approval_key.clone();
+        return Ok(Lane::Approved(Box::new(Approved::new(
+            ApprovalRecord::new(ApprovalActor::Standing, key),
+            Some(cover),
+            Vec::new(),
+        ))));
+    }
+    human(context, step, host)
+}
+
+fn standing_cover(
+    context: &OperationAdmission,
+    store: Option<&Arc<KernelStore>>,
+    approval_id: &str,
+) -> Result<StandingCover, RuntimeEffectError> {
+    let admitted = &context.admitted;
+    let Some(StandingEligibility::Notification {
+        target_field,
+        text_field,
+    }) = &admitted.operation().standing
+    else {
+        return Err(denied("the operation accepts no standing approval"));
+    };
+    let store = store.ok_or_else(|| state("standing approval needs effect custody"))?;
+    let input = &context.call.input;
+    let text = input.get(text_field.as_str()).and_then(JsonValue::as_str);
+    if input.len() != 2
+        || input.get(target_field.as_str()).and_then(JsonValue::as_str)
+            != Some(admitted.target.as_str())
+        || text.is_none()
+    {
+        return Err(denied(format!(
+            "a standing notification carries exactly {target_field} equal to the target and {text_field}"
+        )));
+    }
+    let provider_key = context.provider_key().unwrap_or_default();
+    StandingApprovals::new(Arc::clone(store))
+        .cover(
+            approval_id,
+            &StandingCall {
+                connector: admitted.connector.manifest.id.as_str(),
+                operation: admitted.operation.as_str(),
+                instance_id: admitted.instance.instance.instance_id.as_str(),
+                target: &admitted.target,
+                delegate_digest: &context.lanes.delegate_digest,
+                text: text.unwrap_or_default(),
+                intent_digest: admitted.intent_digest().as_str(),
+                idempotency_key: &provider_key,
+                run_id: &context.lanes.run_id,
+            },
+        )
+        .map_err(|error| denied(error.to_string()))
+}
+
+fn paid_authority(
+    context: &OperationAdmission,
+    encoded: Option<&str>,
+) -> Result<(String, Vec<Reference>), RuntimeEffectError> {
+    let encoded = encoded.ok_or_else(|| denied("the paid job authority is missing"))?;
+    let authority = serde_json::from_str::<ExternalJobStageRequest>(encoded)
+        .map_err(|error| invalid(format!("the paid job authority is invalid: {error}")))?;
+    let principal = authority
+        .continuation
+        .principal_ref
+        .as_reference()
+        .uri
+        .as_str()
+        .to_owned();
+    if principal != context.admitted.instance.instance.principal_ref.as_str() {
+        return Err(denied(
+            "the paid job authority belongs to another principal",
+        ));
+    }
+    let evidence = |reference: &Reference, label: &str| Reference {
+        provider: Some("runx".to_owned().into()),
+        label: Some(label.to_owned().into()),
+        proof_kind: Some(ProofKind::EffectEvidence),
+        ..reference.clone()
+    };
+    let continuation = Reference {
+        label: Some("paid external job continuation".to_owned().into()),
+        provider: Some("runx".to_owned().into()),
+        proof_kind: Some(ProofKind::EffectEvidence),
+        ..Reference::with_uri(
+            ReferenceType::Target,
+            format!(
+                "runx:external-job:{}",
+                authority.continuation.continuation_id.as_str()
+            ),
+        )
+    };
+    Ok((
+        authority.operation_key.as_str().to_owned(),
+        vec![
+            evidence(
+                &authority.continuation.invocation_ref,
+                "paid invocation execution authority",
+            ),
+            evidence(
+                &authority.continuation.source_run_ref,
+                "external job source run",
+            ),
+            continuation,
+        ],
+    ))
+}
+
+fn human(
+    context: &OperationAdmission,
+    step: &GraphStep,
+    host: &mut dyn crate::Host,
+) -> Result<Lane, RuntimeEffectError> {
+    let admitted = &context.admitted;
+    let intent = admitted.intent();
+    let text = admitted
+        .approval
+        .as_ref()
+        .ok_or_else(|| state("an approval is owed but has no text"))?;
+    let gate_id = format!("operation:{}", admitted.intent_digest());
+    let mut summary = JsonObject::from([
+        (
+            "provider".to_owned(),
+            JsonValue::String(intent.connector.as_str().to_owned()),
+        ),
+        (
+            "operation".to_owned(),
+            JsonValue::String(intent.operation.as_str().to_owned()),
+        ),
+        (
+            "description".to_owned(),
+            JsonValue::String(admitted.operation().description.as_str().to_owned()),
+        ),
+        (
+            "instance".to_owned(),
+            JsonValue::String(intent.instance_id.as_str().to_owned()),
+        ),
+        (
+            "principal_ref".to_owned(),
+            JsonValue::String(admitted.instance.instance.principal_ref.as_str().to_owned()),
+        ),
+        (
+            "grant_ref".to_owned(),
+            JsonValue::String(format!("runx:grant:{}", admitted.capability.grant_id)),
+        ),
+        (
+            "target".to_owned(),
+            JsonValue::String(intent.target.as_str().to_owned()),
+        ),
+        (
+            "payload_digest".to_owned(),
+            JsonValue::String(intent.payload_digest.as_str().to_owned()),
+        ),
+        (
+            "required_scopes".to_owned(),
+            JsonValue::Array(
+                admitted
+                    .operation()
+                    .scopes
+                    .iter()
+                    .map(|scope| JsonValue::String(scope.as_str().to_owned()))
+                    .collect(),
+            ),
+        ),
+        (
+            "plan_digest".to_owned(),
+            JsonValue::String(admitted.intent_digest().as_str().to_owned()),
+        ),
+    ]);
+    if let Some(account) = &admitted.instance.instance.account_ref {
+        summary.insert(
+            "account_ref".to_owned(),
+            JsonValue::String(account.as_str().to_owned()),
+        );
+    }
+    if let Some(amount) = &intent.amount {
+        summary.insert(
+            "amount".to_owned(),
+            JsonValue::from_serialize(amount).map_err(|error| state(error.to_string()))?,
+        );
+    }
+    if admitted.guarded {
+        summary.insert(
+            "exact_input".to_owned(),
+            JsonValue::Object(context.call.input.clone()),
+        );
+    }
+    let gate = ApprovalGate {
+        id: gate_id.clone().into(),
+        reason: text.reason.clone().into(),
+        gate_type: text
+            .gate_type
+            .clone()
+            .or_else(|| Some("operation".to_owned())),
+        summary: Some(summary),
+    };
+    match crate::request_approval(host, gate_id.clone(), gate)
+        .map_err(|error| denied(error.to_string()))?
+    {
+        // The resolver admits only host-attested human answers.
+        ApprovalResolution::Approved {
+            idempotency_key, ..
+        } => Ok(Lane::Approved(Box::new(Approved::new(
+            ApprovalRecord::new(ApprovalActor::Human, idempotency_key),
+            None,
+            Vec::new(),
+        )))),
+        ApprovalResolution::Denied { reason, .. } => {
+            Err(denied(reason.unwrap_or_else(|| {
+                format!("operation step '{}' was denied", step.id)
+            })))
+        }
+        ApprovalResolution::Pending { .. } => Ok(Lane::Pending(format!(
+            "approval {gate_id:?} for step '{}' is pending",
+            step.id
+        ))),
+    }
+}
+
+/// A pending attempt must be the same call under the same instance.
+fn check_pending(
+    context: &OperationAdmission,
+    pending: &Pending,
+) -> Result<(), RuntimeEffectError> {
+    let admitted = &context.admitted;
+    if pending.intent_digest != admitted.intent_digest().as_str()
+        || pending.instance_id != admitted.instance.instance.instance_id.as_str()
+        || pending.mandate_ref != admitted.mandate_ref
+    {
+        return Err(state(
+            "an unsettled attempt of this step belongs to another intent or instance; reconcile it before running a different call",
+        ));
+    }
+    if pending.idempotency_key != context.provider_key().unwrap_or_default() {
+        return Err(state(
+            "an unsettled attempt of this step carries a different provider key",
+        ));
+    }
+    Ok(())
+}
+
+/// `runx:<intent digest>`, or a UUID derived from it where the provider
+/// requires one.
+fn idempotency_key(intent_digest: &str, format: IdempotencyKeyFormat) -> String {
+    match (format, intent_digest.strip_prefix("sha256:")) {
+        (IdempotencyKeyFormat::Uuid, Some(hex)) if hex.len() == 64 => format!(
+            "{}-{}-4{}-8{}-{}",
+            &hex[..8],
+            &hex[8..12],
+            &hex[13..16],
+            &hex[17..20],
+            &hex[20..32]
+        ),
+        _ => format!("runx:{intent_digest}"),
+    }
+}
+
+fn read_failure(context: &OperationAdmission, step_id: &str, reason: String) -> RuntimeError {
+    if context.call.readback_of.is_some() {
+        return RuntimeError::ProviderReadbackPending {
+            step_id: step_id.to_owned(),
+            reason,
+        };
+    }
+    failed(context, reason)
+}
+
+fn failed(context: &OperationAdmission, reason: String) -> RuntimeError {
+    RuntimeError::SkillFailed {
+        skill_name: format!(
+            "{}/{}",
+            context.admitted.connector.manifest.id, context.admitted.operation
+        ),
+        message: reason,
+    }
+}
+
+pub(crate) fn receipt_root(env: &BTreeMap<String, String>, cwd: &Path) -> std::path::PathBuf {
+    resolve_receipt_path(ReceiptPathInputs {
+        explicit_dir: None,
+        runtime_config: None,
+        env,
+        cwd,
+    })
+    .path
+}
+
+fn verification(uri: String, provider: &str, label: &str, proof_kind: ProofKind) -> Reference {
+    Reference {
+        provider: Some(provider.to_owned().into()),
+        label: Some(NonEmptyString::from(label)),
+        proof_kind: Some(proof_kind),
+        ..Reference::with_uri(ReferenceType::Verification, uri)
+    }
+}
+
+fn invalid(message: impl Into<String>) -> RuntimeEffectError {
+    RuntimeEffectError::InvalidMetadata {
+        family: OPERATION_EFFECT_FAMILY.to_owned(),
+        message: message.into(),
+    }
+}
+
+fn denied(message: impl Into<String>) -> RuntimeEffectError {
+    RuntimeEffectError::Denied {
+        family: OPERATION_EFFECT_FAMILY.to_owned(),
+        verb: AuthorityVerb::Write,
+        message: message.into(),
+    }
+}
+
+fn state(message: impl ToString) -> RuntimeEffectError {
+    RuntimeEffectError::Failed {
+        family: OPERATION_EFFECT_FAMILY.to_owned(),
+        operation: "operation effect state",
+        message: message.to_string(),
+    }
+}
+
+fn engine(message: impl Into<String>) -> RuntimeError {
+    RuntimeError::engine(
+        "executing an operation step",
+        RuntimeError::ReceiptInvalid {
+            message: message.into(),
+        },
+    )
+}
+
+#[cfg(test)]
+mod tests;

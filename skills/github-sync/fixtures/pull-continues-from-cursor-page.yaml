@@ -1,0 +1,38 @@
+name: github-sync-continues-a-pull-from-its-cursor
+kind: skill
+target: ..
+runner: github-sync
+setup:
+  sessions: [github]
+env:
+  PATH: fixtures/bin:/usr/bin:/bin
+inputs:
+  repo: runxhq/runx
+  direction: pull
+  resources:
+    kind: issues
+    filters: { state: open, limit: 25, cursor: "2" }
+  scope: read
+caller:
+  http_responses:
+    "https://api.github.com/user":
+      status: 200
+      headers: { content-type: application/json }
+      body: '{"id": 7, "login": "operator"}'
+    "https://api.github.com/repos/runxhq/runx/issues?page=2&per_page=25&state=open":
+      status: 200
+      headers: { content-type: application/json }
+      body: '[{"number": 401, "title": "An issue on the second page", "state": "open", "body": "", "html_url": "https://github.com/runxhq/runx/issues/401", "labels": [], "assignees": []}]'
+expect:
+  status: sealed
+  output:
+    subset:
+      provider_operation:
+        data:
+          status: success
+          operation: issues.list
+          result:
+            issues:
+              - number: 401
+  receipt: { schema: runx.receipt.v1 }
+metadata: { public_skill: github-sync, source_case: pull-continues-from-cursor, source: skills-fixture }

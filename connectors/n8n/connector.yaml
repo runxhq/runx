@@ -1,0 +1,52 @@
+schema: runx.connector.v1
+id: n8n
+name: n8n
+description: Deliver a governed handoff to an n8n Cloud workflow webhook.
+auth:
+  none: {}
+placements:
+  local:
+    auth: [none]
+operations:
+  workflow.invoke:
+    description: Deliver one handoff to an n8n Cloud workflow webhook; the workflow's answer is the acknowledgement and n8n offers no readback.
+    verb: write
+    scopes: [orchestrator.n8n.workflow.invoke]
+    target:
+      template: {"$concat": ["https://", {"$argument": "/webhook_host"}, "/webhook/", {"$argument": "/workflow_slug"}]}
+    approval: required
+    guarantees:
+      readback: unavailable
+    input_schema:
+      type: object
+      required: [webhook_host, workflow_slug, delivery]
+      additionalProperties: false
+      properties:
+        webhook_host: {type: string, pattern: '^[a-z0-9][a-z0-9-]{0,62}\.app\.n8n\.cloud$'}
+        workflow_slug: {type: string, pattern: '^[A-Za-z0-9_-]+$', maxLength: 128}
+        delivery:
+          type: object
+          required: [event_id, handoff_scope, handoff_audience, idempotency_key, payload]
+          properties:
+            event_id: {type: string, pattern: '^[A-Za-z0-9._:-]{3,200}$'}
+            handoff_scope: {const: orchestrator.n8n.workflow.invoke}
+            handoff_audience: {type: string, pattern: '^n8n:'}
+            idempotency_key: {type: string}
+            payload: {}
+    result_fields: [acknowledgement]
+    implementation:
+      http:
+        allowed_hosts: ["*.app.n8n.cloud"]
+        requests:
+          - id: deliver
+            method: POST
+            url: {"$concat": ["https://", {"$argument": "/webhook_host"}, "/webhook/", {"$argument": "/workflow_slug"}]}
+            headers:
+              accept: application/json
+              x-runx-event-id: {"$argument": "/delivery/event_id"}
+              x-runx-handoff-audience: {"$argument": "/delivery/handoff_audience"}
+              x-runx-handoff-scope: {"$argument": "/delivery/handoff_scope"}
+            body: {"$argument": "/delivery"}
+        decode: [{op: auto_json}]
+        result_paths:
+          acknowledgement: acknowledgement

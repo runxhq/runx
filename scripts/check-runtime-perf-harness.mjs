@@ -229,41 +229,15 @@ function assertReleaseProbeInvariant() {
   if (!/RUNX_JS_WORKER_PATH:\s*javascriptWorkerPath/u.test(source)) {
     throw new Error("runtime perf harness must bind benchmarks to the release worker it built");
   }
-  const mcpProbeSource = functionSource(source, "mcpSessionProbe", "measureNativeCliLaunch");
   const nativeProbeSource = functionSource(source, "nativeCliProbe", "runNativeCliProbe");
-  if (!/"--release"[\s\S]*"--bin"[\s\S]*"runx-mcp-session-probe"/u.test(mcpProbeSource)) {
-    throw new Error("runtime perf harness must build the MCP session probe with --release");
-  }
   if (!/"--release"[\s\S]*"--bin"[\s\S]*"runx"/u.test(nativeProbeSource)) {
     throw new Error("runtime perf harness must build the native runx launch probe with --release");
-  }
-  if (!/cargo build runx-mcp-session-probe did not produce/u.test(mcpProbeSource)) {
-    throw new Error("runtime perf harness must verify the MCP release probe exists after build");
   }
   if (!/cargo build runx-cli did not produce/u.test(nativeProbeSource)) {
     throw new Error("runtime perf harness must verify the native runx release probe exists after build");
   }
   if (!/nativeCliWarmupCount\s*=\s*3/u.test(source) || !/nativeCliSampleCount\s*=\s*20/u.test(source)) {
     throw new Error("native CLI probe must use three warmups and twenty measured launches");
-  }
-  const mcpProbeImplementation = readFileSync(
-    path.join(
-      workspaceRoot,
-      "crates/runx-runtime/src/bin/runx-mcp-session-probe.rs",
-    ),
-    "utf8",
-  );
-  for (const [constant, value] of [
-    ["REUSE_WARMUP_CALL_COUNT", 4],
-    ["REUSE_SAMPLE_COUNT", 20],
-    ["REUSE_CALLS_PER_SAMPLE", 10],
-  ]) {
-    if (!new RegExp(`const ${constant}: usize = ${value};`, "u").test(mcpProbeImplementation)) {
-      throw new Error(`MCP reuse probe must keep ${constant} at ${value}`);
-    }
-  }
-  if (!mcpProbeImplementation.includes("/ REUSE_CALLS_PER_SAMPLE as f64")) {
-    throw new Error("MCP reuse probe must report per-call latency from batched samples");
   }
   if (/crates",\s*"target",\s*"debug"/u.test(source)) {
     throw new Error("runtime perf harness must not fall back to stale crates/target/debug probe binaries");

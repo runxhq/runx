@@ -1,5 +1,5 @@
 skill: slack
-version: "0.2.8"
+version: "0.2.9"
 
 catalog:
   kind: graph
@@ -14,7 +14,154 @@ catalog:
   requires_adapter: true
   approval: conditional
 
+connectors:
+  slack:
+    operations: [messages.search, thread.read, file.read, thread.reply, thread.reply.read]
 runners:
+  assistant_decide:
+    type: graph
+    inputs:
+      presentation_ref:
+        type: string
+        required: true
+        description: Exact posted Slack message locator that roots this decision thread.
+        schema: { pattern: '^slack://[A-Z][A-Z0-9]+/[CGD][A-Z0-9]+/[0-9]+\.[0-9]+$', maxLength: 300 }
+      request_digest:
+        type: string
+        required: true
+        schema: { pattern: '^sha256:[0-9a-f]{64}$' }
+      nonce:
+        type: string
+        required: true
+        schema: { pattern: '^[0-9a-f]{16}$' }
+      authorized_actor_ref:
+        type: string
+        required: true
+        description: Exact Slack member ID authorized to answer this request.
+        schema: { pattern: '^[UW][A-Z0-9]{2,}$', maxLength: 100 }
+    graph:
+      name: slack-assistant-decision
+      result_from: [judge]
+      steps:
+        - id: thread
+          skill: .
+          runner: read_thread
+          inputs:
+            thread_locator: $input.presentation_ref
+            limit: 15
+        - id: judge
+          inputs:
+            presentation_ref: $input.presentation_ref
+            request_digest: $input.request_digest
+            nonce: $input.nonce
+            authorized_actor_ref: $input.authorized_actor_ref
+          context:
+            provider_operation: thread.provider_operation.data
+          run:
+            type: javascript
+            module: assistant-source.mjs
+            export: decideAssistantRequest
+            outputs: { decision_observation: object }
+          artifacts:
+            named_emits: { decision_observation: decision_observation }
+            packets: { decision_observation: runx.decision_observation.v1 }
+  assistant_scan:
+    type: graph
+    inputs:
+      config: { type: object, required: true, description: Bounded source search configuration. }
+      cursor: { type: string, required: false, description: Opaque source cursor. }
+      page_limit: { type: integer, required: true, description: Maximum search rows, schema: { minimum: 1, maximum: 20 } }
+    graph:
+      name: slack-assistant-scan
+      result_from: [finish]
+      steps:
+        - id: prepare
+          inputs: { config: "$input.config", cursor: "$input.cursor", page_limit: "$input.page_limit" }
+          run:
+            type: javascript
+            module: assistant-source.mjs
+            export: prepareAssistantScan
+            outputs: { scan_request: object }
+        - id: search
+          skill: .
+          runner: search
+          context: { query: prepare.scan_request.query }
+        - id: finish
+          inputs: { page_limit: "$input.page_limit" }
+          context: { provider_operation: search.provider_operation.data }
+          run:
+            type: javascript
+            module: assistant-source.mjs
+            export: finishAssistantScan
+            outputs: { assistant_page: object }
+          artifacts:
+            named_emits: { assistant_page: assistant_page }
+            packets: { assistant_page: runx.conversation_page.v1 }
+  assistant_observe:
+    type: graph
+    inputs:
+      config: { type: object, required: true, description: Bound source configuration. }
+      item: { type: object, required: true, description: One message from assistant_scan. }
+    graph:
+      name: slack-assistant-observe
+      result_from: [observe]
+      steps:
+        - id: observe
+          inputs: { config: "$input.config", item: "$input.item" }
+          run:
+            type: javascript
+            module: assistant-source.mjs
+            export: observeAssistantMessage
+            outputs: { assistant_observation: object }
+          artifacts:
+            named_emits: { assistant_observation: assistant_observation }
+            packets: { assistant_observation: runx.conversation_observation.v1 }
+  assistant_hydrate:
+    type: graph
+    inputs:
+      config: { type: object, required: true, description: Bound source configuration. }
+      source_ref: { type: string, required: true, description: Admitted message locator. }
+      source_digest: { type: string, required: true, description: Admitted occurrence digest. }
+      thread_locator: { type: string, required: true, description: Admitted thread locator. }
+      action: { type: object, required: true, description: Canonical open operator action. }
+      cursor: { type: string, required: false, description: Opaque thread continuation cursor. }
+    graph:
+      name: slack-assistant-hydrate
+      result_from: [finish]
+      steps:
+        - id: prepare
+          inputs:
+            source_ref: "$input.source_ref"
+            thread_locator: "$input.thread_locator"
+            action: "$input.action"
+            cursor: "$input.cursor"
+          run:
+            type: javascript
+            module: assistant-source.mjs
+            export: prepareAssistantHydrate
+            outputs: { hydrate_request: object }
+        - id: thread
+          skill: .
+          runner: read_thread
+          context:
+            thread_locator: prepare.hydrate_request.thread_locator
+            cursor: prepare.hydrate_request.cursor
+            limit: prepare.hydrate_request.limit
+        - id: finish
+          inputs:
+            source_ref: "$input.source_ref"
+            source_digest: "$input.source_digest"
+            thread_locator: "$input.thread_locator"
+            action: "$input.action"
+          context: { provider_operation: thread.provider_operation.data }
+          run:
+            type: javascript
+            module: assistant-source.mjs
+            export: finishAssistantHydrate
+            outputs: { assistant_context: object }
+          artifacts:
+            named_emits: { assistant_context: assistant_context }
+            packets: { assistant_context: runx.source_packet.v1 }
   search:
     default: true
     type: graph
@@ -50,15 +197,8 @@ runners:
       result_from: [search]
       steps:
         - id: search
-          tool: provider.read
-          scopes: [messages.search]
-          policy:
-            provider_permission:
-              verb: read
+          operation: slack/messages.search
           inputs:
-            operation: messages.search
-            target: slack://messages
-            expected_provider: slack
             result_fields: [external_tenant_ref, connected_subject_ref, messages, next_cursor]
             input: $input.query
 
@@ -88,15 +228,8 @@ runners:
       result_from: [read]
       steps:
         - id: read
-          tool: provider.read
-          scopes: [thread.read]
-          policy:
-            provider_permission:
-              verb: read
+          operation: slack/thread.read
           inputs:
-            operation: thread.read
-            target: $input.thread_locator
-            expected_provider: slack
             expected_result:
               thread_locator: $input.thread_locator
             result_fields: [external_tenant_ref, connected_subject_ref, thread_locator, messages, next_cursor]
@@ -131,15 +264,8 @@ runners:
       result_from: [read]
       steps:
         - id: read
-          tool: provider.read
-          scopes: [thread.read]
-          policy:
-            provider_permission:
-              verb: read
+          operation: slack/thread.read
           inputs:
-            operation: thread.read
-            target: $input.permalink
-            expected_provider: slack
             result_fields: [external_tenant_ref, connected_subject_ref, thread_locator, messages, next_cursor]
             input:
               thread_locator: $input.permalink
@@ -161,15 +287,8 @@ runners:
       result_from: [read]
       steps:
         - id: read
-          tool: provider.read
-          scopes: [file.read]
-          policy:
-            provider_permission:
-              verb: read
+          operation: slack/file.read
           inputs:
-            operation: file.read
-            target: $input.file_locator
-            expected_provider: slack
             expected_result:
               file_locator: $input.file_locator
             result_fields: [external_tenant_ref, connected_subject_ref, file_locator, name, mimetype, size_bytes, image_width, image_height, content_digest, data_base64]
@@ -311,19 +430,12 @@ runners:
           context:
             actual: digest.digest_result.data.digest
         - id: deliver
-          tool: provider.mutate
-          scopes: [thread.reply]
+          operation: slack/thread.reply
           idempotency_key: $input.idempotency_key
           when:
             field: bind-content.comparison.data.equal
             equals: true
-          policy:
-            provider_permission:
-              verb: write
           inputs:
-            operation: thread.reply
-            target: $input.thread_locator
-            expected_provider: slack
             approval:
               reason: Approve posting this exact digest-bound Slack thread reply.
               type: slack_message
@@ -335,20 +447,24 @@ runners:
             input:
               thread_locator: $input.thread_locator
               text: $input.text
+        - id: prepare-readback
+          when:
+            field: bind-content.comparison.data.equal
+            equals: true
+          inputs: { text: $input.text }
+          context: { delivery: deliver.provider_operation.data }
+          run:
+            type: javascript
+            module: reply-readback.mjs
+            export: prepareReplyReadback
+            outputs: { read_request: object }
         - id: readback
           when:
             field: bind-content.comparison.data.equal
             equals: true
-          tool: provider.read
-          scopes: [thread.reply.read]
-          policy:
-            provider_permission:
-              verb: read
+          operation: slack/thread.reply.read
           inputs:
-            operation: thread.reply.read
-            target: $input.thread_locator
-            expected_provider: slack
             result_fields: [message_locator, conversation_locator, thread_locator, content_digest, occurred_at]
           context:
             expected_result: deliver.provider_operation.data.result
-            input: deliver.provider_operation.data.result
+            input: prepare-readback.read_request

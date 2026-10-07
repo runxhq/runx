@@ -19,14 +19,14 @@ inputs:
       title: Improve docs
       body_preview: Fixture signal is ready for a bounded docs change.
       source_ref:
-        type: github_issue
+        type: thread
         uri: issue://fixture/123
       fingerprint:
         algorithm: sha256
         canonicalization: fixture
         value: sha256:fixture-123
         derived_from:
-          - type: github_issue
+          - type: thread
             uri: issue://fixture/123
     decision:
       schema: runx.decision.v1

@@ -1,4 +1,3 @@
-use runx_contracts::operational_policy_source_provider;
 use runx_contracts::{JsonObject, JsonValue, Reference, ReferenceType};
 
 pub(crate) struct StepOutputProjection {
@@ -213,17 +212,7 @@ fn collect_source_event_reference(value: &JsonValue, refs: &mut StepOutputRefs) 
 }
 
 fn reference_type_for_source(provider: Option<&str>, locator: &str) -> ReferenceType {
-    match provider {
-        Some(operational_policy_source_provider::GITHUB) => ReferenceType::GithubIssue,
-        Some(operational_policy_source_provider::SLACK) => ReferenceType::SlackThread,
-        Some(operational_policy_source_provider::SENTRY) => ReferenceType::SentryEvent,
-        _ if locator.starts_with("github://") || locator.contains("github.com/") => {
-            ReferenceType::GithubIssue
-        }
-        _ if locator.starts_with("slack://") => ReferenceType::SlackThread,
-        _ if locator.starts_with("sentry://") => ReferenceType::SentryEvent,
-        _ => ReferenceType::ExternalUrl,
-    }
+    crate::kernel::connectors::references::reference_kind(provider, locator)
 }
 
 #[cfg(test)]

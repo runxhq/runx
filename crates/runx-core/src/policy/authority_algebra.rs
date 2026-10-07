@@ -133,13 +133,49 @@ pub fn optional_ref_bound_subset<T: Ord>(child: Option<&T>, parent: Option<&T>) 
     }
 }
 
+/// Whether a parent pattern covers a child value or pattern. `*` covers
+/// everything, `<prefix>*` covers anything starting with the prefix (including
+/// a narrower pattern), and anything else covers only itself.
+#[must_use]
+pub fn pattern_covers(parent: &str, child: &str) -> bool {
+    match parent.strip_suffix('*') {
+        Some(prefix) => child.starts_with(prefix),
+        None => parent == child,
+    }
+}
+
+/// Every child pattern is covered by some parent pattern. An empty parent
+/// covers nothing, so a bound is granted only when it is listed.
+#[must_use]
+pub fn patterns_subset<T: AsRef<str>>(child: &[T], parent: &[T]) -> bool {
+    child.iter().all(|child| {
+        parent
+            .iter()
+            .any(|parent| pattern_covers(parent.as_ref(), child.as_ref()))
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
         authority_effect_family, authority_effect_guard_required, authority_effect_proof_kinds,
         authority_term_has_verb, evaluate_authority_effect_guards, items_subset,
-        optional_bound_subset, parent_items_preserved,
+        optional_bound_subset, parent_items_preserved, pattern_covers, patterns_subset,
     };
+
+    #[test]
+    fn patterns_cover_exact_prefix_and_wildcard() {
+        assert!(pattern_covers("*", "slack/channel.post"));
+        assert!(pattern_covers("slack/*", "slack/channel.post"));
+        assert!(pattern_covers("slack/*", "slack/channel.*"));
+        assert!(!pattern_covers("slack/*", "github/issue.read"));
+        assert!(!pattern_covers("slack/channel.*", "slack/*"));
+        assert!(pattern_covers("slack://acme/C1", "slack://acme/C1"));
+        assert!(!pattern_covers("slack://acme/C1", "slack://acme/C2"));
+        assert!(patterns_subset(&["a/x", "a/y"], &["a/*"]));
+        assert!(!patterns_subset(&["a/x"], &[] as &[&str]));
+        assert!(patterns_subset(&[] as &[&str], &[] as &[&str]));
+    }
     use runx_contracts::{
         AuthorityBounds, AuthorityEffectGuard, AuthorityEffectGuardKind, AuthorityResourceFamily,
         AuthorityTerm, AuthorityVerb, ProofKind, Reference, ReferenceType,

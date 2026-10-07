@@ -1,9 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::harness_fixture::{HarnessFixture, HarnessFixtureKind};
-use crate::{
-    ExecutionGraph, SkillExternalAdapterManifest, SkillRunnerManifest, SkillSource, SourceKind,
-};
+use crate::{ExecutionGraph, SkillRunnerManifest, SkillSource, SourceKind};
 
 use super::super::path::{normalize_context_ref, validate_package_path};
 use super::super::{SkillPackageError, SkillPackageSource};
@@ -116,68 +114,8 @@ fn collect_source_references(
             &mut references.execution_files,
         );
     }
-    if let Some(server) = &source.server {
-        collect_process_execution_files(
-            profile_dir,
-            std::iter::once(&server.command).chain(&server.args),
-            &mut references.execution_files,
-        );
-    }
-    if let Some(declaration) = source.external_adapter.as_ref() {
-        collect_external_adapter_files(
-            field,
-            profile_dir,
-            declaration,
-            package,
-            &mut references.execution_files,
-        )?;
-    }
     if let Some(graph) = &source.graph {
         collect_graph_references(field, profile_dir, graph, package, references)?;
-    }
-    Ok(())
-}
-
-fn collect_external_adapter_files(
-    field: &str,
-    profile_dir: &str,
-    declaration: &SkillExternalAdapterManifest,
-    package: &SkillPackageSource,
-    files: &mut BTreeSet<String>,
-) -> Result<(), SkillPackageError> {
-    let (manifest, script_dir) = match declaration {
-        SkillExternalAdapterManifest::Inline(manifest) => {
-            (manifest.as_ref().clone(), profile_dir.to_owned())
-        }
-        SkillExternalAdapterManifest::Path(path) => {
-            let manifest_path = package_relative(profile_dir, path);
-            let bytes = package.files.get(&manifest_path).ok_or_else(|| {
-                SkillPackageError::invalid(
-                    field,
-                    format!("external-adapter manifest {manifest_path:?} is missing"),
-                )
-            })?;
-            let manifest = serde_json::from_slice::<runx_contracts::ExternalAdapterManifest>(bytes)
-                .map_err(|error| {
-                    SkillPackageError::invalid(
-                        &manifest_path,
-                        format!("external-adapter manifest is invalid: {error}"),
-                    )
-                })?;
-            files.insert(manifest_path.clone());
-            (manifest, package_directory(&manifest_path).to_owned())
-        }
-    };
-    for value in manifest
-        .transport
-        .command
-        .iter()
-        .map(AsRef::as_ref)
-        .chain(manifest.transport.args.iter().flatten().map(String::as_str))
-    {
-        if let Some(path) = process_script_path(&script_dir, value) {
-            files.insert(path);
-        }
     }
     Ok(())
 }

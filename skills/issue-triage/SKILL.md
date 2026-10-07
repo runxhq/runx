@@ -13,9 +13,9 @@ silently mutating a repository or inventing state that is not present in the
 thread snapshot.
 
 Discovery and response are separate jobs. The default `provider-respond` runner
-reads one issue through Runx's provider boundary—preferring an authenticated
-local `gh` session and using Connect only when explicitly selected or needed—
-binds the returned snapshot and readback into the receipt, and turns it into a concise profile,
+reads one issue through the GitHub instance selected here, the signed-in `gh`
+session or a stored token, binds the returned snapshot and readback into the
+receipt, and turns it into a concise profile,
 recommended posture, draft reply, and follow-up plan. `discover` and `respond`
 remain explicit supplied-evidence lanes for offline queues and replay. Every
 analysis lane stops at a draft. Select `post` explicitly to consume that exact
@@ -39,11 +39,11 @@ explicit `post` runner performs only the exact accepted comment.
 
 Every candidate and response is bound through Runx's native data digest to the
 exact issue snapshot or bounded snapshot set. `provider-respond` obtains that
-snapshot through native `provider.read` with `repo.read`, and the provider
-operation remains in the sealed run alongside the draft. The `mcp-read` runner composes the
-bundled `examples/github-mcp-hero/read-issue` provider pattern for deterministic
-tests; it is not evidence that live GitHub was queried. Supplied snapshots are
-labelled as such rather than promoted to provider readback.
+snapshot through `github/issue.read` with `repo.read`, and the provider
+operation remains in the sealed run alongside the draft. `post` comments
+through `github/comments.create`, which completes only when the read-back
+comment matches the exact accepted body. Supplied snapshots are labelled as
+such rather than promoted to provider readback.
 
 Ground the assessment in the thread, repository facts, receipts, and supplied
 maintainer context. Do not infer contributor intent, reproduce hostile language
@@ -70,9 +70,8 @@ from supplied evidence.
 - Reject issue ids, repository state, labels, commitments, or completed work not
   present in the admitted snapshot.
 - Do not turn maintainer context into provider evidence.
-- Refuse a missing, ambiguous, wrong-provider, or under-scoped GitHub binding;
-  use compatible local `gh` or an explicitly selected hosted connector instead
-  of a raw token or package HTTP client.
+- Refuse when no GitHub instance is selected, or the selected one cannot read
+  the issue; the skill never handles a raw token.
 - Keep mutation out of the analysis lanes. An accepted draft moves explicitly
   to `post`, which requires scoped GitHub comment authority and provider
   readback.

@@ -8,7 +8,6 @@ use crate::cli_args::{flag_value, os_arg, split_flag};
 pub struct ConnectPlan {
     pub action: ConnectAction,
     pub api_base_url: Option<String>,
-    pub token: Option<String>,
     pub allow_local_api: bool,
     pub json: bool,
 }
@@ -16,7 +15,6 @@ pub struct ConnectPlan {
 #[derive(Clone, Debug, PartialEq)]
 pub enum ConnectAction {
     List,
-    Bind { provider: String, transport: String },
     Start(ConnectStartPlan),
     Status { session_id: String },
     Revoke { grant_id: String },
@@ -38,7 +36,6 @@ pub struct ConnectStartPlan {
 #[derive(Default)]
 struct ParsedConnectArgs {
     api_base_url: Option<String>,
-    token: Option<String>,
     allow_local_api: bool,
     credentials_from_stdin: bool,
     json: bool,
@@ -56,13 +53,12 @@ pub fn parse_connect_plan(args: &[OsString]) -> Result<ConnectPlan, String> {
     let subcommand = args
         .get(1)
         .and_then(|value| value.to_str())
-        .ok_or_else(|| "runx connect requires list, bind, start, status, or revoke".to_owned())?;
+        .ok_or_else(|| "runx connect requires list, start, status, or revoke".to_owned())?;
     let mut parsed = parse_args(args)?;
     let action = connect_action(subcommand, &mut parsed)?;
     Ok(ConnectPlan {
         action,
         api_base_url: parsed.api_base_url,
-        token: parsed.token,
         allow_local_api: parsed.allow_local_api,
         json: parsed.json,
     })
@@ -118,7 +114,6 @@ fn takes_value(flag: &str) -> bool {
     matches!(
         flag,
         "--api-base-url"
-            | "--token"
             | "--scope"
             | "--scope-family"
             | "--authority-kind"
@@ -132,7 +127,6 @@ fn takes_value(flag: &str) -> bool {
 fn apply_value(parsed: &mut ParsedConnectArgs, flag: &str, value: String) -> Result<(), String> {
     match flag {
         "--api-base-url" => parsed.api_base_url = Some(value),
-        "--token" => parsed.token = Some(value),
         "--scope" if value.trim().is_empty() => {
             return Err("--scope requires a non-blank capability".to_owned());
         }
@@ -157,10 +151,6 @@ fn connect_action(
     }
     match subcommand {
         "list" if parsed.positional.is_empty() => Ok(ConnectAction::List),
-        "bind" if parsed.positional.len() == 2 => Ok(ConnectAction::Bind {
-            provider: parsed.positional.remove(0),
-            transport: parsed.positional.remove(0),
-        }),
         "start" if parsed.positional.len() == 1 => start_action(parsed),
         "status" if parsed.positional.len() == 1 => Ok(ConnectAction::Status {
             session_id: path_identifier("session id", parsed.positional.remove(0))?,
@@ -168,7 +158,7 @@ fn connect_action(
         "revoke" if parsed.positional.len() == 1 => Ok(ConnectAction::Revoke {
             grant_id: provider_grant_id(parsed.positional.remove(0))?,
         }),
-        "list" | "bind" | "start" | "status" | "revoke" => {
+        "list" | "start" | "status" | "revoke" => {
             Err(format!("invalid arguments for runx connect {subcommand}"))
         }
         _ => Err(format!("unknown connect subcommand {subcommand}")),

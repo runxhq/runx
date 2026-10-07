@@ -1,5 +1,5 @@
 skill: open-meteo-weather-forecast
-version: "0.1.4"
+version: "0.1.5"
 
 catalog:
   kind: graph
@@ -13,6 +13,10 @@ catalog:
   completion: provider_readback
   requires_adapter: false
   approval: none
+
+connectors:
+  open-meteo:
+    operations: [geocode.search, forecast.read, air_quality.read]
 
 runners:
   main:
@@ -41,41 +45,17 @@ runners:
       result_from: [locate, forecast]
       steps:
         - id: locate
-          tool: http.read
-          scopes: [net:http]
+          operation: open-meteo/geocode.search
           inputs:
-            requests:
-              - id: locate
-                method: GET
-                url: https://geocoding-api.open-meteo.com/v1/search
-                query:
-                  name: $input.name
-                  count: "5"
-                  language: en
-                  format: json
-                headers:
-                  accept: application/json
-            allowed_hosts: [geocoding-api.open-meteo.com]
-            stop_on_error: true
+            input:
+              name: $input.name
         - id: forecast
-          tool: http.read
-          scopes: [net:http]
+          operation: open-meteo/forecast.read
           inputs:
-            requests:
-              - id: forecast
-                method: GET
-                url: https://api.open-meteo.com/v1/forecast
-                query:
-                  latitude: $input.latitude
-                  longitude: $input.longitude
-                  current: temperature_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m
-                  daily: weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max
-                  timezone: auto
-                  forecast_days: $input.forecast_days
-                headers:
-                  accept: application/json
-            allowed_hosts: [api.open-meteo.com]
-            stop_on_error: true
+            input:
+              latitude: $input.latitude
+              longitude: $input.longitude
+              forecast_days: $input.forecast_days
   air_quality:
     type: graph
     inputs:
@@ -96,36 +76,13 @@ runners:
       result_from: [locate, air_quality]
       steps:
         - id: locate
-          tool: http.read
-          scopes: [net:http]
+          operation: open-meteo/geocode.search
           inputs:
-            requests:
-              - id: locate
-                method: GET
-                url: https://geocoding-api.open-meteo.com/v1/search
-                query:
-                  name: $input.name
-                  count: "5"
-                  language: en
-                  format: json
-                headers:
-                  accept: application/json
-            allowed_hosts: [geocoding-api.open-meteo.com]
-            stop_on_error: true
+            input:
+              name: $input.name
         - id: air_quality
-          tool: http.read
-          scopes: [net:http]
+          operation: open-meteo/air_quality.read
           inputs:
-            requests:
-              - id: air_quality
-                method: GET
-                url: https://air-quality-api.open-meteo.com/v1/air-quality
-                query:
-                  latitude: $input.latitude
-                  longitude: $input.longitude
-                  current: pm10,pm2_5,carbon_monoxide,nitrogen_dioxide,sulphur_dioxide,ozone,european_aqi,us_aqi
-                  timezone: auto
-                headers:
-                  accept: application/json
-            allowed_hosts: [air-quality-api.open-meteo.com]
-            stop_on_error: true
+            input:
+              latitude: $input.latitude
+              longitude: $input.longitude

@@ -66,6 +66,13 @@ impl ManagedAgentPolicy {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct SkillRunRequest {
+    /// Explicit caller context, bound to this run and inherited by acting children.
+    pub current_context: Vec<runx_contracts::ContextEntry>,
+    /// Retrieved cross-run evidence; context never grants authority.
+    pub historical_context: Vec<runx_contracts::ContextEntry>,
+    /// Actor identity and attenuated terms from the trusted host. Never taken
+    /// from skill inputs, model output or retrieved context.
+    pub run_authority: Option<crate::RunAuthority>,
     pub skill_path: PathBuf,
     pub receipt_dir: Option<PathBuf>,
     pub run_id: Option<String>,
@@ -76,60 +83,6 @@ pub struct SkillRunRequest {
     /// Explicit consent for an in-process managed-agent loop. The default is
     /// host-driven resolution even when model credentials are configured.
     pub managed_agent: ManagedAgentPolicy,
-    /// Optional resolved local credential supplied for this run.
-    ///
-    /// When present, the runtime derives a `CredentialDelivery` from it for this
-    /// single run. The secret value is never persisted and is redacted from
-    /// captured output, receipts, and metadata through the existing delivery
-    /// channel. `None` keeps the current no-credential behavior.
-    pub local_credential: Option<LocalCredentialDescriptor>,
-}
-
-/// Structured per-run credential delivery descriptor.
-///
-/// This is the local, no-network establishment surface for the OSS CLI: the
-/// resolver supplies the non-secret binding fields plus the raw secret value, and
-/// the runtime turns it into a `CredentialDelivery` through the existing opaque
-/// `MaterialResolver`. No secret state is persisted; the descriptor lives only
-/// for the duration of a single run.
-#[derive(Clone, PartialEq, Eq)]
-pub struct LocalCredentialDescriptor {
-    /// Stored profile selector. This is non-secret and may be checkpointed so a
-    /// resumed run re-resolves current material instead of persisting a secret.
-    pub profile: Option<String>,
-    /// Provider the credential authenticates against (for example `github`).
-    pub provider: String,
-    /// HTTPS audience declared by the resolved credential requirement. Native
-    /// authenticated HTTP may only attenuate this destination binding.
-    pub audience: Option<String>,
-    /// Authentication mode label carried on the delivery profile/envelope.
-    pub auth_mode: String,
-    /// Environment variable the secret is delivered into for the skill process.
-    pub env_var: String,
-    /// Opaque reference identifying the in-memory material for this run.
-    pub material_ref: String,
-    /// Scopes recorded on the credential envelope.
-    pub scopes: Vec<String>,
-    /// The raw secret value supplied for this run only.
-    pub secret: String,
-}
-
-// Manual Debug so the raw secret never reaches logs, panics, or any Debug of an
-// enclosing type (e.g. SkillRunRequest).
-impl std::fmt::Debug for LocalCredentialDescriptor {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter
-            .debug_struct("LocalCredentialDescriptor")
-            .field("profile", &self.profile)
-            .field("provider", &self.provider)
-            .field("audience", &self.audience)
-            .field("auth_mode", &self.auth_mode)
-            .field("env_var", &self.env_var)
-            .field("material_ref", &self.material_ref)
-            .field("scopes", &self.scopes)
-            .field("secret", &"[redacted]")
-            .finish()
-    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -297,7 +250,6 @@ impl LocalOrchestrator {
         request: &SkillRunRequest,
         runner: &str,
         javascript: crate::adapters::javascript::JavaScriptAdapter,
-        credential_delivery: crate::credentials::CredentialDelivery,
         package_digest: &str,
         execution_closure_digest: &str,
     ) -> Result<RunResult, OrchestratorError> {
@@ -306,7 +258,6 @@ impl LocalOrchestrator {
             &super::skill_front::SkillRunOverrides {
                 runner: Some(runner.to_owned()),
                 javascript: Some(javascript),
-                credential_delivery: Some(credential_delivery),
                 ..Default::default()
             },
             &self.effects,
@@ -434,10 +385,30 @@ impl LocalOrchestrator {
         let (mut options, receipt_dir) = standalone_harness_options(request, &self.environment)?;
         options.created_at = crate::time::DEFAULT_CREATED_AT.to_owned();
         options.effects = self.effects.clone();
+        // Like a package case, the case runs in a home and a receipt root of
+        // its own, so neither the operator's profiles nor another case's
+        // instances reach it; its receipts are kept where the caller asked.
+        let scratch = tempfile::Builder::new()
+            .prefix("runx-harness-case-")
+            .tempdir()
+            .map_err(|source| crate::RuntimeError::io("creating a harness case scratch", source))?;
+        let mut case = options.clone();
+        case.env.insert(
+            "RUNX_HOME".to_owned(),
+            scratch.path().join("home").to_string_lossy().into_owned(),
+        );
+        case.env.insert(
+            crate::receipts::paths::RUNX_RECEIPT_DIR_ENV.to_owned(),
+            scratch
+                .path()
+                .join("receipts")
+                .to_string_lossy()
+                .into_owned(),
+        );
         let output = super::harness::run_harness_fixture_with_adapter(
             &request.fixture_path,
             super::skill_front::SkillSourceAdapter::default(),
-            options.clone(),
+            case,
         )?;
         persist_harness_receipts(&output, &options, &receipt_dir)?;
         Ok(output)

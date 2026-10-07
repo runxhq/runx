@@ -1,0 +1,28 @@
+schema: runx.connector.v1
+id: ausca-browser
+name: Ausca Browser
+description: Provision Ausca browser sessions for paid invocations.
+auth:
+  credentials:
+    service_token:
+      kind: service_token_v1
+      fields:
+        - {name: schema, label: Ausca browser credential schema, secret: false}
+        - {name: origin, label: Ausca browser service origin, secret: false}
+        - {name: token, label: Ausca browser service token}
+      delivery:
+        env: AUSCA_BROWSER_SERVICE_TOKEN
+      audience: [browser.ausca.com]
+placements:
+  hosted:
+    auth: credential
+    credential: service_token
+    callers: runtime
+operations:
+  ausca.browser.provision:
+    description: Provision one browser session for the current paid invocation.
+    verb: write
+    scopes: [ausca.browser.provision]
+    target:
+      template: "ausca:browser-session"
+    hosted: {}

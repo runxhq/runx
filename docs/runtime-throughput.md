@@ -3,9 +3,8 @@
 This note defines the OSS runtime performance contract for the runtime cutover
 tasks. The target is throughput on runx-controlled overhead: graph planning,
 context and output projection, fanout synchronization, receipt sealing, receipt
-store maintenance, MCP session framing, and native CLI launch overhead. It does
-not claim speedups for external LLMs,
-network APIs, or user subprocess work.
+store maintenance, and native CLI launch overhead. It does not claim speedups
+for external LLMs, network APIs, or user subprocess work.
 
 ## Baseline
 
@@ -55,7 +54,7 @@ concurrent branches; and provider-permission admission through receipt sealing
 without contacting a live provider.
 
 `provider_effect_finality` is the production authority-to-finality workload. It
-executes a `provider.mutate` request that explicitly asks for human approval,
+executes a connector write that explicitly asks for human approval,
 then covers durable attempt state,
 provider acknowledgement, identity-bound readback, finality proof, and receipt
 sealing. The retired `provider_effect_transition` row measured a synthetic read
@@ -102,29 +101,21 @@ Receipt canonicalization workloads live in
 - `receipt_body_json`
 - `receipt_full_json`
 
-S-tier protocol/session workloads are orchestrated by
-`scripts/runtime-throughput.mjs` because they are process/protocol overhead
-rather than Criterion benches:
+Process workloads are orchestrated by `scripts/runtime-throughput.mjs` because
+they measure process launch overhead rather than Criterion benches:
 
-- `mcp_session_start`
-- `mcp_session_reuse`
 - `native_cli_launch`
 - `cli_file_input`
 
-The MCP rows are measured through the Rust `runx-mcp-session-probe` binary, which
-invokes `McpAdapter<ProcessMcpTransport>` and reports the transport spawn
-counter. These rows include `spawn_count`. The MCP reuse and native launch gates
-require `spawn_count <= 1` and no p99 regression above the declared budget. MCP
-owns a pooled protocol session; deterministic JavaScript owns a separate
-runtime-scoped bounded worker pool with a fresh engine context per invocation.
-The pool ceiling is four processes. Each process has a 160 MiB working-set
-ceiling, so the explicit aggregate JavaScript working-set budget is 640 MiB;
-the contract exposes both values rather than hiding the multiplication behind
-an invocation-count constant.
-External adapters remain one-shot until a reset-capable wire contract and
-negative isolation tests exist.
+These rows include `spawn_count`. The native launch gate requires
+`spawn_count <= 1` and no p99 regression above the declared budget.
+Deterministic JavaScript owns a runtime-scoped bounded worker pool with a fresh
+engine context per invocation. The pool ceiling is four processes. Each process
+has a 160 MiB working-set ceiling, so the explicit aggregate JavaScript
+working-set budget is 640 MiB; the contract exposes both values rather than
+hiding the multiplication behind an invocation-count constant.
 
-Process/protocol rows are measured from release binaries built in
+Process rows are measured from release binaries built in
 `crates/target/runx-perf/release`. The perf harness intentionally does not reuse
 `crates/target/debug/runx`, because that binary may be stale or built from a
 different local checkout state. Each capture asks Cargo to refresh those release
@@ -162,10 +153,7 @@ The hot-path runtime changes keep ownership narrow:
   language-neutral extension helpers, and cloud/product code. Native authoring
   plus Skill Lab own skill creation; deleted authoring and executor packages do
   not remain as runtime bridges.
-- MCP keeps protocol-specific Content-Length session handling with explicit
-  session safety rules. The pool is keyed by server command, args, cwd, and
-  exact delivered environment; plans with cleanup paths remain one-shot. Arbitrary
-  CLI/user subprocesses and external adapters are not pooled.
+- Arbitrary CLI and user subprocesses are not pooled.
 
 The shared Rust process supervisor is intentionally private to
 `runx-runtime`. It owns only process lifecycle mechanics: environment/cwd
@@ -240,14 +228,14 @@ The S-tier final gate captures all runtime-owned workloads into
 `.scafld/perf/oss-runtime-s-tier-baseline.json`:
 
 ```bash
-pnpm perf:runtime:capture -- --output .scafld/perf/oss-runtime-s-tier-final.json --workloads graph_planning,wide_fanout,native_capability_dispatch,graph_context_to_module,pure_module_cold_start,pure_module_session_reuse,pure_module_large_input,bounded_parallel_fanout,provider_effect_finality,artifact_admission,artifact_page_continuation,event_page_continuation,twitter_archive_selection,receipt_canonicalization,graph_receipt_sealing,receipt_store_append,receipt_store_index,mcp_session_start,mcp_session_reuse,native_cli_launch,cli_file_input
+pnpm perf:runtime:capture -- --output .scafld/perf/oss-runtime-s-tier-final.json --workloads graph_planning,wide_fanout,native_capability_dispatch,graph_context_to_module,pure_module_cold_start,pure_module_session_reuse,pure_module_large_input,bounded_parallel_fanout,provider_effect_finality,artifact_admission,artifact_page_continuation,event_page_continuation,twitter_archive_selection,receipt_canonicalization,graph_receipt_sealing,receipt_store_append,receipt_store_index,native_cli_launch,cli_file_input
 pnpm perf:runtime:check -- --baseline .scafld/perf/oss-runtime-s-tier-baseline.json --candidate .scafld/perf/oss-runtime-s-tier-final.json --workloads graph_planning,wide_fanout --min-throughput-ratio 2.00 --max-p99-regression 1.10
 pnpm perf:runtime:check -- --baseline .scafld/perf/oss-runtime-s-tier-baseline.json --candidate .scafld/perf/oss-runtime-s-tier-final.json --workloads native_capability_dispatch,graph_context_to_module,bounded_parallel_fanout --min-throughput-ratio 1.00 --max-p99-regression 1.10
 pnpm perf:runtime:check -- --baseline .scafld/perf/oss-runtime-s-tier-baseline.json --candidate .scafld/perf/oss-runtime-s-tier-final.json --workloads receipt_canonicalization,graph_receipt_sealing --min-throughput-ratio 1.75
 pnpm perf:runtime:check -- --baseline .scafld/perf/oss-runtime-s-tier-baseline.json --candidate .scafld/perf/oss-runtime-s-tier-final.json --workloads receipt_store_append,receipt_store_index --min-throughput-ratio 1.75 --max-growth-exponent 1.10
 pnpm perf:runtime:check -- --baseline .scafld/perf/oss-runtime-production-path-baseline.json --candidate .scafld/perf/oss-runtime-s-tier-final.json --workloads provider_effect_finality,artifact_admission --min-throughput-ratio 0.85 --max-p99-regression 1.25 --max-spawn-count 0
 pnpm perf:runtime:check -- --baseline .scafld/perf/oss-runtime-production-path-baseline.json --candidate .scafld/perf/oss-runtime-s-tier-final.json --workloads artifact_page_continuation,event_page_continuation,twitter_archive_selection --min-throughput-ratio 0.85 --max-growth-exponent 1.10 --max-p99-regression 1.25
-pnpm perf:runtime:check -- --baseline .scafld/perf/oss-runtime-s-tier-baseline.json --candidate .scafld/perf/oss-runtime-s-tier-final.json --workloads mcp_session_reuse,native_cli_launch --max-spawn-count 1 --max-p99-regression 1.10
+pnpm perf:runtime:check -- --baseline .scafld/perf/oss-runtime-s-tier-baseline.json --candidate .scafld/perf/oss-runtime-s-tier-final.json --workloads native_cli_launch --max-spawn-count 1 --max-p99-regression 1.10
 pnpm perf:runtime:check -- --baseline .scafld/perf/oss-runtime-production-path-baseline.json --candidate .scafld/perf/oss-runtime-s-tier-final.json --workloads cli_file_input --min-throughput-ratio 0.85 --max-p99-regression 1.25 --max-spawn-count 1
 ```
 

@@ -158,7 +158,7 @@ fn config_cli_switches_from_local_model_to_anthropic_and_doctor_accepts_it()
     let loaded = runx_runtime::load_managed_agent_config(&config_env, &workspace)?
         .ok_or("managed configuration should load")?;
     assert_eq!(loaded.provider.as_str(), "anthropic");
-    assert_eq!(loaded.endpoint_url, None);
+    assert_eq!(loaded.endpoint_url, "https://api.anthropic.com/v1/messages");
     assert!(loaded.api_key.is_some());
 
     let doctor = runx_command()

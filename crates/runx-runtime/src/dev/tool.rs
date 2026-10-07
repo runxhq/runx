@@ -66,7 +66,6 @@ fn run_tool_fixture_with_catalog(
         source: None,
         search_from_directory: root.to_path_buf(),
         tool_roots: vec![root.join("tools")],
-        fixture_catalog_enabled: false,
         allow_explicit_manifest_path: false,
     }) {
         Ok(resolution) => resolution,

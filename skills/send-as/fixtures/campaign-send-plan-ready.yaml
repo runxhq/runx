@@ -6,7 +6,7 @@ inputs:
   objective: Schedule the June newsletter to the subscribers list.
   principal: account:growth-demo
   provider_context:
-    provider: provider-send-demo
+    provider: slack
     account_ref: acct_demo
     runtime_path: provider.send
     domain_verified: true
@@ -29,7 +29,7 @@ caller:
           type: account
           ref: account:growth-demo
         provider:
-          name: provider-send-demo
+          name: slack
           account_ref: acct_demo
           runtime_path: provider.send
         send_class: campaign
@@ -52,7 +52,7 @@ caller:
           - provider.send_test
           - provider.schedule_or_send
         evidence_refs:
-          - provider_context:provider-send-demo
+          - provider_context:slack
         success_checkpoint:
           milestone: send_ready_for_approval
           description: A digest-bound campaign send is ready for preflight and explicit approval.

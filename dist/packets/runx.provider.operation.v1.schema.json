@@ -2,94 +2,77 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://schemas.runx.ai/runx/provider/operation/v1.json",
   "x-runx-packet-id": "runx.provider.operation.v1",
+  "x-runx-generated-from": "schemas/provider-operation.schema.json",
   "additionalProperties": false,
-  "description": "Canonical provider-neutral operation readback emitted by Runx native provider tools.",
   "properties": {
-    "schema": {
-      "const": "runx.provider.operation.v1"
-    },
-    "status": {
-      "const": "success"
-    },
     "access": {
-      "enum": [
-        "read",
-        "mutate"
-      ]
-    },
-    "principal_ref": {
-      "type": "string",
-      "pattern": "^runx:principal:.+$"
-    },
-    "grant_ref": {
-      "type": "string",
-      "pattern": "^runx:grant:.+$"
-    },
-    "provider": {
-      "type": "string",
-      "minLength": 1
-    },
-    "operation": {
-      "type": "string",
-      "pattern": "^[a-z][a-z0-9]*(?:\\.[a-z][a-z0-9]*)+$"
-    },
-    "target": {
-      "type": "string",
-      "minLength": 1
-    },
-    "result": {},
-    "operation_id": {
-      "type": "string",
-      "minLength": 1
-    },
-    "idempotency_key": {
-      "type": "string",
-      "minLength": 1
-    },
-    "readback_ref": {
-      "type": "string",
-      "minLength": 1
-    },
-    "transport": {
-      "type": "string",
-      "minLength": 1
-    },
-    "finality": {
-      "const": "confirmed"
-    },
-    "plan_digest": {
-      "type": "string",
-      "pattern": "^sha256:[0-9a-f]{64}$"
-    },
-    "result_digest": {
-      "type": "string",
-      "pattern": "^sha256:[0-9a-f]{64}$"
-    },
-    "host": {
-      "type": "string",
-      "minLength": 1
+      "type": "string"
     },
     "account_ref": {
-      "type": "string",
-      "minLength": 1
+      "type": "string"
+    },
+    "finality": {
+      "type": "string"
+    },
+    "grant_ref": {
+      "type": "string"
+    },
+    "host": {
+      "type": "string"
+    },
+    "idempotency_key": {
+      "type": "string"
+    },
+    "implementation_digest": {
+      "type": "string"
+    },
+    "operation": {
+      "type": "string"
+    },
+    "operation_digest": {
+      "type": "string"
+    },
+    "operation_id": {
+      "type": "string"
+    },
+    "plan_digest": {
+      "type": "string"
+    },
+    "principal_ref": {
+      "type": "string"
+    },
+    "provider": {
+      "type": "string"
+    },
+    "readback_ref": {
+      "type": "string"
+    },
+    "result": {},
+    "result_digest": {
+      "type": "string"
+    },
+    "schema": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string"
+    },
+    "target": {
+      "type": "string"
+    },
+    "transport": {
+      "type": "string"
     }
   },
   "required": [
     "schema",
     "status",
-    "access",
-    "principal_ref",
-    "grant_ref",
     "provider",
     "operation",
     "target",
     "result",
-    "idempotency_key",
-    "readback_ref",
     "transport",
-    "finality",
-    "plan_digest",
-    "result_digest"
+    "readback_ref"
   ],
   "type": "object",
   "x-runx-packet": true,

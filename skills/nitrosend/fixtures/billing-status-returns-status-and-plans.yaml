@@ -3,50 +3,40 @@ kind: skill
 target: ..
 runner: billing-status
 operator_journeys:
-  - mode: standalone
-    confusors: [plan-checkout, purchase-approval]
-    request: Show the current Nitrosend subscription and the eligible plans without changing billing.
-    expected_outcome: Return current subscription evidence and the eligible plan catalog from two bounded reads without creating a checkout.
+- mode: standalone
+  confusors:
+  - plan-checkout
+  - purchase-approval
+  request: Show the current Nitrosend subscription and the eligible plans without changing billing.
+  expected_outcome: Return current subscription evidence and the eligible plan catalog from two bounded reads without creating a checkout.
+setup:
+  credentials:
+  - nitrosend
 env:
   NITROSEND_API_KEY: harness-nitrosend-token
 inputs: {}
 caller:
-  http_exchanges:
-    - request:
-        method: POST
-        url: https://api.nitrosend.com/mcp
-        body:
-          json:
-            jsonrpc: "2.0"
-            id: nitrosend-billing_status
-            method: tools/call
-            params:
-              name: nitro_manage_billing
-              arguments: { operation: status }
-      response:
-        status: 200
-        headers: { content-type: application/json }
-        body: >-
-          {"jsonrpc":"2.0","id":"nitrosend-billing_status","result":{"content":[{"type":"text","text":"{\"meta\":{\"tool\":\"nitro_manage_billing\"},\"result\":{\"operation\":\"status\",\"commercial_tier\":\"pro\",\"has_subscription\":true,\"subscription\":{\"id\":101,\"plan_name\":\"Pro\",\"status\":\"active\",\"activated\":true},\"funding\":{\"state\":\"ready\",\"available_cents\":490,\"currency\":\"USD\",\"add_funds\":{\"state\":\"available\",\"available\":true,\"minimum_cents\":500,\"maximum_cents\":100000,\"preset_cents\":[2000,5000,10000],\"currency\":\"USD\"}}}}"}]}}
-    - request:
-        method: POST
-        url: https://api.nitrosend.com/mcp
-        body:
-          json:
-            jsonrpc: "2.0"
-            id: nitrosend-billing_plans
-            method: tools/call
-            params:
-              name: nitro_manage_billing
-              arguments: { operation: plans }
-      response:
-        status: 200
-        headers: { content-type: application/json }
-        body: >-
-          {"jsonrpc":"2.0","id":"nitrosend-billing_plans","result":{"content":[{"type":"text","text":"{\"meta\":{\"tool\":\"nitro_manage_billing\"},\"result\":{\"operation\":\"plans\",\"plans\":[{\"id\":202,\"name\":\"Scale\",\"eligible\":true}],\"can_upgrade\":true}}"}]}}
+  mcp_calls:
+  - tool: nitro_manage_billing
+    arguments:
+      operation: status
+    result:
+      content:
+      - type: text
+        text: '{"meta":{"tool":"nitro_manage_billing"},"result":{"operation":"status","commercial_tier":"pro","has_subscription":true,"subscription":{"id":101,"plan_name":"Pro","status":"active","activated":true},"funding":{"state":"ready","available_cents":490,"currency":"USD","add_funds":{"state":"available","available":true,"minimum_cents":500,"maximum_cents":100000,"preset_cents":[2000,5000,10000],"currency":"USD"}}}}'
+  - tool: nitro_manage_billing
+    arguments:
+      operation: plans
+    result:
+      content:
+      - type: text
+        text: '{"meta":{"tool":"nitro_manage_billing"},"result":{"operation":"plans","plans":[{"id":202,"name":"Scale","eligible":true}],"can_upgrade":true}}'
 expect:
   status: sealed
-  steps: [status, plans, present]
+  steps:
+  - status
+  - plans
+  - present
   step_outputs:
     present:
       subset:
@@ -57,10 +47,14 @@ expect:
             result:
               funding:
                 available_cents: 490
-                add_funds: { available: true }
+                add_funds:
+                  available: true
         plans_evidence:
-          data: { decision: ok, operation: billing_plans }
-  receipt: { schema: runx.receipt.v1 }
+          data:
+            decision: ok
+            operation: billing_plans
+  receipt:
+    schema: runx.receipt.v1
 metadata:
   public_skill: nitrosend
   source_case: billing-status-returns-status-and-plans

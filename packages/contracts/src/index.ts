@@ -10,6 +10,37 @@ export {
 export { definePacket, type PacketDefinition } from "./packet-definition.js";
 
 export {
+  TemplateError,
+  hostedHttp,
+  isCheckingRead,
+  operationAccess,
+  operationInputError,
+  referenceKind,
+  renderDeclaredRequest,
+  renderTemplate,
+  type ConnectorManifest,
+  type ConnectorOperation,
+  type DecodeStep,
+  type DeclaredRequestCall,
+  type HttpImplementation,
+  type HttpMethod,
+  type HttpReadback,
+  type HttpRequest,
+  type JsonObject,
+  type JsonValue,
+  type OfficialConnector,
+  type OperationVerb,
+  type ReferenceDeclaration,
+  type ReferenceKind,
+  type RenderedRequest,
+  type Template,
+  type TemplateInputs,
+} from "./connector.js";
+
+export { officialConnectors } from "./generated/official-connectors.js";
+
+
+export {
   RUNX_STABLE_JSON_V1,
   canonicalJsonStringify,
   sha256Hex,
@@ -131,59 +162,6 @@ export {
 } from "./schemas/credential-delivery.js";
 
 export {
-  threadOutboxProviderProtocolVersion,
-  threadOutboxProviderTransportKindSchema,
-  threadOutboxProviderOperationSchema,
-  threadOutboxProviderPayloadFormatSchema,
-  threadOutboxProviderObservationStatusSchema,
-  threadOutboxProviderIdempotencyStatusSchema,
-  threadOutboxProviderTransportSchema,
-  threadOutboxProviderCredentialNeedSchema,
-  threadOutboxProviderReceiptCapabilitiesSchema,
-  threadOutboxProviderRedactionCapabilitiesSchema,
-  threadOutboxProviderManifestV1Schema,
-  threadOutboxProviderThreadLocatorSchema,
-  threadOutboxProviderLocatorSchema,
-  threadOutboxProviderIdempotencySchema,
-  threadOutboxProviderIdempotencyObservationSchema,
-  threadOutboxProviderRenderedPayloadSchema,
-  threadOutboxProviderCredentialProfileSchema,
-  threadOutboxProviderReceiptContextSchema,
-  threadOutboxProviderPushV1Schema,
-  threadOutboxProviderFetchThreadTargetSchema,
-  threadOutboxProviderFetchProviderTargetSchema,
-  threadOutboxProviderFetchTargetSchema,
-  threadOutboxProviderFetchV1Schema,
-  threadOutboxProviderReadbackSummarySchema,
-  threadOutboxProviderErrorSchema,
-  threadOutboxProviderObservationV1Schema,
-  validateThreadOutboxProviderManifestContract,
-  validateThreadOutboxProviderPushContract,
-  validateThreadOutboxProviderFetchContract,
-  validateThreadOutboxProviderObservationContract,
-  type ThreadOutboxProviderTransportContract,
-  type ThreadOutboxProviderCredentialNeedContract,
-  type ThreadOutboxProviderReceiptCapabilitiesContract,
-  type ThreadOutboxProviderRedactionCapabilitiesContract,
-  type ThreadOutboxProviderManifestContract,
-  type ThreadOutboxProviderThreadLocatorContract,
-  type ThreadOutboxProviderLocatorContract,
-  type ThreadOutboxProviderIdempotencyContract,
-  type ThreadOutboxProviderIdempotencyObservationContract,
-  type ThreadOutboxProviderRenderedPayloadContract,
-  type ThreadOutboxProviderCredentialProfileContract,
-  type ThreadOutboxProviderReceiptContextContract,
-  type ThreadOutboxProviderPushContract,
-  type ThreadOutboxProviderFetchThreadTargetContract,
-  type ThreadOutboxProviderFetchProviderTargetContract,
-  type ThreadOutboxProviderFetchTargetContract,
-  type ThreadOutboxProviderFetchContract,
-  type ThreadOutboxProviderReadbackSummaryContract,
-  type ThreadOutboxProviderErrorContract,
-  type ThreadOutboxProviderObservationContract,
-} from "./schemas/thread-outbox-provider.js";
-
-export {
   dataOperationResultStatuses,
   dataOperationResultStatusSchema,
   dataOperationStopConditionSchema,
@@ -220,7 +198,6 @@ export {
   contextSchema,
   executionLocationSchema,
   environmentRequirementsSchema,
-  executionCredentialRequirementSchema,
   executionRequirementsSchema,
   agentExecutionRequirementsSchema,
   agentContextEnvelopeSchema,
@@ -468,9 +445,7 @@ export {
 export {
   operationalPolicySchema,
   operationalPolicySchemaVersion,
-  operationalPolicySourceProviders,
   operationalPolicyActions,
-  operationalPolicyRunnerKinds,
   operationalPolicyRunnerStates,
   operationalPolicyDedupeStrategies,
   operationalPolicyOutcomeCloseModes,
@@ -565,42 +540,6 @@ export {
   executionBoundaryObservationSchema,
   type ExecutionBoundaryObservationContract,
 } from "./schemas/execution-boundary.js";
-
-export {
-  externalAdapterProtocolVersion,
-  externalAdapterTransportSchema,
-  externalAdapterCredentialNeedSchema,
-  externalAdapterTimeoutsSchema,
-  externalAdapterManifestV1Schema,
-  externalAdapterCredentialRequestV1Schema,
-  externalAdapterCredentialReferenceSchema,
-  externalAdapterInvocationV1Schema,
-  externalAdapterArtifactObservationSchema,
-  externalAdapterErrorObservationSchema,
-  externalAdapterTelemetryObservationSchema,
-  externalAdapterResponseV1Schema,
-  externalAdapterHostResolutionFrameV1Schema,
-  externalAdapterCancellationFrameV1Schema,
-  validateExternalAdapterManifestContract,
-  validateExternalAdapterInvocationContract,
-  validateExternalAdapterResponseContract,
-  validateExternalAdapterHostResolutionFrameContract,
-  validateExternalAdapterCancellationFrameContract,
-  validateExternalAdapterCredentialRequestContract,
-  type ExternalAdapterTransportContract,
-  type ExternalAdapterCredentialNeedContract,
-  type ExternalAdapterTimeoutsContract,
-  type ExternalAdapterManifestContract,
-  type ExternalAdapterCredentialRequestContract,
-  type ExternalAdapterCredentialReferenceContract,
-  type ExternalAdapterInvocationContract,
-  type ExternalAdapterArtifactObservationContract,
-  type ExternalAdapterErrorObservationContract,
-  type ExternalAdapterTelemetryObservationContract,
-  type ExternalAdapterResponseContract,
-  type ExternalAdapterHostResolutionFrameContract,
-  type ExternalAdapterCancellationFrameContract,
-} from "./schemas/external-adapter.js";
 
 export {
   referenceTypes,
@@ -749,12 +688,6 @@ import {
   credentialDeliveryProfileV1Schema,
   credentialDeliveryRequestV1Schema,
 } from "./schemas/credential-delivery.js";
-import {
-  threadOutboxProviderFetchV1Schema,
-  threadOutboxProviderManifestV1Schema,
-  threadOutboxProviderObservationV1Schema,
-  threadOutboxProviderPushV1Schema,
-} from "./schemas/thread-outbox-provider.js";
 import { outputSchema } from "./schemas/output.js";
 import { actResultEnvelopeSchema, resolutionRequestSchema, resolutionResponseSchema } from "./schemas/resolution.js";
 import { doctorV1Schema } from "./schemas/doctor.js";
@@ -767,14 +700,6 @@ import { fixtureV1Schema } from "./schemas/fixture.js";
 import { toolManifestV1Schema } from "./schemas/tool-manifest.js";
 import { packetIndexV1Schema } from "./schemas/packet-index.js";
 import { actAssignmentV1Schema } from "./schemas/act-assignment.js";
-import {
-  externalAdapterCancellationFrameV1Schema,
-  externalAdapterHostResolutionFrameV1Schema,
-  externalAdapterCredentialRequestV1Schema,
-  externalAdapterInvocationV1Schema,
-  externalAdapterManifestV1Schema,
-  externalAdapterResponseV1Schema,
-} from "./schemas/external-adapter.js";
 import {
   actSchema,
   artifactSchema,
@@ -830,10 +755,6 @@ export const runxContractSchemas = {
   credentialDeliveryRequest: runxSchemaArtifacts["credential-delivery-request.schema.json"],
   credentialDeliveryResponse: runxSchemaArtifacts["credential-delivery-response.schema.json"],
   credentialDeliveryObservation: runxSchemaArtifacts["credential-delivery-observation.schema.json"],
-  threadOutboxProviderManifest: runxSchemaArtifacts["thread-outbox-provider-manifest.schema.json"],
-  threadOutboxProviderPush: runxSchemaArtifacts["thread-outbox-provider-push.schema.json"],
-  threadOutboxProviderFetch: runxSchemaArtifacts["thread-outbox-provider-fetch.schema.json"],
-  threadOutboxProviderObservation: runxSchemaArtifacts["thread-outbox-provider-observation.schema.json"],
   dataOperationResult: dataOperationResultV1Schema,
   doctor: runxSchemaArtifacts["doctor.schema.json"],
   dev: runxSchemaArtifacts["dev.schema.json"],
@@ -851,12 +772,6 @@ export const runxContractSchemas = {
   toolManifest: runxSchemaArtifacts["tool-manifest.schema.json"],
   packetIndex: runxSchemaArtifacts["packet-index.schema.json"],
   actAssignment: runxSchemaArtifacts["act-assignment.schema.json"],
-  externalAdapterManifest: runxSchemaArtifacts["external-adapter-manifest.schema.json"],
-  externalAdapterInvocation: runxSchemaArtifacts["external-adapter-invocation.schema.json"],
-  externalAdapterResponse: runxSchemaArtifacts["external-adapter-response.schema.json"],
-  externalAdapterHostResolution: runxSchemaArtifacts["external-adapter-host-resolution.schema.json"],
-  externalAdapterCancellation: runxSchemaArtifacts["external-adapter-cancellation.schema.json"],
-  externalAdapterCredentialRequest: runxSchemaArtifacts["external-adapter-credential-request.schema.json"],
   reference: runxSchemaArtifacts["reference.schema.json"],
   referenceLink: runxSchemaArtifacts["reference-link.schema.json"],
   authority: runxSchemaArtifacts["authority.schema.json"],
