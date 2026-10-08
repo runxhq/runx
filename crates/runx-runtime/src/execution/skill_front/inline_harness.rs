@@ -28,8 +28,8 @@ pub(crate) use package::run_package_harness_with_effects;
 /// happen once in the owning package entry point.
 fn run_loaded_inline_harness_with_effects(
     loaded: &crate::LoadedSkillPackage,
-    case_receipt_root: Option<&Path>,
-    output_receipt_dir: Option<&Path>,
+    cases_root: &Path,
+    output_receipt_dir: &Path,
     env: &BTreeMap<String, String>,
     effects: &RuntimeEffectRegistry,
 ) -> Result<PackageHarnessReport, SkillRunError> {
@@ -49,7 +49,7 @@ fn run_loaded_inline_harness_with_effects(
     let workspace = WorkspaceEnv::from_admitted(env.clone()).map_err(RuntimeError::from)?;
     let context = InlineHarnessContext {
         skill_dir: &loaded.directory,
-        case_receipt_root,
+        cases_root,
         output_receipt_dir,
         env: workspace.env(),
         effects,
@@ -62,8 +62,8 @@ fn run_loaded_inline_harness_with_effects(
 #[derive(Clone, Copy)]
 struct InlineHarnessContext<'a> {
     skill_dir: &'a Path,
-    case_receipt_root: Option<&'a Path>,
-    output_receipt_dir: Option<&'a Path>,
+    cases_root: &'a Path,
+    output_receipt_dir: &'a Path,
     env: &'a BTreeMap<String, String>,
     effects: &'a RuntimeEffectRegistry,
     manifest: &'a SkillRunnerManifest,
@@ -79,10 +79,8 @@ fn run_inline_harness_cases(
     let mut receipt_ids = Vec::new();
     for (index, case) in cases.iter().enumerate() {
         case_names.push(case.name.clone());
-        let case_receipt_dir = context
-            .case_receipt_root
-            .map(|root| root.join(index.to_string()));
-        let outcome = run_inline_harness_case(context, case_receipt_dir.as_deref(), case);
+        let case_root = context.cases_root.join(index.to_string());
+        let outcome = run_inline_harness_case(context, &case_root, case);
         if let Some(receipt_id) = outcome.receipt_id {
             receipt_ids.push(receipt_id);
         }
@@ -116,9 +114,10 @@ struct InlineHarnessCaseOutcome {
 
 fn run_inline_harness_case(
     context: InlineHarnessContext<'_>,
-    receipt_dir: Option<&Path>,
+    case_root: &Path,
     case: &RunnerHarnessCase,
 ) -> InlineHarnessCaseOutcome {
+    let receipt_dir = case_root.join("receipts");
     let runner = match selected_runner(context.manifest, case.runner.as_deref()) {
         Ok(runner) => runner,
         Err(error) => return inline_harness_case_error(&case.name, error),
@@ -138,19 +137,14 @@ fn run_inline_harness_case(
 
     let mut request = inline_harness_case_request(
         context.skill_dir,
-        receipt_dir,
+        &receipt_dir,
         context.env,
         case,
         context.cwd,
     );
-    // Each case runs against a kernel of its own: its runs, effect custody
-    // and instances never reach another case or the operator's workspace.
-    if let Some(receipt_dir) = receipt_dir {
-        request.env.insert(
-            crate::receipts::paths::RUNX_PROJECT_DIR_ENV.to_owned(),
-            receipt_dir.join(".runx").to_string_lossy().into_owned(),
-        );
-    }
+    // Each case runs in a home and a project directory of its own: its runs,
+    // effect custody and instances never reach another case or the operator.
+    crate::paths::isolate(&mut request.env, case_root);
     request.inputs = inputs;
     match crate::execution::harness::provider_env(&case.caller) {
         Ok(env) => request.env.extend(env),
@@ -165,13 +159,13 @@ fn run_inline_harness_case(
         seeded_answers,
         ..Default::default()
     };
-    execute_inline_harness_case(context, &request, receipt_dir, case, &overrides)
+    execute_inline_harness_case(context, &request, &receipt_dir, case, &overrides)
 }
 
 fn execute_inline_harness_case(
     context: InlineHarnessContext<'_>,
     request: &SkillRunRequest,
-    receipt_dir: Option<&Path>,
+    receipt_dir: &Path,
     case: &RunnerHarnessCase,
     overrides: &SkillRunOverrides,
 ) -> InlineHarnessCaseOutcome {
@@ -190,10 +184,8 @@ fn execute_inline_harness_case(
             let output = result.output;
             let receipt_id = receipt_id_from_output(&output);
             if receipt_id.is_some()
-                && let (Some(receipt_dir), Some(output_receipt_dir)) =
-                    (receipt_dir, context.output_receipt_dir)
                 && let Err(error) =
-                    persist_inline_case_receipts(request, receipt_dir, output_receipt_dir)
+                    persist_inline_case_receipts(request, receipt_dir, context.output_receipt_dir)
             {
                 return InlineHarnessCaseOutcome {
                     receipt_id: None,
@@ -232,7 +224,7 @@ fn persist_inline_case_receipts(
 
 fn inline_harness_case_request(
     skill_dir: &Path,
-    receipt_dir: Option<&Path>,
+    receipt_dir: &Path,
     env: &BTreeMap<String, String>,
     case: &RunnerHarnessCase,
     cwd: &Path,
@@ -244,7 +236,7 @@ fn inline_harness_case_request(
         historical_context: Vec::new(),
         run_authority: None,
         skill_path: skill_dir.to_path_buf(),
-        receipt_dir: receipt_dir.map(Path::to_path_buf),
+        receipt_dir: Some(receipt_dir.to_path_buf()),
         run_id: None,
         answers_path: None,
         inputs: case.inputs.clone(),
@@ -357,10 +349,9 @@ fn assert_inline_harness_expectations(
             })?;
         let workspace = WorkspaceEnv::new(request.env.clone(), request.cwd.clone())
             .map_err(RuntimeError::from)?;
-        let store =
-            crate::kernel::store::KernelStore::for_workspace(workspace.env(), workspace.cwd())
-                .map_err(crate::execution::run_record::RunRecordError::from)
-                .map_err(RuntimeError::from)?;
+        let store = crate::kernel::store::KernelStore::for_project(workspace.paths())
+            .map_err(crate::execution::run_record::RunRecordError::from)
+            .map_err(RuntimeError::from)?;
         crate::execution::run_record::RunLog::open(store, run_id)
             .and_then(|log| log.load())
             .map_err(|error| HarnessReplayError::InvalidReplayMetadata {
@@ -419,7 +410,7 @@ fn read_output_receipt(
             field: "receipt_id".to_owned(),
             message: "skill run output omitted its receipt id".to_owned(),
         })?;
-    let path = receipts.resolve_path(workspace, request.receipt_dir.as_deref(), None);
+    let path = workspace.receipt_path(request.receipt_dir.as_deref());
     receipts
         .read_local_receipt(receipt_id, &path.path)
         .map_err(|error| HarnessReplayError::InvalidReplayMetadata {

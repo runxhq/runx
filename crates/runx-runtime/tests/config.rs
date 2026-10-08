@@ -4,10 +4,10 @@ use std::path::Path;
 
 use runx_runtime::{
     ConfigError, ConfigKey, ManagedAgentAuthMode, ManagedAgentConfig, ModelDialect,
-    RunxAgentConfig, RunxConfigFile, SecretString, load_local_agent_api_key,
+    RunxAgentConfig, RunxConfigFile, RunxPaths, SecretString, load_local_agent_api_key,
     load_local_public_api_token, load_managed_agent_config, load_runx_config_file,
-    lookup_runx_config_value, mask_runx_config_file, resolve_runx_global_home_dir,
-    update_runx_config_value, write_runx_config_file,
+    lookup_runx_config_value, mask_runx_config_file, update_runx_config_value,
+    write_runx_config_file,
 };
 use tempfile::tempdir;
 
@@ -30,10 +30,7 @@ fn config_home_path_anchors_relative_runx_home_to_workspace_base()
         ("RUNX_HOME", "home"),
     ]);
 
-    assert_eq!(
-        resolve_runx_global_home_dir(&env, &cwd),
-        run_dir.join("home")
-    );
+    assert_eq!(RunxPaths::resolve(&env, &cwd).home(), run_dir.join("home"));
     Ok(())
 }
 
@@ -45,14 +42,14 @@ fn config_home_path_uses_the_admitted_environment_snapshot()
     let cwd = temp.path().join("workspace");
     let env = env_map([("HOME", home.to_str().unwrap_or_default())]);
 
-    assert_eq!(resolve_runx_global_home_dir(&env, &cwd), home.join(".runx"));
+    assert_eq!(RunxPaths::resolve(&env, &cwd).home(), home.join(".runx"));
     Ok(())
 }
 
 #[test]
 fn config_round_trips_encrypted_secrets() -> Result<(), Box<dyn std::error::Error>> {
     type SecretRef = fn(&RunxConfigFile) -> Option<String>;
-    type LoadSecret = fn(&Path, &str) -> Result<String, ConfigError>;
+    type LoadSecret = fn(&RunxPaths, &str) -> Result<String, ConfigError>;
     let cases: [(ConfigKey, &str, &str, SecretRef, LoadSecret); 2] = [
         (
             ConfigKey::AgentApiKey,
@@ -83,11 +80,12 @@ fn config_round_trips_encrypted_secrets() -> Result<(), Box<dyn std::error::Erro
     for (key, secret, ref_prefix, secret_ref, load_secret) in cases {
         let temp = tempdir()?;
         let config_dir = temp.path();
-        let config = update_runx_config_value(RunxConfigFile::default(), key, secret, config_dir)?;
+        let paths = home_at(config_dir);
+        let config = update_runx_config_value(RunxConfigFile::default(), key, secret, &paths)?;
         let stored_ref = secret_ref(&config).ok_or("missing secret ref")?;
 
         assert!(stored_ref.starts_with(ref_prefix));
-        assert_eq!(load_secret(config_dir, &stored_ref)?, secret);
+        assert_eq!(load_secret(&paths, &stored_ref)?, secret);
         assert_eq!(
             lookup_runx_config_value(&config, key),
             Some("[encrypted]".to_owned())
@@ -171,7 +169,7 @@ fn config_reports_corrupt_local_agent_key_with_stable_prefix()
     fs::write(keys_dir.join("local-config-secret"), "test-secret")?;
     fs::write(keys_dir.join("local_agent_key_corrupt.json"), "{not-json")?;
 
-    let error = match load_local_agent_api_key(temp.path(), "local_agent_key_corrupt") {
+    let error = match load_local_agent_api_key(&home_at(temp.path()), "local_agent_key_corrupt") {
         Ok(_) => return Err("corrupt key should fail".into()),
         Err(error) => error,
     };
@@ -219,7 +217,7 @@ fn config_loads_managed_agent_env_precedence_and_local_key_fallback()
         },
         ConfigKey::AgentApiKey,
         "local-secret",
-        temp.path(),
+        &home_at(temp.path()),
     )?;
     write_runx_config_file(&temp.path().join("config.json"), &local_config)?;
     let local_env = env_map([("RUNX_HOME", temp.path().to_str().unwrap_or_default())]);
@@ -340,7 +338,7 @@ fn config_matches_blank_env_overlay_edges() -> Result<(), Box<dyn std::error::Er
         },
         ConfigKey::AgentApiKey,
         "local-secret",
-        temp.path(),
+        &home_at(temp.path()),
     )?;
     write_runx_config_file(&temp.path().join("config.json"), &local_config)?;
     let runx_home = temp.path().to_str().unwrap_or_default();
@@ -417,7 +415,7 @@ fn explicit_keyless_mode_requires_exact_loopback_and_remains_repairable()
         config.clone(),
         ConfigKey::AgentApiKey,
         "stored-api-key",
-        temp.path(),
+        &home_at(temp.path()),
     )?;
     write_runx_config_file(&config_path, &with_stored_key)?;
     let local_override = env_map([
@@ -470,15 +468,19 @@ fn explicit_keyless_mode_requires_exact_loopback_and_remains_repairable()
             invalid.clone(),
             ConfigKey::AgentAuthMode,
             "typo",
-            temp.path()
+            &home_at(temp.path())
         ),
         Err(ConfigError::InvalidAgentSetting {
             key: "agent.auth_mode",
             ..
         })
     ));
-    let repaired =
-        update_runx_config_value(invalid, ConfigKey::AgentAuthMode, "local_none", temp.path())?;
+    let repaired = update_runx_config_value(
+        invalid,
+        ConfigKey::AgentAuthMode,
+        "local_none",
+        &home_at(temp.path()),
+    )?;
     write_runx_config_file(&config_path, &repaired)?;
     assert!(load_managed_agent_config(&env, temp.path())?.is_some());
 
@@ -506,6 +508,13 @@ fn explicit_keyless_mode_requires_exact_loopback_and_remains_repairable()
         );
     }
     Ok(())
+}
+
+fn home_at(home: &Path) -> RunxPaths {
+    RunxPaths::resolve(
+        &env_map([("RUNX_HOME", home.to_str().unwrap_or_default())]),
+        home,
+    )
 }
 
 fn env_map<const N: usize>(entries: [(&str, &str); N]) -> BTreeMap<String, String> {

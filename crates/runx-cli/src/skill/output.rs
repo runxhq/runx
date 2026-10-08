@@ -16,13 +16,13 @@ pub(super) fn write_skill_output(
     json: bool,
     exit_code: ExitCode,
     resume: ResumeHint<'_>,
-    project_runx_dir: &Path,
+    artifacts: &Path,
     diagnostics: bool,
 ) -> ExitCode {
     if !json {
         return write_text_with_exit(value, exit_code, resume);
     }
-    write_json_with_exit(value, exit_code, project_runx_dir, diagnostics)
+    write_json_with_exit(value, exit_code, artifacts, diagnostics)
 }
 
 #[derive(Clone, Copy)]
@@ -59,10 +59,10 @@ fn closure_disposition_exit_code(disposition: ClosureDisposition) -> ExitCode {
 fn write_json_with_exit(
     value: &JsonValue,
     exit_code: ExitCode,
-    project_runx_dir: &Path,
+    artifacts: &Path,
     diagnostics: bool,
 ) -> ExitCode {
-    match serialize_json_output(value, project_runx_dir, diagnostics) {
+    match serialize_json_output(value, artifacts, diagnostics) {
         Ok(json) => {
             let mut stdout = io::stdout().lock();
             let result = stdout
@@ -85,19 +85,19 @@ fn write_json_with_exit(
 
 fn serialize_json_output(
     value: &JsonValue,
-    project_runx_dir: &Path,
+    artifacts: &Path,
     diagnostics: bool,
 ) -> Result<String, String> {
-    let output = project_json_output(value, project_runx_dir, diagnostics)?;
+    let output = project_json_output(value, artifacts, diagnostics)?;
     serde_json::to_string(&output).map_err(|error| error.to_string())
 }
 
 fn project_json_output(
     value: &JsonValue,
-    project_runx_dir: &Path,
+    artifacts: &Path,
     diagnostics: bool,
 ) -> Result<JsonValue, String> {
-    let output = project_json_output_value(value, project_runx_dir, diagnostics)?;
+    let output = project_json_output_value(value, artifacts, diagnostics)?;
     if output.as_object().is_some() {
         let wire = serde_json::to_value(&output).map_err(|error| error.to_string())?;
         serde_json::from_value::<runx_contracts::SkillOutput>(wire)
@@ -108,7 +108,7 @@ fn project_json_output(
 
 fn project_json_output_value(
     value: &JsonValue,
-    project_runx_dir: &Path,
+    artifacts: &Path,
     diagnostics: bool,
 ) -> Result<JsonValue, String> {
     let JsonValue::Object(mut object) = value.clone() else {
@@ -141,7 +141,7 @@ fn project_json_output_value(
     }
     if !diagnostic_payload.is_empty() {
         let reference = persist_json_artifact(
-            project_runx_dir,
+            artifacts,
             &run_id,
             "diagnostics",
             "execution",
@@ -159,7 +159,7 @@ fn project_json_output_value(
         let mut refs = Vec::with_capacity(requests.len());
         for request in &requests {
             let reference = persist_json_artifact(
-                project_runx_dir,
+                artifacts,
                 &run_id,
                 "requests",
                 request_id(request).unwrap_or("request"),
@@ -178,8 +178,7 @@ fn project_json_output_value(
     }
 
     let result_reference = if let Some(result) = object.get("result").cloned() {
-        let reference =
-            persist_json_artifact(project_runx_dir, &run_id, "results", "result", &result)?;
+        let reference = persist_json_artifact(artifacts, &run_id, "results", "result", &result)?;
         let schema = result_schema(&result).to_owned();
         object.insert(
             "result".to_owned(),
@@ -207,13 +206,7 @@ fn project_json_output_value(
         })
         .cloned()
         .map(|requests| {
-            persist_json_artifact(
-                project_runx_dir,
-                &run_id,
-                "requests",
-                "request-set",
-                &requests,
-            )
+            persist_json_artifact(artifacts, &run_id, "requests", "request-set", &requests)
         })
         .transpose()?;
     if let Some(reference) = &request_set_reference {
@@ -225,13 +218,8 @@ fn project_json_output_value(
         return Ok(JsonValue::Object(object));
     }
 
-    let full_output_reference = persist_json_artifact(
-        project_runx_dir,
-        &run_id,
-        "diagnostics",
-        "full-output",
-        value,
-    )?;
+    let full_output_reference =
+        persist_json_artifact(artifacts, &run_id, "diagnostics", "full-output", value)?;
     let mut minimal = compact_identity(&object);
     if let Some(result) = object.get("result") {
         minimal.insert("result".to_owned(), result.clone());
@@ -670,7 +658,7 @@ mod tests {
         fs::create_dir(&workspace)?;
         let runx_dir = workspace.join(".runx");
         let reference = persist_json_artifact(
-            &runx_dir,
+            &runx_dir.join("artifacts"),
             "run_private",
             "results",
             "result",
@@ -698,7 +686,7 @@ mod tests {
         )?;
         fs::set_permissions(path, fs::Permissions::from_mode(0o644))?;
         persist_json_artifact(
-            &runx_dir,
+            &runx_dir.join("artifacts"),
             "run_private",
             "results",
             "result",
@@ -727,18 +715,18 @@ mod tests {
                 .as_nanos()
         ));
         fs::create_dir(&workspace)?;
-        let runx_dir = workspace.join(".runx");
+        let artifacts = workspace.join(".runx").join("artifacts");
         let exact = JsonValue::String("exact private update".to_owned());
         let reference =
-            persist_json_artifact(&runx_dir, "assistant", "assistant", "intent", &exact)?;
-        assert_eq!(read_json_artifact(&runx_dir, &reference)?, exact);
+            persist_json_artifact(&artifacts, "assistant", "assistant", "intent", &exact)?;
+        assert_eq!(read_json_artifact(&artifacts, &reference)?, exact);
         let path = reference
             .as_object()
             .and_then(|item| item.get("path"))
             .and_then(JsonValue::as_str)
             .ok_or("artifact has no path")?;
         fs::write(path, b"\"changed\"")?;
-        assert!(read_json_artifact(&runx_dir, &reference).is_err());
+        assert!(read_json_artifact(&artifacts, &reference).is_err());
         let mut escaped = reference.clone();
         let JsonValue::Object(ref mut fields) = escaped else {
             unreachable!()
@@ -753,7 +741,7 @@ mod tests {
             ),
         );
         fs::write(workspace.join("outside.json"), b"\"exact private update\"")?;
-        assert!(read_json_artifact(&runx_dir, &escaped).is_err());
+        assert!(read_json_artifact(&artifacts, &escaped).is_err());
         fs::remove_dir_all(workspace)?;
         Ok(())
     }

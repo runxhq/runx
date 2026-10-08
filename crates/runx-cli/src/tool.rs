@@ -38,7 +38,9 @@ fn run_build(
     env: &BTreeMap<String, String>,
     cwd: &Path,
 ) -> Result<ToolCliOutput, ToolCliError> {
-    let root = runx_runtime::resolve_runx_workspace_base(env, cwd);
+    let root = runx_runtime::RunxPaths::resolve(env, cwd)
+        .workspace()
+        .to_path_buf();
     let tool_path = plan
         .path
         .as_deref()
@@ -95,7 +97,9 @@ fn run_inspect(
     let tool_ref = plan.ref_or_query.ok_or_else(|| {
         ToolCliError::Usage("runx tool inspect requires a tool reference".to_owned())
     })?;
-    let root = runx_runtime::resolve_runx_workspace_base(env, cwd);
+    let root = runx_runtime::RunxPaths::resolve(env, cwd)
+        .workspace()
+        .to_path_buf();
     let search_from_directory = resolve_user_path(Path::new("."), env, cwd);
     let tool_roots = env_value(env, "RUNX_TOOL_ROOTS")
         .map(|value| split_env_paths(&value))
@@ -130,7 +134,7 @@ fn env_value(env: &BTreeMap<String, String>, key: &str) -> Option<String> {
 }
 
 fn resolve_user_path(user_path: &Path, env: &BTreeMap<String, String>, cwd: &Path) -> PathBuf {
-    runx_runtime::resolve_path_from_user_input(&user_path.to_string_lossy(), env, cwd, true)
+    runx_runtime::RunxPaths::resolve(env, cwd).existing_input(user_path)
 }
 
 fn split_env_paths(value: &str) -> Vec<PathBuf> {

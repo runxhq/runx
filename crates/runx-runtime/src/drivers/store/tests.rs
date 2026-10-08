@@ -22,7 +22,7 @@ impl Harness {
             env: BTreeMap::from([
                 ("RUNX_CWD".to_owned(), root.to_string_lossy().into_owned()),
                 (
-                    crate::receipts::paths::RUNX_PROJECT_DIR_ENV.to_owned(),
+                    crate::paths::RUNX_PROJECT_DIR_ENV.to_owned(),
                     root.join(".runx").to_string_lossy().into_owned(),
                 ),
             ]),
@@ -265,12 +265,8 @@ fn scenario(store: &Harness) -> Vec<String> {
 fn the_workspace_store_keeps_streams_beside_the_kernel() {
     let root = tempfile::tempdir().unwrap();
     scenario(&Harness::workspace(root.path()));
-    assert!(
-        root.path()
-            .join(".runx")
-            .join(super::WORKSPACE_STORE_FILE)
-            .is_file()
-    );
+    let paths = crate::paths::RunxPaths::resolve(&BTreeMap::new(), root.path());
+    assert!(paths.workspace_store().is_file());
 }
 
 #[test]

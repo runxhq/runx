@@ -135,7 +135,7 @@ pub fn prepare_process_invocation(
     )?;
     let mut invocation_env = base_env.clone();
     invocation_env.insert(
-        crate::receipts::paths::RUNX_CWD_ENV.to_owned(),
+        crate::paths::RUNX_CWD_ENV.to_owned(),
         workspace_root.to_string_lossy().into_owned(),
     );
     let declared_environment =
@@ -174,7 +174,7 @@ pub(crate) fn prepare_native_command_invocation(
 ) -> Result<PreparedProcessInvocation, RuntimeError> {
     let mut invocation_env = request.base_env.clone();
     invocation_env.insert(
-        crate::receipts::paths::RUNX_CWD_ENV.to_owned(),
+        crate::paths::RUNX_CWD_ENV.to_owned(),
         request.workspace_root.to_string_lossy().into_owned(),
     );
     let mut env = child_base_env(&invocation_env)?;
@@ -270,7 +270,7 @@ mod tests {
             JsonObject::from([("message".to_owned(), JsonValue::String("hello".to_owned()))]);
         let base_env = BTreeMap::from([
             (
-                crate::receipts::paths::RUNX_CWD_ENV.to_owned(),
+                crate::paths::RUNX_CWD_ENV.to_owned(),
                 workspace.path().to_string_lossy().into_owned(),
             ),
             ("REGION".to_owned(), "ap-southeast-2".to_owned()),

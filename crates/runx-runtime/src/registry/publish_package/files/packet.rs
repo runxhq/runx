@@ -31,7 +31,9 @@ pub(super) fn append_declared_packet_schemas(
     if required_packet_ids.is_empty() {
         return Ok(());
     }
-    let workspace = crate::resolve_runx_workspace_base(env, cwd);
+    let workspace = crate::RunxPaths::resolve(env, cwd)
+        .workspace()
+        .to_path_buf();
     let mut schemas = PacketSchemaCatalog::native_public().map_err(|error| {
         RegistryPublishPackageError::invalid(format!("packet schema catalog failed: {error}"))
     })?;

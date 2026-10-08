@@ -24,7 +24,7 @@ mod tests {
         let workspace = tempfile::tempdir()?;
         let external = tempfile::tempdir()?;
         let env = std::collections::BTreeMap::from([(
-            crate::receipts::paths::RUNX_CWD_ENV.to_owned(),
+            crate::paths::RUNX_CWD_ENV.to_owned(),
             workspace.path().to_string_lossy().into_owned(),
         )]);
 

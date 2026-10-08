@@ -37,7 +37,7 @@ pub(super) fn write_skill_receipt(
     receipts: &ReceiptServices,
     receipt: &runx_contracts::Receipt,
 ) -> Result<(), SkillRunError> {
-    let receipt_path = receipts.resolve_path(workspace, request.receipt_dir.as_deref(), None);
+    let receipt_path = workspace.receipt_path(request.receipt_dir.as_deref());
     receipts
         .write_local_receipt(receipt, &receipt_path)
         .map_err(Into::into)

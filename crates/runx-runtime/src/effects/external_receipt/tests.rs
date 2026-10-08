@@ -38,7 +38,7 @@ fn canonical_verifier_binds_exact_target_and_contract_without_shell_expansion()
     fs::set_permissions(&verifier, fs::Permissions::from_mode(0o755))?;
     let env = BTreeMap::from([
         (
-            crate::receipts::paths::RUNX_CWD_ENV.to_owned(),
+            crate::paths::RUNX_CWD_ENV.to_owned(),
             root.path().to_string_lossy().into_owned(),
         ),
         (
@@ -114,7 +114,7 @@ fn forged_contract_binding_is_rejected_before_verifier_execution()
         }))?,
     )?;
     let env = BTreeMap::from([(
-        crate::receipts::paths::RUNX_CWD_ENV.to_owned(),
+        crate::paths::RUNX_CWD_ENV.to_owned(),
         root.path().to_string_lossy().into_owned(),
     )]);
     let inputs = JsonObject::from([

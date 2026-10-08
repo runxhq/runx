@@ -513,7 +513,6 @@ fn install_result(
         version: Some("1.0.0".to_owned()),
         digest: digest.to_owned(),
         profile_digest: profile_digest.map(str::to_owned),
-        profile_state_path: None,
         runner_names: Vec::new(),
         trust_tier: Some(TrustTier::Verified),
     }

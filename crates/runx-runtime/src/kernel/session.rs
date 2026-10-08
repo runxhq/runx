@@ -74,7 +74,11 @@ impl<'a> CommandSession<'a> {
         let outcome = run_process(
             ProcessSpec::new("session token", program, TOKEN_OUTPUT_BYTES)
                 .args(args.iter().map(|arg| arg.as_str().to_owned()).collect())
-                .cwd(crate::config::resolve_runx_workspace_base(env, cwd))
+                .cwd(
+                    crate::RunxPaths::resolve(env, cwd)
+                        .workspace()
+                        .to_path_buf(),
+                )
                 .env(
                     crate::process_invocation::process_base_environment(env)
                         .map_err(|error| error.to_string())?,

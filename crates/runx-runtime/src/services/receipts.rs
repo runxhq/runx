@@ -4,6 +4,7 @@ use std::path::Path;
 use runx_contracts::Receipt;
 
 use crate::RuntimeError;
+use crate::paths::RunxPaths;
 use crate::receipts::paths::{
     ReceiptPathInputs, ResolvedReceiptPath, RuntimeReceiptConfig, resolve_receipt_path,
 };
@@ -12,7 +13,6 @@ use crate::receipts::{
     Ed25519ReceiptVerifier, RuntimeReceiptSignatureConfig, RuntimeReceiptSigningError,
     receipt_verifier_from_env,
 };
-use crate::services::WorkspaceEnv;
 
 #[derive(Clone, Debug)]
 pub(crate) struct ReceiptServices {
@@ -21,6 +21,7 @@ pub(crate) struct ReceiptServices {
 
 pub(crate) struct ReceiptReadContext {
     store: LocalReceiptStore,
+    paths: RunxPaths,
     resolved: ResolvedReceiptPath,
     verifier: Option<Ed25519ReceiptVerifier>,
 }
@@ -31,18 +32,23 @@ impl ReceiptReadContext {
         cwd: &Path,
     ) -> Result<Self, RuntimeError> {
         let verifier = production_receipt_verifier(env)?;
+        let paths = RunxPaths::resolve(env, cwd);
         let resolved = resolve_receipt_path(ReceiptPathInputs {
             explicit_dir: None,
             runtime_config: Some(&RuntimeReceiptConfig::default()),
-            env,
-            cwd,
+            paths: &paths,
         });
         let store = LocalReceiptStore::new(&resolved.path);
         Ok(Self {
             store,
+            paths,
             resolved,
             verifier,
         })
+    }
+
+    pub(crate) const fn paths(&self) -> &RunxPaths {
+        &self.paths
     }
 
     pub(crate) const fn store(&self) -> &LocalReceiptStore {
@@ -97,21 +103,6 @@ impl ReceiptServices {
     #[cfg(any(feature = "process-tool", test))]
     pub(crate) fn from_signature_config(signature_config: RuntimeReceiptSignatureConfig) -> Self {
         Self { signature_config }
-    }
-
-    pub(crate) fn resolve_path(
-        &self,
-        workspace: &WorkspaceEnv,
-        explicit_dir: Option<&Path>,
-        runtime_config: Option<&RuntimeReceiptConfig>,
-    ) -> ResolvedReceiptPath {
-        let _ = self;
-        resolve_receipt_path(ReceiptPathInputs {
-            explicit_dir,
-            runtime_config,
-            env: workspace.env(),
-            cwd: workspace.cwd(),
-        })
     }
 
     pub(crate) fn write_local_receipt(

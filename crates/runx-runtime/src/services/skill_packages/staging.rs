@@ -119,6 +119,10 @@ impl ValidationReceiptStage {
         })?;
         Ok(Self { root, receipt_dir })
     }
+
+    pub(super) fn root(&self) -> &Path {
+        &self.root
+    }
 }
 
 impl Drop for ValidationReceiptStage {
@@ -127,9 +131,12 @@ impl Drop for ValidationReceiptStage {
     }
 }
 
+/// The environment a candidate's harness runs in: the repo as its workspace,
+/// and a home and project directory of its own under `scratch`.
 pub(super) fn isolated_harness_env(
     repo_root: &Path,
     env: &BTreeMap<String, String>,
+    scratch: &Path,
 ) -> BTreeMap<String, String> {
     let mut isolated = BTreeMap::new();
     for key in [
@@ -146,9 +153,10 @@ pub(super) fn isolated_harness_env(
         }
     }
     isolated.insert(
-        crate::receipts::paths::RUNX_CWD_ENV.to_owned(),
+        crate::paths::RUNX_CWD_ENV.to_owned(),
         repo_root.to_string_lossy().into_owned(),
     );
+    crate::paths::isolate(&mut isolated, scratch);
     let tools = repo_root.join("tools");
     if tools.is_dir()
         && let Ok(value) = std::env::join_paths([tools])
@@ -305,12 +313,16 @@ mod tests {
             registry.to_string_lossy().into_owned(),
         )]);
 
-        let isolated = isolated_harness_env(workspace.path(), &env);
+        let scratch = workspace.path().join("scratch");
+        let isolated = isolated_harness_env(workspace.path(), &env, &scratch);
+        let paths = crate::paths::RunxPaths::resolve(&isolated, workspace.path());
 
         assert_eq!(
             isolated.get("RUNX_REGISTRY_DIR").map(String::as_str),
             Some(registry.canonicalize()?.to_string_lossy().as_ref())
         );
+        assert_eq!(paths.home(), scratch.join("home"));
+        assert_eq!(paths.project(), scratch.join("project"));
         Ok(())
     }
 
@@ -324,7 +336,7 @@ mod tests {
             registry.path().to_string_lossy().into_owned(),
         )]);
 
-        let isolated = isolated_harness_env(workspace.path(), &env);
+        let isolated = isolated_harness_env(workspace.path(), &env, &workspace.path().join("s"));
 
         assert!(!isolated.contains_key("RUNX_REGISTRY_DIR"));
         Ok(())

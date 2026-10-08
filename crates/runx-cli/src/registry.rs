@@ -21,8 +21,8 @@ mod remote_publish;
 mod target;
 
 pub(crate) use target::{
-    RegistryTarget, destination_root, official_skills_cache_root, registry_skills_cache_root,
-    registry_source_description, resolve_registry_target,
+    RegistryTarget, destination_root, official_skills_cache_root, registry_source_description,
+    resolve_registry_target,
 };
 
 #[derive(Debug, Eq, PartialEq)]
@@ -447,7 +447,7 @@ fn remote_installation_id(
     }
 
     let generated = InitGeneratedValues::generate();
-    let home = runx_runtime::resolve_runx_global_home_dir(env, cwd);
+    let home = runx_runtime::RunxPaths::resolve(env, cwd);
     let state = ensure_runx_install_state(&home, &generated.installation_id, &generated.created_at)
         .map_err(|error| usage_error(error.to_string()))?;
     Ok(state.state.installation_id)
@@ -508,12 +508,12 @@ fn resolve_path(
     if path.is_absolute() {
         return path.to_path_buf();
     }
-    runx_runtime::resolve_path_from_user_input(
-        &path.display().to_string(),
-        env,
-        cwd,
-        prefer_existing,
-    )
+    let paths = runx_runtime::RunxPaths::resolve(env, cwd);
+    if prefer_existing {
+        paths.existing_input(path)
+    } else {
+        paths.in_workspace(path)
+    }
 }
 
 pub(crate) fn trusted_manifest_keys_from_env_for_source(
@@ -676,7 +676,6 @@ mod tests {
                 version: Some("1.2.3".to_owned()),
                 digest: "sha256:abc".to_owned(),
                 profile_digest: None,
-                profile_state_path: None,
                 runner_names: Vec::new(),
                 trust_tier: Some(TrustTier::Community),
             },

@@ -600,8 +600,8 @@ fn project(
     env: &BTreeMap<String, String>,
     cwd: &Path,
 ) -> Result<Vec<Readiness>, String> {
-    let store =
-        super::store::KernelStore::for_workspace(env, cwd).map_err(|error| error.to_string())?;
+    let store = super::store::KernelStore::for_project(&crate::paths::RunxPaths::resolve(env, cwd))
+        .map_err(|error| error.to_string())?;
     let instances = Instances::new(store);
     let hosted = HostedClient::default();
     let context = Context {

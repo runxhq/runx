@@ -15,7 +15,7 @@ use runx_runtime::receipts::{
     Ed25519ReceiptSigner, Ed25519ReceiptVerifier, RunScope, RuntimeReceiptSignaturePolicy,
     step_receipt_with_signature_policy,
 };
-use runx_runtime::{InvocationOutput, InvocationStatus, LocalReceiptStore};
+use runx_runtime::{InvocationOutput, InvocationStatus, LocalReceiptStore, RunxPaths};
 use serde_json::json;
 
 const SIGNED_LOCAL_ACTOR: &str = "runx:principal:local_runtime";
@@ -25,16 +25,22 @@ const SCOPE: RunScope<'static> = RunScope {
     graph_name: "receipt-archive",
 };
 
+fn paths(workspace: &Path) -> RunxPaths {
+    let env = BTreeMap::from([(
+        "RUNX_CWD".to_owned(),
+        workspace.to_string_lossy().into_owned(),
+    )]);
+    RunxPaths::resolve(&env, workspace)
+}
+
 fn list(
     store: &LocalReceiptStore,
     workspace: &Path,
-    project_runx_dir: &Path,
     filter: &ReceiptFilter,
 ) -> Result<ReceiptListing, ReceiptListingError> {
     list_receipts(
         store,
-        workspace,
-        project_runx_dir,
+        &paths(workspace),
         filter,
         RuntimeReceiptSignaturePolicy::local_development(),
     )
@@ -44,15 +50,9 @@ fn list(
 fn missing_history_store_projects_empty_safe_result() -> Result<(), Box<dyn std::error::Error>> {
     let temp = TestDir::new()?;
     let workspace = temp.path().join("workspace");
-    let project_runx_dir = workspace.join(".runx");
-    let store = LocalReceiptStore::new(project_runx_dir.join("receipts"));
+    let store = LocalReceiptStore::new(paths(&workspace).receipts());
 
-    let history = list(
-        &store,
-        &workspace,
-        &project_runx_dir,
-        &ReceiptFilter::default(),
-    )?;
+    let history = list(&store, &workspace, &ReceiptFilter::default())?;
 
     assert_eq!(history.projector_id, RECEIPT_LISTING_PROJECTOR_ID);
     assert_eq!(history.store_label, ".runx/receipts");
@@ -66,8 +66,7 @@ fn history_lists_receipts_newest_first_with_safe_refs_and_filters()
 -> Result<(), Box<dyn std::error::Error>> {
     let temp = TestDir::new()?;
     let workspace = temp.path().join("workspace");
-    let project_runx_dir = workspace.join(".runx");
-    let store = LocalReceiptStore::new(project_runx_dir.join("receipts"));
+    let store = LocalReceiptStore::new(paths(&workspace).receipts());
     let old_receipt = receipt_with_metadata(
         InvocationStatus::Success,
         "rcpt_old",
@@ -91,7 +90,6 @@ fn history_lists_receipts_newest_first_with_safe_refs_and_filters()
     let history = list(
         &store,
         &workspace,
-        &project_runx_dir,
         &ReceiptFilter {
             query: Some("artifact".to_owned()),
             issuer: Some("LOCAL".to_owned()),
@@ -129,8 +127,7 @@ fn history_lists_receipts_newest_first_with_safe_refs_and_filters()
 fn history_display_identity_ignores_unsigned_metadata() -> Result<(), Box<dyn std::error::Error>> {
     let temp = TestDir::new()?;
     let workspace = temp.path().join("workspace");
-    let project_runx_dir = workspace.join(".runx");
-    let store = LocalReceiptStore::new(project_runx_dir.join("receipts"));
+    let store = LocalReceiptStore::new(paths(&workspace).receipts());
     store.write_receipt(&receipt_with_metadata(
         InvocationStatus::Success,
         "rcpt_forged_metadata",
@@ -140,12 +137,7 @@ fn history_display_identity_ignores_unsigned_metadata() -> Result<(), Box<dyn st
         "forged-runner",
     )?)?;
 
-    let history = list(
-        &store,
-        &workspace,
-        &project_runx_dir,
-        &ReceiptFilter::default(),
-    )?;
+    let history = list(&store, &workspace, &ReceiptFilter::default())?;
 
     assert_eq!(history.receipts[0].subject_ref, SIGNED_RUNTIME_SUBJECT);
     assert_eq!(history.receipts[0].name, "receipt-archive");
@@ -159,8 +151,7 @@ fn receipt_inspection_projects_signed_governance_without_execution_bodies()
 -> Result<(), Box<dyn std::error::Error>> {
     let temp = TestDir::new()?;
     let workspace = temp.path().join("workspace");
-    let project_runx_dir = workspace.join(".runx");
-    let store = LocalReceiptStore::new(project_runx_dir.join("receipts"));
+    let store = LocalReceiptStore::new(paths(&workspace).receipts());
     let mut receipt = generated_runtime_receipt()?;
     receipt.authority.scope_refs.push(Reference::with_uri(
         ReferenceType::ScopeAdmission,
@@ -169,8 +160,7 @@ fn receipt_inspection_projects_signed_governance_without_execution_bodies()
     reseal_receipt(&mut receipt)?;
     store.write_receipt(&receipt)?;
 
-    let inspection =
-        inspect_local_receipt(&store, &workspace, &project_runx_dir, receipt.id.as_str())?;
+    let inspection = inspect_local_receipt(&store, &paths(&workspace), receipt.id.as_str())?;
     assert_eq!(inspection.receipt.id, receipt.id.to_string());
     assert_eq!(
         inspection.receipt.authority.exercised_scopes[0].scope,
@@ -188,8 +178,7 @@ fn receipt_inspection_projects_signed_governance_without_execution_bodies()
 fn history_filter_matches_actor_status_skill_and_date() -> Result<(), Box<dyn std::error::Error>> {
     let temp = TestDir::new()?;
     let workspace = temp.path().join("workspace");
-    let project_runx_dir = workspace.join(".runx");
-    let store = LocalReceiptStore::new(project_runx_dir.join("receipts"));
+    let store = LocalReceiptStore::new(paths(&workspace).receipts());
     let revision = receipt_with_metadata(
         InvocationStatus::Success,
         "rcpt_revision",
@@ -212,7 +201,6 @@ fn history_filter_matches_actor_status_skill_and_date() -> Result<(), Box<dyn st
     let history = list(
         &store,
         &workspace,
-        &project_runx_dir,
         &ReceiptFilter {
             skill: Some("receipt-archive".to_owned()),
             status: Some("closed".to_owned()),
@@ -232,8 +220,7 @@ fn history_filter_intersects_skill_status_source_artifact_and_date_range()
 -> Result<(), Box<dyn std::error::Error>> {
     let temp = TestDir::new()?;
     let workspace = temp.path().join("workspace");
-    let project_runx_dir = workspace.join(".runx");
-    let store = LocalReceiptStore::new(project_runx_dir.join("receipts"));
+    let store = LocalReceiptStore::new(paths(&workspace).receipts());
 
     let mut matching = receipt_with_metadata(
         InvocationStatus::Success,
@@ -272,7 +259,6 @@ fn history_filter_intersects_skill_status_source_artifact_and_date_range()
     let history = list(
         &store,
         &workspace,
-        &project_runx_dir,
         &ReceiptFilter {
             skill: Some("receipt-archive".to_owned()),
             status: Some("CLOSED".to_owned()),
@@ -300,12 +286,10 @@ fn history_filter_intersects_skill_status_source_artifact_and_date_range()
 fn history_rejects_invalid_date_filters() -> Result<(), Box<dyn std::error::Error>> {
     let temp = TestDir::new()?;
     let workspace = temp.path().join("workspace");
-    let project_runx_dir = workspace.join(".runx");
-    let store = LocalReceiptStore::new(project_runx_dir.join("receipts"));
+    let store = LocalReceiptStore::new(paths(&workspace).receipts());
     let result = list(
         &store,
         &workspace,
-        &project_runx_dir,
         &ReceiptFilter {
             since: Some("not-a-date".to_owned()),
             ..ReceiptFilter::default()
@@ -326,12 +310,7 @@ fn malformed_history_store_remains_typed_error() -> Result<(), Box<dyn std::erro
     fs::create_dir_all(temp.path())?;
     fs::write(store.receipt_path(&valid_content_receipt_id())?, "{")?;
 
-    let result = list(
-        &store,
-        temp.path(),
-        &temp.path().join(".runx"),
-        &ReceiptFilter::default(),
-    );
+    let result = list(&store, temp.path(), &ReceiptFilter::default());
 
     assert!(matches!(
         result,
@@ -347,19 +326,13 @@ fn history_projection_fails_structurally_valid_stale_receipt_digest()
 -> Result<(), Box<dyn std::error::Error>> {
     let temp = TestDir::new()?;
     let workspace = temp.path().join("workspace");
-    let project_runx_dir = workspace.join(".runx");
-    let store = LocalReceiptStore::new(project_runx_dir.join("receipts"));
+    let store = LocalReceiptStore::new(paths(&workspace).receipts());
     let mut receipt = generated_runtime_receipt()?;
     receipt.digest = "sha256:stale".into();
     assert!(runx_receipts::verify_receipt(&receipt).valid);
     write_receipt_json(store.root(), &receipt)?;
 
-    let history = list(
-        &store,
-        &workspace,
-        &project_runx_dir,
-        &ReceiptFilter::default(),
-    )?;
+    let history = list(&store, &workspace, &ReceiptFilter::default())?;
 
     // History lists every receipt and labels trust (verified/unverified/invalid)
     // rather than failing closed: a structurally-valid but tamper-detected
@@ -373,19 +346,13 @@ fn history_projection_fails_structurally_valid_tampered_receipt_signature()
 -> Result<(), Box<dyn std::error::Error>> {
     let temp = TestDir::new()?;
     let workspace = temp.path().join("workspace");
-    let project_runx_dir = workspace.join(".runx");
-    let store = LocalReceiptStore::new(project_runx_dir.join("receipts"));
+    let store = LocalReceiptStore::new(paths(&workspace).receipts());
     let mut receipt = generated_runtime_receipt()?;
     receipt.signature.value = "sig:sha256:tampered".into();
     assert!(runx_receipts::verify_receipt(&receipt).valid);
     write_receipt_json(store.root(), &receipt)?;
 
-    let history = list(
-        &store,
-        &workspace,
-        &project_runx_dir,
-        &ReceiptFilter::default(),
-    )?;
+    let history = list(&store, &workspace, &ReceiptFilter::default())?;
 
     // History lists every receipt and labels trust (verified/unverified/invalid)
     // rather than failing closed: a structurally-valid but tamper-detected
@@ -398,8 +365,7 @@ fn history_projection_fails_structurally_valid_tampered_receipt_signature()
 fn runtime_generated_receipts_project_verified() -> Result<(), Box<dyn std::error::Error>> {
     let temp = TestDir::new()?;
     let workspace = temp.path().join("workspace");
-    let project_runx_dir = workspace.join(".runx");
-    let store = LocalReceiptStore::new(project_runx_dir.join("receipts"));
+    let store = LocalReceiptStore::new(paths(&workspace).receipts());
     // "verified" is reserved for production-signed receipts confirmed by a real
     // verifier; a local pseudo-signature can never earn it (see dod3).
     let signer = fixture_signer()?;
@@ -409,8 +375,7 @@ fn runtime_generated_receipts_project_verified() -> Result<(), Box<dyn std::erro
 
     let history = list_receipts(
         &store,
-        &workspace,
-        &project_runx_dir,
+        &paths(&workspace),
         &ReceiptFilter::default(),
         RuntimeReceiptSignaturePolicy::production(&verifier),
     )?;

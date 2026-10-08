@@ -114,7 +114,7 @@ pub fn prepare_registry_publish_package(
     request: RegistryPublishPackageRequest<'_>,
 ) -> Result<RegistryPublishPackage, RegistryPublishPackageError> {
     let subject_path =
-        crate::resolve_path_from_user_input(request.subject, request.env, request.cwd, true);
+        crate::RunxPaths::resolve(request.env, request.cwd).existing_input(request.subject);
     let profile_path =
         resolve_profile_path(&subject_path, request.profile, request.env, request.cwd);
     let load_path = profile_path.as_deref().unwrap_or(&subject_path);
@@ -129,7 +129,7 @@ fn resolve_profile_path(
     cwd: &Path,
 ) -> Option<PathBuf> {
     profile
-        .map(|path| crate::resolve_path_from_user_input(&path.to_string_lossy(), env, cwd, true))
+        .map(|path| crate::RunxPaths::resolve(env, cwd).existing_input(path))
         .or_else(|| {
             let package_dir = if subject_path.is_dir() {
                 subject_path

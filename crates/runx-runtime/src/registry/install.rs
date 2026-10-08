@@ -9,7 +9,6 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use runx_contracts::sha256_prefixed;
 use runx_parser::{SkillInstallOrigin, ValidatedSkillInstall, validate_skill_install};
-use serde_json::{Value, json};
 
 use super::package_files::{
     registry_package_digest, validate_registry_package_file_path, validate_registry_skill_package,
@@ -66,7 +65,6 @@ pub struct InstallLocalSkillResult {
     pub version: Option<String>,
     pub digest: String,
     pub profile_digest: Option<String>,
-    pub profile_state_path: Option<PathBuf>,
     pub runner_names: Vec<String>,
     pub trust_tier: Option<TrustTier>,
 }
@@ -133,16 +131,12 @@ pub enum InstallError {
     RunnerMetadataMismatch(String),
     #[error("skill install destination already exists with different content: {0}")]
     ConflictingSkill(PathBuf),
-    #[error("skill install profile state already exists with different content: {0}")]
-    ConflictingProfile(PathBuf),
     #[error("skill install runner manifest already exists with different content: {0}")]
     ConflictingRunnerManifest(PathBuf),
     #[error("skill install package file already exists with different content: {0}")]
     ConflictingPackageFile(PathBuf),
     #[error("io error at {path}: {source}")]
     Io { path: PathBuf, source: io::Error },
-    #[error("failed to serialize profile state: {0}")]
-    Serialize(#[from] serde_json::Error),
 }
 
 pub fn install_local_skill(
@@ -157,7 +151,6 @@ pub fn install_local_skill(
         candidate.profile_document.as_deref(),
         &candidate.package_files,
         &candidate.r#ref,
-        validated.next_profile_state.as_deref(),
     )?;
     commit_install_write_plan(
         &paths,
@@ -165,12 +158,10 @@ pub fn install_local_skill(
         &validated.install.markdown,
         candidate.profile_document.as_deref(),
         &candidate.package_files,
-        validated.next_profile_state.as_deref(),
     )?;
 
     Ok(InstallLocalSkillResult {
         status: if write_plan.writes_skill
-            || write_plan.writes_profile_state
             || write_plan.writes_runner_manifest
             || write_plan.package_files.iter().any(|file| file.write)
         {
@@ -186,7 +177,6 @@ pub fn install_local_skill(
         version: validated.install.origin.version,
         digest: validated.actual_digest,
         profile_digest: validated.profile_digest,
-        profile_state_path: paths.profile_state_path,
         runner_names: validated.runner_names,
         trust_tier: candidate.trust_tier.clone(),
     })
@@ -197,19 +187,16 @@ struct ValidatedLocalInstall {
     profile_digest: Option<String>,
     runner_names: Vec<String>,
     install: ValidatedSkillInstall,
-    next_profile_state: Option<String>,
 }
 
 struct InstallPaths {
     package_root: PathBuf,
     destination: PathBuf,
-    profile_state_path: Option<PathBuf>,
     runner_manifest_path: Option<PathBuf>,
 }
 
 struct InstallWritePlan {
     writes_skill: bool,
-    writes_profile_state: bool,
     writes_runner_manifest: bool,
     package_files: Vec<PackageFileWritePlan>,
 }
@@ -240,19 +227,11 @@ fn validate_install_candidate(
         package.root_manifest(),
         &candidate.runner_names,
     )?;
-    let next_profile_state = next_profile_state(
-        candidate,
-        &install,
-        &actual_digest,
-        profile_digest.as_deref(),
-        &runner_names,
-    )?;
     Ok(ValidatedLocalInstall {
         actual_digest,
         profile_digest,
         runner_names,
         install,
-        next_profile_state,
     })
 }
 
@@ -530,26 +509,6 @@ fn manifest_verification_error(
     }
 }
 
-fn next_profile_state(
-    candidate: &InstallCandidate,
-    install: &ValidatedSkillInstall,
-    actual_digest: &str,
-    profile_digest: Option<&str>,
-    runner_names: &[String],
-) -> Result<Option<String>, InstallError> {
-    let Some(document) = &candidate.profile_document else {
-        return Ok(None);
-    };
-    Ok(Some(profile_state(
-        &install.skill.name,
-        actual_digest,
-        document,
-        profile_digest,
-        runner_names,
-        &serde_json::to_value(&install.origin)?,
-    )?))
-}
-
 fn install_origin(
     candidate: &InstallCandidate,
     actual_digest: &str,
@@ -581,10 +540,6 @@ fn install_paths(
             path.join(part)
         });
     let destination = package_root.join("SKILL.md");
-    let profile_state_path = candidate
-        .profile_document
-        .as_ref()
-        .map(|_| package_root.join(".runx").join("profile.json"));
     let runner_manifest_path = candidate
         .profile_document
         .as_ref()
@@ -592,7 +547,6 @@ fn install_paths(
     InstallPaths {
         package_root,
         destination,
-        profile_state_path,
         runner_manifest_path,
     }
 }
@@ -605,13 +559,8 @@ fn prepare_install_write_plan(
     profile_document: Option<&str>,
     package_files: &[RegistryPackageFile],
     ref_name: &str,
-    next_profile_state: Option<&str>,
 ) -> Result<InstallWritePlan, InstallError> {
     let existing = read_optional(&paths.destination)?;
-    let existing_profile = match &paths.profile_state_path {
-        Some(path) => read_optional(path)?,
-        None => None,
-    };
     let existing_runner_manifest = match &paths.runner_manifest_path {
         Some(path) => read_optional(path)?,
         None => None,
@@ -620,14 +569,6 @@ fn prepare_install_write_plan(
         && sha256_prefixed(existing.as_bytes()) != sha256_prefixed(markdown.as_bytes())
     {
         return Err(InstallError::ConflictingSkill(paths.destination.clone()));
-    }
-    if let (Some(path), Some(existing), Some(next)) = (
-        &paths.profile_state_path,
-        &existing_profile,
-        next_profile_state,
-    ) && existing != next
-    {
-        return Err(InstallError::ConflictingProfile(path.clone()));
     }
     if let (Some(path), Some(existing), Some(next)) = (
         &paths.runner_manifest_path,
@@ -667,7 +608,6 @@ fn prepare_install_write_plan(
     }
     Ok(InstallWritePlan {
         writes_skill: existing.is_none(),
-        writes_profile_state: paths.profile_state_path.is_some() && existing_profile.is_none(),
         writes_runner_manifest: paths.runner_manifest_path.is_some()
             && existing_runner_manifest.is_none(),
         package_files: package_file_plans,
@@ -680,7 +620,6 @@ fn commit_install_write_plan(
     markdown: &str,
     profile_document: Option<&str>,
     package_files: &[RegistryPackageFile],
-    next_profile_state: Option<&str>,
 ) -> Result<(), InstallError> {
     debug_assert_eq!(write_plan.package_files.len(), package_files.len());
     fs::create_dir_all(&paths.package_root).map_err(|source| InstallError::Io {
@@ -689,18 +628,6 @@ fn commit_install_write_plan(
     })?;
     if write_plan.writes_skill {
         write_atomic(&paths.destination, markdown)?;
-    }
-    if let (Some(path), true, Some(next)) = (
-        &paths.profile_state_path,
-        write_plan.writes_profile_state,
-        next_profile_state,
-    ) {
-        let parent = path.parent().unwrap_or(&paths.package_root);
-        fs::create_dir_all(parent).map_err(|source| InstallError::Io {
-            path: parent.to_path_buf(),
-            source,
-        })?;
-        write_atomic(path, next)?;
     }
     if let (Some(path), true, Some(document)) = (
         &paths.runner_manifest_path,
@@ -743,34 +670,6 @@ fn validate_install_binding_manifest(
         return Err(InstallError::RunnerMetadataMismatch(skill_name.to_owned()));
     }
     Ok(runner_names)
-}
-
-fn profile_state(
-    skill_name: &str,
-    digest: &str,
-    profile_document: &str,
-    profile_digest: Option<&str>,
-    runner_names: &[String],
-    origin: &Value,
-) -> Result<String, serde_json::Error> {
-    let value = json!({
-        "schema_version": "runx.skill-profile.v1",
-        "skill": {
-            "name": skill_name,
-            "path": "SKILL.md",
-            "digest": digest,
-        },
-        "profile": {
-            "document": profile_document,
-            "digest": profile_digest,
-            "runner_names": runner_names,
-        },
-        "origin": origin,
-    });
-    serde_json::to_string_pretty(&value).map(|mut contents| {
-        contents.push('\n');
-        contents
-    })
 }
 
 fn write_atomic(destination: &Path, contents: &str) -> Result<(), InstallError> {

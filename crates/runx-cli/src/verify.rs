@@ -151,8 +151,7 @@ pub fn run_verify_command_with_stdin<R: Read>(
     let resolved = resolve_receipt_path(ReceiptPathInputs {
         explicit_dir: parsed.receipt_dir.as_deref(),
         runtime_config: Some(&receipt_config),
-        env,
-        cwd,
+        paths: &runx_runtime::RunxPaths::resolve(env, cwd),
     });
     let verifier = receipt_verifier(env, parsed.allow_local_development_signatures)?;
     let signature_mode = if verifier.is_some() {

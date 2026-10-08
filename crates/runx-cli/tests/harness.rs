@@ -71,12 +71,14 @@ expect:
 fn package_mode_keeps_default_receipts_after_isolated_replay() -> TestResult {
     let root = crate::support::temp_root("runx-package-harness-default-receipts");
     let skill_dir = root.join("skill");
-    let receipt_dir = root.join(".runx/harness-receipts");
+    let project = root.join(".runx");
+    let receipt_dir = project.join("harness-receipts");
     fs::create_dir_all(&skill_dir)?;
     write_process_tool_skill(&skill_dir)?;
 
     let output = unsigned_runx_command()?
         .env("RUNX_CWD", &root)
+        .env("RUNX_PROJECT_DIR", &project)
         .args([
             "harness",
             skill_dir.to_str().ok_or("non-utf8 skill dir")?,

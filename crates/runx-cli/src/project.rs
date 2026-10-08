@@ -58,18 +58,15 @@ pub fn run_native_new_with_workspace(plan: NewPlan, workspace: &WorkspaceEnv) ->
 }
 
 pub fn run_native_init(plan: InitPlan, workspace: &WorkspaceEnv) -> ExitCode {
-    let global_home_dir = resolve_global_home_dir(workspace.env(), workspace.cwd());
-    let official_cache_dir =
-        resolve_official_skills_dir(workspace.env(), workspace.cwd(), &global_home_dir);
+    let paths = workspace.paths();
     let options = RunxInitOptions {
         action: if plan.global {
             InitAction::Global
         } else {
             InitAction::Project
         },
-        project_dir: resolve_project_dir(workspace.env(), workspace.cwd()),
-        global_home_dir,
-        official_cache_dir,
+        paths: paths.clone(),
+        official_cache_dir: crate::registry::official_skills_cache_root(paths, workspace.env()),
         prefetch_official: plan.prefetch_official,
         generated: InitGeneratedValues::generate(),
     };
@@ -224,27 +221,6 @@ fn normalize_skill_name(value: &str) -> Result<String, String> {
         return Err("runx new package name must contain a letter or number".to_owned());
     }
     Ok(normalized)
-}
-
-fn resolve_project_dir(env: &std::collections::BTreeMap<String, String>, cwd: &Path) -> PathBuf {
-    let workspace = runx_runtime::resolve_runx_workspace_base(env, cwd);
-    runx_runtime::resolve_project_runx_dir(env, &workspace)
-}
-
-fn resolve_global_home_dir(
-    env: &std::collections::BTreeMap<String, String>,
-    cwd: &Path,
-) -> PathBuf {
-    runx_runtime::resolve_runx_global_home_dir(env, cwd)
-}
-
-fn resolve_official_skills_dir(
-    env: &std::collections::BTreeMap<String, String>,
-    cwd: &Path,
-    global_home_dir: &Path,
-) -> PathBuf {
-    let _ = global_home_dir;
-    crate::registry::official_skills_cache_root(env, cwd)
 }
 
 #[derive(Serialize)]

@@ -219,7 +219,7 @@ impl KernelStoreError {
 }
 
 /// The protected store for one project workspace. Open it through [`KernelStore::open`]
-/// or [`KernelStore::for_workspace`], which share one connection per database
+/// or [`KernelStore::for_project`], which share one connection per database
 /// within the process. A workspace is one kernel: its instances, standing
 /// approvals and effect custody travel together even if receipt storage moves.
 pub struct KernelStore {
@@ -242,15 +242,10 @@ fn open_stores() -> &'static Mutex<HashMap<PathBuf, Arc<KernelStore>>> {
 }
 
 impl KernelStore {
-    /// The store of the project's `.runx` directory. Receipt destinations are
-    /// output configuration, not the identity of standing kernel state.
-    pub fn for_workspace(
-        env: &std::collections::BTreeMap<String, String>,
-        cwd: &Path,
-    ) -> Result<Arc<Self>, KernelStoreError> {
-        let workspace = crate::receipts::paths::resolve_workspace_base(env, cwd);
-        let project = crate::receipts::paths::resolve_project_runx_dir(env, &workspace);
-        Self::open(&project)
+    /// The store of the project directory. Receipt destinations are output
+    /// configuration, not the identity of standing kernel state.
+    pub fn for_project(paths: &crate::paths::RunxPaths) -> Result<Arc<Self>, KernelStoreError> {
+        Self::open(paths.project())
     }
 
     /// Open, creating if needed, the store inside `root`.

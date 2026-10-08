@@ -15,7 +15,7 @@ use runx_contracts::{ConnectorInstance, InstanceAuthority, JsonObject, sha256_pr
 use super::connectors::LoadedConnector;
 use super::instances::{Instances, check_supported, pinned};
 use super::operation::{credentials, hosted::HostedClient};
-use crate::config::{load_local_credential_secret, load_runx_config_file, resolve_runx_home_dir};
+use crate::config::{load_local_credential_secret, load_runx_config_file};
 use crate::credential_profiles::set_local_credential_profile;
 use crate::services::WorkspaceEnv;
 
@@ -125,9 +125,8 @@ pub fn confirm_credential_profile(
     workspace: &WorkspaceEnv,
 ) -> Result<ConnectorInstance, String> {
     let parameters = instance_parameters(connector, parameters)?;
-    let home = resolve_runx_home_dir(workspace.env(), workspace.cwd());
-    let config =
-        load_runx_config_file(&home.join("config.json")).map_err(|error| error.to_string())?;
+    let config = load_runx_config_file(&workspace.paths().config_file())
+        .map_err(|error| error.to_string())?;
     let stored = config
         .credentials
         .and_then(|credentials| credentials.profiles.get(profile).cloned())
@@ -142,7 +141,7 @@ pub fn confirm_credential_profile(
         .ok_or_else(|| format!("credential profile {profile} has an invalid credential name"))?;
     let declaration = credential_declaration(connector, &credential)?;
     let scopes = credential_scopes(connector, &credential, scopes)?;
-    let secret = load_local_credential_secret(&home, &stored.secret_ref)
+    let secret = load_local_credential_secret(workspace.paths(), &stored.secret_ref)
         .map_err(|error| format!("credential profile {profile} cannot be read: {error}"))?;
     credentials::fields(declaration, &secret)
         .map_err(|reason| format!("credential profile {profile} {reason}"))?;

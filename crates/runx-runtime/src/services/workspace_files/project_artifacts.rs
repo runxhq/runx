@@ -6,7 +6,7 @@ use std::path::Path;
 use runx_contracts::{JsonObject, JsonValue, sha256_prefixed};
 
 pub fn persist_json_artifact(
-    project_runx_dir: &Path,
+    artifacts: &Path,
     run_id: &str,
     kind: &str,
     label: &str,
@@ -15,14 +15,13 @@ pub fn persist_json_artifact(
     let bytes = serde_json::to_vec(value).map_err(|error| error.to_string())?;
     let digest = sha256_prefixed(&bytes);
     let digest_label = digest.strip_prefix("sha256:").unwrap_or(&digest);
-    let artifact_root = project_runx_dir.join("artifacts");
-    let skill_runs = artifact_root.join("skill-runs");
+    let skill_runs = artifacts.join("skill-runs");
     let run_directory = skill_runs.join(safe_path_segment(run_id));
     let directory = run_directory.join(safe_path_segment(kind));
     fs::create_dir_all(&directory)
         .map_err(|error| format!("creating {}: {error}", directory.display()))?;
     // Protect the whole subtree before writing any result or temporary file.
-    restrict_artifact_directory(&artifact_root)?;
+    restrict_artifact_directory(artifacts)?;
     restrict_artifact_directory(&skill_runs)?;
     restrict_artifact_directory(&run_directory)?;
     restrict_artifact_directory(&directory)?;
@@ -82,10 +81,7 @@ pub fn persist_json_artifact(
     ])))
 }
 
-pub fn read_json_artifact(
-    project_runx_dir: &Path,
-    reference: &JsonValue,
-) -> Result<JsonValue, String> {
+pub fn read_json_artifact(artifacts: &Path, reference: &JsonValue) -> Result<JsonValue, String> {
     let field = |name| reference.as_object().and_then(|object| object.get(name));
     if field("schema").and_then(JsonValue::as_str) != Some("runx.project_artifact_ref.v1") {
         return Err("project artifact reference has an unsupported schema".to_owned());
@@ -96,8 +92,7 @@ pub fn read_json_artifact(
     let path = Path::new(raw_path)
         .canonicalize()
         .map_err(|error| format!("resolving project artifact: {error}"))?;
-    let root = project_runx_dir
-        .join("artifacts")
+    let root = artifacts
         .canonicalize()
         .map_err(|error| format!("resolving project artifact root: {error}"))?;
     if !path.starts_with(&root) || !path.is_file() {

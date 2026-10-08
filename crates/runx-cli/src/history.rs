@@ -101,11 +101,11 @@ fn run_receipt_detail(
         ));
     }
     let receipt_config = RuntimeReceiptConfig::default();
+    let paths = runx_runtime::RunxPaths::resolve(env, cwd);
     let resolved = resolve_receipt_path(ReceiptPathInputs {
         explicit_dir: parsed.receipt_dir.as_deref(),
         runtime_config: Some(&receipt_config),
-        env,
-        cwd,
+        paths: &paths,
     });
     let store = LocalReceiptStore::new(&resolved.path);
     let verifier: Option<Ed25519ReceiptVerifier> = receipt_verifier_from_env(env)
@@ -114,18 +114,12 @@ fn run_receipt_detail(
     let inspection = if let Some(verifier) = verifier.as_ref() {
         inspect_local_receipt_with_policy(
             &store,
-            &resolved.workspace_base,
-            &resolved.project_runx_dir,
+            &paths,
             receipt_reference,
             RuntimeReceiptSignaturePolicy::production(verifier),
         )
     } else {
-        inspect_local_receipt(
-            &store,
-            &resolved.workspace_base,
-            &resolved.project_runx_dir,
-            receipt_reference,
-        )
+        inspect_local_receipt(&store, &paths, receipt_reference)
     }
     .map_err(HistoryCliError::Receipt)?;
     let output = if parsed.json {

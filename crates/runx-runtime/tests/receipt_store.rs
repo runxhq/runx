@@ -628,11 +628,10 @@ fn receipt_store_error_display_does_not_leak_absolute_paths()
 #[test]
 fn store_public_projection_redacts_external_absolute_root() {
     let workspace = PathBuf::from("/workspace/runx");
-    let project_runx_dir = workspace.join(".runx");
     let external = PathBuf::from("/Users/kam/private/runx-receipts");
     let store = LocalReceiptStore::new(&external);
 
-    let projection = store.public_projection(&workspace, &project_runx_dir);
+    let projection = store.public_projection(&project_paths(&workspace));
     let summary = projection.summary();
     let label = projection.label().as_str();
 
@@ -644,10 +643,9 @@ fn store_public_projection_redacts_external_absolute_root() {
 #[test]
 fn store_public_projection_uses_project_relative_root() {
     let workspace = PathBuf::from("/workspace/runx");
-    let project_runx_dir = workspace.join(".runx");
-    let store = LocalReceiptStore::new(project_runx_dir.join("receipts"));
+    let store = LocalReceiptStore::new(project_paths(&workspace).receipts());
 
-    let projection = store.public_projection(&workspace, &project_runx_dir);
+    let projection = store.public_projection(&project_paths(&workspace));
 
     assert_eq!(projection.label().as_str(), ".runx/receipts");
     assert_eq!(projection.summary(), "receipt store: .runx/receipts");
@@ -656,10 +654,9 @@ fn store_public_projection_uses_project_relative_root() {
 #[test]
 fn receipt_store_error_public_message_uses_safe_label() {
     let workspace = PathBuf::from("/workspace/runx");
-    let project_runx_dir = workspace.join(".runx");
     let external = PathBuf::from("/Users/kam/private/runx-receipts");
     let store = LocalReceiptStore::new(&external);
-    let projection = store.public_projection(&workspace, &project_runx_dir);
+    let projection = store.public_projection(&project_paths(&workspace));
     let error = ReceiptStoreError::MissingStore { path: external };
 
     let message = error.public_message(projection.label());
@@ -671,10 +668,9 @@ fn receipt_store_error_public_message_uses_safe_label() {
 #[test]
 fn receipt_store_error_public_message_redacts_path_like_fields() {
     let workspace = PathBuf::from("/workspace/runx");
-    let project_runx_dir = workspace.join(".runx");
     let external = PathBuf::from("/Users/kam/private/runx-receipts");
     let store = LocalReceiptStore::new(&external);
-    let projection = store.public_projection(&workspace, &project_runx_dir);
+    let projection = store.public_projection(&project_paths(&workspace));
     let invalid_id = ReceiptStoreError::InvalidReceiptId {
         receipt_id: external.to_string_lossy().into_owned(),
     };
@@ -780,4 +776,12 @@ fn scope(graph_name: &str) -> runx_runtime::receipts::RunScope<'_> {
         run_id: "run_test",
         graph_name,
     }
+}
+
+fn project_paths(workspace: &std::path::Path) -> runx_runtime::RunxPaths {
+    let env = std::collections::BTreeMap::from([(
+        "RUNX_CWD".to_owned(),
+        workspace.to_string_lossy().into_owned(),
+    )]);
+    runx_runtime::RunxPaths::resolve(&env, workspace)
 }

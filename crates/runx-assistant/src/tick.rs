@@ -22,7 +22,6 @@ use runx_runtime::{
     INJECTED_PRINCIPAL_REF_ENV, ManagedAgentPolicy, REQUIRE_MUTATION_APPROVAL_ENV,
     STANDING_APPROVAL_ID_ENV, STANDING_DELEGATE_DIGEST_ENV, SkillRunRequest, WorkspaceEnv,
     encode_injected_scopes, now_iso8601, outbound_text_is_safe as private_text_is_safe,
-    resolve_project_runx_dir, resolve_runx_workspace_base,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -545,11 +544,6 @@ fn notification_uuid(run_id: &str) -> Result<String, String> {
     ))
 }
 
-fn project_runx_dir(workspace: &WorkspaceEnv) -> PathBuf {
-    let base = resolve_runx_workspace_base(workspace.env(), workspace.cwd());
-    resolve_project_runx_dir(workspace.env(), &base)
-}
-
 fn control_default(loaded: &LoadedProfile) -> Control {
     Control {
         core: ControlCore {
@@ -899,9 +893,7 @@ fn run_skill_with_resolution(
 }
 
 fn skill_retention_root(workspace: &WorkspaceEnv) -> PathBuf {
-    project_runx_dir(workspace)
-        .join("assistant")
-        .join("skill-packages")
+    workspace.paths().assistant().join("skill-packages")
 }
 
 fn retained_skill_name(name: &str) -> String {
@@ -1056,7 +1048,7 @@ fn bound_work_inputs(
     let value = serde_json::from_value(packet.clone())
         .map_err(|error| format!("normalizing bound work inputs: {error}"))?;
     let reference = runx_runtime::persist_json_artifact(
-        &project_runx_dir(workspace),
+        &workspace.paths().artifacts(),
         &run_id,
         "assistant-work-inputs",
         "inputs",
@@ -1086,7 +1078,7 @@ fn bound_work_inputs(
 fn read_bound_work_inputs(workspace: &WorkspaceEnv, bound: &BoundWorkRun) -> Result<Value, String> {
     let reference = serde_json::from_value(bound.input_ref.clone())
         .map_err(|error| format!("decoding bound work input reference: {error}"))?;
-    let value = runx_runtime::read_json_artifact(&project_runx_dir(workspace), &reference)?;
+    let value = runx_runtime::read_json_artifact(&workspace.paths().artifacts(), &reference)?;
     let packet = serde_json::to_value(value)
         .map_err(|error| format!("decoding bound work inputs: {error}"))?;
     if !packet["inputs"].is_object() || !packet["evidence_receipts"].is_array() {
@@ -1259,7 +1251,7 @@ fn persist_work_result(
     let value = serde_json::from_value(result.clone())
         .map_err(|error| format!("encoding assistant work result: {error}"))?;
     let reference = runx_runtime::persist_json_artifact(
-        &project_runx_dir(workspace),
+        &workspace.paths().artifacts(),
         &format!(
             "run_assistant_work_{}",
             item.id.trim_start_matches("sha256:")
@@ -1281,7 +1273,7 @@ fn read_result_ref(
     };
     let reference = serde_json::from_value(reference.clone())
         .map_err(|error| format!("decoding assistant work result reference: {error}"))?;
-    let value = runx_runtime::read_json_artifact(&project_runx_dir(workspace), &reference)?;
+    let value = runx_runtime::read_json_artifact(&workspace.paths().artifacts(), &reference)?;
     serde_json::to_value(value)
         .map(Some)
         .map_err(|error| format!("decoding assistant work result: {error}"))
@@ -1351,7 +1343,7 @@ fn work_summary(result: &Value) -> Result<String, String> {
 }
 
 fn assistant_records(workspace: &WorkspaceEnv) -> Result<HostRecords, String> {
-    runx_runtime::KernelStore::for_workspace(workspace.env(), workspace.cwd())
+    runx_runtime::KernelStore::for_project(workspace.paths())
         .and_then(|store| store.host("assistant"))
         .map_err(|error| error.to_string())
 }
@@ -1723,7 +1715,7 @@ fn write_control(
 }
 
 fn lock(loaded: &LoadedProfile, workspace: &WorkspaceEnv) -> Result<File, String> {
-    let dir = project_runx_dir(workspace).join("assistant");
+    let dir = workspace.paths().assistant();
     fs::create_dir_all(&dir)
         .map_err(|error| format!("creating assistant lock directory: {error}"))?;
     let path = dir.join(format!("{}.lock", loaded.profile.instance_id));
@@ -1740,7 +1732,7 @@ fn lock(loaded: &LoadedProfile, workspace: &WorkspaceEnv) -> Result<File, String
 }
 
 fn worker_lock(loaded: &LoadedProfile, workspace: &WorkspaceEnv) -> Result<File, String> {
-    let dir = project_runx_dir(workspace).join("assistant");
+    let dir = workspace.paths().assistant();
     fs::create_dir_all(&dir)
         .map_err(|error| format!("creating assistant lock directory: {error}"))?;
     let path = dir.join(format!("{}.worker.lock", loaded.profile.instance_id));
@@ -1853,7 +1845,7 @@ pub(super) fn discard_notification(
     let reference = serde_json::from_value(pending.artifact_ref.clone())
         .map_err(|error| format!("decoding notification reference: {error}"))?;
     let exact = serde_json::to_value(runx_runtime::read_json_artifact(
-        &project_runx_dir(workspace),
+        &workspace.paths().artifacts(),
         &reference,
     )?)
     .map_err(|error| format!("decoding exact notification: {error}"))?;
@@ -2862,7 +2854,7 @@ fn run_turn(
         )
         .map_err(|error| format!("binding assistant review: {error}"))?;
         let reference = runx_runtime::persist_json_artifact(
-            &project_runx_dir(workspace),
+            &workspace.paths().artifacts(),
             logical,
             "assistant-reviews",
             "review",
@@ -3223,7 +3215,7 @@ fn review_observations(
 fn read_review(workspace: &WorkspaceEnv, reference: &Value) -> Result<ReviewPacket, String> {
     let reference = serde_json::from_value(reference.clone())
         .map_err(|error| format!("decoding assistant review reference: {error}"))?;
-    let value = runx_runtime::read_json_artifact(&project_runx_dir(workspace), &reference)?;
+    let value = runx_runtime::read_json_artifact(&workspace.paths().artifacts(), &reference)?;
     serde_json::from_value(
         serde_json::to_value(value)
             .map_err(|error| format!("decoding assistant review: {error}"))?,
@@ -3697,13 +3689,13 @@ fn dispatch_pending_work(
                     "request_digests":{request.id.clone():digest}}))
                     .map_err(|error| format!("encoding native retry answer: {error}"))?;
                 let reference = runx_runtime::persist_json_artifact(
-                    &project_runx_dir(workspace),
+                    &workspace.paths().artifacts(),
                     &bound.run_id,
                     "assistant-retries",
                     &request.id,
                     &answer,
                 )?;
-                runx_runtime::read_json_artifact(&project_runx_dir(workspace), &reference)?;
+                runx_runtime::read_json_artifact(&workspace.paths().artifacts(), &reference)?;
                 let path =
                     serde_json::to_value(&reference).map_err(|error| error.to_string())?["path"]
                         .as_str()
@@ -4024,7 +4016,7 @@ fn handle_pending_decision(
             .map_err(|error| format!("encoding native approval answer: {error}"))?;
             answer_ref = Some(
                 serde_json::to_value(runx_runtime::persist_json_artifact(
-                    &project_runx_dir(workspace),
+                    &workspace.paths().artifacts(),
                     &bound.run_id,
                     "assistant-decisions",
                     &decision.nonce,
@@ -4200,7 +4192,7 @@ fn run_assigned_skill(
         .map(|reference| {
             let native_ref = serde_json::from_value(reference.clone())
                 .map_err(|error| format!("invalid decision answer reference: {error}"))?;
-            runx_runtime::read_json_artifact(&project_runx_dir(workspace), &native_ref)?;
+            runx_runtime::read_json_artifact(&workspace.paths().artifacts(), &native_ref)?;
             reference["path"]
                 .as_str()
                 .map(PathBuf::from)
@@ -4692,7 +4684,7 @@ fn stage_notification(
     let exact_json: runx_contracts::JsonValue = serde_json::from_value(exact)
         .map_err(|error| format!("encoding exact notification intent: {error}"))?;
     let artifact = runx_runtime::persist_json_artifact(
-        &project_runx_dir(workspace),
+        &workspace.paths().artifacts(),
         logical,
         "assistant",
         "notification-intent",
@@ -4803,7 +4795,7 @@ fn read_notification_intent(
     let reference = serde_json::from_value(pending.artifact_ref.clone())
         .map_err(|error| format!("decoding notification artifact reference: {error}"))?;
     serde_json::to_value(runx_runtime::read_json_artifact(
-        &project_runx_dir(workspace),
+        &workspace.paths().artifacts(),
         &reference,
     )?)
     .map_err(|error| format!("decoding notification intent: {error}"))
@@ -5053,7 +5045,7 @@ fn collect_observations(
             )
             .map_err(|error| format!("binding assistant source page: {error}"))?;
             let artifact_ref = runx_runtime::persist_json_artifact(
-                &project_runx_dir(workspace),
+                &workspace.paths().artifacts(),
                 logical,
                 "assistant-pages",
                 source.id(),
@@ -5094,7 +5086,7 @@ fn read_pinned_page(
 ) -> Result<PagePacket, String> {
     let reference = serde_json::from_value(pinned.artifact_ref.clone())
         .map_err(|error| format!("decoding source page reference: {error}"))?;
-    let value = runx_runtime::read_json_artifact(&project_runx_dir(workspace), &reference)?;
+    let value = runx_runtime::read_json_artifact(&workspace.paths().artifacts(), &reference)?;
     let page: PagePacket = serde_json::from_value(
         serde_json::to_value(value).map_err(|error| format!("decoding source page: {error}"))?,
     )
@@ -5710,7 +5702,7 @@ mod tests {
             observations: vec![json!({"source_ref":"slack://message/one","source_digest":digest})],
         };
         let artifact = runx_runtime::persist_json_artifact(
-            &super::project_runx_dir(&workspace),
+            &workspace.paths().artifacts(),
             "signal-test",
             "assistant-pages",
             "mentions",
@@ -6001,7 +5993,7 @@ mod tests {
             .and_then(|scope| scope.connector("slack"))
             .map_err(|error| error.to_string())?;
         let instances = runx_runtime::Instances::new(
-            runx_runtime::KernelStore::for_workspace(workspace.env(), workspace.cwd())
+            runx_runtime::KernelStore::for_project(workspace.paths())
                 .map_err(|error| error.to_string())?,
         );
         let instance = |id: &str| ConnectorInstance {

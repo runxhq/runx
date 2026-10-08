@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use runx_contracts::JsonObject;
 
 use crate::RuntimeError;
-use crate::receipts::paths::{RUNX_CWD_ENV, RUNX_RECEIPT_DIR_ENV};
+use crate::paths::{RUNX_CWD_ENV, RUNX_RECEIPT_DIR_ENV};
 use crate::receipts::signing::{
     RUNX_RECEIPT_VERIFY_ED25519_PUBLIC_KEY_BASE64_ENV, RUNX_RECEIPT_VERIFY_KID_ENV,
 };
@@ -77,7 +77,7 @@ fn workspace_root(base_env: &BTreeMap<String, String>) -> Result<PathBuf, Runtim
     workspace_cwd(base_env)?.ok_or_else(|| {
         invocation_error(format!(
             "process environment requires {}",
-            crate::receipts::paths::RUNX_CWD_ENV
+            crate::paths::RUNX_CWD_ENV
         ))
     })
 }
@@ -143,7 +143,7 @@ fn create_workspace_tmp(
     label: &str,
     operation: &'static str,
 ) -> Result<PathBuf, RuntimeError> {
-    let root = workspace_root(base_env)?.join(".runx").join("tmp");
+    let root = crate::RunxPaths::resolve(base_env, &workspace_root(base_env)?).tmp();
     fs::create_dir_all(&root).map_err(|source| RuntimeError::io(operation, source))?;
     let directory = tempfile::Builder::new()
         .prefix(&format!("{label}-"))

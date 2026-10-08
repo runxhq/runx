@@ -2,9 +2,9 @@
 //! workspace is in, their readiness here, and the instances that bind them to
 //! an account.
 //!
-//! Instances live in the kernel store of the receipt root (`RUNX_RECEIPT_DIR`,
-//! else the project's `.runx/receipts`). Confirming and selecting one is
-//! setup, done once; a run never chooses an identity.
+//! Instances live in the project's kernel store (`RUNX_PROJECT_DIR`, else the
+//! workspace's `.runx`). Confirming and selecting one is setup, done once; a
+//! run never chooses an identity.
 
 use std::collections::BTreeMap;
 use std::ffi::OsString;
@@ -258,8 +258,7 @@ pub fn run_native_connector(plan: ConnectorPlan, workspace: &WorkspaceEnv) -> Ex
 
 fn execute(plan: &ConnectorPlan, workspace: &WorkspaceEnv) -> Result<String, String> {
     let instances = Instances::new(
-        KernelStore::for_workspace(workspace.env(), workspace.cwd())
-            .map_err(|error| error.to_string())?,
+        KernelStore::for_project(workspace.paths()).map_err(|error| error.to_string())?,
     );
     let records = |instances: &Instances| instances.list().map_err(|error| error.to_string());
     match &plan.action {

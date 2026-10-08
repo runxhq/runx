@@ -132,8 +132,7 @@ pub(crate) fn apply_text_bundle(
 }
 
 /// Apply a bundle and keep its rollback snapshot live through caller-owned
-/// verification. A failed postcondition restores the entire admitted bundle,
-/// including auxiliary records written outside the primary target directory.
+/// verification. A failed postcondition restores the entire admitted bundle.
 pub(crate) fn apply_text_bundle_verified<T>(
     operation: &str,
     root: &Path,

@@ -107,7 +107,7 @@ mod tests {
 
     use super::*;
     use crate::adapter::InvocationStatus;
-    use crate::receipts::paths::RUNX_CWD_ENV;
+    use crate::paths::RUNX_CWD_ENV;
 
     #[test]
     fn allowlisted_native_tool_uses_the_catalog_execution_path()

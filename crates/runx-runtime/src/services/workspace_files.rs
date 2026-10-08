@@ -239,7 +239,9 @@ pub(crate) fn resolve_scoped_root(
     if path_scope != "workspace" {
         return Err(WorkspaceFileError::InvalidPathScope);
     }
-    let workspace = crate::config::resolve_runx_workspace_base(env, skill_directory);
+    let workspace = crate::RunxPaths::resolve(env, skill_directory)
+        .workspace()
+        .to_path_buf();
     let workspace =
         std::fs::canonicalize(workspace).map_err(WorkspaceFileError::RootUnavailable)?;
     if !workspace.is_dir() {

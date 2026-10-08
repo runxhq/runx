@@ -9,7 +9,7 @@ use thiserror::Error;
 
 use crate::config::{
     ConfigError, RunxCredentialProfile, load_runx_config_file, remove_local_credential_secret,
-    resolve_runx_home_dir, store_local_credential_secret, write_runx_config_file,
+    store_local_credential_secret, write_runx_config_file,
 };
 use crate::services::WorkspaceEnv;
 
@@ -52,15 +52,15 @@ pub fn set_local_credential_profile(
     if secret.trim().is_empty() {
         return Err(CredentialProfileError::EmptySecret);
     }
-    let config_dir = resolve_runx_home_dir(workspace.env(), workspace.cwd());
-    let config_path = config_dir.join("config.json");
+    let paths = workspace.paths();
+    let config_path = paths.config_file();
     let mut config = load_runx_config_file(&config_path)?;
     let credentials = config.credentials.get_or_insert_with(Default::default);
     let prior_ref = credentials
         .profiles
         .get(name)
         .map(|profile| profile.secret_ref.clone());
-    let secret_ref = store_local_credential_secret(&config_dir, secret)?;
+    let secret_ref = store_local_credential_secret(paths, secret)?;
     credentials.profiles.insert(
         name.to_owned(),
         RunxCredentialProfile {
@@ -71,7 +71,7 @@ pub fn set_local_credential_profile(
     );
     write_runx_config_file(&config_path, &config)?;
     if let Some(prior_ref) = prior_ref {
-        remove_local_credential_secret(&config_dir, &prior_ref)?;
+        remove_local_credential_secret(paths, &prior_ref)?;
     }
     Ok(secret_ref)
 }
@@ -79,8 +79,7 @@ pub fn set_local_credential_profile(
 pub fn list_local_credential_profiles(
     workspace: &WorkspaceEnv,
 ) -> Result<Vec<CredentialProfileSummary>, CredentialProfileError> {
-    let config_dir = resolve_runx_home_dir(workspace.env(), workspace.cwd());
-    let config = load_runx_config_file(&config_dir.join("config.json"))?;
+    let config = load_runx_config_file(&workspace.paths().config_file())?;
     Ok(config
         .credentials
         .unwrap_or_default()
@@ -99,8 +98,8 @@ pub fn remove_local_credential_profile(
     name: &str,
 ) -> Result<bool, CredentialProfileError> {
     let name = required(name, CredentialProfileError::EmptyProfileName)?;
-    let config_dir = resolve_runx_home_dir(workspace.env(), workspace.cwd());
-    let config_path = config_dir.join("config.json");
+    let paths = workspace.paths();
+    let config_path = paths.config_file();
     let mut config = load_runx_config_file(&config_path)?;
     let Some(credentials) = config.credentials.as_mut() else {
         return Ok(false);
@@ -109,7 +108,7 @@ pub fn remove_local_credential_profile(
         return Ok(false);
     };
     write_runx_config_file(&config_path, &config)?;
-    remove_local_credential_secret(&config_dir, &profile.secret_ref)?;
+    remove_local_credential_secret(paths, &profile.secret_ref)?;
     Ok(true)
 }
 

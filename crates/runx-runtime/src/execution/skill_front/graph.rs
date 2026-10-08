@@ -185,9 +185,9 @@ pub(super) fn execute_graph_skill_run(
     let skill_dir = context.skill_dir.to_path_buf();
     let mut env = workspace.skill_env_for_skill(&skill_dir);
     env.insert(RUNX_RUN_ID_ENV.to_owned(), log.run_id().to_owned());
-    let receipt_path = receipts.resolve_path(workspace, request.receipt_dir.as_deref(), None);
+    let receipt_path = workspace.receipt_path(request.receipt_dir.as_deref());
     env.insert(
-        crate::receipts::paths::RUNX_RECEIPT_DIR_ENV.to_owned(),
+        crate::paths::RUNX_RECEIPT_DIR_ENV.to_owned(),
         receipt_path.path.to_string_lossy().into_owned(),
     );
     let inline_resolver = InlineResolver {
@@ -367,7 +367,7 @@ fn run_log(
         }
         (None, None) => crate::execution::run_record::mint_run_id(skill)?,
     };
-    let store = KernelStore::for_workspace(workspace.env(), workspace.cwd())
+    let store = KernelStore::for_project(workspace.paths())
         .map_err(crate::execution::run_record::RunRecordError::from)
         .map_err(RuntimeError::from)?;
     Ok(RunLog::open(store, run_id).map_err(RuntimeError::from)?)
@@ -955,7 +955,7 @@ mod tests {
             let temp = tempfile::tempdir()?;
             let receipt_dir = temp.path().join("receipts");
             let env = BTreeMap::from([(
-                crate::receipts::paths::RUNX_PROJECT_DIR_ENV.to_owned(),
+                crate::paths::RUNX_PROJECT_DIR_ENV.to_owned(),
                 temp.path().join(".runx").display().to_string(),
             )]);
             let graph = validate_graph(parse_graph_yaml(
@@ -966,7 +966,8 @@ steps:
     skill: ./compose
 "#,
             )?)?;
-            let store = KernelStore::for_workspace(&env, temp.path())?;
+            let store =
+                KernelStore::for_project(&crate::paths::RunxPaths::resolve(&env, temp.path()))?;
             let log = RunLog::open(store, "run_managed_agent_failure")?;
             log.begin(StartRequest {
                 skill: "managed-agent-graph-failure",
@@ -1074,8 +1075,7 @@ steps:
             let store = LocalReceiptStore::new(&receipt_dir);
             let listing = list_receipts(
                 &store,
-                temp.path(),
-                &temp.path().join(".runx"),
+                workspace.paths(),
                 &ReceiptFilter::default(),
                 crate::receipts::RuntimeReceiptSignaturePolicy::local_development(),
             )?;
@@ -1088,8 +1088,7 @@ steps:
             );
             let with_steps = list_receipts(
                 &store,
-                temp.path(),
-                &temp.path().join(".runx"),
+                workspace.paths(),
                 &ReceiptFilter {
                     include_internal: true,
                     ..ReceiptFilter::default()
@@ -1106,6 +1105,13 @@ steps:
     fn graph_process_uses_structured_credential_redaction() -> Result<(), Box<dyn std::error::Error>>
     {
         const MARKER: &str = "cli-credential-redaction-sentinel";
+        let workspace = tempfile::tempdir()?;
+        let mut env: BTreeMap<String, String> = std::env::vars().collect();
+        env.insert(
+            crate::paths::RUNX_CWD_ENV.to_owned(),
+            workspace.path().to_string_lossy().into_owned(),
+        );
+        env.remove(crate::paths::RUNX_PROJECT_DIR_ENV);
         let secret = "cli-credential-redaction-sentinel-\"quoted\\slash\ncontrol";
         let delivery = crate::credentials::CredentialDelivery::from_local_descriptor(
             "twitter",
@@ -1147,8 +1153,8 @@ steps:
             resolved_inputs: JsonObject::new(),
             current_context: Vec::new(),
             provenance: Vec::new(),
-            skill_directory: std::env::current_dir()?,
-            env: std::env::vars().collect(),
+            skill_directory: workspace.path().to_path_buf(),
+            env,
             credential_delivery: delivery,
         };
 

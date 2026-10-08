@@ -141,7 +141,7 @@ fn login_exchange_stores_encrypted_public_api_token() -> Result<(), Box<dyn std:
     let public = config.public.ok_or("missing public config")?;
     assert_eq!(
         runx_runtime::load_local_public_api_token(
-            &temp,
+            &home_paths(&temp),
             public
                 .api_token_ref
                 .as_deref()
@@ -151,7 +151,7 @@ fn login_exchange_stores_encrypted_public_api_token() -> Result<(), Box<dyn std:
     );
     assert_eq!(
         runx_runtime::load_local_public_api_token(
-            &temp,
+            &home_paths(&temp),
             public
                 .publish_api_token_ref
                 .as_deref()
@@ -310,6 +310,11 @@ fn a_provider_token_login_rejects_a_noncanonical_principal()
 
 fn request_json_body(request: &HttpRequest) -> Result<serde_json::Value, serde_json::Error> {
     serde_json::from_str(request.body.as_deref().unwrap_or_default())
+}
+
+fn home_paths(home: &std::path::Path) -> runx_runtime::RunxPaths {
+    let env = BTreeMap::from([("RUNX_HOME".to_owned(), home.to_string_lossy().to_string())]);
+    runx_runtime::RunxPaths::resolve(&env, home)
 }
 
 fn tempfile_dir() -> Result<std::path::PathBuf, std::io::Error> {

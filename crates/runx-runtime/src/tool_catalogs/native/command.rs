@@ -138,7 +138,7 @@ mod tests {
     #[cfg(feature = "catalog")]
     use crate::RuntimeEffectRegistry;
     use crate::credentials::CredentialDelivery;
-    use crate::receipts::paths::RUNX_CWD_ENV;
+    use crate::paths::RUNX_CWD_ENV;
     use crate::tool_catalogs::native::{NativeInvocation, fixture_input};
 
     #[cfg(unix)]

@@ -64,8 +64,7 @@ fn execute(plan: &CredentialPlan, workspace: &WorkspaceEnv) -> Result<String, St
                 .ok_or_else(|| format!("{credential} is not a credential name"))?;
             let secret = crate::cli_io::read_stdin_secret("credential secret")?;
             let instances = Instances::new(
-                KernelStore::for_workspace(workspace.env(), workspace.cwd())
-                    .map_err(|error| error.to_string())?,
+                KernelStore::for_project(workspace.paths()).map_err(|error| error.to_string())?,
             );
             let instance = runx_runtime::kernel::setup::set_credential(
                 &instances,

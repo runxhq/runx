@@ -10,7 +10,7 @@ use crate::execution::harness::{
     HarnessExpectedStatus, HarnessFixtureKind, HarnessReplayError, load_harness_fixture,
 };
 use crate::execution::skill_front::{ExecutableAdapter, PackageHarnessReport, SkillRunError};
-use crate::receipts::paths::{RUNX_CWD_ENV, RUNX_RECEIPT_DIR_ENV};
+use crate::paths::{RUNX_CWD_ENV, RUNX_RECEIPT_DIR_ENV, RunxPaths};
 use crate::services::ReceiptServices;
 
 use super::run_loaded_inline_harness_with_effects;
@@ -33,16 +33,15 @@ pub(crate) fn run_package_harness_with_effects(
     );
     let harness = PackageHarnessEnvironment::prepare(
         base_env,
-        workspace.cwd(),
+        workspace.paths(),
         &loaded.directory,
         receipt_dir,
     )?;
     harness.stage_declared_files(&loaded)?;
-    let inline_receipt_root = harness.inline_receipt_root();
     let mut report = run_loaded_inline_harness_with_effects(
         &loaded,
-        Some(&inline_receipt_root),
-        Some(&harness.receipt_dir),
+        &harness.inline_cases(),
+        &harness.receipt_dir,
         &harness.env,
         effects,
     )?;
@@ -169,12 +168,12 @@ struct PackageHarnessEnvironment {
 impl PackageHarnessEnvironment {
     fn prepare(
         mut env: BTreeMap<String, String>,
-        operator_workspace: &Path,
+        operator: &RunxPaths,
         skill_dir: &Path,
         receipt_dir: Option<&Path>,
     ) -> Result<Self, SkillRunError> {
         crate::services::merge_inferred_tool_roots(&mut env, skill_dir);
-        let scratch_root = unique_scratch_root(operator_workspace);
+        let scratch_root = unique_scratch_root(operator);
         let workspace = scratch_root.join("workspace");
         fs::create_dir_all(&workspace).map_err(|source| {
             RuntimeError::io(
@@ -185,19 +184,7 @@ impl PackageHarnessEnvironment {
                 source,
             )
         })?;
-        let configured_receipt_dir = receipt_dir
-            .map(Path::to_path_buf)
-            .or_else(|| env.get(RUNX_RECEIPT_DIR_ENV).map(PathBuf::from));
-        let receipt_dir = configured_receipt_dir.map_or_else(
-            || operator_workspace.join(".runx").join("harness-receipts"),
-            |path| {
-                if path.is_absolute() {
-                    path
-                } else {
-                    operator_workspace.join(path)
-                }
-            },
-        );
+        let receipt_dir = operator.harness_receipts(receipt_dir);
         env.insert(
             RUNX_RECEIPT_DIR_ENV.to_owned(),
             receipt_dir.to_string_lossy().into_owned(),
@@ -206,10 +193,7 @@ impl PackageHarnessEnvironment {
             RUNX_CWD_ENV.to_owned(),
             workspace.to_string_lossy().into_owned(),
         );
-        env.insert(
-            "RUNX_HOME".to_owned(),
-            scratch_root.join("home").to_string_lossy().into_owned(),
-        );
+        crate::paths::isolate(&mut env, &scratch_root);
         Ok(Self {
             env,
             receipt_dir,
@@ -317,8 +301,8 @@ impl PackageHarnessEnvironment {
         Ok(())
     }
 
-    fn inline_receipt_root(&self) -> PathBuf {
-        self.scratch_root.join("inline-receipts")
+    fn inline_cases(&self) -> PathBuf {
+        self.scratch_root.join("inline-cases")
     }
 
     fn fixture_receipt_dir(&self, index: usize) -> PathBuf {
@@ -335,13 +319,12 @@ fn is_declared_harness_executable(relative: &str) -> bool {
         && segments.next().is_some()
 }
 
-fn unique_scratch_root(operator_workspace: &Path) -> PathBuf {
+fn unique_scratch_root(operator: &RunxPaths) -> PathBuf {
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_or(0, |duration| duration.as_nanos());
-    operator_workspace
-        .join(".runx")
-        .join("harness")
+    operator
+        .harness_runs()
         .join(format!("run-{}-{nanos}", std::process::id()))
 }
 
@@ -393,7 +376,7 @@ mod tests {
 
     use super::{
         PackageHarnessEnvironment, PackageHarnessReport, RUNX_CWD_ENV, RUNX_RECEIPT_DIR_ENV,
-        expected_authority_denial, finalize_report, run_package_harness_with_effects,
+        RunxPaths, expected_authority_denial, finalize_report, run_package_harness_with_effects,
     };
 
     #[test]
@@ -508,7 +491,7 @@ expect:
         let skill_dir = operator_workspace.join("skills/demo");
         let harness = PackageHarnessEnvironment::prepare(
             BTreeMap::new(),
-            &operator_workspace,
+            &operator(&operator_workspace),
             &skill_dir,
             None,
         )?;
@@ -538,9 +521,10 @@ expect:
             )
         );
         assert_eq!(
-            harness.inline_receipt_root(),
-            scratch_root.join("inline-receipts")
+            harness.env.get(crate::paths::RUNX_PROJECT_DIR_ENV),
+            Some(&scratch_root.join("project").to_string_lossy().into_owned())
         );
+        assert_eq!(harness.inline_cases(), scratch_root.join("inline-cases"));
         assert_ne!(
             harness.fixture_receipt_dir(0),
             harness.fixture_receipt_dir(1)
@@ -562,8 +546,12 @@ expect:
             operator_workspace.to_string_lossy().into_owned(),
         );
         let skill_dir = operator_workspace.join("skills/demo");
-        let harness =
-            PackageHarnessEnvironment::prepare(env, &operator_workspace, &skill_dir, None)?;
+        let harness = PackageHarnessEnvironment::prepare(
+            env,
+            &operator(&operator_workspace),
+            &skill_dir,
+            None,
+        )?;
         let scratch_root = harness.scratch_root.clone();
 
         assert!(scratch_root.starts_with(operator_workspace.join(".runx").join("harness")));
@@ -589,7 +577,7 @@ expect:
         fs::create_dir_all(&operator_workspace)?;
         let harness = PackageHarnessEnvironment::prepare(
             BTreeMap::new(),
-            &operator_workspace,
+            &operator(&operator_workspace),
             &operator_workspace.join("skills/demo"),
             Some(PathBuf::from(".runx/custom-receipts").as_path()),
         )?;
@@ -616,7 +604,7 @@ expect:
 
         let harness = PackageHarnessEnvironment::prepare(
             BTreeMap::new(),
-            &operator_workspace,
+            &operator(&operator_workspace),
             &skill_dir,
             None,
         )?;
@@ -667,7 +655,7 @@ runners:
         let loaded = crate::load_validated_skill_package(&skill_dir)?;
         let harness = PackageHarnessEnvironment::prepare(
             BTreeMap::new(),
-            &operator_workspace,
+            &operator(&operator_workspace),
             &skill_dir,
             None,
         )?;
@@ -722,7 +710,7 @@ runners:
         let loaded = crate::load_validated_skill_package(&skill_dir)?;
         let harness = PackageHarnessEnvironment::prepare(
             BTreeMap::new(),
-            &operator_workspace,
+            &operator(&operator_workspace),
             &skill_dir,
             None,
         )?;
@@ -738,16 +726,21 @@ runners:
         Ok(())
     }
 
+    fn operator(workspace: &std::path::Path) -> RunxPaths {
+        let env = BTreeMap::from([(
+            RUNX_CWD_ENV.to_owned(),
+            workspace.to_string_lossy().into_owned(),
+        )]);
+        RunxPaths::resolve(&env, workspace)
+    }
+
     fn unique_test_root(label: &str) -> Result<PathBuf, std::io::Error> {
         let nanos = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map_or(0, |duration| duration.as_nanos());
-        Ok(std::env::current_dir()?
-            .join(".runx")
-            .join("tests")
-            .join(format!(
-                "package-harness-{label}-{}-{nanos}",
-                std::process::id()
-            )))
+        Ok(std::env::temp_dir().join(format!(
+            "runx-package-harness-{label}-{}-{nanos}",
+            std::process::id()
+        )))
     }
 }

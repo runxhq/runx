@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use runx_runtime::{
-    ReceiptPathInputs, ReceiptPathSource, RuntimeReceiptConfig, safe_receipt_store_label,
+    ReceiptPathInputs, ReceiptPathSource, RuntimeReceiptConfig, RunxPaths, safe_receipt_store_label,
 };
 
 #[test]
@@ -17,8 +17,7 @@ fn explicit_receipt_dir_wins_over_config_env_and_default() {
     let resolved = runx_runtime::resolve_receipt_path(ReceiptPathInputs {
         explicit_dir: Some(Path::new("explicit-receipts")),
         runtime_config: Some(&config),
-        env: &env,
-        cwd: &workspace,
+        paths: &RunxPaths::resolve(&env, &workspace),
     });
 
     assert_eq!(resolved.source, ReceiptPathSource::ExplicitInput);
@@ -36,8 +35,7 @@ fn runtime_config_wins_over_env_and_default() {
     let resolved = runx_runtime::resolve_receipt_path(ReceiptPathInputs {
         explicit_dir: None,
         runtime_config: Some(&config),
-        env: &env,
-        cwd: &workspace,
+        paths: &RunxPaths::resolve(&env, &workspace),
     });
 
     assert_eq!(resolved.source, ReceiptPathSource::RuntimeConfig);
@@ -52,8 +50,7 @@ fn env_receipt_dir_wins_over_project_default() {
     let resolved = runx_runtime::resolve_receipt_path(ReceiptPathInputs {
         explicit_dir: None,
         runtime_config: None,
-        env: &env,
-        cwd: &workspace,
+        paths: &RunxPaths::resolve(&env, &workspace),
     });
 
     assert_eq!(resolved.source, ReceiptPathSource::Environment);
@@ -68,8 +65,7 @@ fn project_default_uses_project_run_state_receipts() {
     let resolved = runx_runtime::resolve_receipt_path(ReceiptPathInputs {
         explicit_dir: None,
         runtime_config: None,
-        env: &env,
-        cwd: &workspace,
+        paths: &RunxPaths::resolve(&env, &workspace),
     });
 
     assert_eq!(resolved.source, ReceiptPathSource::ProjectDefault);
@@ -84,8 +80,7 @@ fn relative_receipt_paths_resolve_from_workspace_without_existing() {
     let resolved = runx_runtime::resolve_receipt_path(ReceiptPathInputs {
         explicit_dir: Some(Path::new("missing-parent/../receipts/new-store")),
         runtime_config: None,
-        env: &env,
-        cwd: &workspace,
+        paths: &RunxPaths::resolve(&env, &workspace),
     });
 
     assert_eq!(resolved.path, workspace.join("receipts").join("new-store"));
@@ -99,13 +94,12 @@ fn runx_project_dir_env_controls_project_default() {
     let resolved = runx_runtime::resolve_receipt_path(ReceiptPathInputs {
         explicit_dir: None,
         runtime_config: None,
-        env: &env,
-        cwd: &workspace,
+        paths: &RunxPaths::resolve(&env, &workspace),
     });
 
     assert_eq!(resolved.source, ReceiptPathSource::ProjectDefault);
     assert_eq!(
-        resolved.project_runx_dir,
+        RunxPaths::resolve(&env, &workspace).project(),
         workspace.join("state").join("runx")
     );
     assert_eq!(
@@ -120,7 +114,7 @@ fn safe_label_is_project_relative_under_project_run_state() {
     let project_runx_dir = workspace.join(".runx");
     let receipt_dir = project_runx_dir.join("receipts");
 
-    let label = safe_receipt_store_label(&receipt_dir, &workspace, &project_runx_dir);
+    let label = safe_receipt_store_label(&receipt_dir, &project_at(&workspace, &project_runx_dir));
 
     assert_eq!(label.as_str(), ".runx/receipts");
 }
@@ -131,7 +125,7 @@ fn safe_label_is_project_scoped_when_project_state_is_outside_workspace() {
     let project_runx_dir = PathBuf::from("/tmp/runx-project-state");
     let receipt_dir = project_runx_dir.join("receipts");
 
-    let label = safe_receipt_store_label(&receipt_dir, &workspace, &project_runx_dir);
+    let label = safe_receipt_store_label(&receipt_dir, &project_at(&workspace, &project_runx_dir));
 
     assert_eq!(label.as_str(), "runx-project:receipts");
 }
@@ -142,8 +136,8 @@ fn external_safe_label_is_stable_and_redacted() {
     let project_runx_dir = workspace.join(".runx");
     let external = PathBuf::from("/tmp/operator/private/receipts");
 
-    let first = safe_receipt_store_label(&external, &workspace, &project_runx_dir);
-    let second = safe_receipt_store_label(&external, &workspace, &project_runx_dir);
+    let first = safe_receipt_store_label(&external, &project_at(&workspace, &project_runx_dir));
+    let second = safe_receipt_store_label(&external, &project_at(&workspace, &project_runx_dir));
 
     assert_eq!(first, second);
     assert!(first.as_str().starts_with("external-receipt-store:"));
@@ -162,8 +156,7 @@ fn public_projection_redacts_absolute_external_receipt_path_input() {
     let resolved = runx_runtime::resolve_receipt_path(ReceiptPathInputs {
         explicit_dir: Some(&external),
         runtime_config: None,
-        env: &env,
-        cwd: &workspace,
+        paths: &RunxPaths::resolve(&env, &workspace),
     });
     let projection = resolved.public_projection();
     let summary = projection.summary();
@@ -184,8 +177,7 @@ fn public_projection_redacts_absolute_external_receipt_path_input() {
 
     let direct_projection = runx_runtime::receipts::paths::safe_receipt_store_projection(
         &resolved.path,
-        &workspace,
-        &project_runx_dir,
+        &project_at(&workspace, &project_runx_dir),
     );
     assert_eq!(direct_projection.summary(), summary);
 }
@@ -198,8 +190,7 @@ fn public_projection_uses_project_relative_label_for_run_state() {
 
     let projection = runx_runtime::receipts::paths::safe_receipt_store_projection(
         &receipt_dir,
-        &workspace,
-        &project_runx_dir,
+        &project_at(&workspace, &project_runx_dir),
     );
     let summary = projection.summary();
 
@@ -210,6 +201,15 @@ fn public_projection_uses_project_relative_label_for_run_state() {
 
 fn workspace() -> PathBuf {
     PathBuf::from("/workspace/runx")
+}
+
+fn project_at(workspace: &Path, project: &Path) -> RunxPaths {
+    let mut env = env_with("RUNX_CWD", &workspace.to_string_lossy());
+    env.insert(
+        "RUNX_PROJECT_DIR".to_owned(),
+        project.to_string_lossy().into_owned(),
+    );
+    RunxPaths::resolve(&env, workspace)
 }
 
 fn env_with(key: &str, value: &str) -> BTreeMap<String, String> {

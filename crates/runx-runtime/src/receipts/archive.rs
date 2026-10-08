@@ -6,7 +6,6 @@
 //! from its record (`execution::run_record`), never from here.
 
 use std::collections::BTreeSet;
-use std::path::Path;
 
 use runx_contracts::{ClosureDisposition, Receipt, ReferenceType};
 use runx_core::policy::parse_rfc3339_moment;
@@ -19,6 +18,7 @@ use thiserror::Error;
 use super::paths::safe_receipt_store_label;
 use super::store::{LocalReceiptStore, ReceiptStoreError};
 use super::{RuntimeReceiptProofContextProvider, RuntimeReceiptSignaturePolicy};
+use crate::paths::RunxPaths;
 
 pub const RECEIPT_LISTING_PROJECTOR_ID: &str = "runx-runtime.receipt-archive.v1";
 pub const RECEIPT_REF_PREFIX: &str = "runx:receipt:";
@@ -79,12 +79,11 @@ pub enum ReceiptListingError {
 
 pub fn list_receipts(
     store: &LocalReceiptStore,
-    workspace_base: &Path,
-    project_runx_dir: &Path,
+    paths: &RunxPaths,
     filter: &ReceiptFilter,
     signature_policy: RuntimeReceiptSignaturePolicy<'_>,
 ) -> Result<ReceiptListing, ReceiptListingError> {
-    let label = safe_receipt_store_label(store.root(), workspace_base, project_runx_dir);
+    let label = safe_receipt_store_label(store.root(), paths);
     let filter = ResolvedFilter::parse(filter)?;
     let receipts = match store.list_without_proof_for_history() {
         Ok(receipts) => receipts,

@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use super::InitError;
 use super::ids::{now_iso8601, random_uuid_v4};
+use crate::paths::RunxPaths;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -16,8 +17,7 @@ pub enum InitAction {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RunxInitOptions {
     pub action: InitAction,
-    pub project_dir: PathBuf,
-    pub global_home_dir: PathBuf,
+    pub paths: RunxPaths,
     pub official_cache_dir: PathBuf,
     pub prefetch_official: bool,
     pub generated: InitGeneratedValues,
@@ -75,20 +75,17 @@ pub fn runx_init(options: &RunxInitOptions) -> Result<RunxInitResult, InitError>
     match options.action {
         InitAction::Project => {
             let ensured = ensure_runx_project_state(
-                &options.project_dir,
+                &options.paths,
                 &options.generated.project_id,
                 &options.generated.created_at,
             )?;
-            let skills_dir = options.project_dir.join("skills");
-            let tools_dir = options.project_dir.join("tools");
-            fs::create_dir_all(&skills_dir)
-                .map_err(|source| InitError::io("creating skills directory", skills_dir, source))?;
+            let tools_dir = options.paths.project_tools();
             fs::create_dir_all(&tools_dir)
                 .map_err(|source| InitError::io("creating tools directory", tools_dir, source))?;
             Ok(RunxInitResult {
                 action: InitAction::Project,
                 created: ensured.created,
-                project_dir: Some(options.project_dir.clone()),
+                project_dir: Some(options.paths.project().to_path_buf()),
                 project_id: Some(ensured.state.project_id),
                 global_home_dir: None,
                 installation_id: None,
@@ -97,7 +94,7 @@ pub fn runx_init(options: &RunxInitOptions) -> Result<RunxInitResult, InitError>
         }
         InitAction::Global => {
             let ensured = ensure_runx_install_state(
-                &options.global_home_dir,
+                &options.paths,
                 &options.generated.installation_id,
                 &options.generated.created_at,
             )?;
@@ -115,7 +112,7 @@ pub fn runx_init(options: &RunxInitOptions) -> Result<RunxInitResult, InitError>
                 created: ensured.created,
                 project_dir: None,
                 project_id: None,
-                global_home_dir: Some(options.global_home_dir.clone()),
+                global_home_dir: Some(options.paths.home().to_path_buf()),
                 installation_id: Some(ensured.state.installation_id),
                 official_cache_dir: options
                     .prefetch_official
@@ -138,11 +135,11 @@ pub struct EnsuredInstallState {
 }
 
 pub fn ensure_runx_project_state(
-    project_dir: &Path,
+    paths: &RunxPaths,
     project_id: &str,
     created_at: &str,
 ) -> Result<EnsuredProjectState, InitError> {
-    if let Some(existing) = read_runx_project_state(project_dir)? {
+    if let Some(existing) = read_runx_project_state(&paths.project_state())? {
         return Ok(EnsuredProjectState {
             state: existing,
             created: false,
@@ -153,9 +150,10 @@ pub fn ensure_runx_project_state(
         project_id: project_id.to_owned(),
         created_at: created_at.to_owned(),
     };
+    let project_dir = paths.project();
     fs::create_dir_all(project_dir)
         .map_err(|source| InitError::io("creating project directory", project_dir, source))?;
-    write_state_json(&project_dir.join("project.json"), &state)?;
+    write_state_json(&paths.project_state(), &state)?;
     Ok(EnsuredProjectState {
         state,
         created: true,
@@ -163,11 +161,11 @@ pub fn ensure_runx_project_state(
 }
 
 pub fn ensure_runx_install_state(
-    global_home_dir: &Path,
+    paths: &RunxPaths,
     installation_id: &str,
     created_at: &str,
 ) -> Result<EnsuredInstallState, InitError> {
-    if let Some(existing) = read_runx_install_state(global_home_dir)? {
+    if let Some(existing) = read_runx_install_state(&paths.install_state())? {
         return Ok(EnsuredInstallState {
             state: existing,
             created: false,
@@ -178,36 +176,34 @@ pub fn ensure_runx_install_state(
         installation_id: installation_id.to_owned(),
         created_at: created_at.to_owned(),
     };
-    fs::create_dir_all(global_home_dir).map_err(|source| {
-        InitError::io("creating global home directory", global_home_dir, source)
-    })?;
-    write_state_json(&global_home_dir.join("install.json"), &state)?;
+    let home = paths.home();
+    fs::create_dir_all(home)
+        .map_err(|source| InitError::io("creating global home directory", home, source))?;
+    write_state_json(&paths.install_state(), &state)?;
     Ok(EnsuredInstallState {
         state,
         created: true,
     })
 }
 
-fn read_runx_project_state(project_dir: &Path) -> Result<Option<RunxProjectState>, InitError> {
-    let path = project_dir.join("project.json");
-    match fs::read_to_string(&path) {
+fn read_runx_project_state(path: &Path) -> Result<Option<RunxProjectState>, InitError> {
+    match fs::read_to_string(path) {
         Ok(contents) => {
             let state: RunxProjectState = serde_json::from_str(&contents)
-                .map_err(|source| InitError::json("reading project state", &path, source))?;
-            validate_project_state(path, state).map(Some)
+                .map_err(|source| InitError::json("reading project state", path, source))?;
+            validate_project_state(path.to_path_buf(), state).map(Some)
         }
         Err(source) if source.kind() == std::io::ErrorKind::NotFound => Ok(None),
         Err(source) => Err(InitError::io("reading project state", path, source)),
     }
 }
 
-fn read_runx_install_state(global_home_dir: &Path) -> Result<Option<RunxInstallState>, InitError> {
-    let path = global_home_dir.join("install.json");
-    match fs::read_to_string(&path) {
+fn read_runx_install_state(path: &Path) -> Result<Option<RunxInstallState>, InitError> {
+    match fs::read_to_string(path) {
         Ok(contents) => {
             let state: RunxInstallState = serde_json::from_str(&contents)
-                .map_err(|source| InitError::json("reading install state", &path, source))?;
-            validate_install_state(path, state).map(Some)
+                .map_err(|source| InitError::json("reading install state", path, source))?;
+            validate_install_state(path.to_path_buf(), state).map(Some)
         }
         Err(source) if source.kind() == std::io::ErrorKind::NotFound => Ok(None),
         Err(source) => Err(InitError::io("reading install state", path, source)),

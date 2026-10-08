@@ -476,7 +476,9 @@ impl ExpansionState {
         names
             .iter()
             .map(|name| {
-                let workspace_root = crate::config::resolve_runx_workspace_base(env, skill_dir);
+                let workspace_root = crate::RunxPaths::resolve(env, skill_dir)
+                    .workspace()
+                    .to_path_buf();
                 if let Some(report) = crate::tool_catalogs::native::inspect(
                     name,
                     &workspace_root,
@@ -735,7 +737,9 @@ fn resolve_referenced_local_tool(
     env: &BTreeMap<String, String>,
 ) -> Result<Option<ResolvedOperatorContextTool>, SkillRunError> {
     let options = ToolInspectOptions {
-        root: crate::config::resolve_runx_workspace_base(env, skill_dir),
+        root: crate::RunxPaths::resolve(env, skill_dir)
+            .workspace()
+            .to_path_buf(),
         tool_ref: name.to_owned(),
         source: None,
         search_from_directory: skill_dir.to_path_buf(),

@@ -315,7 +315,10 @@ fn resolve_user_path(value: &str, env: &BTreeMap<String, String>, cwd: &Path) ->
     if path.is_absolute() {
         path
     } else {
-        runx_runtime::resolve_runx_workspace_base(env, cwd).join(path)
+        runx_runtime::RunxPaths::resolve(env, cwd)
+            .workspace()
+            .to_path_buf()
+            .join(path)
     }
 }
 

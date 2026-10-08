@@ -43,6 +43,7 @@ mod output_contract;
 mod packet_schemas;
 mod packet_validation;
 mod path_util;
+pub mod paths;
 mod process;
 pub mod process_invocation;
 #[cfg(feature = "async-http")]
@@ -82,9 +83,7 @@ pub use config::{
     load_local_agent_api_key, load_local_credential_secret, load_local_public_api_token,
     load_managed_agent_config, load_runx_config_file, lookup_runx_config_value,
     mask_runx_config_file, model_provider, parse_config_key, remove_local_credential_secret,
-    resolve_path_from_user_input, resolve_runx_global_home_dir, resolve_runx_home_dir,
-    resolve_runx_workspace_base, store_local_credential_secret, update_runx_config_value,
-    write_runx_config_file,
+    store_local_credential_secret, update_runx_config_value, write_runx_config_file,
 };
 pub use credential_profiles::{
     CredentialProfileError, CredentialProfileSummary, list_local_credential_profiles,
@@ -171,16 +170,17 @@ pub use orchestrator::{
     MANAGED_AGENT_MAX_ROUNDS_LIMIT, ManagedAgentPolicy, OrchestratorError, PackageHarnessRequest,
     RunContinuation, RunRequest, RunResult, RunStatus, SkillRunRequest,
 };
+pub use paths::{
+    RUNX_CWD_ENV, RUNX_HOME_ENV, RUNX_PROJECT_DIR_ENV, RUNX_RECEIPT_DIR_ENV, RunxPaths,
+};
 #[cfg(feature = "async-http")]
 pub use provider_operations::{
     HostedProviderGrant, ProviderOperationError, ProviderOperationRequest, list_provider_grants,
     validate_provider_grant_id, validate_provider_operation,
 };
 pub use receipts::paths::{
-    RUNTIME_RECEIPTS_DIR_CONFIG_KEY, RUNX_CWD_ENV, RUNX_PROJECT_DIR_ENV, RUNX_RECEIPT_DIR_ENV,
-    ReceiptPathInputs, ReceiptPathSource, ReceiptStoreLabel, ResolvedReceiptPath,
-    RuntimeReceiptConfig, resolve_project_runx_dir, resolve_receipt_path, resolve_workspace_base,
-    safe_receipt_store_label,
+    RUNTIME_RECEIPTS_DIR_CONFIG_KEY, ReceiptPathInputs, ReceiptPathSource, ReceiptStoreLabel,
+    ResolvedReceiptPath, RuntimeReceiptConfig, resolve_receipt_path, safe_receipt_store_label,
 };
 pub use receipts::store::{
     LocalReceiptStore, ReceiptStoreError, ReceiptStoreIndex, ReceiptStoreIndexEntry,

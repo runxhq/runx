@@ -16,7 +16,7 @@ use crate::RuntimeError;
 use crate::adapter::InvocationOutput;
 use crate::effects::RuntimeEffectRegistry;
 use crate::execution::orchestrator::{RunResult, RunStatus, SkillRunRequest};
-use crate::receipts::paths::RUNX_RECEIPT_DIR_ENV;
+use crate::paths::RUNX_RECEIPT_DIR_ENV;
 use crate::receipts::signing::strip_receipt_signing_env;
 use crate::receipts::store::ReceiptStoreError;
 use crate::receipts::{
@@ -320,8 +320,7 @@ fn prepare_skill_execution(
         }
     };
     let mut runtime_env = request.env.clone();
-    let resolved_receipt_path =
-        receipts.resolve_path(&raw_workspace, request.receipt_dir.as_deref(), None);
+    let resolved_receipt_path = raw_workspace.receipt_path(request.receipt_dir.as_deref());
     runtime_env.insert(
         RUNX_RECEIPT_DIR_ENV.to_owned(),
         resolved_receipt_path.path.to_string_lossy().into_owned(),
@@ -348,7 +347,7 @@ pub(crate) fn restore_continuation_inputs(
         .run_id
         .as_deref()
         .ok_or_else(|| invalid("graph continuation requires run_id"))?;
-    let store = crate::kernel::store::KernelStore::for_workspace(workspace.env(), workspace.cwd())
+    let store = crate::kernel::store::KernelStore::for_project(workspace.paths())
         .map_err(crate::execution::run_record::RunRecordError::from)?;
     let record = crate::execution::run_record::RunLog::open(
         store,

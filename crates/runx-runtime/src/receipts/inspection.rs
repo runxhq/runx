@@ -1,5 +1,4 @@
 use std::collections::BTreeSet;
-use std::path::Path;
 
 use runx_contracts::{AuthorityTerm, Receipt, Reference};
 use serde::{Deserialize, Serialize};
@@ -10,6 +9,7 @@ use super::archive::{
 };
 use super::paths::safe_receipt_store_label;
 use super::store::{LocalReceiptStore, ReceiptStoreError};
+use crate::paths::RunxPaths;
 
 pub const RECEIPT_INSPECTION_SCHEMA: &str = "runx.receipt_inspection.v1";
 pub const RECEIPT_INSPECTION_PROJECTOR_ID: &str = "runx-runtime.receipt-inspection.v1";
@@ -100,14 +100,12 @@ pub struct ReceiptCriterionInspection {
 
 pub fn inspect_local_receipt(
     store: &LocalReceiptStore,
-    workspace_base: &Path,
-    project_runx_dir: &Path,
+    paths: &RunxPaths,
     receipt_reference: &str,
 ) -> Result<ReceiptInspectionProjection, ReceiptStoreError> {
     inspect_local_receipt_with_policy(
         store,
-        workspace_base,
-        project_runx_dir,
+        paths,
         receipt_reference,
         RuntimeReceiptSignaturePolicy::local_development(),
     )
@@ -115,14 +113,13 @@ pub fn inspect_local_receipt(
 
 pub fn inspect_local_receipt_with_policy(
     store: &LocalReceiptStore,
-    workspace_base: &Path,
-    project_runx_dir: &Path,
+    paths: &RunxPaths,
     receipt_reference: &str,
     signature_policy: RuntimeReceiptSignaturePolicy<'_>,
 ) -> Result<ReceiptInspectionProjection, ReceiptStoreError> {
     let receipt_id = exact_receipt_id(receipt_reference);
     let receipt = store.read_exact_without_proof_for_history(&receipt_id)?;
-    let store_label = safe_receipt_store_label(store.root(), workspace_base, project_runx_dir);
+    let store_label = safe_receipt_store_label(store.root(), paths);
     Ok(ReceiptInspectionProjection {
         schema: RECEIPT_INSPECTION_SCHEMA.to_owned(),
         projector_id: RECEIPT_INSPECTION_PROJECTOR_ID.to_owned(),

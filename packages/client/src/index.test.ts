@@ -24,7 +24,7 @@ async function setup(source = "process.stdout.write('{}');") {
 async function artifact(projectDir: string, value: unknown, label = "request") {
   const bytes = Buffer.from(JSON.stringify(value));
   const digest = `sha256:${createHash("sha256").update(bytes).digest("hex")}`;
-  const dir = path.join(projectDir, ".runx", "artifacts", "skill-runs", "run_test", "requests"); await mkdir(dir, { recursive: true });
+  const dir = path.join(projectDir, "artifacts", "skill-runs", "run_test", "requests"); await mkdir(dir, { recursive: true });
   const file = path.join(dir, `${label}-${digest.slice(7)}.json`); await writeFile(file, bytes);
   return { schema: "runx.project_artifact_ref.v1", ref: `runx:project-artifact:${digest}`, digest, bytes: bytes.byteLength, media_type: "application/json", path: file };
 }

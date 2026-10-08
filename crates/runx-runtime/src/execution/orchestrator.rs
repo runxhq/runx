@@ -359,20 +359,15 @@ impl LocalOrchestrator {
     ) -> Result<HarnessReplayOutput, OrchestratorError> {
         let (mut options, receipt_dir) = standalone_harness_options(request, &self.environment)?;
         options.effects = self.effects.clone();
-        // Like a package case, the case runs in a home and a receipt root of
-        // its own, so neither the operator's profiles nor another case's
-        // instances reach it; its receipts are kept where the caller asked.
+        // The case writes its receipts into a scratch root; they are kept
+        // where the caller asked once the case passes.
         let scratch = tempfile::Builder::new()
-            .prefix("runx-harness-case-")
+            .prefix("runx-harness-receipts-")
             .tempdir()
             .map_err(|source| crate::RuntimeError::io("creating a harness case scratch", source))?;
         let mut case = options.clone();
         case.env.insert(
-            "RUNX_HOME".to_owned(),
-            scratch.path().join("home").to_string_lossy().into_owned(),
-        );
-        case.env.insert(
-            crate::receipts::paths::RUNX_RECEIPT_DIR_ENV.to_owned(),
+            crate::paths::RUNX_RECEIPT_DIR_ENV.to_owned(),
             scratch
                 .path()
                 .join("receipts")
@@ -404,21 +399,14 @@ fn standalone_harness_options(
     request: &HarnessRunRequest,
     environment: &BTreeMap<String, String>,
 ) -> Result<(super::harness::HarnessOptions, PathBuf), OrchestratorError> {
-    use crate::receipts::paths::RUNX_RECEIPT_DIR_ENV;
+    use crate::paths::RUNX_RECEIPT_DIR_ENV;
 
     let workspace = crate::WorkspaceEnv::from_admitted(environment.clone())
         .map_err(crate::RuntimeError::from)?;
     let mut env = workspace.env().clone();
-    let configured = request
-        .receipt_dir
-        .clone()
-        .or_else(|| env.get(RUNX_RECEIPT_DIR_ENV).map(PathBuf::from))
-        .unwrap_or_else(|| workspace.cwd().join(".runx").join("harness-receipts"));
-    let receipt_dir = if configured.is_absolute() {
-        configured
-    } else {
-        workspace.cwd().join(configured)
-    };
+    let receipt_dir = workspace
+        .paths()
+        .harness_receipts(request.receipt_dir.as_deref());
     env.insert(
         RUNX_RECEIPT_DIR_ENV.to_owned(),
         receipt_dir.to_string_lossy().into_owned(),

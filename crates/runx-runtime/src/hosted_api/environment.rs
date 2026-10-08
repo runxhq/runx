@@ -11,8 +11,8 @@ use super::{
     HOSTED_API_TOKEN_ENV, HostedApiError, parse_hosted_api_error,
 };
 use crate::config::{
-    load_local_public_api_token, load_runx_config_file, resolve_runx_home_dir,
-    store_local_public_api_token, write_runx_config_file,
+    load_local_public_api_token, load_runx_config_file, store_local_public_api_token,
+    write_runx_config_file,
 };
 use crate::http::{
     HttpMethod, ReqwestHttpTransport as DefaultRuntimeHttpTransport, RuntimeHttpError,
@@ -123,8 +123,8 @@ impl HostedApiEnvironment {
         cwd: &Path,
         credential_purpose: Option<HostedApiCredentialPurpose>,
     ) -> Result<Self, HostedApiError> {
-        let config_dir = resolve_runx_home_dir(env, cwd);
-        let config = load_runx_config_file(&config_dir.join("config.json"))?;
+        let paths = crate::paths::RunxPaths::resolve(env, cwd);
+        let config = load_runx_config_file(&paths.config_file())?;
         let public = config.public.unwrap_or_default();
         let stored_base_url = normalize_hosted_base_url(match credential_purpose {
             Some(HostedApiCredentialPurpose::Publish) => public.publish_api_base_url.as_deref(),
@@ -154,7 +154,7 @@ impl HostedApiEnvironment {
         };
         let stored_token = if direct_token.is_none() && stored_token_allowed {
             stored_token_ref
-                .map(|token_ref| load_local_public_api_token(&config_dir, token_ref))
+                .map(|token_ref| load_local_public_api_token(&paths, token_ref))
                 .transpose()?
                 .and_then(|token| non_empty(Some(&token)))
         } else {
@@ -267,10 +267,10 @@ pub fn store_authenticated_hosted_environment(
     token: &str,
 ) -> Result<(), HostedApiError> {
     let principal_id = parse_runx_principal_id(principal_id)?;
-    let config_dir = resolve_runx_home_dir(env, cwd);
-    let config_path = config_dir.join("config.json");
+    let paths = crate::paths::RunxPaths::resolve(env, cwd);
+    let config_path = paths.config_file();
     let mut next = load_runx_config_file(&config_path)?;
-    let token_ref = store_local_public_api_token(&config_dir, token)?;
+    let token_ref = store_local_public_api_token(&paths, token)?;
     let public = next.public.get_or_insert_default();
     let base_url = normalize_hosted_base_url(Some(base_url))?
         .unwrap_or_else(|| DEFAULT_HOSTED_API_BASE_URL.to_owned());

@@ -316,8 +316,7 @@ fn instance_revision(record: &InstanceRecord) -> Result<String, String> {
 }
 
 fn instance_record(workspace: &WorkspaceEnv, instance_id: &str) -> Result<InstanceRecord, String> {
-    let store = KernelStore::for_workspace(workspace.env(), workspace.cwd())
-        .map_err(|error| error.to_string())?;
+    let store = KernelStore::for_project(workspace.paths()).map_err(|error| error.to_string())?;
     Instances::new(store)
         .get(instance_id)
         .map_err(|error| error.to_string())?
@@ -325,7 +324,7 @@ fn instance_record(workspace: &WorkspaceEnv, instance_id: &str) -> Result<Instan
 }
 
 pub(crate) fn standing_approvals(workspace: &WorkspaceEnv) -> Result<StandingApprovals, String> {
-    KernelStore::for_workspace(workspace.env(), workspace.cwd())
+    KernelStore::for_project(workspace.paths())
         .map(StandingApprovals::new)
         .map_err(|error| error.to_string())
 }
@@ -859,8 +858,7 @@ fn receipt_root(workspace: &WorkspaceEnv) -> PathBuf {
     resolve_receipt_path(ReceiptPathInputs {
         explicit_dir: None,
         runtime_config: Some(&RuntimeReceiptConfig::default()),
-        env: workspace.env(),
-        cwd: workspace.cwd(),
+        paths: workspace.paths(),
     })
     .path
 }

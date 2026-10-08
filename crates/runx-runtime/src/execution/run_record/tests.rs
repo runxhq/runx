@@ -257,10 +257,11 @@ fn run_ids_are_minted_unique_and_validated() {
 fn the_run_listing_shows_top_level_runs_newest_first() {
     let workspace = tempfile::tempdir().unwrap();
     let env = BTreeMap::from([(
-        crate::receipts::paths::RUNX_PROJECT_DIR_ENV.to_owned(),
+        crate::paths::RUNX_PROJECT_DIR_ENV.to_owned(),
         workspace.path().join(".runx").display().to_string(),
     )]);
-    let store = KernelStore::for_workspace(&env, workspace.path()).unwrap();
+    let store = KernelStore::for_project(&crate::paths::RunxPaths::resolve(&env, workspace.path()))
+        .unwrap();
     for run_id in ["run_triage_a", "run_triage_b"] {
         let log = RunLog::open(Arc::clone(&store), run_id).unwrap();
         start(&log, &JsonObject::new());

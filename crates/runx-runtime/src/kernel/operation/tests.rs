@@ -252,7 +252,7 @@ impl Fixture {
                 "rxk_test".to_owned(),
             ),
             (
-                crate::receipts::paths::RUNX_RECEIPT_DIR_ENV.to_owned(),
+                crate::paths::RUNX_RECEIPT_DIR_ENV.to_owned(),
                 root.path().join("receipts").to_string_lossy().into_owned(),
             ),
             (
@@ -660,21 +660,27 @@ fn a_standing_approval_covers_only_the_pinned_post() {
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
         .as_secs();
-    StandingApprovals::new(KernelStore::for_workspace(&fixture.env, fixture.root.path()).unwrap())
-        .grant(StandingApproval {
-            approval_id: "notify".to_owned(),
-            connector: ConnectorId::new("slack").unwrap(),
-            operation: OperationName::new("channel.post").unwrap(),
-            instance_id: InstanceId::new("injected.slack").unwrap(),
-            target: "slack://T123/C456".to_owned(),
-            delegate_digest: delegate.clone(),
-            expires_at_unix_seconds: now + 3_600,
-            max_total: 1,
-            max_per_day: 1,
-            max_text_bytes: 200,
-            allowed_mention: None,
-        })
-        .expect("grant");
+    StandingApprovals::new(
+        KernelStore::for_project(&crate::paths::RunxPaths::resolve(
+            &fixture.env,
+            fixture.root.path(),
+        ))
+        .unwrap(),
+    )
+    .grant(StandingApproval {
+        approval_id: "notify".to_owned(),
+        connector: ConnectorId::new("slack").unwrap(),
+        operation: OperationName::new("channel.post").unwrap(),
+        instance_id: InstanceId::new("injected.slack").unwrap(),
+        target: "slack://T123/C456".to_owned(),
+        delegate_digest: delegate.clone(),
+        expires_at_unix_seconds: now + 3_600,
+        max_total: 1,
+        max_per_day: 1,
+        max_text_bytes: 200,
+        allowed_mention: None,
+    })
+    .expect("grant");
     fixture
         .env
         .insert(STANDING_APPROVAL_ID_ENV.to_owned(), "notify".to_owned());
@@ -848,7 +854,11 @@ fn a_standing_use_is_released_when_the_provider_refuses_before_executing() {
         .unwrap()
         .as_secs();
     let approvals = StandingApprovals::new(
-        KernelStore::for_workspace(&fixture.env, fixture.root.path()).unwrap(),
+        KernelStore::for_project(&crate::paths::RunxPaths::resolve(
+            &fixture.env,
+            fixture.root.path(),
+        ))
+        .unwrap(),
     );
     approvals
         .grant(StandingApproval {
@@ -1083,11 +1093,11 @@ runners:
             root.path().join("home").to_string_lossy().into_owned(),
         ),
         (
-            crate::receipts::paths::RUNX_CWD_ENV.to_owned(),
+            crate::paths::RUNX_CWD_ENV.to_owned(),
             root.path().to_string_lossy().into_owned(),
         ),
         (
-            crate::receipts::paths::RUNX_RECEIPT_DIR_ENV.to_owned(),
+            crate::paths::RUNX_RECEIPT_DIR_ENV.to_owned(),
             root.path().join("receipts").to_string_lossy().into_owned(),
         ),
         (
@@ -1100,7 +1110,10 @@ runners:
         .connector("probe-mcp")
         .unwrap();
     crate::kernel::setup::set_credential(
-        &crate::Instances::new(crate::KernelStore::for_workspace(&env, &skill_dir).unwrap()),
+        &crate::Instances::new(
+            crate::KernelStore::for_project(&crate::paths::RunxPaths::resolve(&env, &skill_dir))
+                .unwrap(),
+        ),
         &connector,
         "probe",
         &runx_contracts::connector::CredentialName::new("key").unwrap(),

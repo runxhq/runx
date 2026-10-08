@@ -515,5 +515,13 @@ fn process_env() -> BTreeMap<String, String> {
             .to_string_lossy()
             .into_owned(),
     );
+    // The repo is the workspace; its runx state stays out of the operator's.
+    env.insert(
+        "RUNX_PROJECT_DIR".to_owned(),
+        PathBuf::from(env!("CARGO_TARGET_TMPDIR"))
+            .join("credential-delivery-project")
+            .to_string_lossy()
+            .into_owned(),
+    );
     env
 }

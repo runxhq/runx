@@ -2,7 +2,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use runx_runtime::{InitAction, InitGeneratedValues, RunxInitOptions, runx_init};
+use runx_runtime::{InitAction, InitGeneratedValues, RunxInitOptions, RunxPaths, runx_init};
 
 static NEXT_TEST_DIR: AtomicUsize = AtomicUsize::new(0);
 
@@ -12,12 +12,8 @@ fn init_project_state_is_reused() -> Result<(), Box<dyn std::error::Error>> {
     let project_dir = temp.path().join(".runx");
     let options = init_options(InitAction::Project, &temp);
 
-    let created = runx_init(&RunxInitOptions {
-        project_dir: project_dir.clone(),
-        ..options.clone()
-    })?;
+    let created = runx_init(&options)?;
     let reused = runx_init(&RunxInitOptions {
-        project_dir: project_dir.clone(),
         generated: generated("proj_other", "inst_other", "2026-05-19T01:02:03.004Z"),
         ..options
     })?;
@@ -26,7 +22,6 @@ fn init_project_state_is_reused() -> Result<(), Box<dyn std::error::Error>> {
     assert!(!reused.created);
     assert_eq!(created.project_id, reused.project_id);
     assert!(project_dir.join("project.json").exists());
-    assert!(project_dir.join("skills").is_dir());
     assert!(project_dir.join("tools").is_dir());
     Ok(())
 }
@@ -38,8 +33,7 @@ fn init_global_prefetches_official_cache() -> Result<(), Box<dyn std::error::Err
     let official = temp.path().join("official");
     let result = runx_init(&RunxInitOptions {
         action: InitAction::Global,
-        project_dir: temp.path().join(".runx"),
-        global_home_dir: home.clone(),
+        paths: paths_in(temp.path()),
         official_cache_dir: official.clone(),
         prefetch_official: true,
         generated: generated("proj_fixture", "inst_fixture", "2026-05-19T01:02:03.004Z"),
@@ -56,12 +50,22 @@ fn init_global_prefetches_official_cache() -> Result<(), Box<dyn std::error::Err
 fn init_options(action: InitAction, temp: &TestDir) -> RunxInitOptions {
     RunxInitOptions {
         action,
-        project_dir: temp.path().join(".runx"),
-        global_home_dir: temp.path().join("home"),
+        paths: paths_in(temp.path()),
         official_cache_dir: temp.path().join("official"),
         prefetch_official: false,
         generated: generated("proj_fixture", "inst_fixture", "2026-05-19T01:02:03.004Z"),
     }
+}
+
+fn paths_in(root: &Path) -> RunxPaths {
+    let env = [
+        ("RUNX_CWD", root.to_path_buf()),
+        ("RUNX_HOME", root.join("home")),
+    ]
+    .into_iter()
+    .map(|(key, path)| (key.to_owned(), path.to_string_lossy().into_owned()))
+    .collect();
+    RunxPaths::resolve(&env, root)
 }
 
 fn generated(project_id: &str, installation_id: &str, created_at: &str) -> InitGeneratedValues {

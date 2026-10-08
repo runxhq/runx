@@ -417,7 +417,7 @@ where
         let workspace = self
             .options
             .env
-            .get(crate::receipts::paths::RUNX_CWD_ENV)
+            .get(crate::paths::RUNX_CWD_ENV)
             .map(PathBuf::from)
             .ok_or_else(|| RuntimeError::InvalidProcessInvocation {
                 message: format!(

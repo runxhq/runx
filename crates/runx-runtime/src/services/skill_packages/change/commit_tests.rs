@@ -66,7 +66,7 @@ fn authoring_rejects_a_change_between_validation_and_commit_without_partial_appl
     fs::write(target_path.join("SKILL.md"), VALID_MANUAL)?;
     fs::write(target_path.join("run.yaml"), VALID_MANIFEST)?;
 
-    let target = ApplyTarget::resolve(temp.path(), "skills/demo")?;
+    let target = ApplyTarget::resolve(temp.path(), "skills/demo", &BTreeMap::new())?;
     let change = change_bundle(
         &target.before.digest,
         VALID_MANUAL.replace("bounded decision", "bounded operator decision"),
@@ -93,7 +93,7 @@ fn authoring_rejects_a_change_between_validation_and_commit_without_partial_appl
         fs::read_to_string(target.path.join("operator-note.txt"))?,
         "concurrent edit\n"
     );
-    assert!(!temp.path().join(".runx/authoring/applications").exists());
+    assert!(!target.paths.authoring_applications().exists());
     Ok(())
 }
 

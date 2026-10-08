@@ -85,9 +85,9 @@ elsewhere, the connector's credential declaration or an operation changes, or
 another plugin ships a connector with the same id) the run refuses until the
 account is bound again.
 
-Instances live with the receipt root (`RUNX_RECEIPT_DIR`, else
-`.runx/receipts`), together with the custody of operations in flight. Bind the
-account under the same receipt root the runs use.
+Instances live in the project's kernel store (`RUNX_PROJECT_DIR`, else the
+workspace's `.runx`), together with the custody of operations in flight. Bind
+the account in the same project the runs use.
 
 Inspect or remove profiles without exposing material:
 

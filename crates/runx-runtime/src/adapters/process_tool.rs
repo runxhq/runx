@@ -186,6 +186,8 @@ mod tests {
     #[test]
     fn process_without_declared_timeout_uses_default_timeout() -> Result<(), RuntimeError> {
         let started = Instant::now();
+        let workspace =
+            tempfile::tempdir().map_err(|source| RuntimeError::io("creating workspace", source))?;
         DEFAULT_TIMEOUT_OVERRIDE_SECONDS.store(1, std::sync::atomic::Ordering::SeqCst);
         let output = ProcessToolAdapter.invoke(SkillInvocation {
             historical_context: Vec::new(),
@@ -207,15 +209,11 @@ mod tests {
             resolved_inputs: JsonObject::new(),
             current_context: Vec::new(),
             provenance: Vec::new(),
-            skill_directory: std::env::current_dir()
-                .map_err(|source| RuntimeError::io("reading current dir", source))?,
+            skill_directory: workspace.path().to_path_buf(),
             // The workspace cwd policy requires an explicit workspace anchor.
             env: BTreeMap::from([(
-                crate::receipts::paths::RUNX_CWD_ENV.to_owned(),
-                std::env::current_dir()
-                    .map_err(|source| RuntimeError::io("reading current dir", source))?
-                    .to_string_lossy()
-                    .into_owned(),
+                crate::paths::RUNX_CWD_ENV.to_owned(),
+                workspace.path().to_string_lossy().into_owned(),
             )]),
             credential_delivery: CredentialDelivery::none(),
         })?;

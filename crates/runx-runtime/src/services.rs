@@ -32,8 +32,8 @@ mod tests {
     use std::collections::BTreeMap;
     use std::path::{Path, PathBuf};
 
-    use crate::receipts::paths::{RUNX_CWD_ENV, RUNX_PROJECT_DIR_ENV};
-    use crate::receipts::{RUNX_RECEIPT_SIGN_KID_ENV, RuntimeReceiptSignatureConfig};
+    use crate::paths::{RUNX_CWD_ENV, RUNX_PROJECT_DIR_ENV};
+    use crate::receipts::RUNX_RECEIPT_SIGN_KID_ENV;
     use crate::services::{ReceiptServices, WorkspaceEnv};
 
     #[test]
@@ -69,15 +69,11 @@ mod tests {
     }
 
     #[test]
-    fn receipt_services_resolve_paths_from_workspace_env() -> Result<(), Box<dyn std::error::Error>>
-    {
+    fn a_workspace_resolves_its_receipt_root() -> Result<(), Box<dyn std::error::Error>> {
         let env = BTreeMap::from([(RUNX_PROJECT_DIR_ENV.to_owned(), ".runx-custom".to_owned())]);
         let workspace = WorkspaceEnv::new(env, PathBuf::from("/tmp/runx-work"))?;
-        let receipts = ReceiptServices::from_signature_config(
-            RuntimeReceiptSignatureConfig::local_development(),
-        );
 
-        let resolved = receipts.resolve_path(&workspace, None, None);
+        let resolved = workspace.receipt_path(None);
 
         assert_eq!(
             resolved.path,

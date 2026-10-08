@@ -58,8 +58,7 @@ pub enum SkillAction {
 pub fn run_native_skill_with_workspace(plan: SkillPlan, workspace: &WorkspaceEnv) -> ExitCode {
     let cwd = workspace.cwd().to_path_buf();
     let env = workspace.env().clone();
-    let workspace_base = runx_runtime::resolve_runx_workspace_base(&env, &cwd);
-    let project_runx_dir = runx_runtime::resolve_project_runx_dir(&env, &workspace_base);
+    let artifacts = workspace.paths().artifacts();
     let mut resolved = match resolve_skill_ref_details(
         &plan.skill_path,
         &cwd,
@@ -131,7 +130,7 @@ pub fn run_native_skill_with_workspace(plan: SkillPlan, workspace: &WorkspaceEnv
                 receipt_dir: plan.receipt_dir.as_deref(),
                 answers_path: plan.answers.as_deref(),
             },
-            &project_runx_dir,
+            &artifacts,
             plan.diagnostics,
         );
     }
@@ -253,7 +252,7 @@ pub fn run_native_skill_with_workspace(plan: SkillPlan, workspace: &WorkspaceEnv
                 plan.json,
                 exit_code,
                 resume,
-                &project_runx_dir,
+                &artifacts,
                 plan.diagnostics,
             )
         }

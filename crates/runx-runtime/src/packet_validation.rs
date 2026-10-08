@@ -20,7 +20,9 @@ pub(crate) fn verify_declared_packets(
 
     let package_root = crate::skill_package::find_owning_package_root(skill_directory)
         .unwrap_or_else(|| skill_directory.to_path_buf());
-    let workspace = crate::config::resolve_runx_workspace_base(env, skill_directory);
+    let workspace = crate::RunxPaths::resolve(env, skill_directory)
+        .workspace()
+        .to_path_buf();
     let schema_directories = packet_schema_directories(skill_directory, &package_root, &workspace)
         .map_err(|error| RuntimeError::SkillFailed {
             skill_name: "agent".to_owned(),

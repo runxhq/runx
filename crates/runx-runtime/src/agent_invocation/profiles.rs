@@ -67,21 +67,16 @@ fn configured_profile_path(request: &SkillInvocation, env_key: &str) -> Option<P
     if configured.as_os_str().is_empty() {
         return None;
     }
-    if configured.is_absolute() {
-        return Some(configured);
-    }
-    Some(
-        crate::config::resolve_runx_workspace_base(&request.env, &request.skill_directory)
-            .join(configured),
-    )
+    Some(crate::RunxPaths::resolve(&request.env, &request.skill_directory).in_workspace(configured))
 }
 
 fn profile_candidates(request: &SkillInvocation, file_name: &str) -> Vec<PathBuf> {
-    let cwd = crate::config::resolve_runx_workspace_base(&request.env, &request.skill_directory);
+    let paths = crate::RunxPaths::resolve(&request.env, &request.skill_directory);
+    let workspace = paths.workspace();
     let mut candidates = vec![
-        cwd.join(".runx").join(file_name),
-        cwd.join(file_name),
-        cwd.join("skills").join(file_name),
+        paths.project_file(file_name),
+        workspace.join(file_name),
+        workspace.join("skills").join(file_name),
         request.skill_directory.join(file_name),
     ];
     candidates.extend(

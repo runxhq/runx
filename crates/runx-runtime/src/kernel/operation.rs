@@ -41,7 +41,6 @@ use crate::effects::{
     EffectStepRequest, RuntimeEffect, RuntimeEffectError,
 };
 use crate::http::{ReqwestHttpTransport, RuntimeHttpTransport};
-use crate::receipts::paths::{ReceiptPathInputs, resolve_receipt_path};
 use crate::{ProviderOperationRequest, RuntimeError};
 
 pub(crate) mod call;
@@ -391,7 +390,11 @@ impl RuntimeEffect for OperationEffect {
         };
         let call = OperationCall::decode(request.inputs).map_err(invalid)?;
         let shape = call.shape().map_err(invalid)?;
-        let store = KernelStore::for_workspace(request.env, request.graph_dir).map_err(state)?;
+        let store = KernelStore::for_project(&crate::paths::RunxPaths::resolve(
+            request.env,
+            request.graph_dir,
+        ))
+        .map_err(state)?;
         let lanes = LaneInputs::read(request.env, request.run_id);
         let scope = ConnectorScope::for_skill(request.graph_dir)
             .map_err(|error| invalid(error.to_string()))?;
@@ -1870,13 +1873,7 @@ fn failed(context: &OperationAdmission, reason: String) -> RuntimeError {
 }
 
 pub(crate) fn receipt_root(env: &BTreeMap<String, String>, cwd: &Path) -> std::path::PathBuf {
-    resolve_receipt_path(ReceiptPathInputs {
-        explicit_dir: None,
-        runtime_config: None,
-        env,
-        cwd,
-    })
-    .path
+    crate::paths::RunxPaths::resolve(env, cwd).receipts()
 }
 
 fn verification(uri: String, provider: &str, label: &str, proof_kind: ProofKind) -> Reference {

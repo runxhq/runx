@@ -17,6 +17,7 @@ use super::validation::validate_candidate;
 use crate::RuntimeError;
 use crate::effects::RuntimeEffectRegistry;
 use crate::filesystem::apply_text_bundle_verified;
+use crate::paths::RunxPaths;
 
 mod admission;
 mod application;
@@ -28,8 +29,8 @@ use admission::{
     validate_change_shape, validate_digest, validate_resource_budget,
 };
 use application::{
-    AdmittedSkillChange, SkillApplicationLock, admit_skill_change, application_record_write,
-    no_change_result, recorded_application_matches, validate_stable_target, validation_result,
+    AdmittedSkillChange, SkillApplicationLock, admit_skill_change, no_change_result,
+    record_application, recorded_application_matches, validate_stable_target, validation_result,
 };
 
 pub(crate) fn architecture_digest(
@@ -104,7 +105,7 @@ pub(crate) fn apply_skill_change(
     env: &BTreeMap<String, String>,
     effects: &RuntimeEffectRegistry,
 ) -> Result<SkillApplyResult, RuntimeError> {
-    let target = ApplyTarget::resolve(repo_root, target_dir)?;
+    let target = ApplyTarget::resolve(repo_root, target_dir, env)?;
     validate_change_contract(change, mode, &target.before.digest)?;
     let admitted = admit_skill_change(&target.relative, &target.path, mode, change)?;
     if change.decision != SkillChangeDecision::Write {
@@ -125,20 +126,27 @@ pub(crate) fn apply_skill_change(
 
 struct ApplyTarget {
     repo_root: PathBuf,
+    paths: RunxPaths,
     relative: String,
     path: PathBuf,
     before: PackageSnapshot,
 }
 
 impl ApplyTarget {
-    fn resolve(repo_root: &Path, target_dir: &str) -> Result<Self, RuntimeError> {
+    fn resolve(
+        repo_root: &Path,
+        target_dir: &str,
+        env: &BTreeMap<String, String>,
+    ) -> Result<Self, RuntimeError> {
         let repo_root = canonical_directory(repo_root, "skill workspace")?;
+        let paths = RunxPaths::resolve(env, &repo_root);
         let target_relative = normalize_child_path(target_dir)?;
         let relative = display_relative(&target_relative);
         let path = repo_root.join(target_relative);
         let before = package_snapshot(&path)?;
         Ok(Self {
             repo_root,
+            paths,
             relative,
             path,
             before,
@@ -156,7 +164,7 @@ fn reapplied_result(
         return Ok(None);
     }
     if !recorded_application_matches(
-        &target.repo_root,
+        &target.paths,
         &target.relative,
         change,
         &target.before.digest,
@@ -251,16 +259,17 @@ fn ensure_target_unchanged(target: &Path, base_digest: &str) -> Result<(), Runti
 fn commit_candidate(
     target: &ApplyTarget,
     change: &SkillChangeBundle,
-    mut admitted: AdmittedSkillChange,
+    admitted: AdmittedSkillChange,
     candidate: &ValidatedCandidate,
 ) -> Result<SkillApplyResult, RuntimeError> {
-    let _lock = SkillApplicationLock::acquire(&target.repo_root, &target.relative)?;
+    let _lock = SkillApplicationLock::acquire(&target.paths, &target.relative)?;
     ensure_target_unchanged(&target.path, &candidate.stage.base_digest)?;
-    admitted.bundle.writes.push(application_record_write(
+    record_application(
+        &target.paths,
         &target.relative,
         change,
         &candidate.snapshot.digest,
-    )?);
+    )?;
     let (_, applied) = apply_text_bundle_verified(
         "runx.skill.apply",
         &target.repo_root,

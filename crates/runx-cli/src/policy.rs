@@ -246,11 +246,16 @@ fn resolve_policy_path(path: &Path, env: &BTreeMap<String, String>, cwd: &Path) 
     if path.is_absolute() {
         return path.to_path_buf();
     }
-    runx_runtime::resolve_runx_workspace_base(env, cwd).join(path)
+    runx_runtime::RunxPaths::resolve(env, cwd)
+        .workspace()
+        .to_path_buf()
+        .join(path)
 }
 
 fn display_policy_path(path: &Path, env: &BTreeMap<String, String>, cwd: &Path) -> String {
-    let base = runx_runtime::resolve_runx_workspace_base(env, cwd);
+    let base = runx_runtime::RunxPaths::resolve(env, cwd)
+        .workspace()
+        .to_path_buf();
     path.strip_prefix(&base)
         .map(|relative| relative.to_string_lossy().replace('\\', "/"))
         .unwrap_or_else(|_| {

@@ -47,7 +47,7 @@ fn run_candidate_harness(
     effects: &RuntimeEffectRegistry,
 ) -> Result<JsonValue, RuntimeError> {
     let receipt_stage = ValidationReceiptStage::prepare(repo_root)?;
-    let mut harness_env = isolated_harness_env(repo_root, env);
+    let mut harness_env = isolated_harness_env(repo_root, env, receipt_stage.root());
     crate::services::merge_inferred_tool_roots(&mut harness_env, candidate);
     let harness = crate::orchestrator::LocalOrchestrator::with_effects_and_environment(
         effects.clone(),

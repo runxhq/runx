@@ -976,7 +976,7 @@ pub fn list_runs(
     cwd: &std::path::Path,
     filter: &RunFilter,
 ) -> Result<RunListing, RunRecordError> {
-    let store = KernelStore::for_workspace(env, cwd)?;
+    let store = KernelStore::for_project(&crate::paths::RunxPaths::resolve(env, cwd))?;
     let lower = |value: &Option<String>| {
         value
             .as_ref()
@@ -1065,7 +1065,7 @@ pub fn paused_request(
     cwd: &std::path::Path,
     run_id: &str,
 ) -> Result<Option<PendingRequest>, RunRecordError> {
-    let store = KernelStore::for_workspace(env, cwd)?;
+    let store = KernelStore::for_project(&crate::paths::RunxPaths::resolve(env, cwd))?;
     pending_request(&store, validate_run_id(run_id)?)
 }
 
@@ -1086,7 +1086,7 @@ pub fn paused_run(
     cwd: &std::path::Path,
     run_id: &str,
 ) -> Result<Option<PausedRun>, RunRecordError> {
-    let store = KernelStore::for_workspace(env, cwd)?;
+    let store = KernelStore::for_project(&crate::paths::RunxPaths::resolve(env, cwd))?;
     let run_id = validate_run_id(run_id)?;
     let Some(request) = pending_request(&store, run_id)? else {
         return Ok(None);
@@ -1123,7 +1123,7 @@ pub fn sealed_run(
     cwd: &std::path::Path,
     run_id: &str,
 ) -> Result<Option<SealedRun>, RunRecordError> {
-    let store = KernelStore::for_workspace(env, cwd)?;
+    let store = KernelStore::for_project(&crate::paths::RunxPaths::resolve(env, cwd))?;
     let Some(record) = RunLog::open(store, validate_run_id(run_id)?)?.load()? else {
         return Ok(None);
     };

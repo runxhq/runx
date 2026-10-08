@@ -270,14 +270,18 @@ fn receipt_destination_does_not_split_workspace_state() {
     let workspace = tempfile::tempdir().unwrap();
     let mut first_env = std::collections::BTreeMap::new();
     first_env.insert(
-        crate::receipts::paths::RUNX_RECEIPT_DIR_ENV.to_owned(),
+        crate::paths::RUNX_RECEIPT_DIR_ENV.to_owned(),
         workspace
             .path()
             .join("first-receipts")
             .display()
             .to_string(),
     );
-    let first = KernelStore::for_workspace(&first_env, workspace.path()).unwrap();
+    let first = KernelStore::for_project(&crate::paths::RunxPaths::resolve(
+        &first_env,
+        workspace.path(),
+    ))
+    .unwrap();
     first
         .append(vec![
             Append::kernel("a", Expected::Absent, &Ledger::Moved { amount: 1 }).unwrap(),
@@ -286,14 +290,18 @@ fn receipt_destination_does_not_split_workspace_state() {
 
     let mut second_env = first_env;
     second_env.insert(
-        crate::receipts::paths::RUNX_RECEIPT_DIR_ENV.to_owned(),
+        crate::paths::RUNX_RECEIPT_DIR_ENV.to_owned(),
         workspace
             .path()
             .join("second-receipts")
             .display()
             .to_string(),
     );
-    let second = KernelStore::for_workspace(&second_env, workspace.path()).unwrap();
+    let second = KernelStore::for_project(&crate::paths::RunxPaths::resolve(
+        &second_env,
+        workspace.path(),
+    ))
+    .unwrap();
     assert_eq!(first.path(), second.path());
     assert_eq!(second.version::<Ledger>("a").unwrap(), 1);
     assert_eq!(

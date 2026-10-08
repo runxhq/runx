@@ -189,7 +189,7 @@ fn resolve_tool_roots(options: &ToolInspectOptions) -> Vec<PathBuf> {
         return roots;
     }
     loop {
-        push_existing_dirs(&mut roots, [current.join(".runx/tools")]);
+        push_existing_dirs(&mut roots, [crate::paths::tools_in(&current)]);
         if current == root {
             break;
         }

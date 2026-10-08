@@ -3,7 +3,8 @@ use std::fmt;
 use std::io;
 use std::path::{Path, PathBuf};
 
-use crate::receipts::paths::{RUNX_CWD_ENV, RUNX_PROJECT_DIR_ENV};
+use crate::paths::{RUNX_CWD_ENV, RUNX_PROJECT_DIR_ENV, RunxPaths};
+use crate::receipts::paths::{ReceiptPathInputs, ResolvedReceiptPath, resolve_receipt_path};
 use crate::services::tool_roots::inferred_tool_roots;
 use thiserror::Error;
 
@@ -13,6 +14,7 @@ const WORKSPACE_ENV_FILE: &str = ".env";
 pub struct WorkspaceEnv {
     env: BTreeMap<String, String>,
     cwd: PathBuf,
+    paths: RunxPaths,
     env_file_loaded: bool,
 }
 
@@ -31,7 +33,9 @@ impl WorkspaceEnv {
         cwd: PathBuf,
     ) -> Result<Self, WorkspaceEnvError> {
         require_absolute_cwd(&cwd)?;
-        let cwd = crate::config::resolve_runx_workspace_base(&ambient_env, &cwd);
+        let cwd = RunxPaths::resolve(&ambient_env, &cwd)
+            .workspace()
+            .to_path_buf();
         require_absolute_cwd(&cwd)?;
         let env_path = cwd.join(WORKSPACE_ENV_FILE);
         let mut env = ambient_env;
@@ -40,10 +44,12 @@ impl WorkspaceEnv {
         // Freeze workspace identity after discovery. A value inside `.env`
         // cannot redirect Runx to a different workspace after the file was read.
         env.insert(RUNX_CWD_ENV.to_owned(), cwd.to_string_lossy().into_owned());
+        let paths = RunxPaths::resolve(&env, &cwd);
 
         Ok(Self {
             env,
             cwd,
+            paths,
             env_file_loaded,
         })
     }
@@ -53,12 +59,14 @@ impl WorkspaceEnv {
         cwd: PathBuf,
     ) -> Result<Self, WorkspaceEnvError> {
         require_absolute_cwd(&cwd)?;
-        let cwd = crate::config::resolve_runx_workspace_base(&env, &cwd);
+        let cwd = RunxPaths::resolve(&env, &cwd).workspace().to_path_buf();
         require_absolute_cwd(&cwd)?;
         env.insert(RUNX_CWD_ENV.to_owned(), cwd.to_string_lossy().into_owned());
+        let paths = RunxPaths::resolve(&env, &cwd);
         Ok(Self {
             env,
             cwd,
+            paths,
             env_file_loaded: false,
         })
     }
@@ -83,6 +91,21 @@ impl WorkspaceEnv {
     }
 
     #[must_use]
+    pub fn paths(&self) -> &RunxPaths {
+        &self.paths
+    }
+
+    /// The receipt root of a run here: `explicit_dir`, else `RUNX_RECEIPT_DIR`,
+    /// else the project's receipts.
+    pub(crate) fn receipt_path(&self, explicit_dir: Option<&Path>) -> ResolvedReceiptPath {
+        resolve_receipt_path(ReceiptPathInputs {
+            explicit_dir,
+            runtime_config: None,
+            paths: &self.paths,
+        })
+    }
+
+    #[must_use]
     pub const fn env_file_loaded(&self) -> bool {
         self.env_file_loaded
     }
@@ -91,8 +114,10 @@ impl WorkspaceEnv {
         let mut env = self.env.clone();
         let cwd = self.cwd.to_string_lossy().into_owned();
         env.insert(RUNX_CWD_ENV.to_owned(), cwd);
-        env.entry(RUNX_PROJECT_DIR_ENV.to_owned())
-            .or_insert_with(|| self.cwd.join(".runx").to_string_lossy().into_owned());
+        env.insert(
+            RUNX_PROJECT_DIR_ENV.to_owned(),
+            self.paths.project().to_string_lossy().into_owned(),
+        );
         merge_inferred_tool_roots(&mut env, skill_dir);
         env
     }

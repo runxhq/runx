@@ -7,6 +7,7 @@ use self::input::QueryRequest;
 pub(crate) use self::input::ReceiptQueryInput;
 use self::projection::render_query;
 use crate::RuntimeError;
+use crate::paths::RunxPaths;
 use crate::receipts::RuntimeReceiptSignaturePolicy;
 use crate::receipts::archive::{ReceiptListing, list_receipts};
 use crate::receipts::store::LocalReceiptStore;
@@ -30,8 +31,7 @@ pub(crate) fn query_receipts(
     let history = load_history(
         &request,
         context.store(),
-        &resolved.workspace_base,
-        &resolved.project_runx_dir,
+        context.paths(),
         context.signature_policy(),
     )?;
     let history_ids = history
@@ -67,22 +67,15 @@ pub(crate) fn query_receipts(
 fn load_history(
     request: &QueryRequest,
     store: &LocalReceiptStore,
-    workspace_base: &Path,
-    project_runx_dir: &Path,
+    paths: &RunxPaths,
     policy: RuntimeReceiptSignaturePolicy<'_>,
 ) -> Result<Option<ReceiptListing>, RuntimeError> {
     if request.exact_ids.is_some() {
         return Ok(None);
     }
-    list_receipts(
-        store,
-        workspace_base,
-        project_runx_dir,
-        &request.filter,
-        policy,
-    )
-    .map(Some)
-    .map_err(|error| invalid(format!("native receipt history failed: {error}")))
+    list_receipts(store, paths, &request.filter, policy)
+        .map(Some)
+        .map_err(|error| invalid(format!("native receipt history failed: {error}")))
 }
 
 fn load_proof(

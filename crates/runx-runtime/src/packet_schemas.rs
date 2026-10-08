@@ -50,7 +50,9 @@ pub(crate) fn agent_output_contract_schema(
 
     let package_root = crate::skill_package::find_owning_package_root(skill_directory)
         .unwrap_or_else(|| skill_directory.to_path_buf());
-    let workspace = crate::config::resolve_runx_workspace_base(env, skill_directory);
+    let workspace = crate::RunxPaths::resolve(env, skill_directory)
+        .workspace()
+        .to_path_buf();
     let directories = packet_schema_directories(skill_directory, &package_root, &workspace)
         .map_err(agent_packet_contract_error)?;
     let catalog =
@@ -463,8 +465,9 @@ pub(crate) fn packet_schema_directories(
     package_root: &Path,
     workspace: &Path,
 ) -> Result<Vec<PathBuf>, PacketSchemaCatalogError> {
-    let source_workspace =
-        crate::config::resolve_runx_workspace_base(&BTreeMap::new(), package_root);
+    let source_workspace = crate::RunxPaths::resolve(&BTreeMap::new(), package_root)
+        .workspace()
+        .to_path_buf();
     let bundle_root = crate::registry::package_bundle::package_bundle_root(profile_directory)
         .map_err(PacketSchemaCatalogError::PackageBundle)?;
     let mut directories = vec![

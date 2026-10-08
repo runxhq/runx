@@ -62,10 +62,9 @@ pub fn run_native_dev(plan: DevPlan, workspace: &WorkspaceEnv) -> ExitCode {
 }
 
 fn resolve_root(env: &BTreeMap<String, String>, current_dir: &Path) -> PathBuf {
-    env.get("RUNX_PROJECT_DIR")
-        .or_else(|| env.get("RUNX_CWD"))
-        .map(PathBuf::from)
-        .unwrap_or_else(|| current_dir.to_path_buf())
+    runx_runtime::RunxPaths::resolve(env, current_dir)
+        .workspace()
+        .to_path_buf()
 }
 
 fn resolve_unit_path(root: &Path, path: &Path) -> PathBuf {

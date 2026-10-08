@@ -41,7 +41,7 @@ export async function readProjectArtifact(reference: unknown, projectDir: string
     if (!Number.isSafeInteger(ref.bytes) || ref.bytes <= 0 || !/^sha256:[0-9a-f]{64}$/u.test(ref.digest) || ref.ref !== `runx:project-artifact:${ref.digest}` || ref.media_type !== "application/json") {
       throw new Error("Invalid project artifact content address.");
     }
-    const result = await readBoundedJson(ref.path, path.join(projectDir, ".runx", "artifacts"), maximum);
+    const result = await readBoundedJson(ref.path, path.join(projectDir, "artifacts"), maximum);
     if (ref.bytes !== result.bytes.byteLength || ref.digest !== `sha256:${createHash("sha256").update(result.bytes).digest("hex")}`) {
       throw new Error("Project artifact digest or byte count differs from its reference.");
     }

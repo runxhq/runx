@@ -18,6 +18,7 @@ use super::super::validation::validate_candidate;
 use super::admission::{validate_digest, validate_resource_budget};
 use super::{RuntimeEffectRegistry, RuntimeError};
 use crate::filesystem::{TextBundle, TextFileWrite};
+use crate::paths::RunxPaths;
 
 const APPLICATION_RECORD_SCHEMA: &str = "runx.skill.application_record.v1";
 
@@ -26,29 +27,26 @@ pub(super) struct SkillApplicationLock {
 }
 
 impl SkillApplicationLock {
-    pub(super) fn acquire(repo_root: &Path, target_dir: &str) -> Result<Self, RuntimeError> {
+    pub(super) fn acquire(paths: &RunxPaths, target_dir: &str) -> Result<Self, RuntimeError> {
         let digest = sha256_prefixed(target_dir.as_bytes());
         let digest = digest
             .strip_prefix("sha256:")
             .ok_or_else(|| invalid_skill_change("authoring lock digest is invalid"))?;
-        let relative = format!(".runx/authoring/locks/{digest}.lock");
-        let path = crate::filesystem::resolve_contained_file_target(
-            "runx.skill.apply",
-            repo_root,
-            &relative,
-        )?;
-        let parent = path
-            .parent()
-            .ok_or_else(|| invalid_skill_change("authoring lock has no parent directory"))?;
-        fs::create_dir_all(parent).map_err(|source| {
+        let locks = paths.authoring_locks();
+        fs::create_dir_all(&locks).map_err(|source| {
             RuntimeError::io(
                 format!(
                     "creating skill authoring lock directory {}",
-                    parent.display()
+                    locks.display()
                 ),
                 source,
             )
         })?;
+        let path = crate::filesystem::resolve_contained_file_target(
+            "runx.skill.apply",
+            &locks,
+            &format!("{digest}.lock"),
+        )?;
         let file = open_lock_file(&path)?;
         file.lock_exclusive().map_err(|source| {
             RuntimeError::io(
@@ -223,12 +221,14 @@ pub(super) fn validate_stable_target(
 }
 
 pub(super) fn recorded_application_matches(
-    repo_root: &Path,
+    paths: &RunxPaths,
     target_dir: &str,
     change: &SkillChangeBundle,
     package_digest: &str,
 ) -> Result<bool, RuntimeError> {
-    let path = repo_root.join(application_record_path(change.plan_digest.as_str())?);
+    let path = paths
+        .authoring_applications()
+        .join(application_record_file(change.plan_digest.as_str())?);
     let contents = match fs::read_to_string(&path) {
         Ok(contents) => contents,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(false),
@@ -253,11 +253,16 @@ pub(super) fn recorded_application_matches(
         && record.package_digest == package_digest)
 }
 
-pub(super) fn application_record_write(
+/// Record that `change` applied to `target_dir` yields `package_digest`. It is
+/// written before the package: a crash in between leaves the target at its
+/// base digest, so the change applies again; once both land, a repeat of the
+/// change finds the target already applied.
+pub(super) fn record_application(
+    paths: &RunxPaths,
     target_dir: &str,
     change: &SkillChangeBundle,
     package_digest: &str,
-) -> Result<TextFileWrite, RuntimeError> {
+) -> Result<(), RuntimeError> {
     let record = SkillApplicationRecord {
         schema: APPLICATION_RECORD_SCHEMA.to_owned(),
         target_dir: target_dir.to_owned(),
@@ -268,18 +273,37 @@ pub(super) fn application_record_write(
     };
     let contents = serde_json::to_string_pretty(&record)
         .map_err(|source| RuntimeError::json("serializing skill application record", source))?;
-    Ok(TextFileWrite {
-        path: application_record_path(change.plan_digest.as_str())?,
+    let applications = paths.authoring_applications();
+    fs::create_dir_all(&applications).map_err(|source| {
+        RuntimeError::io(
+            format!(
+                "creating skill application records {}",
+                applications.display()
+            ),
+            source,
+        )
+    })?;
+    let write = TextFileWrite {
+        path: application_record_file(change.plan_digest.as_str())?,
         contents: format!("{contents}\n"),
-    })
+    };
+    crate::filesystem::apply_text_bundle(
+        "runx.skill.apply",
+        &applications,
+        &TextBundle {
+            writes: vec![write],
+            deletes: Vec::new(),
+        },
+    )?;
+    Ok(())
 }
 
-fn application_record_path(plan_digest: &str) -> Result<String, RuntimeError> {
+fn application_record_file(plan_digest: &str) -> Result<String, RuntimeError> {
     validate_digest("plan_digest", plan_digest)?;
     let digest = plan_digest
         .strip_prefix("sha256:")
         .ok_or_else(|| invalid_skill_change("plan_digest prefix was not validated"))?;
-    Ok(format!(".runx/authoring/applications/{digest}.json"))
+    Ok(format!("{digest}.json"))
 }
 
 fn change_bundle_digest(change: &SkillChangeBundle) -> Result<String, RuntimeError> {

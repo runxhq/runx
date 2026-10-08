@@ -16,6 +16,7 @@ use sha2::{Digest, Sha256};
 use thiserror::Error;
 
 use crate::credentials::SecretString;
+use crate::paths::RunxPaths;
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -250,39 +251,6 @@ pub fn parse_config_key(key: &str) -> Result<ConfigKey, ConfigError> {
     }
 }
 
-pub fn resolve_path_from_user_input(
-    user_path: &str,
-    env: &BTreeMap<String, String>,
-    cwd: &Path,
-    prefer_existing: bool,
-) -> PathBuf {
-    let path = Path::new(user_path);
-    if path.is_absolute() {
-        return path.to_path_buf();
-    }
-    if prefer_existing {
-        let workspace = resolve_runx_workspace_base(env, cwd);
-        for base in [workspace, admitted_cwd(cwd)] {
-            let candidate = base.join(path);
-            if candidate.exists() {
-                return candidate;
-            }
-        }
-    }
-    resolve_runx_workspace_base(env, cwd).join(path)
-}
-
-pub fn resolve_runx_global_home_dir(env: &BTreeMap<String, String>, cwd: &Path) -> PathBuf {
-    env.get("RUNX_HOME").map_or_else(
-        || home_dir(env, cwd).join(".runx"),
-        |home| resolve_path_from_user_input(home, env, cwd, false),
-    )
-}
-
-pub fn resolve_runx_home_dir(env: &BTreeMap<String, String>, cwd: &Path) -> PathBuf {
-    resolve_runx_global_home_dir(env, cwd)
-}
-
 pub fn load_runx_config_file(config_path: &Path) -> Result<RunxConfigFile, ConfigError> {
     let contents = match fs::read_to_string(config_path) {
         Ok(contents) => contents,
@@ -326,7 +294,7 @@ pub fn update_runx_config_value(
     mut config: RunxConfigFile,
     key: ConfigKey,
     value: &str,
-    config_dir: &Path,
+    paths: &RunxPaths,
 ) -> Result<RunxConfigFile, ConfigError> {
     match key {
         ConfigKey::AgentProvider => {
@@ -350,7 +318,7 @@ pub fn update_runx_config_value(
         }
         ConfigKey::AgentApiKey => {
             let mut agent = config.agent.unwrap_or_default();
-            agent.api_key_ref = Some(store_local_agent_api_key(config_dir, value)?);
+            agent.api_key_ref = Some(store_local_agent_api_key(paths, value)?);
             config.agent = Some(agent);
         }
         ConfigKey::AgentEndpointUrl => {
@@ -367,7 +335,7 @@ pub fn update_runx_config_value(
         }
         ConfigKey::PublicApiToken => {
             let mut public = config.public.unwrap_or_default();
-            public.api_token_ref = Some(store_local_public_api_token(config_dir, value)?);
+            public.api_token_ref = Some(store_local_public_api_token(paths, value)?);
             config.public = Some(public);
         }
     }
@@ -428,36 +396,36 @@ pub fn mask_runx_config_file(config: &RunxConfigFile) -> RunxConfigFile {
     masked
 }
 
-pub fn load_local_agent_api_key(config_dir: &Path, key_ref: &str) -> Result<String, ConfigError> {
-    load_local_config_secret_value(config_dir, key_ref)
+pub fn load_local_agent_api_key(paths: &RunxPaths, key_ref: &str) -> Result<String, ConfigError> {
+    load_local_config_secret_value(paths, key_ref)
 }
 
 pub fn load_local_public_api_token(
-    config_dir: &Path,
+    paths: &RunxPaths,
     token_ref: &str,
 ) -> Result<String, ConfigError> {
-    load_local_config_secret_value(config_dir, token_ref)
+    load_local_config_secret_value(paths, token_ref)
 }
 
 pub fn store_local_credential_secret(
-    config_dir: &Path,
+    paths: &RunxPaths,
     value: &str,
 ) -> Result<String, ConfigError> {
-    store_local_config_secret_value(config_dir, value, "local_credential")
+    store_local_config_secret_value(paths, value, "local_credential")
 }
 
 pub fn load_local_credential_secret(
-    config_dir: &Path,
+    paths: &RunxPaths,
     secret_ref: &str,
 ) -> Result<String, ConfigError> {
-    load_local_config_secret_value(config_dir, secret_ref)
+    load_local_config_secret_value(paths, secret_ref)
 }
 
 pub fn remove_local_credential_secret(
-    config_dir: &Path,
+    paths: &RunxPaths,
     secret_ref: &str,
 ) -> Result<(), ConfigError> {
-    let path = config_dir.join("keys").join(format!("{secret_ref}.json"));
+    let path = paths.keys().join(format!("{secret_ref}.json"));
     match fs::remove_file(path) {
         Ok(()) => Ok(()),
         Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
@@ -465,13 +433,13 @@ pub fn remove_local_credential_secret(
     }
 }
 
-fn load_local_config_secret_value(config_dir: &Path, key_ref: &str) -> Result<String, ConfigError> {
-    let key_path = config_dir.join("keys").join(format!("{key_ref}.json"));
+fn load_local_config_secret_value(paths: &RunxPaths, key_ref: &str) -> Result<String, ConfigError> {
+    let key_path = paths.keys().join(format!("{key_ref}.json"));
     let payload = load_key_payload(&key_path)?;
     if payload.alg != "aes-256-gcm" {
         return Err(config_key_read_error(&key_path, None));
     }
-    let secret = load_or_create_local_config_secret(&config_dir.join("keys"))?;
+    let secret = load_or_create_local_config_secret(&paths.keys())?;
     let key = Sha256::digest(secret.as_bytes());
     let cipher =
         Aes256Gcm::new_from_slice(&key).map_err(|error| ConfigError::Crypto(error.to_string()))?;
@@ -492,8 +460,8 @@ pub fn load_managed_agent_config(
     env: &BTreeMap<String, String>,
     cwd: &Path,
 ) -> Result<Option<ManagedAgentConfig>, ConfigError> {
-    let config_dir = resolve_runx_home_dir(env, cwd);
-    let config = load_runx_config_file(&config_dir.join("config.json"))?;
+    let paths = RunxPaths::resolve(env, cwd);
+    let config = load_runx_config_file(&paths.config_file())?;
     let auth_mode = env
         .get("RUNX_AGENT_AUTH_MODE")
         .or_else(|| {
@@ -597,9 +565,7 @@ pub fn load_managed_agent_config(
             .and_then(|agent| agent.api_key_ref.as_ref())
             .filter(|value| !value.is_empty())
     {
-        api_key = load_local_agent_api_key(&config_dir, key_ref)?
-            .trim()
-            .to_owned();
+        api_key = load_local_agent_api_key(&paths, key_ref)?.trim().to_owned();
     }
     match auth_mode {
         ManagedAgentAuthMode::ApiKey => {
@@ -693,64 +659,23 @@ fn random_config_secret_bytes() -> Result<[u8; 32], ConfigError> {
     <[u8; 32]>::try_generate().map_err(|error| ConfigError::Crypto(error.to_string()))
 }
 
-pub fn resolve_runx_workspace_base(env: &BTreeMap<String, String>, cwd: &Path) -> PathBuf {
-    env.get("RUNX_CWD")
-        .map(|path| resolve_base_path(path, cwd))
-        .or_else(|| find_runx_workspace_root(&admitted_cwd(cwd)))
-        .unwrap_or_else(|| admitted_cwd(cwd))
-}
-
-fn resolve_base_path(path: &str, cwd: &Path) -> PathBuf {
-    let path = PathBuf::from(path);
-    if path.is_absolute() {
-        path
-    } else {
-        admitted_cwd(cwd).join(path)
-    }
-}
-
-fn admitted_cwd(cwd: &Path) -> PathBuf {
-    cwd.to_path_buf()
-}
-
-fn find_runx_workspace_root(start: &Path) -> Option<PathBuf> {
-    let mut current = start.to_path_buf();
-    loop {
-        if current.join("pnpm-workspace.yaml").exists()
-            || current.join(".runx").join("project.json").exists()
-        {
-            return Some(current);
-        }
-        if !current.pop() {
-            return None;
-        }
-    }
-}
-
-fn home_dir(env: &BTreeMap<String, String>, cwd: &Path) -> PathBuf {
-    env.get("HOME")
-        .or_else(|| env.get("USERPROFILE"))
-        .map(PathBuf::from)
-        .unwrap_or_else(|| cwd.to_path_buf())
-}
-
-fn store_local_agent_api_key(config_dir: &Path, api_key: &str) -> Result<String, ConfigError> {
-    store_local_config_secret_value(config_dir, api_key, "local_agent_key")
+fn store_local_agent_api_key(paths: &RunxPaths, api_key: &str) -> Result<String, ConfigError> {
+    store_local_config_secret_value(paths, api_key, "local_agent_key")
 }
 
 pub(crate) fn store_local_public_api_token(
-    config_dir: &Path,
+    paths: &RunxPaths,
     api_token: &str,
 ) -> Result<String, ConfigError> {
-    store_local_config_secret_value(config_dir, api_token, "local_public_api_token")
+    store_local_config_secret_value(paths, api_token, "local_public_api_token")
 }
 
 fn store_local_config_secret_value(
-    config_dir: &Path,
+    paths: &RunxPaths,
     value: &str,
     ref_prefix: &str,
 ) -> Result<String, ConfigError> {
-    let key_dir = config_dir.join("keys");
+    let key_dir = paths.keys();
     fs::create_dir_all(&key_dir)?;
     let secret = load_or_create_local_config_secret(&key_dir)?;
     let key = Sha256::digest(secret.as_bytes());

@@ -87,7 +87,9 @@ pub fn read_document_input_with<R: Read>(
     match source {
         DocumentInputSource::Path(path) => {
             let location = path.display().to_string();
-            let root = runx_runtime::resolve_runx_workspace_base(env, cwd);
+            let root = runx_runtime::RunxPaths::resolve(env, cwd)
+                .workspace()
+                .to_path_buf();
             runx_runtime::read_workspace_text(&root, path, MAX_DOCUMENT_INPUT_BYTES).map_err(
                 |source| DocumentInputError::Workspace {
                     location: location.clone(),

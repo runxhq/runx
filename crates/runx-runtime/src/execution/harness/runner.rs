@@ -27,7 +27,7 @@ use crate::execution::run_record::RunLog;
 use crate::execution::runner::{GraphRun, Runtime, RuntimeOptions, StepRun};
 use crate::host::Host;
 use crate::kernel::store::KernelStore;
-use crate::receipts::paths::RUNX_CWD_ENV;
+use crate::paths::RUNX_CWD_ENV;
 use crate::receipts::signing::strip_receipt_signing_env;
 use crate::receipts::{
     RunScope, RuntimeReceiptSignatureConfig, RuntimeReceiptSignaturePolicy,
@@ -103,9 +103,10 @@ impl HarnessOptions {
         fixture: &HarnessFixture,
         target: &Path,
     ) -> Result<RuntimeOptions, RuntimeError> {
-        let store = KernelStore::for_workspace(&self.env, target).map_err(|error| {
-            RuntimeError::effect_state("opening a harness case kernel", error.to_string())
-        })?;
+        let store = KernelStore::for_project(&crate::paths::RunxPaths::resolve(&self.env, target))
+            .map_err(|error| {
+                RuntimeError::effect_state("opening a harness case kernel", error.to_string())
+            })?;
         let run = RunLog::evaluation(
             store,
             run_id,
@@ -246,27 +247,20 @@ where
     let fixture_path = fixture_path.as_ref();
     let mut fixture = load_harness_fixture(fixture_path)?;
     let target_path = resolve_target_path(fixture_path, &fixture.target)?;
-    // Each case runs against a kernel of its own, held until the case is
-    // done: its instances, custody and usage never reach the operator's
-    // workspace or another case.
+    // Each case runs in a home and a project directory of its own, held
+    // until the case is done: its profiles, instances, custody and usage
+    // never reach the operator or another case.
     let case_root = tempfile::Builder::new()
         .prefix("runx-harness-case-")
         .tempdir()
         .map_err(|error| {
             RuntimeError::effect_state("isolating a harness case", error.to_string())
         })?;
-    fixture.env.insert(
-        crate::receipts::paths::RUNX_PROJECT_DIR_ENV.to_owned(),
-        case_root
-            .path()
-            .join("project")
-            .to_string_lossy()
-            .into_owned(),
-    );
+    crate::paths::isolate(&mut fixture.env, case_root.path());
     #[cfg(feature = "async-http")]
     let options = {
         let mut options = options;
-        wire_operations(&mut fixture, &target_path, &mut options, case_root.path())?;
+        wire_operations(&mut fixture, &target_path, &mut options)?;
         options
     };
     seed_harness_receipts(&fixture, &target_path, &options)?;
@@ -336,7 +330,6 @@ fn wire_operations(
     fixture: &mut HarnessFixture,
     target_path: &Path,
     options: &mut HarnessOptions,
-    case_root: &Path,
 ) -> Result<(), HarnessReplayError> {
     let transport = super::transport::harness_transport(&fixture.caller);
     options.effects =
@@ -350,7 +343,7 @@ fn wire_operations(
     })?;
     fixture.env.extend(provider_env);
     seed_harness_sessions(fixture, target_path, options, &transport)?;
-    seed_harness_credentials(fixture, target_path, options, case_root)
+    seed_harness_credentials(fixture, target_path, options)
 }
 
 /// Confirm and select the session instances the case runs under, as
@@ -371,7 +364,7 @@ fn seed_harness_sessions(
     resolve_fixture_path(&mut env, target_path)?;
     let setup = |error: String| RuntimeError::effect_state("confirming a harness session", error);
     let instances = crate::Instances::new(
-        crate::KernelStore::for_workspace(&env, target_path)
+        crate::KernelStore::for_project(&crate::paths::RunxPaths::resolve(&env, target_path))
             .map_err(|error| setup(error.to_string()))?,
     );
     let scope =
@@ -393,30 +386,24 @@ fn seed_harness_sessions(
 }
 
 /// Store and select the credentials the case runs under, as `runx
-/// credential set` would. They live in a runx home inside the case's root,
-/// so no secret reaches the operator's.
+/// credential set` would, in the case's own home.
 #[cfg(feature = "async-http")]
 fn seed_harness_credentials(
     fixture: &mut HarnessFixture,
     target_path: &Path,
     options: &HarnessOptions,
-    case_root: &Path,
 ) -> Result<(), HarnessReplayError> {
     if fixture.setup.credentials.is_empty() {
         return Ok(());
     }
     let setup = |error: String| RuntimeError::effect_state("storing a harness credential", error);
-    fixture.env.insert(
-        "RUNX_HOME".to_owned(),
-        case_root.join("home").to_string_lossy().into_owned(),
-    );
     let mut env = options.env.clone();
     env.extend(fixture.env.clone());
     resolve_fixture_path(&mut env, target_path)?;
     let workspace = crate::services::WorkspaceEnv::new(env.clone(), target_path.to_path_buf())
         .map_err(|error| setup(error.to_string()))?;
     let instances = crate::Instances::new(
-        crate::KernelStore::for_workspace(&env, target_path)
+        crate::KernelStore::for_project(&crate::paths::RunxPaths::resolve(&env, target_path))
             .map_err(|error| setup(error.to_string()))?,
     );
     let scope =

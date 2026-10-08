@@ -12,7 +12,8 @@ use std::path::Path;
 use runx_contracts::JsonValue;
 use runx_contracts::connector::{ConnectorManifest, CredentialDeclaration, CredentialName};
 
-use crate::config::{load_local_credential_secret, load_runx_config_file, resolve_runx_home_dir};
+use crate::config::{load_local_credential_secret, load_runx_config_file};
+use crate::paths::RunxPaths;
 
 /// A delivered credential: which of the connector's credentials it is, and
 /// its fields. Its `Debug` never shows the fields.
@@ -93,9 +94,9 @@ pub(crate) fn deliver(
     binding: &ProfileBinding<'_>,
 ) -> Result<CredentialSecret, String> {
     let declaration = declaration(connector, binding.credential)?;
-    let (config_dir, stored) = stored_profile(env, cwd, connector, binding)?;
+    let (paths, stored) = stored_profile(env, cwd, connector, binding)?;
     let profile = binding.profile;
-    let value = load_local_credential_secret(&config_dir, &stored.secret_ref)
+    let value = load_local_credential_secret(&paths, &stored.secret_ref)
         .map_err(|error| format!("credential profile {profile} cannot be read: {error}"))?;
     let fields = fields(declaration, &value)
         .map_err(|reason| format!("credential profile {profile} {reason}"))?;
@@ -118,11 +119,10 @@ fn stored_profile(
     cwd: &Path,
     connector: &ConnectorManifest,
     binding: &ProfileBinding<'_>,
-) -> Result<(std::path::PathBuf, crate::config::RunxCredentialProfile), String> {
+) -> Result<(RunxPaths, crate::config::RunxCredentialProfile), String> {
     let profile = binding.profile;
-    let config_dir = resolve_runx_home_dir(env, cwd);
-    let config = load_runx_config_file(&config_dir.join("config.json"))
-        .map_err(|error| error.to_string())?;
+    let paths = RunxPaths::resolve(env, cwd);
+    let config = load_runx_config_file(&paths.config_file()).map_err(|error| error.to_string())?;
     let stored = config
         .credentials
         .unwrap_or_default()
@@ -144,7 +144,7 @@ fn stored_profile(
             connector.id, connector.id
         ));
     }
-    Ok((config_dir, stored))
+    Ok((paths, stored))
 }
 
 /// The stored value as the declaration's fields.
@@ -221,13 +221,17 @@ mod tests {
                     root.path().join("home").to_string_lossy().into_owned(),
                 ),
                 (
-                    crate::receipts::paths::RUNX_RECEIPT_DIR_ENV.to_owned(),
+                    crate::paths::RUNX_RECEIPT_DIR_ENV.to_owned(),
                     root.path().join(workspace).to_string_lossy().into_owned(),
                 ),
             ]);
             let instance = crate::kernel::setup::set_credential(
                 &crate::Instances::new(
-                    crate::KernelStore::for_workspace(&env, root.path()).unwrap(),
+                    crate::KernelStore::for_project(&crate::paths::RunxPaths::resolve(
+                        &env,
+                        root.path(),
+                    ))
+                    .unwrap(),
                 ),
                 &connector,
                 "moltbook",

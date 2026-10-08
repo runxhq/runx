@@ -3,7 +3,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::RuntimeError;
-use crate::receipts::paths::RUNX_CWD_ENV;
+use crate::paths::RUNX_CWD_ENV;
 
 pub(super) fn resolve_cwd(
     source_cwd: Option<&str>,

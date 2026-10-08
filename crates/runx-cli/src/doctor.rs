@@ -12,9 +12,9 @@ use runx_runtime::{
     HostedApiEnvironment, INJECTED_GRANT_ID_ENV, INJECTED_GRANTED_SCOPES_ENV,
     INJECTED_PRINCIPAL_REF_ENV, RUNX_RECEIPT_SIGN_ED25519_SEED_BASE64_ENV,
     RUNX_RECEIPT_SIGN_ISSUER_TYPE_ENV, RUNX_RECEIPT_SIGN_KID_ENV, RuntimeError,
-    RuntimeReceiptSignatureConfig, RuntimeReceiptVerifierSource, WorkspaceEnv,
+    RuntimeReceiptSignatureConfig, RuntimeReceiptVerifierSource, RunxPaths, WorkspaceEnv,
     decode_injected_scopes, default_doctor_options, load_managed_agent_config,
-    load_runx_config_file, receipt_verifier_from_env, resolve_runx_home_dir, run_doctor,
+    load_runx_config_file, receipt_verifier_from_env, run_doctor,
 };
 
 use crate::registry::{self, RegistryAction, RegistryPlan};
@@ -93,8 +93,7 @@ fn managed_agent_config_diagnostic(
     env: &BTreeMap<String, String>,
     cwd: &Path,
 ) -> Option<DoctorDiagnostic> {
-    let config_dir = resolve_runx_home_dir(env, cwd);
-    let config_path = config_dir.join("config.json");
+    let config_path = RunxPaths::resolve(env, cwd).config_file();
     let config = load_runx_config_file(&config_path);
     let mut evidence = JsonObject::new();
     evidence.insert(
@@ -301,18 +300,19 @@ fn provider_api_key_env(provider: &str) -> Option<&'static str> {
 
 fn run_registry_doctor(env: &BTreeMap<String, String>, cwd: &Path) -> DoctorReport {
     let target = registry::resolve_registry_target(&registry_probe_plan(), env, cwd);
+    let paths = RunxPaths::resolve(env, cwd);
     let diagnostics = vec![
         registry_target_diagnostic(&target),
         path_diagnostic(
             "runx.registry.official_cache",
             "Official skill cache",
-            registry::official_skills_cache_root(env, cwd),
+            registry::official_skills_cache_root(&paths, env),
             &[OFFICIAL_SKILLS_DIR_ENV],
         ),
         path_diagnostic(
             "runx.registry.global_cache",
             "Registry skill cache",
-            registry::registry_skills_cache_root(env, cwd),
+            paths.registry_skills(),
             &["RUNX_HOME"],
         ),
         registry_trust_key_diagnostic(env),
@@ -947,12 +947,11 @@ fn summary(diagnostics: &[DoctorDiagnostic]) -> DoctorSummary {
 }
 
 fn resolve_doctor_root(plan: &DoctorPlan, env: &BTreeMap<String, String>, cwd: &Path) -> PathBuf {
-    match plan.path.as_deref() {
-        Some(path) => {
-            runx_runtime::resolve_path_from_user_input(&path.to_string_lossy(), env, cwd, true)
-        }
-        None => runx_runtime::resolve_runx_workspace_base(env, cwd),
-    }
+    let paths = RunxPaths::resolve(env, cwd);
+    plan.path.as_deref().map_or_else(
+        || paths.workspace().to_path_buf(),
+        |path| paths.existing_input(path),
+    )
 }
 
 fn json_line<T: serde::Serialize>(value: &T) -> Result<String, DoctorCliError> {

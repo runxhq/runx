@@ -109,7 +109,9 @@ fn resolve_bare_skill_ref(
         "could not resolve skill ref '{}'; tried {} and {}. Search with `runx registry search {}` or run a registry ref directly with `runx skill <owner>/<name>@<version>`.",
         skill_ref.display(),
         cwd.join("skills").join(skill_ref).display(),
-        runx_runtime::resolve_runx_workspace_base(options.env, cwd)
+        runx_runtime::RunxPaths::resolve(options.env, cwd)
+            .workspace()
+            .to_path_buf()
             .join("skills")
             .join(skill_ref)
             .display(),
@@ -143,7 +145,10 @@ fn resolve_installed_or_workspace_skill(
 
 fn installed_roots(cwd: &Path, env: &BTreeMap<String, String>) -> Vec<PathBuf> {
     let mut roots = vec![cwd.join("skills")];
-    let workspace_root = runx_runtime::resolve_runx_workspace_base(env, cwd).join("skills");
+    let workspace_root = runx_runtime::RunxPaths::resolve(env, cwd)
+        .workspace()
+        .to_path_buf()
+        .join("skills");
     if !roots.contains(&workspace_root) {
         roots.push(workspace_root);
     }
@@ -336,11 +341,10 @@ fn destination_root_for_cache(
         .digest
         .as_deref()
         .ok_or_else(|| "registry skill is missing signed digest".to_owned())?;
+    let paths = runx_runtime::RunxPaths::resolve(env, cwd);
     let root = match cache_root {
-        CacheRoot::Official => registry::official_skills_cache_root(env, cwd),
-        CacheRoot::Registry => {
-            registry::registry_skills_cache_root(env, cwd).join(source_fingerprint)
-        }
+        CacheRoot::Official => registry::official_skills_cache_root(&paths, env),
+        CacheRoot::Registry => paths.registry_skills().join(source_fingerprint),
     };
     Ok(materialization_cache_path(
         &root,

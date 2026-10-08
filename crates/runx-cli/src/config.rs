@@ -7,9 +7,9 @@ use std::path::Path;
 
 use crate::cli_args::{os_arg, split_flag};
 use runx_runtime::{
-    ConfigError, RunxConfigFile, clear_runx_agent_endpoint_url, load_runx_config_file,
-    lookup_runx_config_value, mask_runx_config_file, parse_config_key, resolve_runx_home_dir,
-    update_runx_config_value, write_runx_config_file,
+    ConfigError, RunxConfigFile, RunxPaths, clear_runx_agent_endpoint_url, load_runx_config_file,
+    lookup_runx_config_value, mask_runx_config_file, parse_config_key, update_runx_config_value,
+    write_runx_config_file,
 };
 use serde::Serialize;
 
@@ -260,8 +260,8 @@ fn execute_config_plan(
     env: &BTreeMap<String, String>,
     cwd: &Path,
 ) -> Result<ConfigResult, ConfigCliError> {
-    let config_dir = resolve_runx_home_dir(env, cwd);
-    let config_path = config_dir.join("config.json");
+    let paths = RunxPaths::resolve(env, cwd);
+    let config_path = paths.config_file();
     let config = load_runx_config_file(&config_path)?;
 
     match plan.action {
@@ -284,7 +284,7 @@ fn execute_config_plan(
                 ConfigCliError::InvalidArgs("config value is required.".to_owned())
             })?;
             let parsed_key = parse_config_key(key)?;
-            let next = update_runx_config_value(config, parsed_key, value, &config_dir)?;
+            let next = update_runx_config_value(config, parsed_key, value, &paths)?;
             write_runx_config_file(&config_path, &next)?;
             Ok(ConfigResult::Set {
                 action: ConfigAction::Set,

@@ -173,7 +173,9 @@ pub(super) fn configured_tool_roots(env: &BTreeMap<String, String>) -> Vec<PathB
 }
 
 pub(super) fn workspace_root(env: &BTreeMap<String, String>, fallback: &Path) -> PathBuf {
-    crate::config::resolve_runx_workspace_base(env, fallback)
+    crate::RunxPaths::resolve(env, fallback)
+        .workspace()
+        .to_path_buf()
 }
 
 pub(super) fn catalog_error(skill_name: &str, error: ToolCatalogError) -> RuntimeError {

@@ -277,7 +277,7 @@ function findRegistrySkillCachePath(globalHomeDir: string, skillId: string): str
       }
       if (
         existsSync(path.join(entryPath, "SKILL.md")) &&
-        existsSync(path.join(entryPath, ".runx", "profile.json")) &&
+        existsSync(path.join(entryPath, "run.yaml")) &&
         entryPath.includes(`${path.sep}${owner}${path.sep}${name}${path.sep}`)
       ) {
         matches.push(entryPath);

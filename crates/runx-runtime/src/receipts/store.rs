@@ -19,6 +19,7 @@ use super::paths::{
     ReceiptStoreLabel, ReceiptStorePublicProjection, safe_receipt_store_projection,
 };
 use super::seal::{RuntimeReceiptProofContextProvider, RuntimeReceiptSignaturePolicy};
+use crate::paths::RunxPaths;
 
 const RECEIPT_STORE_INDEX_SCHEMA: &str = "runx.receipt_store_index.v1";
 const INDEX_FILE_NAME: &str = "index.json";
@@ -43,12 +44,8 @@ impl LocalReceiptStore {
     }
 
     #[must_use]
-    pub fn public_projection(
-        &self,
-        workspace_base: &Path,
-        project_runx_dir: &Path,
-    ) -> ReceiptStorePublicProjection {
-        safe_receipt_store_projection(&self.root, workspace_base, project_runx_dir)
+    pub fn public_projection(&self, paths: &RunxPaths) -> ReceiptStorePublicProjection {
+        safe_receipt_store_projection(&self.root, paths)
     }
 
     pub fn receipt_path(&self, receipt_id: &str) -> Result<PathBuf, ReceiptStoreError> {

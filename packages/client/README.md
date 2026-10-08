@@ -57,7 +57,7 @@ revalidates it at invocation. Mutable local paths must be inspected again.
 Skill output preserves the native status and semantic outcome, including
 `needs_approval`, `payment_required` and a sealed failure returned on exit 1.
 Digest-bound requests, spilled request sets, oversized results and diagnostics
-are hydrated under the configured project's `.runx/artifacts` root. Artifact
+are hydrated under the configured project directory's `artifacts` root. Artifact
 reads check regular files, size, content address and identity; malformed or
 missing evidence rejects the invocation. A sealed output must name its receipt
 and closure. Hydrated receipts pass the native-generated schema and identity

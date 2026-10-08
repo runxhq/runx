@@ -431,9 +431,8 @@ fn materialize_registry_step_skill(
         package_digest: resolution.package_digest.clone(),
         trust_tier: registry_trust_tier_label(&resolution.trust_tier).to_owned(),
     };
-    let cache_root = runtime_cwd(options.env, graph_dir)
-        .join(".runx")
-        .join("registry-step-skills")
+    let cache_root = crate::RunxPaths::resolve(options.env, graph_dir)
+        .registry_step_skills()
         .join(registry_source_fingerprint(registry_dir));
     let destination_root = materialization_cache_path(
         &cache_root,
@@ -495,10 +494,6 @@ fn materialize_registry_step_skill(
         directory,
         registry: Some(provenance),
     })
-}
-
-fn runtime_cwd(env: &BTreeMap<String, String>, graph_dir: &Path) -> PathBuf {
-    crate::config::resolve_runx_workspace_base(env, graph_dir)
 }
 
 fn registry_source_fingerprint(registry_dir: &str) -> String {

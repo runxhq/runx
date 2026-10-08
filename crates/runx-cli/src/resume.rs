@@ -256,10 +256,7 @@ fn materialize_stdin_answers(workspace: &WorkspaceEnv, run_id: &str) -> Result<P
     }
     let canonical = serde_json::to_vec(&value)
         .map_err(|error| format!("failed to encode resume answers: {error}"))?;
-    let workspace_base =
-        runx_runtime::resolve_runx_workspace_base(workspace.env(), workspace.cwd());
-    let project_runx_dir = runx_runtime::resolve_project_runx_dir(workspace.env(), &workspace_base);
-    let directory = project_runx_dir.join("continuations");
+    let directory = workspace.paths().continuations();
     fs::create_dir_all(&directory)
         .map_err(|error| format!("failed to create {}: {error}", directory.display()))?;
     let digest = runx_contracts::sha256_prefixed(&canonical);

@@ -146,7 +146,7 @@ fn env_registry_dir_target(
 ) -> Option<RegistryTarget> {
     let registry_dir = env.get("RUNX_REGISTRY_DIR")?;
     Some(local_registry_target(
-        runx_runtime::resolve_path_from_user_input(registry_dir, env, cwd, false),
+        runx_runtime::RunxPaths::resolve(env, cwd).in_workspace(registry_dir),
         remote_registry_url(configured_registry),
     ))
 }
@@ -157,7 +157,7 @@ fn default_local_registry_target(
     cwd: &Path,
 ) -> RegistryTarget {
     local_registry_target(
-        runx_runtime::resolve_runx_global_home_dir(env, cwd).join("registry"),
+        runx_runtime::RunxPaths::resolve(env, cwd).registry_cache(),
         configured_registry,
     )
 }
@@ -181,19 +181,17 @@ pub(crate) fn destination_root(
     plan.destination
         .as_ref()
         .map(|path| super::resolve_path(path, env, cwd, false))
-        .unwrap_or_else(|| runx_runtime::resolve_runx_workspace_base(env, cwd).join("skills"))
+        .unwrap_or_else(|| runx_runtime::RunxPaths::resolve(env, cwd).in_workspace("skills"))
 }
 
-pub(crate) fn official_skills_cache_root(env: &BTreeMap<String, String>, cwd: &Path) -> PathBuf {
-    env.get("RUNX_OFFICIAL_SKILLS_DIR")
-        .map(|value| runx_runtime::resolve_path_from_user_input(value, env, cwd, false))
-        .unwrap_or_else(|| {
-            runx_runtime::resolve_runx_global_home_dir(env, cwd).join("official-skills")
-        })
-}
-
-pub(crate) fn registry_skills_cache_root(env: &BTreeMap<String, String>, cwd: &Path) -> PathBuf {
-    runx_runtime::resolve_runx_global_home_dir(env, cwd).join("registry-skills")
+pub(crate) fn official_skills_cache_root(
+    paths: &runx_runtime::RunxPaths,
+    env: &BTreeMap<String, String>,
+) -> PathBuf {
+    env.get("RUNX_OFFICIAL_SKILLS_DIR").map_or_else(
+        || paths.official_skills(),
+        |value| paths.in_workspace(value),
+    )
 }
 
 pub(crate) fn registry_source_description(target: &RegistryTarget) -> String {
@@ -216,7 +214,7 @@ fn registry_path_from_value(value: &str, env: &BTreeMap<String, String>, cwd: &P
     if let Some(path) = file_url_path(value) {
         return path;
     }
-    runx_runtime::resolve_path_from_user_input(value, env, cwd, false)
+    runx_runtime::RunxPaths::resolve(env, cwd).in_workspace(value)
 }
 
 fn registry_source_kind(registry: &str) -> LocalRegistrySourceKind {

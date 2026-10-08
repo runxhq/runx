@@ -196,18 +196,13 @@ pub(super) fn unique_stage_root(repo_root: &Path, target: &Path) -> PathBuf {
         ".runx-candidate-{target_name}-{}-{nanos}",
         std::process::id()
     );
+    // A candidate is staged beside its target so it validates in the same
+    // place in the workspace; a target without a parent yet stages at the root.
     target
         .parent()
         .filter(|parent| parent.is_dir())
-        .map_or_else(
-            || {
-                repo_root
-                    .join(".runx")
-                    .join("staging")
-                    .join(stage_name.clone())
-            },
-            |parent| parent.join(stage_name.clone()),
-        )
+        .unwrap_or(repo_root)
+        .join(stage_name)
 }
 
 pub(super) fn invalid_skill_change(message: impl Into<String>) -> RuntimeError {

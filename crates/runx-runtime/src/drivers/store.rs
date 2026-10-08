@@ -36,10 +36,6 @@ mod sqlite;
 use model::{Appended, EventRecord, Projection, StreamHead};
 use request::{Append, Input, ListHeads, ReadEvents, Request, Source};
 
-/// The workspace store's file, beside the kernel store in the project's
-/// `.runx` directory.
-pub(crate) const WORKSPACE_STORE_FILE: &str = "store.sqlite";
-
 /// What confirms a store append: the store holds the reported event under
 /// the call's key, or nothing after a conflict.
 pub(crate) fn readback_matches() -> Vec<ReadbackMatch> {
@@ -136,12 +132,10 @@ enum Location {
 
 impl Location {
     fn of(call: &AdmittedCall<'_>) -> Result<Self, StoreError> {
-        let workspace = crate::receipts::paths::resolve_workspace_base(call.env, Path::new("."));
+        // The admitted environment always names the workspace.
+        let paths = crate::paths::RunxPaths::resolve(call.env, Path::new("."));
         let Some(url) = call.parameters.get("url") else {
-            return Ok(Self::Sqlite(
-                crate::receipts::paths::resolve_project_runx_dir(call.env, &workspace)
-                    .join(WORKSPACE_STORE_FILE),
-            ));
+            return Ok(Self::Sqlite(paths.workspace_store()));
         };
         let url = url
             .as_str()
@@ -150,12 +144,7 @@ impl Location {
             if path.is_empty() {
                 return Err(StoreError::invalid("a sqlite store url names a file"));
             }
-            let path = Path::new(path);
-            return Ok(Self::Sqlite(if path.is_absolute() {
-                path.to_path_buf()
-            } else {
-                workspace.join(path)
-            }));
+            return Ok(Self::Sqlite(paths.in_workspace(path)));
         }
         let parsed = url::Url::parse(url)
             .map_err(|error| StoreError::invalid(format!("the store url: {error}")))?;

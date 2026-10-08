@@ -188,7 +188,7 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
         ],
         notes: &[
             "An instance binds a connector to one account. `use` confirms the signed-in local session, stored credential profile, or active runx Connect grant as an instance, or selects one confirmed earlier, as the connector's default.",
-            "A run never falls back to another instance or account. Instances live with the receipt root (RUNX_RECEIPT_DIR, else .runx/receipts).",
+            "A run never falls back to another instance or account. Instances live in the project's kernel store (RUNX_PROJECT_DIR, else .runx).",
             "`import-mcp` lists the tools an MCP server serves with the digest a connector manifest pins each by; the bearer token, when the server needs one, is read from stdin. After `--`, it starts the stdio server that command line names and reads its tools.",
         ],
         options: &[

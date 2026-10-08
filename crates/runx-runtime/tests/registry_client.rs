@@ -279,16 +279,15 @@ fn local_install_is_idempotent_and_rejects_conflicts() -> Result<(), Box<dyn std
     assert!(conflict.to_string().contains("different content"));
 
     std::fs::write(&first.destination, &candidate.markdown)?;
-    let profile_path = match first.profile_state_path {
-        Some(path) => path,
-        None => return Err("profile path should be present".into()),
-    };
-    std::fs::write(profile_path, "{}\n")?;
-    let profile_conflict = match install_local_skill(&candidate, &options) {
-        Ok(_) => return Err("conflicting profile should fail".into()),
+    std::fs::write(
+        first.destination.with_file_name("run.yaml"),
+        "skill: other\n",
+    )?;
+    let manifest_conflict = match install_local_skill(&candidate, &options) {
+        Ok(_) => return Err("conflicting runner manifest should fail".into()),
         Err(error) => error,
     };
-    assert!(profile_conflict.to_string().contains("profile state"));
+    assert!(manifest_conflict.to_string().contains("runner manifest"));
     Ok(())
 }
 
