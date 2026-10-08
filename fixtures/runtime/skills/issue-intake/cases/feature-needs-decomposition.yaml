@@ -1,6 +1,7 @@
 name: "feature-needs-decomposition"
-kind: "agent_task"
-runner: "issue-intake"
+kind: "skill"
+target: "../../../../../skills/issue-intake"
+runner: "intake"
 inputs:
   product_context: "Multi-channel marketing automation product"
   thread_body: "We need a generated workflow, copy, timing rules, and reporting for abandoned cart recovery."
@@ -8,7 +9,7 @@ inputs:
   thread_title: "Add abandoned cart recovery across email and SMS"
 caller:
   answers:
-    agent_task.issue-intake.output:
+    agent.issue-intake.output:
       change_set:
         action_decision: "proceed_to_plan"
         category: "feature_request"
@@ -112,14 +113,6 @@ caller:
           recommended_lane: "work-plan"
           severity: "medium"
         updated_at: "2026-05-15T00:00:00Z"
-      decision:
-        schema: "runx.decision.v1"
-        decision_id: "dec_feature-needs-decomposition"
-        choice: "open"
-        summary: "The request spans multiple deliverables and should be broken into governed steps first."
-        recommended_lane: "work-plan"
-  approvals:
-    {}
 expect:
   status: "sealed"
   receipt:
@@ -129,4 +122,3 @@ expect:
 metadata:
   product_skill: "issue-intake"
   source_case: "feature-needs-decomposition"
-  runner_kind: "agent_task"

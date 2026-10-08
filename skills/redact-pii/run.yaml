@@ -1,0 +1,95 @@
+skill: redact-pii
+version: "0.2.1"
+catalog:
+  kind: graph
+  audience: public
+  visibility: public
+  role: canonical
+  execution: read
+  completion: runtime_receipt
+  requires_adapter: false
+  approval: none
+runners:
+  redact-pii:
+    default: true
+    inputs:
+      content:
+        type: string
+        required: true
+        description: Content to inspect and scrub before it crosses a trust boundary.
+      classes:
+        type: json
+        required: false
+        description: Personal-data classes to target; omitted classes use the broad default policy.
+      mode:
+        type: string
+        required: false
+        description: "Treatment to apply: redact, tokenize, or block. Defaults to redact."
+      locale:
+        type: string
+        required: false
+        description: Locale for semantic identifier and address judgment.
+      operator_context:
+        type: string
+        required: false
+        description: Boundary purpose and risk posture for the review pass.
+    result_from: [finalize]
+    steps:
+      - id: digest-source
+        tool: data.digest
+        inputs:
+          value: $input.content
+          encoding: utf8_text
+
+      - id: detect
+        label: detect personal-data spans and semantic risk
+        agent: { role: reviewer, task: redact-pii-detect }
+        outputs:
+          redaction_draft: object
+        inputs:
+          content: $input.content
+          classes: $input.classes
+          mode: $input.mode
+          locale: $input.locale
+          operator_context: $input.operator_context
+        artifacts:
+          named_emits:
+            redaction_draft: redaction_draft
+      - id: scrub
+        label: scrub and scan residual content
+        inputs:
+          content: $input.content
+          classes: $input.classes
+          mode: $input.mode
+          locale: $input.locale
+        context:
+          redaction_draft: detect.redaction_draft.data
+        tool: { module: redact-pii.mjs, export: scrubRedaction }
+        outputs:
+          redaction_candidate: object
+        artifacts:
+          named_emits:
+            redaction_candidate: redaction_candidate
+
+      - id: digest-redacted
+        tool: data.digest
+        inputs:
+          encoding: utf8_text
+        context:
+          value: scrub.redaction_candidate.data.redacted_content
+
+      - id: finalize
+        label: bind native content digests and release the report
+        context:
+          redaction_candidate: scrub.redaction_candidate.data
+          source_digest: digest-source.digest_result.data.digest
+          redacted_digest: digest-redacted.digest_result.data.digest
+        tool: { module: redact-pii.mjs, export: finalizeRedaction }
+        outputs:
+          redaction_report: object
+          redacted_content: string
+        artifacts:
+          named_emits:
+            redaction_report: redaction_report
+          packets:
+            redaction_report: runx.redaction.report.v1

@@ -5,10 +5,7 @@ use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
-use runx_runtime::journal::find_paused_run;
-use runx_runtime::{
-    ManagedAgentPolicy, ReceiptPathInputs, RuntimeReceiptConfig, WorkspaceEnv, resolve_receipt_path,
-};
+use runx_runtime::{ManagedAgentPolicy, WorkspaceEnv};
 
 const MAX_STDIN_ANSWERS_BYTES: u64 = 4 * 1024 * 1024;
 
@@ -95,15 +92,7 @@ pub fn parse_resume_plan(args: &[OsString]) -> Result<ResumePlan, String> {
                 receipt_dir = Some(PathBuf::from(value.trim_start_matches("--receipt-dir=")));
                 index += 1;
             }
-            value if value.starts_with("--receipts=") => {
-                receipt_dir = Some(PathBuf::from(value.trim_start_matches("--receipts=")));
-                index += 1;
-            }
-            value if value.starts_with("-R=") => {
-                receipt_dir = Some(PathBuf::from(value.trim_start_matches("-R=")));
-                index += 1;
-            }
-            "--receipt-dir" | "--receipts" | "-R" => {
+            "--receipt-dir" | "-R" => {
                 index += 1;
                 receipt_dir = Some(PathBuf::from(
                     args.get(index)
@@ -180,43 +169,31 @@ pub fn parse_resume_plan(args: &[OsString]) -> Result<ResumePlan, String> {
 // Function rationale: resume reconstructs one guarded continuation
 // request and keeps its path, receipt, and output error handling in one transaction.
 pub fn run_native_resume_with_workspace(plan: ResumePlan, workspace: &WorkspaceEnv) -> ExitCode {
-    let cwd = workspace.cwd().to_path_buf();
-    let env = workspace.env();
-    let receipt_config = RuntimeReceiptConfig::default();
-    let resolved = resolve_receipt_path(ReceiptPathInputs {
-        explicit_dir: plan.receipt_dir.as_deref(),
-        runtime_config: Some(&receipt_config),
-        env,
-        cwd: &cwd,
-    });
-    let pending = match find_paused_run(&resolved.path, &plan.run_id) {
-        Ok(pending) => pending,
+    let paused = match runx_runtime::run_record::paused_run(
+        workspace.env(),
+        workspace.cwd(),
+        &plan.run_id,
+    ) {
+        Ok(Some(paused)) => paused,
+        Ok(None) => {
+            return write_resume_failure(
+                &format!("no paused run found for {}", plan.run_id),
+                plan.json,
+                1,
+            );
+        }
         Err(error) => {
             return write_resume_failure(
-                &format!("could not read pending run: {error}"),
+                &format!("could not read run {}: {error}", plan.run_id),
                 plan.json,
                 1,
             );
         }
     };
-    let Some(pending) = pending else {
-        return write_resume_failure(
-            &format!("no pending run found for {}", plan.run_id),
-            plan.json,
-            1,
-        );
-    };
-    let Some(skill_ref) = pending.resume_skill_ref.as_deref() else {
-        return write_resume_failure(
-            "pending run does not record a resume skill ref; rerun the original skill manually",
-            plan.json,
-            1,
-        );
-    };
     let expected_package_digest = match resume_binding(
         "package",
         plan.expected_package_digest.as_deref(),
-        pending.package_digest.as_deref(),
+        &paused.package_digest,
     ) {
         Ok(digest) => digest,
         Err(error) => return write_resume_failure(&error, plan.json, 1),
@@ -224,21 +201,11 @@ pub fn run_native_resume_with_workspace(plan: ResumePlan, workspace: &WorkspaceE
     let expected_execution_closure_digest = match resume_binding(
         "execution closure",
         plan.expected_execution_closure_digest.as_deref(),
-        pending.execution_closure_digest.as_deref(),
+        &paused.execution_closure_digest,
     ) {
         Ok(digest) => digest,
         Err(error) => return write_resume_failure(&error, plan.json, 1),
     };
-    if expected_package_digest.is_none() || expected_execution_closure_digest.is_none() {
-        return write_resume_failure(
-            &format!(
-                "run {} predates immutable package and execution-closure binding and cannot be resumed",
-                plan.run_id
-            ),
-            plan.json,
-            1,
-        );
-    }
     let answers_path = if plan.answers_path == Path::new("-") {
         match materialize_stdin_answers(workspace, &plan.run_id) {
             Ok(path) => path,
@@ -249,15 +216,15 @@ pub fn run_native_resume_with_workspace(plan: ResumePlan, workspace: &WorkspaceE
     };
     let skill_plan = SkillPlan {
         action: SkillAction::Run,
-        skill_path: PathBuf::from(skill_ref),
-        runner: pending.selected_runner.clone(),
+        skill_path: PathBuf::from(&paused.skill_ref),
+        runner: Some(paused.runner.clone()),
         receipt_dir: plan.receipt_dir,
         run_id: Some(plan.run_id),
         answers: Some(answers_path),
         registry: None,
         expected_digest: None,
-        expected_package_digest,
-        expected_execution_closure_digest,
+        expected_package_digest: Some(expected_package_digest),
+        expected_execution_closure_digest: Some(expected_execution_closure_digest),
         json: plan.json,
         diagnostics: plan.diagnostics,
         trusted_command_execution: false,
@@ -346,19 +313,16 @@ fn binding_flag_value(flag: &str, value: &str) -> Result<String, String> {
     Ok(value.to_owned())
 }
 
-fn resume_binding(
-    label: &str,
-    requested: Option<&str>,
-    checkpointed: Option<&str>,
-) -> Result<Option<String>, String> {
-    if let (Some(requested), Some(checkpointed)) = (requested, checkpointed)
-        && requested != checkpointed
+/// A digest the caller pins must be the one the run was started under.
+fn resume_binding(label: &str, requested: Option<&str>, recorded: &str) -> Result<String, String> {
+    if let Some(requested) = requested
+        && requested != recorded
     {
         return Err(format!(
-            "resume {label} binding mismatch: requested {requested}, checkpoint recorded {checkpointed}"
+            "resume {label} binding mismatch: requested {requested}, the run was started under {recorded}"
         ));
     }
-    Ok(requested.or(checkpointed).map(str::to_owned))
+    Ok(recorded.to_owned())
 }
 
 pub(crate) fn render_skill_resume_command(command: SkillResumeCommand<'_>) -> String {
@@ -457,11 +421,11 @@ mod tests {
     }
 
     #[test]
-    fn resume_rejects_a_binding_that_disagrees_with_its_checkpoint() -> Result<(), String> {
+    fn resume_rejects_a_binding_that_disagrees_with_its_run() -> Result<(), String> {
         let error = match super::resume_binding(
             "execution closure",
             Some("sha256:requested"),
-            Some("sha256:checkpoint"),
+            "sha256:recorded",
         ) {
             Err(error) => error,
             Ok(_) => return Err("resume replaced its durable execution binding".to_owned()),

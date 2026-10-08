@@ -1,8 +1,6 @@
 ---
 name: x402-pay
 description: Pay one x402 challenge through Runx Hosted with approval and paid-resource readback.
-runx:
-  category: payments
 ---
 
 # X402 Pay

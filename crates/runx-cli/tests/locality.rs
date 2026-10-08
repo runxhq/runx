@@ -128,7 +128,7 @@ fn runtime_network_is_opt_in() -> Result<(), Box<dyn std::error::Error>> {
         })?;
     assert!(
         !default.contains("async-http")
-            && !default.contains("cli-tool")
+            && !default.contains("process-tool")
             && !default.contains("catalog"),
         "runx-runtime default features must not enable network (async-http). \
          Network stays opt-in. Got: {default}",

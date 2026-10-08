@@ -5,24 +5,23 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use runx_contracts::{JsonObject, JsonValue, sha256_prefixed};
-use runx_core::state_machine::{RetryPolicy, SequentialGraphStepDefinition};
+use runx_core::state_machine::SequentialGraphStepDefinition;
 use runx_parser::{
     ExecutionGraph, GraphStep, SkillRunnerDefinition, SkillRunnerManifest, parse_graph_yaml,
     validate_graph,
 };
 
+use crate::RuntimeError;
 use crate::registry::{
     FileRegistryStore, InstallCandidate, InstallLocalSkillOptions, RegistryResolveOptions,
     install_local_skill, materialization_cache_path, materialization_digest_marker,
     resolve_registry_skill, split_skill_id, trusted_registry_manifest_keys_from_env,
 };
-use crate::{RuntimeError, StepRun};
 
 use super::graph_index::PriorRunIndex;
 
 #[derive(Clone)]
 pub(crate) struct LoadedStepSkill {
-    pub(crate) skill_name: String,
     pub(crate) runner: SkillRunnerDefinition,
     pub(crate) requirements: runx_contracts::ExecutionRequirements,
     pub(crate) directory: PathBuf,
@@ -87,6 +86,64 @@ pub(crate) fn load_graph(graph_path: &Path) -> Result<ExecutionGraph, RuntimeErr
     validate_graph(raw).map_err(RuntimeError::from)
 }
 
+/// The parent step's provenance, carried to the nested graph's steps that
+/// receive the same values: an input passed ambiently under its runner-input
+/// name, or bound from `$input.<name>` (renamed to the binding's key). Context
+/// edges inside the nested graph keep their own provenance.
+pub(crate) fn inherited_step_provenance(
+    graph: &ExecutionGraph,
+    graph_inputs: &JsonObject,
+    parent: &[runx_contracts::ProvenanceEntry],
+) -> BTreeMap<String, Vec<runx_contracts::ProvenanceEntry>> {
+    if parent.is_empty() {
+        return BTreeMap::new();
+    }
+    graph
+        .steps
+        .iter()
+        .map(|step| {
+            let mut entries = Vec::new();
+            if step.operation().is_none() {
+                for name in graph_inputs.keys() {
+                    let overridden = step.inputs.contains_key(name)
+                        || step.context_edges.iter().any(|edge| edge.input == *name);
+                    if !overridden {
+                        inherit_provenance(parent, name, name, &mut entries);
+                    }
+                }
+            }
+            for (key, value) in &step.inputs {
+                if let Some(path) = value
+                    .as_str()
+                    .and_then(|value| value.strip_prefix("$input."))
+                {
+                    let runner_input = path.split('.').next().unwrap_or(path);
+                    inherit_provenance(parent, runner_input, key, &mut entries);
+                }
+            }
+            (step.id.clone(), entries)
+        })
+        .filter(|(_, entries)| !entries.is_empty())
+        .collect()
+}
+
+fn inherit_provenance(
+    parent: &[runx_contracts::ProvenanceEntry],
+    runner_input: &str,
+    input: &str,
+    entries: &mut Vec<runx_contracts::ProvenanceEntry>,
+) {
+    entries.extend(
+        parent
+            .iter()
+            .filter(|entry| entry.input.as_ref() == runner_input)
+            .map(|entry| runx_contracts::ProvenanceEntry {
+                input: input.into(),
+                ..entry.clone()
+            }),
+    );
+}
+
 pub(crate) fn materialize_graph_parameter_inputs(
     mut graph: ExecutionGraph,
     graph_inputs: &JsonObject,
@@ -95,7 +152,7 @@ pub(crate) fn materialize_graph_parameter_inputs(
         let declared_inputs = std::mem::take(&mut step.inputs);
         // An operation call is exactly what its step declares; graph
         // parameters reach it only through `$input` references.
-        let mut inputs = if step.operation.is_some() {
+        let mut inputs = if step.operation().is_some() {
             JsonObject::new()
         } else {
             graph_inputs.clone()
@@ -189,22 +246,21 @@ pub(crate) fn load_step_skill(
         .ok_or_else(|| RuntimeError::InvalidRunStep {
             step_id: step.id.clone(),
             reason: format!(
-                "sub-skill {} does not declare an X.yaml runner",
+                "sub-skill {} does not declare a run.yaml runner",
                 package.directory.display()
             ),
         })?;
-    let skill_name = manifest
-        .skill
-        .clone()
-        .unwrap_or_else(|| package.package.skill.name.clone());
-    let runner = select_step_runner(manifest, step.runner.as_deref())?.clone();
+    let runner = select_step_runner(
+        manifest,
+        step.skill().and_then(|target| target.runner.as_deref()),
+    )?
+    .clone();
     let requirements = manifest.execution_requirements(&runner);
     let directory = package.directory.clone();
     let manual_path = package.package_root.join("SKILL.md");
     let manual_markdown = package.package.manual_markdown.clone().into();
     let manual_digest = package.package.manual_digest.clone();
     let loaded = LoadedStepSkill {
-        skill_name,
         runner,
         requirements,
         directory,
@@ -213,7 +269,10 @@ pub(crate) fn load_step_skill(
         manual_digest,
         registry: resolved.registry,
     };
-    for path in [loaded.directory.join("X.yaml"), manual_path] {
+    for path in [
+        loaded.directory.join(runx_parser::PROFILE_FILE),
+        manual_path,
+    ] {
         if path.exists() {
             super::prepared_skill::verify_prepared_artifact_at_use(options.env, &path)?;
         }
@@ -272,10 +331,6 @@ pub(crate) fn step_definitions(graph: &ExecutionGraph) -> Vec<SequentialGraphSte
         .map(|step| SequentialGraphStepDefinition {
             id: step.id.clone(),
             context_from: context_from(step),
-            retry: step.retry.as_ref().map(|retry| RetryPolicy {
-                max_attempts: retry_attempts(retry.max_attempts),
-            }),
-            fanout_group: step.fanout_group.clone(),
         })
         .collect()
 }
@@ -285,7 +340,7 @@ fn resolve_step_skill_directory(
     step: &GraphStep,
     options: StepSkillLoadOptions<'_>,
 ) -> Result<ResolvedStepSkillDirectory, RuntimeError> {
-    if let Some(skill) = &step.skill {
+    if let Some(skill) = step.skill().map(|target| target.reference.as_str()) {
         if is_registry_step_ref(skill) {
             return materialize_registry_step_skill(graph_dir, step, skill, options);
         }
@@ -476,14 +531,6 @@ fn is_registry_step_ref(reference: &str) -> bool {
         || reference.starts_with("runx://skill/")
 }
 
-pub(crate) fn materialize_step_invocation_inputs(
-    step: &GraphStep,
-    prior_runs: &[StepRun],
-) -> Result<JsonObject, RuntimeError> {
-    let prior_run_index = PriorRunIndex::new(prior_runs);
-    materialize_step_invocation_inputs_with_index(step, &prior_run_index)
-}
-
 pub(crate) fn materialize_step_invocation_inputs_with_index(
     step: &GraphStep,
     prior_run_index: &PriorRunIndex<'_>,
@@ -502,14 +549,6 @@ pub(crate) fn materialize_step_invocation_inputs_with_index(
         }
     }
     Ok(inputs)
-}
-
-pub(crate) fn materialize_step_invocation_provenance(
-    step: &GraphStep,
-    prior_runs: &[StepRun],
-) -> Result<Vec<runx_contracts::ProvenanceEntry>, RuntimeError> {
-    let prior_run_index = PriorRunIndex::new(prior_runs);
-    materialize_step_invocation_provenance_with_index(step, &prior_run_index)
 }
 
 pub(crate) fn materialize_step_invocation_provenance_with_index(
@@ -531,10 +570,6 @@ fn context_from(step: &GraphStep) -> Option<Vec<String>> {
         .map(|edge| edge.from_step.clone())
         .collect::<Vec<_>>();
     (!refs.is_empty()).then_some(refs)
-}
-
-fn retry_attempts(max_attempts: u64) -> u32 {
-    u32::try_from(max_attempts).unwrap_or(u32::MAX)
 }
 
 #[cfg(test)]
@@ -628,14 +663,10 @@ mod tests {
 name: context-precedence
 steps:
   - id: produce
-    run:
-      type: javascript
-      module: produce.mjs
-      outputs: { value: string }
+    tool: { module: produce.mjs }
+    outputs: { value: string }
   - id: consume
-    run:
-      type: javascript
-      module: consume.mjs
+    tool: { module: consume.mjs }
     context:
       value: produce.value
 "#,

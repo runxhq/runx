@@ -62,13 +62,28 @@ pub struct SkillPackageSource {
     pub symlinks: BTreeSet<String>,
 }
 
+/// The execution profile beside a skill's `SKILL.md`.
+pub const PROFILE_FILE: &str = "run.yaml";
+
+/// The package-relative directory a profile path names: empty for the root
+/// profile, `graph/plan` for `graph/plan/run.yaml`, and `None` for a path that
+/// is not a profile.
+#[must_use]
+pub fn profile_directory(profile_path: &str) -> Option<&str> {
+    let directory = profile_path.strip_suffix(PROFILE_FILE)?;
+    if directory.is_empty() {
+        return Some("");
+    }
+    directory.strip_suffix('/')
+}
+
 impl SkillPackageSource {
     #[must_use]
-    pub fn from_documents(skill_markdown: impl Into<String>, x_yaml: Option<String>) -> Self {
+    pub fn from_documents(skill_markdown: impl Into<String>, profile: Option<String>) -> Self {
         let mut files =
             BTreeMap::from([("SKILL.md".to_owned(), skill_markdown.into().into_bytes())]);
-        if let Some(x_yaml) = x_yaml {
-            files.insert("X.yaml".to_owned(), x_yaml.into_bytes());
+        if let Some(profile) = profile {
+            files.insert(PROFILE_FILE.to_owned(), profile.into_bytes());
         }
         Self {
             files,
@@ -101,7 +116,7 @@ pub struct ValidatedPackageTool {
 pub struct ValidatedSkillPackage {
     pub skill: ValidatedSkill,
     /// Every execution profile owned by this manual, keyed by package-relative
-    /// path (`X.yaml` for the root profile, `graph/plan/X.yaml` for a stage).
+    /// path (`run.yaml` for the root profile, `graph/plan/run.yaml` for a stage).
     pub profiles: BTreeMap<String, SkillRunnerManifest>,
     /// Exact `SKILL.md` bytes presented to an operating agent.
     pub manual_markdown: String,
@@ -147,7 +162,7 @@ impl ValidatedSkillPackage {
 
     #[must_use]
     pub fn root_manifest(&self) -> Option<&SkillRunnerManifest> {
-        self.profiles.get("X.yaml")
+        self.profiles.get(PROFILE_FILE)
     }
 
     #[must_use]

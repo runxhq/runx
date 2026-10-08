@@ -29,19 +29,13 @@ interface ArtifactContract {
   readonly wrap_as?: string;
 }
 
-interface ExecutionSource {
-  readonly type: string;
-  readonly outputs?: JsonObject;
-  readonly graph?: ExecutionGraph;
-}
-
 interface ExecutionGraph {
   readonly steps: readonly GraphStep[];
 }
 
 interface GraphStep {
   readonly id: string;
-  readonly run?: ExecutionSource;
+  readonly kind: Readonly<Record<string, unknown>>;
   readonly outputs?: JsonObject;
   readonly artifacts?: ArtifactContract;
 }
@@ -49,8 +43,7 @@ interface GraphStep {
 interface RunnerDefinition {
   readonly name: string;
   readonly inputs?: Readonly<Record<string, InputDefinition>>;
-  readonly source: ExecutionSource;
-  readonly artifacts?: ArtifactContract;
+  readonly graph: ExecutionGraph;
 }
 
 interface InputDefinition {
@@ -91,7 +84,7 @@ for (const declaration of listToolPacketDeclarations()) {
     declarations.set(declaration.packetId, declaration.source);
   }
 }
-// Public native boundary packets have no X.yaml producer to discover. The
+// Public native boundary packets have no run.yaml producer to discover. The
 // Rust artifact owner marks those explicitly; ordinary contract schemas are
 // never promoted merely because they exist.
 for (const contract of ownedContracts.values()) {
@@ -137,7 +130,7 @@ for (const [packetId, packetContracts] of manualContractsByPacket) {
   for (const field of schemaView(ownedSchema, ownedSchema, new Set()).required) {
     if (!commonRequired.has(field)) {
       manualSchemaFindings.push(
-        `manual packet schema '${packetId}' unconditionally requires root property '${field}', but its X.yaml bindings use incompatible envelope shapes`,
+        `manual packet schema '${packetId}' unconditionally requires root property '${field}', but its run.yaml bindings use incompatible envelope shapes`,
       );
     }
   }
@@ -161,7 +154,7 @@ for (const contract of structuralContracts.values()) {
   }
 }
 if (manualSchemaFindings.length > 0) {
-  throw new Error(`manual packet schemas conflict with X.yaml output contracts:\n${manualSchemaFindings.join("\n")}`);
+  throw new Error(`manual packet schemas conflict with run.yaml output contracts:\n${manualSchemaFindings.join("\n")}`);
 }
 
 const staleGenerated = [...existingById.entries()]
@@ -254,14 +247,8 @@ function collectManifestContracts(manifest: RunnerManifest, profile: string): vo
   for (const [runnerName, runner] of Object.entries(manifest.runners)) {
     const location = `root.runners.${runnerName}`;
     collectInputPacketDeclarations(runner.inputs, profile, location);
-    collectExecutionContract(runner.source, runner.artifacts, profile, location);
-    for (const [index, step] of (runner.source.graph?.steps ?? []).entries()) {
-      const stepLocation = `${location}.graph.steps.${index}`;
-      if (step.run) {
-        collectExecutionContract(step.run, step.artifacts, profile, stepLocation, step.outputs);
-      } else if (step.artifacts) {
-        collectPacketDeclarations(step.artifacts, `${profile}#${stepLocation}`);
-      }
+    for (const [index, step] of runner.graph.steps.entries()) {
+      collectStepContract(step, profile, `${location}.steps.${index}`);
     }
   }
 }
@@ -279,19 +266,10 @@ function collectInputPacketDeclarations(
   }
 }
 
-function collectExecutionContract(
-  execution: ExecutionSource,
-  artifacts: ArtifactContract | undefined,
-  profile: string,
-  location: string,
-  stepOutputs?: JsonObject,
-): void {
-  const type = execution.type;
-  const outputs = stepOutputs ?? execution.outputs;
-  if (type === "agent" || type === "agent-task") {
-    if (!outputs || Object.keys(outputs).length === 0) {
-      throw new Error(`${profile}#${location} agent runner has no declared outputs`);
-    }
+function collectStepContract(step: GraphStep, profile: string, location: string): void {
+  const { outputs, artifacts } = step;
+  if ("agent" in step.kind && (!outputs || Object.keys(outputs).length === 0)) {
+    throw new Error(`${profile}#${location} agent step has no declared outputs`);
   }
   if (artifacts) {
     const source = `${profile}#${location}`;
@@ -360,7 +338,7 @@ function register(contract: PacketContract): void {
       return;
     }
     if (!isBareObjectSchema(existing.schema) && isBareObjectSchema(contract.schema)) return;
-    throw new Error(`packet '${contract.packetId}' has conflicting X.yaml output contracts`);
+    throw new Error(`packet '${contract.packetId}' has conflicting run.yaml output contracts`);
   }
   if (!existing) contracts.set(contract.packetId, contract);
 }
@@ -645,7 +623,7 @@ async function findProfiles(directory: string): Promise<readonly string[]> {
   for (const entry of await readdir(directory, { withFileTypes: true })) {
     const entryPath = path.join(directory, entry.name);
     if (entry.isDirectory()) profiles.push(...await findProfiles(entryPath));
-    else if (entry.isFile() && entry.name === "X.yaml") profiles.push(entryPath);
+    else if (entry.isFile() && entry.name === "run.yaml") profiles.push(entryPath);
   }
   return profiles.sort();
 }

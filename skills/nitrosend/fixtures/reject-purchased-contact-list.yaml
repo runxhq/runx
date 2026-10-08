@@ -8,7 +8,7 @@ inputs:
   operator_context: Refuse non-consented lists.
 caller:
   answers:
-    agent_task.import-contacts-plan.output:
+    agent.import-contacts-plan.output:
       import_plan:
         decision: reject
         source: none

@@ -24,11 +24,11 @@ interface. The operator skill supplies judgment and governance:
 
 ## State Ownership
 
-Operator and domain skill state is local unless the operator explicitly binds a
-hosted data source. Use the provider-neutral `data-store` skill with a stable
-logical ref. An unbound `local://...` ref resolves to durable SQLite under
-`.runx/data/local-sources/`; changing to Postgres, Redis, D1, or another hosted
-store is a binding change, not a skill rewrite.
+Operator and domain skill state lives in the workspace's store. Use the
+provider-neutral `data-store` skill with a stable logical ref. With no store
+instance confirmed, the store is a SQLite file under `.runx/`; moving it to
+Postgres or Redis is a store instance (`runx connector use store --parameter
+url=...`), not a skill rewrite.
 
 Runx Connect has a separate job: OAuth, credential custody, capability grants,
 and provider execution. A skill may read Slack, GitHub, or another provider
@@ -46,7 +46,7 @@ A project operator skill uses runx the right way:
 
 - the project skill carries product vocabulary, voice, review rules, and
   procedure;
-- Graph runners let the model author a line, verdict, or draft.
+- Agent steps let the model author a line, verdict, or draft.
 - Deterministic steps perform the board mutation.
 - The receipt seals the domain act: target, authority, decision, reason, and
   effect.

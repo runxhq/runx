@@ -18,11 +18,11 @@ steps:
   - id: second
     skill: ../hello-world
     context:
-      message: first.stdout
+      message: first.message
 ```
 
 The first step runs the skill with an explicit input. The second step reads the
-first step's `stdout` and passes it as the next `message` input. The graph
+first step's `message` output and passes it as the next `message` input. The graph
 receipt links both step receipts, so inspection can show what ran and how the
 steps connected.
 
@@ -41,7 +41,7 @@ Executable registry refs are explicit (`registry:...`, `runx-registry:...`, or
 `runx://skill/...`) and resolve only from `RUNX_REGISTRY_DIR`. Graph execution
 does not fetch remote registry content implicitly; the operator must install,
 publish, or sync the skill into the local registry first. At runtime runx
-materializes the resolved `SKILL.md` and optional `X.yaml` into
+materializes the resolved `SKILL.md` and optional `run.yaml` into
 `.runx/registry-step-skills/` as a generated cache, then executes the normal
 skill runner path against that materialized package.
 
@@ -55,12 +55,9 @@ context:
 ```yaml
 steps:
   - id: apply_taste
-    run:
-      type: agent-task
-      agent: builder
-      task: apply taste guidance
-      outputs:
-        summary: string
+    agent: { role: builder, task: apply-taste }
+    outputs:
+      summary: string
     context_skills:
       - taste-profile
       - registry:runx/taste-profile@1.0.0
@@ -80,12 +77,11 @@ implicitly; install or ingest the skill first, then reference the local registry
 
 The gates are intentionally narrow:
 
-- `context_skills` is accepted only on direct `agent-task` steps or nested skills
-  and stages that resolve to `agent`/`agent-task`.
+- `context_skills` is accepted only on `agent` steps.
 - Local refs must be relative paths, must not contain `..`, must not target
   private graph stages under `skills/<name>/graph/<stage>/`, and must contain a
   valid `SKILL.md`.
-- A context skill with an `X.yaml` catalog entry cannot use an implementation-only
+- A context skill with an `run.yaml` catalog entry cannot use an implementation-only
   role (`graph-stage`, `runtime-path`, or `harness-fixture`).
   Internal catalog entries are context-loadable only when they explicitly declare
   `catalog.role: context`.
@@ -113,9 +109,9 @@ steps `first`, then `second`.
 
 ## When To Use A Graph
 
-A single `agent-task` runner is one bounded agent act. It carries its own
-`instructions` and `allowed_tools` and normally yields `needs_agent` to the
-calling agent. `--managed-agent` explicitly delegates that act to the configured
+Every runner is a list of steps. A runner whose one step is an `agent` step is
+one bounded agent act: the skill's manual is its instructions, the step names
+its `allowed_tools`, and it normally yields `needs_agent` to the calling agent. `--managed-agent` explicitly delegates that act to the configured
 in-process provider for the current run; credentials alone never enable it. The
 round cap is shown in prepared context and defaults to four. Not everything
 needs a graph. Reach for one when a single judgment step produces the result.
@@ -147,8 +143,9 @@ continues only when explicit stop policy allows.
 ## Domain Receipts: The `act:` Declaration
 
 By default a receipt records that a step ran. A runner can instead declare an
-`act:` block so the sealed receipt reads as the **domain act** it performed: what
-was decided, on what, under what authority, with what effect, and what it follows.
+`act:` block so its primary receipt reads as the **domain act** it performed:
+what was decided, on what, under what authority, with what effect, and what it
+follows.
 
 The discipline is a trust boundary. The model authors only the human reason; the
 structure and authority come from the declaration plus trusted inputs, never from
@@ -156,12 +153,13 @@ the model, so it cannot forge what kind of act happened, what it targeted, or
 under what right. A run that declares no `act:` block seals exactly as before.
 
 Each field maps to a trusted source, a literal or driver-pinned from an input
-(`<field>_from: <input>`):
+(`<field>_from: <input>`). The reason and effect come from named steps, so the
+effect is read from the deterministic action step's real result, never the
+model's restatement of it:
 
 ```yaml
 runners:
   approve:
-    type: agent-task            # or a graph; see below
     act:
       form_from: act_form        # review | revision | reply | observation | verification
       purpose_from: act_purpose  # what this act is
@@ -169,27 +167,22 @@ runners:
       decision_from: decision    # accept | reject | continue | ... -> the receipt decision
       authority_from: authority  # the right exercised (a grant ref)
       actor_from: actor          # who acted (a principal ref)
-      reason_from: note          # the agent's authored line -> the act summary
       previous_from: prior       # the receipt this one chains from (lineage)
-```
-
-For a **graph**, the reason and effect come from steps, not the agent's final
-answer, so the effect is read from the deterministic action step's real result,
-never the model's restatement of it:
-
-```yaml
-    act:
       reason_step: decide        # the agent step whose output holds the reason
       reason_from: line          # the field in that step's output
       effect_step: act           # the deterministic action step
       effect_from: id            # the field of its result that is the consequence id
       effect_prefix_from: ns     # wraps it, e.g. ticket: -> ticket:<id>
-      # form/purpose/target/decision/authority/actor as above
+    steps:
+      # ...
 ```
+
+When the operator, not an agent, authors the reason, `reason_from_input` names a
+trusted input instead of `reason_step`/`reason_from`.
 
 Transport never enters the receipt: the tool name, url, status, and any token
 stay out; only the domain act and its effect ref are sealed. See
-[the act model](./act-model-reconciliation.md) for the receipt's act/decision
+[the act model](./act-model.md) for the receipt's act/decision
 shape.
 
 ## HTTP Steps And Credentials
@@ -219,17 +212,12 @@ connectors:
     operations: [account.read]
 runners:
   main:
-    type: graph
-    graph:
-      name: main
-      result_from: [read_account]
-      steps:
-        - id: read_account
-          operation: example-crm/account.read
-          inputs:
-            result_fields: [account]
-            input:
-              account_id: $input.account_id
+    steps:
+      - id: read_account
+        operation: example-crm/account.read
+        result_fields: [account]
+        input:
+          account_id: $input.account_id
 ```
 
 The kernel admits the call against the bound instance, renders the declared
@@ -265,23 +253,20 @@ steps:
       event: decide.claim_packet.data
 ```
 
-The storage provider can be SQL, Redis, D1, DynamoDB, object storage, or a
-product API. Provider details live behind an adapter. The graph sees a declared
-operation and receives `runx.data.operation_result.v1` with version movement,
-digests, redaction notes, and provider evidence.
+The store can be SQLite, Postgres or Redis. The graph calls the store
+connector's declared operations, usually through `data-store`, and receives
+`runx.data.operation_result.v1` with version movement, digests and provider
+evidence.
 
 Storage choice is not product logic. A graph passes `data_source_ref` such as
-`local://runx-data-store/dev-board` or `tenant://acme/board`; project or hosted
-configuration binds that source to native SQLite or a conforming external
-provider such as `data.redis`. The `data-store` runners call exact native
-operations, and unbound `local://...` refs use a source-scoped SQLite database
-at `.runx/data/local-sources/source-<digest>.sqlite`. Production capability
-packs keep the same operation inputs and move provider choice into the
-data-source binding rather than forking the domain skill.
+`local://runx-data-store/dev-board`; the workspace's store instance decides
+where the streams live. With none confirmed it is the workspace store, a SQLite
+file under `.runx/`. Moving to Postgres or Redis is a store instance, not a
+change to the domain skill.
 
-Do not put board, CRM, billing, or support-specific state machines into
-the data adapter. Domain skills own meaning; data adapters own bounded reads,
-idempotent writes, and projection evidence. See
+Do not put board, CRM, billing or support-specific state machines into the
+store. Domain skills own meaning; the store owns bounded reads, idempotent
+appends and projection evidence. See
 [the governed data plane](./governed-data-plane.md).
 
 Use `inputs` for literals, `$input.*` values, and static configuration. Use
@@ -290,11 +275,11 @@ Use `inputs` for literals, `$input.*` values, and static configuration. Use
 ```yaml
 steps:
   - id: select
-    run:
-      type: agent-task
+    agent: { role: scout, task: select }
+    outputs: { result: object }
   - id: review
-    run:
-      type: agent-task
+    agent: { role: reviewer, task: review }
+    outputs: { verdict: object }
     context:
       bounty: select.result
 ```

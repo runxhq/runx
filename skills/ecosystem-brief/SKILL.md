@@ -1,8 +1,6 @@
 ---
 name: ecosystem-brief
 description: Produce a decision-ready ecosystem briefing from fresh governed evidence without claiming publication.
-runx:
-  category: research
 ---
 
 # Ecosystem Brief

@@ -2,7 +2,6 @@
 // and sub-skill acts behind the typed dispatch boundary.
 
 mod host_resolution;
-mod inputs;
 mod output;
 
 #[cfg(feature = "catalog")]
@@ -18,48 +17,38 @@ use runx_contracts::{
     Receipt, Reference, ResolutionRequest, ResolutionResponse, ResolutionResponseActor,
 };
 use runx_core::state_machine::StepAdmissionWitness;
-use runx_parser::{GraphRunTarget, GraphStep, SkillArtifactContract, SkillSource, SourceKind};
+use runx_parser::{AskGate, GraphStep, SkillArtifactContract, StepKind, ToolTarget};
 
 use self::host_resolution::resolve_step_approval;
-use self::inputs::{optional_input_string, required_input_string};
 use super::super::graph::{
     LoadedStepSkill, StepSkillLoadOptions, load_step_skill, materialize_graph_parameter_inputs,
 };
 use super::super::skill_context::load_context_skills;
 use super::admission::{
     EffectReceiptContext, StepAuthorityContext, enforce_step_authority_admission,
-    finalize_effect_output_before_success, find_effect_replay, persist_effect_state_for_step,
-    prepare_effect_execution, prepare_effect_output_before_gate, prepare_replay_output,
-    recover_pending_effects, validate_replayed_effect,
+    finalize_effect_output_before_success, persist_effect_state_for_step, prepare_effect_execution,
+    prepare_effect_output_before_gate,
 };
 use super::{
-    GraphCheckpoint, GraphRun, Runtime, StepRun, graph_run_ephemeral_result, graph_run_result,
+    GraphRun, Runtime, StepRun, graph_run_ephemeral_result, graph_run_result,
     graph_run_skill_output,
 };
 use crate::RuntimeError;
 use crate::adapter::{
-    BorrowedSkillAdapter, EphemeralValue, InvocationOutput, SkillAdapter, SkillInvocation,
+    BorrowedSkillAdapter, EphemeralValue, Executable, InvocationOutput, SkillAdapter,
+    SkillInvocation,
 };
 use crate::agent_contract::verified_agent_metadata_with_artifacts;
-use crate::agent_invocation::{
-    AgentActInvocationSourceType, agent_act_invocation_id, agent_act_resolution_request,
-};
+use crate::agent_invocation::{agent_act_invocation_id, agent_act_resolution_request};
 use crate::approval::ApprovalResolution;
 use crate::effects::EffectStepRequest;
-use crate::effects::{EffectReplay, ResolvedEffectTarget};
+use crate::effects::ResolvedEffectTarget;
 use crate::execution::disposition::agent_answer_disposition_or_closed;
 use crate::execution::output_projection::{StepOutputProjection, project_step_claim};
 use crate::host::Host;
 use crate::output_contract::{attach_verified_metadata, verified_runner_metadata_with_artifacts};
 use crate::receipts::{RuntimeReceiptSignaturePolicy, StepSeal, StepSealClosure, seal_step};
 use crate::services::merge_inferred_tool_roots;
-
-struct AgentSkillStepInvocation {
-    skill_name: String,
-    invocation: SkillInvocation,
-    source_type: AgentActInvocationSourceType,
-    artifacts: Option<SkillArtifactContract>,
-}
 
 struct RegularSkillStepOutput {
     output: InvocationOutput,
@@ -103,7 +92,6 @@ pub(super) struct StepRunRequest<'a, A> {
     pub(super) inputs: JsonObject,
     pub(super) provenance: Vec<ProvenanceEntry>,
     pub(super) policy_approval_refs: Vec<Reference>,
-    pub(super) child_checkpoint: Option<Box<GraphCheckpoint>>,
     pub(super) host: &'a mut dyn Host,
 }
 
@@ -116,20 +104,9 @@ struct StepHandlerCtx<'a, A> {
     inputs: JsonObject,
     provenance: Vec<ProvenanceEntry>,
     policy_approval_refs: Vec<Reference>,
-    child_checkpoint: Option<Box<GraphCheckpoint>>,
     host: &'a mut dyn Host,
     authority: Option<StepAuthorityContext>,
     loaded_skill: Option<LoadedStepSkill>,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum StepExecutionKind {
-    Approval,
-    AgentTask,
-    InlineSource,
-    Operation,
-    Tool,
-    Subskill,
 }
 
 struct RegularSkillSeal<'a, A> {
@@ -170,9 +147,8 @@ where
     run_step_with_optional_loaded_skill(request, Some(loaded_skill))
 }
 
-// Function rationale: this is the single routing point that
-// preserves replay, recovery, authority admission, native/tool dispatch, and
-// loaded skill fallback order.
+// Function rationale: this is the single routing point that preserves
+// authority admission, effect preparation, and dispatch order.
 fn run_step_with_optional_loaded_skill<A>(
     request: StepRunRequest<'_, A>,
     loaded_skill: Option<LoadedStepSkill>,
@@ -189,61 +165,22 @@ where
         inputs,
         provenance,
         policy_approval_refs,
-        child_checkpoint,
         host,
     } = request;
-    let effect_target = ResolvedEffectTarget {
-        skill_name: loaded_skill.as_ref().map(|skill| skill.skill_name.as_str()),
-        tool_ref: step.tool.as_deref(),
-    };
-    if let Some(replay) = find_effect_replay(
+    let effect_request = EffectStepRequest {
         step,
-        effect_target,
-        &inputs,
-        &runtime.options.env,
-        graph_dir,
-        &runtime.options.effects,
-    )? {
-        return run_replayed_effect_step(
-            runtime,
-            graph_dir,
-            graph_name,
-            step,
-            attempt,
-            loaded_skill,
-            replay,
-        );
-    }
-    recover_pending_effects(
-        step,
-        effect_target,
-        &inputs,
-        &runtime.options.env,
-        graph_dir,
-        &runtime.options.effects,
-    )?;
-    let authority = enforce_step_authority_admission(
-        step,
-        effect_target,
-        &inputs,
-        &runtime.options.env,
-        graph_dir,
-        runtime.options.run_authority.as_ref(),
-        &runtime.options.effects,
-    )?;
-    let authority = prepare_effect_execution(
-        EffectStepRequest {
-            step,
-            target: effect_target,
-            inputs: &inputs,
-            env: &runtime.options.env,
-            graph_dir,
-            run_authority: runtime.options.run_authority.as_ref(),
+        target: ResolvedEffectTarget {
+            tool_ref: step.catalog_tool(),
         },
-        authority,
-        host,
-        &runtime.options.effects,
-    )?;
+        inputs: &inputs,
+        env: &runtime.options.env,
+        graph_dir,
+        run_id: runtime.options.run.run_id(),
+        run_authority: runtime.options.run_authority.as_ref(),
+    };
+    let authority = enforce_step_authority_admission(effect_request, &runtime.options.effects)?;
+    let authority =
+        prepare_effect_execution(effect_request, authority, host, &runtime.options.effects)?;
     run_registered_step(StepHandlerCtx {
         runtime,
         graph_dir,
@@ -253,16 +190,14 @@ where
         inputs,
         provenance,
         policy_approval_refs,
-        child_checkpoint,
         host,
         authority,
         loaded_skill,
     })
 }
 
-// Function rationale: loaded skill execution branches between
-// agent-owned and local adapter paths while preserving one authority admission
-// and receipt boundary.
+// A child skill always runs its runner's graph, nested under this step, with
+// its declared inputs materialized from the step's.
 fn run_loaded_skill_step<A>(
     skill: LoadedStepSkill,
     request: StepHandlerCtx<'_, A>,
@@ -275,86 +210,34 @@ where
         &request.inputs,
     )
     .map_err(crate::input_contract::InputContractError::into_runtime_error)?;
-    let request = StepHandlerCtx { inputs, ..request };
-    let authority = request.authority.as_ref();
-    // The invoked runner's artifact contract travels with the loaded skill so the
-    // OUTER step exposes the sub-skill packet (e.g. `research_packet`) at
-    // `<step>.<packet>.data`, never the sub-skill's internal step ids.
-    let runner_artifacts = skill.runner.artifacts.clone();
-    let (skill_name, invocation) = loaded_skill_invocation(skill, &request)?;
-    if request.child_checkpoint.is_some() && invocation.source.source_type != SourceKind::Graph {
-        return Err(RuntimeError::InvalidRunStep {
-            step_id: request.step.id.clone(),
-            reason: "child graph checkpoint cannot resume a non-graph runner".to_owned(),
-        });
-    }
-    crate::execution_environment::resolve_declared_environment(
-        &invocation.requirements,
-        &invocation.env,
-    )?;
-    if let Some(source_type) = agent_skill_source_type(invocation.source.source_type) {
-        return run_agent_skill_step(
-            request.runtime,
-            request.graph_name,
-            request.step,
-            request.attempt,
-            AgentSkillStepInvocation {
-                skill_name,
-                invocation,
-                source_type,
-                artifacts: runner_artifacts,
-            },
-            request.host,
-        );
-    }
-    if !invocation.current_context.is_empty() {
-        return Err(RuntimeError::InvalidRunStep {
-            step_id: request.step.id.clone(),
-            reason: "context_skills is only supported for agent and agent-task steps".to_owned(),
-        });
-    }
-    if invocation.source.source_type == SourceKind::Graph {
-        return run_nested_graph_skill_step(request, skill_name, invocation);
-    }
-
-    let regular = invoke_regular_skill_step(
-        request.runtime,
-        request.step,
-        invocation,
-        runner_artifacts.as_ref(),
-        authority,
-    )?;
-    seal_regular_skill_step(
-        RegularSkillSeal {
-            runtime: request.runtime,
-            graph_dir: request.graph_dir,
-            graph_name: request.graph_name,
-            step: request.step,
-            attempt: request.attempt,
-            skill_name,
-            authority,
-            policy_approval_refs: request.policy_approval_refs,
-        },
-        regular,
-    )
+    let mut env = request.runtime.options.env.clone();
+    merge_inferred_tool_roots(&mut env, &skill.directory);
+    crate::execution_environment::resolve_declared_environment(&skill.requirements, &env)?;
+    run_nested_graph_skill_step(StepHandlerCtx { inputs, ..request }, skill, env)
 }
 
 fn run_nested_graph_skill_step<A>(
     request: StepHandlerCtx<'_, A>,
-    skill_name: String,
-    invocation: SkillInvocation,
+    skill: LoadedStepSkill,
+    env: std::collections::BTreeMap<String, String>,
 ) -> Result<StepRun, RuntimeError>
 where
     A: SkillAdapter,
 {
-    let skill_directory = invocation.skill_directory.clone();
-    let invocation_env = invocation.env.clone();
+    let skill_name = skill.runner.name.clone();
     let policy_approval_refs = request.policy_approval_refs.clone();
     let run = execute_nested_graph(
         request.runtime,
         request.host,
-        &invocation,
-        request.child_checkpoint,
+        NestedGraph {
+            step_id: &request.step.id,
+            skill: &skill_name,
+            graph: skill.runner.graph,
+            inputs: &request.inputs,
+            provenance: &request.provenance,
+            env: &env,
+            skill_directory: &skill.directory,
+        },
     )?;
     let result = graph_run_result(&run)?;
     let ephemeral_result = graph_run_ephemeral_result(&run);
@@ -377,8 +260,8 @@ where
             &output.value,
             None,
             request.step.artifacts.as_ref(),
-            &skill_directory,
-            &invocation_env,
+            &skill.directory,
+            &env,
         )?;
         attach_verified_metadata(&mut output, metadata)?;
     }
@@ -403,25 +286,51 @@ where
     )
 }
 
+/// A child skill's graph and what it runs with.
+struct NestedGraph<'a> {
+    /// The parent step the child runs as.
+    step_id: &'a str,
+    skill: &'a str,
+    graph: runx_parser::ExecutionGraph,
+    inputs: &'a JsonObject,
+    /// The parent step's provenance, carried to the steps that receive the
+    /// same inputs.
+    provenance: &'a [ProvenanceEntry],
+    env: &'a std::collections::BTreeMap<String, String>,
+    skill_directory: &'a Path,
+}
+
+/// Run the child run a nested skill step runs as, or continue it from its
+/// record. A child sealed before its parent step was recorded returns its
+/// sealed run; a suspension inside it names the child run that holds it.
 fn execute_nested_graph<A>(
     runtime: &Runtime<A>,
     host: &mut dyn Host,
-    invocation: &SkillInvocation,
-    checkpoint: Option<Box<GraphCheckpoint>>,
+    nested: NestedGraph<'_>,
 ) -> Result<GraphRun, RuntimeError>
 where
     A: SkillAdapter,
 {
-    let graph = invocation
-        .source
-        .graph
-        .clone()
-        .ok_or_else(|| RuntimeError::UnsupportedSource {
-            source_kind: "graph runner without source.graph".to_owned(),
-        })?;
-    let graph = materialize_graph_parameter_inputs(graph, &invocation.inputs);
+    let inherited = crate::execution::graph::inherited_step_provenance(
+        &nested.graph,
+        nested.inputs,
+        nested.provenance,
+    );
+    let graph = materialize_graph_parameter_inputs(nested.graph, nested.inputs);
+    let log = runtime.options.run.child(nested.step_id)?;
+    let existing = log.start_child(
+        runtime.options.run.run_id(),
+        nested.step_id,
+        nested.skill,
+        nested.inputs,
+        &runtime.options.created_at,
+    )?;
+    if let Some(record) = existing.filter(|record| record.sealed.is_some()) {
+        return super::sealed_graph_run(graph, record);
+    }
     let mut child_options = runtime.options.as_ref().clone();
-    child_options.env = invocation.env.clone();
+    child_options.env = nested.env.clone();
+    child_options.run = log.clone();
     let child_adapter: Box<dyn SkillAdapter + '_> =
         Box::new(BorrowedSkillAdapter::new(&runtime.configured_adapter));
     let child_runtime = Runtime::with_native_services(
@@ -429,15 +338,25 @@ where
         child_options,
         runtime.javascript.clone(),
         runtime.local_artifacts.clone(),
-    );
-    match checkpoint {
-        Some(checkpoint) => child_runtime.resume_graph_with_host(
-            &invocation.skill_directory,
-            graph,
-            *checkpoint,
-            host,
-        ),
-        None => child_runtime.run_graph_with_host(&invocation.skill_directory, graph, host),
+    )
+    .with_inherited_provenance(inherited);
+    match child_runtime.run_graph_with_host(nested.skill_directory, graph, host) {
+        Ok(run) => {
+            log.record_sealed(&run.receipt, None, None)?;
+            Ok(run)
+        }
+        Err(RuntimeError::ResolutionPending {
+            step_id,
+            reason,
+            request,
+            ..
+        }) => Err(RuntimeError::ResolutionPending {
+            step_id,
+            reason,
+            request,
+            child: Some(log.run_id().to_owned()),
+        }),
+        Err(error) => Err(error),
     }
 }
 
@@ -453,48 +372,6 @@ fn adopt_nested_graph_result(result: &JsonValue, outputs: &mut JsonObject) {
     }
 }
 
-fn loaded_skill_invocation(
-    skill: LoadedStepSkill,
-    request: &StepHandlerCtx<'_, impl SkillAdapter>,
-) -> Result<(String, SkillInvocation), RuntimeError> {
-    let skill_name = skill.runner.name.clone();
-    let env = &request.runtime.options.env;
-    let mut invocation_env = env.clone();
-    merge_inferred_tool_roots(&mut invocation_env, &skill.directory);
-    let mut invocation = SkillInvocation {
-        historical_context: Vec::new(),
-        skill_name: skill.runner.name,
-        step_id: Some(request.step.id.clone()),
-        source: skill.runner.source,
-        requirements: skill.requirements,
-        artifacts: skill.runner.artifacts,
-        allowed_tools: skill.runner.allowed_tools,
-        inputs: request.inputs.clone(),
-        resolved_inputs: JsonObject::new(),
-        current_context: load_context_skills(
-            &request.step.id,
-            request.graph_dir,
-            &request.step.context_skills,
-            env,
-            &request.runtime.options.created_at,
-        )?,
-        provenance: request.provenance.clone(),
-        skill_directory: skill.directory,
-        env: invocation_env,
-        credential_delivery: crate::credentials::CredentialDelivery::none(),
-    };
-    if matches!(
-        invocation.source.source_type,
-        SourceKind::Agent | SourceKind::AgentStep
-    ) {
-        invocation
-            .current_context
-            .extend(request.runtime.options.current_context.clone());
-        invocation.historical_context = request.runtime.options.historical_context.clone();
-    }
-    Ok((skill_name, invocation))
-}
-
 fn invoke_regular_skill_step<A>(
     runtime: &Runtime<A>,
     step: &GraphStep,
@@ -506,10 +383,10 @@ where
     A: SkillAdapter,
 {
     let skill_name = invocation.skill_name.clone();
-    let raw_output = invocation.source.outputs.clone();
+    let raw_output = invocation.outputs.clone();
     let skill_directory = invocation.skill_directory.clone();
     let invocation_env = invocation.env.clone();
-    let mut output = if invocation.source.source_type == SourceKind::JavaScript {
+    let mut output = if matches!(invocation.executable, Executable::Worker(_)) {
         runtime
             .javascript
             .invoke_with_artifacts(invocation, &runtime.local_artifacts)?
@@ -576,7 +453,7 @@ where
         .unwrap_or_default();
     let receipt = seal_executed_step(
         StepSeal {
-            graph_name: context.graph_name,
+            scope: context.runtime.scope(context.graph_name),
             step_id: &context.step.id,
             attempt: context.attempt,
             output: &output,
@@ -628,8 +505,7 @@ where
         step_id: context.step.id.clone(),
         attempt: context.attempt,
         skill: context.skill_name,
-        runner: context.step.runner.clone(),
-        fanout_group: context.step.fanout_group.clone(),
+        runner: step_runner(context.step),
         contract: projection.outputs,
         ephemeral_contract: EphemeralValue::from_value(JsonValue::Object(ephemeral_contract)),
         outcome: output.into(),
@@ -637,109 +513,6 @@ where
         nested_receipts: receipt_lineage.into_nested_receipts(),
         admission_witness,
     })
-}
-
-// Function rationale: replay execution keeps effect recovery, receipt validation, and final output in one audited path.
-fn run_replayed_effect_step(
-    runtime: &Runtime<impl SkillAdapter>,
-    graph_dir: &Path,
-    graph_name: &str,
-    step: &GraphStep,
-    attempt: u32,
-    loaded_skill: Option<LoadedStepSkill>,
-    replay: EffectReplay,
-) -> Result<StepRun, RuntimeError> {
-    let skill = loaded_skill_or_load(loaded_skill, &runtime.options.env, graph_dir, step)?;
-    let skill_name = skill.runner.name.clone();
-    let mut output = replay_skill_output(step, replay.outputs())?;
-    if !output.succeeded() {
-        return Err(RuntimeError::InvalidRunStep {
-            step_id: step.id.clone(),
-            reason: "sealed effect replay requires a successful stored output".to_owned(),
-        });
-    }
-    prepare_replay_output(step, &replay, &mut output, &runtime.options.effects)?;
-    // Project the replayed output through the SAME contract as the fresh path: a
-    // sub-skill's declared runner artifacts must be exposed on replay too, or a
-    // downstream edge that resolves on a fresh run would fail only on replay.
-    let mut projection = build_step_output_projection(
-        step,
-        &output,
-        skill.runner.source.outputs.as_ref(),
-        skill.runner.artifacts.as_ref(),
-    )?;
-    let receipt = seal_executed_step(
-        StepSeal {
-            graph_name,
-            step_id: &step.id,
-            attempt,
-            output: &output,
-            claim: &projection.outputs,
-            projection_refs: std::mem::take(&mut projection.refs),
-            created_at: replay.receipt_created_at(),
-            authority: crate::receipts::SealAuthority::default(),
-            operator_refs: crate::execution::prepared_skill::prepared_receipt_references(
-                &runtime.options.env,
-            ),
-            child_receipts: &[],
-            descendant_receipts: &[],
-            closure: None,
-            receipt_metadata: None,
-        },
-        runtime.options.signature_policy(),
-    )?;
-    validate_replayed_receipt_identity(step, &receipt, &replay)?;
-    let effect_claim = contract_output_claim(&projection);
-    validate_replayed_effect(
-        step,
-        &replay,
-        &receipt,
-        &output,
-        effect_claim,
-        &runtime.options.effects,
-    )?;
-    let admission_witness = StepAdmissionWitness::local_runtime(&step.id, replay.receipt_ref());
-    Ok(StepRun {
-        step_id: step.id.clone(),
-        attempt,
-        skill: skill_name,
-        runner: step.runner.clone(),
-        fanout_group: step.fanout_group.clone(),
-        contract: projection.outputs,
-        ephemeral_contract: EphemeralValue::default(),
-        outcome: output.into(),
-        receipt,
-        nested_receipts: Vec::new(),
-        admission_witness,
-    })
-}
-
-fn validate_replayed_receipt_identity(
-    step: &GraphStep,
-    receipt: &runx_contracts::Receipt,
-    replay: &EffectReplay,
-) -> Result<(), RuntimeError> {
-    if receipt.id != replay.receipt_ref() {
-        return Err(RuntimeError::InvalidRunStep {
-            step_id: step.id.clone(),
-            reason: format!(
-                "sealed effect replay rebuilt receipt {}, expected {}",
-                receipt.id,
-                replay.receipt_ref()
-            ),
-        });
-    }
-    if receipt.digest != replay.receipt_digest() {
-        return Err(RuntimeError::InvalidRunStep {
-            step_id: step.id.clone(),
-            reason: format!(
-                "sealed effect replay rebuilt receipt digest {}, expected {}",
-                receipt.digest,
-                replay.receipt_digest()
-            ),
-        });
-    }
-    Ok(())
 }
 
 fn loaded_skill_or_load(
@@ -754,28 +527,15 @@ fn loaded_skill_or_load(
     )
 }
 
-fn replay_skill_output(
-    _step: &GraphStep,
-    outputs: &JsonObject,
-) -> Result<InvocationOutput, RuntimeError> {
-    Ok(InvocationOutput::runtime_success(
-        JsonValue::Object(outputs.clone()),
-        0,
-        JsonObject::new(),
-    ))
+/// The child runner a skill step names, if any.
+fn step_runner(step: &GraphStep) -> Option<String> {
+    step.skill().and_then(|target| target.runner.clone())
 }
 
 fn run_registered_step<A>(request: StepHandlerCtx<'_, A>) -> Result<StepRun, RuntimeError>
 where
     A: SkillAdapter,
 {
-    let kind = step_execution_kind(request.step)?;
-    if request.child_checkpoint.is_some() && !matches!(kind, StepExecutionKind::Subskill) {
-        return Err(RuntimeError::InvalidRunStep {
-            step_id: request.step.id.clone(),
-            reason: "child graph checkpoint requires a graph skill target".to_owned(),
-        });
-    }
     // Every registered step is admitted centrally (enforce_step_authority_admission,
     // upstream) and sealed centrally here: this is the single place a step's
     // admission witness records which authority admitted the act, or falls back to a
@@ -785,47 +545,27 @@ where
     // for the full admit -> credentials -> execution -> seal contract.
     let step_id = request.step.id.clone();
     let authority = request.authority.clone();
-    let mut run = match kind {
-        StepExecutionKind::Approval => run_approval_step(
+    let mut run = match &request.step.kind {
+        StepKind::Ask(gate) => run_approval_step(
             request.runtime,
             request.graph_name,
             request.step,
+            gate,
             request.attempt,
             request.inputs,
             request.host,
         )?,
-        StepExecutionKind::AgentTask => run_agent_task(request)?,
-        StepExecutionKind::InlineSource => run_inline_source_step(request)?,
-        StepExecutionKind::Operation => run_operation_step(request)?,
-        StepExecutionKind::Tool => run_tool_step(request)?,
-        StepExecutionKind::Subskill => run_subskill_step(request)?,
+        StepKind::Agent(_) => run_agent_task(request)?,
+        StepKind::Tool(ToolTarget::Catalog(_)) => run_tool_step(request)?,
+        StepKind::Tool(ToolTarget::Worker(_) | ToolTarget::Process(_)) => {
+            run_executable_tool_step(request)?
+        }
+        StepKind::Operation(_) => run_operation_step(request)?,
+        StepKind::Skill(_) => run_subskill_step(request)?,
     };
     run.admission_witness =
         step_admission_witness(&step_id, run.receipt.id.as_str(), authority.as_ref());
     Ok(run)
-}
-
-fn step_execution_kind(step: &GraphStep) -> Result<StepExecutionKind, RuntimeError> {
-    if let Some(run) = &step.run {
-        return match run {
-            GraphRunTarget::Approval => Ok(StepExecutionKind::Approval),
-            GraphRunTarget::Source(source) => match source.source_type {
-                SourceKind::AgentStep => Ok(StepExecutionKind::AgentTask),
-                SourceKind::CliTool | SourceKind::JavaScript => Ok(StepExecutionKind::InlineSource),
-                other => Err(RuntimeError::UnsupportedRunStep {
-                    step_id: step.id.clone(),
-                    run_type: other.as_str().to_owned(),
-                }),
-            },
-        };
-    }
-    if step.operation.is_some() {
-        return Ok(StepExecutionKind::Operation);
-    }
-    if step.tool.is_some() {
-        return Ok(StepExecutionKind::Tool);
-    }
-    Ok(StepExecutionKind::Subskill)
 }
 
 fn run_subskill_step<A>(mut request: StepHandlerCtx<'_, A>) -> Result<StepRun, RuntimeError>
@@ -841,10 +581,9 @@ where
     run_loaded_skill_step(skill, request)
 }
 
-// An inline source runs through the same projection and sealing path as a
-// referenced skill. The parser has already restricted this lane to cli-tool or
-// deterministic JavaScript sources.
-fn run_inline_source_step<A>(request: StepHandlerCtx<'_, A>) -> Result<StepRun, RuntimeError>
+// A worker or process tool step runs through the shared projection and
+// sealing path; its contract is the step's own outputs and artifacts.
+fn run_executable_tool_step<A>(request: StepHandlerCtx<'_, A>) -> Result<StepRun, RuntimeError>
 where
     A: SkillAdapter,
 {
@@ -860,15 +599,24 @@ where
         authority,
         loaded_skill: _,
         policy_approval_refs,
-        child_checkpoint: _,
     } = request;
-    let source = inline_source(step)?;
-    let requirements = inline_step_requirements(step, &source);
+    let executable = match &step.kind {
+        StepKind::Tool(ToolTarget::Worker(worker)) => Executable::Worker(worker.clone()),
+        StepKind::Tool(ToolTarget::Process(process)) => Executable::Process(process.clone()),
+        _ => {
+            return Err(RuntimeError::InvalidRunStep {
+                step_id: step.id.clone(),
+                reason: "not a worker or process tool step".to_owned(),
+            });
+        }
+    };
+    let requirements = step_requirements(step, &executable);
     let invocation = SkillInvocation {
         historical_context: Vec::new(),
         skill_name: step.id.clone(),
         step_id: Some(step.id.clone()),
-        source,
+        executable,
+        outputs: step.outputs.clone(),
         requirements,
         artifacts: step.artifacts.clone(),
         allowed_tools: step.allowed_tools.clone(),
@@ -880,8 +628,6 @@ where
         env: runtime.options.env.clone(),
         credential_delivery: crate::credentials::CredentialDelivery::none(),
     };
-    // Inline cli-tool step: its contract is the step's own `run.outputs` /
-    // `artifacts`, so no extra runner contract is threaded.
     let regular = invoke_regular_skill_step(runtime, step, invocation, None, authority.as_ref())?;
     seal_regular_skill_step(
         RegularSkillSeal {
@@ -898,25 +644,8 @@ where
     )
 }
 
-fn inline_source(step: &GraphStep) -> Result<SkillSource, RuntimeError> {
-    let Some(run) = &step.run else {
-        return Err(RuntimeError::InvalidRunStep {
-            step_id: step.id.clone(),
-            reason: "missing run configuration".to_owned(),
-        });
-    };
-    run.source()
-        .cloned()
-        .ok_or_else(|| RuntimeError::InvalidRunStep {
-            step_id: step.id.clone(),
-            reason: "approval control cannot execute as an inline source".to_owned(),
-        })
-}
-
-// The shared close for an agent act: a resolved host response becomes the
-// step's output, projection, and sealed receipt. Both the inline `agent-task`
-// step and a referenced agent skill end here, so the agent-act seal lives in
-// one place.
+// The close for an agent act: a resolved host response becomes the step's
+// output, projection, and sealed receipt.
 struct AgentActStepSeal<'a> {
     graph_name: &'a str,
     step: &'a GraphStep,
@@ -943,14 +672,17 @@ fn seal_agent_act_step<A>(
         verification_metadata,
     } = request;
     let disposition = agent_answer_disposition_value(step, &response.payload)?;
+    // The answer was verified against its output contract whatever closure it
+    // claims, so an act that declines or defers still returns its outputs.
+    let answer = InvocationOutput::runtime_success(response.payload.clone(), 0, JsonObject::new());
+    let mut projection =
+        build_step_output_projection(step, &answer, extra_outputs, extra_artifacts)?;
     let mut output = agent_task_output(response, &disposition)?;
     output.metadata.extend(verification_metadata);
-    let mut projection =
-        build_step_output_projection(step, &output, extra_outputs, extra_artifacts)?;
     let disposition_label = disposition.label();
     let receipt = seal_executed_step(
         StepSeal {
-            graph_name,
+            scope: runtime.scope(graph_name),
             step_id: &step.id,
             attempt,
             output: &output,
@@ -977,8 +709,7 @@ fn seal_agent_act_step<A>(
         step_id: step.id.clone(),
         attempt,
         skill: skill_name,
-        runner: step.runner.clone(),
-        fanout_group: step.fanout_group.clone(),
+        runner: step_runner(step),
         contract: projection.outputs,
         ephemeral_contract: EphemeralValue::default(),
         outcome: output.into(),
@@ -1006,15 +737,21 @@ where
         authority: _,
         loaded_skill: _,
         policy_approval_refs: _,
-        child_checkpoint: _,
     } = request;
-    let source = agent_task_source(step)?;
-    let requirements = inline_step_requirements(step, &source);
+    let StepKind::Agent(agent) = &step.kind else {
+        return Err(RuntimeError::InvalidRunStep {
+            step_id: step.id.clone(),
+            reason: "not an agent step".to_owned(),
+        });
+    };
+    let executable = Executable::Agent(agent.clone());
+    let requirements = step_requirements(step, &executable);
     let invocation = SkillInvocation {
         historical_context: Vec::new(),
         skill_name: step.id.clone(),
         step_id: Some(step.id.clone()),
-        source,
+        executable,
+        outputs: step.outputs.clone(),
         requirements,
         artifacts: step.artifacts.clone(),
         allowed_tools: step.allowed_tools.clone(),
@@ -1037,9 +774,8 @@ where
         .current_context
         .extend(runtime.options.current_context.clone());
     invocation.historical_context = runtime.options.historical_context.clone();
-    let source_type = AgentActInvocationSourceType::AgentStep;
-    let request_id = agent_act_invocation_id(&invocation, source_type);
-    let request = agent_act_resolution_request(&invocation, source_type)?;
+    let request_id = agent_act_invocation_id(&invocation)?;
+    let request = agent_act_resolution_request(&invocation)?;
     let verification_request = request.clone();
     host.report(ExecutionEvent::ResolutionRequested {
         message: format!("agent step '{}' requested resolution", step.id),
@@ -1049,24 +785,32 @@ where
         return Err(RuntimeError::ResolutionPending {
             step_id: step.id.clone(),
             reason: format!("agent act {request_id} requires resolution"),
-            checkpoint: None,
+            request: Box::new(verification_request),
+            child: None,
         });
     };
+    // An answer that breaks the act's output contract is refused, not sealed:
+    // the turn stays open for a corrected answer.
     let verification_metadata = verified_agent_metadata_with_artifacts(
         &verification_request,
         &response.payload,
         step.artifacts.as_ref(),
         graph_dir,
         &runtime.options.env,
-    )?;
-    // Inline agent-task step: contract is the step's own `run.outputs` / `artifacts`.
+    )
+    .map_err(|error| match error {
+        RuntimeError::SkillFailed { message, .. } => RuntimeError::ContinuationRejected {
+            reason: format!("agent answer {request_id} was refused: {message}"),
+        },
+        error => error,
+    })?;
     seal_agent_act_step(
         runtime,
         AgentActStepSeal {
             graph_name,
             step,
             attempt,
-            skill_name: "run:agent-task".to_owned(),
+            skill_name: format!("agent:{}", agent.task),
             response,
             extra_outputs: None,
             extra_artifacts: None,
@@ -1075,121 +819,19 @@ where
     )
 }
 
-fn inline_step_requirements(
+fn step_requirements(
     step: &GraphStep,
-    source: &SkillSource,
+    executable: &Executable,
 ) -> runx_contracts::ExecutionRequirements {
+    let environment = match executable {
+        Executable::Worker(worker) => worker.environment.clone(),
+        Executable::Process(process) => process.environment.clone(),
+        Executable::Agent(_) => runx_contracts::EnvironmentRequirements::default(),
+    };
     runx_contracts::ExecutionRequirements {
         scopes: step.scopes.clone(),
-        environment: source.environment.clone(),
-        ..runx_contracts::ExecutionRequirements::default()
+        environment,
     }
-}
-
-fn run_agent_skill_step<A>(
-    runtime: &Runtime<A>,
-    graph_name: &str,
-    step: &GraphStep,
-    attempt: u32,
-    agent_task: AgentSkillStepInvocation,
-    host: &mut dyn Host,
-) -> Result<StepRun, RuntimeError>
-where
-    A: SkillAdapter,
-{
-    let AgentSkillStepInvocation {
-        skill_name,
-        invocation,
-        source_type,
-        artifacts,
-    } = agent_task;
-    let skill_directory = invocation.skill_directory.clone();
-    let invocation_env = invocation.env.clone();
-    let request_id = agent_act_invocation_id(&invocation, source_type);
-    let outputs = invocation.source.outputs.clone();
-    let request = agent_act_resolution_request(&invocation, source_type)?;
-    let verification_request = request.clone();
-    let response = resolve_agent_act(
-        step,
-        host,
-        request_id,
-        request,
-        format!(
-            "agent skill step '{}' requested resolution for {}",
-            step.id, skill_name
-        ),
-    )?;
-    let verification_metadata = verified_agent_metadata_with_artifacts(
-        &verification_request,
-        &response.payload,
-        artifacts.as_ref(),
-        &skill_directory,
-        &invocation_env,
-    )?;
-    // Referenced agent-task sub-skill: expose the invoked runner's artifact
-    // contract at the outer step.
-    seal_agent_act_step(
-        runtime,
-        AgentActStepSeal {
-            graph_name,
-            step,
-            attempt,
-            skill_name,
-            response,
-            extra_outputs: outputs.as_ref(),
-            extra_artifacts: artifacts.as_ref(),
-            verification_metadata,
-        },
-    )
-}
-
-fn resolve_agent_act(
-    step: &GraphStep,
-    host: &mut dyn Host,
-    request_id: String,
-    request: ResolutionRequest,
-    message: String,
-) -> Result<ResolutionResponse, RuntimeError> {
-    host.report(ExecutionEvent::ResolutionRequested {
-        message,
-        data: Some(resolution_event_data(step, &request)?),
-    })?;
-    host.resolve(request)?
-        .ok_or_else(|| RuntimeError::ResolutionPending {
-            step_id: step.id.clone(),
-            reason: format!("agent act {request_id} requires resolution"),
-            checkpoint: None,
-        })
-}
-
-fn agent_skill_source_type(source_type: SourceKind) -> Option<AgentActInvocationSourceType> {
-    match source_type {
-        SourceKind::Agent => Some(AgentActInvocationSourceType::Agent),
-        SourceKind::AgentStep => Some(AgentActInvocationSourceType::AgentStep),
-        _ => None,
-    }
-}
-
-fn agent_task_source(step: &GraphStep) -> Result<SkillSource, RuntimeError> {
-    let Some(run) = &step.run else {
-        return Err(RuntimeError::InvalidRunStep {
-            step_id: step.id.clone(),
-            reason: "missing run configuration".to_owned(),
-        });
-    };
-    let Some(source) = run.source() else {
-        return Err(RuntimeError::InvalidRunStep {
-            step_id: step.id.clone(),
-            reason: "approval control cannot execute as an agent task".to_owned(),
-        });
-    };
-    if source.source_type != SourceKind::AgentStep {
-        return Err(RuntimeError::InvalidRunStep {
-            step_id: step.id.clone(),
-            reason: format!("expected agent-task source, got {}", source.source_type),
-        });
-    }
-    Ok(source.clone())
 }
 
 // Function rationale: tool execution keeps lookup,
@@ -1210,7 +852,6 @@ where
         host: _,
         authority,
         loaded_skill: _,
-        child_checkpoint: _,
     } = request;
     #[cfg(not(feature = "catalog"))]
     {
@@ -1232,8 +873,7 @@ where
     #[cfg(feature = "catalog")]
     {
         let tool_ref = step
-            .tool
-            .as_deref()
+            .catalog_tool()
             .ok_or_else(|| RuntimeError::InvalidRunStep {
                 step_id: step.id.clone(),
                 reason: "tool step missing tool reference".to_owned(),
@@ -1247,7 +887,6 @@ where
             skill_directory: graph_dir,
             credential_delivery: &crate::credentials::CredentialDelivery::none(),
             local_artifacts: &runtime.local_artifacts,
-            javascript: &runtime.javascript,
             skill_name: tool_ref,
             allow_explicit_manifest_path: true,
             effect_admission: authority.as_ref().map(StepAuthorityContext::admission),
@@ -1335,7 +974,7 @@ where
         .unwrap_or_default();
     let receipt = seal_executed_step(
         StepSeal {
-            graph_name,
+            scope: runtime.scope(graph_name),
             step_id: &step.id,
             attempt,
             output: &output,
@@ -1378,8 +1017,7 @@ where
         step_id: step.id.clone(),
         attempt,
         skill,
-        runner: step.runner.clone(),
-        fanout_group: step.fanout_group.clone(),
+        runner: step_runner(step),
         contract: projection.outputs,
         ephemeral_contract: EphemeralValue::from_value(JsonValue::Object(ephemeral_contract)),
         outcome: output.into(),
@@ -1419,7 +1057,6 @@ where
                 skill_directory: self.graph_dir,
                 credential_delivery: delivery,
                 local_artifacts: &self.runtime.local_artifacts,
-                javascript: &self.runtime.javascript,
                 skill_name: tool,
                 allow_explicit_manifest_path: false,
                 effect_admission: None,
@@ -1594,6 +1231,7 @@ pub(super) fn run_approval_step<A>(
     runtime: &Runtime<A>,
     graph_name: &str,
     step: &GraphStep,
+    ask: &AskGate,
     attempt: u32,
     inputs: JsonObject,
     host: &mut dyn Host,
@@ -1601,11 +1239,9 @@ pub(super) fn run_approval_step<A>(
 where
     A: SkillAdapter,
 {
-    let gate = approval_gate(step, &inputs)?;
-    // Route resolution by the declared gate_id (the gate's identity), not the
-    // step id. A caller's seeded approval is keyed by gate_id, and the standalone
-    // fixture host already resolves approvals by gate_id; keying the request id
-    // the same way lets a seeded graph run drive an approval gate to a decision.
+    let gate = approval_gate(ask, &inputs);
+    // Route resolution by the gate's identity, not the step id: a caller's
+    // seeded approval is keyed by gate.
     let request_id = gate.id.to_string();
     let resolution = completed_approval_resolution(
         step,
@@ -1618,7 +1254,7 @@ where
     let mut projection = project_step_claim(outputs);
     let receipt = seal_executed_step(
         StepSeal {
-            graph_name,
+            scope: runtime.scope(graph_name),
             step_id: &step.id,
             attempt,
             output: &output,
@@ -1640,9 +1276,8 @@ where
     Ok(StepRun {
         step_id: step.id.clone(),
         attempt,
-        skill: "run:approval".to_owned(),
-        runner: step.runner.clone(),
-        fanout_group: step.fanout_group.clone(),
+        skill: "ask".to_owned(),
+        runner: step_runner(step),
         contract: projection.outputs,
         ephemeral_contract: EphemeralValue::default(),
         outcome: output.into(),
@@ -1661,37 +1296,25 @@ fn completed_approval_resolution(
         return Err(RuntimeError::ResolutionPending {
             step_id: step.id.clone(),
             reason: format!("approval gate '{}' is pending", gate.id),
-            checkpoint: None,
+            request: Box::new(ResolutionRequest::Approval {
+                id: gate.id.clone(),
+                gate: gate.clone(),
+            }),
+            child: None,
         });
     }
     Ok(resolution)
 }
 
-pub(super) fn approval_gate(
-    step: &GraphStep,
-    inputs: &JsonObject,
-) -> Result<ApprovalGate, RuntimeError> {
-    let gate_id = required_input_string(step, inputs, "gate_id")?;
-    let reason = required_input_string(step, inputs, "reason")?;
-    let gate_type = optional_input_string(step, inputs, "gate_type")?;
-    let summary = approval_summary(inputs);
-    Ok(ApprovalGate {
-        id: gate_id.into(),
-        reason: reason.into(),
-        gate_type,
-        summary,
-    })
-}
-
-pub(super) fn approval_summary(inputs: &JsonObject) -> Option<JsonObject> {
-    let mut summary = JsonObject::new();
-    for (key, value) in inputs {
-        if matches!(key.as_str(), "gate_id" | "reason" | "gate_type") {
-            continue;
-        }
-        summary.insert(key.clone(), value.clone());
+/// The gate an ask step presents: its declared gate and reason, with the
+/// step's inputs as the summary shown beside them.
+pub(super) fn approval_gate(ask: &AskGate, inputs: &JsonObject) -> ApprovalGate {
+    ApprovalGate {
+        id: ask.gate.clone().into(),
+        reason: ask.reason.clone().into(),
+        gate_type: ask.gate_type.clone(),
+        summary: (!inputs.is_empty()).then(|| inputs.clone()),
     }
-    (!summary.is_empty()).then_some(summary)
 }
 
 pub(super) fn approval_outputs(
@@ -1799,7 +1422,7 @@ where
     let mut projection = project_step_claim(JsonObject::new());
     let receipt = seal_step(
         StepSeal {
-            graph_name,
+            scope: runtime.scope(graph_name),
             step_id: &step.id,
             attempt,
             output: &output,
@@ -1821,9 +1444,11 @@ where
     Ok(StepRun {
         step_id: step.id.clone(),
         attempt,
-        skill: step.skill.as_deref().unwrap_or(step.id.as_str()).to_owned(),
-        runner: step.runner.clone(),
-        fanout_group: step.fanout_group.clone(),
+        skill: step
+            .skill()
+            .map_or(step.id.as_str(), |target| target.reference.as_str())
+            .to_owned(),
+        runner: step_runner(step),
         contract: projection.outputs,
         ephemeral_contract: EphemeralValue::default(),
         outcome: output.into(),
@@ -1859,23 +1484,24 @@ fn step_admission_witness(
 }
 
 #[cfg(test)]
-mod inline_requirements {
-    use runx_parser::{parse_graph_yaml, validate_graph};
+mod step_requirements {
+    use runx_parser::{StepKind, ToolTarget, parse_graph_yaml, validate_graph};
+
+    use crate::adapter::Executable;
 
     #[test]
-    fn inline_step_projects_scopes_and_environment_without_interpretation()
+    fn a_worker_step_projects_scopes_and_environment_without_interpretation()
     -> Result<(), Box<dyn std::error::Error>> {
         let graph = validate_graph(parse_graph_yaml(
             r#"
-name: inline-requirements
+name: worker-requirements
 steps:
   - id: compute
     scopes:
       - "vendor.operation:v3"
       - "opaque capability with spaces"
       - "vendor.operation:v3"
-    run:
-      type: javascript
+    tool:
       module: compute.mjs
       environment:
         required: [REGION]
@@ -1883,13 +1509,11 @@ steps:
 "#,
         )?)?;
         let step = graph.steps.first().ok_or("missing step")?;
-        let source = step
-            .run
-            .as_ref()
-            .and_then(|run| run.source())
-            .ok_or("missing inline source")?;
+        let StepKind::Tool(ToolTarget::Worker(worker)) = &step.kind else {
+            return Err("expected a worker step".into());
+        };
 
-        let requirements = super::inline_step_requirements(step, source);
+        let requirements = super::step_requirements(step, &Executable::Worker(worker.clone()));
 
         assert_eq!(
             requirements.scopes,

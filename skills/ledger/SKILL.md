@@ -1,8 +1,6 @@
 ---
 name: ledger
 description: Answer a cross-run audit question against the receipt ledger, returning matched receipts and a chain-verification result.
-runx:
-  category: security
 ---
 
 # Ledger

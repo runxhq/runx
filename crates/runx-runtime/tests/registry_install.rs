@@ -66,14 +66,14 @@ fn package_files_install_and_digest_mismatch_fails() -> Result<(), Box<dyn std::
     );
     assert_eq!(
         std::fs::read_to_string(package_root.join("context/review-rubric/SKILL.md"))?,
-        "---\nname: review-rubric\n---\n# Review\n"
+        "---\nname: review-rubric\ndescription: review-rubric fixture.\n---\n# Review\n"
     );
     assert_eq!(
         std::fs::read_to_string(package_root.join("references/operator.md"))?,
         "# Operator\n"
     );
     assert_eq!(
-        std::fs::read_to_string(package_root.join("graph/stage/X.yaml"))?,
+        std::fs::read_to_string(package_root.join("graph/stage/run.yaml"))?,
         stage_profile()
     );
     assert_eq!(
@@ -469,7 +469,7 @@ fn install_candidate() -> Result<InstallCandidate, Box<dyn std::error::Error>> {
     Ok(InstallCandidate {
         markdown: include_str!("../../../fixtures/registry/install/echo-SKILL.md").to_owned(),
         profile_document: Some(
-            include_str!("../../../fixtures/registry/install/echo-X.yaml").to_owned(),
+            include_str!("../../../fixtures/registry/install/echo-run.yaml").to_owned(),
         ),
         package_files: Vec::new(),
         package_digest: None,
@@ -499,7 +499,7 @@ fn skill_digest() -> String {
 }
 
 fn profile_digest() -> String {
-    sha256_prefixed(include_str!("../../../fixtures/registry/install/echo-X.yaml").as_bytes())
+    sha256_prefixed(include_str!("../../../fixtures/registry/install/echo-run.yaml").as_bytes())
 }
 
 fn package_files_fixture() -> Vec<RegistryPackageFile> {
@@ -510,14 +510,16 @@ fn package_files_fixture() -> Vec<RegistryPackageFile> {
         },
         RegistryPackageFile {
             path: "context/review-rubric/SKILL.md".to_owned(),
-            content: "---\nname: review-rubric\n---\n# Review\n".to_owned(),
+            content:
+                "---\nname: review-rubric\ndescription: review-rubric fixture.\n---\n# Review\n"
+                    .to_owned(),
         },
         RegistryPackageFile {
             path: "references/operator.md".to_owned(),
             content: "# Operator\n".to_owned(),
         },
         RegistryPackageFile {
-            path: "graph/stage/X.yaml".to_owned(),
+            path: "graph/stage/run.yaml".to_owned(),
             content: stage_profile().to_owned(),
         },
         RegistryPackageFile {
@@ -528,7 +530,7 @@ fn package_files_fixture() -> Vec<RegistryPackageFile> {
 }
 
 fn stage_profile() -> &'static str {
-    "skill: stage\nrunners:\n  operate:\n    default: true\n    type: agent\n    agent: operator\n    outputs:\n      result: object\n  script:\n    type: javascript\n    module: run.mjs\n"
+    "skill: stage\nrunners:\n  operate:\n    default: true\n    steps:\n      - id: operate\n        agent: { role: operator, task: operate }\n        outputs:\n          result: object\n  script:\n    steps:\n      - id: script\n        tool: { module: run.mjs }\n"
 }
 
 fn package_digest(files: &[RegistryPackageFile]) -> Result<String, serde_json::Error> {

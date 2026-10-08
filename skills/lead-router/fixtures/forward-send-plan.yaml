@@ -1,15 +1,15 @@
 name: lead-router-forwards-compatible-send-plan
 kind: graph
-target: ../harness/forward-send-plan.yaml
+target: support/forward-send-plan.graph
 caller:
   answers:
-    agent_task.lead-route.output:
+    agent.lead-route.output:
       route_draft:
         route: reach_out
         rationale: Strong fit and active evaluation support a reviewed direct follow-up.
         segment: mid-market
         evidence_refs: [signal_pricing]
-    agent_task.send-as.output:
+    agent.send-as.output:
       send_plan:
         decision: needs_input
         action_family: send-as

@@ -16,7 +16,7 @@ describe("registry publish selector", () => {
       await mkdir(path.join(oss, "bindings", "nilstate", "icey-server-operator"), { recursive: true });
       await writeFile(path.join(oss, "skills", "sourcey", "SKILL.md"), "---\nname: sourcey\n---\n\nSourcey.\n");
       await writeFile(path.join(oss, "bindings", "nilstate", "icey-server-operator", "binding.json"), "{}\n");
-      await writeFile(path.join(oss, "bindings", "nilstate", "icey-server-operator", "X.yaml"), "skill: icey-server-operator\n");
+      await writeFile(path.join(oss, "bindings", "nilstate", "icey-server-operator", "run.yaml"), "skill: icey-server-operator\n");
 
       git(oss, ["init"]);
       configureGit(oss);
@@ -30,7 +30,7 @@ describe("registry publish selector", () => {
       const before = git(root, ["rev-parse", "HEAD"]).trim();
 
       await writeFile(path.join(oss, "skills", "sourcey", "SKILL.md"), "---\nname: sourcey\n---\n\nSourcey changed.\n");
-      await writeFile(path.join(oss, "bindings", "nilstate", "icey-server-operator", "X.yaml"), "skill: icey-server-operator\n# changed\n");
+      await writeFile(path.join(oss, "bindings", "nilstate", "icey-server-operator", "run.yaml"), "skill: icey-server-operator\n# changed\n");
       git(oss, ["add", "."]);
       git(oss, ["commit", "-m", "change nested publish inputs"]);
       git(root, ["add", "oss"]);

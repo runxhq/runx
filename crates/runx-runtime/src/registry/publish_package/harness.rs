@@ -40,7 +40,10 @@ pub(super) fn stage_publish_harness(
         root.path().join("SKILL.md"),
         &loaded.package.manual_markdown,
     )?;
-    write_text(root.path().join("X.yaml"), profile_document)?;
+    write_text(
+        root.path().join(runx_parser::PROFILE_FILE),
+        profile_document,
+    )?;
     for file in package_files {
         write_text(root.path().join(&file.path), &file.content)?;
     }

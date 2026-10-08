@@ -5,7 +5,7 @@ inputs:
   action: {kind: comment, subreddit: learnprogramming, target_url: 'https://www.reddit.com/r/learnprogramming/comments/abc123/example/', title: '', body: 'does the error happen before the request reaches the server? the network tab should show whether it was sent.', allow_bare_urls: false, target_author: ''}
 caller:
   answers:
-    agent_task.reddit-submit.output:
+    agent.reddit-submit.output:
       observation:
         status: uncertain
         username: example_builder
@@ -23,7 +23,7 @@ caller:
         target_author: ''
         vote_state: unknown
         effect_attempted: true
-    agent_task.reddit-reconcile.output:
+    agent.reddit-reconcile.output:
       observation:
         status: not_submitted
         username: example_builder
@@ -54,4 +54,3 @@ expect:
     reconcile-again:
       subset:
         result: {status: held}
-env: {RUNX_DATA_SOURCES: '{"data_sources": {"local://reddit": {"adapter": "data.sqlite", "database_path": ".runx/reddit-fixtures/reddit-reconciliation-cannot-erase-attempt.sqlite", "resources": {"reddit_accounts": {"kind": "event_stream", "partition_key": "aggregate_id"}, "reddit_browser": {"kind": "event_stream", "partition_key": "aggregate_id"}, "reddit_attempts": {"kind": "event_stream", "partition_key": "aggregate_id"}}}}}'}

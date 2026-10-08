@@ -27,7 +27,7 @@ inputs:
     approvals: []
 caller:
   answers:
-    agent_task.ops-desk-advance.output:
+    agent.ops-desk-advance.output:
       decision: escalate
       reason: The next move is a payout, which is money movement, and no approval is present.
       escalation:

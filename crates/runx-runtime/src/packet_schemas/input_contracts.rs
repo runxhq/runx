@@ -40,7 +40,6 @@ pub(crate) fn hydrate_packet_input_contracts(
         )
         .map_err(package_error)?;
 
-    hydrate_inputs(&mut package.skill.inputs, "SKILL.md inputs", &catalog)?;
     for (profile_path, manifest) in &mut package.profiles {
         hydrate_inputs(
             &mut manifest.input_definitions,
@@ -108,18 +107,16 @@ pub(crate) fn hydrate_standalone_tool_input_contracts(
 }
 
 fn package_uses_packet_inputs(package: &ValidatedSkillPackage) -> bool {
-    inputs_use_packets(&package.skill.inputs)
-        || package.profiles.values().any(|manifest| {
-            inputs_use_packets(&manifest.input_definitions)
-                || manifest
-                    .runners
-                    .values()
-                    .any(|runner| inputs_use_packets(&runner.inputs))
-        })
-        || package
-            .tools
-            .values()
-            .any(|tool| inputs_use_packets(&tool.tool.inputs))
+    package.profiles.values().any(|manifest| {
+        inputs_use_packets(&manifest.input_definitions)
+            || manifest
+                .runners
+                .values()
+                .any(|runner| inputs_use_packets(&runner.inputs))
+    }) || package
+        .tools
+        .values()
+        .any(|tool| inputs_use_packets(&tool.tool.inputs))
 }
 
 fn inputs_use_packets(inputs: &BTreeMap<String, InputDefinition>) -> bool {
@@ -128,7 +125,6 @@ fn inputs_use_packets(inputs: &BTreeMap<String, InputDefinition>) -> bool {
 
 fn package_input_packet_ids(package: &ValidatedSkillPackage) -> BTreeSet<String> {
     let mut packet_ids = BTreeSet::new();
-    packet_ids.extend(declared_input_packet_ids(&package.skill.inputs));
     for manifest in package.profiles.values() {
         packet_ids.extend(declared_input_packet_ids(&manifest.input_definitions));
         for runner in manifest.runners.values() {

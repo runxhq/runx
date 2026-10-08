@@ -13,7 +13,7 @@ inputs:
   idempotency_key: slack-release-0-8-2-live
 caller:
   answers:
-    agent_task.send-as.output:
+    agent.send-as.output:
       send_plan:
         decision: ready
         action_family: send-as

@@ -82,7 +82,7 @@ fn tool_catalogs_inspect_native_tool() -> Result<(), Box<dyn std::error::Error>>
     assert_eq!(report.status, ToolBuildStatus::Success);
     assert_eq!(report.tool.provenance.origin, ToolInspectOrigin::Native);
     assert_eq!(report.tool.name, "fs.read");
-    assert_eq!(report.tool.execution_source_type, "native");
+    assert_eq!(report.tool.execution, "native");
     Ok(())
 }
 
@@ -101,7 +101,7 @@ fn tool_catalogs_inspect_local_manifest() -> Result<(), Box<dyn std::error::Erro
     assert_eq!(report.status, ToolBuildStatus::Success);
     assert_eq!(report.tool.provenance.origin, ToolInspectOrigin::Local);
     assert_eq!(report.tool.name, "fixture.minimal");
-    assert_eq!(report.tool.execution_source_type, "cli-tool");
+    assert_eq!(report.tool.execution, "process");
     assert_eq!(
         report.tool.reference_path,
         display(&temp_root.join("tools/fixture/minimal/manifest.json"))
@@ -129,7 +129,7 @@ fn tool_catalogs_ignore_ancestor_tool_roots_outside_workspace()
   "schema": "runx.tool.manifest.v1",
   "name": "docs.echo",
   "description": "Ancestor outside the workspace.",
-  "source": {"type": "cli-tool", "command": "node", "args": ["./run.mjs"]},
+  "source": {"command": "node", "args": ["./run.mjs"]},
   "inputs": {},
   "scopes": []
 }

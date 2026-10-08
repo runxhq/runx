@@ -113,7 +113,6 @@ pub enum DataOperationStatus {
     IdempotentReplay,
     Read,
     Conflict,
-    ProviderUnavailable,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]

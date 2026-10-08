@@ -131,17 +131,8 @@
         {
           "additionalProperties": false,
           "properties": {
-            "fanoutPolicies": {
-              "type": "object"
-            },
             "kind": {
               "const": "state-machine.planSequentialGraphTransition"
-            },
-            "resolvedFanoutGateKeys": {
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
             },
             "state": {
               "type": "object"
@@ -177,51 +168,6 @@
             "event",
             "kind",
             "state"
-          ],
-          "type": "object"
-        },
-        {
-          "additionalProperties": false,
-          "properties": {
-            "kind": {
-              "const": "state-machine.evaluateFanoutSync"
-            },
-            "policy": {
-              "type": "object"
-            },
-            "resolvedGateKeys": {
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
-            },
-            "results": {
-              "items": {
-                "type": "object"
-              },
-              "type": "array"
-            }
-          },
-          "required": [
-            "kind",
-            "policy",
-            "results"
-          ],
-          "type": "object"
-        },
-        {
-          "additionalProperties": false,
-          "properties": {
-            "decision": {
-              "type": "object"
-            },
-            "kind": {
-              "const": "state-machine.fanoutSyncDecisionKey"
-            }
-          },
-          "required": [
-            "decision",
-            "kind"
           ],
           "type": "object"
         }

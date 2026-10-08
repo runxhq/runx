@@ -1,6 +1,5 @@
-// Module rationale: native list discovery intentionally keeps
-// tool, skill, graph, packet, and overlay projection in one audited cutover
-// surface until the TypeScript list command is fully retired.
+// Module rationale: native list discovery keeps tool, skill,
+// graph, packet, and overlay projection in one audited surface.
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
@@ -181,7 +180,7 @@ fn discover_skill_and_graph_list_items(root: &Path) -> Result<Vec<RunxListItem>,
     for skill_dir in crate::skill_package::discover_workspace_skill_package_dirs(root)? {
         let fallback_name = fallback_skill_name(root, &skill_dir);
         match crate::load_validated_skill_package(&skill_dir) {
-            Ok(loaded) => items.extend(skill_list_items(root, &fallback_name, &loaded)),
+            Ok(loaded) => items.extend(skill_list_items(root, &loaded)),
             Err(_) => items.push(invalid_item(
                 RunxListItemKind::Skill,
                 fallback_name,
@@ -195,7 +194,6 @@ fn discover_skill_and_graph_list_items(root: &Path) -> Result<Vec<RunxListItem>,
 
 fn skill_list_items(
     root: &Path,
-    fallback_name: &str,
     loaded: &crate::skill_package::LoadedSkillPackage,
 ) -> Vec<RunxListItem> {
     loaded
@@ -204,28 +202,14 @@ fn skill_list_items(
         .iter()
         .map(|(profile_relative, manifest)| {
             let profile_path = loaded.package_root.join(profile_relative);
-            let graph_steps = manifest
+            let steps = manifest
                 .runners
                 .values()
-                .filter_map(|runner| {
-                    runner
-                        .source
-                        .graph
-                        .as_ref()
-                        .map(|graph| graph.steps.len() as u64)
-                })
-                .collect::<Vec<_>>();
-            let is_graph = !graph_steps.is_empty();
+                .map(|runner| runner.graph.steps.len() as u64)
+                .sum();
             RunxListItem {
-                kind: if is_graph {
-                    RunxListItemKind::Graph
-                } else {
-                    RunxListItemKind::Skill
-                },
-                name: manifest
-                    .skill
-                    .clone()
-                    .unwrap_or_else(|| fallback_name.to_owned()),
+                kind: RunxListItemKind::Skill,
+                name: manifest.skill.clone(),
                 source: RunxListSource::Local,
                 path: project_path(root, &profile_path),
                 status: RunxListStatus::Ok,
@@ -239,7 +223,7 @@ fn skill_list_items(
                         .as_ref()
                         .map_or(0, |harness| harness.cases.len() as u64),
                 ),
-                steps: is_graph.then(|| graph_steps.iter().sum()),
+                steps: Some(steps),
                 wraps: None,
             }
         })
@@ -257,24 +241,17 @@ fn skill_scopes(manifest: &runx_parser::SkillRunnerManifest) -> Option<Vec<Strin
 
 fn skill_emits(manifest: &runx_parser::SkillRunnerManifest) -> Option<Vec<RunxListEmit>> {
     let mut emits = BTreeSet::<(String, Option<String>)>::new();
-    for runner in manifest.runners.values() {
-        if let Some(artifacts) = &runner.artifacts {
+    for step in manifest
+        .runners
+        .values()
+        .flat_map(|runner| runner.graph.steps.iter())
+    {
+        if let Some(artifacts) = step.artifacts.as_ref() {
             emits.extend(
                 tool_emits(artifacts)
                     .into_iter()
                     .map(|emit| (emit.name, emit.packet)),
             );
-        }
-        if let Some(graph) = &runner.source.graph {
-            for step in &graph.steps {
-                if let Some(artifacts) = step.artifacts.as_ref() {
-                    emits.extend(
-                        tool_emits(artifacts)
-                            .into_iter()
-                            .map(|emit| (emit.name, emit.packet)),
-                    );
-                }
-            }
         }
     }
     (!emits.is_empty()).then(|| {
@@ -387,7 +364,7 @@ fn discover_overlay_list_items(root: &Path) -> Result<Vec<RunxListItem>, Runtime
             if !skill_entry.is_dir {
                 continue;
             }
-            let profile_path = skill_entry.path.join("X.yaml");
+            let profile_path = skill_entry.path.join(runx_parser::PROFILE_FILE);
             if !profile_path.exists() {
                 continue;
             }

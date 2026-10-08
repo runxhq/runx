@@ -4,9 +4,6 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 import {
   evaluateRustKernelInputSync,
-  type FanoutBranchResult,
-  type FanoutGroupPolicy,
-  type FanoutSyncDecision,
   type SequentialGraphEvent,
   type SequentialGraphState,
   type SequentialGraphStepDefinition,
@@ -226,19 +223,6 @@ function transitionSequentialGraph(
   }) as SequentialGraphState;
 }
 
-function evaluateFanoutSync(
-  policy: FanoutGroupPolicy,
-  results: readonly FanoutBranchResult[],
-  options: { readonly resolvedGateKeys?: ReadonlySet<string> } = {},
-): FanoutSyncDecision {
-  return evaluateRustKernelInputSync({
-    kind: "state-machine.evaluateFanoutSync",
-    policy,
-    results,
-    resolvedGateKeys: options.resolvedGateKeys ? Array.from(options.resolvedGateKeys) : undefined,
-  }) as FanoutSyncDecision;
-}
-
 export function normalizeForFixture(value: unknown): unknown {
   if (Array.isArray(value)) {
     return value.map((item) => normalizeForFixture(item));
@@ -306,20 +290,6 @@ function fixtureCases(): readonly KernelFixtureCase[] {
     { id: "first" },
     { id: "second", contextFrom: ["first"] },
   ];
-  const fanoutSteps: readonly SequentialGraphStepDefinition[] = [
-    { id: "market", fanoutGroup: "advisors" },
-    { id: "risk", fanoutGroup: "advisors" },
-    { id: "finance", fanoutGroup: "advisors" },
-    { id: "synthesize", contextFrom: ["market", "risk"] },
-  ];
-  const quorumPolicy: FanoutGroupPolicy = {
-    groupId: "advisors",
-    strategy: "quorum",
-    minSuccess: 2,
-    onBranchFailure: "continue",
-    thresholdGates: [],
-    conflictGates: [],
-  };
   const pendingGraph = createSequentialGraphState("gx_fixture", linearSteps);
   const startedGraph = transitionSequentialGraph(pendingGraph, {
     type: "start_step",
@@ -332,17 +302,6 @@ function fixtureCases(): readonly KernelFixtureCase[] {
     at: "2026-04-10T00:00:01.000Z",
     error: "boom",
   });
-  const fanoutPending = createSequentialGraphState("gx_fanout", fanoutSteps);
-  let thresholdResolvedState = createSequentialGraphState("gx_threshold_resolved", fanoutSteps.slice(0, 3));
-  thresholdResolvedState = finishFanoutStep(thresholdResolvedState, "market", "succeeded", { recommendation: "go" });
-  thresholdResolvedState = finishFanoutStep(thresholdResolvedState, "risk", "succeeded", { risk_score: 0.91 });
-  thresholdResolvedState = finishFanoutStep(thresholdResolvedState, "finance", "succeeded", { budget: "approved" });
-  const conflictState = finishFanoutStep(
-    finishFanoutStep(createSequentialGraphState("gx_conflict", fanoutSteps.slice(0, 2)), "market", "succeeded", { report: "ship" }),
-    "risk",
-    "succeeded",
-    { report: "hold" },
-  );
   const githubReadAuth = {
     type: "connected",
     provider: "github",
@@ -644,266 +603,28 @@ function fixtureCases(): readonly KernelFixtureCase[] {
       },
     },
     {
-      name: "sequential-plan-retry-after-failure",
+      name: "sequential-plan-fails-after-a-failed-step",
       input: {
         kind: "state-machine.planSequentialGraphTransition",
         state: failedOnceGraph,
-        steps: [{ id: "first", retry: { maxAttempts: 2 } }],
+        steps: [{ id: "first" }],
       },
     },
     {
-      name: "fanout-plan-branch-set",
-      input: {
-        kind: "state-machine.planSequentialGraphTransition",
-        state: fanoutPending,
-        steps: fanoutSteps,
-        fanoutPolicies: {
-          advisors: quorumPolicy,
-        },
-      },
-    },
-    {
-      name: "fanout-evaluate-branch-failure-halts",
-      input: {
-        kind: "state-machine.evaluateFanoutSync",
-        policy: {
-          ...quorumPolicy,
-          onBranchFailure: "halt",
-        },
-        results: [
-          { stepId: "market", status: "succeeded" },
-          { stepId: "risk", status: "succeeded" },
-          { stepId: "finance", status: "failed" },
-        ],
-      },
-    },
-    {
-      name: "fanout-evaluate-threshold-pause",
-      input: {
-        kind: "state-machine.evaluateFanoutSync",
-        policy: {
-          groupId: "advisors",
-          strategy: "all",
-          onBranchFailure: "halt",
-          thresholdGates: [{ step: "risk", field: "risk_score", above: 0.8, action: "pause" }],
-          conflictGates: [],
-        },
-        results: [
-          { stepId: "market", status: "succeeded", outputs: { recommendation: "go" } },
-          { stepId: "risk", status: "succeeded", outputs: { risk_score: 0.91 } },
-        ],
-      },
-    },
-    {
-      name: "fanout-evaluate-resolved-threshold-proceeds",
-      description: "Resolved threshold gates are skipped by evaluateFanoutSync.",
-      input: {
-        kind: "state-machine.evaluateFanoutSync",
-        policy: {
-          groupId: "advisors",
-          strategy: "all",
-          onBranchFailure: "halt",
-          thresholdGates: [{ step: "risk", field: "risk_score", above: 0.8, action: "pause" }],
-          conflictGates: [],
-        },
-        resolvedGateKeys: ["advisors:threshold.risk.risk_score.above"],
-        results: [
-          { stepId: "market", status: "succeeded", outputs: { recommendation: "go" } },
-          { stepId: "risk", status: "succeeded", outputs: { risk_score: 0.91 } },
-        ],
-      },
-    },
-    {
-      name: "fanout-plan-resolved-threshold-proceeds",
-      description: "Resolved fanout gate keys let graph planning proceed past a prior pause.",
-      input: {
-        kind: "state-machine.planSequentialGraphTransition",
-        state: thresholdResolvedState,
-        steps: fanoutSteps.slice(0, 3),
-        fanoutPolicies: {
-          advisors: {
-            groupId: "advisors",
-            strategy: "all",
-            onBranchFailure: "halt",
-            thresholdGates: [{ step: "risk", field: "risk_score", above: 0.8, action: "pause" }],
-            conflictGates: [],
-          },
-        },
-        resolvedFanoutGateKeys: ["advisors:threshold.risk.risk_score.above"],
-      },
-    },
-    {
-      name: "fanout-plan-conflict-escalates",
-      input: {
-        kind: "state-machine.planSequentialGraphTransition",
-        state: conflictState,
-        steps: fanoutSteps.slice(0, 2),
-        fanoutPolicies: {
-          advisors: {
-            groupId: "advisors",
-            strategy: "all",
-            onBranchFailure: "halt",
-            thresholdGates: [],
-            conflictGates: [{ field: "report", action: "escalate", steps: ["market", "risk"] }],
-          },
-        },
-      },
-    },
-    {
-      name: "fanout-decision-key",
-      input: {
-        kind: "state-machine.fanoutSyncDecisionKey",
-        decision: {
-          groupId: "advisors",
-          ruleFired: "conflict.report",
-        },
-      },
-    },
-    {
-      name: "local-admission-allows-cli-tool",
-      input: {
-        kind: "policy.admitLocalSkill",
-        skill: {
-          name: "echo",
-          source: { type: "cli-tool", timeoutSeconds: 10 },
-        },
-      },
-    },
-    {
-      name: "local-admission-denies-unsupported-source",
-      input: {
-        kind: "policy.admitLocalSkill",
-        skill: {
-          name: "unsupported",
-          source: { type: "unsupported" },
-        },
-      },
-    },
-    {
-      name: "local-admission-denies-inline-python-through-env",
-      input: {
-        kind: "policy.admitLocalSkill",
-        skill: {
-          name: "inline-python",
-          source: {
-            type: "cli-tool",
-            command: "/usr/bin/env",
-            args: ["PYTHONPATH=.", "python3", "-c", "print('hi')"],
-          },
-        },
-        options: {
-          executionPolicy: {
-            strictCliToolInlineCode: true,
-          },
-        },
-      },
-    },
-    {
-      name: "local-admission-denies-inline-windows-path-interpreter",
-      description: "Pins POSIX-only executable normalization for backslash-bearing commands.",
-      input: {
-        kind: "policy.admitLocalSkill",
-        skill: {
-          name: "inline-node-windows-path",
-          source: {
-            type: "cli-tool",
-            command: "C:\\Tools\\node.exe",
-            args: ["-e", "console.log('hi')"],
-          },
-        },
-        options: {
-          executionPolicy: {
-            strictCliToolInlineCode: true,
-          },
-        },
-      },
-    },
-    {
-      name: "runner-rejects-missing-source",
+      name: "runner-rejects-missing-grant",
       description:
         "Pins the fixture-runner ingestion error envelope for invalid but schema-shaped policy input; this is not a policy decision fixture.",
       input: {
-        kind: "policy.admitLocalSkill",
-        skill: {
-          name: "missing-source",
+        kind: "policy.admitGraphStepScopes",
+        request: {
+          stepId: "read",
+          requestedScopes: ["repo:read"],
         },
       },
       expected: {
         kind: "error",
         code: "kernel.fixture.evaluation_failed",
         message: "kernel fixture evaluation failed",
-      },
-    },
-    {
-      name: "local-admission-allows-connected-wildcard-grant",
-      input: {
-        kind: "policy.admitLocalSkill",
-        skill: {
-          name: "connected",
-          source: { type: "cli-tool" },
-          auth: { type: "connected", provider: "github", scopes: ["repo:read"] },
-        },
-        options: {
-          connectedGrants: [
-            {
-              grant_id: "grant_wildcard",
-              provider: "github",
-              scopes: ["repo:*"],
-              status: "active",
-              not_before: connectedAuthNotBefore,
-              expires_at: connectedAuthExpiresAt,
-            },
-          ],
-          connectedAuthCheckedAt,
-        },
-      },
-    },
-    {
-      name: "local-admission-denies-connected-prefix-substring",
-      input: {
-        kind: "policy.admitLocalSkill",
-        skill: {
-          name: "connected-prefix-substring",
-          source: { type: "cli-tool" },
-          auth: { type: "connected", provider: "github", scopes: ["repository:read"] },
-        },
-        options: {
-          connectedGrants: [
-            {
-              grant_id: "grant_repo_namespace",
-              provider: "github",
-              scopes: ["repo:*"],
-              status: "active",
-              not_before: connectedAuthNotBefore,
-              expires_at: connectedAuthExpiresAt,
-            },
-          ],
-          connectedAuthCheckedAt,
-        },
-      },
-    },
-    {
-      name: "local-admission-denies-connected-universal-wildcard",
-      input: {
-        kind: "policy.admitLocalSkill",
-        skill: {
-          name: "connected-universal-wildcard",
-          source: { type: "cli-tool" },
-          auth: { type: "connected", provider: "github", scopes: ["repo:read"] },
-        },
-        options: {
-          connectedGrants: [
-            {
-              grant_id: "grant_universal",
-              provider: "github",
-              scopes: ["*"],
-              status: "active",
-              not_before: connectedAuthNotBefore,
-              expires_at: connectedAuthExpiresAt,
-            },
-          ],
-          connectedAuthCheckedAt,
-        },
       },
     },
     {
@@ -1028,37 +749,6 @@ function fixtureCases(): readonly KernelFixtureCase[] {
       },
     },
   ];
-}
-
-function finishFanoutStep(
-  state: SequentialGraphState,
-  stepId: string,
-  status: "succeeded" | "failed",
-  outputs: Readonly<Record<string, unknown>> = {},
-): SequentialGraphState {
-  const started = transitionSequentialGraph(state, {
-    type: "start_step",
-    stepId,
-    at: "2026-04-10T00:00:00.000Z",
-  });
-  return status === "succeeded"
-    ? transitionSequentialGraph(started, {
-        type: "step_succeeded",
-        stepId,
-        at: "2026-04-10T00:00:01.000Z",
-        receiptId: `rx_${stepId}`,
-        admissionWitness: {
-          stepId,
-          receiptId: `rx_${stepId}`,
-        },
-        outputs,
-      })
-    : transitionSequentialGraph(started, {
-        type: "step_failed",
-        stepId,
-        at: "2026-04-10T00:00:01.000Z",
-        error: "boom",
-      });
 }
 
 function fixtureDirectory(fixture: KernelFixture): string {

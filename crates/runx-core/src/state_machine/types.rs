@@ -1,8 +1,6 @@
-// Module rationale: state-machine parity wire types stay colocated so single-step and
-// sequential-graph serde surfaces are reviewed against the TS oracle together.
-use std::collections::BTreeMap;
-
-use runx_contracts::{AuthorityVerb, JsonNumber, JsonObject, JsonValue, Reference};
+// Module rationale: state-machine wire types stay colocated so single-step and
+// sequential-graph serde surfaces are reviewed together.
+use runx_contracts::{AuthorityVerb, JsonObject, Reference};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -22,8 +20,6 @@ pub enum GraphStatus {
     Running,
     Succeeded,
     Failed,
-    Paused,
-    Escalated,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -36,46 +32,6 @@ pub enum GraphStepStatus {
     /// A `when` condition the runtime resolved to false selected this step out;
     /// it never runs and counts as terminal for graph-completion purposes.
     Skipped,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum FanoutSyncStrategy {
-    All,
-    Any,
-    Quorum,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum FanoutBranchFailurePolicy {
-    Halt,
-    Continue,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum FanoutGateAction {
-    Pause,
-    Escalate,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum FanoutSyncOutcome {
-    Proceed,
-    Halt,
-    Pause,
-    Escalate,
-}
-
-impl From<FanoutGateAction> for FanoutSyncOutcome {
-    fn from(action: FanoutGateAction) -> Self {
-        match action {
-            FanoutGateAction::Pause => Self::Pause,
-            FanoutGateAction::Escalate => Self::Escalate,
-        }
-    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -159,101 +115,10 @@ pub enum SingleStepEvent {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct RetryPolicy {
-    pub max_attempts: u32,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct SequentialGraphStepDefinition {
     pub id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub context_from: Option<Vec<String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub retry: Option<RetryPolicy>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub fanout_group: Option<String>,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct FanoutThresholdGate {
-    pub step: String,
-    pub field: String,
-    pub above: JsonNumber,
-    pub action: FanoutGateAction,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct FanoutConflictGate {
-    pub field: String,
-    pub steps: Vec<String>,
-    pub action: FanoutGateAction,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct FanoutGroupPolicy {
-    pub group_id: String,
-    pub strategy: FanoutSyncStrategy,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub min_success: Option<u32>,
-    pub on_branch_failure: FanoutBranchFailurePolicy,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub threshold_gates: Option<Vec<FanoutThresholdGate>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub conflict_gates: Option<Vec<FanoutConflictGate>>,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct FanoutBranchResult {
-    pub step_id: String,
-    pub status: GraphStepStatus,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub outputs: Option<JsonObject>,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct FanoutSyncDecision {
-    pub group_id: String,
-    pub decision: FanoutSyncOutcome,
-    pub strategy: FanoutSyncStrategy,
-    pub rule_fired: String,
-    pub reason: String,
-    pub branch_count: usize,
-    pub success_count: usize,
-    pub failure_count: usize,
-    pub required_successes: usize,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub gate: Option<FanoutGate>,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(
-    tag = "type",
-    rename_all = "snake_case",
-    rename_all_fields = "camelCase"
-)]
-pub enum FanoutGate {
-    Threshold {
-        #[serde(rename = "stepId", skip_serializing_if = "Option::is_none")]
-        step_id: Option<String>,
-        field: String,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        value: Option<JsonValue>,
-        #[serde(rename = "comparedTo", skip_serializing_if = "Option::is_none")]
-        compared_to: Option<JsonNumber>,
-        action: FanoutGateAction,
-    },
-    Conflict {
-        field: String,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        values: Option<BTreeMap<String, JsonValue>>,
-        action: FanoutGateAction,
-    },
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -309,23 +174,9 @@ pub enum SequentialGraphEvent {
         at: String,
     },
     Complete,
-    PauseGraph {
-        reason: String,
-    },
-    EscalateGraph {
-        reason: String,
-    },
     FailGraph {
         error: String,
     },
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct FanoutBranchPlan {
-    pub step_id: String,
-    pub attempt: u32,
-    pub context_from: Vec<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -340,31 +191,13 @@ pub enum SequentialGraphPlan {
         attempt: u32,
         context_from: Vec<String>,
     },
-    RunFanout {
-        group_id: String,
-        branches: Vec<FanoutBranchPlan>,
-    },
     Complete,
     Failed {
         step_id: String,
         reason: String,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        sync_decision: Option<FanoutSyncDecision>,
     },
     Blocked {
         step_id: String,
         reason: String,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        sync_decision: Option<FanoutSyncDecision>,
-    },
-    Paused {
-        step_id: String,
-        reason: String,
-        sync_decision: FanoutSyncDecision,
-    },
-    Escalated {
-        step_id: String,
-        reason: String,
-        sync_decision: FanoutSyncDecision,
     },
 }

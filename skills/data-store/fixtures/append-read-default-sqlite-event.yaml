@@ -32,7 +32,9 @@ expect:
   receipt:
     schema: runx.receipt.v1
   steps:
+    - store-append
     - append
+    - store-readback
     - readback
   step_outputs:
     append:
@@ -40,19 +42,18 @@ expect:
         data_operation_result:
           data:
             schema: runx.data.operation_result.v1
-            operation: append_event
+            operation: events.append
             aggregate_id: default-sqlite-posting-123
             after_version: 1
+            provider: store
             provider_evidence:
-              adapter: data.sqlite
-              provider: sqlite-event-store
-              storage_class: sqlite
+              backend: sqlite
     readback:
       subset:
         data_operation_result:
           data:
             schema: runx.data.operation_result.v1
-            operation: read_projection
+            operation: projection.read
             aggregate_id: default-sqlite-posting-123
             after_version: 1
             projection:
@@ -60,13 +61,11 @@ expect:
               event_count: 1
               last_event_type: posting.created
               version: 1
+            provider: store
             provider_evidence:
-              adapter: data.sqlite
-              provider: sqlite-event-store
-              storage_class: sqlite
+              backend: sqlite
 metadata:
   public_skill: data-store
   source_case: append-read-default-sqlite-event
   source: skills-fixture
-  runner_kind: graph
   graph_shape: append_and_readback_default_sqlite

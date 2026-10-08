@@ -1,8 +1,6 @@
 ---
 name: content-pipeline
 description: Turn governed source evidence into a citation-bound reader-facing draft, channel package, and provider-neutral publication handoff.
-runx:
-  category: content
 ---
 
 # Content Pipeline

@@ -27,14 +27,14 @@ marketplace:
       output_schema_digest: {DIGEST_B}
 runners:
   preview:
-    type: cli-tool
-    command: node
-    args: [scripts/transcribe.mjs, preview]
+    steps:
+      - id: preview
+        tool: {{ command: node, args: [scripts/transcribe.mjs, preview] }}
   transcribe:
     default: true
-    type: cli-tool
-    command: node
-    args: [scripts/transcribe.mjs, transcribe]
+    steps:
+      - id: transcribe
+        tool: {{ command: node, args: [scripts/transcribe.mjs, transcribe] }}
 "#
     )
 }

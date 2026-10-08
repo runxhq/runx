@@ -1,9 +1,8 @@
 pub use runx_contracts::{
-    AgentActInvocation, AgentActSourceType, ApprovalDecision, ApprovalGate, ExecutionEvent,
-    HostNeedsAgentState, HostRunApproval, HostRunApprovalDecision, HostRunKind, HostRunLineage,
-    HostRunLineageKind, HostRunResult, HostRunState, HostRunVerification,
-    HostRunVerificationStatus, HostTerminalState, Question, ResolutionRequest, ResolutionResponse,
-    ResolutionResponseActor,
+    AgentActInvocation, ApprovalDecision, ApprovalGate, ExecutionEvent, HostNeedsAgentState,
+    HostRunApproval, HostRunApprovalDecision, HostRunKind, HostRunLineage, HostRunLineageKind,
+    HostRunResult, HostRunState, HostRunVerification, HostRunVerificationStatus, HostTerminalState,
+    Question, ResolutionRequest, ResolutionResponse, ResolutionResponseActor,
 };
 
 use crate::error::RunxResult;

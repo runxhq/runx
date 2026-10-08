@@ -54,7 +54,6 @@ fn collect_artifact_reference(value: &JsonValue, refs: &mut StepOutputRefs) {
         JsonValue::Object(object) => {
             let Some(artifact_id) = object
                 .get("artifact_id")
-                .or_else(|| object.get("id"))
                 .and_then(JsonValue::as_str)
                 .map(str::trim)
                 .filter(|entry| !entry.is_empty())
@@ -63,7 +62,6 @@ fn collect_artifact_reference(value: &JsonValue, refs: &mut StepOutputRefs) {
             };
             let artifact_type = object
                 .get("artifact_type")
-                .or_else(|| object.get("type"))
                 .and_then(JsonValue::as_str)
                 .map(str::trim)
                 .filter(|entry| !entry.is_empty());
@@ -147,7 +145,6 @@ fn collect_signal_reference(value: &JsonValue, refs: &mut StepOutputRefs) {
         JsonValue::Object(object) => {
             if let Some(signal_id) = object
                 .get("signal_id")
-                .or_else(|| object.get("id"))
                 .and_then(JsonValue::as_str)
                 .map(str::trim)
                 .filter(|entry| !entry.is_empty())
@@ -179,8 +176,6 @@ fn collect_source_event_reference(value: &JsonValue, refs: &mut StepOutputRefs) 
         JsonValue::Object(object) => {
             let Some(locator) = object
                 .get("source_locator")
-                .or_else(|| object.get("locator"))
-                .or_else(|| object.get("thread_locator"))
                 .and_then(JsonValue::as_str)
                 .map(str::trim)
                 .filter(|entry| !entry.is_empty())

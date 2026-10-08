@@ -7,7 +7,7 @@ use crate::adapter::{
     CONTRACT_VERIFICATION_METADATA, CREDENTIAL_DELIVERY_OBSERVATIONS_METADATA,
     EXECUTION_LIMITS_METADATA, InvocationOutput,
 };
-use crate::effects::{RuntimeEffectRegistry, effect_verification_refs};
+use crate::effects::effect_verification_refs;
 use crate::execution::output_projection::{StepOutputRefs, claim_refs};
 use crate::{RuntimeError, StepRun};
 use runx_contracts::fingerprint::sha256_hex;
@@ -15,11 +15,11 @@ use runx_contracts::schema::NonEmptyString;
 use runx_contracts::{
     ActForm, AuthorityAttenuation, AuthoritySubsetResult, AuthorityTerm, Closure,
     ClosureDisposition, CredentialDeliveryObservation, CriterionBinding, CriterionStatus, Decision,
-    DecisionChoice, DecisionInputs, DecisionJustification, FanoutReceiptSyncPoint, Intent,
-    JsonObject, JsonValue, Lineage, RECEIPT_CANONICALIZATION, Receipt, ReceiptAct,
-    ReceiptAuthority, ReceiptClass, ReceiptEnforcement, ReceiptIdempotency, ReceiptIssuer,
-    ReceiptSchema, Reference, ReferenceType, Seal, SignatureAlgorithm, Subject, SuccessCriterion,
-    canonical_stable_json, json_string_field, receipt_subject_kind,
+    DecisionChoice, DecisionInputs, DecisionJustification, Intent, JsonObject, JsonValue, Lineage,
+    RECEIPT_CANONICALIZATION, Receipt, ReceiptAct, ReceiptAuthority, ReceiptClass,
+    ReceiptEnforcement, ReceiptIdempotency, ReceiptIssuer, ReceiptSchema, Reference, ReferenceType,
+    Seal, SignatureAlgorithm, Subject, SuccessCriterion, canonical_stable_json, json_string_field,
+    receipt_subject_kind,
 };
 use runx_receipts::{
     ReceiptProofContext, ReceiptProofContextProvider, ReceiptSignature, ReceiptTreeConfig,
@@ -34,7 +34,7 @@ use super::signing::{
     validate_production_issuer,
 };
 pub fn step_receipt(
-    graph_name: &str,
+    scope: RunScope<'_>,
     step_id: &str,
     attempt: u32,
     output: &InvocationOutput,
@@ -43,7 +43,7 @@ pub fn step_receipt(
 ) -> Result<Receipt, RuntimeError> {
     step_receipt_with_declared_claim_and_policy(
         StepReceiptWithDisposition::with_default_closure(
-            graph_name, step_id, attempt, output, created_at,
+            scope, step_id, attempt, output, created_at,
         ),
         claim,
         claim_refs(claim),
@@ -52,7 +52,7 @@ pub fn step_receipt(
 }
 
 pub fn step_receipt_with_signature_policy(
-    graph_name: &str,
+    scope: RunScope<'_>,
     step_id: &str,
     attempt: u32,
     output: &InvocationOutput,
@@ -62,7 +62,7 @@ pub fn step_receipt_with_signature_policy(
 ) -> Result<Receipt, RuntimeError> {
     step_receipt_with_declared_claim_and_policy(
         StepReceiptWithDisposition::with_default_closure(
-            graph_name, step_id, attempt, output, created_at,
+            scope, step_id, attempt, output, created_at,
         ),
         claim,
         claim_refs(claim),
@@ -71,7 +71,7 @@ pub fn step_receipt_with_signature_policy(
 }
 
 pub fn step_receipt_with_authority_grant_refs(
-    graph_name: &str,
+    scope: RunScope<'_>,
     step_id: &str,
     attempt: u32,
     output: &InvocationOutput,
@@ -82,7 +82,7 @@ pub fn step_receipt_with_authority_grant_refs(
     let refs = claim_refs(claim);
     step_receipt_with_disposition_projection_authority_and_policy(StepReceiptSeal {
         params: StepReceiptWithDisposition::with_default_closure(
-            graph_name, step_id, attempt, output, created_at,
+            scope, step_id, attempt, output, created_at,
         ),
         claim,
         projection_refs: refs,
@@ -98,7 +98,7 @@ pub fn step_receipt_with_authority_grant_refs(
 }
 
 pub(crate) struct StepReceiptWithDisposition<'a> {
-    pub(crate) graph_name: &'a str,
+    pub(crate) scope: RunScope<'a>,
     pub(crate) step_id: &'a str,
     pub(crate) attempt: u32,
     pub(crate) output: &'a InvocationOutput,
@@ -125,7 +125,7 @@ impl<'a> StepReceiptWithDisposition<'a> {
     /// `process_*` reason code, and a generic completion summary. This is the
     /// single source of that derivation for the process-exit step receipts.
     pub(crate) fn with_default_closure(
-        graph_name: &'a str,
+        scope: RunScope<'a>,
         step_id: &'a str,
         attempt: u32,
         output: &'a InvocationOutput,
@@ -137,7 +137,7 @@ impl<'a> StepReceiptWithDisposition<'a> {
             summary,
         } = StepSealClosure::default_for(output, step_id);
         Self {
-            graph_name,
+            scope,
             step_id,
             attempt,
             output,
@@ -147,15 +147,6 @@ impl<'a> StepReceiptWithDisposition<'a> {
             summary,
         }
     }
-}
-
-pub(crate) fn step_receipt_with_disposition_and_policy(
-    params: StepReceiptWithDisposition<'_>,
-    claim: &JsonObject,
-    signature_policy: RuntimeReceiptSignaturePolicy<'_>,
-) -> Result<Receipt, RuntimeError> {
-    let refs = claim_refs(claim);
-    step_receipt_with_declared_claim_and_policy(params, claim, refs, signature_policy)
 }
 
 pub(crate) fn step_receipt_with_declared_claim_and_policy(
@@ -190,7 +181,7 @@ fn step_receipt_with_disposition_projection_authority_and_policy(
         signature_policy,
     } = request;
     let StepReceiptWithDisposition {
-        graph_name,
+        scope,
         step_id,
         attempt,
         output,
@@ -221,17 +212,15 @@ fn step_receipt_with_disposition_projection_authority_and_policy(
         &output_refs.artifact_refs,
     );
     let mut receipt = build_unsealed_receipt(BuildReceipt {
-        id: step_receipt_id(graph_name, step_id, attempt),
         class: ReceiptClass::Executed,
-        graph_name,
-        node_id: step_id,
+        scope,
+        node: Node::Step { step_id, attempt },
         kind: receipt_subject_kind::SKILL.into(),
         created_at,
         decisions,
         acts: vec![act],
         seal,
         children: child_receipts.iter().map(child_receipt_reference).collect(),
-        sync_points: Vec::new(),
         signals: output_refs.signal_refs,
         authority,
         authority_override: None,
@@ -294,7 +283,7 @@ fn receipt_metadata_with_execution_limits(
 /// and `Some` for steps that carry their own disposition, e.g. an agent act
 /// that closes `Deferred` on a successful turn.
 pub(crate) struct StepSeal<'a> {
-    pub(crate) graph_name: &'a str,
+    pub(crate) scope: RunScope<'a>,
     pub(crate) step_id: &'a str,
     pub(crate) attempt: u32,
     pub(crate) output: &'a InvocationOutput,
@@ -345,7 +334,7 @@ pub(crate) fn seal_step(
     signature_policy: RuntimeReceiptSignaturePolicy<'_>,
 ) -> Result<Receipt, RuntimeError> {
     let StepSeal {
-        graph_name,
+        scope,
         step_id,
         attempt,
         output,
@@ -375,7 +364,7 @@ pub(crate) fn seal_step(
     }
     step_receipt_with_disposition_projection_authority_and_policy(StepReceiptSeal {
         params: StepReceiptWithDisposition {
-            graph_name,
+            scope,
             step_id,
             attempt,
             output,
@@ -603,83 +592,30 @@ fn invalid_contract_verification(message: impl Into<String>) -> RuntimeError {
 }
 
 pub fn graph_receipt(
-    graph_name: &str,
-    steps: &mut [StepRun],
-    sync_points: Vec<FanoutReceiptSyncPoint>,
+    scope: RunScope<'_>,
+    steps: &[StepRun],
     created_at: &str,
 ) -> Result<Receipt, RuntimeError> {
-    graph_receipt_with_disposition(
-        graph_name,
+    graph_receipt_with_signature_policy(
+        scope,
         steps,
-        &sync_points,
         created_at,
-        ClosureDisposition::Closed,
-        "graph_closed".to_owned(),
-        format!("graph {graph_name} completed"),
+        RuntimeReceiptSignaturePolicy::local_development(),
     )
 }
 
 pub fn graph_receipt_with_signature_policy(
-    graph_name: &str,
-    steps: &mut [StepRun],
-    sync_points: Vec<FanoutReceiptSyncPoint>,
+    scope: RunScope<'_>,
+    steps: &[StepRun],
     created_at: &str,
     signature_policy: RuntimeReceiptSignaturePolicy<'_>,
 ) -> Result<Receipt, RuntimeError> {
-    graph_receipt_with_effects_and_signature_policy(
-        graph_name,
+    graph_receipt_with_closure(
+        scope,
         steps,
-        &sync_points,
         created_at,
-        RuntimeEffectRegistry::default(),
+        GraphClosure::completed(scope.graph_name),
         signature_policy,
-    )
-}
-
-pub(crate) fn graph_receipt_with_effects_and_signature_policy(
-    graph_name: &str,
-    steps: &mut [StepRun],
-    sync_points: &[FanoutReceiptSyncPoint],
-    created_at: &str,
-    effects: RuntimeEffectRegistry,
-    signature_policy: RuntimeReceiptSignaturePolicy<'_>,
-) -> Result<Receipt, RuntimeError> {
-    graph_receipt_with_disposition_and_policy(
-        graph_name,
-        steps,
-        sync_points,
-        created_at,
-        GraphClosure {
-            disposition: ClosureDisposition::Closed,
-            reason_code: "graph_closed".to_owned(),
-            summary: format!("graph {graph_name} completed"),
-        },
-        effects,
-        signature_policy,
-    )
-}
-
-pub(crate) fn graph_receipt_with_disposition(
-    graph_name: &str,
-    steps: &mut [StepRun],
-    sync_points: &[FanoutReceiptSyncPoint],
-    created_at: &str,
-    disposition: ClosureDisposition,
-    reason_code: String,
-    summary: String,
-) -> Result<Receipt, RuntimeError> {
-    graph_receipt_with_disposition_and_policy(
-        graph_name,
-        steps,
-        sync_points,
-        created_at,
-        GraphClosure {
-            disposition,
-            reason_code,
-            summary,
-        },
-        RuntimeEffectRegistry::default(),
-        RuntimeReceiptSignaturePolicy::local_development(),
     )
 }
 
@@ -689,13 +625,21 @@ pub(crate) struct GraphClosure {
     pub(crate) summary: String,
 }
 
-pub(crate) fn graph_receipt_with_disposition_and_policy(
-    graph_name: &str,
-    steps: &mut [StepRun],
-    sync_points: &[FanoutReceiptSyncPoint],
+impl GraphClosure {
+    pub(crate) fn completed(graph_name: &str) -> Self {
+        Self {
+            disposition: ClosureDisposition::Closed,
+            reason_code: "graph_closed".to_owned(),
+            summary: format!("graph {graph_name} completed"),
+        }
+    }
+}
+
+pub(crate) fn graph_receipt_with_closure(
+    scope: RunScope<'_>,
+    steps: &[StepRun],
     created_at: &str,
     closure: GraphClosure,
-    _effects: RuntimeEffectRegistry,
     signature_policy: RuntimeReceiptSignaturePolicy<'_>,
 ) -> Result<Receipt, RuntimeError> {
     let current_child_indexes = current_step_indexes(steps);
@@ -707,8 +651,7 @@ pub(crate) fn graph_receipt_with_disposition_and_policy(
     // A receipt graph is a DAG: the parent commits each active child's exact
     // id and signed-body digest. Children stay immutable and reusable instead
     // of acquiring one post-hoc parent link.
-    let mut receipt =
-        build_graph_receipt(graph_name, child_refs, sync_points, created_at, &closure);
+    let mut receipt = build_graph_receipt(scope, child_refs, created_at, &closure);
     bind_graph_operator_refs(receipt.as_mut(), steps);
     let receipt = receipt.seal(signature_policy)?;
 
@@ -773,18 +716,16 @@ fn bind_graph_operator_refs(receipt: &mut Receipt, steps: &[StepRun]) {
 }
 
 fn build_graph_receipt(
-    graph_name: &str,
+    scope: RunScope<'_>,
     children: Vec<Reference>,
-    sync_points: &[FanoutReceiptSyncPoint],
     created_at: &str,
     closure: &GraphClosure,
 ) -> UnsealedReceipt {
     let child_identity = graph_child_identity(&children);
     let mut receipt = build_unsealed_receipt(BuildReceipt {
-        id: format!("hrn_rcpt_{graph_name}"),
         class: ReceiptClass::Executed,
-        graph_name,
-        node_id: "graph",
+        scope,
+        node: Node::Graph,
         kind: receipt_subject_kind::GRAPH.into(),
         created_at,
         decisions: Vec::new(),
@@ -797,13 +738,14 @@ fn build_graph_receipt(
             Vec::new(),
         ),
         children,
-        sync_points: sync_points.to_vec(),
         signals: Vec::new(),
         authority: SealAuthority::default(),
         authority_override: None,
         previous: None,
     });
-    receipt.as_mut().subject.reference.locator = Some(child_identity.into());
+    let receipt_body = receipt.as_mut();
+    receipt_body.subject.reference.locator = Some(child_identity.clone().into());
+    receipt_body.idempotency.content_hash = child_identity.into();
     receipt
 }
 
@@ -817,8 +759,9 @@ fn bind_step_identity(
     output: &InvocationOutput,
     claim: &JsonObject,
 ) -> Result<(), RuntimeError> {
-    receipt.subject.reference.locator =
-        Some(step_identity_locator(receipt, output.succeeded(), claim)?.into());
+    let identity = step_identity_locator(receipt, output.succeeded(), claim)?;
+    receipt.subject.reference.locator = Some(identity.clone().into());
+    receipt.idempotency.content_hash = identity.into();
     Ok(())
 }
 
@@ -898,14 +841,6 @@ fn validate_receipt_tree_with_policy<'a>(
     .map_err(receipt_error)
 }
 
-fn step_receipt_id(graph_name: &str, step_id: &str, attempt: u32) -> String {
-    if attempt <= 1 {
-        format!("hrn_rcpt_{graph_name}_{step_id}")
-    } else {
-        format!("hrn_rcpt_{graph_name}_{step_id}_attempt_{attempt}")
-    }
-}
-
 fn step_reason_code(disposition: &ClosureDisposition) -> String {
     let suffix = match disposition {
         ClosureDisposition::Closed => "closed",
@@ -920,22 +855,53 @@ fn step_reason_code(disposition: &ClosureDisposition) -> String {
     format!("step_{suffix}")
 }
 
+/// The run a receipt belongs to, and the graph it ran.
+#[derive(Clone, Copy, Debug)]
+pub struct RunScope<'a> {
+    pub run_id: &'a str,
+    pub graph_name: &'a str,
+}
+
+/// The part of a run a receipt seals.
+#[derive(Clone, Copy, Debug)]
+enum Node<'a> {
+    /// The whole graph.
+    Graph,
+    /// One step's attempt.
+    Step { step_id: &'a str, attempt: u32 },
+    /// The run's domain act.
+    Act,
+}
+
+impl Node<'_> {
+    /// `runx:run:<id>`, `runx:run:<id>#<step>` (`#<step>@<attempt>` after the
+    /// first attempt) or `runx:run:<id>#act`.
+    fn uri(self, run_id: &str) -> String {
+        match self {
+            Self::Graph => format!("runx:run:{run_id}"),
+            Self::Step { step_id, attempt } if attempt <= 1 => {
+                format!("runx:run:{run_id}#{step_id}")
+            }
+            Self::Step { step_id, attempt } => format!("runx:run:{run_id}#{step_id}@{attempt}"),
+            Self::Act => format!("runx:run:{run_id}#act"),
+        }
+    }
+}
+
 struct BuildReceipt<'a> {
-    id: String,
     class: ReceiptClass,
-    graph_name: &'a str,
-    node_id: &'a str,
+    scope: RunScope<'a>,
+    node: Node<'a>,
     kind: NonEmptyString,
     created_at: &'a str,
     decisions: Vec<Decision>,
     acts: Vec<ReceiptAct>,
     seal: Seal,
     children: Vec<Reference>,
-    sync_points: Vec<FanoutReceiptSyncPoint>,
     signals: Vec<Reference>,
     authority: SealAuthority,
     /// Fully-built authority for a domain act seal. When `None`, the generic
-    /// `local_runtime` authority is used (unchanged for every existing caller).
+    /// `local_runtime` authority is used.
     authority_override: Option<ReceiptAuthority>,
     /// The predecessor receipt this one chains from (`lineage.previous`), e.g. a
     /// judgment chaining from the delivery it judged. `None` for generic seals.
@@ -970,17 +936,15 @@ impl UnsealedReceipt {
 
 fn build_unsealed_receipt(parts: BuildReceipt<'_>) -> UnsealedReceipt {
     let BuildReceipt {
-        id,
         class,
-        graph_name,
-        node_id,
+        scope,
+        node,
         kind,
         created_at,
         decisions,
         acts,
         seal,
         children,
-        sync_points,
         signals,
         authority,
         authority_override,
@@ -990,20 +954,21 @@ fn build_unsealed_receipt(parts: BuildReceipt<'_>) -> UnsealedReceipt {
         parent: None,
         previous,
         children,
-        sync: sync_points,
         resume_ref: None,
     };
+    let subject_uri = node.uri(scope.run_id);
     UnsealedReceipt(Receipt {
         schema: ReceiptSchema::V1,
-        id: id.into(),
+        // Replaced by the content address when the receipt is sealed.
+        id: "rcpt_unsealed".into(),
         created_at: created_at.into(),
         canonicalization: RECEIPT_CANONICALIZATION.into(),
         issuer: local_runtime_issuer(),
         signature: placeholder_signature(),
         digest: "sha256:runtime-skeleton".into(),
-        idempotency: idempotency(graph_name, node_id),
+        idempotency: idempotency(&subject_uri, &signals),
         class,
-        subject: subject(graph_name, node_id, kind),
+        subject: subject(scope, subject_uri, kind),
         authority: authority_override.unwrap_or_else(|| local_authority(authority)),
         signals,
         decisions,
@@ -1065,15 +1030,13 @@ fn seal(
     }
 }
 
-fn subject(graph_name: &str, node_id: &str, kind: NonEmptyString) -> Subject {
+/// The run node a receipt seals, labelled with the graph that ran.
+fn subject(scope: RunScope<'_>, uri: String, kind: NonEmptyString) -> Subject {
+    let mut reference = Reference::with_uri(ReferenceType::Run, uri);
+    reference.label = Some(scope.graph_name.into());
     Subject {
         kind,
-        // The subject reference retains the harness identity (`hrn_<graph>_<node>`)
-        // so history/replay projections keep a stable subject id.
-        reference: Reference::with_uri(
-            ReferenceType::Harness,
-            format!("hrn_{graph_name}_{node_id}"),
-        ),
+        reference,
         input_context: None,
         commitments: Vec::new(),
         paid_invocation: None,
@@ -1173,8 +1136,7 @@ pub(crate) struct DomainActFrame {
 }
 
 pub(crate) struct DomainActReceiptRequest<'a> {
-    pub graph_name: &'a str,
-    pub step_id: &'a str,
+    pub scope: RunScope<'a>,
     pub succeeded: bool,
     pub created_at: &'a str,
     pub disposition: ClosureDisposition,
@@ -1196,8 +1158,7 @@ pub(crate) fn domain_act_receipt(
     request: DomainActReceiptRequest<'_>,
 ) -> Result<Receipt, RuntimeError> {
     let DomainActReceiptRequest {
-        graph_name,
-        step_id,
+        scope,
         succeeded,
         created_at,
         disposition,
@@ -1236,7 +1197,7 @@ pub(crate) fn domain_act_receipt(
     let mut criterion_bindings = vec![criterion.clone()];
     criterion_bindings.extend(verification.bindings.iter().cloned());
     let act = ReceiptAct {
-        id: format!("act_{step_id}").into(),
+        id: "act_run".into(),
         form: frame.form,
         intent: intent.clone(),
         summary: frame.summary.clone(),
@@ -1251,7 +1212,7 @@ pub(crate) fn domain_act_receipt(
         verification: None,
     };
     let decision = Decision {
-        decision_id: format!("dec_{step_id}").into(),
+        decision_id: "dec_run".into(),
         choice: frame.decision_choice,
         inputs: DecisionInputs {
             target_ref: frame.target_refs.first().cloned(),
@@ -1299,31 +1260,47 @@ pub(crate) fn domain_act_receipt(
         created_at,
         seal_criteria,
     );
-    let receipt = build_unsealed_receipt(BuildReceipt {
-        id: step_receipt_id(graph_name, step_id, 1),
+    let mut receipt = build_unsealed_receipt(BuildReceipt {
         class: ReceiptClass::Executed,
-        graph_name,
-        node_id: step_id,
+        scope,
+        node: Node::Act,
         kind: receipt_subject_kind::SKILL.into(),
         created_at,
         decisions: vec![decision],
         acts: vec![act],
         seal,
         children: Vec::new(),
-        sync_points: Vec::new(),
         signals: Vec::new(),
         authority: SealAuthority::default(),
         authority_override: Some(authority),
         previous: frame.previous,
     });
+    let acts = canonical_stable_json(&JsonValue::from_serialize(&receipt.as_mut().acts).map_err(
+        |error| RuntimeError::ReceiptInvalid {
+            message: error.to_string(),
+        },
+    )?)
+    .map_err(|error| RuntimeError::ReceiptInvalid {
+        message: error.to_string(),
+    })?;
+    receipt.as_mut().idempotency.content_hash =
+        format!("sha256:{}", sha256_hex(acts.as_bytes())).into();
     receipt.seal(signature_policy)
 }
 
-fn idempotency(graph_name: &str, node_id: &str) -> ReceiptIdempotency {
+/// What the receipt is for (its run and node), what triggered it (its signal
+/// references) and what it produced. The content hash starts as the digest
+/// of nothing and is bound to the sealed claim by the node's builder.
+fn idempotency(subject_uri: &str, signals: &[Reference]) -> ReceiptIdempotency {
+    let digest = |bytes: &[u8]| format!("sha256:{}", sha256_hex(bytes));
+    let signal_uris = signals
+        .iter()
+        .map(|reference| reference.uri.as_str())
+        .collect::<Vec<_>>();
     ReceiptIdempotency {
-        intent_key: format!("sha256:{graph_name}-{node_id}-intent").into(),
-        trigger_fingerprint: format!("sha256:{graph_name}-{node_id}-trigger").into(),
-        content_hash: format!("sha256:{graph_name}-{node_id}-content").into(),
+        intent_key: digest(subject_uri.as_bytes()).into(),
+        trigger_fingerprint: digest(&serde_json::to_vec(&signal_uris).unwrap_or_default()).into(),
+        content_hash: digest(b"").into(),
     }
 }
 
@@ -1684,6 +1661,13 @@ fn receipt_error(verification: runx_receipts::ReceiptVerification) -> RuntimeErr
 
 #[cfg(test)]
 mod tests {
+    fn test_scope(graph_name: &'static str) -> RunScope<'static> {
+        RunScope {
+            run_id: "run_test",
+            graph_name,
+        }
+    }
+
     use super::*;
     use crate::adapter::InvocationStatus;
     use runx_contracts::{
@@ -1725,7 +1709,7 @@ mod tests {
     #[test]
     fn credential_delivery_refs_are_sealed_as_verification_refs() -> Result<(), TestError> {
         let receipt = step_receipt(
-            "credential_graph",
+            test_scope("credential_graph"),
             "credential_step",
             1,
             &credential_output()?,
@@ -1801,7 +1785,7 @@ mod tests {
             InvocationOutput::runtime_success(JsonValue::Object(JsonObject::new()), 1, metadata);
 
         let receipt = step_receipt(
-            "agent_graph",
+            test_scope("agent_graph"),
             "agent_step",
             1,
             &output,
@@ -1841,7 +1825,7 @@ mod tests {
 
         assert!(
             step_receipt(
-                "agent_graph",
+                test_scope("agent_graph"),
                 "agent_step",
                 1,
                 &output,
@@ -1866,7 +1850,7 @@ mod tests {
 
             assert!(
                 step_receipt(
-                    "evidence_graph",
+                    test_scope("evidence_graph"),
                     "evidence_step",
                     1,
                     &output,
@@ -1888,7 +1872,7 @@ mod tests {
         );
         assert!(
             step_receipt(
-                "evidence_graph",
+                test_scope("evidence_graph"),
                 "boundary_step",
                 1,
                 &output,
@@ -1926,7 +1910,7 @@ mod tests {
         );
 
         let receipt = step_receipt(
-            "limit_graph",
+            test_scope("limit_graph"),
             "limit_step",
             1,
             &output,
@@ -1954,7 +1938,7 @@ mod tests {
         );
 
         let receipt = step_receipt(
-            "boundary_graph",
+            test_scope("boundary_graph"),
             "boundary_step",
             1,
             &output,
@@ -1976,7 +1960,7 @@ mod tests {
         Ok(
             step_receipt_with_disposition_projection_authority_and_policy(StepReceiptSeal {
                 params: StepReceiptWithDisposition::with_default_closure(
-                    "identity_graph",
+                    test_scope("identity_graph"),
                     "identity_step",
                     1,
                     &output,
@@ -2048,7 +2032,7 @@ mod tests {
             let output = successful_output("outer transport");
             step_receipt_with_disposition_projection_authority_and_policy(StepReceiptSeal {
                 params: StepReceiptWithDisposition::with_default_closure(
-                    "outer_graph",
+                    test_scope("outer_graph"),
                     "outer_step",
                     1,
                     &output,
@@ -2109,7 +2093,10 @@ mod tests {
             request_id: "credential_delivery_request_1".into(),
             response_id: Some("credential_delivery_response_1".into()),
             status: CredentialDeliveryObservationStatus::Delivered,
-            harness_ref: Reference::with_uri(ReferenceType::Harness, "runx:harness:hrn_123"),
+            harness_ref: Reference::with_uri(
+                ReferenceType::Harness,
+                "runx:harness:local-credential-provision",
+            ),
             host_ref: Some(Reference::with_uri(
                 ReferenceType::Host,
                 "runx:host:local-cli",

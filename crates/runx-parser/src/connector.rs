@@ -47,6 +47,7 @@ pub fn validate_connector_manifest(
 ) -> Result<ValidatedConnector, Vec<ValidationError>> {
     let mut errors = Errors::default();
     validate_auth_and_placements(&manifest, &mut errors);
+    validate_parameters(&manifest, &mut errors);
     for (name, operation) in &manifest.operations {
         validate_operation(&manifest, name, operation, &mut errors);
     }
@@ -111,6 +112,17 @@ fn validate_auth_and_placements(manifest: &ConnectorManifest, errors: &mut Error
         errors.push("placements", "declare at least one placement");
     }
     for (name, declaration) in &auth.credentials {
+        match (store_only(manifest, name), declaration.audience.is_empty()) {
+            (true, false) => errors.push(
+                &format!("auth.credentials.{name}.audience"),
+                "a credential only a store uses goes to the store its instance pins; declare no audience",
+            ),
+            (false, true) => errors.push(
+                &format!("auth.credentials.{name}.audience"),
+                "declare the hosts the credential may be sent to",
+            ),
+            _ => {}
+        }
         for field in declaration.fields.iter() {
             let distinctive = |prefix: &NonEmptyString| {
                 prefix.as_str().len() >= 4
@@ -327,6 +339,69 @@ fn validate_auth_and_placements(manifest: &ConnectorManifest, errors: &mut Error
     }) = &auth.session
     {
         validate_command_session(auth, command, credential, principal, errors);
+    }
+}
+
+/// Whether only `store` implementations use `credential`: it is then sent
+/// to the store its instance pins and nowhere else.
+fn store_only(manifest: &ConnectorManifest, credential: &CredentialName) -> bool {
+    let auth = &manifest.auth;
+    let session = matches!(
+        &auth.session,
+        Some(SessionAuth::Command { credential: stands_in, .. }) if stands_in == credential
+    );
+    let hosted = manifest
+        .placements
+        .hosted
+        .as_ref()
+        .is_some_and(|hosted| hosted.credential.as_ref() == Some(credential));
+    let mut users = manifest
+        .operations
+        .values()
+        .filter(|operation| operation.credentials.contains(credential))
+        .peekable();
+    users.peek().is_some()
+        && !session
+        && !hosted
+        && users.all(|operation| {
+            operation.hosted.is_none()
+                && matches!(operation.implementation, Some(Implementation::Store(_)))
+        })
+}
+
+/// The instance parameters a connector declares are a JSON Schema for an
+/// object, and only a connector that declares them binds `$parameter`.
+fn validate_parameters(manifest: &ConnectorManifest, errors: &mut Errors) {
+    match &manifest.parameters {
+        Some(schema) => {
+            let valid = serde_json::to_value(schema)
+                .map_err(|error| error.to_string())
+                .and_then(|schema| {
+                    jsonschema::draft202012::meta::validate(&schema)
+                        .map_err(|error| error.to_string())
+                });
+            if let Err(reason) = valid {
+                errors.push("parameters", format!("not a valid JSON Schema: {reason}"));
+            }
+            if schema.get("type").and_then(JsonValue::as_str) != Some("object") {
+                errors.push("parameters", "instance parameters are an object");
+            }
+        }
+        None => {
+            for (name, operation) in &manifest.operations {
+                let binds = operation.target.template.binds_parameter()
+                    || matches!(&operation.implementation, Some(Implementation::Http(http))
+                        if http.requests.iter().chain(
+                            http.preconditions.iter().chain(&http.readbacks).map(|check| &check.request),
+                        ).any(binds_parameter));
+                if binds {
+                    errors.push(
+                        &format!("operations.{name}"),
+                        "binds an instance parameter the connector does not declare",
+                    );
+                }
+            }
+        }
     }
 }
 
@@ -659,6 +734,23 @@ fn validate_operation(
                         format!("duplicate runtime scope {scope}"),
                     );
                 }
+            }
+        }
+        Implementation::Store(_) => {
+            if operation.input_schema.is_none() {
+                errors.push(
+                    &format!("{field}.input_schema"),
+                    "store operations declare the input schema they accept",
+                );
+            }
+            if acknowledged {
+                errors.push(
+                    &format!("{field}.guarantees.readback"),
+                    "a store write is confirmed by reading it back",
+                );
+            }
+            if operation.hosted.is_some() {
+                errors.push(&format!("{field}.hosted"), "a store runs only locally");
             }
         }
         Implementation::Web(_) => {

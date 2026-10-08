@@ -14,6 +14,17 @@ Version: `0.9.1`
 | Import | Types | Runtime |
 | --- | --- | --- |
 
+## @runxhq/client
+
+Typed Node client for the native Runx runtime
+
+Version: `0.1.0`
+
+| Import | Types | Runtime |
+| --- | --- | --- |
+| `@runxhq/client` | `./dist/src/index.d.ts` | `./dist/src/index.js` |
+| `@runxhq/client/adapters` | `./dist/src/adapters/index.d.ts` | `./dist/src/adapters/index.js` |
+
 ## @runxhq/contracts
 
 Runx machine-facing JSON contracts: doctor, dev, list, receipt, fixture, tool manifest, packet index.
@@ -33,16 +44,6 @@ Version: `0.1.0`
 | Import | Types | Runtime |
 | --- | --- | --- |
 | `@runxhq/extension-sdk` | `./dist/index.d.ts` | `./dist/index.js` |
-
-## @runxhq/host-adapters
-
-Thin host response adapters over the runx host protocol.
-
-Version: `0.2.0`
-
-| Import | Types | Runtime |
-| --- | --- | --- |
-| `@runxhq/host-adapters` | `./dist/index.d.ts` | `./dist/index.js` |
 
 ## @runxhq/langchain
 

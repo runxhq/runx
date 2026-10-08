@@ -21,19 +21,14 @@ mod attestation;
 #[cfg(feature = "catalog")]
 mod authoring;
 mod capability;
-#[cfg(feature = "cli-tool")]
+#[cfg(feature = "process-tool")]
 mod cli;
-#[cfg(feature = "cli-tool")]
+#[cfg(feature = "process-tool")]
 mod command;
 mod data;
-mod event_store;
-pub use event_store::{
-    EventStoreMigrationProof, EventStoreMigrationRequest, EventStoreMigrationStatus,
-    migrate_event_store,
-};
 mod evidence;
 mod files;
-#[cfg(feature = "cli-tool")]
+#[cfg(feature = "process-tool")]
 mod git;
 mod handoff;
 #[cfg(feature = "catalog")]
@@ -41,6 +36,7 @@ mod hosted_artifacts;
 mod input;
 mod policy;
 mod receipt_tools;
+mod run_tools;
 #[cfg(feature = "catalog")]
 mod snapshot;
 mod workspace;
@@ -50,12 +46,6 @@ mod catalog;
 use capability::NativeCapability;
 #[cfg(feature = "catalog")]
 use capability::RawNativeInvocation;
-#[cfg(feature = "catalog")]
-pub(crate) use event_store::{
-    MAX_DATA_OPERATION_RESULT_BYTES, PreparedOperation as PreparedDataOperation,
-    native_adapter as is_native_data_adapter, operation_name as data_operation_name,
-    prepare_operation as prepare_data_operation,
-};
 pub(super) use input::{invalid_input, required_string};
 pub(super) use workspace::resolve_repo_root_for;
 
@@ -67,24 +57,24 @@ pub(crate) use catalog::{inspect, list_items, search};
 pub use snapshot::{NativeCapabilitySnapshot, native_capability_snapshot};
 
 const CAPABILITY_GROUPS: &[&[&dyn NativeCapability]] = &[
-    #[cfg(feature = "cli-tool")]
+    #[cfg(feature = "process-tool")]
     command::CAPABILITIES,
     #[cfg(feature = "catalog")]
     authoring::CAPABILITIES,
     files::CAPABILITIES,
-    #[cfg(feature = "cli-tool")]
+    #[cfg(feature = "process-tool")]
     git::CAPABILITIES,
-    #[cfg(feature = "cli-tool")]
+    #[cfg(feature = "process-tool")]
     cli::CAPABILITIES,
     data::CAPABILITIES,
     handoff::CAPABILITIES,
-    event_store::CAPABILITIES,
     evidence::CAPABILITIES,
     attestation::CAPABILITIES,
     artifacts::CAPABILITIES,
     #[cfg(feature = "catalog")]
     hosted_artifacts::CAPABILITIES,
     receipt_tools::CAPABILITIES,
+    run_tools::CAPABILITIES,
     policy::CAPABILITIES,
 ];
 
@@ -120,9 +110,6 @@ fn capability_index() -> &'static CapabilityIndex {
 pub(super) struct NativeInvocation<'a, I: ?Sized = JsonObject> {
     pub inputs: &'a I,
     pub observed_at: &'a str,
-    /// Runtime-owned binding resolved before native dispatch. Capability input
-    /// schemas must never expose this routing state to an operator or agent.
-    pub data_source_binding: Option<&'a JsonObject>,
     pub env: &'a BTreeMap<String, String>,
     pub skill_directory: &'a Path,
     pub credential_delivery: &'a CredentialDelivery,
@@ -132,12 +119,10 @@ pub(super) struct NativeInvocation<'a, I: ?Sized = JsonObject> {
 }
 
 impl<I: ?Sized> NativeInvocation<'_, I> {
-    fn harness_http_responses(
-        &self,
-    ) -> Option<&BTreeMap<String, crate::http::RuntimeHttpResponse>> {
+    fn harness_http_exchanges(&self) -> Option<&[crate::http::RuntimeHarnessHttpExchange]> {
         #[cfg(feature = "catalog")]
         {
-            self.effects.harness_http_responses()
+            self.effects.harness_http_exchanges()
         }
         #[cfg(not(feature = "catalog"))]
         {
@@ -152,7 +137,6 @@ pub(crate) struct NativeToolInvocation<'a> {
     pub observed_at: &'a str,
     pub inputs: JsonObject,
     pub scopes: &'a [String],
-    pub data_source_binding: Option<JsonObject>,
     pub env: &'a BTreeMap<String, String>,
     pub skill_directory: &'a Path,
     pub credential_delivery: &'a CredentialDelivery,
@@ -174,7 +158,6 @@ pub(crate) fn invoke(request: NativeToolInvocation<'_>) -> Option<NativeToolInvo
         let invocation = RawNativeInvocation {
             inputs: request.inputs,
             scopes: request.scopes,
-            data_source_binding: request.data_source_binding,
             observed_at: request.observed_at,
             env: request.env,
             skill_directory: request.skill_directory,

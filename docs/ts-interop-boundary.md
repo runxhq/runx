@@ -1,10 +1,10 @@
 # TypeScript interop boundary
 
-This document records the surviving TypeScript and Python package boundary for
+This document records the TypeScript and Python package boundary for
 the native runtime. It specializes the normative
 [Runx system architecture](./architecture/runx-system.md) for language packages.
 
-## Current boundary after takeover
+## Current boundary
 
 Rust is canonical for trusted local runtime and execution: local skill and
 graph execution, harness and dogfood execution, receipt sealing and
@@ -32,10 +32,9 @@ The package CLI is a distribution and UX shim, not a second runtime. A usable
 installation must be able to execute the Rust `runx` binary without TypeScript
 source, tsx, or a local workspace. If the wrapper cannot find a supported
 native binary, it should fail closed with installation guidance rather than
-falling back to a TypeScript implementation of local behavior. No wrapper may
-import deleted executor packages as a hidden execution fallback.
+falling back to a TypeScript implementation of local behavior.
 
-Four crossing families exist between the surviving TypeScript surface and the
+Four crossing families exist between the TypeScript surface and the
 Rust runtime. Each crossing has a contract surface that owns the wire shape.
 
 1. **CLI JSON.** Anything that shells `runx`, including package launchers, the
@@ -58,11 +57,9 @@ Rust runtime. Each crossing has a contract surface that owns the wire shape.
    External authors can implement these protocols in TypeScript, Python, Rust,
    or another language without a core fork.
 
-No fifth boundary is added without updating this document. No published
-TypeScript package is silently broken: each package disposition is named here.
-Stable-boundary edits to consume new `runx-contracts` versions are normal
-maintenance. Sunset means deletion or rename through the S-tier runtime
-cutover; old executor package names must not survive as aliases.
+No fifth boundary is added without updating this document. Each package
+disposition is named here. Stable-boundary edits to consume new
+`runx-contracts` versions are normal maintenance.
 
 ### Shipped vs defined, and current boundary debt
 
@@ -92,7 +89,7 @@ implied.
   and typed results. The Rust managed-agent loop is opt-in; host-driven judgment remains the default.
   Cloud's `@runx/mcp` exposes hosted registry/auth/control-plane operations;
   submitted hosted execution invokes the native worker boundary. It is not a
-  duplicate local MCP skill executor. The unused Cloud agent runner is deleted.
+  duplicate local MCP skill executor.
 
 ## OSS package dispositions
 
@@ -102,15 +99,9 @@ implied.
 | `@runxhq/extension-sdk` | Owns only the process tool helpers needed by genuine external extensions. It does not author skills or own trusted local execution. |
 | `@runxhq/cli` | Stays as a platform-aware npm launcher that resolves and execs the Rust binary. It must remain useful from an installed package without TypeScript sources and must fail closed instead of falling back to TypeScript local execution. It also carries the drift-free cold-start: `npx @runxhq/cli new <name> --objective <outcome>` downloads the launcher and enters the same canonical Skill Lab authoring lane without a prior Runx install. The launcher owns no templates or authoring logic. |
 | `@runxhq/core` | Deleted. Its registry/config/parser remnants were not a shipped execution boundary; live OSS code uses Rust crates, generated contracts, tool-local modules, or explicit protocol packages instead. Cloud uses its owning feature packages and the small `@runx/protocol` contract/utility subpaths. |
-| `@runxhq/host-adapters` | Stays as thin host response adapters over the runx host protocol, retargeted to `@runxhq/contracts` types. It can shape host/client responses, not execute trusted local runtime behavior. |
-| `@runxhq/langchain` | Stays as an optional LangChain bridge that shells the `runx` CLI or uses documented external protocols for governed skill and tool invocation. |
+| `@runxhq/client` | Typed finite Node invocation of the native CLI, with bounded processes and artifact decoding. The `./adapters` subpath formats native results without Node or framework imports. The previous host-adapters package and unimplemented HostBridge run-state contract are removed. |
+| `@runxhq/langchain` | Optional LangChain tool formatting over `@runxhq/client`; it does not own subprocess transport or continuation. |
 | `runx-py` | Stays as a thin Python client over `runx` CLI JSON output. |
-
-The deleted trusted executor packages are intentionally absent from the
-surviving package table. The canonical boundary and crate-graph checks prevent
-their package names, aliases, imports, runtime edges, and compatibility shims
-from returning; no historical cutover inventory participates in runtime or
-release correctness.
 
 Cloud packages remain TypeScript. The Rust runtime consumes cloud through the
 cloud HTTP contracts. Local registry and policy configuration remains

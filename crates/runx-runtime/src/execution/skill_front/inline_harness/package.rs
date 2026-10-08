@@ -5,11 +5,11 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::RuntimeError;
 use crate::effects::RuntimeEffectRegistry;
+use crate::execution::harness::HarnessOptions;
 use crate::execution::harness::{
     HarnessExpectedStatus, HarnessFixtureKind, HarnessReplayError, load_harness_fixture,
 };
-use crate::execution::runner::RuntimeOptions;
-use crate::execution::skill_front::{PackageHarnessReport, SkillRunError, SkillSourceAdapter};
+use crate::execution::skill_front::{ExecutableAdapter, PackageHarnessReport, SkillRunError};
 use crate::receipts::paths::{RUNX_CWD_ENV, RUNX_RECEIPT_DIR_ENV};
 use crate::services::ReceiptServices;
 
@@ -61,10 +61,10 @@ fn replay_conventional_fixtures(
     if fixture_paths.is_empty() {
         return Ok(());
     }
-    let mut base_options = RuntimeOptions::from_env_or_local_development(harness.env.clone())?;
-    base_options.created_at = crate::time::DEFAULT_CREATED_AT.to_owned();
+    let mut base_options = HarnessOptions::from_env(harness.env.clone())?;
     base_options.effects = effects.clone();
-    let receipt_services = base_options.receipt_services();
+    let receipt_services =
+        ReceiptServices::from_signature_config(base_options.receipt_signature.clone());
     for (index, fixture_path) in fixture_paths.into_iter().enumerate() {
         let mut options = base_options.clone();
         options.env.insert(
@@ -77,7 +77,7 @@ fn replay_conventional_fixtures(
         report.case_count += 1;
         match crate::execution::harness::run_harness_fixture_with_adapter(
             &fixture_path,
-            SkillSourceAdapter::default(),
+            ExecutableAdapter,
             options.clone(),
         ) {
             Ok(output) => {
@@ -409,7 +409,7 @@ mod tests {
         fs::create_dir_all(skill_dir.join("fixtures"))?;
         fs::write(skill_dir.join("fixtures/present.txt"), "present\n")?;
         fs::write(
-            skill_dir.join("X.yaml"),
+            skill_dir.join("run.yaml"),
             r#"skill: permission-claim
 version: "0.1.0"
 harness:
@@ -424,15 +424,12 @@ harness:
 runners:
   inspect:
     default: true
-    type: graph
-    graph:
-      name: permission-claim
-      result_from: [read]
-      steps:
-        - id: read
-          tool: fs.read
-          inputs:
-            path: fixtures/present.txt
+    result_from: [read]
+    steps:
+      - id: read
+        tool: fs.read
+        inputs:
+          path: fixtures/present.txt
 "#,
         )?;
         let env = BTreeMap::from([(
@@ -646,7 +643,7 @@ expect:
             "---\nname: demo\ndescription: Harness staging fixture.\n---\n\n# Demo\n",
         )?;
         fs::write(
-            skill_dir.join("X.yaml"),
+            skill_dir.join("run.yaml"),
             r#"skill: demo
 version: "0.1.0"
 harness:
@@ -656,16 +653,13 @@ harness:
 runners:
   inspect:
     default: true
-    type: graph
-    graph:
-      name: demo
-      result_from:
-        - digest
-      steps:
-        - id: digest
-          tool: data.digest
-          inputs:
-            value: demo
+    result_from:
+      - digest
+    steps:
+      - id: digest
+        tool: data.digest
+        inputs:
+          value: demo
 "#,
         )?;
         fs::write(skill_dir.join("fixtures/declared.txt"), "declared")?;
@@ -702,7 +696,7 @@ runners:
             "---\nname: demo\ndescription: Harness executable fixture.\n---\n\n# Demo\n",
         )?;
         fs::write(
-            skill_dir.join("X.yaml"),
+            skill_dir.join("run.yaml"),
             r#"skill: demo
 version: "0.1.0"
 harness:
@@ -712,16 +706,13 @@ harness:
 runners:
   inspect:
     default: true
-    type: graph
-    graph:
-      name: demo
-      result_from:
-        - digest
-      steps:
-        - id: digest
-          tool: data.digest
-          inputs:
-            value: demo
+    result_from:
+      - digest
+    steps:
+      - id: digest
+        tool: data.digest
+        inputs:
+          value: demo
 "#,
         )?;
         fs::write(

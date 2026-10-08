@@ -33,7 +33,6 @@ fn reads_and_digests_one_contained_file() -> Result<(), Box<dyn std::error::Erro
     let output = json_output(read(&NativeInvocation {
         inputs: &inputs,
         observed_at: "2026-01-01T00:00:00Z",
-        data_source_binding: None,
         env: &env,
         skill_directory: workspace.path(),
         credential_delivery: &delivery,
@@ -77,7 +76,6 @@ fn reads_and_digests_a_bounded_file_bundle() -> Result<(), Box<dyn std::error::E
     let output = json_output(read_bundle(&NativeInvocation {
         inputs: &inputs,
         observed_at: "2026-01-01T00:00:00Z",
-        data_source_binding: None,
         env: &env,
         skill_directory: workspace.path(),
         credential_delivery: &delivery,
@@ -129,7 +127,6 @@ fn rejects_a_symlink_that_escapes_the_root() -> Result<(), Box<dyn std::error::E
     let error = read(&NativeInvocation {
         inputs: &inputs,
         observed_at: "2026-01-01T00:00:00Z",
-        data_source_binding: None,
         env: &env,
         skill_directory: workspace.path(),
         credential_delivery: &delivery,
@@ -165,7 +162,6 @@ fn writes_and_proves_one_contained_file() -> Result<(), Box<dyn std::error::Erro
     let output = json_output(write(&NativeInvocation {
         inputs: &inputs,
         observed_at: "2026-01-01T00:00:00Z",
-        data_source_binding: None,
         env: &env,
         skill_directory: workspace.path(),
         credential_delivery: &delivery,
@@ -233,7 +229,6 @@ fn native_file_tools_cannot_change_kernel_state() -> Result<(), Box<dyn std::err
                 write(&NativeInvocation {
                     inputs: &write_inputs,
                     observed_at: "2026-01-01T00:00:00Z",
-                    data_source_binding: None,
                     env: &env,
                     skill_directory: workspace.path(),
                     credential_delivery: &delivery,
@@ -265,7 +260,6 @@ fn native_file_tools_cannot_change_kernel_state() -> Result<(), Box<dyn std::err
                     apply_files(&NativeInvocation {
                         inputs: &bundle_inputs,
                         observed_at: "2026-01-01T00:00:00Z",
-                        data_source_binding: None,
                         env: &env,
                         skill_directory: workspace.path(),
                         credential_delivery: &delivery,
@@ -282,7 +276,6 @@ fn native_file_tools_cannot_change_kernel_state() -> Result<(), Box<dyn std::err
                 write(&NativeInvocation {
                     inputs: &write_inputs,
                     observed_at: "2026-01-01T00:00:00Z",
-                    data_source_binding: None,
                     env: &env,
                     skill_directory: workspace.path(),
                     credential_delivery: &delivery,
@@ -353,7 +346,6 @@ fn file_tool_cannot_replace_lock_while_a_receipt_write_waits()
         apply_files(&NativeInvocation {
             inputs: &inputs,
             observed_at: "2026-01-01T00:00:00Z",
-            data_source_binding: None,
             env: &env,
             skill_directory: workspace.path(),
             credential_delivery: &delivery,
@@ -400,7 +392,6 @@ fn write_rejects_a_symlink_that_escapes_the_root() -> Result<(), Box<dyn std::er
     let error = write(&NativeInvocation {
         inputs: &inputs,
         observed_at: "2026-01-01T00:00:00Z",
-        data_source_binding: None,
         env: &env,
         skill_directory: workspace.path(),
         credential_delivery: &delivery,

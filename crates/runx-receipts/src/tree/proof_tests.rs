@@ -43,7 +43,7 @@ fn strict_proof_rejects_swapped_inner_digest() -> Result<(), serde_json::Error> 
 #[test]
 fn strict_tree_proof_accepts_root_and_child() -> Result<(), serde_json::Error> {
     let mut root = proof_root()?;
-    let child = proof_child("hrn_rcpt_child_1")?;
+    let child = proof_child("rcpt_child_1")?;
     link_child_digest(&mut root, 0, &child)?;
     let proof_contexts = FixtureProofContexts::default();
 
@@ -54,7 +54,7 @@ fn strict_tree_proof_accepts_root_and_child() -> Result<(), serde_json::Error> {
 #[test]
 fn strict_tree_proof_rejects_missing_child() -> Result<(), serde_json::Error> {
     let mut root = proof_root()?;
-    let child = proof_child("hrn_rcpt_child_1")?;
+    let child = proof_child("rcpt_child_1")?;
     link_child_digest(&mut root, 0, &child)?;
     let proof_contexts = FixtureProofContexts::default();
 
@@ -71,9 +71,9 @@ fn strict_tree_proof_rejects_missing_child() -> Result<(), serde_json::Error> {
 #[test]
 fn strict_tree_proof_rejects_extra_child() -> Result<(), serde_json::Error> {
     let mut root = proof_root()?;
-    let child = proof_child("hrn_rcpt_child_1")?;
+    let child = proof_child("rcpt_child_1")?;
     link_child_digest(&mut root, 0, &child)?;
-    let extra = proof_child("hrn_rcpt_extra")?;
+    let extra = proof_child("rcpt_extra")?;
     let proof_contexts = FixtureProofContexts::default();
 
     let verification = verify_receipt_tree_proof(&root, &[child, extra], &proof_contexts);
@@ -89,7 +89,7 @@ fn strict_tree_proof_rejects_extra_child() -> Result<(), serde_json::Error> {
 #[test]
 fn strict_tree_proof_rejects_untyped_exact_id_child_ref() -> Result<(), serde_json::Error> {
     let mut root = proof_root()?;
-    let child = proof_child("hrn_rcpt_child_1")?;
+    let child = proof_child("rcpt_child_1")?;
     link_child_digest(&mut root, 0, &child)?;
     child_refs_mut(&mut root)[0].uri = child.id.clone();
     refresh_proof_digest_and_signature(&mut root)?;
@@ -109,7 +109,7 @@ fn strict_tree_proof_rejects_untyped_exact_id_child_ref() -> Result<(), serde_js
 fn strict_tree_proof_rejects_structurally_valid_child_proof_mismatch()
 -> Result<(), serde_json::Error> {
     let mut root = proof_root()?;
-    let mut child = proof_child("hrn_rcpt_child_1")?;
+    let mut child = proof_child("rcpt_child_1")?;
     link_child_digest(&mut root, 0, &child)?;
     child.acts[0].summary = "tampered child proof body".into();
     let proof_contexts = FixtureProofContexts::default();
@@ -133,9 +133,9 @@ fn strict_tree_proof_rejects_structurally_valid_child_proof_mismatch()
 #[test]
 fn strict_tree_proof_rejects_valid_alternate_child_with_same_id() -> Result<(), serde_json::Error> {
     let mut root = proof_root()?;
-    let original = proof_child("hrn_rcpt_child_1")?;
+    let original = proof_child("rcpt_child_1")?;
     link_child_digest(&mut root, 0, &original)?;
-    let mut alternate = proof_child("hrn_rcpt_child_1")?;
+    let mut alternate = proof_child("rcpt_child_1")?;
     alternate.acts[0].summary = "valid alternate child body".into();
     refresh_proof_digest_and_signature(&mut alternate)?;
     let proof_contexts = FixtureProofContexts::default();
@@ -154,7 +154,7 @@ fn strict_tree_proof_rejects_valid_alternate_child_with_same_id() -> Result<(), 
 fn strict_tree_proof_rejects_custom_resolver_child_not_in_supplied_receipts()
 -> Result<(), serde_json::Error> {
     let mut root = proof_root()?;
-    let mut child = proof_child("hrn_rcpt_child_1")?;
+    let mut child = proof_child("rcpt_child_1")?;
     link_child_digest(&mut root, 0, &child)?;
     child.acts[0].summary = "hidden tampered child".into();
     let resolver = HiddenChildResolver { child: &child };

@@ -33,7 +33,6 @@ fn invoke_with_scopes(
         "RUNX_CWD".to_owned(),
         workspace.to_string_lossy().into_owned(),
     )]);
-    let javascript = crate::adapters::javascript::JavaScriptAdapter::default();
     let local_artifacts = crate::services::LocalArtifactService::default();
     dispatch_tool(
         ToolDispatchRequest {
@@ -45,7 +44,6 @@ fn invoke_with_scopes(
             skill_directory: workspace,
             credential_delivery: &credential_delivery,
             local_artifacts: &local_artifacts,
-            javascript: &javascript,
             skill_name: "architecture-containment",
             allow_explicit_manifest_path: false,
             effect_admission: None,

@@ -15,10 +15,6 @@ pub(super) fn inspect_runner(
     let mut output = JsonObject::from([
         ("name".to_owned(), JsonValue::String(runner.name.clone())),
         (
-            "type".to_owned(),
-            JsonValue::String(runner.source.source_type.as_str().to_owned()),
-        ),
-        (
             "input_schema".to_owned(),
             JsonValue::Object(runx_contracts::input_contract_schema_with_examples(
                 &runner.inputs,
@@ -38,10 +34,8 @@ pub(super) fn inspect_runner(
         (
             "outputs".to_owned(),
             JsonValue::Array(
-                runner
-                    .source
-                    .outputs
-                    .iter()
+                result_steps(runner)
+                    .filter_map(|step| step.outputs.as_ref())
                     .flat_map(|outputs| outputs.iter())
                     .map(|(name, declaration)| inspect_output(name, declaration))
                     .collect(),
@@ -61,7 +55,7 @@ pub(super) fn inspect_runner(
                 source,
             })?,
     );
-    insert_runner_contract_metadata(&mut output, runner)?;
+    insert_runner_contract_metadata(&mut output, runner);
     if !manifest.connectors.is_empty() {
         output.insert(
             "connectors".to_owned(),
@@ -93,17 +87,8 @@ fn declared_result_packets(runner: &SkillRunnerDefinition) -> JsonObject {
             }
         }
     };
-    if let Some(artifacts) = &runner.artifacts {
+    for artifacts in runner.result_artifacts() {
         add(artifacts);
-    }
-    if let Some(graph) = &runner.source.graph {
-        for step in &graph.steps {
-            if graph.result_from.contains(&step.id)
-                && let Some(artifacts) = &step.artifacts
-            {
-                add(artifacts);
-            }
-        }
     }
     for name in conflicting {
         packets.remove(&name);
@@ -114,47 +99,23 @@ fn declared_result_packets(runner: &SkillRunnerDefinition) -> JsonObject {
         .collect()
 }
 
-fn insert_runner_contract_metadata(
-    output: &mut JsonObject,
-    runner: &SkillRunnerDefinition,
-) -> Result<(), SkillInspectionError> {
-    if let Some(artifacts) = &runner.artifacts {
-        output.insert(
-            "artifacts".to_owned(),
-            serde_json::to_value(artifacts)
-                .and_then(serde_json::from_value)
-                .map_err(|source| SkillInspectionError::Json {
-                    context: "serializing runner artifacts",
-                    source,
-                })?,
-        );
-    }
-    if let Some(allowed_tools) = &runner.allowed_tools {
-        output.insert(
-            "allowed_tools".to_owned(),
-            JsonValue::Array(
-                allowed_tools
-                    .iter()
-                    .cloned()
-                    .map(JsonValue::String)
-                    .collect(),
-            ),
-        );
-    }
-    if !runner.scopes.is_empty() {
+/// The steps whose outputs form the runner's public result.
+fn result_steps(runner: &SkillRunnerDefinition) -> impl Iterator<Item = &runx_parser::GraphStep> {
+    runner
+        .graph
+        .steps
+        .iter()
+        .filter(|step| runner.graph.result_from.contains(&step.id))
+}
+
+fn insert_runner_contract_metadata(output: &mut JsonObject, runner: &SkillRunnerDefinition) {
+    let scopes = runner.declared_scopes();
+    if !scopes.is_empty() {
         output.insert(
             "scopes".to_owned(),
-            JsonValue::Array(
-                runner
-                    .scopes
-                    .iter()
-                    .cloned()
-                    .map(JsonValue::String)
-                    .collect(),
-            ),
+            JsonValue::Array(scopes.into_iter().map(JsonValue::String).collect()),
         );
     }
-    Ok(())
 }
 
 pub(super) fn catalog_capabilities(catalog: &CatalogMetadata) -> Option<JsonValue> {

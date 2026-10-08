@@ -39,8 +39,7 @@ pub(super) fn fixture(json: &str) -> Result<Receipt, serde_json::Error> {
         .as_ref()
         .is_none_or(|lineage| lineage.children.is_empty())
     {
-        child_refs_mut(&mut receipt)
-            .push(Reference::runx(ReferenceType::Receipt, "hrn_rcpt_child_1"));
+        child_refs_mut(&mut receipt).push(Reference::runx(ReferenceType::Receipt, "rcpt_child_1"));
     }
     Ok(receipt)
 }

@@ -1,20 +1,31 @@
-//! Effect custody: one stream per operation call in a run.
+//! Effect custody: one stream per act.
+//!
+//! An act is one operation on one instance's target, named by the caller's
+//! request key. Every attempt of the act shares its stream, from whichever
+//! run makes it, so an outcome one run left unknown holds the next run that
+//! tries the act. A read changes nothing another run could duplicate; it
+//! carries no key and is named by its exact intent within its run.
 //!
 //! A mutation is recorded before it is sent and settled after: attempted,
 //! then read back and finalized, rejected (the provider refused before
 //! executing), or unknown. An unknown outcome is held. The next attempt of
-//! the same call resumes from the record: a cached readback finalizes without
-//! resending, a recorded acknowledgement is read back without resending, and
-//! anything else is resent only when the operation's guarantees or the use's
-//! tolerance allow it.
+//! the same intent resumes from the record: a cached readback finalizes
+//! without resending, a recorded acknowledgement is read back without
+//! resending, and anything else is resent only when the operation's
+//! guarantees or the use's tolerance allow it.
 //!
 //! The record pins the execution term, instance and implementation the call
 //! was admitted against. Recovery under different evidence holds; it never
 //! silently continues under a newer one.
+//!
+//! The attempts from one first attempt to its settlement are a sequence, and
+//! a sequence takes one use of bounded evidence however many attempts recover
+//! it. Repeating a settled act opens a new sequence and takes a new use.
 
 use std::sync::Arc;
 
-use runx_contracts::{JsonObject, JsonValue, Reference, sha256_prefixed};
+use runx_contracts::connector::Digest;
+use runx_contracts::{JsonObject, JsonValue, OperationIntent, Reference, sha256_prefixed};
 
 use super::operation::packet::Readback;
 use serde::{Deserialize, Serialize};
@@ -158,7 +169,16 @@ pub(crate) enum CustodyError {
     Store(#[from] KernelStoreError),
 }
 
-/// The custody stream of one operation step in one run.
+/// The act's custody as last recorded: its unsettled attempt, if any, and the
+/// stream version the attempt's sequence opened from, or the next one opens
+/// from.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct Custody {
+    pub pending: Option<Pending>,
+    pub sequence: u64,
+}
+
+/// The custody stream of one act.
 #[derive(Clone)]
 pub(crate) struct EffectCustody {
     store: Arc<KernelStore>,
@@ -181,14 +201,42 @@ impl PartialEq for EffectCustody {
 }
 
 impl EffectCustody {
-    /// The stream for `step_id` of run `run_id` in the graph at `graph_dir`.
-    pub(crate) fn open(
+    /// The custody of the act `intent` performs in run `run_id`.
+    pub(crate) fn for_act(
         store: Arc<KernelStore>,
+        intent: &OperationIntent,
+        intent_digest: &Digest,
         run_id: &str,
-        graph_dir: &str,
-        step_id: &str,
     ) -> Self {
-        let key = sha256_prefixed(format!("{run_id}\0{graph_dir}\0{step_id}").as_bytes());
+        let key = match &intent.request_key_digest {
+            Some(request_key) => named_act(
+                intent.connector.as_str(),
+                intent.operation.as_str(),
+                intent.instance_id.as_str(),
+                intent.target.as_str(),
+                request_key,
+            ),
+            None => sha256_prefixed(format!("read\0{run_id}\0{intent_digest}").as_bytes()),
+        };
+        Self { store, key }
+    }
+
+    /// The custody of the act the caller names with `request_key`.
+    pub(crate) fn for_named_act(
+        store: Arc<KernelStore>,
+        connector: &str,
+        operation: &str,
+        instance_id: &str,
+        target: &str,
+        request_key: &str,
+    ) -> Self {
+        let key = named_act(
+            connector,
+            operation,
+            instance_id,
+            target,
+            &Digest::of(request_key.as_bytes()),
+        );
         Self { store, key }
     }
 
@@ -196,26 +244,39 @@ impl EffectCustody {
         &self.store
     }
 
-    pub(crate) fn key(&self) -> &str {
-        &self.key
+    /// Whether any attempt of the act was recorded. An attempt is recorded
+    /// before anything is sent.
+    pub(crate) fn attempted(&self) -> Result<bool, KernelStoreError> {
+        Ok(self.store.version::<EffectEvent>(&self.key)? > 0)
     }
 
-    /// The unsettled attempt, if any. A settled stream answers from its
-    /// verified latest event, so a step that runs many times never rereads
-    /// its history.
+    /// The key of the use an attempt of `intent_digest` takes in `sequence`.
+    pub(crate) fn use_key(&self, sequence: u64, intent_digest: &str) -> String {
+        sha256_prefixed(format!("{}\0{sequence}\0{intent_digest}", self.key).as_bytes())
+    }
+
+    /// The unsettled attempt, if any.
     pub(crate) fn pending(&self) -> Result<Option<Pending>, CustodyError> {
-        let settled = self
-            .store
-            .latest::<EffectEvent>(&self.key)?
-            .is_none_or(|last| {
-                matches!(
-                    last.event,
-                    EffectEvent::Finalized { .. } | EffectEvent::Rejected { .. }
-                )
-            });
+        Ok(self.custody()?.pending)
+    }
+
+    /// The act's custody. A settled stream answers from its verified latest
+    /// event, so an act repeated many times never rereads its history.
+    pub(crate) fn custody(&self) -> Result<Custody, CustodyError> {
+        let latest = self.store.latest::<EffectEvent>(&self.key)?;
+        let settled = latest.as_ref().is_none_or(|last| {
+            matches!(
+                last.event,
+                EffectEvent::Finalized { .. } | EffectEvent::Rejected { .. }
+            )
+        });
         if settled {
-            return Ok(None);
+            return Ok(Custody {
+                pending: None,
+                sequence: latest.map_or(0, |last| last.version),
+            });
         }
+        let mut sequence = 0;
         let mut pending: Option<Pending> = None;
         for recorded in self.store.read::<EffectEvent>(&self.key)? {
             match recorded.event {
@@ -261,10 +322,13 @@ impl EffectCustody {
                         pending.unknown = true;
                     }
                 }
-                EffectEvent::Rejected { .. } | EffectEvent::Finalized { .. } => pending = None,
+                EffectEvent::Rejected { .. } | EffectEvent::Finalized { .. } => {
+                    pending = None;
+                    sequence = recorded.version;
+                }
             }
         }
-        Ok(pending)
+        Ok(Custody { pending, sequence })
     }
 
     /// Record an attempt and every evidence use it takes in one commit.
@@ -397,6 +461,18 @@ impl EffectCustody {
             event,
         )
     }
+}
+
+fn named_act(
+    connector: &str,
+    operation: &str,
+    instance_id: &str,
+    target: &str,
+    request_key: &Digest,
+) -> String {
+    sha256_prefixed(
+        format!("act\0{connector}\0{operation}\0{instance_id}\0{target}\0{request_key}").as_bytes(),
+    )
 }
 
 #[cfg(test)]

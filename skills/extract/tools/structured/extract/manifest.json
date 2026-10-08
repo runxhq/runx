@@ -4,7 +4,6 @@
   "version": "0.1.0",
   "description": "Extract schema-validated JSON from a messy HTML or text fixture and emit digest-bound artifact references.",
   "source": {
-    "type": "cli-tool",
     "command": "node",
     "args": [
       "./run.mjs"

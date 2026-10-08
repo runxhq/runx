@@ -1,0 +1,286 @@
+skill: nitrosend-provider-operation
+version: "0.2.6"
+catalog:
+  kind: graph
+  audience: operator
+  visibility: internal
+  role: graph-stage
+  part_of:
+    - runx/nitrosend
+  category: communications
+harness:
+  cases:
+    - name: blocks-unknown-operation-before-transport
+      runner: read
+      inputs:
+        operation: unknown
+        arguments: {}
+      expect:
+        status: sealed
+        steps: [prepare, blocked]
+        step_outputs:
+          blocked:
+            subset:
+              provider_evidence:
+                data:
+                  decision: needs_input
+                  provider: nitrosend
+                  operation: unknown
+                  evidence: null
+        receipt: { schema: runx.receipt.v1 }
+connectors:
+  nitrosend:
+    operations: [status.read, entities.query, inbox.read, sender.read, insights.read, delivery.review, billing.status, billing.plans, checkout.status, campaign.composition.plan, campaign.composition.validate, flow.composition.plan, flow.composition.validate, template.composition.plan, template.composition.validate, test_message.preview, message.preview, contacts.records.preview, plan.checkout, sender.configure, test_message.send, message.send, campaign.approve, flow.approve, campaign.send, campaign.schedule, flow.activate, segment.define, contacts.records.import, campaign.draft, flow.draft, template.draft, image.ingest]
+runners:
+  read:
+    default: true
+    inputs:
+      operation:
+        type: string
+        required: true
+        description: Bounded Nitrosend read operation.
+      arguments:
+        type: json
+        required: false
+        description: Arguments for the selected operation.
+      purchase_id:
+        type: integer
+        required: false
+        description: Exact plan-purchase identity for checkout readback.
+        schema: { minimum: 1 }
+      brand_sid:
+        type: string
+        required: false
+        description: Optional public Nitrosend brand SID.
+    result_from: [normalize, blocked]
+    steps:
+      - id: prepare
+        inputs:
+          mode: read
+          operation: $input.operation
+          arguments: $input.arguments
+          purchase_id: $input.purchase_id
+          brand_sid: $input.brand_sid
+        tool: { module: nitrosend-operation.mjs, export: prepareOperation }
+        outputs:
+          operation_plan: object
+      - id: request
+        when:
+          field: prepare.operation_plan.access
+          equals: read
+        operation: nitrosend
+        context:
+          operation: prepare.operation_plan.connector_operation
+          input: prepare.operation_plan.provider_input
+      - id: normalize
+        when:
+          field: prepare.operation_plan.access
+          equals: read
+        context:
+          operation_plan: prepare.operation_plan
+          provider_operation: request.provider_operation.data
+        tool: { module: nitrosend-operation.mjs, export: normalizeOperation }
+        outputs:
+          provider_evidence:
+            type: object
+            schema:
+              required: [decision, provider, mode, operation, tool, provider_ref, result, blockers]
+              additionalProperties: false
+              properties:
+                decision: { type: string, enum: [ok, needs_input, provider_error, refused] }
+                provider: { const: nitrosend }
+                mode: { type: string, enum: [read, act] }
+                operation: { type: [string, "null"] }
+                tool: { type: [string, "null"] }
+                provider_ref: { type: [string, "null"] }
+                result:
+                  type: [object, "null"]
+                  additionalProperties: true
+                evidence:
+                  description: A tool's own record of the provider calls it made, when it makes them itself.
+                  type: [object, "null"]
+                  required: [request_id, http_status, body_digest, credential_material]
+                  additionalProperties: false
+                  properties:
+                    request_id: { type: string }
+                    http_status: { type: number }
+                    body_digest: { type: string }
+                    credential_material: { const: redacted }
+                source_id: { type: string }
+                blockers:
+                  type: array
+                  maxItems: 100
+                  items: { type: string, minLength: 1, maxLength: 4000 }
+        artifacts:
+          named_emits:
+            provider_evidence: provider_evidence
+          packets:
+            provider_evidence: nitrosend.provider_evidence.v1
+      - id: blocked
+        when:
+          field: prepare.operation_plan.decision
+          not_equals: ready
+        context:
+          operation_plan: prepare.operation_plan
+        tool: { module: nitrosend-operation.mjs, export: blockedOperation }
+        outputs:
+          provider_evidence: object
+        artifacts:
+          named_emits:
+            provider_evidence: provider_evidence
+          packets:
+            provider_evidence: nitrosend.provider_evidence.v1
+  act:
+    inputs:
+      operation:
+        type: string
+        required: true
+        description: Bounded Nitrosend write operation.
+      arguments:
+        type: json
+        required: true
+        description: Arguments for the selected operation.
+      idempotency_key:
+        type: string
+        required: false
+        default: nitrosend-provider-operation
+        schema: { minLength: 1, pattern: '\S' }
+      approval:
+        type: json
+        required: false
+        description: The reason and type the operator approves this exact operation under.
+      brand_sid:
+        type: string
+        required: false
+        description: Optional public Nitrosend brand SID.
+    result_from: [normalize_preview, normalize, blocked]
+    steps:
+      - id: prepare
+        inputs:
+          mode: act
+          operation: $input.operation
+          arguments: $input.arguments
+          brand_sid: $input.brand_sid
+        tool: { module: nitrosend-operation.mjs, export: prepareOperation }
+        outputs:
+          operation_plan: object
+      - id: preview
+        when:
+          field: prepare.operation_plan.access
+          equals: read
+        operation: nitrosend
+        context:
+          operation: prepare.operation_plan.connector_operation
+          input: prepare.operation_plan.provider_input
+      - id: request
+        when:
+          field: prepare.operation_plan.access
+          equals: write
+        operation: nitrosend
+        idempotency_key: $input.idempotency_key
+        approval: $input.approval
+        context:
+          operation: prepare.operation_plan.connector_operation
+          input: prepare.operation_plan.provider_input
+      - id: normalize_preview
+        when:
+          field: prepare.operation_plan.access
+          equals: read
+        context:
+          operation_plan: prepare.operation_plan
+          provider_operation: preview.provider_operation.data
+        tool: { module: nitrosend-operation.mjs, export: normalizeOperation }
+        outputs:
+          provider_evidence:
+            type: object
+            schema:
+              required: [decision, provider, mode, operation, tool, provider_ref, result, blockers]
+              additionalProperties: false
+              properties:
+                decision: { type: string, enum: [ok, needs_input, provider_error, refused] }
+                provider: { const: nitrosend }
+                mode: { type: string, enum: [read, act] }
+                operation: { type: [string, "null"] }
+                tool: { type: [string, "null"] }
+                provider_ref: { type: [string, "null"] }
+                result:
+                  type: [object, "null"]
+                  additionalProperties: true
+                evidence:
+                  description: A tool's own record of the provider calls it made, when it makes them itself.
+                  type: [object, "null"]
+                  required: [request_id, http_status, body_digest, credential_material]
+                  additionalProperties: false
+                  properties:
+                    request_id: { type: string }
+                    http_status: { type: number }
+                    body_digest: { type: string }
+                    credential_material: { const: redacted }
+                source_id: { type: string }
+                blockers:
+                  type: array
+                  maxItems: 100
+                  items: { type: string, minLength: 1, maxLength: 4000 }
+        artifacts:
+          named_emits:
+            provider_evidence: provider_evidence
+          packets:
+            provider_evidence: nitrosend.provider_evidence.v1
+      - id: normalize
+        when:
+          field: prepare.operation_plan.access
+          equals: write
+        context:
+          operation_plan: prepare.operation_plan
+          provider_operation: request.provider_operation.data
+        tool: { module: nitrosend-operation.mjs, export: normalizeOperation }
+        outputs:
+          provider_evidence:
+            type: object
+            schema:
+              required: [decision, provider, mode, operation, tool, provider_ref, result, blockers]
+              additionalProperties: false
+              properties:
+                decision: { type: string, enum: [ok, needs_input, provider_error, refused] }
+                provider: { const: nitrosend }
+                mode: { type: string, enum: [read, act] }
+                operation: { type: [string, "null"] }
+                tool: { type: [string, "null"] }
+                provider_ref: { type: [string, "null"] }
+                result:
+                  type: [object, "null"]
+                  additionalProperties: true
+                evidence:
+                  description: A tool's own record of the provider calls it made, when it makes them itself.
+                  type: [object, "null"]
+                  required: [request_id, http_status, body_digest, credential_material]
+                  additionalProperties: false
+                  properties:
+                    request_id: { type: string }
+                    http_status: { type: number }
+                    body_digest: { type: string }
+                    credential_material: { const: redacted }
+                source_id: { type: string }
+                blockers:
+                  type: array
+                  maxItems: 100
+                  items: { type: string, minLength: 1, maxLength: 4000 }
+        artifacts:
+          named_emits:
+            provider_evidence: provider_evidence
+          packets:
+            provider_evidence: nitrosend.provider_evidence.v1
+      - id: blocked
+        when:
+          field: prepare.operation_plan.decision
+          not_equals: ready
+        context:
+          operation_plan: prepare.operation_plan
+        tool: { module: nitrosend-operation.mjs, export: blockedOperation }
+        outputs:
+          provider_evidence: object
+        artifacts:
+          named_emits:
+            provider_evidence: provider_evidence
+          packets:
+            provider_evidence: nitrosend.provider_evidence.v1

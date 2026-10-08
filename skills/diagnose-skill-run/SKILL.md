@@ -1,8 +1,6 @@
 ---
 name: diagnose-skill-run
 description: Diagnose a failed or suspicious Runx skill execution from receipts and harness evidence, then propose the smallest bounded improvement without replaying the failed operation.
-runx:
-  category: authoring
 ---
 
 # Diagnose Skill Run

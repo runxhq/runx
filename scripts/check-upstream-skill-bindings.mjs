@@ -4,7 +4,7 @@ import path from "node:path";
 
 const workspaceRoot = process.cwd();
 const bindingRoot = path.join(workspaceRoot, "bindings");
-const allowedBindingFiles = new Set(["binding.json", "X.yaml"]);
+const allowedBindingFiles = new Set(["binding.json", "run.yaml"]);
 const validStates = new Set([
   "draft",
   "harness_verified",
@@ -60,15 +60,15 @@ function validateBinding(bindingPath) {
 
   for (const entry of readdirSync(bindingDir).sort()) {
     if (!allowedBindingFiles.has(entry)) {
-      findings.push(`${relativeDir}: unexpected file ${entry}; bindings contain only binding.json and X.yaml`);
+      findings.push(`${relativeDir}: unexpected file ${entry}; bindings contain only binding.json and run.yaml`);
     }
   }
 
   const binding = readJson(bindingPath);
-  const profilePath = path.join(bindingDir, "X.yaml");
+  const profilePath = path.join(bindingDir, "run.yaml");
   const profile = readText(profilePath);
   const expectedId = `${owner}/${skillName}`;
-  const expectedProfilePath = `bindings/${owner}/${skillName}/X.yaml`;
+  const expectedProfilePath = `bindings/${owner}/${skillName}/run.yaml`;
 
   requireEqual(binding.schema, "runx.registry_binding.v1", `${relativeDir}: schema`);
   requireSetValue(binding.state, validStates, `${relativeDir}: state`);
@@ -109,9 +109,9 @@ function validateBinding(bindingPath) {
   }
 
   const profileSkill = profile.match(/^skill:\s*([A-Za-z0-9_.-]+)\s*$/m)?.[1];
-  requireEqual(profileSkill, skillName, `${relativeDir}: X.yaml skill`);
+  requireEqual(profileSkill, skillName, `${relativeDir}: run.yaml skill`);
   if (!/^runners:\s*$/m.test(profile)) {
-    findings.push(`${relativeDir}: X.yaml must declare runners`);
+    findings.push(`${relativeDir}: run.yaml must declare runners`);
   }
 }
 

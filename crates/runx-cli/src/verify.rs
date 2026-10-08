@@ -496,7 +496,7 @@ fn verify_notary_document(document: &[u8], trusted_keys: &[Vec<u8>]) -> NotaryVe
         findings.push(finding(
             "notary_verification_missing",
             "$",
-            "notary verification document must contain notary_verification or receipt.notary_verification",
+            "notary verification document must contain receipt.notary_verification",
         ));
         return notary_verdict(None, "missing", "missing", 0, findings);
     };
@@ -580,7 +580,6 @@ fn locate_notary_verification(
 ) -> Option<&serde_json::Map<String, serde_json::Value>> {
     root.get("receipt")
         .and_then(|receipt| receipt.get("notary_verification"))
-        .or_else(|| root.get("notary_verification"))
         .and_then(serde_json::Value::as_object)
 }
 
@@ -1650,7 +1649,7 @@ mod tests {
         });
         let canonical_payload = serde_json::to_string(&payload).map_err(io::Error::other)?;
         let signature = key_pair.sign(canonical_payload.as_bytes());
-        let document = test_json::json!({
+        let notary = test_json::json!({
             "notary_verification": {
                 "counter_seal": {
                     "schema": "runx.hosted_notary_counter_seal.v1",
@@ -1665,6 +1664,15 @@ mod tests {
                     "kid": "trusted-hosted-receipt-notary-1",
                     "public_key_pem": ed25519_spki_pem(key_pair.public_key().as_ref())
                 }]
+            }
+        });
+        let signed = &notary["notary_verification"]["counter_seal"]["payload"];
+        let document = test_json::json!({
+            "receipt": {
+                "digest": signed["digest"].clone(),
+                "mode": signed["mode"].clone(),
+                "binary_version": signed["binary_version"].clone(),
+                "notary_verification": notary["notary_verification"].clone(),
             }
         });
 
@@ -1765,7 +1773,7 @@ mod tests {
         });
         let canonical_payload = serde_json::to_string(&payload).map_err(io::Error::other)?;
         let signature = signer.sign(canonical_payload.as_bytes());
-        let document = test_json::json!({
+        let notary = test_json::json!({
             "notary_verification": {
                 "counter_seal": {
                     "schema": "runx.hosted_notary_counter_seal.v1",
@@ -1780,6 +1788,15 @@ mod tests {
                     "kid": "self-attested-hosted-receipt-notary",
                     "public_key_pem": ed25519_spki_pem(signer.public_key().as_ref())
                 }]
+            }
+        });
+        let signed = &notary["notary_verification"]["counter_seal"]["payload"];
+        let document = test_json::json!({
+            "receipt": {
+                "digest": signed["digest"].clone(),
+                "mode": signed["mode"].clone(),
+                "binary_version": signed["binary_version"].clone(),
+                "notary_verification": notary["notary_verification"].clone(),
             }
         });
 
@@ -2088,7 +2105,10 @@ mod tests {
                     message: "verify fixture output must be an object".to_owned(),
                 })?;
         step_receipt_with_signature_policy(
-            "cli-verify",
+            runx_runtime::receipts::RunScope {
+                run_id: "run_cli-verify",
+                graph_name: "cli-verify",
+            },
             "production-verified",
             1,
             &output,

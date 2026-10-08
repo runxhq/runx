@@ -23,7 +23,7 @@ fn doctor_empty_workspace_json_matches_fixture() -> Result<(), Box<dyn std::erro
 
 #[test]
 fn doctor_failure_json_exits_one_and_matches_fixture() -> Result<(), Box<dyn std::error::Error>> {
-    let fixture = doctor_fixture("removed-tool-yaml")?;
+    let fixture = doctor_fixture("tool-fixture-missing")?;
     let workspace = fixture.join("workspace");
     let output = runx_command()
         .args(["doctor", workspace.to_str().unwrap_or_default(), "--json"])
@@ -408,6 +408,7 @@ fn runx_command() -> Command {
     }
     command.env("NO_COLOR", "1");
     command.env("RUNX_HOME", temp_root("runx-doctor-home"));
+    crate::support::isolate_project(&mut command);
     command
 }
 

@@ -4,11 +4,14 @@ use runx_contracts::tools::ToolManifestSchema;
 use runx_contracts::{JsonObject, JsonValue};
 use serde::{Deserialize, Serialize};
 
+use crate::graph::{ProcessTool, validate_process_tool};
 use crate::skill::{
-    SkillArtifactContract, SkillIdempotencyPolicy, SkillInput, SkillRetryPolicy, SkillSource,
-    SourceKind, validate_inputs, validate_skill_artifact_contract, validate_skill_source,
+    SkillArtifactContract, SkillIdempotencyPolicy, SkillInput, validate_inputs,
+    validate_skill_artifact_contract,
 };
-use crate::{ParseError, ValidationError, assert_yaml_parity_subset, json_fields::JsonFieldReader};
+use crate::{
+    ParseError, ValidationError, assert_yaml_supported_subset, json_fields::JsonFieldReader,
+};
 
 const FIELDS: JsonFieldReader = JsonFieldReader::new("tool_manifest");
 
@@ -25,13 +28,10 @@ pub struct ValidatedTool {
     pub version: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
-    pub source: SkillSource,
+    /// The tool's executable: a trusted host process.
+    pub source: ProcessTool,
     pub inputs: BTreeMap<String, SkillInput>,
     pub scopes: Vec<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub risk: Option<JsonValue>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub retry: Option<SkillRetryPolicy>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub idempotency: Option<SkillIdempotencyPolicy>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -47,13 +47,12 @@ impl ValidatedTool {
         runx_contracts::ExecutionRequirements {
             scopes: self.scopes.clone(),
             environment: self.source.environment.clone(),
-            ..runx_contracts::ExecutionRequirements::default()
         }
     }
 }
 
 pub fn parse_tool_manifest_yaml(yaml: &str) -> Result<RawToolManifestIr, ParseError> {
-    assert_yaml_parity_subset("tool_manifest", yaml)?;
+    assert_yaml_supported_subset("tool_manifest", yaml)?;
     let parsed: JsonValue =
         serde_norway::from_str(yaml).map_err(|error| ParseError::InvalidYaml {
             field: "tool_manifest".to_owned(),
@@ -83,30 +82,14 @@ pub fn validate_tool_manifest(raw: RawToolManifestIr) -> Result<ValidatedTool, V
             "source",
             "inputs",
             "scopes",
-            "risk",
-            "retry",
             "idempotency",
             "artifacts",
         ],
     )?;
     validate_required_contract::<ToolManifestSchema>(raw.document.get("schema"), "schema")?;
-    let risk = raw.document.get("risk").cloned();
-    if risk
-        .as_ref()
-        .and_then(JsonValue::as_object)
-        .is_some_and(|risk| risk.contains_key("mutating"))
-    {
-        return Err(FIELDS.validation_error(
-            "risk.mutating is not supported; effect ownership belongs to the invoking capability",
-        ));
-    }
-    let source = validate_tool_source(
-        validate_skill_source(
-            &FIELDS
-                .required_object(raw.document.get("source"), "source")?
-                .clone(),
-        )?,
-        "source.type",
+    let source = validate_process_tool(
+        FIELDS.required_object(raw.document.get("source"), "source")?,
+        "source",
     )?;
     Ok(ValidatedTool {
         name: FIELDS.required_string(raw.document.get("name"), "name")?,
@@ -124,8 +107,6 @@ pub fn validate_tool_manifest(raw: RawToolManifestIr) -> Result<ValidatedTool, V
                 .optional_string_array(raw.document.get("scopes"), "scopes")?
                 .unwrap_or_default(),
         )?,
-        risk,
-        retry: validate_retry(raw.document.get("retry"), "retry")?,
         idempotency: validate_idempotency(raw.document.get("idempotency"), "idempotency")?,
         artifacts: validate_skill_artifact_contract(raw.document.get("artifacts"), "artifacts")?,
     })
@@ -136,18 +117,6 @@ fn validate_scopes(scopes: Vec<String>) -> Result<Vec<String>, ValidationError> 
         return Err(FIELDS.validation_error("scopes must contain only non-empty scope strings"));
     }
     Ok(scopes)
-}
-
-fn validate_tool_source(source: SkillSource, field: &str) -> Result<SkillSource, ValidationError> {
-    if matches!(
-        source.source_type,
-        SourceKind::CliTool | SourceKind::JavaScript
-    ) {
-        return Ok(source);
-    }
-    Err(FIELDS.validation_error(format!(
-        "{field} must be one of cli-tool or javascript for tool manifests."
-    )))
 }
 
 fn manifest_from_value(
@@ -174,24 +143,6 @@ where
     serde_json::to_value(value)
         .and_then(serde_json::from_value)
         .map_err(|error| FIELDS.validation_error(format!("{field} is invalid: {error}")))
-}
-
-fn validate_retry(
-    value: Option<&JsonValue>,
-    field: &str,
-) -> Result<Option<SkillRetryPolicy>, ValidationError> {
-    let Some(retry) = FIELDS.optional_object(value, field)? else {
-        return Ok(None);
-    };
-    let max_attempts = FIELDS
-        .optional_u64(retry.get("max_attempts"), &format!("{field}.max_attempts"))?
-        .unwrap_or(1);
-    if max_attempts == 0 {
-        return Err(
-            FIELDS.validation_error(format!("{field}.max_attempts must be a positive integer."))
-        );
-    }
-    Ok(Some(SkillRetryPolicy { max_attempts }))
 }
 
 fn validate_idempotency(

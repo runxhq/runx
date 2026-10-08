@@ -3,7 +3,7 @@ kind: graph
 target: support/discovery.graph
 caller:
   answers:
-    agent_task.reddit-research.output:
+    agent.reddit-research.output:
       research:
         status: drafted
         account_id: other_builder
@@ -108,7 +108,3 @@ expect:
         target_review:
           admitted: false
           draft_count: 0
-env:
-  RUNX_DATA_SOURCES: '{"data_sources": {"local://reddit": {"adapter": "data.sqlite", "database_path": ".runx/reddit-fixtures/reddit-wrong-research-account.sqlite",
-    "resources": {"reddit_accounts": {"kind": "event_stream", "partition_key": "aggregate_id"}, "reddit_browser": {"kind": "event_stream", "partition_key":
-    "aggregate_id"}, "reddit_attempts": {"kind": "event_stream", "partition_key": "aggregate_id"}}}}}'

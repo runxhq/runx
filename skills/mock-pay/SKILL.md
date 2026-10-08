@@ -1,8 +1,6 @@
 ---
 name: mock-pay
 description: Simulate an outbound payment locally for deterministic Runx harness tests.
-runx:
-  category: payments
 ---
 
 # Mock Pay

@@ -71,7 +71,7 @@ fn mcp_native_binary_dogfoods_streaming_skill_calls_and_receipts()
         );
         assert_eq!(
             path_text(&response, &["result", "content", "0", "text"])?,
-            format!("dogfood message {index}")
+            serde_json::json!({ "message": format!("dogfood message {index}") }).to_string()
         );
         receipt_ids.push(
             path_text(
@@ -97,14 +97,14 @@ fn mcp_native_binary_dogfoods_streaming_skill_calls_and_receipts()
         String::from_utf8_lossy(&cli.stdout)
     );
     let cli: Value = serde_json::from_slice(&cli.stdout)?;
-    assert_eq!(cli["result"], "dogfood message 0");
+    assert_eq!(cli["result"]["message"], "dogfood message 0");
     assert_eq!(cli["closure"]["disposition"], "closed");
 
     // Admission is a package binding, not permission to execute whatever bytes
     // happen to replace the served package later in this session.
     fs::write(
         skill_path.join("SKILL.md"),
-        "---\nname: mcp-echo\n---\nChanged after admission.\n",
+        "---\nname: mcp-echo\ndescription: mcp-echo fixture.\n---\nChanged after admission.\n",
     )?;
     write_frame(
         server.stdin_mut()?,
@@ -227,7 +227,7 @@ fn mcp_native_binary_uses_one_workspace_env_snapshot_per_session()
     let response = server.read_response("tools/call workspace env", MCP_REQUEST_TIMEOUT)?;
     assert_eq!(
         path_text(&response, &["result", "content", "0", "text"])?,
-        "initial-snapshot"
+        serde_json::json!({ "marker": "initial-snapshot" }).to_string()
     );
 
     server.close_stdin();
@@ -249,36 +249,29 @@ fn mcp_continuations_survive_server_exit_and_resume_through_the_cli()
         let receipts = root.join("receipts with spaces");
         let skill = if agent {
             let path = crate::support::write_agent_task_skill(root)?;
-            let manifest = fs::read_to_string(path.join("X.yaml"))?
+            let manifest = fs::read_to_string(path.join("run.yaml"))?
                 .replace("required: false", "required: true");
-            fs::write(path.join("X.yaml"), manifest)?;
+            fs::write(path.join("run.yaml"), manifest)?;
             path
         } else {
             let path = root.join("approval");
             fs::create_dir_all(&path)?;
             fs::write(
                 path.join("SKILL.md"),
-                "---\nname: approval\n---\n# Approval\n",
+                "---\nname: approval\ndescription: approval fixture.\n---\n# Approval\n",
             )?;
             fs::write(
-                path.join("X.yaml"),
+                path.join("run.yaml"),
                 r#"skill: approval
 runners:
   main:
     default: true
-    type: graph
     inputs:
-      thread_title: {type: string, required: true}
-    graph:
-      name: approval
-      result_from: [approve]
-      steps:
-        - id: approve
-          run: {type: approval}
-          inputs:
-            gate_id: approval
-            reason: $input.thread_title
-          artifacts: {wrap_as: approval}
+      thread_title: { type: string, required: true }
+    result_from: [approve]
+    steps:
+      - id: approve
+        ask: { gate: approval, reason: $input.thread_title }
 "#,
             )?;
             path
@@ -353,11 +346,10 @@ runners:
                 .output()?;
             assert!(history.status.success());
             let history: Value = serde_json::from_slice(&history.stdout)?;
-            assert!(
-                history["pendingRuns"]
-                    .as_array()
-                    .is_some_and(|runs| runs.iter().any(|run| run["id"] == run_id))
-            );
+            assert!(history["runs"].as_array().is_some_and(|runs| {
+                runs.iter()
+                    .any(|run| run["run_id"] == run_id && run["state"] == "paused")
+            }));
 
             let mut wrong = answers.clone();
             wrong["request_digests"][request_id] = json!("sha256:wrong");
@@ -407,11 +399,10 @@ runners:
                 .output()?;
             assert!(history.status.success());
             let history: Value = serde_json::from_slice(&history.stdout)?;
-            assert!(
-                !history["pendingRuns"]
-                    .as_array()
-                    .is_some_and(|runs| runs.iter().any(|run| run["id"] == run_id))
-            );
+            assert!(!history["runs"].as_array().is_some_and(|runs| {
+                runs.iter()
+                    .any(|run| run["run_id"] == run_id && run["state"] == "paused")
+            }));
         }
     }
     Ok(())
@@ -645,7 +636,7 @@ fn read_json_file(path: &Path) -> Result<Value, Box<dyn std::error::Error>> {
 fn copy_mcp_echo_skill() -> Result<TestTempDir, Box<dyn std::error::Error>> {
     let skill_dir = TestTempDir::new("runx-mcp-dogfood-skill")?;
     let fixture = repo_root()?.join("fixtures/skills/mcp-echo");
-    for file in ["SKILL.md", "X.yaml", "echo.mjs"] {
+    for file in ["SKILL.md", "run.yaml", "echo.mjs"] {
         fs::copy(fixture.join(file), skill_dir.path().join(file))?;
     }
     Ok(skill_dir)
@@ -665,21 +656,21 @@ Return the allowlisted workspace marker.
 "#,
     )?;
     fs::write(
-        skill_dir.join("X.yaml"),
+        skill_dir.join("run.yaml"),
         r#"skill: mcp-workspace-env
 runners:
   default:
     default: true
-    type: javascript
-    module: marker.mjs
-    environment:
-      required:
-        - MCP_DOGFOOD_MARKER
+    steps:
+      - id: default
+        tool: { module: marker.mjs, environment: { required: [MCP_DOGFOOD_MARKER] } }
+        outputs:
+          marker: string
 "#,
     )?;
     fs::write(
         skill_dir.join("marker.mjs"),
-        "export default (_inputs, context) => context.environment.MCP_DOGFOOD_MARKER;\n",
+        "export default (_inputs, context) => ({ marker: context.environment.MCP_DOGFOOD_MARKER });\n",
     )?;
     Ok(skill_dir)
 }

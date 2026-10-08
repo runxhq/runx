@@ -1,0 +1,37 @@
+skill: scafld-native-smoke
+version: "0.1.0"
+runners:
+  default:
+    default: true
+    inputs:
+      task_id:
+        type: string
+        required: false
+        description: Optional scafld task id for the smoke workspace.
+      title:
+        type: string
+        required: false
+        description: Optional task title.
+      scafld_bin:
+        type: string
+        required: false
+        description: Explicit scafld executable path; defaults to SCAFLD_BIN.
+    steps:
+      - id: default
+        tool: { command: python3, args: [./run.py], timeout_seconds: 60 }
+        inputs:
+          task_id: $input.task_id
+          title: $input.title
+          scafld_bin: $input.scafld_bin
+        outputs:
+          ok: boolean
+          scafld_version: string
+          task_id: string
+          init: object
+          plan: object
+          validate: object
+          approve: object
+          build: object
+          status: object
+          handoff: string
+          steps: array

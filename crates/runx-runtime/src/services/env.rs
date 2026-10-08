@@ -63,7 +63,7 @@ impl WorkspaceEnv {
         })
     }
 
-    #[cfg(any(feature = "cli-tool", feature = "mcp", test))]
+    #[cfg(any(feature = "process-tool", feature = "mcp", test))]
     pub(crate) fn from_admitted(env: BTreeMap<String, String>) -> Result<Self, WorkspaceEnvError> {
         let cwd = env
             .get(RUNX_CWD_ENV)
@@ -111,7 +111,7 @@ impl fmt::Debug for WorkspaceEnv {
 
 #[derive(Debug, Error)]
 pub enum WorkspaceEnvError {
-    #[cfg(any(feature = "cli-tool", feature = "mcp", test))]
+    #[cfg(any(feature = "process-tool", feature = "mcp", test))]
     #[error("admitted workspace environment is missing RUNX_CWD")]
     MissingCwd,
     #[error("workspace cwd must be absolute, got {path}")]

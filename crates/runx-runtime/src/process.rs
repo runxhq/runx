@@ -22,7 +22,7 @@ mod supervisor;
 #[cfg(feature = "mcp")]
 mod tokio_supervisor;
 
-#[cfg(feature = "cli-tool")]
+#[cfg(feature = "process-tool")]
 pub(crate) use self::capture::CapturedOutput;
 pub(crate) use self::signals::{ProcessSignal, configure_process_group, signal_process_group_id};
 #[cfg(any(feature = "async-http", test))]

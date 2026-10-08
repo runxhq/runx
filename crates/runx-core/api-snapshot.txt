@@ -215,7 +215,7 @@ pub runx_core::policy::LocalAdmissionSource::command: core::option::Option<alloc
 pub runx_core::policy::LocalAdmissionSource::source_type: alloc::string::String
 pub runx_core::policy::LocalAdmissionSource::timeout_seconds: core::option::Option<i64>
 pub struct runx_core::policy::LocalExecutionPolicy
-pub runx_core::policy::LocalExecutionPolicy::strict_cli_tool_inline_code: core::option::Option<bool>
+pub runx_core::policy::LocalExecutionPolicy::strict_process_tool_inline_code: core::option::Option<bool>
 pub struct runx_core::policy::LocalScopeAdmissionOptions
 pub runx_core::policy::LocalScopeAdmissionOptions::connected_auth_checked_at: core::option::Option<alloc::string::String>
 pub runx_core::policy::LocalScopeAdmissionOptions::denied_before_grant_resolution: core::option::Option<bool>
@@ -259,7 +259,7 @@ pub fn runx_core::policy::mint_attenuated(parent: &runx_contracts::authority::Au
 pub fn runx_core::policy::missing_granted_scopes(required_scopes: &[alloc::string::String], granted_scopes: &[alloc::string::String], policy: runx_core::policy::scope::ScopeGrantPolicy) -> alloc::vec::Vec<alloc::string::String>
 pub fn runx_core::policy::parse_rfc3339_moment(value: &str) -> core::option::Option<(i64, i64, u32)>
 pub fn runx_core::policy::scope_grant_allows(granted_scope: &str, requested_scope: &str, policy: runx_core::policy::scope::ScopeGrantPolicy) -> bool
-pub fn runx_core::policy::strict_cli_tool_inline_code_denial(command: core::option::Option<&str>, args: &[alloc::string::String], policy: core::option::Option<&runx_core::policy::LocalExecutionPolicy>) -> core::option::Option<alloc::string::String>
+pub fn runx_core::policy::strict_process_tool_inline_code_denial(command: core::option::Option<&str>, args: &[alloc::string::String], policy: core::option::Option<&runx_core::policy::LocalExecutionPolicy>) -> core::option::Option<alloc::string::String>
 pub fn runx_core::policy::validate_credential_binding(request: &runx_core::policy::CredentialBindingRequest) -> runx_core::policy::CredentialBindingDecision
 pub mod runx_core::serde_conventions
 pub mod runx_core::state_machine

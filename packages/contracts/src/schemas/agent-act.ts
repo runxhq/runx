@@ -4,20 +4,16 @@ import {
   RUNX_CONTROL_SCHEMA_REFS,
   type DeepReadonly,
   generatedSchema,
-  stringEnum,
   unknownRecordSchema,
   validateContractSchema,
 } from "../internal.js";
 import { agentContextEnvelopeSchema } from "./context.js";
 
-const agentActSourceTypes = ["agent", "agent-task"] as const;
-
 const agentActInvocationTypeSchema = Type.Object(
   {
     id: Type.String({ minLength: 1 }),
-    source_type: stringEnum(agentActSourceTypes),
-    agent: Type.Optional(Type.String({ minLength: 1 })),
-    task: Type.Optional(Type.String({ minLength: 1 })),
+    role: Type.String({ minLength: 1 }),
+    task: Type.String({ minLength: 1 }),
     envelope: agentContextEnvelopeSchema,
   },
   {

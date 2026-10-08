@@ -19,15 +19,6 @@ inputs:
       - { ref: issues/241, op: update, payload: { labels: [triage] } }
   idempotency_key: runxhq/runx:issues/241:labels:triage
 caller:
-  http_responses:
-    "https://api.github.com/user":
-      status: 200
-      headers: { content-type: application/json }
-      body: '{"id": 7, "login": "operator"}'
-    "https://api.github.com/repos/runxhq/runx/issues/241":
-      status: 200
-      headers: { content-type: application/json }
-      body: '{"number": 241, "title": "Sourcey output path is unclear", "state": "open", "labels": [{"name": "triage"}], "assignees": []}'
   http_exchanges:
     - request:
         method: PATCH
@@ -35,6 +26,16 @@ caller:
         body:
           json:
             labels: [triage]
+      response:
+        status: 200
+        headers: { content-type: application/json }
+        body: '{"number": 241, "title": "Sourcey output path is unclear", "state": "open", "labels": [{"name": "triage"}], "assignees": []}'
+    - request: { method: GET, url: "https://api.github.com/user", body: none }
+      response:
+        status: 200
+        headers: { content-type: application/json }
+        body: '{"id": 7, "login": "operator"}'
+    - request: { method: GET, url: "https://api.github.com/repos/runxhq/runx/issues/241", body: none }
       response:
         status: 200
         headers: { content-type: application/json }

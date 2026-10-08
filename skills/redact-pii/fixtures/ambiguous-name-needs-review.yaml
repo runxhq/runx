@@ -9,7 +9,7 @@ inputs:
   mode: redact
 caller:
   answers:
-    agent_task.redact-pii-detect.output:
+    agent.redact-pii-detect.output:
       redaction_draft:
         decision: needs_review
         detected:

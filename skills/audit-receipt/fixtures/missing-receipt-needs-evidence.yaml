@@ -7,7 +7,7 @@ inputs:
   receipt_rows: []
 caller:
   answers:
-    agent_task.audit-receipt.output:
+    agent.audit-receipt.output:
       receipt_audit:
         decision: needs_more_evidence
         run_ref: ""

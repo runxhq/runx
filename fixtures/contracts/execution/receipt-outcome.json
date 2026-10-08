@@ -1,1 +1,0 @@
-{"description":"ReceiptOutcome contract fixture generated from the TypeScript serializable wire subset.","expected":{"code":"needs_followup","data":{"count":1,"severity":"medium"},"observed_at":"2026-05-18T00:00:00.000Z","summary":"Action still requires review."},"fixture_kind":"receipt_outcome","name":"receipt-outcome","scope":"execution"}

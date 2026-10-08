@@ -1,8 +1,6 @@
 ---
 name: vault-unseal
 description: Plan or execute a scoped, time-bounded vault-unseal request through any compatible vault binding, returning only opaque handle metadata and provider readback.
-runx:
-  category: security
 ---
 
 # Vault Unseal

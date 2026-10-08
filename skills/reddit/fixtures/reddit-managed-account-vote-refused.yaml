@@ -12,4 +12,3 @@ expect:
     vote:
       subset:
         result: {status: refused, evidence_level: none}
-env: {RUNX_DATA_SOURCES: '{"data_sources": {"local://reddit": {"adapter": "data.sqlite", "database_path": ".runx/reddit-fixtures/reddit-managed-account-vote-refused.sqlite", "resources": {"reddit_accounts": {"kind": "event_stream", "partition_key": "aggregate_id"}, "reddit_browser": {"kind": "event_stream", "partition_key": "aggregate_id"}, "reddit_attempts": {"kind": "event_stream", "partition_key": "aggregate_id"}}}}}'}

@@ -20,11 +20,12 @@ inputs:
   grid_x: "97"
   grid_y: "71"
 caller:
-  http_responses:
-    "https://api.weather.gov/gridpoints/LWX/97,71/forecast":
-      status: 200
-      headers: { content-type: application/geo+json }
-      body: '{"type":"Feature","geometry":null,"properties":{"units":"us","elevation":{"unitCode":"wmoUnit:m","value":12.2},"generatedAt":"2026-08-10T04:00:00Z","updateTime":"2026-08-10T03:30:00Z","periods":[]}}'
+  http_exchanges:
+    - request: { method: GET, url: "https://api.weather.gov/gridpoints/LWX/97,71/forecast", body: none }
+      response:
+        status: 200
+        headers: { content-type: application/geo+json }
+        body: '{"type":"Feature","geometry":null,"properties":{"units":"us","elevation":{"unitCode":"wmoUnit:m","value":12.2},"generatedAt":"2026-08-10T04:00:00Z","updateTime":"2026-08-10T03:30:00Z","periods":[]}}'
 expect:
   status: sealed
   steps:

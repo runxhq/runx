@@ -174,3 +174,87 @@ fn a_session_that_prints_no_token_is_refused_and_records_nothing() -> TestResult
     fs::remove_dir_all(&root)?;
     result
 }
+
+/// Append one event through the data-store skill.
+fn append(root: &Path, key: &str) -> Result<(bool, serde_json::Value), Box<dyn std::error::Error>> {
+    let skill = crate::support::repo_root()?.join("skills/data-store");
+    let key = format!("idempotency_key={key}");
+    runx(
+        root,
+        &[
+            "skill",
+            skill.to_str().ok_or("the skill path is not text")?,
+            "append_event",
+            "-i",
+            "data_source_ref=local://board",
+            "-i",
+            "resource=items",
+            "-i",
+            "aggregate_id=a",
+            "--input-json",
+            "expected_version=0",
+            "-i",
+            &key,
+            "--input-json",
+            r#"event={"type":"item.created"}"#,
+        ],
+        None,
+    )
+}
+
+fn status(run: &serde_json::Value) -> &serde_json::Value {
+    &run["result"]["data_operation_result"]["data"]["status"]
+}
+
+/// Without a store instance the streams live in the workspace store; a
+/// confirmed instance's url moves them.
+#[test]
+fn a_store_instance_moves_the_workspace_streams() -> TestResult {
+    let root = temp_root("runx-store-instance");
+    fs::create_dir_all(&root)?;
+    let result = (|| -> TestResult {
+        let (ok, first) = append(&root, "first")?;
+        assert!(ok, "{first}");
+        assert_eq!(status(&first), "committed");
+        assert!(root.join(".runx/store.sqlite").is_file());
+
+        let (ok, used) = connector(
+            &root,
+            &["use", "store", "--parameter", "url=sqlite:board.sqlite"],
+        )?;
+        assert!(ok, "{used}");
+        assert_eq!(used["selected"]["parameters"]["url"], "sqlite:board.sqlite");
+
+        // The new store is empty, so the stream starts again at version 0.
+        let (ok, second) = append(&root, "second")?;
+        assert!(ok, "{second}");
+        assert_eq!(status(&second), "committed");
+        assert!(root.join("board.sqlite").is_file());
+        Ok(())
+    })();
+    fs::remove_dir_all(&root)?;
+    result
+}
+
+#[test]
+fn a_store_url_never_carries_a_password() -> TestResult {
+    let root = temp_root("runx-store-password");
+    fs::create_dir_all(&root)?;
+    let result = (|| -> TestResult {
+        let (ok, refused) = connector(
+            &root,
+            &[
+                "use",
+                "store",
+                "--parameter",
+                "url=postgres://app:secret@db.example/board",
+            ],
+        )?;
+        assert!(!ok, "{refused}");
+        let (_, listed) = connector(&root, &["instances"])?;
+        assert_eq!(listed["instances"], serde_json::json!([]));
+        Ok(())
+    })();
+    fs::remove_dir_all(&root)?;
+    result
+}

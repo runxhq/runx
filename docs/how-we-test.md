@@ -9,7 +9,7 @@ Rust runtime work has four explicit gates:
 | --- | --- | --- |
 | Local fast | Tight edit loop for nearby package/runtime changes. | `pnpm verify:fast` or a focused `cargo test --manifest-path crates/Cargo.toml -p <crate> ...` |
 | CI fast | Deterministic semantic and boundary checks that should run on every review. | `pnpm boundary:check`, `pnpm typecheck`, focused Rust contract/runtime tests |
-| Heavy | Perf, fanout, MCP, external-process, and oracle checks that are useful before release or risky runtime changes. | `pnpm stress:runtime:*`, `pnpm perf:runtime:check -- --baseline <path>`, `runtime quality` workflow |
+| Heavy | Perf, MCP, external-process, and oracle checks that are useful before release or risky runtime changes. | `pnpm stress:runtime:*`, `pnpm perf:runtime:check -- --baseline <path>`, `runtime quality` workflow |
 | Soak | Long-running replay/stress loops that should be invoked intentionally, never hidden inside the default workspace test. | Repeated stress commands under an external runner with captured JSON output |
 
 On macOS 26, complete the
@@ -102,26 +102,22 @@ receipt id, receipt digest, and failure classification.
 
 ## Runtime Stress
 
-Adapter and fanout stress gates are explicit scripts:
+Adapter stress gates are explicit scripts:
 
 ```bash
 pnpm stress:runtime:mcp
-pnpm stress:runtime:cli-tool
-pnpm stress:runtime:fanout
+pnpm stress:runtime:process-tool
 ```
 
-These commands exercise MCP server wiring, CLI-tool process supervision, and
-fanout ordering/concurrency.
+These commands exercise MCP server wiring and process-tool supervision.
 They are heavy gates, not the default local loop.
 
 The `runtime quality` workflow is the canonical automated heavy lane. It runs
 weekly, on explicit dispatch, and before a release build. One Ubuntu job reuses
 its Cargo cache and runs the official-skill audit, receipt ownership checks,
-the three stress commands, and a focused performance capture. The capture is
-bound to the exact source commit, enforces worker spawn and parallel fanout
-budgets, and is uploaded as a retained artifact before enforcement. Exact
-four-way saturation remains a deterministic barrier-backed runtime test rather
-than a scheduler-sensitive benchmark assertion.
+the two stress commands, and a focused performance capture. The capture is
+bound to the exact source commit, enforces worker spawn budgets, and is
+uploaded as a retained artifact before enforcement.
 
 Absolute timing comparisons still require two reports captured on comparable
 hardware. Do not compare a developer-laptop baseline with a hosted runner or

@@ -99,6 +99,7 @@ catalog:
   completion: runtime_receipt
   requires_adapter: false
   approval: none
+  category: content
 
 harness:
   cases:
@@ -122,15 +123,12 @@ harness:
 runners:
   sourcey:
     default: true
-    type: graph
-    graph:
-      name: sourcey-registry-profile
-      result_from: [digest]
-      steps:
-        - id: digest
-          tool: data.digest
-          inputs:
-            value: sourcey-registry-profile
+    result_from: [digest]
+    steps:
+      - id: digest
+        tool: data.digest
+        inputs:
+          value: sourcey-registry-profile
 "#
     .to_owned();
 
@@ -148,8 +146,6 @@ runners:
 
     assert_eq!(version.skill_id, "acme/sourcey");
     assert_eq!(version.category.as_deref(), Some("content"));
-    assert_eq!(version.source_category.as_deref(), None);
-    assert_eq!(version.source_type, "graph");
     assert_eq!(version.runner_names, vec!["sourcey"]);
     assert_eq!(
         version.profile_document.as_deref(),
@@ -165,7 +161,6 @@ runners:
     let skills = store.list_skills()?;
     assert_eq!(skills.len(), 1);
     assert_eq!(skills[0].category.as_deref(), Some("content"));
-    assert_eq!(skills[0].source_category.as_deref(), None);
     assert_eq!(skills[0].latest_version, "1.0.0");
     assert_eq!(skills[0].versions[0].skill_id, "acme/sourcey");
 
@@ -180,7 +175,6 @@ runners:
     assert_eq!(search_results.len(), 1);
     assert_eq!(search_results[0].skill_id, "acme/sourcey");
     assert_eq!(search_results[0].category.as_deref(), Some("content"));
-    assert_eq!(search_results[0].source_category.as_deref(), None);
     assert!(search_results[0].tags.iter().any(|tag| tag == "content"));
     assert_eq!(search_results[0].source.as_deref(), Some("runx-registry"));
     assert_eq!(
@@ -218,7 +212,6 @@ runners:
         .ok_or_else(|| std::io::Error::other("missing registry detail"))?;
     assert_eq!(detail.markdown, markdown);
     assert_eq!(detail.category.as_deref(), Some("content"));
-    assert_eq!(detail.source_category.as_deref(), None);
     assert_eq!(detail.profile_digest, version.profile_digest);
 
     let resolved = resolve_registry_skill(
@@ -266,15 +259,11 @@ catalog:
 runners:
   echo:
     default: true
-    type: graph
-    graph:
-      name: echo
-      result_from: [digest]
-      steps:
-        - id: digest
-          tool: data.digest
-          inputs:
-            value: "{{message}}"
+    result_from: [digest]
+    steps:
+      - id: digest
+        tool: data.digest
+        retired: true
 "#
         .to_owned(),
     );
@@ -288,13 +277,15 @@ runners:
     assert!(
         store
             .get_version("acme/echo", Some("0.9.0"))
-            .is_err_and(|error| error.to_string().contains("retired graph input binding"))
+            .is_err_and(|error| error
+                .to_string()
+                .contains("retired does not apply to this tool step"))
     );
-    assert!(
-        store
-            .list_versions("acme/echo")
-            .is_err_and(|error| error.to_string().contains("retired graph input binding"))
-    );
+    assert!(store.list_versions("acme/echo").is_err_and(|error| {
+        error
+            .to_string()
+            .contains("retired does not apply to this tool step")
+    }));
 
     Ok(())
 }
@@ -344,11 +335,9 @@ catalog:
 runners:
   default:
     default: true
-    type: cli-tool
-    command: node
-    args:
-      - -e
-      - "process.stdout.write('{}')"
+    steps:
+      - id: default
+        tool: { command: node, args: [-e, "process.stdout.write('{}')"] }
 harness:
   cases:
     - name: internal-pay-step-smoke
@@ -424,7 +413,6 @@ fn local_registry_publish_rejects_changed_duplicate() -> Result<(), Box<dyn std:
 
     assert_eq!(first.status, PublishStatus::Published);
     assert_eq!(first.skill_id, "acme/echo");
-    assert_eq!(first.source_type, "manual");
     assert_eq!(first.digest.len(), 64);
     assert_eq!(
         first.link.install_command,
@@ -493,7 +481,7 @@ fn file_registry_store_rejects_path_traversal_skill_ids() -> Result<(), Box<dyn 
 
 fn install_candidate() -> Result<InstallCandidate, Box<dyn std::error::Error>> {
     Ok(InstallCandidate {
-        markdown: "---\nname: echo\n---\n# Echo\n".to_owned(),
+        markdown: "---\nname: echo\ndescription: echo fixture.\n---\n# Echo\n".to_owned(),
         profile_document: None,
         package_files: Vec::new(),
         package_digest: None,
@@ -542,7 +530,7 @@ fn acquisition(
         version: "1.0.0".to_owned(),
         digest: digest.to_owned(),
         signed_manifest: None,
-        markdown: "---\nname: echo\n---\n# Echo\n".to_owned(),
+        markdown: "---\nname: echo\ndescription: echo fixture.\n---\n# Echo\n".to_owned(),
         profile_document: None,
         profile_digest: None,
         package_files: Vec::new(),

@@ -1,0 +1,324 @@
+skill: ghostwrite
+version: "0.3.2"
+
+catalog:
+  kind: skill
+  audience: public
+  visibility: public
+  role: context
+  execution: read
+  completion: runtime_receipt
+  requires_adapter: false
+  approval: none
+  category: content
+
+runners:
+  draft:
+    default: true
+    inputs:
+      objective:
+        type: string
+        required: true
+        description: What the content must accomplish.
+      audience:
+        type: string
+        required: true
+        description: Intended reader.
+      channel:
+        type: string
+        required: true
+        description: Intended content channel.
+      evidence_pack:
+        type: json
+        required: true
+        packet: runx.research.packet.v1
+        description: Validated runx.research.packet.v1 evidence.
+      voice_guide:
+        type: string
+        required: false
+        description: Additional project-specific voice constraints.
+      brand_context:
+        type: json
+        required: false
+        description: Validated runx.context.brand_voice.v1 packet.
+      taste_context:
+        type: json
+        required: false
+        description: Validated runx.context.taste_profile.v1 packet.
+    result_from: [reject, finalize]
+    steps:
+      - id: digest-evidence
+        tool: data.digest
+        inputs:
+          value: $input.evidence_pack
+
+      - id: digest-brand-context
+        tool: data.digest
+        inputs:
+          value:
+            type: brand_voice
+            packet: $input.brand_context
+
+      - id: digest-taste-context
+        tool: data.digest
+        inputs:
+          value:
+            type: taste_profile
+            packet: $input.taste_context
+
+      - id: prepare
+        label: admit validated evidence
+        inputs:
+          objective: $input.objective
+          audience: $input.audience
+          channel: $input.channel
+          evidence_pack: $input.evidence_pack
+          brand_context: $input.brand_context
+          taste_context: $input.taste_context
+        context:
+          evidence_packet_digest: digest-evidence.digest_result.data.digest
+          brand_context_digest: digest-brand-context.digest_result.data.digest
+          taste_context_digest: digest-taste-context.digest_result.data.digest
+        tool: { module: ghostwrite.mjs, export: prepareEvidence }
+        outputs:
+          evidence_context: object
+        artifacts:
+          named_emits:
+            evidence_context: evidence_context
+      - id: reject
+        label: withhold unsupported draft
+        when:
+          field: prepare.evidence_context.data.decision
+          equals: needs_more_evidence
+        tool: evidence.verify_artifact
+        scopes:
+          - runx:evidence:read
+        inputs:
+          artifact_name: content_draft_packet
+          candidate:
+            decision: ready
+          require_claim_bindings: true
+          fallback_artifact:
+            decision: needs_more_evidence
+            content_brief:
+              objective: ""
+              audience: ""
+              channel: ""
+            draft:
+              title: ""
+              body: ""
+              claim_refs: []
+            review_checklist: []
+            distribution_notes: {}
+            evidence_binding:
+              evidence_packet_digest: ""
+              source_digests: []
+            context_binding:
+              required: []
+              applied: []
+          fallback_bindings:
+            - target_path: content_brief.objective
+              source_path: objective
+            - target_path: content_brief.audience
+              source_path: audience
+            - target_path: content_brief.channel
+              source_path: channel
+            - target_path: evidence_binding.evidence_packet_digest
+              source_path: evidence_packet_digest
+            - target_path: evidence_binding.source_digests
+              source_path: source_digests
+            - target_path: context_binding.required
+              source_path: writing_contexts
+        context:
+          source_digests: prepare.evidence_context.data.source_digests
+          context_requirements: prepare.evidence_context.data.writing_contexts
+          fallback_source: prepare.evidence_context.data
+        artifacts:
+          named_emits:
+            content_draft_packet: content_draft_packet
+          packets:
+            content_draft_packet: runx.content.draft.v1
+
+      - id: author
+        label: author from bounded evidence
+        when:
+          field: prepare.evidence_context.data.decision
+          equals: ready
+        agent: { role: writer, task: ghostwrite-draft }
+        outputs:
+          content_draft: object
+        inputs:
+          objective: $input.objective
+          audience: $input.audience
+          channel: $input.channel
+          voice_guide: $input.voice_guide
+        context:
+          evidence_context: prepare.evidence_context.data
+        artifacts:
+          named_emits:
+            content_draft: content_draft
+      - id: finalize
+        label: verify draft evidence and context bindings
+        when:
+          field: prepare.evidence_context.data.decision
+          equals: ready
+        tool: evidence.verify_artifact
+        scopes:
+          - runx:evidence:read
+        inputs:
+          artifact_name: content_draft_packet
+          required_paths:
+            - content_brief.objective
+            - content_brief.audience
+            - content_brief.channel
+            - draft.title
+            - draft.body
+            - draft.claim_refs
+          required_value_bindings:
+            - candidate_path: content_brief.objective
+              source_path: objective
+            - candidate_path: content_brief.audience
+              source_path: audience
+            - candidate_path: content_brief.channel
+              source_path: channel
+          authoritative_bindings:
+            - target_path: evidence_binding.evidence_packet_digest
+              source_path: evidence_packet_digest
+            - target_path: evidence_binding.source_digests
+              source_path: source_digests
+            - target_path: context_binding.required
+              source_path: writing_contexts
+          fallback_artifact:
+            decision: needs_more_evidence
+            content_brief:
+              objective: ""
+              audience: ""
+              channel: ""
+            draft:
+              title: ""
+              body: ""
+              claim_refs: []
+            review_checklist: []
+            distribution_notes: {}
+            evidence_binding:
+              evidence_packet_digest: ""
+              source_digests: []
+            context_binding:
+              required: []
+              applied: []
+          fallback_bindings:
+            - target_path: content_brief.objective
+              source_path: objective
+            - target_path: content_brief.audience
+              source_path: audience
+            - target_path: content_brief.channel
+              source_path: channel
+            - target_path: evidence_binding.evidence_packet_digest
+              source_path: evidence_packet_digest
+            - target_path: evidence_binding.source_digests
+              source_path: source_digests
+            - target_path: context_binding.required
+              source_path: writing_contexts
+        context:
+          candidate: author.content_draft.data
+          identity_source: prepare.evidence_context.data
+          authoritative_source: prepare.evidence_context.data
+          fallback_source: prepare.evidence_context.data
+          source_digests: prepare.evidence_context.data.source_digests
+          claim_bindings: author.content_draft.data.draft.claim_refs
+          context_requirements: prepare.evidence_context.data.writing_contexts
+          context_bindings: author.content_draft.data.context_binding.applied
+        artifacts:
+          named_emits:
+            content_draft_packet: content_draft_packet
+          packets:
+            content_draft_packet: runx.content.draft.v1
+
+  package:
+    inputs:
+      channel:
+        type: string
+        required: true
+        description: Target delivery channel.
+      draft:
+        type: json
+        required: true
+        description: Validated runx.content.draft.v1 packet.
+      distribution_notes:
+        type: json
+        required: false
+        description: Optional packaging constraints.
+    result_from: [bind]
+    steps:
+      - id: prepare
+        inputs:
+          channel: $input.channel
+          draft: $input.draft
+          distribution_notes: $input.distribution_notes
+        tool: { module: ghostwrite.mjs, export: prepareContent }
+        outputs:
+          publish_draft: object
+          digest_input: string
+          qa_checklist: array
+          handoff_notes: object
+      - id: digest
+        tool: data.digest
+        inputs:
+          encoding: utf8_text
+        context:
+          value: prepare.digest_input
+      - id: bind
+        context:
+          publish_draft: prepare.publish_draft
+          digest_result: digest.digest_result.data
+          qa_checklist: prepare.qa_checklist
+          handoff_notes: prepare.handoff_notes
+        tool: { module: ghostwrite.mjs, export: bindContent }
+        outputs:
+          content_publish_packet: object
+          qa_checklist: array
+          handoff_notes: object
+        artifacts:
+          named_emits:
+            content_publish_packet: content_publish_packet
+          packets:
+            content_publish_packet: runx.content.publish.v1
+
+  handoff:
+    inputs:
+      channel:
+        type: string
+        required: true
+        description: Target outward channel.
+      boundary_kind:
+        type: string
+        required: true
+        description: Boundary such as external_maintainer or internal_team.
+      packet:
+        type: json
+        required: true
+        description: Deterministic content publication packet.
+      target:
+        type: json
+        required: true
+        description: Exact downstream target locator.
+      approval:
+        type: json
+        required: false
+        description: Existing approval for the downstream provider action.
+    steps:
+      - id: handoff
+        tool: { module: ghostwrite.mjs, export: prepareHandoff }
+        inputs:
+          channel: $input.channel
+          boundary_kind: $input.boundary_kind
+          packet: $input.packet
+          target: $input.target
+          approval: $input.approval
+        outputs:
+          handoff_packet: object
+          boundary_state: object
+          follow_up_contract: object
+        artifacts:
+          wrap_as: content_handoff_packet
+          packet: runx.content.handoff.v1

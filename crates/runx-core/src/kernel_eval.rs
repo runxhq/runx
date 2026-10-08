@@ -7,7 +7,7 @@ mod input;
 mod limits;
 
 use dispatch::evaluate_kernel_input;
-use input::{KernelDocument, is_supported_kernel_kind, kernel_document_kind};
+use input::{KernelInput, is_supported_kernel_kind, kernel_document_kind};
 use limits::{validate_kernel_document_shape, validate_kernel_source_size};
 
 #[derive(Clone, Debug, PartialEq, serde::Serialize)]
@@ -58,7 +58,7 @@ pub fn evaluate_kernel_document_str(source: &str) -> Result<KernelEvalOutput, Ke
             "unsupported kernel input kind '{kind}'"
         )));
     }
-    let input = serde_json::from_str::<KernelDocument>(source)
+    let input = serde_json::from_str::<KernelInput>(source)
         .map_err(|error| KernelEvalError::InvalidInput(error.to_string()))?;
     Ok(KernelEvalOutput::Output {
         value: evaluate_kernel_input(input)?,
@@ -73,13 +73,13 @@ mod tests {
     #[test]
     fn evaluates_supported_document_under_limits() -> Result<(), KernelEvalError> {
         let output = evaluate_kernel_document_str(
-            r#"{"kind":"state-machine.fanoutSyncDecisionKey","decision":{"groupId":"group-a","ruleFired":"all_succeeded"}}"#,
+            r#"{"kind":"policy.scopeGrantAllows","grantedScope":"repo:read","requestedScope":"repo:read","policy":"exact_only"}"#,
         )?;
 
         assert_eq!(
             output,
             KernelEvalOutput::Output {
-                value: JsonValue::String("group-a:all_succeeded".to_owned())
+                value: JsonValue::Bool(true)
             }
         );
         Ok(())

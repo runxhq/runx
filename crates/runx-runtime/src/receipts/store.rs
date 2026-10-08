@@ -1,5 +1,5 @@
 // Module rationale: local store read/write/index semantics stay
-// together until the receipt-store API finishes the hard-cutover review.
+// together.
 use std::collections::BTreeMap;
 use std::ffi::OsStr;
 use std::fs::{self, File, OpenOptions};

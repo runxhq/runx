@@ -43,4 +43,3 @@ metadata:
   public_skill: operator-inbox
   source_case: import-action
   source: skills-fixture
-  runner_kind: graph

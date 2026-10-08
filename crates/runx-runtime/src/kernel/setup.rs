@@ -10,7 +10,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
 use runx_contracts::connector::{CredentialName, InstanceId, LocalAuth, Placement, SessionKind};
-use runx_contracts::{ConnectorInstance, InstanceAuthority};
+use runx_contracts::{ConnectorInstance, InstanceAuthority, JsonObject, sha256_prefixed};
 
 use super::connectors::LoadedConnector;
 use super::instances::{Instances, check_supported, pinned};
@@ -78,6 +78,7 @@ pub(crate) fn confirm_session_over(
 /// Store `secret` in a local profile as the connector credential it is,
 /// then confirm and select the instance that holds it. `scopes` narrows the
 /// grant; empty means every scope the credential can serve.
+#[allow(clippy::too_many_arguments)]
 pub fn set_credential(
     instances: &Instances,
     connector: &LoadedConnector,
@@ -85,9 +86,11 @@ pub fn set_credential(
     credential: &CredentialName,
     secret: &str,
     scopes: &[String],
+    parameters: JsonObject,
     workspace: &WorkspaceEnv,
 ) -> Result<ConnectorInstance, String> {
     let manifest = &connector.manifest;
+    let parameters = instance_parameters(connector, parameters)?;
     let declaration = credential_declaration(connector, credential)?;
     credentials::fields(declaration, secret).map_err(|reason| format!("the secret {reason}"))?;
     let scopes = credential_scopes(connector, credential, scopes)?;
@@ -106,6 +109,7 @@ pub fn set_credential(
         credential,
         scopes,
         material_ref,
+        parameters,
     )
 }
 
@@ -117,8 +121,10 @@ pub fn confirm_credential_profile(
     connector: &LoadedConnector,
     profile: &str,
     scopes: &[String],
+    parameters: JsonObject,
     workspace: &WorkspaceEnv,
 ) -> Result<ConnectorInstance, String> {
+    let parameters = instance_parameters(connector, parameters)?;
     let home = resolve_runx_home_dir(workspace.env(), workspace.cwd());
     let config =
         load_runx_config_file(&home.join("config.json")).map_err(|error| error.to_string())?;
@@ -147,7 +153,82 @@ pub fn confirm_credential_profile(
         &credential,
         scopes,
         stored.secret_ref,
+        parameters,
     )
+}
+
+/// Confirm an instance that holds no authority, with the parameters it
+/// pins, and select it: a store at a location that needs no password.
+pub fn confirm_public(
+    instances: &Instances,
+    connector: &LoadedConnector,
+    parameters: JsonObject,
+) -> Result<ConnectorInstance, String> {
+    let manifest = &connector.manifest;
+    if !manifest
+        .placements
+        .local
+        .as_ref()
+        .is_some_and(|local| local.auth.contains(&LocalAuth::None))
+    {
+        return Err(format!(
+            "connector {} does not act without authority locally",
+            manifest.id
+        ));
+    }
+    let parameters = instance_parameters(connector, parameters)?;
+    let digest =
+        sha256_prefixed(&serde_json::to_vec(&parameters).map_err(|error| error.to_string())?);
+    let mut instance = pinned(
+        connector,
+        instance_id(&[
+            "public",
+            manifest.id.as_str(),
+            &digest.trim_start_matches("sha256:")[..12],
+        ])?,
+        Placement::Local,
+        "runx:public".to_owned(),
+        None,
+        InstanceAuthority::Public,
+    );
+    instance.parameters = parameters;
+    confirm(instances, connector, instance)
+}
+
+/// The parameters an instance pins: none for a connector that declares
+/// none, else exactly what its schema admits.
+fn instance_parameters(
+    connector: &LoadedConnector,
+    parameters: JsonObject,
+) -> Result<JsonObject, String> {
+    let manifest = &connector.manifest;
+    let Some(schema) = &manifest.parameters else {
+        return match parameters.keys().next() {
+            None => Ok(parameters),
+            Some(name) => Err(format!(
+                "connector {} takes no instance parameter {name}",
+                manifest.id
+            )),
+        };
+    };
+    let schema = serde_json::to_value(schema).map_err(|error| error.to_string())?;
+    let validator = jsonschema::draft202012::options()
+        .build(&schema)
+        .map_err(|error| {
+            format!(
+                "connector {}'s parameter schema is invalid: {error}",
+                manifest.id
+            )
+        })?;
+    let instance = serde_json::to_value(&parameters).map_err(|error| error.to_string())?;
+    match validator.iter_errors(&instance).next() {
+        None => Ok(parameters),
+        Some(error) => Err(format!(
+            "the parameters at {:?} do not satisfy connector {}'s schema: {error}",
+            error.instance_path().as_str(),
+            manifest.id
+        )),
+    }
 }
 
 fn credential_declaration<'a>(
@@ -218,9 +299,10 @@ fn confirm_credential_instance(
     credential: &CredentialName,
     scopes: BTreeSet<String>,
     material_ref: String,
+    parameters: JsonObject,
 ) -> Result<ConnectorInstance, String> {
     let manifest = &connector.manifest;
-    let instance = pinned(
+    let mut instance = pinned(
         connector,
         instance_id(&["credential", manifest.id.as_str(), profile])?,
         Placement::Local,
@@ -233,6 +315,7 @@ fn confirm_credential_instance(
             material_ref: material_ref.into(),
         },
     );
+    instance.parameters = parameters;
     confirm(instances, connector, instance)
 }
 

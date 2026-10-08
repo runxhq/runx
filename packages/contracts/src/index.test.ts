@@ -163,8 +163,8 @@ describe("@runxhq/contracts", () => {
     const committed = validateDataOperationResultContract({
       schema: RUNX_LOGICAL_SCHEMAS.dataOperationResult,
       data_source_ref: "tenant://acme/board",
-      provider: "postgres",
-      operation: "append_event",
+      provider: "store",
+      operation: "events.append",
       resource: "board_events",
       aggregate_id: "posting-123",
       status: "committed",
@@ -181,19 +181,18 @@ describe("@runxhq/contracts", () => {
       redactions: [],
       stop_conditions: [],
       provider_evidence: {
-        adapter: "data.postgres",
-        profile: "prod-board",
+        backend: "postgres",
       },
     });
 
     expect(committed.status).toBe("committed");
-    expect(committed.provider_evidence?.adapter).toBe("data.postgres");
+    expect(committed.provider_evidence?.backend).toBe("postgres");
 
     const conflict = validateDataOperationResultContract({
       schema: RUNX_LOGICAL_SCHEMAS.dataOperationResult,
       data_source_ref: "tenant://acme/board",
-      provider: "postgres",
-      operation: "append_event",
+      provider: "store",
+      operation: "events.append",
       resource: "board_events",
       aggregate_id: "posting-123",
       status: "conflict",
@@ -215,8 +214,7 @@ describe("@runxhq/contracts", () => {
         },
       ],
       provider_evidence: {
-        adapter: "data.postgres",
-        profile: "prod-board",
+        backend: "postgres",
       },
     });
 
@@ -510,20 +508,11 @@ describe("@runxhq/contracts", () => {
     expect(runxGeneratedSchemaArtifacts["effect-finality-receipt.schema.json"])
       .toBe(runxContractSchemas.effectFinalityReceipt);
     expect(runxGeneratedSchemaArtifacts["run-summary.schema.json"]).toBe(runxContractSchemas.runSummary);
-    const retiredReceiptArtifact = `${"harness"}-receipt.schema.json` as keyof typeof runxGeneratedSchemaArtifacts;
-    expect(runxGeneratedSchemaArtifacts[retiredReceiptArtifact]).toBeUndefined();
-    const retiredCentralArtifact = `${"engage"}ment.schema.json` as keyof typeof runxGeneratedSchemaArtifacts;
-    const retiredEvidenceArtifact = `${"evidence"}-bundle.schema.json` as keyof typeof runxGeneratedSchemaArtifacts;
-    expect(runxGeneratedSchemaArtifacts[retiredCentralArtifact]).toBeUndefined();
-    expect(runxGeneratedSchemaArtifacts[retiredEvidenceArtifact])
-      .toBeUndefined();
     expect(runxGeneratedSchemaArtifacts["handoff-signal.schema.json"]).toBe(runxContractSchemas.handoffSignal);
     expect(runxGeneratedSchemaArtifacts["handoff-state.schema.json"]).toBe(runxContractSchemas.handoffState);
     expect(runxGeneratedSchemaArtifacts["suppression-record.schema.json"]).toBe(runxContractSchemas.suppressionRecord);
     expect(runxGeneratedSchemaArtifacts["operational-policy.schema.json"]).toBe(runxContractSchemas.operationalPolicy);
     expect(runxGeneratedSchemaArtifacts["operational-proposal.schema.json"]).toBe(runxContractSchemas.operationalProposal);
-    const retiredIssueArtifact = `${"issue"}-to-pr-${"out"}come.schema.json` as keyof typeof runxGeneratedSchemaArtifacts;
-    expect(runxGeneratedSchemaArtifacts[retiredIssueArtifact]).toBeUndefined();
     expect(runxGeneratedSchemaArtifacts["review-receipt-output.schema.json"].$id).toBe(reviewReceiptOutputSchema.$id);
   });
 
@@ -792,7 +781,7 @@ describe("@runxhq/contracts", () => {
 
     expect(validateReceiptContract({
       schema: "runx.receipt.v1",
-      id: "hrn_rcpt_123",
+      id: "rcpt_123",
       created_at: "2026-05-18T00:03:01Z",
       canonicalization: "runx.receipt.c14n.v1",
       issuer: {
@@ -918,7 +907,6 @@ describe("@runxhq/contracts", () => {
       seal,
       lineage: {
         children: [],
-        sync: [],
       },
     })).toMatchObject({
       schema: "runx.receipt.v1",
@@ -927,7 +915,7 @@ describe("@runxhq/contracts", () => {
 
     expect(() => validateReceiptContract({
       schema: "runx.receipt.v1",
-      id: "hrn_rcpt_bad",
+      id: "rcpt_bad",
     })).toThrow(/receipt\/v1\.json/);
     expect(() => validateSignalContract({
       schema: "runx.signal.v1",
@@ -968,7 +956,7 @@ describe("@runxhq/contracts", () => {
         owner: "runx",
         trust_tier: "first_party",
         version: "1.0.0",
-        profile_path: "X.yaml",
+        profile_path: "run.yaml",
         materialized_package_is_registry_artifact: true,
       },
       harness: {
@@ -998,7 +986,7 @@ describe("@runxhq/contracts", () => {
         owner: "runx",
         trust_tier: "first_party",
         version: "1.0.0",
-        profile_path: "X.yaml",
+        profile_path: "run.yaml",
         materialized_package_is_registry_artifact: true,
       },
       harness: {

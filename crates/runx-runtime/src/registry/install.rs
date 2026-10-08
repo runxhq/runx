@@ -588,7 +588,7 @@ fn install_paths(
     let runner_manifest_path = candidate
         .profile_document
         .as_ref()
-        .map(|_| package_root.join("X.yaml"));
+        .map(|_| package_root.join(runx_parser::PROFILE_FILE));
     InstallPaths {
         package_root,
         destination,
@@ -732,11 +732,9 @@ fn validate_install_binding_manifest(
     let Some(manifest) = manifest else {
         return Ok(advertised_runner_names.to_vec());
     };
-    if let Some(manifest_skill) = &manifest.skill
-        && manifest_skill != skill_name
-    {
+    if manifest.skill != skill_name {
         return Err(InstallError::ManifestSkillMismatch {
-            manifest_skill: manifest_skill.clone(),
+            manifest_skill: manifest.skill.clone(),
             skill_name: skill_name.to_owned(),
         });
     }

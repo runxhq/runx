@@ -87,12 +87,6 @@ pub(super) fn render_search(
             .category
             .as_ref()
             .map(|category| format!("    category {category}\n"))
-            .or_else(|| {
-                result
-                    .source_category
-                    .as_ref()
-                    .map(|category| format!("    source-category {category}\n"))
-            })
             .unwrap_or_default();
         output.push_str(&format!(
             "  - {}@{}\n{}    digest   {}\n    trust    {}\n    install  {}\n    run      {}\n",
@@ -121,12 +115,6 @@ pub(super) fn render_read(
         .category
         .as_ref()
         .map(|category| format!("  category         {category}\n"))
-        .or_else(|| {
-            skill
-                .source_category
-                .as_ref()
-                .map(|category| format!("  source category  {category}\n"))
-        })
         .unwrap_or_default();
     format!(
         "\n  registry read    {registry_ref}\n  source           {source}\n  skill            {}\n{}  version          {}\n  digest           {}\n  trust            {}\n  signed           {}\n  next             {}\n\n",

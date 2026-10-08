@@ -41,7 +41,7 @@ harness:
             - Do not rediscover supplied evidence.
       caller:
         answers:
-          agent_task.demo-decide.output:
+          agent.demo-decide.output:
             decision:
               status: ready
       expect:
@@ -50,11 +50,11 @@ harness:
 runners:
   decide:
     default: true
-    type: agent-task
-    agent: builder
-    task: demo-decide
-    outputs:
-      decision: object
+    steps:
+      - id: decide
+        agent: { role: builder, task: demo-decide }
+        outputs:
+          decision: object
 "#;
 
 #[test]
@@ -64,7 +64,7 @@ fn authoring_rejects_a_change_between_validation_and_commit_without_partial_appl
     let target_path = temp.path().join("skills/demo");
     fs::create_dir_all(&target_path)?;
     fs::write(target_path.join("SKILL.md"), VALID_MANUAL)?;
-    fs::write(target_path.join("X.yaml"), VALID_MANIFEST)?;
+    fs::write(target_path.join("run.yaml"), VALID_MANIFEST)?;
 
     let target = ApplyTarget::resolve(temp.path(), "skills/demo")?;
     let change = change_bundle(
@@ -156,7 +156,7 @@ fn architecture() -> Result<SkillArchitectureDecision, RuntimeError> {
         "required_behaviors": [{
             "id": "decide",
             "outcome": "Return one bounded decision.",
-            "lane": "agent_task"
+            "lane": "agent"
         }],
         "native_reuse": {
             "inspected_capabilities": ["runx.skill.inspect", "runx.skill.apply"],
@@ -173,7 +173,6 @@ fn architecture() -> Result<SkillArchitectureDecision, RuntimeError> {
         "resource_budget": {
             "max_files": 8,
             "max_executable_lines": 0,
-            "max_fanout": 1,
             "max_process_spawns": 0,
             "network_allowed": false
         },

@@ -1,6 +1,6 @@
 // Module rationale: native dev skill/graph replay keeps
-// fixture preparation, expectation projection, and harness invocation together
-// until the CLI watch cutover creates a stable module boundary.
+// fixture preparation, expectation projection, and harness invocation
+// together.
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -19,13 +19,13 @@ use super::types::{
     DevError, DevFixtureAssertion, DevFixtureAssertionKind, DevFixtureResult, DevFixtureStatus,
     LoadedDevFixture, PreparedDevFixtureWorkspace,
 };
-#[cfg(feature = "cli-tool")]
-use crate::adapters::cli_tool::CliToolAdapter;
-#[cfg(not(feature = "cli-tool"))]
+#[cfg(feature = "process-tool")]
+use crate::adapters::process_tool::ProcessToolAdapter;
+#[cfg(not(feature = "process-tool"))]
 use crate::harness::run_harness_fixture;
 use crate::harness::{HarnessExpectedStatus, HarnessReplayError, HarnessReplayOutput};
-#[cfg(feature = "cli-tool")]
-use crate::{RuntimeOptions, run_harness_fixture_with_adapter};
+#[cfg(feature = "process-tool")]
+use crate::{HarnessOptions, run_harness_fixture_with_adapter};
 
 pub(super) fn run_skill_or_graph_fixture(
     root: &Path,
@@ -96,13 +96,13 @@ fn run_dev_harness_fixture(
     path: &Path,
     _env: &BTreeMap<String, String>,
 ) -> Result<HarnessReplayOutput, HarnessReplayError> {
-    #[cfg(feature = "cli-tool")]
+    #[cfg(feature = "process-tool")]
     {
-        let options = RuntimeOptions::from_env_or_local_development(_env.clone())
-            .map_err(HarnessReplayError::Runtime)?;
-        run_harness_fixture_with_adapter(path, CliToolAdapter, options)
+        let options =
+            HarnessOptions::from_env(_env.clone()).map_err(HarnessReplayError::Runtime)?;
+        run_harness_fixture_with_adapter(path, ProcessToolAdapter, options)
     }
-    #[cfg(not(feature = "cli-tool"))]
+    #[cfg(not(feature = "process-tool"))]
     {
         run_harness_fixture(path, _env.clone())
     }
@@ -139,11 +139,14 @@ fn write_harness_replay_fixture(
     if !env.is_empty() {
         harness.insert("env".to_owned(), JsonValue::Object(env));
     }
-    if !fixture.definition.caller.is_empty() {
-        harness.insert(
-            "caller".to_owned(),
-            JsonValue::Object(fixture.definition.caller.clone()),
-        );
+    if fixture.definition.caller != runx_parser::HarnessCaller::default() {
+        let caller = serde_json::to_value(&fixture.definition.caller)
+            .and_then(serde_json::from_value::<JsonValue>)
+            .map_err(|source| DevError::Json {
+                path: fixture.path.clone(),
+                source,
+            })?;
+        harness.insert("caller".to_owned(), caller);
     }
     let path = unique_harness_fixture_path()?;
     let contents = serde_json::to_string_pretty(&JsonValue::Object(harness)).map_err(|source| {
@@ -250,7 +253,7 @@ fn dev_output_from_harness(output: &HarnessReplayOutput) -> JsonValue {
         JsonValue::String(output.receipt.id.to_string()),
     );
     object.insert(
-        "harness_id".to_owned(),
+        "subject_ref".to_owned(),
         JsonValue::String(output.receipt.subject.reference.uri.clone().into_string()),
     );
     object.insert(

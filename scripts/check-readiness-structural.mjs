@@ -17,8 +17,6 @@ const trackedFiles = execFileSync("git", ["ls-files", "--cached", "--others", "-
 const trackedFileSet = new Set(trackedFiles);
 
 const failures = [
-  ...checkRetiredCoreImports(),
-  ...checkStaleWorkspaceCommands(),
   ...checkCommittedBuildOutput(),
   ...checkTrackedEmptyDirPlaceholders(),
   ...checkDuplicateActiveAndDraftSpecs(),
@@ -33,61 +31,6 @@ if (failures.length > 0) {
 }
 
 console.log("Readiness structural guard passed.");
-
-function checkRetiredCoreImports() {
-  const failures = [];
-  const roots = [
-    ".github/",
-    "crates/",
-    "examples/",
-    "fixtures/",
-    "package.json",
-    "packages/",
-    "pnpm-lock.yaml",
-    "scripts/",
-    "tests/",
-    "tools/",
-  ];
-  const importPattern =
-    /\b(?:from|import)\s*["']@runxhq\/core(?:\/[^"']*)?["']|\b(?:import|require)\(\s*["']@runxhq\/core(?:\/[^"']*)?["']\s*\)|^\s*['"]?@runxhq\/core(?:\/[^'":]*)?['"]?\s*:/mu;
-
-  for (const file of trackedFiles) {
-    if (!roots.some((root) => file === root || file.startsWith(root))) {
-      continue;
-    }
-    if (isGeneratedOrVendorPath(file) || isBinaryish(file)) {
-      continue;
-    }
-    const source = readFileSync(path.join(workspaceRoot, file), "utf8");
-    if (importPattern.test(source)) {
-      failures.push(`${file} references retired @runxhq/core as an import or package dependency`);
-    }
-  }
-
-  return failures;
-}
-
-function checkStaleWorkspaceCommands() {
-  const failures = [];
-  const documentation = new Set([
-    "CONTRIBUTING.md",
-    "README.md",
-    ...trackedFiles.filter((file) => file.startsWith("docs/") && file.endsWith(".md")),
-  ]);
-  const staleCommandPattern = /\b(?:cd\s+oss|pnpm\s+--dir\s+oss)\b|oss\/packages\/cli/u;
-
-  for (const file of documentation) {
-    if (!trackedFileSet.has(file)) {
-      continue;
-    }
-    const source = readFileSync(path.join(workspaceRoot, file), "utf8");
-    if (staleCommandPattern.test(source)) {
-      failures.push(`${file} contains a stale parent-workspace command for the standalone OSS checkout`);
-    }
-  }
-
-  return failures;
-}
 
 function checkCommittedBuildOutput() {
   const failures = [];

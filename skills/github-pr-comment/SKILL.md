@@ -1,8 +1,6 @@
 ---
 name: github-pr-comment
 description: Post one exact GitHub pull-request comment through the GitHub connector, with retry safety and independent readback.
-runx:
-  category: code
 ---
 
 # GitHub PR Comment

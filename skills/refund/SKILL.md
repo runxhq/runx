@@ -1,8 +1,6 @@
 ---
 name: refund
 description: Refund one sealed payment through Runx Hosted with bounded authority, approval, idempotency, and readback.
-runx:
-  category: payments
 ---
 
 # Refund

@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use runx_contracts::{JsonObject, JsonValue, PaidSkillOfferTerms};
+use runx_contracts::PaidSkillOfferTerms;
 use runx_parser::{CatalogMetadata, SkillRunnerManifest, ValidatedSkill};
 use serde::{Deserialize, Serialize};
 
@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 ///
 /// This projection is deliberately produced by the native package validator.
 /// Registry clients may store it, but must not reconstruct execution semantics
-/// by parsing `SKILL.md` or `X.yaml` independently.
+/// by parsing `SKILL.md` or `run.yaml` independently.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct RegistryPackageMetadata {
     pub name: String,
@@ -16,24 +16,13 @@ pub struct RegistryPackageMetadata {
     pub description: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub category: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub source_category: Option<String>,
     pub runner_names: Vec<String>,
-    pub source_type: String,
     pub catalog_kind: String,
     pub catalog_audience: String,
     pub catalog_visibility: String,
     pub required_scopes: Vec<String>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub marketplace_offers: BTreeMap<String, PaidSkillOfferTerms>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub runtime: Option<JsonValue>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub auth: Option<JsonValue>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub risk: Option<JsonValue>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub runx: Option<JsonObject>,
     pub tags: Vec<String>,
     pub harness_cases: Vec<RegistryHarnessCaseMetadata>,
 }
@@ -55,10 +44,8 @@ pub(crate) fn project_registry_package_metadata(
     RegistryPackageMetadata {
         name: skill.name.clone(),
         description: skill.description.clone(),
-        category: skill.runx_category.clone(),
-        source_category: skill.category.clone(),
+        category: catalog.category.clone(),
         runner_names: registry_runner_names(manifest),
-        source_type: registry_source_type(manifest),
         catalog_kind: catalog.kind.as_str().to_owned(),
         catalog_audience: catalog.audience.as_str().to_owned(),
         catalog_visibility: catalog.visibility.as_str().to_owned(),
@@ -67,11 +54,7 @@ pub(crate) fn project_registry_package_metadata(
             .and_then(|manifest| manifest.marketplace.as_ref())
             .map(|marketplace| marketplace.offers.clone())
             .unwrap_or_default(),
-        runtime: registry_runtime(manifest),
-        auth: selected_registry_runner(manifest).and_then(|runner| runner.auth.clone()),
-        risk: registry_risk(manifest),
-        runx: skill.runx.clone(),
-        tags: registry_tags(skill, manifest),
+        tags: registry_tags(&catalog),
         harness_cases: registry_harness_cases(manifest),
     }
 }
@@ -120,6 +103,10 @@ pub(crate) fn registry_catalog(manifest: Option<&SkillRunnerManifest>) -> Catalo
             completion: None,
             requires_adapter: None,
             approval: None,
+            category: None,
+            tags: Vec::new(),
+            owner: None,
+            links: BTreeMap::new(),
         })
 }
 
@@ -139,80 +126,16 @@ fn registry_required_scopes(manifest: Option<&SkillRunnerManifest>) -> Vec<Strin
     )
 }
 
-fn registry_runtime(manifest: Option<&SkillRunnerManifest>) -> Option<JsonValue> {
-    let manifest = manifest?;
-    let runners = manifest
-        .runners
-        .values()
-        .filter(|runner| runner.runtime.is_some())
-        .map(|runner| JsonValue::String(runner.name.clone()))
-        .collect::<Vec<_>>();
-    if runners.is_empty() {
-        None
-    } else {
-        Some(JsonValue::Object(
-            [("runners".to_owned(), JsonValue::Array(runners))].into(),
-        ))
-    }
-}
-
-fn registry_risk(manifest: Option<&SkillRunnerManifest>) -> Option<JsonValue> {
-    selected_registry_runner(manifest).and_then(|runner| runner.risk.clone())
-}
-
-fn registry_tags(skill: &ValidatedSkill, manifest: Option<&SkillRunnerManifest>) -> Vec<String> {
+/// The catalog's tags, then its category as a tag.
+fn registry_tags(catalog: &CatalogMetadata) -> Vec<String> {
     unique(
-        tags_from(skill.runx.as_ref())
-            .into_iter()
-            .chain(skill.runx_category.clone())
-            .chain(
-                manifest
-                    .into_iter()
-                    .flat_map(|manifest| manifest.runners.values())
-                    .flat_map(|runner| tags_from(runner.runx.as_ref())),
-            )
+        catalog
+            .tags
+            .iter()
+            .cloned()
+            .chain(catalog.category.clone())
             .collect(),
     )
-}
-
-fn registry_source_type(manifest: Option<&SkillRunnerManifest>) -> String {
-    selected_registry_runner(manifest)
-        .map(|runner| runner.source.source_type.as_str().to_owned())
-        .unwrap_or_else(|| {
-            if manifest.is_some_and(|manifest| !manifest.runners.is_empty()) {
-                "multi-runner".to_owned()
-            } else {
-                "manual".to_owned()
-            }
-        })
-}
-
-fn selected_registry_runner(
-    manifest: Option<&SkillRunnerManifest>,
-) -> Option<&runx_parser::SkillRunnerDefinition> {
-    let manifest = manifest?;
-    manifest
-        .runners
-        .values()
-        .find(|runner| runner.default)
-        .or_else(|| {
-            (manifest.runners.len() == 1)
-                .then(|| manifest.runners.values().next())
-                .flatten()
-        })
-}
-
-fn tags_from(value: Option<&JsonObject>) -> Vec<String> {
-    let Some(JsonValue::Array(values)) = value.and_then(|value| value.get("tags")) else {
-        return Vec::new();
-    };
-    values
-        .iter()
-        .filter_map(|value| match value {
-            JsonValue::String(value) if !value.is_empty() => Some(value.clone()),
-            _ => None,
-        })
-        .collect()
 }
 
 fn unique(values: Vec<String>) -> Vec<String> {

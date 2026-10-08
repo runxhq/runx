@@ -2,10 +2,10 @@ export function prepareHistory(inputs) {
   const objective = requiredString(inputs.objective, "objective");
   const scope = stringValue(inputs.scope) || "workspace";
   const limit = boundedLimit(inputs.limit);
-  const historyReplay = Array.isArray(inputs.history_receipts);
+  const historyReplay = Array.isArray(inputs.runs);
   const catalogReplay = Array.isArray(inputs.catalog_items);
   if (historyReplay !== catalogReplay) {
-    throw new Error("history_receipts and catalog_items must be supplied together for replay");
+    throw new Error("runs and catalog_items must be supplied together for replay");
   }
   return {
     history_context: {
@@ -13,6 +13,10 @@ export function prepareHistory(inputs) {
       scope,
       skill_filter: ["workspace", "all"].includes(scope) ? null : scope,
       period: stringValue(inputs.period),
+      // An absolute lower bound is passed as since; a relative one such as
+      // 7d is resolved by the run list against as_of.
+      since: absoluteInstant(inputs.period),
+      lookback: absoluteInstant(inputs.period) ? null : stringValue(inputs.period),
       as_of: stringValue(inputs.as_of),
       limit,
       path: historyReplay ? "replay" : "live",
@@ -24,26 +28,21 @@ export function finalizeHistory(inputs) {
   const prepared = requiredRecord(inputs.history_context, "history_context");
   const historyOverride = prepared.path === "replay";
   const catalogOverride = prepared.path === "replay";
-  const nativeHistory = record(inputs.receipt_query);
   const nativeCatalog = record(inputs.authoring_context);
-  const history = historyOverride
-    ? {
-        receipts: records(inputs.history_receipts).slice(0, prepared.limit),
-        pending_runs: records(inputs.pending_runs).slice(0, prepared.limit),
-        filter: {},
-      }
-    : nativeHistory;
+  const listedRuns = historyOverride
+    ? records(inputs.runs).slice(0, prepared.limit)
+    : records(record(inputs.run_list).runs);
   const catalogItems = catalogOverride
     ? records(inputs.catalog_items)
     : records(nativeCatalog.catalog_skills);
-  const receipts = records(history.receipts)
-    .filter((row) => !prepared.skill_filter || stringValue(row.name)?.toLowerCase().includes(prepared.skill_filter.toLowerCase()));
-  const pending = records(history.pending_runs)
-    .filter((row) => !prepared.skill_filter || stringValue(row.name)?.toLowerCase().includes(prepared.skill_filter.toLowerCase()));
-  const filteredCatalog = catalogItems
-    .filter((row) => !prepared.skill_filter || stringValue(row.name)?.toLowerCase().includes(prepared.skill_filter.toLowerCase()));
-  const statuses = countBy(receipts, (row) => stringValue(row.status) || "unknown");
-  const terminalCount = receipts.length;
+  const matchesSkill = (name) =>
+    !prepared.skill_filter || stringValue(name)?.toLowerCase().includes(prepared.skill_filter.toLowerCase());
+  const runs = listedRuns.filter((row) => matchesSkill(row.skill));
+  const sealed = runs.filter((row) => row.state === "sealed");
+  const pending = runs.filter((row) => row.state === "paused");
+  const filteredCatalog = catalogItems.filter((row) => matchesSkill(row.name));
+  const statuses = countBy(sealed, (row) => stringValue(row.disposition) || "unknown");
+  const terminalCount = sealed.length;
   const refusalCount = (statuses.blocked || 0) + (statuses.declined || 0);
   const testedCatalogEntries = filteredCatalog.filter((item) => numberValue(item.fixtures) + numberValue(item.harness_cases) > 0).length;
   const untestedCatalogEntries = filteredCatalog.length - testedCatalogEntries;
@@ -57,12 +56,12 @@ export function finalizeHistory(inputs) {
       query: {
         scope: prepared.scope,
         period: prepared.period,
-        since: stringValue(history.filter?.since),
+        since: prepared.since,
         skill_filter: prepared.skill_filter,
         limit: prepared.limit,
       },
       sources: {
-        history: historyOverride ? "supplied_replay" : "receipt.query",
+        history: historyOverride ? "supplied_replay" : "run.list",
         catalog: catalogOverride ? "supplied_replay" : "runx.skill.inspect",
       },
       runs: {
@@ -71,7 +70,7 @@ export function finalizeHistory(inputs) {
         statuses,
         closed_rate: rate(statuses.closed || 0, terminalCount),
         refusal_rate: rate(refusalCount, terminalCount),
-        top_subjects: topCounts(receipts, (row) => stringValue(row.name) || "unknown", 10),
+        top_subjects: topCounts(sealed, (row) => stringValue(row.skill) || "unknown", 10),
       },
       catalog: {
         entry_count: filteredCatalog.length,
@@ -81,7 +80,7 @@ export function finalizeHistory(inputs) {
       },
       recommendations: recommendations({ decision, statuses, refusalCount, untestedCatalogEntries }),
       limitations: [
-        "Native history exposes receipt outcomes and subject identifiers, not execution bodies.",
+        "The run list exposes each run's state and sealed disposition, not its execution bodies.",
         "Catalog coverage proves declared fixtures or inline cases, not live provider behavior.",
       ],
     },
@@ -94,10 +93,10 @@ function recommendations({ decision, statuses, refusalCount, untestedCatalogEntr
   }
   const items = [];
   if ((statuses.failed || 0) > 0 || (statuses.timed_out || 0) > 0) {
-    items.push({ lane: "diagnose-skill-run", action: "Diagnose representative failed or timed-out receipts and route bounded fixes through skill-lab improve." });
+    items.push({ lane: "diagnose-skill-run", action: "Diagnose representative failed or timed-out runs and route bounded fixes through skill-lab improve." });
   }
   if (refusalCount > 0) {
-    items.push({ lane: "audit-receipt", action: "Sample blocked or declined receipts to confirm the governance boundary is behaving as intended." });
+    items.push({ lane: "audit-receipt", action: "Sample the receipts of blocked or declined runs to confirm the governance boundary is behaving as intended." });
   }
   if (untestedCatalogEntries > 0) {
     items.push({ lane: "skill-lab harness", action: `Add public-contract coverage to ${untestedCatalogEntries} catalog entr${untestedCatalogEntries === 1 ? "y" : "ies"} with no declared fixture or inline case.` });
@@ -127,8 +126,13 @@ function rate(numerator, denominator) {
 function boundedLimit(value) {
   if (value === undefined || value === null || value === "") return 1_000;
   const limit = Number(value);
-  if (!Number.isInteger(limit) || limit < 1 || limit > 10_000) throw new Error("limit must be an integer from 1 to 10000");
+  if (!Number.isInteger(limit) || limit < 1 || limit > 1_000) throw new Error("limit must be an integer from 1 to 1000");
   return limit;
+}
+
+function absoluteInstant(value) {
+  const text = stringValue(value);
+  return text && text.includes("T") && Number.isFinite(Date.parse(text)) ? text : null;
 }
 
 function numberValue(value) {

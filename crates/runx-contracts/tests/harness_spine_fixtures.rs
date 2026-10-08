@@ -62,36 +62,6 @@ fn governed_act_ref_requires_receipt_context() {
     assert!(result.is_err());
 }
 
-#[test]
-fn provider_workflow_act_form_is_rejected() {
-    let value = serde_json::json!({
-        "act_id": "act_legacy",
-        "form": "pull_request",
-        "intent": {
-            "purpose": "Do legacy work",
-            "legitimacy": "Not admitted"
-        },
-        "summary": "Provider workflow names are not act forms",
-        "closure": {
-            "disposition": "blocked",
-            "reason_code": "provider_workflow_form",
-            "summary": "Provider workflow names are not act forms",
-            "closed_at": "2026-05-18T00:00:00Z"
-        },
-        "source_refs": [],
-        "target_refs": [],
-        "surface_refs": [],
-        "artifact_refs": [],
-        "verification_refs": [],
-        "harness_refs": [],
-        "performed_at": "2026-05-18T00:00:00Z"
-    });
-
-    let result = serde_json::from_value::<Act>(value);
-
-    assert!(result.is_err());
-}
-
 fn assert_roundtrip(fixture: Fixture) -> Result<(), serde_json::Error> {
     match fixture.fixture_kind {
         FixtureKind::Act => roundtrip::<Act>(fixture.expected),

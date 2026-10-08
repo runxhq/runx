@@ -95,12 +95,13 @@ harness:
 runners:
   run:
     default: true
-    type: javascript
-    module: child.mjs
-    outputs:
-      nested: object
-    artifacts:
-      named_emits: { nested: nested }
+    steps:
+      - id: run
+        tool: { module: child.mjs }
+        outputs:
+          nested: object
+        artifacts:
+          named_emits: { nested: nested }
 `,
   );
   writeFileSync(
@@ -135,13 +136,10 @@ runners:
 runners:
   run:
     default: true
-    type: graph
-    graph:
-      name: registry-parent
-      result_from: [nested]
-      steps:
-        - id: nested
-          skill: registry:acme/registry-child@1.0.0
+    result_from: [nested]
+    steps:
+      - id: nested
+        skill: registry:acme/registry-child@1.0.0
 `,
   );
   const output = runJson([
@@ -175,12 +173,11 @@ function proveDeclaredEnvironment() {
 runners:
   run:
     default: true
-    type: javascript
-    module: environment.mjs
-    environment:
-      required: [RELEASE_SMOKE_MARKER]
-    outputs:
-      environment: object
+    steps:
+      - id: run
+        tool: { module: environment.mjs, environment: { required: [RELEASE_SMOKE_MARKER] } }
+        outputs:
+          environment: object
 `,
   );
   writeFileSync(
@@ -232,11 +229,11 @@ function proveOperatorContext() {
 runners:
   inspect:
     default: true
-    type: agent-task
-    agent: operator
-    task: inspect-context
-    outputs:
-      report: object
+    steps:
+      - id: inspect
+        agent: { role: operator, task: inspect-context }
+        outputs:
+          report: object
 `,
     [
       "This manual proves that a packaged candidate carries the complete operating",
@@ -285,31 +282,22 @@ function proveSingleApproval() {
 runners:
   approve:
     default: true
-    type: graph
-    graph:
-      name: approval-probe
-      result_from: [apply]
-      steps:
-        - id: approve
-          run: { type: approval }
-          inputs:
-            gate_id: release-candidate.single-approval
-            reason: Prove one consequential action has one approval owner.
-          artifacts:
-            wrap_as: approval_decision
-            packet: runx.approval.decision.v1
-        - id: apply
-          tool: fs.write
-          scopes: [fs.write]
-          inputs:
-            repo_root: .
-            path: approval-proof.txt
-            contents: one host-attested human approval
-      policy:
-        guards:
-          - step: apply
-            field: approve.approval_decision.data.approved
-            equals: true
+    result_from: [apply]
+    steps:
+      - id: approve
+        ask: { gate: release-candidate.single-approval, reason: Prove one consequential action has one approval owner. }
+      - id: apply
+        tool: fs.write
+        scopes: [fs.write]
+        inputs:
+          repo_root: .
+          path: approval-proof.txt
+          contents: one host-attested human approval
+    policy:
+      guards:
+        - step: apply
+          field: approve.approval_decision.data.approved
+          equals: true
 `,
   );
   const pausedResult = run(
@@ -409,22 +397,11 @@ function proveOpaqueScopes() {
 runners:
   inspect:
     default: true
-    type: graph
-    graph:
-      name: scope-probe
-      result_from: [read]
-      steps:
-        - id: read
-          tool: provider.read
-          scopes: ["${scope}"]
-          policy:
-            provider_permission: { verb: read }
-          inputs:
-            operation: resource.read
-            target: provider://resource
-            expected_provider: fixture
-            result_fields: [id]
-            input: {}
+    result_from: [read]
+    steps:
+      - id: read
+        tool: data.digest
+        scopes: ["${scope}"]
 `,
   );
   const output = runJson(["skill", "inspect", skill, "--json"]);
@@ -452,12 +429,14 @@ async function proveInterruption() {
 runners:
   run:
     default: true
-    type: javascript
-    module: interrupt.mjs
-    timeout_seconds: 30
+    steps:
+      - id: run
+        tool: { module: interrupt.mjs, timeout_seconds: 30 }
+        outputs:
+          completed: boolean
 `,
   );
-  writeFileSync(path.join(skill, "interrupt.mjs"), "export default () => ({});\n");
+  writeFileSync(path.join(skill, "interrupt.mjs"), "export default () => ({ completed: true });\n");
   const child = spawn(
     runx,
     ["skill", skill, "--receipt-dir", receipts, "--json"],
@@ -559,7 +538,7 @@ This package exercises a bounded release-candidate invariant.
 ${manualBody}
 `,
   );
-  writeFileSync(path.join(directory, "X.yaml"), profile);
+  writeFileSync(path.join(directory, "run.yaml"), profile);
 }
 
 function runJson(args, expectedStatuses = [0]) {

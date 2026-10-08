@@ -43,7 +43,7 @@ fn call<'a>(key: &'a str, text: &'a str) -> StandingCall<'a> {
         delegate_digest: DELEGATE,
         text,
         intent_digest: key,
-        idempotency_key: key,
+        use_key: key,
         run_id: "run-1",
     }
 }
@@ -79,8 +79,53 @@ fn usage_is_bounded_per_day_and_in_total() {
             .used_total,
         2
     );
-    assert!(approvals.was_used("assistant-notify", "k1").unwrap());
-    assert!(!approvals.was_used("assistant-notify", "k3").unwrap());
+}
+
+#[test]
+fn an_act_counts_as_attempted_once_custody_records_it() {
+    use crate::kernel::custody::{Attempt, EffectCustody};
+
+    let (_root, store, approvals) = approvals();
+    approvals.grant(approval(3, 3)).expect("grant");
+    assert!(!approvals.attempted("assistant-notify", "k1").unwrap());
+    let custody = EffectCustody::for_named_act(
+        std::sync::Arc::clone(&store),
+        "slack",
+        "channel.post",
+        "slack-acme",
+        "slack://T123/C456",
+        "k1",
+    );
+    let use_key = custody.use_key(0, "sha256:intent");
+    let cover = approvals
+        .cover("assistant-notify", &call(&use_key, "ship it"))
+        .expect("cover");
+    custody
+        .attempt(
+            &Attempt {
+                intent_digest: "sha256:intent",
+                authority_term_id: "term-1",
+                mandate_ref: None,
+                idempotency_key: "runx:sha256:intent",
+                instance_id: "slack-acme",
+                attempt: 1,
+                approval: None,
+                implementation_digest: None,
+            },
+            Some(&cover),
+            &[],
+        )
+        .expect("attempt");
+    assert!(approvals.attempted("assistant-notify", "k1").unwrap());
+    assert!(!approvals.attempted("assistant-notify", "k2").unwrap());
+    assert_eq!(
+        approvals
+            .status("assistant-notify")
+            .unwrap()
+            .unwrap()
+            .used_total,
+        1
+    );
 }
 
 #[test]

@@ -115,10 +115,7 @@ pub(crate) fn bind_operation_steps(
     requirements: &BTreeMap<String, ConnectorRequirement>,
 ) -> Result<(), ValidationError> {
     for (name, runner) in runners {
-        let Some(graph) = runner.source.graph.as_mut() else {
-            continue;
-        };
-        bind_graph_operations(name, graph, requirements)?;
+        bind_graph_operations(name, &mut runner.graph, requirements)?;
     }
     Ok(())
 }
@@ -129,10 +126,10 @@ fn bind_graph_operations(
     requirements: &BTreeMap<String, ConnectorRequirement>,
 ) -> Result<(), ValidationError> {
     for step in &mut graph.steps {
-        let Some(target) = step.operation.as_mut() else {
+        let field = format!("runners.{runner}.steps.{}.operation", step.id);
+        let crate::StepKind::Operation(target) = &mut step.kind else {
             continue;
         };
-        let field = format!("runners.{runner}.graph.steps.{}.operation", step.id);
         let requirement = requirements.get(&target.requirement).ok_or_else(|| {
             invalid(
                 &field,

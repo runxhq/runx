@@ -15,7 +15,6 @@
                   "minLength": 1,
                   "type": "string"
                 },
-                "minItems": 1,
                 "type": "array"
               },
               "delivery": {
@@ -75,8 +74,7 @@
             "required": [
               "kind",
               "fields",
-              "delivery",
-              "audience"
+              "delivery"
             ],
             "type": "object"
           },
@@ -1421,6 +1419,20 @@
                   "web"
                 ],
                 "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "store": {
+                    "additionalProperties": false,
+                    "properties": {},
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "store"
+                ],
+                "type": "object"
               }
             ]
           },
@@ -1516,6 +1528,10 @@
       "propertyNames": {
         "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$"
       },
+      "type": "object"
+    },
+    "parameters": {
+      "additionalProperties": {},
       "type": "object"
     },
     "placements": {
@@ -1678,6 +1694,7 @@
               "change_request",
               "repository",
               "signal",
+              "run",
               "act",
               "receipt",
               "graph_receipt",

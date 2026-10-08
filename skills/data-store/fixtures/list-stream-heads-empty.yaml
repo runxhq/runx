@@ -13,10 +13,10 @@ expect:
   receipt:
     schema: runx.receipt.v1
   steps:
+    - store-read
     - read
 metadata:
   public_skill: data-store
   source_case: list-stream-heads-empty
   source: skills-fixture
-  runner_kind: graph
   graph_shape: list_stream_heads

@@ -1,8 +1,6 @@
 ---
 name: ghostwrite
 description: Turn validated evidence and operator intent into publication-ready drafts, deterministic channel packages, and provider-neutral handoffs.
-runx:
-  category: content
 ---
 
 # Ghostwrite
@@ -42,7 +40,7 @@ material claim and every context binding before releasing it.
 quality checks and `not_sent` state. `handoff` records the exact target,
 boundary, approval need, and next actor. Neither runner grants external
 authority. Delivery belongs to `send-as`, a publication skill, or the relevant
-provider adapter.
+provider connector.
 
 ## Inputs and result
 

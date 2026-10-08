@@ -35,10 +35,6 @@ impl Host for RecordingHost {
 struct UnusedAdapter;
 
 impl SkillAdapter for UnusedAdapter {
-    fn adapter_type(&self) -> &'static str {
-        "unused"
-    }
-
     fn invoke(&self, _request: SkillInvocation) -> Result<InvocationOutput, RuntimeError> {
         Ok(InvocationOutput::runtime_failure(
             JsonValue::Null,
@@ -93,11 +89,14 @@ fn graph_execution_binds_managed_failure_to_the_owning_step()
     )?;
     fs::write(
         temp.path().join("graph.yaml"),
-        "name: owner\nsteps:\n  - id: owning-step\n    run:\n      type: agent-task\n      agent: test\n      task: work\n      outputs:\n        result: object\n",
+        "name: owner\nsteps:\n  - id: owning-step\n    agent: { role: test, task: work }\n    outputs:\n      result: object\n",
     )?;
     let runtime = Runtime::new(
         UnusedAdapter,
-        RuntimeOptions::local_development(std::env::vars().collect()),
+        RuntimeOptions::local_development(
+            std::env::vars().collect(),
+            crate::support::run_in(temp.path(), "run_manual_context")?,
+        ),
     );
 
     let error = match runtime.run_graph_file_with_host(
@@ -126,12 +125,12 @@ fn skill_manual_context_is_exact_digest_bound_and_progressive()
     fs::write(temp.path().join("SKILL.md"), root_manual)?;
     fs::write(adjacent_dir.join("SKILL.md"), adjacent_manual)?;
     fs::write(
-        adjacent_dir.join("X.yaml"),
-        "skill: adjacent\ncatalog:\n  kind: skill\n  audience: operator\n  visibility: internal\n  role: context\n  execution: read\n  completion: plan\n  requires_adapter: false\n  approval: none\nrunners:\n  operate:\n    default: true\n    type: agent\n    agent: operator\n    outputs:\n      result: object\n",
+        adjacent_dir.join("run.yaml"),
+        "skill: adjacent\ncatalog:\n  kind: skill\n  audience: operator\n  visibility: internal\n  role: context\n  execution: read\n  completion: plan\n  requires_adapter: false\n  approval: none\nrunners:\n  operate:\n    default: true\n    steps:\n      - id: operate\n        agent: { role: operator, task: operate }\n        outputs:\n          result: object\n",
     )?;
     fs::write(
         temp.path().join("context.yaml"),
-        "name: context-summary\nsteps:\n  - id: judge\n    run:\n      type: agent-task\n      agent: operator\n      task: judge\n      outputs:\n        result: object\n    context_skills:\n      - ./context/adjacent\n",
+        "name: context-summary\nsteps:\n  - id: judge\n    agent: { role: operator, task: judge }\n    outputs:\n      result: object\n    context_skills:\n      - ./context/adjacent\n",
     )?;
     fs::write(
         temp.path().join("invoke.yaml"),
@@ -139,7 +138,10 @@ fn skill_manual_context_is_exact_digest_bound_and_progressive()
     )?;
     let runtime = Runtime::new(
         UnusedAdapter,
-        RuntimeOptions::local_development(std::env::vars().collect()),
+        RuntimeOptions::local_development(
+            std::env::vars().collect(),
+            crate::support::run_in(temp.path(), "run_manual_context")?,
+        ),
     );
 
     let mut summary_host = RecordingHost::default();
@@ -205,9 +207,16 @@ fn skill_manual_context_is_exact_digest_bound_and_progressive()
     let resumed: ResolutionRequest = serde_json::from_slice(&wire)?;
     assert_eq!(agent_envelope(&resumed)?.instructions.as_ref(), root_manual);
 
+    let invoking = Runtime::new(
+        UnusedAdapter,
+        RuntimeOptions::local_development(
+            std::env::vars().collect(),
+            crate::support::run_in(temp.path(), "run_manual_invoke")?,
+        ),
+    );
     let mut invoked_host = RecordingHost::default();
     let result =
-        runtime.run_graph_file_with_host(&temp.path().join("invoke.yaml"), &mut invoked_host);
+        invoking.run_graph_file_with_host(&temp.path().join("invoke.yaml"), &mut invoked_host);
     assert!(
         matches!(
             result,

@@ -34,7 +34,7 @@ export function checkServiceBoundary(findings) {
 
 export function checkExecutionSplit(findings, root = workspaceRoot) {
   const runner = "crates/runx-runtime/src/execution/runner";
-  for (const owner of ["step_handlers.rs", "step_handlers/inputs.rs", "step_handlers/output.rs", "step_handlers/host_resolution.rs"]) {
+  for (const owner of ["step_handlers.rs", "step_handlers/output.rs", "step_handlers/host_resolution.rs"]) {
     const relativePath = `${runner}/${owner}`;
     const filePath = path.join(root, relativePath);
     if (!existsSync(filePath)) {
@@ -42,9 +42,6 @@ export function checkExecutionSplit(findings, root = workspaceRoot) {
       continue;
     }
     findings.push(...checkExecutionSource(owner, productionRustSource(readFileSync(filePath, "utf8"))));
-  }
-  if (existsSync(path.join(root, runner, "steps.rs"))) {
-    findings.push(`${runner}/steps.rs is retired; step_handlers owns concrete step execution.`);
   }
 }
 
@@ -61,7 +58,7 @@ export function checkExecutionSource(owner, source) {
     findings.push(`${owner} crosses its execution responsibility boundary (${forbidden}).`);
   }
   if (owner === "step_handlers.rs") {
-    for (const child of ["inputs", "output", "host_resolution"]) {
+    for (const child of ["output", "host_resolution"]) {
       if (!new RegExp(`\\bmod\\s+${child}\\s*;`, "u").test(source)) {
         findings.push(`step_handlers.rs must declare its ${child} owner.`);
       }

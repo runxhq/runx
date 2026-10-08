@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.runx.ai/runx/run/list/v1.json",
+  "x-runx-packet-id": "runx.run.list.v1",
+  "type": "object",
+  "required": ["schema", "runs"],
+  "properties": {
+    "schema": { "const": "runx.run.list.v1" },
+    "runs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["run_id", "skill", "runner", "state", "created_at", "updated_at"],
+        "properties": {
+          "run_id": { "type": "string", "minLength": 1 },
+          "skill": { "type": "string", "minLength": 1 },
+          "runner": { "type": "string", "minLength": 1 },
+          "state": { "enum": ["running", "paused", "sealed"] },
+          "disposition": { "type": "string", "minLength": 1 },
+          "pending_request_id": { "type": "string", "minLength": 1 },
+          "receipt_id": { "type": "string", "minLength": 1 },
+          "created_at": { "type": "string", "minLength": 1 },
+          "updated_at": { "type": "string", "minLength": 1 }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

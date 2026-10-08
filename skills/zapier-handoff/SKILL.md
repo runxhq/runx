@@ -1,8 +1,6 @@
 ---
 name: zapier-handoff
 description: Validate a runx execution context and deliver a governed payload to a Zapier Catch Hook once, with exact approval and the hook's acknowledgement receipted.
-runx:
-  category: ops
 ---
 
 # Zapier Handoff

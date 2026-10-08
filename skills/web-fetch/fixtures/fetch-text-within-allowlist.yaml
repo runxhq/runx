@@ -19,11 +19,12 @@ inputs:
   url: https://fixture.runx.invalid/rfc9110
   extract: text
 caller:
-  http_responses:
-    "https://fixture.runx.invalid/rfc9110":
-      status: 200
-      headers: { content-type: text/plain }
-      body: HTTP Semantics defines interoperable request and response behavior.
+  http_exchanges:
+    - request: { method: GET, url: "https://fixture.runx.invalid/rfc9110", body: none }
+      response:
+        status: 200
+        headers: { content-type: text/plain }
+        body: HTTP Semantics defines interoperable request and response behavior.
 expect:
   status: sealed
   receipt:

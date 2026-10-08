@@ -1,6 +1,6 @@
 // Module rationale: trust projection keeps source,
 // publisher, and local registry search/readback signals together for stable
-// registry parity output.
+// registry output.
 use runx_contracts::{JsonObject, JsonValue};
 
 use super::util::{display_sha256, trust_tier_string};
@@ -145,9 +145,7 @@ pub(super) fn derive_trust_signals(version: &RegistrySkillVersion) -> Vec<TrustS
         trust_tier_signal(version),
         publisher_trust_signal(version),
         provenance_trust_signal(version),
-        source_type_trust_signal(version),
         scopes_trust_signal(version),
-        runtime_trust_signal(version),
         runner_metadata_trust_signal(version),
     ]
 }
@@ -203,15 +201,6 @@ pub(super) fn provenance_trust_signal(version: &RegistrySkillVersion) -> TrustSi
     }
 }
 
-pub(super) fn source_type_trust_signal(version: &RegistrySkillVersion) -> TrustSignal {
-    TrustSignal {
-        id: "source_type".to_owned(),
-        label: "Execution source".to_owned(),
-        status: "declared".to_owned(),
-        value: version.source_type.clone(),
-    }
-}
-
 pub(super) fn scopes_trust_signal(version: &RegistrySkillVersion) -> TrustSignal {
     TrustSignal {
         id: "scopes".to_owned(),
@@ -221,19 +210,6 @@ pub(super) fn scopes_trust_signal(version: &RegistrySkillVersion) -> TrustSignal
             "none declared".to_owned()
         } else {
             version.required_scopes.join(", ")
-        },
-    }
-}
-
-pub(super) fn runtime_trust_signal(version: &RegistrySkillVersion) -> TrustSignal {
-    TrustSignal {
-        id: "runtime".to_owned(),
-        label: "Runtime requirements".to_owned(),
-        status: declared_status(version.runtime.is_some()).to_owned(),
-        value: if version.runtime.is_some() {
-            "declared in skill metadata".to_owned()
-        } else {
-            "none declared".to_owned()
         },
     }
 }
@@ -304,13 +280,11 @@ pub(super) fn search_result_for_version(
         name: version.name.clone(),
         summary: version.description.clone(),
         category: version.category.clone(),
-        source_category: version.source_category.clone(),
         owner: version.owner.clone(),
         version: Some(version.version.clone()),
         digest: Some(version.digest.clone()),
         source: Some("runx-registry".to_owned()),
         source_label: Some("runx registry".to_owned()),
-        source_type: version.source_type.clone(),
         profile_mode: if version.profile_document.is_some() {
             ProfileMode::Profiled
         } else {
@@ -342,7 +316,6 @@ pub(super) fn detail_for_version(
         name: version.name.clone(),
         description: version.description.clone(),
         category: version.category.clone(),
-        source_category: version.source_category.clone(),
         version: version.version.clone(),
         digest: version.digest.clone(),
         signed_manifest: version.signed_manifest.clone(),
@@ -352,7 +325,6 @@ pub(super) fn detail_for_version(
         package_digest: version.package_digest.clone(),
         paid_listing: version.paid_listing.clone(),
         runner_names: version.runner_names.clone(),
-        source_type: version.source_type.clone(),
         trust_tier: version.trust_tier.clone(),
         required_scopes: version.required_scopes.clone(),
         tags: version.tags.clone(),
@@ -389,16 +361,12 @@ pub(super) fn searchable_text(version: &RegistrySkillVersion) -> String {
         version.skill_id.clone(),
         version.name.clone(),
         version.owner.clone(),
-        version.source_type.clone(),
     ];
     if let Some(description) = &version.description {
         parts.push(description.clone());
     }
     if let Some(category) = &version.category {
         parts.push(category.clone());
-    }
-    if let Some(source_category) = &version.source_category {
-        parts.push(source_category.clone());
     }
     parts.extend(version.runner_names.clone());
     parts.extend(version.tags.clone());

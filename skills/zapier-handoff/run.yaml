@@ -1,0 +1,198 @@
+skill: zapier-handoff
+version: "0.2.2"
+catalog:
+  kind: graph
+  audience: operator
+  visibility: public
+  role: context
+  execution: execute
+  completion: provider_acknowledgement
+  requires_adapter: true
+  approval: required
+  category: ops
+input_definitions:
+  event_id:
+    type: string
+    required: true
+    description: Stable event id used by Zapier for deduplication and by Runx for mutation idempotency.
+    schema: { pattern: '^[A-Za-z0-9._:-]{3,200}$' }
+  handoff_audience:
+    type: string
+    required: false
+    default: zapier:zap:runx-governed-effect
+    description: Exact Zap audience expected by the receiver.
+    schema: { pattern: '^zapier:zap:[^\s{}]+$' }
+  execution_context:
+    type: json
+    packet: runx.orchestrator.execution_context.v1
+    required: true
+    description: Caller, principal, workflow, or upstream-run context for the handoff.
+  payload:
+    type: json
+    required: true
+    description: Non-empty business payload delivered intact inside the canonical envelope.
+  source:
+    type: string
+    required: false
+    default: runx
+    description: Human-readable source label.
+    schema: { minLength: 1, maxLength: 256 }
+  receiver:
+    type: json
+    required: false
+    description: Optional receiver metadata; a supplied url must be public HTTPS.
+  zapier_account_id:
+    type: string
+    required: true
+    description: Zapier Catch Hook account id path segment.
+    schema: { pattern: '^[A-Za-z0-9_-]+$', maxLength: 128 }
+  zapier_hook_id:
+    type: string
+    required: true
+    description: Zapier Catch Hook id path segment.
+    schema: { pattern: '^[A-Za-z0-9_-]+$', maxLength: 128 }
+harness:
+  cases:
+    - name: zapier-handoff-preflight-ready
+      operator_journeys:
+        - mode: standalone
+          request: Hand this governed Runx payload to the configured Zapier Catch Hook.
+          expected_outcome: Validate context, scoped auth, idempotency, and receipt expectations for the exact webhook handoff.
+        - mode: composed
+          request: Continue this completed Runx operation into the selected Zapier workflow.
+          expected_outcome: Reuse the supplied run context and payload without rebuilding upstream results or duplicating webhook delivery.
+          prior_evidence:
+            - The validated Runx execution context, payload, hook target, and idempotency key supplied in the fixture.
+          must_not_repeat:
+            - Do not rerun the upstream Runx operation.
+            - Do not deliver the hook again after stable receipt evidence exists.
+      runner: preflight
+      inputs:
+        event_id: evt_zapier_demo_001
+        handoff_audience: zapier:zap:runx-governed-effect
+        execution_context:
+          caller: runx-cli
+          workflow_ref: operator-zap-demo
+          environment: local-dogfood
+        payload:
+          hello: zap
+      expect:
+        status: sealed
+        receipt:
+          schema: runx.receipt.v1
+          state: sealed
+          disposition: closed
+        steps:
+          - build-handoff-context
+        step_outputs:
+          build-handoff-context:
+            subset:
+              handoff_context:
+                data:
+                  platform: zapier
+                  event_id: evt_zapier_demo_001
+                  status: ready
+                  idempotency:
+                    key: evt_zapier_demo_001
+                    receiver_should_dedupe: true
+                  receiver_validation:
+                    require_scope: orchestrator.zapier.workflow.invoke
+                    require_audience: zapier:zap:runx-governed-effect
+                  receipt_expectations:
+                    outbound_effect_must_be_receipted: true
+                    receiver_response_must_be_captured: true
+connectors:
+  zapier:
+    operations: [hook.invoke]
+runners:
+  preflight:
+    default: false
+    inputs:
+      event_id:
+        definition: event_id
+      handoff_audience:
+        definition: handoff_audience
+      execution_context:
+        definition: execution_context
+      payload:
+        definition: payload
+      source:
+        definition: source
+      receiver:
+        definition: receiver
+    examples:
+      - event_id: evt_zapier_demo_001
+        handoff_audience: zapier:zap:runx-governed-effect
+        execution_context: { caller: runx-cli, workflow_ref: operator-zap-demo }
+        payload: { hello: zap }
+    result_from: [build-handoff-context]
+    steps:
+      - id: build-handoff-context
+        tool: control.prepare_handoff
+        inputs:
+          platform: zapier
+          event_id: $input.event_id
+          handoff_scope: orchestrator.zapier.workflow.invoke
+          handoff_audience: $input.handoff_audience
+          execution_context: $input.execution_context
+          payload: $input.payload
+          source: $input.source
+          receiver: $input.receiver
+  send:
+    default: true
+    inputs:
+      zapier_account_id:
+        definition: zapier_account_id
+      zapier_hook_id:
+        definition: zapier_hook_id
+      event_id:
+        definition: event_id
+      handoff_audience:
+        definition: handoff_audience
+      execution_context:
+        definition: execution_context
+      payload:
+        definition: payload
+      source:
+        definition: source
+      receiver:
+        definition: receiver
+    examples:
+      - zapier_account_id: "12345678"
+        zapier_hook_id: abcDEF123
+        event_id: evt_zapier_demo_001
+        handoff_audience: zapier:zap:runx-governed-effect
+        execution_context: { caller: runx-cli, workflow_ref: operator-zap-demo }
+        payload: { hello: zap }
+    result_from: [invoke]
+    steps:
+      - id: build-handoff-context
+        tool: control.prepare_handoff
+        inputs:
+          platform: zapier
+          event_id: $input.event_id
+          handoff_scope: orchestrator.zapier.workflow.invoke
+          handoff_audience: $input.handoff_audience
+          execution_context: $input.execution_context
+          payload: $input.payload
+          source: $input.source
+          receiver: $input.receiver
+      - id: address
+        inputs:
+          zapier_account_id: $input.zapier_account_id
+          hook_id: $input.zapier_hook_id
+        context:
+          delivery: build-handoff-context.handoff_context.data.delivery
+        tool: { module: hook.mjs, export: hookRequest }
+        outputs:
+          hook_request: object
+
+      - id: invoke
+        operation: zapier/hook.invoke
+        idempotency_key: $input.event_id
+        approval:
+          reason: Approve delivering this exact handoff to the Zapier Catch Hook.
+          type: workflow_handoff
+        result_fields: [acknowledgement]
+        context:
+          input: address.hook_request

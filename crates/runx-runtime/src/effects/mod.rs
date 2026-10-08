@@ -14,11 +14,10 @@ pub use external_receipt::{
 pub(crate) use metadata::effect_verification_refs;
 pub use metadata::{EFFECT_VERIFICATION_REFS_METADATA, insert_effect_verification_ref};
 pub use registry::RuntimeEffectRegistry;
-pub use state::{EffectAdmission, EffectReplay};
+pub use state::EffectAdmission;
 pub use types::{
-    EffectOutputRequest, EffectPreparationOutcome, EffectReceiptRequest, EffectReplayOutputRequest,
-    EffectReplayReceiptRequest, EffectStepRequest, EffectToolOutput, EffectToolRequest,
-    ResolvedEffectTarget, RuntimeEffect,
+    EffectOutputRequest, EffectPreparationOutcome, EffectReceiptRequest, EffectStepRequest,
+    EffectToolOutput, EffectToolRequest, ResolvedEffectTarget, RuntimeEffect,
 };
 
 #[cfg(test)]
@@ -28,7 +27,7 @@ mod tests {
 
     use runx_contracts::{AuthorityVerb, JsonObject, JsonValue, Reference};
     use runx_core::state_machine::AuthorityAdmissionWitness;
-    use runx_parser::GraphStep;
+    use runx_parser::{GraphStep, StepKind, ToolTarget};
     use serde::{Deserialize, Serialize};
 
     use super::*;
@@ -131,19 +130,18 @@ mod tests {
     #[test]
     fn registry_dispatches_resolved_effect_target() {
         let registry = valid_registry(MockEffect);
-        let mut step = test_step();
-        step.tool = Some("deploy.inspect".to_owned());
+        let step = test_step("deploy.inspect");
         let inputs = JsonObject::new();
         let env = BTreeMap::new();
         let result = registry.admit(EffectStepRequest {
             step: &step,
             target: ResolvedEffectTarget {
-                skill_name: None,
-                tool_ref: step.tool.as_deref(),
+                tool_ref: step.catalog_tool(),
             },
             inputs: &inputs,
             env: &env,
             graph_dir: Path::new("."),
+            run_id: "run-1",
             run_authority: None,
         });
         assert!(
@@ -172,20 +170,19 @@ mod tests {
 
         let mut registry = valid_registry(MockEffect);
         assert!(registry.register_effect(ConflictingTargetEffect).is_ok());
-        let mut step = test_step();
-        step.tool = Some("deploy.inspect".to_owned());
+        let step = test_step("deploy.inspect");
         let inputs = JsonObject::new();
         let env = BTreeMap::new();
 
         let result = registry.admit(EffectStepRequest {
             step: &step,
             target: ResolvedEffectTarget {
-                skill_name: None,
-                tool_ref: step.tool.as_deref(),
+                tool_ref: step.catalog_tool(),
             },
             inputs: &inputs,
             env: &env,
             graph_dir: Path::new("."),
+            run_id: "run-1",
             run_authority: None,
         });
 
@@ -214,20 +211,19 @@ mod tests {
         }
 
         let registry = valid_registry(NonAdmittingEffect);
-        let mut step = test_step();
-        step.tool = Some("observe.inspect".to_owned());
+        let step = test_step("observe.inspect");
         let inputs = JsonObject::new();
         let env = BTreeMap::new();
 
         let result = registry.admit(EffectStepRequest {
             step: &step,
             target: ResolvedEffectTarget {
-                skill_name: None,
-                tool_ref: step.tool.as_deref(),
+                tool_ref: step.catalog_tool(),
             },
             inputs: &inputs,
             env: &env,
             graph_dir: Path::new("."),
+            run_id: "run-1",
             run_authority: None,
         });
 
@@ -327,7 +323,7 @@ mod tests {
     #[test]
     fn registry_rejects_missing_effect_family_after_admission() {
         let registry = RuntimeEffectRegistry::empty();
-        let step = test_step();
+        let step = test_step("absent.inspect");
         let admission = EffectAdmission::new(
             "absent",
             AuthorityVerb::Write,
@@ -377,28 +373,21 @@ mod tests {
         result.unwrap_or_default()
     }
 
-    fn test_step() -> GraphStep {
+    fn test_step(tool: &str) -> GraphStep {
         GraphStep {
             id: "ship".to_owned(),
             label: None,
-            skill: None,
-            tool: None,
-            run: None,
+            kind: StepKind::Tool(ToolTarget::Catalog(tool.to_owned())),
             artifacts: None,
             outputs: None,
-            runner: None,
             inputs: JsonObject::new(),
             context: BTreeMap::new(),
             context_edges: Vec::new(),
             context_skills: Vec::new(),
             scopes: Vec::new(),
             allowed_tools: None,
-            retry: None,
-            policy: None,
-            fanout_group: None,
             when: None,
             idempotency_key: None,
-            operation: None,
             on_uncertain: None,
             duplicates: None,
         }

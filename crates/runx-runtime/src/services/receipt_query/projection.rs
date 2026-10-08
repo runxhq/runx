@@ -2,14 +2,13 @@ use runx_contracts::{JsonObject, JsonValue};
 
 use super::input::QueryRequest;
 use crate::RuntimeError;
-use crate::journal::LocalHistoryProjection;
+use crate::receipts::archive::ReceiptListing;
 
 struct QueryProjection {
     store_label: String,
     filter: JsonValue,
     receipt_ids: Vec<String>,
     receipts: JsonValue,
-    pending_runs: JsonValue,
     receipt_details: JsonValue,
     verification: JsonValue,
 }
@@ -40,7 +39,6 @@ impl QueryProjection {
                 ),
             ),
             ("receipts".to_owned(), self.receipts),
-            ("pending_runs".to_owned(), self.pending_runs),
             ("receipt_details".to_owned(), self.receipt_details),
             ("verification".to_owned(), self.verification),
         ])
@@ -49,7 +47,7 @@ impl QueryProjection {
 
 pub(super) fn render_query(
     request: QueryRequest,
-    history: Option<LocalHistoryProjection>,
+    history: Option<ReceiptListing>,
     proof: Option<JsonObject>,
     signature_mode: &str,
     resolved_store_label: &str,
@@ -90,17 +88,11 @@ pub(super) fn render_query(
         .or_else(|| proof_store_label(&proof))
         .unwrap_or_else(|| resolved_store_label.to_owned());
 
-    let pending_runs = history
-        .as_ref()
-        .map(|history| to_json(&history.pending_runs))
-        .transpose()?
-        .unwrap_or_else(|| JsonValue::Array(Vec::new()));
     Ok(QueryProjection {
         store_label,
         filter: request.filter_json(),
         receipt_ids: matched_ids,
         receipts,
-        pending_runs,
         receipt_details,
         verification,
     }

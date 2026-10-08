@@ -592,7 +592,6 @@
         "declaration": {
           "additionalProperties": false,
           "properties": {
-            "auth": {},
             "environment": {
               "additionalProperties": false,
               "properties": {
@@ -611,7 +610,6 @@
               },
               "type": "object"
             },
-            "runtime": {},
             "scopes": {
               "items": {
                 "type": "string"

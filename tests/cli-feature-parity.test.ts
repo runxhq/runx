@@ -10,8 +10,7 @@ import {
   type CliFeatureParityContract,
   type OracleCase,
 } from "./cli-feature-parity-contract.js";
-import { ensureRunxBinary, kernelTestEnv, runxBinary } from "./host-protocol-test-utils.js";
-import { appendLedgerEntries, createRunEventEntry } from "./ledger-fixtures.js";
+import { ensureRunxBinary, kernelTestEnv, runxBinary } from "./native-test-environment.js";
 
 describe("CLI feature parity matrix", () => {
   let contract: CliFeatureParityContract;
@@ -59,19 +58,15 @@ describe("CLI feature parity matrix", () => {
       const tempDir = await mkdtemp(path.join(os.tmpdir(), `runx-cli-parity-${testCase.id}-`));
 
       try {
-        const receiptDir = path.join(tempDir, "receipts");
-        await prepareOracleFixtures(testCase, receiptDir);
-        const argv = (testCase.argv ?? []).map((arg) =>
-          arg === "$FIXTURE_RECEIPTS" ? receiptDir : arg,
-        );
-        const result = spawnSync(runxBinary, argv, {
+        const result = spawnSync(runxBinary, testCase.argv ?? [], {
           cwd: process.cwd(),
           encoding: "utf8",
           env: {
             ...kernelTestEnv(process.env),
             RUNX_CWD: process.cwd(),
             RUNX_HOME: path.join(tempDir, "home"),
-            RUNX_RECEIPT_DIR: receiptDir,
+            RUNX_PROJECT_DIR: path.join(tempDir, ".runx"),
+            RUNX_RECEIPT_DIR: path.join(tempDir, "receipts"),
             RUNX_BANNER: "0",
             ...testCase.env,
           },
@@ -99,40 +94,3 @@ describe("CLI feature parity matrix", () => {
     }
   }, 20_000);
 });
-
-async function prepareOracleFixtures(testCase: OracleCase, receiptDir: string): Promise<void> {
-  if (!testCase.argv?.includes("$FIXTURE_RECEIPTS")) {
-    return;
-  }
-  if (testCase.id === "history.execute") {
-    await appendLedgerEntries({
-      receiptDir,
-      runId: "gx_needs_agent_oracle",
-      entries: [
-        createRunEventEntry({
-          runId: "gx_needs_agent_oracle",
-          producer: { skill: "sourcey", runner: "graph" },
-          kind: "run_started",
-          status: "started",
-          createdAt: "2026-04-28T01:00:00.000Z",
-        }),
-        createRunEventEntry({
-          runId: "gx_needs_agent_oracle",
-          stepId: "discover",
-          producer: { skill: "sourcey", runner: "graph" },
-          kind: "step_waiting_resolution",
-          status: "waiting",
-          detail: {
-            request_ids: ["agent_task.test-step.output"],
-            resolution_kinds: ["agent_act"],
-            step_ids: ["discover"],
-            step_labels: ["inspect repo"],
-            inputs: {},
-            selected_runner: "agent-task",
-          },
-          createdAt: "2026-04-28T01:00:00.000Z",
-        }),
-      ],
-    });
-  }
-}

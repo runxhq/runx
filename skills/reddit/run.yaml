@@ -1,0 +1,2230 @@
+skill: reddit
+version: "0.1.0"
+catalog: { kind: graph, audience: operator, visibility: public, role: canonical, execution: read, completion: runtime_receipt, requires_adapter: true, approval: conditional }
+input_definitions:
+  account_id:
+    type: string
+    required: true
+    description: Explicit lowercase Reddit username; never infer from the active browser account.
+    schema: { minLength: 3, maxLength: 20, pattern: '^[a-z0-9_-]{3,20}$' }
+runners:
+  reddit:
+    inputs:
+      account_id: { definition: account_id }
+      objective:
+        type: string
+        required: true
+        description: Bounded target-discovery, read, draft, reply or diagnosis objective; never an implicit publish request.
+        schema: { minLength: 1, maxLength: 4000 }
+      prior_evidence:
+        type: array
+        required: false
+        description: Prior bounded evidence; freshness and provenance remain explicit.
+        schema:
+          maxItems: 20
+          items:
+            type: object
+            required: [source_url, observed_at, summary]
+            additionalProperties: false
+            properties:
+              source_url: { type: string, minLength: 1, maxLength: 2048 }
+              observed_at: { type: string, minLength: 1, maxLength: 40 }
+              summary: { type: string, minLength: 1, maxLength: 3000 }
+        default: []
+    examples:
+      - account_id: example_builder
+        objective: Read this thread and draft two useful replies; do not submit.
+        prior_evidence:
+          - { source_url: 'https://www.reddit.com/r/learnprogramming/comments/abc123/example/', observed_at: '2026-09-30T03:00:00Z', summary: The author asks how to tell whether a failed request reached their server. }
+    result_from: [target-check]
+    steps:
+      - id: account-state
+        skill: ../data-store
+        runner: read_events
+        inputs: { data_source_ref: 'local://reddit', resource: reddit_accounts, aggregate_id: $input.account_id, limit: 1 }
+      - id: writer-state
+        skill: ../data-store
+        runner: read_events
+        inputs: { data_source_ref: 'local://reddit', resource: reddit_browser, aggregate_id: writer, limit: 1 }
+      - id: load
+        tool: { module: reddit.mjs, export: loadAccount }
+        outputs:
+          account:
+            type: object
+            schema:
+              required: [account_id, version, config]
+              additionalProperties: false
+              properties:
+                account_id: { type: string, minLength: 3, maxLength: 20, pattern: '^[a-z0-9_-]{3,20}$' }
+                version: { type: integer, minimum: 0 }
+                config:
+                  type: object
+                  required: [expected_username, browser_app, driver, profile_ref, binding_ref, credential_profile_ref, background_only, login_method, login_credential_profile_ref, voice]
+                  additionalProperties: false
+                  properties:
+                    expected_username: { type: string, minLength: 3, maxLength: 20, pattern: '^[A-Za-z0-9_-]{3,20}$' }
+                    browser_app:
+                      type: string
+                      enum: [brave, chrome, safari, other]
+                    driver:
+                      type: string
+                      enum: [macos_applescript, connector]
+                    profile_ref: { type: string, minLength: 1, maxLength: 100, pattern: '^[A-Za-z0-9_.:-]+$' }
+                    binding_ref: { type: string, minLength: 1, maxLength: 100, pattern: '^[A-Za-z0-9_.:-]+$' }
+                    credential_profile_ref: { type: string, minLength: 0, maxLength: 100, pattern: '^[A-Za-z0-9_.:-]*$' }
+                    background_only: { type: boolean, const: true }
+                    login_method:
+                      type: string
+                      enum: [google_oauth, reddit_password, existing_session]
+                    login_credential_profile_ref: { type: string, minLength: 0, maxLength: 100, pattern: '^[A-Za-z0-9_.:-]*$' }
+                    voice:
+                      type: object
+                      required: [casing, principles, examples]
+                      additionalProperties: false
+                      properties:
+                        casing:
+                          type: string
+                          enum: [lowercase, sentence_case, preserve]
+                        principles:
+                          type: array
+                          maxItems: 12
+                          items: { type: string, minLength: 1, maxLength: 500 }
+                        examples:
+                          type: array
+                          maxItems: 5
+                          items: { type: string, minLength: 1, maxLength: 1200 }
+          writer_status:
+            type: string
+            schema:
+              enum: [idle, held]
+        context: { account_state: account-state.data_operation_result.data, writer_state: writer-state.data_operation_result.data }
+        inputs: { account_id: $input.account_id }
+      - id: research
+        agent: { role: operator, task: reddit-research }
+        outputs:
+          research:
+            type: object
+            schema:
+              required: [status, account_id, observations, target_candidates, drafts, unknowns, next_step, effect_status]
+              additionalProperties: false
+              properties:
+                status:
+                  type: string
+                  enum: [drafted, provisional, analyzed, needs_browser, held, needs_input]
+                account_id: { type: string, minLength: 3, maxLength: 20, pattern: '^[a-z0-9_-]{3,20}$' }
+                observations:
+                  type: array
+                  maxItems: 20
+                  items:
+                    type: object
+                    required: [source_url, observed_at, summary]
+                    additionalProperties: false
+                    properties:
+                      source_url: { type: string, minLength: 1, maxLength: 2048 }
+                      observed_at: { type: string, minLength: 1, maxLength: 40 }
+                      summary: { type: string, minLength: 1, maxLength: 3000 }
+                target_candidates:
+                  type: array
+                  maxItems: 12
+                  description: Compared community destinations for original posts and live thread destinations for comments; may be empty for diagnosis or when no suitable target is observable.
+                  items:
+                    type: object
+                    required: [intent, decision, subreddit, target_url, observed_at, rule_status, account_eligibility, activity_samples, contribution_gap, rationale, risk, source_urls]
+                    additionalProperties: false
+                    properties:
+                      intent:
+                        type: string
+                        enum: [post, comment]
+                      decision:
+                        type: string
+                        enum: [selected, alternate, rejected]
+                      subreddit: { type: string, minLength: 2, maxLength: 21, pattern: '^[A-Za-z0-9_]+$' }
+                      target_url: { type: string, minLength: 1, maxLength: 2048 }
+                      observed_at: { type: string, minLength: 1, maxLength: 40 }
+                      rule_status:
+                        type: string
+                        enum: [allowed, unknown, disallowed]
+                      account_eligibility:
+                        type: string
+                        enum: [eligible, unknown, ineligible]
+                      activity_samples:
+                        type: array
+                        maxItems: 5
+                        items:
+                          type: object
+                          required: [source_url, observed_at, age_label, score_label, reply_count_label]
+                          additionalProperties: false
+                          properties:
+                            source_url: { type: string, minLength: 1, maxLength: 2048 }
+                            observed_at: { type: string, minLength: 1, maxLength: 40 }
+                            age_label: { type: string, minLength: 1, maxLength: 100 }
+                            score_label: { type: string, minLength: 1, maxLength: 100 }
+                            reply_count_label: { type: string, minLength: 1, maxLength: 100 }
+                      contribution_gap: { type: string, minLength: 1, maxLength: 1200 }
+                      rationale: { type: string, minLength: 1, maxLength: 1200 }
+                      risk: { type: string, minLength: 1, maxLength: 1200 }
+                      source_urls:
+                        type: array
+                        maxItems: 10
+                        items: { type: string, minLength: 1, maxLength: 2048 }
+                drafts:
+                  type: array
+                  maxItems: 5
+                  items:
+                    type: object
+                    required: [action, why_useful, source_urls]
+                    additionalProperties: false
+                    properties:
+                      action:
+                        type: object
+                        required: [kind, subreddit, target_url, title, body, allow_bare_urls, target_author]
+                        additionalProperties: false
+                        properties:
+                          kind:
+                            type: string
+                            enum: [post, comment]
+                          subreddit: { type: string, minLength: 2, maxLength: 21, pattern: '^[A-Za-z0-9_]+$' }
+                          target_url: { type: string, minLength: 1, maxLength: 2048 }
+                          title: { type: string, minLength: 0, maxLength: 300 }
+                          body: { type: string, minLength: 1, maxLength: 10000 }
+                          allow_bare_urls: { type: boolean }
+                          target_author: { type: string, minLength: 0, maxLength: 20, pattern: '^[a-z0-9_-]*$' }
+                      why_useful: { type: string, minLength: 1, maxLength: 1200 }
+                      source_urls:
+                        type: array
+                        maxItems: 10
+                        items: { type: string, minLength: 1, maxLength: 2048 }
+                unknowns:
+                  type: array
+                  maxItems: 12
+                  items: { type: string, minLength: 1, maxLength: 1000 }
+                next_step: { type: string, minLength: 1, maxLength: 2000 }
+                effect_status: { type: string, const: not_submitted }
+        context: { account: load.account, writer_status: load.writer_status }
+        inputs: { objective: $input.objective, prior_evidence: $input.prior_evidence }
+      - id: target-check
+        tool: { module: reddit.mjs, export: validateResearch }
+        outputs:
+          research:
+            type: object
+            schema:
+              required: [status, account_id, observations, target_candidates, drafts, unknowns, next_step, effect_status]
+              additionalProperties: false
+              properties:
+                status:
+                  type: string
+                  enum: [drafted, provisional, analyzed, needs_browser, held, needs_input]
+                account_id: { type: string, minLength: 3, maxLength: 20, pattern: '^[a-z0-9_-]{3,20}$' }
+                observations:
+                  type: array
+                  maxItems: 20
+                  items:
+                    type: object
+                    required: [source_url, observed_at, summary]
+                    additionalProperties: false
+                    properties:
+                      source_url: { type: string, minLength: 1, maxLength: 2048 }
+                      observed_at: { type: string, minLength: 1, maxLength: 40 }
+                      summary: { type: string, minLength: 1, maxLength: 3000 }
+                target_candidates:
+                  type: array
+                  maxItems: 12
+                  description: Compared community destinations for original posts and live thread destinations for comments; may be empty for diagnosis or when no suitable target is observable.
+                  items:
+                    type: object
+                    required: [intent, decision, subreddit, target_url, observed_at, rule_status, account_eligibility, activity_samples, contribution_gap, rationale, risk, source_urls]
+                    additionalProperties: false
+                    properties:
+                      intent:
+                        type: string
+                        enum: [post, comment]
+                      decision:
+                        type: string
+                        enum: [selected, alternate, rejected]
+                      subreddit: { type: string, minLength: 2, maxLength: 21, pattern: '^[A-Za-z0-9_]+$' }
+                      target_url: { type: string, minLength: 1, maxLength: 2048 }
+                      observed_at: { type: string, minLength: 1, maxLength: 40 }
+                      rule_status:
+                        type: string
+                        enum: [allowed, unknown, disallowed]
+                      account_eligibility:
+                        type: string
+                        enum: [eligible, unknown, ineligible]
+                      activity_samples:
+                        type: array
+                        maxItems: 5
+                        items:
+                          type: object
+                          required: [source_url, observed_at, age_label, score_label, reply_count_label]
+                          additionalProperties: false
+                          properties:
+                            source_url: { type: string, minLength: 1, maxLength: 2048 }
+                            observed_at: { type: string, minLength: 1, maxLength: 40 }
+                            age_label: { type: string, minLength: 1, maxLength: 100 }
+                            score_label: { type: string, minLength: 1, maxLength: 100 }
+                            reply_count_label: { type: string, minLength: 1, maxLength: 100 }
+                      contribution_gap: { type: string, minLength: 1, maxLength: 1200 }
+                      rationale: { type: string, minLength: 1, maxLength: 1200 }
+                      risk: { type: string, minLength: 1, maxLength: 1200 }
+                      source_urls:
+                        type: array
+                        maxItems: 10
+                        items: { type: string, minLength: 1, maxLength: 2048 }
+                drafts:
+                  type: array
+                  maxItems: 5
+                  items:
+                    type: object
+                    required: [action, why_useful, source_urls]
+                    additionalProperties: false
+                    properties:
+                      action:
+                        type: object
+                        required: [kind, subreddit, target_url, title, body, allow_bare_urls, target_author]
+                        additionalProperties: false
+                        properties:
+                          kind:
+                            type: string
+                            enum: [post, comment]
+                          subreddit: { type: string, minLength: 2, maxLength: 21, pattern: '^[A-Za-z0-9_]+$' }
+                          target_url: { type: string, minLength: 1, maxLength: 2048 }
+                          title: { type: string, minLength: 0, maxLength: 300 }
+                          body: { type: string, minLength: 1, maxLength: 10000 }
+                          allow_bare_urls: { type: boolean }
+                          target_author: { type: string, minLength: 0, maxLength: 20, pattern: '^[a-z0-9_-]*$' }
+                      why_useful: { type: string, minLength: 1, maxLength: 1200 }
+                      source_urls:
+                        type: array
+                        maxItems: 10
+                        items: { type: string, minLength: 1, maxLength: 2048 }
+                unknowns:
+                  type: array
+                  maxItems: 12
+                  items: { type: string, minLength: 1, maxLength: 1000 }
+                next_step: { type: string, minLength: 1, maxLength: 2000 }
+                effect_status: { type: string, const: not_submitted }
+          target_review:
+            type: object
+            schema:
+              required: [admitted, reason, candidate_count, draft_count]
+              additionalProperties: false
+              properties:
+                admitted: { type: boolean }
+                reason: { type: string, minLength: 0, maxLength: 1000 }
+                candidate_count: { type: integer, minimum: 0 }
+                draft_count: { type: integer, minimum: 0 }
+        context: { research: research.research, account: load.account }
+    default: true
+  configure:
+    inputs:
+      account_id: { definition: account_id }
+      config:
+        type: object
+        required: true
+        description: Non-secret profile and voice settings. Login material stays with the browser.
+        schema:
+          required: [expected_username, browser_app, driver, profile_ref, binding_ref, credential_profile_ref, background_only, login_method, login_credential_profile_ref, voice]
+          additionalProperties: false
+          properties:
+            expected_username: { type: string, minLength: 3, maxLength: 20, pattern: '^[A-Za-z0-9_-]{3,20}$' }
+            browser_app:
+              type: string
+              enum: [brave, chrome, safari, other]
+            driver:
+              type: string
+              enum: [macos_applescript, connector]
+            profile_ref: { type: string, minLength: 1, maxLength: 100, pattern: '^[A-Za-z0-9_.:-]+$' }
+            binding_ref: { type: string, minLength: 1, maxLength: 100, pattern: '^[A-Za-z0-9_.:-]+$' }
+            credential_profile_ref: { type: string, minLength: 0, maxLength: 100, pattern: '^[A-Za-z0-9_.:-]*$' }
+            background_only: { type: boolean, const: true }
+            login_method:
+              type: string
+              enum: [google_oauth, reddit_password, existing_session]
+            login_credential_profile_ref: { type: string, minLength: 0, maxLength: 100, pattern: '^[A-Za-z0-9_.:-]*$' }
+            voice:
+              type: object
+              required: [casing, principles, examples]
+              additionalProperties: false
+              properties:
+                casing:
+                  type: string
+                  enum: [lowercase, sentence_case, preserve]
+                principles:
+                  type: array
+                  maxItems: 12
+                  items: { type: string, minLength: 1, maxLength: 500 }
+                examples:
+                  type: array
+                  maxItems: 5
+                  items: { type: string, minLength: 1, maxLength: 1200 }
+      expected_version:
+        type: integer
+        required: true
+        description: Current account stream version; zero only for a new account.
+        schema: { minimum: 0 }
+    examples:
+      - account_id: example_builder
+        config:
+          expected_username: example_builder
+          browser_app: brave
+          driver: macos_applescript
+          profile_ref: reddit-builder
+          binding_ref: brave:builder-tab
+          credential_profile_ref: ''
+          background_only: true
+          login_method: google_oauth
+          login_credential_profile_ref: ''
+          voice:
+            casing: lowercase
+            principles: [answer the actual question; no closing punchline]
+            examples: []
+        expected_version: 0
+    result_from: [save]
+    steps:
+      - id: prepare
+        tool: { module: reddit.mjs, export: configure }
+        outputs:
+          configuration:
+            type: object
+            schema:
+              required: [account_id, config, expected_version]
+              additionalProperties: false
+              properties:
+                account_id: { type: string, minLength: 3, maxLength: 20, pattern: '^[a-z0-9_-]{3,20}$' }
+                config:
+                  type: object
+                  required: [expected_username, browser_app, driver, profile_ref, binding_ref, credential_profile_ref, background_only, login_method, login_credential_profile_ref, voice]
+                  additionalProperties: false
+                  properties:
+                    expected_username: { type: string, minLength: 3, maxLength: 20, pattern: '^[A-Za-z0-9_-]{3,20}$' }
+                    browser_app:
+                      type: string
+                      enum: [brave, chrome, safari, other]
+                    driver:
+                      type: string
+                      enum: [macos_applescript, connector]
+                    profile_ref: { type: string, minLength: 1, maxLength: 100, pattern: '^[A-Za-z0-9_.:-]+$' }
+                    binding_ref: { type: string, minLength: 1, maxLength: 100, pattern: '^[A-Za-z0-9_.:-]+$' }
+                    credential_profile_ref: { type: string, minLength: 0, maxLength: 100, pattern: '^[A-Za-z0-9_.:-]*$' }
+                    background_only: { type: boolean, const: true }
+                    login_method:
+                      type: string
+                      enum: [google_oauth, reddit_password, existing_session]
+                    login_credential_profile_ref: { type: string, minLength: 0, maxLength: 100, pattern: '^[A-Za-z0-9_.:-]*$' }
+                    voice:
+                      type: object
+                      required: [casing, principles, examples]
+                      additionalProperties: false
+                      properties:
+                        casing:
+                          type: string
+                          enum: [lowercase, sentence_case, preserve]
+                        principles:
+                          type: array
+                          maxItems: 12
+                          items: { type: string, minLength: 1, maxLength: 500 }
+                        examples:
+                          type: array
+                          maxItems: 5
+                          items: { type: string, minLength: 1, maxLength: 1200 }
+                expected_version: { type: integer, minimum: 0 }
+          event:
+            type: object
+            schema:
+              required: [type, account_id, config]
+              additionalProperties: false
+              properties:
+                type: { type: string, const: reddit.account }
+                account_id: { type: string, minLength: 3, maxLength: 20, pattern: '^[a-z0-9_-]{3,20}$' }
+                config:
+                  type: object
+                  required: [expected_username, browser_app, driver, profile_ref, binding_ref, credential_profile_ref, background_only, login_method, login_credential_profile_ref, voice]
+                  additionalProperties: false
+                  properties:
+                    expected_username: { type: string, minLength: 3, maxLength: 20, pattern: '^[A-Za-z0-9_-]{3,20}$' }
+                    browser_app:
+                      type: string
+                      enum: [brave, chrome, safari, other]
+                    driver:
+                      type: string
+                      enum: [macos_applescript, connector]
+                    profile_ref: { type: string, minLength: 1, maxLength: 100, pattern: '^[A-Za-z0-9_.:-]+$' }
+                    binding_ref: { type: string, minLength: 1, maxLength: 100, pattern: '^[A-Za-z0-9_.:-]+$' }
+                    credential_profile_ref: { type: string, minLength: 0, maxLength: 100, pattern: '^[A-Za-z0-9_.:-]*$' }
+                    background_only: { type: boolean, const: true }
+                    login_method:
+                      type: string
+                      enum: [google_oauth, reddit_password, existing_session]
+                    login_credential_profile_ref: { type: string, minLength: 0, maxLength: 100, pattern: '^[A-Za-z0-9_.:-]*$' }
+                    voice:
+                      type: object
+                      required: [casing, principles, examples]
+                      additionalProperties: false
+                      properties:
+                        casing:
+                          type: string
+                          enum: [lowercase, sentence_case, preserve]
+                        principles:
+                          type: array
+                          maxItems: 12
+                          items: { type: string, minLength: 1, maxLength: 500 }
+                        examples:
+                          type: array
+                          maxItems: 5
+                          items: { type: string, minLength: 1, maxLength: 1200 }
+        context: {}
+        inputs: { account_id: $input.account_id, config: $input.config, expected_version: $input.expected_version }
+      - id: digest
+        tool: data.digest
+        context: { value: prepare.configuration }
+      - id: save
+        skill: ../data-store
+        runner: append_event
+        inputs: { data_source_ref: 'local://reddit', resource: reddit_accounts, aggregate_id: $input.account_id, expected_version: $input.expected_version }
+        context: { event: prepare.event, idempotency_key: digest.digest_result.data.digest }
+  accounts:
+    inputs:
+      cursor:
+        type: string
+        required: false
+        description: Opaque continuation cursor from a prior page.
+        schema: { minLength: 0, maxLength: 2048 }
+    examples:
+      - {}
+    result_from: [list]
+    steps:
+      - id: list
+        skill: ../data-store
+        runner: list_stream_heads
+        inputs: { data_source_ref: 'local://reddit', resource: reddit_accounts, limit: 20, cursor: $input.cursor }
+  publish:
+    inputs:
+      account_id: { definition: account_id }
+      action:
+        type: object
+        required: true
+        description: One exact post or comment; the native gate approves these bytes and target.
+        schema:
+          required: [kind, subreddit, target_url, title, body, allow_bare_urls, target_author]
+          additionalProperties: false
+          properties:
+            kind:
+              type: string
+              enum: [post, comment]
+            subreddit: { type: string, minLength: 2, maxLength: 21, pattern: '^[A-Za-z0-9_]+$' }
+            target_url: { type: string, minLength: 1, maxLength: 2048 }
+            title: { type: string, minLength: 0, maxLength: 300 }
+            body: { type: string, minLength: 1, maxLength: 10000 }
+            allow_bare_urls: { type: boolean }
+            target_author: { type: string, minLength: 0, maxLength: 20, pattern: '^[a-z0-9_-]*$' }
+    examples:
+      - account_id: example_builder
+        action: { kind: comment, subreddit: learnprogramming, target_url: 'https://www.reddit.com/r/learnprogramming/comments/abc123/example/', title: '', body: 'does the error happen before the request reaches the server? the network tab should show whether it was sent.', allow_bare_urls: false, target_author: '' }
+    result_from: [finalize, refused]
+    steps:
+      - id: account-state
+        skill: ../data-store
+        runner: read_events
+        inputs: { data_source_ref: 'local://reddit', resource: reddit_accounts, aggregate_id: $input.account_id, limit: 1 }
+      - id: writer-state
+        skill: ../data-store
+        runner: read_events
+        inputs: { data_source_ref: 'local://reddit', resource: reddit_browser, aggregate_id: writer, limit: 1 }
+      - id: identify
+        tool: { module: reddit.mjs, export: identify }
+        outputs:
+          identity:
+            type: object
+            schema:
+              required: [account_id, kind, target, title, body]
+              additionalProperties: false
+              properties:
+                account_id: { type: string, minLength: 3, maxLength: 20, pattern: '^[a-z0-9_-]{3,20}$' }
+                kind:
+                  type: string
+                  enum: [post, comment, upvote]
+                target: { type: string, minLength: 1, maxLength: 2048 }
+                title: { type: string, minLength: 0, maxLength: 300 }
+                body: { type: string, minLength: 0, maxLength: 10000 }
+        context: {}
+        inputs: { account_id: $input.account_id, action: $input.action }
+      - id: action-digest
+        tool: data.digest
+        context: { value: identify.identity }
+      - id: attempt-state
+        skill: ../data-store
+        runner: read_events
+        inputs: { data_source_ref: 'local://reddit', resource: reddit_attempts, limit: 1 }
+        context: { aggregate_id: action-digest.digest_result.data.digest }
+      - id: prepare
+        tool: { module: reddit.mjs, export: prepare }
+        outputs:
+          admission:
+            type: object
+            schema:
+              required: [prepared, admitted, reason]
+              additionalProperties: false
+              properties:
+                prepared:
+                  anyOf:
+                    - type: object
+                      required: [account, action, writer_version, attempt_id, attempt_version]
+                      additionalProperties: false
+                      properties:
+                        account:
+                          type: object
+                          required: [account_id, version, config]
+                          additionalProperties: false
+                          properties:
+                            account_id: { type: string, minLength: 3, maxLength: 20, pattern: '^[a-z0-9_-]{3,20}$' }
+                            version: { type: integer, minimum: 0 }
+                            config:
+                              type: object
+                              required: [expected_username, browser_app, driver, profile_ref, binding_ref, credential_profile_ref, background_only, login_method, login_credential_profile_ref, voice]
+                              additionalProperties: false
+                              properties:
+                                expected_username: { type: string, minLength: 3, maxLength: 20, pattern: '^[A-Za-z0-9_-]{3,20}$' }
+                                browser_app:
+                                  type: string
+                                  enum: [brave, chrome, safari, other]
+                                driver:
+                                  type: string
+                                  enum: [macos_applescript, connector]
+                                profile_ref: { type: string, minLength: 1, maxLength: 100, pattern: '^[A-Za-z0-9_.:-]+$' }
+                                binding_ref: { type: string, minLength: 1, maxLength: 100, pattern: '^[A-Za-z0-9_.:-]+$' }
+                                credential_profile_ref: { type: string, minLength: 0, maxLength: 100, pattern: '^[A-Za-z0-9_.:-]*$' }
+                                background_only: { type: boolean, const: true }
+                                login_method:
+                                  type: string
+                                  enum: [google_oauth, reddit_password, existing_session]
+                                login_credential_profile_ref: { type: string, minLength: 0, maxLength: 100, pattern: '^[A-Za-z0-9_.:-]*$' }
+                                voice:
+                                  type: object
+                                  required: [casing, principles, examples]
+                                  additionalProperties: false
+                                  properties:
+                                    casing:
+                                      type: string
+                                      enum: [lowercase, sentence_case, preserve]
+                                    principles:
+                                      type: array
+                                      maxItems: 12
+                                      items: { type: string, minLength: 1, maxLength: 500 }
+                                    examples:
+                                      type: array
+                                      maxItems: 5
+                                      items: { type: string, minLength: 1, maxLength: 1200 }
+                        action:
+                          type: object
+                          required: [kind, subreddit, target_url, title, body, allow_bare_urls, target_author]
+                          additionalProperties: false
+                          properties:
+                            kind:
+                              type: string
+                              enum: [post, comment, upvote]
+                            subreddit: { type: string, minLength: 2, maxLength: 21, pattern: '^[A-Za-z0-9_]+$' }
+                            target_url: { type: string, minLength: 1, maxLength: 2048 }
+                            title: { type: string, minLength: 0, maxLength: 300 }
+                            body: { type: string, minLength: 1, maxLength: 10000 }
+                            allow_bare_urls: { type: boolean }
+                            target_author: { type: string, minLength: 0, maxLength: 20, pattern: '^[a-z0-9_-]*$' }
+                        writer_version: { type: integer, minimum: 0 }
+                        attempt_id: { type: string, minLength: 71, maxLength: 71 }
+                        attempt_version: { type: integer, minimum: 0 }
+                    - { type: 'null' }
+                admitted: { type: boolean }
+                reason: { type: string, minLength: 0, maxLength: 3000 }
+        context: { account_state: account-state.data_operation_result.data, writer_state: writer-state.data_operation_result.data, attempt_id: action-digest.digest_result.data.digest, attempt_state: attempt-state.data_operation_result.data }
+        inputs: { account_id: $input.account_id, action: $input.action }
+      - id: digest
+        tool: data.digest
+        context: { value: prepare.admission.prepared }
+        when: { field: prepare.admission.admitted, equals: true }
+      - id: approve
+        ask: { gate: reddit.publish, reason: 'Approve this exact Reddit account, profile, target, title and plain-text body for one browser submission.' }
+        context: { exact_action: prepare.admission.prepared, plan_digest: digest.digest_result.data.digest }
+        when: { field: prepare.admission.admitted, equals: true }
+      - id: reserve
+        tool: { module: reddit.mjs, export: reserve }
+        outputs:
+          reservation:
+            type: object
+            schema:
+              required: [type, status, account, action, plan_digest, attempt_id, attempt_version, observation, original_observation, effect_possible, assessment]
+              additionalProperties: false
+              properties:
+                type: { type: string, const: reddit.writer }
+                status:
+                  type: string
+                  enum: [reserved, held, published_host_observed, voted_host_observed, released_unsubmitted, closed_by_operator]
+                account:
+                  type: object
+                  required: [account_id, version, config]
+                  additionalProperties: false
+                  properties:
+                    account_id: { type: string, minLength: 3, maxLength: 20, pattern: '^[a-z0-9_-]{3,20}$' }
+                    version: { type: integer, minimum: 0 }
+                    config:
+                      type: object
+                      required: [expected_username, browser_app, driver, profile_ref, binding_ref, credential_profile_ref, background_only, login_method, login_credential_profile_ref, voice]
+                      additionalProperties: false
+                      properties:
+                        expected_username: { type: string, minLength: 3, maxLength: 20, pattern: '^[A-Za-z0-9_-]{3,20}$' }
+                        browser_app:
+                          type: string
+                          enum: [brave, chrome, safari, other]
+                        driver:
+                          type: string
+                          enum: [macos_applescript, connector]
+                        profile_ref: { type: string, minLength: 1, maxLength: 100, pattern: '^[A-Za-z0-9_.:-]+$' }
+                        binding_ref: { type: string, minLength: 1, maxLength: 100, pattern: '^[A-Za-z0-9_.:-]+$' }
+                        credential_profile_ref: { type: string, minLength: 0, maxLength: 100, pattern: '^[A-Za-z0-9_.:-]*$' }
+                        background_only: { type: boolean, const: true }
+                        login_method:
+                          type: string
+                          enum: [google_oauth, reddit_password, existing_session]
+                        login_credential_profile_ref: { type: string, minLength: 0, maxLength: 100, pattern: '^[A-Za-z0-9_.:-]*$' }
+                        voice:
+                          type: object
+                          required: [casing, principles, examples]
+                          additionalProperties: false
+                          properties:
+                            casing:
+                              type: string
+                              enum: [lowercase, sentence_case, preserve]
+                            principles:
+                              type: array
+                              maxItems: 12
+                              items: { type: string, minLength: 1, maxLength: 500 }
+                            examples:
+                              type: array
+                              maxItems: 5
+                              items: { type: string, minLength: 1, maxLength: 1200 }
+                action:
+                  type: object
+                  required: [kind, subreddit, target_url, title, body, allow_bare_urls, target_author]
+                  additionalProperties: false
+                  properties:
+                    kind:
+                      type: string
+                      enum: [post, comment, upvote]
+                    subreddit: { type: string, minLength: 2, maxLength: 21, pattern: '^[A-Za-z0-9_]+$' }
+                    target_url: { type: string, minLength: 1, maxLength: 2048 }
+                    title: { type: string, minLength: 0, maxLength: 300 }
+                    body: { type: string, minLength: 1, maxLength: 10000 }
+                    allow_bare_urls: { type: boolean }
+                    target_author: { type: string, minLength: 0, maxLength: 20, pattern: '^[a-z0-9_-]*$' }
+                plan_digest: { type: string, minLength: 71, maxLength: 71, pattern: '^sha256:[a-f0-9]{64}$' }
+                attempt_id: { type: string, minLength: 71, maxLength: 71, pattern: '^sha256:[a-f0-9]{64}$' }
+                attempt_version: { type: integer, minimum: 0 }
+                observation:
+                  anyOf:
+                    - type: object
+                      required: [status, username, profile_ref, subreddit, parent_url, permalink, title, body, visibility, observed_at, evidence_refs, affirmative_no_submit, reason, target_author, vote_state, effect_attempted]
+                      additionalProperties: false
+                      properties:
+                        status:
+                          type: string
+                          enum: [published, voted, not_submitted, uncertain, challenge]
+                        username: { type: string, minLength: 0, maxLength: 20 }
+                        profile_ref: { type: string, minLength: 0, maxLength: 100 }
+                        subreddit: { type: string, minLength: 0, maxLength: 21 }
+                        parent_url: { type: string, minLength: 0, maxLength: 2048 }
+                        permalink: { type: string, minLength: 0, maxLength: 2048 }
+                        title: { type: string, minLength: 0, maxLength: 300 }
+                        body: { type: string, minLength: 0, maxLength: 10000 }
+                        visibility:
+                          type: string
+                          enum: [visible, pending, removed, unknown]
+                        observed_at: { type: string, minLength: 1, maxLength: 40 }
+                        evidence_refs:
+                          type: array
+                          maxItems: 12
+                          items: { type: string, minLength: 1, maxLength: 2048 }
+                        affirmative_no_submit: { type: boolean }
+                        reason: { type: string, minLength: 1, maxLength: 3000 }
+                        target_author: { type: string, minLength: 0, maxLength: 20 }
+                        vote_state:
+                          type: string
+                          enum: [up, none, unknown]
+                        effect_attempted: { type: boolean }
+                    - { type: 'null' }
+                original_observation:
+                  anyOf:
+                    - type: object
+                      required: [status, username, profile_ref, subreddit, parent_url, permalink, title, body, visibility, observed_at, evidence_refs, affirmative_no_submit, reason, target_author, vote_state, effect_attempted]
+                      additionalProperties: false
+                      properties:
+                        status:
+                          type: string
+                          enum: [published, voted, not_submitted, uncertain, challenge]
+                        username: { type: string, minLength: 0, maxLength: 20 }
+                        profile_ref: { type: string, minLength: 0, maxLength: 100 }
+                        subreddit: { type: string, minLength: 0, maxLength: 21 }
+                        parent_url: { type: string, minLength: 0, maxLength: 2048 }
+                        permalink: { type: string, minLength: 0, maxLength: 2048 }
+                        title: { type: string, minLength: 0, maxLength: 300 }
+                        body: { type: string, minLength: 0, maxLength: 10000 }
+                        visibility:
+                          type: string
+                          enum: [visible, pending, removed, unknown]
+                        observed_at: { type: string, minLength: 1, maxLength: 40 }
+                        evidence_refs:
+                          type: array
+                          maxItems: 12
+                          items: { type: string, minLength: 1, maxLength: 2048 }
+                        affirmative_no_submit: { type: boolean }
+                        reason: { type: string, minLength: 1, maxLength: 3000 }
+                        target_author: { type: string, minLength: 0, maxLength: 20 }
+                        vote_state:
+                          type: string
+                          enum: [up, none, unknown]
+                        effect_attempted: { type: boolean }
+                    - { type: 'null' }
+                effect_possible: { type: boolean }
+                assessment: { type: string, minLength: 0, maxLength: 8000 }
+          expected_version:
+            type: integer
+            schema: { minimum: 0 }
+          idempotency_key:
+            type: string
+            schema: { minLength: 1, maxLength: 200 }
+        context: { prepared: prepare.admission.prepared, digest: digest.digest_result.data.digest }
+        when: { field: prepare.admission.admitted, equals: true }
+      - id: claim
+        skill: ../data-store
+        runner: append_event
+        inputs: { data_source_ref: 'local://reddit', resource: reddit_browser, aggregate_id: writer }
+        context: { event: reserve.reservation, idempotency_key: reserve.idempotency_key, expected_version: reserve.expected_version }
+        when: { field: prepare.admission.admitted, equals: true }
+      - id: attempt-claim
+        skill: ../data-store
+        runner: append_event
+        inputs: { data_source_ref: 'local://reddit', resource: reddit_attempts }
+        context: { event: reserve.reservation, idempotency_key: reserve.idempotency_key, expected_version: prepare.admission.prepared.attempt_version, aggregate_id: reserve.reservation.attempt_id }
+        when: { field: prepare.admission.admitted, equals: true }
+      - id: submit
+        agent: { role: operator, task: reddit-submit }
+        outputs:
+          observation:
+            type: object
+            schema:
+              required: [status, username, profile_ref, subreddit, parent_url, permalink, title, body, visibility, observed_at, evidence_refs, affirmative_no_submit, reason, target_author, vote_state, effect_attempted]
+              additionalProperties: false
+              properties:
+                status:
+                  type: string
+                  enum: [published, voted, not_submitted, uncertain, challenge]
+                username: { type: string, minLength: 0, maxLength: 20 }
+                profile_ref: { type: string, minLength: 0, maxLength: 100 }
+                subreddit: { type: string, minLength: 0, maxLength: 21 }
+                parent_url: { type: string, minLength: 0, maxLength: 2048 }
+                permalink: { type: string, minLength: 0, maxLength: 2048 }
+                title: { type: string, minLength: 0, maxLength: 300 }
+                body: { type: string, minLength: 0, maxLength: 10000 }
+                visibility:
+                  type: string
+                  enum: [visible, pending, removed, unknown]
+                observed_at: { type: string, minLength: 1, maxLength: 40 }
+                evidence_refs:
+                  type: array
+                  maxItems: 12
+                  items: { type: string, minLength: 1, maxLength: 2048 }
+                affirmative_no_submit: { type: boolean }
+                reason: { type: string, minLength: 1, maxLength: 3000 }
+                target_author: { type: string, minLength: 0, maxLength: 20 }
+                vote_state:
+                  type: string
+                  enum: [up, none, unknown]
+                effect_attempted: { type: boolean }
+        context: { reservation: reserve.reservation, claim: claim.data_operation_result.data }
+        when: { field: prepare.admission.admitted, equals: true }
+      - id: finish
+        tool: { module: reddit.mjs, export: finish }
+        outputs:
+          transition:
+            type: object
+            schema:
+              required: [type, status, account, action, plan_digest, attempt_id, attempt_version, observation, original_observation, effect_possible, assessment]
+              additionalProperties: false
+              properties:
+                type: { type: string, const: reddit.writer }
+                status:
+                  type: string
+                  enum: [reserved, held, published_host_observed, voted_host_observed, released_unsubmitted, closed_by_operator]
+                account:
+                  type: object
+                  required: [account_id, version, config]
+                  additionalProperties: false
+                  properties:
+                    account_id: { type: string, minLength: 3, maxLength: 20, pattern: '^[a-z0-9_-]{3,20}$' }
+                    version: { type: integer, minimum: 0 }
+                    config:
+                      type: object
+                      required: [expected_username, browser_app, driver, profile_ref, binding_ref, credential_profile_ref, background_only, login_method, login_credential_profile_ref, voice]
+                      additionalProperties: false
+                      properties:
+                        expected_username: { type: string, minLength: 3, maxLength: 20, pattern: '^[A-Za-z0-9_-]{3,20}$' }
+                        browser_app:
+                          type: string
+                          enum: [brave, chrome, safari, other]
+                        driver:
+                          type: string
+                          enum: [macos_applescript, connector]
+                        profile_ref: { type: string, minLength: 1, maxLength: 100, pattern: '^[A-Za-z0-9_.:-]+$' }
+                        binding_ref: { type: string, minLength: 1, maxLength: 100, pattern: '^[A-Za-z0-9_.:-]+$' }
+                        credential_profile_ref: { type: string, minLength: 0, maxLength: 100, pattern: '^[A-Za-z0-9_.:-]*$' }
+                        background_only: { type: boolean, const: true }
+                        login_method:
+                          type: string
+                          enum: [google_oauth, reddit_password, existing_session]
+                        login_credential_profile_ref: { type: string, minLength: 0, maxLength: 100, pattern: '^[A-Za-z0-9_.:-]*$' }
+                        voice:
+                          type: object
+                          required: [casing, principles, examples]
+                          additionalProperties: false
+                          properties:
+                            casing:
+                              type: string
+                              enum: [lowercase, sentence_case, preserve]
+                            principles:
+                              type: array
+                              maxItems: 12
+                              items: { type: string, minLength: 1, maxLength: 500 }
+                            examples:
+                              type: array
+                              maxItems: 5
+                              items: { type: string, minLength: 1, maxLength: 1200 }
+                action:
+                  type: object
+                  required: [kind, subreddit, target_url, title, body, allow_bare_urls, target_author]
+                  additionalProperties: false
+                  properties:
+                    kind:
+                      type: string
+                      enum: [post, comment, upvote]
+                    subreddit: { type: string, minLength: 2, maxLength: 21, pattern: '^[A-Za-z0-9_]+$' }
+                    target_url: { type: string, minLength: 1, maxLength: 2048 }
+                    title: { type: string, minLength: 0, maxLength: 300 }
+                    body: { type: string, minLength: 1, maxLength: 10000 }
+                    allow_bare_urls: { type: boolean }
+                    target_author: { type: string, minLength: 0, maxLength: 20, pattern: '^[a-z0-9_-]*$' }
+                plan_digest: { type: string, minLength: 71, maxLength: 71, pattern: '^sha256:[a-f0-9]{64}$' }
+                attempt_id: { type: string, minLength: 71, maxLength: 71, pattern: '^sha256:[a-f0-9]{64}$' }
+                attempt_version: { type: integer, minimum: 0 }
+                observation:
+                  anyOf:
+                    - type: object
+                      required: [status, username, profile_ref, subreddit, parent_url, permalink, title, body, visibility, observed_at, evidence_refs, affirmative_no_submit, reason, target_author, vote_state, effect_attempted]
+                      additionalProperties: false
+                      properties:
+                        status:
+                          type: string
+                          enum: [published, voted, not_submitted, uncertain, challenge]
+                        username: { type: string, minLength: 0, maxLength: 20 }
+                        profile_ref: { type: string, minLength: 0, maxLength: 100 }
+                        subreddit: { type: string, minLength: 0, maxLength: 21 }
+                        parent_url: { type: string, minLength: 0, maxLength: 2048 }
+                        permalink: { type: string, minLength: 0, maxLength: 2048 }
+                        title: { type: string, minLength: 0, maxLength: 300 }
+                        body: { type: string, minLength: 0, maxLength: 10000 }
+                        visibility:
+                          type: string
+                          enum: [visible, pending, removed, unknown]
+                        observed_at: { type: string, minLength: 1, maxLength: 40 }
+                        evidence_refs:
+                          type: array
+                          maxItems: 12
+                          items: { type: string, minLength: 1, maxLength: 2048 }
+                        affirmative_no_submit: { type: boolean }
+                        reason: { type: string, minLength: 1, maxLength: 3000 }
+                        target_author: { type: string, minLength: 0, maxLength: 20 }
+                        vote_state:
+                          type: string
+                          enum: [up, none, unknown]
+                        effect_attempted: { type: boolean }
+                    - { type: 'null' }
+                original_observation:
+                  anyOf:
+                    - type: object
+                      required: [status, username, profile_ref, subreddit, parent_url, permalink, title, body, visibility, observed_at, evidence_refs, affirmative_no_submit, reason, target_author, vote_state, effect_attempted]
+                      additionalProperties: false
+                      properties:
+                        status:
+                          type: string
+                          enum: [published, voted, not_submitted, uncertain, challenge]
+                        username: { type: string, minLength: 0, maxLength: 20 }
+                        profile_ref: { type: string, minLength: 0, maxLength: 100 }
+                        subreddit: { type: string, minLength: 0, maxLength: 21 }
+                        parent_url: { type: string, minLength: 0, maxLength: 2048 }
+                        permalink: { type: string, minLength: 0, maxLength: 2048 }
+                        title: { type: string, minLength: 0, maxLength: 300 }
+                        body: { type: string, minLength: 0, maxLength: 10000 }
+                        visibility:
+                          type: string
+                          enum: [visible, pending, removed, unknown]
+                        observed_at: { type: string, minLength: 1, maxLength: 40 }
+                        evidence_refs:
+                          type: array
+                          maxItems: 12
+                          items: { type: string, minLength: 1, maxLength: 2048 }
+                        affirmative_no_submit: { type: boolean }
+                        reason: { type: string, minLength: 1, maxLength: 3000 }
+                        target_author: { type: string, minLength: 0, maxLength: 20 }
+                        vote_state:
+                          type: string
+                          enum: [up, none, unknown]
+                        effect_attempted: { type: boolean }
+                    - { type: 'null' }
+                effect_possible: { type: boolean }
+                assessment: { type: string, minLength: 0, maxLength: 8000 }
+          idempotency_key:
+            type: string
+            schema: { minLength: 1, maxLength: 200 }
+        context: { reservation: reserve.reservation, observation: submit.observation }
+        when: { field: prepare.admission.admitted, equals: true }
+      - id: attempt-record
+        skill: ../data-store
+        runner: append_event
+        inputs: { data_source_ref: 'local://reddit', resource: reddit_attempts }
+        context: { event: finish.transition, idempotency_key: finish.idempotency_key, expected_version: attempt-claim.data_operation_result.data.after_version, aggregate_id: reserve.reservation.attempt_id }
+        when: { field: prepare.admission.admitted, equals: true }
+      - id: record
+        skill: ../data-store
+        runner: append_event
+        inputs: { data_source_ref: 'local://reddit', resource: reddit_browser, aggregate_id: writer }
+        context: { event: finish.transition, idempotency_key: finish.idempotency_key, expected_version: claim.data_operation_result.data.after_version }
+        when: { field: prepare.admission.admitted, equals: true }
+      - id: finalize
+        tool: { module: reddit.mjs, export: recordOutcome }
+        outputs:
+          result:
+            type: object
+            schema:
+              required: [status, account_id, action, observation, evidence_level, state_version, event_ref, reason]
+              additionalProperties: false
+              properties:
+                status:
+                  type: string
+                  enum: [refused, held, published_host_observed, voted_host_observed, released_unsubmitted, closed_by_operator]
+                account_id: { type: string, minLength: 3, maxLength: 20, pattern: '^[a-z0-9_-]{3,20}$' }
+                action:
+                  type: object
+                  required: [kind, subreddit, target_url, title, body, allow_bare_urls, target_author]
+                  additionalProperties: false
+                  properties:
+                    kind:
+                      type: string
+                      enum: [post, comment, upvote]
+                    subreddit: { type: string, minLength: 2, maxLength: 21, pattern: '^[A-Za-z0-9_]+$' }
+                    target_url: { type: string, minLength: 1, maxLength: 2048 }
+                    title: { type: string, minLength: 0, maxLength: 300 }
+                    body: { type: string, minLength: 1, maxLength: 10000 }
+                    allow_bare_urls: { type: boolean }
+                    target_author: { type: string, minLength: 0, maxLength: 20, pattern: '^[a-z0-9_-]*$' }
+                observation:
+                  anyOf:
+                    - type: object
+                      required: [status, username, profile_ref, subreddit, parent_url, permalink, title, body, visibility, observed_at, evidence_refs, affirmative_no_submit, reason, target_author, vote_state, effect_attempted]
+                      additionalProperties: false
+                      properties:
+                        status:
+                          type: string
+                          enum: [published, voted, not_submitted, uncertain, challenge]
+                        username: { type: string, minLength: 0, maxLength: 20 }
+                        profile_ref: { type: string, minLength: 0, maxLength: 100 }
+                        subreddit: { type: string, minLength: 0, maxLength: 21 }
+                        parent_url: { type: string, minLength: 0, maxLength: 2048 }
+                        permalink: { type: string, minLength: 0, maxLength: 2048 }
+                        title: { type: string, minLength: 0, maxLength: 300 }
+                        body: { type: string, minLength: 0, maxLength: 10000 }
+                        visibility:
+                          type: string
+                          enum: [visible, pending, removed, unknown]
+                        observed_at: { type: string, minLength: 1, maxLength: 40 }
+                        evidence_refs:
+                          type: array
+                          maxItems: 12
+                          items: { type: string, minLength: 1, maxLength: 2048 }
+                        affirmative_no_submit: { type: boolean }
+                        reason: { type: string, minLength: 1, maxLength: 3000 }
+                        target_author: { type: string, minLength: 0, maxLength: 20 }
+                        vote_state:
+                          type: string
+                          enum: [up, none, unknown]
+                        effect_attempted: { type: boolean }
+                    - { type: 'null' }
+                evidence_level:
+                  type: string
+                  enum: [host_observed, none]
+                state_version: { type: integer, minimum: 0 }
+                event_ref: { type: string, minLength: 0, maxLength: 2048 }
+                reason: { type: string, minLength: 0, maxLength: 8000 }
+        context: { transition: finish.transition, record: record.data_operation_result.data }
+        when: { field: prepare.admission.admitted, equals: true }
+      - id: refused
+        tool: { module: reddit.mjs, export: refuse }
+        outputs:
+          result:
+            type: object
+            schema:
+              required: [status, account_id, action, observation, evidence_level, state_version, event_ref, reason]
+              additionalProperties: false
+              properties:
+                status:
+                  type: string
+                  enum: [refused, held, published_host_observed, voted_host_observed, released_unsubmitted, closed_by_operator]
+                account_id: { type: string, minLength: 3, maxLength: 20, pattern: '^[a-z0-9_-]{3,20}$' }
+                action:
+                  type: object
+                  required: [kind, subreddit, target_url, title, body, allow_bare_urls, target_author]
+                  additionalProperties: false
+                  properties:
+                    kind:
+                      type: string
+                      enum: [post, comment, upvote]
+                    subreddit: { type: string, minLength: 2, maxLength: 21, pattern: '^[A-Za-z0-9_]+$' }
+                    target_url: { type: string, minLength: 1, maxLength: 2048 }
+                    title: { type: string, minLength: 0, maxLength: 300 }
+                    body: { type: string, minLength: 1, maxLength: 10000 }
+                    allow_bare_urls: { type: boolean }
+                    target_author: { type: string, minLength: 0, maxLength: 20, pattern: '^[a-z0-9_-]*$' }
+                observation:
+                  anyOf:
+                    - type: object
+                      required: [status, username, profile_ref, subreddit, parent_url, permalink, title, body, visibility, observed_at, evidence_refs, affirmative_no_submit, reason, target_author, vote_state, effect_attempted]
+                      additionalProperties: false
+                      properties:
+                        status:
+                          type: string
+                          enum: [published, voted, not_submitted, uncertain, challenge]
+                        username: { type: string, minLength: 0, maxLength: 20 }
+                        profile_ref: { type: string, minLength: 0, maxLength: 100 }
+                        subreddit: { type: string, minLength: 0, maxLength: 21 }
+                        parent_url: { type: string, minLength: 0, maxLength: 2048 }
+                        permalink: { type: string, minLength: 0, maxLength: 2048 }
+                        title: { type: string, minLength: 0, maxLength: 300 }
+                        body: { type: string, minLength: 0, maxLength: 10000 }
+                        visibility:
+                          type: string
+                          enum: [visible, pending, removed, unknown]
+                        observed_at: { type: string, minLength: 1, maxLength: 40 }
+                        evidence_refs:
+                          type: array
+                          maxItems: 12
+                          items: { type: string, minLength: 1, maxLength: 2048 }
+                        affirmative_no_submit: { type: boolean }
+                        reason: { type: string, minLength: 1, maxLength: 3000 }
+                        target_author: { type: string, minLength: 0, maxLength: 20 }
+                        vote_state:
+                          type: string
+                          enum: [up, none, unknown]
+                        effect_attempted: { type: boolean }
+                    - { type: 'null' }
+                evidence_level:
+                  type: string
+                  enum: [host_observed, none]
+                state_version: { type: integer, minimum: 0 }
+                event_ref: { type: string, minLength: 0, maxLength: 2048 }
+                reason: { type: string, minLength: 0, maxLength: 8000 }
+        context: { reason: prepare.admission.reason }
+        inputs: { account_id: $input.account_id, action: $input.action }
+        when: { field: prepare.admission.admitted, equals: false }
+    policy:
+      guards:
+        - { step: reserve, field: approve.approval_decision.data.approved, equals: true }
+        - { step: claim, field: approve.approval_decision.data.approved, equals: true }
+        - { step: submit, field: claim.data_operation_result.data.status, equals: committed }
+        - { step: attempt-claim, field: claim.data_operation_result.data.status, equals: committed }
+        - { step: submit, field: attempt-claim.data_operation_result.data.status, equals: committed }
+        - { step: record, field: attempt-record.data_operation_result.data.status, equals: committed }
+  vote:
+    inputs:
+      account_id: { definition: account_id }
+      action:
+        type: object
+        required: true
+        description: One exact upvote target, author and observed target text; this is not a posting quota.
+        schema:
+          required: [kind, subreddit, target_url, title, body, allow_bare_urls, target_author]
+          additionalProperties: false
+          properties:
+            kind:
+              type: string
+              enum: [upvote]
+            subreddit: { type: string, minLength: 2, maxLength: 21, pattern: '^[A-Za-z0-9_]+$' }
+            target_url: { type: string, minLength: 1, maxLength: 2048 }
+            title: { type: string, minLength: 0, maxLength: 300 }
+            body: { type: string, minLength: 1, maxLength: 10000 }
+            allow_bare_urls: { type: boolean }
+            target_author: { type: string, minLength: 3, maxLength: 20, pattern: '^[a-z0-9_-]{3,20}$' }
+    examples:
+      - account_id: example_builder
+        action: { kind: upvote, subreddit: learnprogramming, target_url: 'https://www.reddit.com/r/learnprogramming/comments/abc123/example/', title: '', body: inspect the response in the network tab., allow_bare_urls: false, target_author: another_builder }
+    result_from: [finalize, refused]
+    steps:
+      - id: account-state
+        skill: ../data-store
+        runner: read_events
+        inputs: { data_source_ref: 'local://reddit', resource: reddit_accounts, aggregate_id: $input.account_id, limit: 1 }
+      - id: writer-state
+        skill: ../data-store
+        runner: read_events
+        inputs: { data_source_ref: 'local://reddit', resource: reddit_browser, aggregate_id: writer, limit: 1 }
+      - id: target-account
+        skill: ../data-store
+        runner: read_events
+        inputs: { data_source_ref: 'local://reddit', resource: reddit_accounts, aggregate_id: $input.action.target_author, limit: 1 }
+      - id: identify
+        tool: { module: reddit.mjs, export: identify }
+        outputs:
+          identity:
+            type: object
+            schema:
+              required: [account_id, kind, target, title, body]
+              additionalProperties: false
+              properties:
+                account_id: { type: string, minLength: 3, maxLength: 20, pattern: '^[a-z0-9_-]{3,20}$' }
+                kind:
+                  type: string
+                  enum: [post, comment, upvote]
+                target: { type: string, minLength: 1, maxLength: 2048 }
+                title: { type: string, minLength: 0, maxLength: 300 }
+                body: { type: string, minLength: 0, maxLength: 10000 }
+        context: {}
+        inputs: { account_id: $input.account_id, action: $input.action }
+      - id: action-digest
+        tool: data.digest
+        context: { value: identify.identity }
+      - id: attempt-state
+        skill: ../data-store
+        runner: read_events
+        inputs: { data_source_ref: 'local://reddit', resource: reddit_attempts, limit: 1 }
+        context: { aggregate_id: action-digest.digest_result.data.digest }
+      - id: prepare
+        tool: { module: reddit.mjs, export: prepare }
+        outputs:
+          admission:
+            type: object
+            schema:
+              required: [prepared, admitted, reason]
+              additionalProperties: false
+              properties:
+                prepared:
+                  anyOf:
+                    - type: object
+                      required: [account, action, writer_version, attempt_id, attempt_version]
+                      additionalProperties: false
+                      properties:
+                        account:
+                          type: object
+                          required: [account_id, version, config]
+                          additionalProperties: false
+                          properties:
+                            account_id: { type: string, minLength: 3, maxLength: 20, pattern: '^[a-z0-9_-]{3,20}$' }
+                            version: { type: integer, minimum: 0 }
+                            config:
+                              type: object
+                              required: [expected_username, browser_app, driver, profile_ref, binding_ref, credential_profile_ref, background_only, login_method, login_credential_profile_ref, voice]
+                              additionalProperties: false
+                              properties:
+                                expected_username: { type: string, minLength: 3, maxLength: 20, pattern: '^[A-Za-z0-9_-]{3,20}$' }
+                                browser_app:
+                                  type: string
+                                  enum: [brave, chrome, safari, other]
+                                driver:
+                                  type: string
+                                  enum: [macos_applescript, connector]
+                                profile_ref: { type: string, minLength: 1, maxLength: 100, pattern: '^[A-Za-z0-9_.:-]+$' }
+                                binding_ref: { type: string, minLength: 1, maxLength: 100, pattern: '^[A-Za-z0-9_.:-]+$' }
+                                credential_profile_ref: { type: string, minLength: 0, maxLength: 100, pattern: '^[A-Za-z0-9_.:-]*$' }
+                                background_only: { type: boolean, const: true }
+                                login_method:
+                                  type: string
+                                  enum: [google_oauth, reddit_password, existing_session]
+                                login_credential_profile_ref: { type: string, minLength: 0, maxLength: 100, pattern: '^[A-Za-z0-9_.:-]*$' }
+                                voice:
+                                  type: object
+                                  required: [casing, principles, examples]
+                                  additionalProperties: false
+                                  properties:
+                                    casing:
+                                      type: string
+                                      enum: [lowercase, sentence_case, preserve]
+                                    principles:
+                                      type: array
+                                      maxItems: 12
+                                      items: { type: string, minLength: 1, maxLength: 500 }
+                                    examples:
+                                      type: array
+                                      maxItems: 5
+                                      items: { type: string, minLength: 1, maxLength: 1200 }
+                        action:
+                          type: object
+                          required: [kind, subreddit, target_url, title, body, allow_bare_urls, target_author]
+                          additionalProperties: false
+                          properties:
+                            kind:
+                              type: string
+                              enum: [post, comment, upvote]
+                            subreddit: { type: string, minLength: 2, maxLength: 21, pattern: '^[A-Za-z0-9_]+$' }
+                            target_url: { type: string, minLength: 1, maxLength: 2048 }
+                            title: { type: string, minLength: 0, maxLength: 300 }
+                            body: { type: string, minLength: 1, maxLength: 10000 }
+                            allow_bare_urls: { type: boolean }
+                            target_author: { type: string, minLength: 0, maxLength: 20, pattern: '^[a-z0-9_-]*$' }
+                        writer_version: { type: integer, minimum: 0 }
+                        attempt_id: { type: string, minLength: 71, maxLength: 71 }
+                        attempt_version: { type: integer, minimum: 0 }
+                    - { type: 'null' }
+                admitted: { type: boolean }
+                reason: { type: string, minLength: 0, maxLength: 3000 }
+        context: { account_state: account-state.data_operation_result.data, writer_state: writer-state.data_operation_result.data, target_account_state: target-account.data_operation_result.data, attempt_id: action-digest.digest_result.data.digest, attempt_state: attempt-state.data_operation_result.data }
+        inputs: { account_id: $input.account_id, action: $input.action }
+      - id: digest
+        tool: data.digest
+        context: { value: prepare.admission.prepared }
+        when: { field: prepare.admission.admitted, equals: true }
+      - id: approve
+        ask: { gate: reddit.vote, reason: Approve one upvote of this exact target and author with the selected account. No coordinated voting. }
+        context: { exact_action: prepare.admission.prepared, plan_digest: digest.digest_result.data.digest }
+        when: { field: prepare.admission.admitted, equals: true }
+      - id: reserve
+        tool: { module: reddit.mjs, export: reserve }
+        outputs:
+          reservation:
+            type: object
+            schema:
+              required: [type, status, account, action, plan_digest, attempt_id, attempt_version, observation, original_observation, effect_possible, assessment]
+              additionalProperties: false
+              properties:
+                type: { type: string, const: reddit.writer }
+                status:
+                  type: string
+                  enum: [reserved, held, published_host_observed, voted_host_observed, released_unsubmitted, closed_by_operator]
+                account:
+                  type: object
+                  required: [account_id, version, config]
+                  additionalProperties: false
+                  properties:
+                    account_id: { type: string, minLength: 3, maxLength: 20, pattern: '^[a-z0-9_-]{3,20}$' }
+                    version: { type: integer, minimum: 0 }
+                    config:
+                      type: object
+                      required: [expected_username, browser_app, driver, profile_ref, binding_ref, credential_profile_ref, background_only, login_method, login_credential_profile_ref, voice]
+                      additionalProperties: false
+                      properties:
+                        expected_username: { type: string, minLength: 3, maxLength: 20, pattern: '^[A-Za-z0-9_-]{3,20}$' }
+                        browser_app:
+                          type: string
+                          enum: [brave, chrome, safari, other]
+                        driver:
+                          type: string
+                          enum: [macos_applescript, connector]
+                        profile_ref: { type: string, minLength: 1, maxLength: 100, pattern: '^[A-Za-z0-9_.:-]+$' }
+                        binding_ref: { type: string, minLength: 1, maxLength: 100, pattern: '^[A-Za-z0-9_.:-]+$' }
+                        credential_profile_ref: { type: string, minLength: 0, maxLength: 100, pattern: '^[A-Za-z0-9_.:-]*$' }
+                        background_only: { type: boolean, const: true }
+                        login_method:
+                          type: string
+                          enum: [google_oauth, reddit_password, existing_session]
+                        login_credential_profile_ref: { type: string, minLength: 0, maxLength: 100, pattern: '^[A-Za-z0-9_.:-]*$' }
+                        voice:
+                          type: object
+                          required: [casing, principles, examples]
+                          additionalProperties: false
+                          properties:
+                            casing:
+                              type: string
+                              enum: [lowercase, sentence_case, preserve]
+                            principles:
+                              type: array
+                              maxItems: 12
+                              items: { type: string, minLength: 1, maxLength: 500 }
+                            examples:
+                              type: array
+                              maxItems: 5
+                              items: { type: string, minLength: 1, maxLength: 1200 }
+                action:
+                  type: object
+                  required: [kind, subreddit, target_url, title, body, allow_bare_urls, target_author]
+                  additionalProperties: false
+                  properties:
+                    kind:
+                      type: string
+                      enum: [post, comment, upvote]
+                    subreddit: { type: string, minLength: 2, maxLength: 21, pattern: '^[A-Za-z0-9_]+$' }
+                    target_url: { type: string, minLength: 1, maxLength: 2048 }
+                    title: { type: string, minLength: 0, maxLength: 300 }
+                    body: { type: string, minLength: 1, maxLength: 10000 }
+                    allow_bare_urls: { type: boolean }
+                    target_author: { type: string, minLength: 0, maxLength: 20, pattern: '^[a-z0-9_-]*$' }
+                plan_digest: { type: string, minLength: 71, maxLength: 71, pattern: '^sha256:[a-f0-9]{64}$' }
+                attempt_id: { type: string, minLength: 71, maxLength: 71, pattern: '^sha256:[a-f0-9]{64}$' }
+                attempt_version: { type: integer, minimum: 0 }
+                observation:
+                  anyOf:
+                    - type: object
+                      required: [status, username, profile_ref, subreddit, parent_url, permalink, title, body, visibility, observed_at, evidence_refs, affirmative_no_submit, reason, target_author, vote_state, effect_attempted]
+                      additionalProperties: false
+                      properties:
+                        status:
+                          type: string
+                          enum: [published, voted, not_submitted, uncertain, challenge]
+                        username: { type: string, minLength: 0, maxLength: 20 }
+                        profile_ref: { type: string, minLength: 0, maxLength: 100 }
+                        subreddit: { type: string, minLength: 0, maxLength: 21 }
+                        parent_url: { type: string, minLength: 0, maxLength: 2048 }
+                        permalink: { type: string, minLength: 0, maxLength: 2048 }
+                        title: { type: string, minLength: 0, maxLength: 300 }
+                        body: { type: string, minLength: 0, maxLength: 10000 }
+                        visibility:
+                          type: string
+                          enum: [visible, pending, removed, unknown]
+                        observed_at: { type: string, minLength: 1, maxLength: 40 }
+                        evidence_refs:
+                          type: array
+                          maxItems: 12
+                          items: { type: string, minLength: 1, maxLength: 2048 }
+                        affirmative_no_submit: { type: boolean }
+                        reason: { type: string, minLength: 1, maxLength: 3000 }
+                        target_author: { type: string, minLength: 0, maxLength: 20 }
+                        vote_state:
+                          type: string
+                          enum: [up, none, unknown]
+                        effect_attempted: { type: boolean }
+                    - { type: 'null' }
+                original_observation:
+                  anyOf:
+                    - type: object
+                      required: [status, username, profile_ref, subreddit, parent_url, permalink, title, body, visibility, observed_at, evidence_refs, affirmative_no_submit, reason, target_author, vote_state, effect_attempted]
+                      additionalProperties: false
+                      properties:
+                        status:
+                          type: string
+                          enum: [published, voted, not_submitted, uncertain, challenge]
+                        username: { type: string, minLength: 0, maxLength: 20 }
+                        profile_ref: { type: string, minLength: 0, maxLength: 100 }
+                        subreddit: { type: string, minLength: 0, maxLength: 21 }
+                        parent_url: { type: string, minLength: 0, maxLength: 2048 }
+                        permalink: { type: string, minLength: 0, maxLength: 2048 }
+                        title: { type: string, minLength: 0, maxLength: 300 }
+                        body: { type: string, minLength: 0, maxLength: 10000 }
+                        visibility:
+                          type: string
+                          enum: [visible, pending, removed, unknown]
+                        observed_at: { type: string, minLength: 1, maxLength: 40 }
+                        evidence_refs:
+                          type: array
+                          maxItems: 12
+                          items: { type: string, minLength: 1, maxLength: 2048 }
+                        affirmative_no_submit: { type: boolean }
+                        reason: { type: string, minLength: 1, maxLength: 3000 }
+                        target_author: { type: string, minLength: 0, maxLength: 20 }
+                        vote_state:
+                          type: string
+                          enum: [up, none, unknown]
+                        effect_attempted: { type: boolean }
+                    - { type: 'null' }
+                effect_possible: { type: boolean }
+                assessment: { type: string, minLength: 0, maxLength: 8000 }
+          expected_version:
+            type: integer
+            schema: { minimum: 0 }
+          idempotency_key:
+            type: string
+            schema: { minLength: 1, maxLength: 200 }
+        context: { prepared: prepare.admission.prepared, digest: digest.digest_result.data.digest }
+        when: { field: prepare.admission.admitted, equals: true }
+      - id: claim
+        skill: ../data-store
+        runner: append_event
+        inputs: { data_source_ref: 'local://reddit', resource: reddit_browser, aggregate_id: writer }
+        context: { event: reserve.reservation, idempotency_key: reserve.idempotency_key, expected_version: reserve.expected_version }
+        when: { field: prepare.admission.admitted, equals: true }
+      - id: attempt-claim
+        skill: ../data-store
+        runner: append_event
+        inputs: { data_source_ref: 'local://reddit', resource: reddit_attempts }
+        context: { event: reserve.reservation, idempotency_key: reserve.idempotency_key, expected_version: prepare.admission.prepared.attempt_version, aggregate_id: reserve.reservation.attempt_id }
+        when: { field: prepare.admission.admitted, equals: true }
+      - id: submit
+        agent: { role: operator, task: reddit-vote }
+        outputs:
+          observation:
+            type: object
+            schema:
+              required: [status, username, profile_ref, subreddit, parent_url, permalink, title, body, visibility, observed_at, evidence_refs, affirmative_no_submit, reason, target_author, vote_state, effect_attempted]
+              additionalProperties: false
+              properties:
+                status:
+                  type: string
+                  enum: [published, voted, not_submitted, uncertain, challenge]
+                username: { type: string, minLength: 0, maxLength: 20 }
+                profile_ref: { type: string, minLength: 0, maxLength: 100 }
+                subreddit: { type: string, minLength: 0, maxLength: 21 }
+                parent_url: { type: string, minLength: 0, maxLength: 2048 }
+                permalink: { type: string, minLength: 0, maxLength: 2048 }
+                title: { type: string, minLength: 0, maxLength: 300 }
+                body: { type: string, minLength: 0, maxLength: 10000 }
+                visibility:
+                  type: string
+                  enum: [visible, pending, removed, unknown]
+                observed_at: { type: string, minLength: 1, maxLength: 40 }
+                evidence_refs:
+                  type: array
+                  maxItems: 12
+                  items: { type: string, minLength: 1, maxLength: 2048 }
+                affirmative_no_submit: { type: boolean }
+                reason: { type: string, minLength: 1, maxLength: 3000 }
+                target_author: { type: string, minLength: 0, maxLength: 20 }
+                vote_state:
+                  type: string
+                  enum: [up, none, unknown]
+                effect_attempted: { type: boolean }
+        context: { reservation: reserve.reservation, claim: claim.data_operation_result.data }
+        when: { field: prepare.admission.admitted, equals: true }
+      - id: finish
+        tool: { module: reddit.mjs, export: finish }
+        outputs:
+          transition:
+            type: object
+            schema:
+              required: [type, status, account, action, plan_digest, attempt_id, attempt_version, observation, original_observation, effect_possible, assessment]
+              additionalProperties: false
+              properties:
+                type: { type: string, const: reddit.writer }
+                status:
+                  type: string
+                  enum: [reserved, held, published_host_observed, voted_host_observed, released_unsubmitted, closed_by_operator]
+                account:
+                  type: object
+                  required: [account_id, version, config]
+                  additionalProperties: false
+                  properties:
+                    account_id: { type: string, minLength: 3, maxLength: 20, pattern: '^[a-z0-9_-]{3,20}$' }
+                    version: { type: integer, minimum: 0 }
+                    config:
+                      type: object
+                      required: [expected_username, browser_app, driver, profile_ref, binding_ref, credential_profile_ref, background_only, login_method, login_credential_profile_ref, voice]
+                      additionalProperties: false
+                      properties:
+                        expected_username: { type: string, minLength: 3, maxLength: 20, pattern: '^[A-Za-z0-9_-]{3,20}$' }
+                        browser_app:
+                          type: string
+                          enum: [brave, chrome, safari, other]
+                        driver:
+                          type: string
+                          enum: [macos_applescript, connector]
+                        profile_ref: { type: string, minLength: 1, maxLength: 100, pattern: '^[A-Za-z0-9_.:-]+$' }
+                        binding_ref: { type: string, minLength: 1, maxLength: 100, pattern: '^[A-Za-z0-9_.:-]+$' }
+                        credential_profile_ref: { type: string, minLength: 0, maxLength: 100, pattern: '^[A-Za-z0-9_.:-]*$' }
+                        background_only: { type: boolean, const: true }
+                        login_method:
+                          type: string
+                          enum: [google_oauth, reddit_password, existing_session]
+                        login_credential_profile_ref: { type: string, minLength: 0, maxLength: 100, pattern: '^[A-Za-z0-9_.:-]*$' }
+                        voice:
+                          type: object
+                          required: [casing, principles, examples]
+                          additionalProperties: false
+                          properties:
+                            casing:
+                              type: string
+                              enum: [lowercase, sentence_case, preserve]
+                            principles:
+                              type: array
+                              maxItems: 12
+                              items: { type: string, minLength: 1, maxLength: 500 }
+                            examples:
+                              type: array
+                              maxItems: 5
+                              items: { type: string, minLength: 1, maxLength: 1200 }
+                action:
+                  type: object
+                  required: [kind, subreddit, target_url, title, body, allow_bare_urls, target_author]
+                  additionalProperties: false
+                  properties:
+                    kind:
+                      type: string
+                      enum: [post, comment, upvote]
+                    subreddit: { type: string, minLength: 2, maxLength: 21, pattern: '^[A-Za-z0-9_]+$' }
+                    target_url: { type: string, minLength: 1, maxLength: 2048 }
+                    title: { type: string, minLength: 0, maxLength: 300 }
+                    body: { type: string, minLength: 1, maxLength: 10000 }
+                    allow_bare_urls: { type: boolean }
+                    target_author: { type: string, minLength: 0, maxLength: 20, pattern: '^[a-z0-9_-]*$' }
+                plan_digest: { type: string, minLength: 71, maxLength: 71, pattern: '^sha256:[a-f0-9]{64}$' }
+                attempt_id: { type: string, minLength: 71, maxLength: 71, pattern: '^sha256:[a-f0-9]{64}$' }
+                attempt_version: { type: integer, minimum: 0 }
+                observation:
+                  anyOf:
+                    - type: object
+                      required: [status, username, profile_ref, subreddit, parent_url, permalink, title, body, visibility, observed_at, evidence_refs, affirmative_no_submit, reason, target_author, vote_state, effect_attempted]
+                      additionalProperties: false
+                      properties:
+                        status:
+                          type: string
+                          enum: [published, voted, not_submitted, uncertain, challenge]
+                        username: { type: string, minLength: 0, maxLength: 20 }
+                        profile_ref: { type: string, minLength: 0, maxLength: 100 }
+                        subreddit: { type: string, minLength: 0, maxLength: 21 }
+                        parent_url: { type: string, minLength: 0, maxLength: 2048 }
+                        permalink: { type: string, minLength: 0, maxLength: 2048 }
+                        title: { type: string, minLength: 0, maxLength: 300 }
+                        body: { type: string, minLength: 0, maxLength: 10000 }
+                        visibility:
+                          type: string
+                          enum: [visible, pending, removed, unknown]
+                        observed_at: { type: string, minLength: 1, maxLength: 40 }
+                        evidence_refs:
+                          type: array
+                          maxItems: 12
+                          items: { type: string, minLength: 1, maxLength: 2048 }
+                        affirmative_no_submit: { type: boolean }
+                        reason: { type: string, minLength: 1, maxLength: 3000 }
+                        target_author: { type: string, minLength: 0, maxLength: 20 }
+                        vote_state:
+                          type: string
+                          enum: [up, none, unknown]
+                        effect_attempted: { type: boolean }
+                    - { type: 'null' }
+                original_observation:
+                  anyOf:
+                    - type: object
+                      required: [status, username, profile_ref, subreddit, parent_url, permalink, title, body, visibility, observed_at, evidence_refs, affirmative_no_submit, reason, target_author, vote_state, effect_attempted]
+                      additionalProperties: false
+                      properties:
+                        status:
+                          type: string
+                          enum: [published, voted, not_submitted, uncertain, challenge]
+                        username: { type: string, minLength: 0, maxLength: 20 }
+                        profile_ref: { type: string, minLength: 0, maxLength: 100 }
+                        subreddit: { type: string, minLength: 0, maxLength: 21 }
+                        parent_url: { type: string, minLength: 0, maxLength: 2048 }
+                        permalink: { type: string, minLength: 0, maxLength: 2048 }
+                        title: { type: string, minLength: 0, maxLength: 300 }
+                        body: { type: string, minLength: 0, maxLength: 10000 }
+                        visibility:
+                          type: string
+                          enum: [visible, pending, removed, unknown]
+                        observed_at: { type: string, minLength: 1, maxLength: 40 }
+                        evidence_refs:
+                          type: array
+                          maxItems: 12
+                          items: { type: string, minLength: 1, maxLength: 2048 }
+                        affirmative_no_submit: { type: boolean }
+                        reason: { type: string, minLength: 1, maxLength: 3000 }
+                        target_author: { type: string, minLength: 0, maxLength: 20 }
+                        vote_state:
+                          type: string
+                          enum: [up, none, unknown]
+                        effect_attempted: { type: boolean }
+                    - { type: 'null' }
+                effect_possible: { type: boolean }
+                assessment: { type: string, minLength: 0, maxLength: 8000 }
+          idempotency_key:
+            type: string
+            schema: { minLength: 1, maxLength: 200 }
+        context: { reservation: reserve.reservation, observation: submit.observation }
+        when: { field: prepare.admission.admitted, equals: true }
+      - id: attempt-record
+        skill: ../data-store
+        runner: append_event
+        inputs: { data_source_ref: 'local://reddit', resource: reddit_attempts }
+        context: { event: finish.transition, idempotency_key: finish.idempotency_key, expected_version: attempt-claim.data_operation_result.data.after_version, aggregate_id: reserve.reservation.attempt_id }
+        when: { field: prepare.admission.admitted, equals: true }
+      - id: record
+        skill: ../data-store
+        runner: append_event
+        inputs: { data_source_ref: 'local://reddit', resource: reddit_browser, aggregate_id: writer }
+        context: { event: finish.transition, idempotency_key: finish.idempotency_key, expected_version: claim.data_operation_result.data.after_version }
+        when: { field: prepare.admission.admitted, equals: true }
+      - id: finalize
+        tool: { module: reddit.mjs, export: recordOutcome }
+        outputs:
+          result:
+            type: object
+            schema:
+              required: [status, account_id, action, observation, evidence_level, state_version, event_ref, reason]
+              additionalProperties: false
+              properties:
+                status:
+                  type: string
+                  enum: [refused, held, published_host_observed, voted_host_observed, released_unsubmitted, closed_by_operator]
+                account_id: { type: string, minLength: 3, maxLength: 20, pattern: '^[a-z0-9_-]{3,20}$' }
+                action:
+                  type: object
+                  required: [kind, subreddit, target_url, title, body, allow_bare_urls, target_author]
+                  additionalProperties: false
+                  properties:
+                    kind:
+                      type: string
+                      enum: [post, comment, upvote]
+                    subreddit: { type: string, minLength: 2, maxLength: 21, pattern: '^[A-Za-z0-9_]+$' }
+                    target_url: { type: string, minLength: 1, maxLength: 2048 }
+                    title: { type: string, minLength: 0, maxLength: 300 }
+                    body: { type: string, minLength: 1, maxLength: 10000 }
+                    allow_bare_urls: { type: boolean }
+                    target_author: { type: string, minLength: 0, maxLength: 20, pattern: '^[a-z0-9_-]*$' }
+                observation:
+                  anyOf:
+                    - type: object
+                      required: [status, username, profile_ref, subreddit, parent_url, permalink, title, body, visibility, observed_at, evidence_refs, affirmative_no_submit, reason, target_author, vote_state, effect_attempted]
+                      additionalProperties: false
+                      properties:
+                        status:
+                          type: string
+                          enum: [published, voted, not_submitted, uncertain, challenge]
+                        username: { type: string, minLength: 0, maxLength: 20 }
+                        profile_ref: { type: string, minLength: 0, maxLength: 100 }
+                        subreddit: { type: string, minLength: 0, maxLength: 21 }
+                        parent_url: { type: string, minLength: 0, maxLength: 2048 }
+                        permalink: { type: string, minLength: 0, maxLength: 2048 }
+                        title: { type: string, minLength: 0, maxLength: 300 }
+                        body: { type: string, minLength: 0, maxLength: 10000 }
+                        visibility:
+                          type: string
+                          enum: [visible, pending, removed, unknown]
+                        observed_at: { type: string, minLength: 1, maxLength: 40 }
+                        evidence_refs:
+                          type: array
+                          maxItems: 12
+                          items: { type: string, minLength: 1, maxLength: 2048 }
+                        affirmative_no_submit: { type: boolean }
+                        reason: { type: string, minLength: 1, maxLength: 3000 }
+                        target_author: { type: string, minLength: 0, maxLength: 20 }
+                        vote_state:
+                          type: string
+                          enum: [up, none, unknown]
+                        effect_attempted: { type: boolean }
+                    - { type: 'null' }
+                evidence_level:
+                  type: string
+                  enum: [host_observed, none]
+                state_version: { type: integer, minimum: 0 }
+                event_ref: { type: string, minLength: 0, maxLength: 2048 }
+                reason: { type: string, minLength: 0, maxLength: 8000 }
+        context: { transition: finish.transition, record: record.data_operation_result.data }
+        when: { field: prepare.admission.admitted, equals: true }
+      - id: refused
+        tool: { module: reddit.mjs, export: refuse }
+        outputs:
+          result:
+            type: object
+            schema:
+              required: [status, account_id, action, observation, evidence_level, state_version, event_ref, reason]
+              additionalProperties: false
+              properties:
+                status:
+                  type: string
+                  enum: [refused, held, published_host_observed, voted_host_observed, released_unsubmitted, closed_by_operator]
+                account_id: { type: string, minLength: 3, maxLength: 20, pattern: '^[a-z0-9_-]{3,20}$' }
+                action:
+                  type: object
+                  required: [kind, subreddit, target_url, title, body, allow_bare_urls, target_author]
+                  additionalProperties: false
+                  properties:
+                    kind:
+                      type: string
+                      enum: [post, comment, upvote]
+                    subreddit: { type: string, minLength: 2, maxLength: 21, pattern: '^[A-Za-z0-9_]+$' }
+                    target_url: { type: string, minLength: 1, maxLength: 2048 }
+                    title: { type: string, minLength: 0, maxLength: 300 }
+                    body: { type: string, minLength: 1, maxLength: 10000 }
+                    allow_bare_urls: { type: boolean }
+                    target_author: { type: string, minLength: 0, maxLength: 20, pattern: '^[a-z0-9_-]*$' }
+                observation:
+                  anyOf:
+                    - type: object
+                      required: [status, username, profile_ref, subreddit, parent_url, permalink, title, body, visibility, observed_at, evidence_refs, affirmative_no_submit, reason, target_author, vote_state, effect_attempted]
+                      additionalProperties: false
+                      properties:
+                        status:
+                          type: string
+                          enum: [published, voted, not_submitted, uncertain, challenge]
+                        username: { type: string, minLength: 0, maxLength: 20 }
+                        profile_ref: { type: string, minLength: 0, maxLength: 100 }
+                        subreddit: { type: string, minLength: 0, maxLength: 21 }
+                        parent_url: { type: string, minLength: 0, maxLength: 2048 }
+                        permalink: { type: string, minLength: 0, maxLength: 2048 }
+                        title: { type: string, minLength: 0, maxLength: 300 }
+                        body: { type: string, minLength: 0, maxLength: 10000 }
+                        visibility:
+                          type: string
+                          enum: [visible, pending, removed, unknown]
+                        observed_at: { type: string, minLength: 1, maxLength: 40 }
+                        evidence_refs:
+                          type: array
+                          maxItems: 12
+                          items: { type: string, minLength: 1, maxLength: 2048 }
+                        affirmative_no_submit: { type: boolean }
+                        reason: { type: string, minLength: 1, maxLength: 3000 }
+                        target_author: { type: string, minLength: 0, maxLength: 20 }
+                        vote_state:
+                          type: string
+                          enum: [up, none, unknown]
+                        effect_attempted: { type: boolean }
+                    - { type: 'null' }
+                evidence_level:
+                  type: string
+                  enum: [host_observed, none]
+                state_version: { type: integer, minimum: 0 }
+                event_ref: { type: string, minLength: 0, maxLength: 2048 }
+                reason: { type: string, minLength: 0, maxLength: 8000 }
+        context: { reason: prepare.admission.reason }
+        inputs: { account_id: $input.account_id, action: $input.action }
+        when: { field: prepare.admission.admitted, equals: false }
+    policy:
+      guards:
+        - { step: reserve, field: approve.approval_decision.data.approved, equals: true }
+        - { step: claim, field: approve.approval_decision.data.approved, equals: true }
+        - { step: submit, field: claim.data_operation_result.data.status, equals: committed }
+        - { step: attempt-claim, field: claim.data_operation_result.data.status, equals: committed }
+        - { step: submit, field: attempt-claim.data_operation_result.data.status, equals: committed }
+        - { step: record, field: attempt-record.data_operation_result.data.status, equals: committed }
+  reconcile:
+    inputs:
+      account_id: { definition: account_id }
+      disposition:
+        type: string
+        required: false
+        description: Investigate by default; close_attempt proposes an explicit human-approved closure without claiming success or retrying.
+        schema:
+          enum: [investigate, close_attempt]
+        default: investigate
+      closure_reason:
+        type: string
+        required: false
+        description: Required reason when closing an attempt; original host execution must have stopped.
+        schema: { minLength: 0, maxLength: 2000 }
+        default: ''
+    examples:
+      - { account_id: example_builder }
+    result_from: [finalize]
+    steps:
+      - id: writer-state
+        skill: ../data-store
+        runner: read_events
+        inputs: { data_source_ref: 'local://reddit', resource: reddit_browser, aggregate_id: writer, limit: 1 }
+      - id: pending
+        tool: { module: reddit.mjs, export: pending }
+        outputs:
+          pending:
+            type: object
+            schema:
+              required: [reservation, version]
+              additionalProperties: false
+              properties:
+                reservation:
+                  type: object
+                  required: [type, status, account, action, plan_digest, attempt_id, attempt_version, observation, original_observation, effect_possible, assessment]
+                  additionalProperties: false
+                  properties:
+                    type: { type: string, const: reddit.writer }
+                    status:
+                      type: string
+                      enum: [reserved, held, published_host_observed, voted_host_observed, released_unsubmitted, closed_by_operator]
+                    account:
+                      type: object
+                      required: [account_id, version, config]
+                      additionalProperties: false
+                      properties:
+                        account_id: { type: string, minLength: 3, maxLength: 20, pattern: '^[a-z0-9_-]{3,20}$' }
+                        version: { type: integer, minimum: 0 }
+                        config:
+                          type: object
+                          required: [expected_username, browser_app, driver, profile_ref, binding_ref, credential_profile_ref, background_only, login_method, login_credential_profile_ref, voice]
+                          additionalProperties: false
+                          properties:
+                            expected_username: { type: string, minLength: 3, maxLength: 20, pattern: '^[A-Za-z0-9_-]{3,20}$' }
+                            browser_app:
+                              type: string
+                              enum: [brave, chrome, safari, other]
+                            driver:
+                              type: string
+                              enum: [macos_applescript, connector]
+                            profile_ref: { type: string, minLength: 1, maxLength: 100, pattern: '^[A-Za-z0-9_.:-]+$' }
+                            binding_ref: { type: string, minLength: 1, maxLength: 100, pattern: '^[A-Za-z0-9_.:-]+$' }
+                            credential_profile_ref: { type: string, minLength: 0, maxLength: 100, pattern: '^[A-Za-z0-9_.:-]*$' }
+                            background_only: { type: boolean, const: true }
+                            login_method:
+                              type: string
+                              enum: [google_oauth, reddit_password, existing_session]
+                            login_credential_profile_ref: { type: string, minLength: 0, maxLength: 100, pattern: '^[A-Za-z0-9_.:-]*$' }
+                            voice:
+                              type: object
+                              required: [casing, principles, examples]
+                              additionalProperties: false
+                              properties:
+                                casing:
+                                  type: string
+                                  enum: [lowercase, sentence_case, preserve]
+                                principles:
+                                  type: array
+                                  maxItems: 12
+                                  items: { type: string, minLength: 1, maxLength: 500 }
+                                examples:
+                                  type: array
+                                  maxItems: 5
+                                  items: { type: string, minLength: 1, maxLength: 1200 }
+                    action:
+                      type: object
+                      required: [kind, subreddit, target_url, title, body, allow_bare_urls, target_author]
+                      additionalProperties: false
+                      properties:
+                        kind:
+                          type: string
+                          enum: [post, comment, upvote]
+                        subreddit: { type: string, minLength: 2, maxLength: 21, pattern: '^[A-Za-z0-9_]+$' }
+                        target_url: { type: string, minLength: 1, maxLength: 2048 }
+                        title: { type: string, minLength: 0, maxLength: 300 }
+                        body: { type: string, minLength: 1, maxLength: 10000 }
+                        allow_bare_urls: { type: boolean }
+                        target_author: { type: string, minLength: 0, maxLength: 20, pattern: '^[a-z0-9_-]*$' }
+                    plan_digest: { type: string, minLength: 71, maxLength: 71, pattern: '^sha256:[a-f0-9]{64}$' }
+                    attempt_id: { type: string, minLength: 71, maxLength: 71, pattern: '^sha256:[a-f0-9]{64}$' }
+                    attempt_version: { type: integer, minimum: 0 }
+                    observation:
+                      anyOf:
+                        - type: object
+                          required: [status, username, profile_ref, subreddit, parent_url, permalink, title, body, visibility, observed_at, evidence_refs, affirmative_no_submit, reason, target_author, vote_state, effect_attempted]
+                          additionalProperties: false
+                          properties:
+                            status:
+                              type: string
+                              enum: [published, voted, not_submitted, uncertain, challenge]
+                            username: { type: string, minLength: 0, maxLength: 20 }
+                            profile_ref: { type: string, minLength: 0, maxLength: 100 }
+                            subreddit: { type: string, minLength: 0, maxLength: 21 }
+                            parent_url: { type: string, minLength: 0, maxLength: 2048 }
+                            permalink: { type: string, minLength: 0, maxLength: 2048 }
+                            title: { type: string, minLength: 0, maxLength: 300 }
+                            body: { type: string, minLength: 0, maxLength: 10000 }
+                            visibility:
+                              type: string
+                              enum: [visible, pending, removed, unknown]
+                            observed_at: { type: string, minLength: 1, maxLength: 40 }
+                            evidence_refs:
+                              type: array
+                              maxItems: 12
+                              items: { type: string, minLength: 1, maxLength: 2048 }
+                            affirmative_no_submit: { type: boolean }
+                            reason: { type: string, minLength: 1, maxLength: 3000 }
+                            target_author: { type: string, minLength: 0, maxLength: 20 }
+                            vote_state:
+                              type: string
+                              enum: [up, none, unknown]
+                            effect_attempted: { type: boolean }
+                        - { type: 'null' }
+                    original_observation:
+                      anyOf:
+                        - type: object
+                          required: [status, username, profile_ref, subreddit, parent_url, permalink, title, body, visibility, observed_at, evidence_refs, affirmative_no_submit, reason, target_author, vote_state, effect_attempted]
+                          additionalProperties: false
+                          properties:
+                            status:
+                              type: string
+                              enum: [published, voted, not_submitted, uncertain, challenge]
+                            username: { type: string, minLength: 0, maxLength: 20 }
+                            profile_ref: { type: string, minLength: 0, maxLength: 100 }
+                            subreddit: { type: string, minLength: 0, maxLength: 21 }
+                            parent_url: { type: string, minLength: 0, maxLength: 2048 }
+                            permalink: { type: string, minLength: 0, maxLength: 2048 }
+                            title: { type: string, minLength: 0, maxLength: 300 }
+                            body: { type: string, minLength: 0, maxLength: 10000 }
+                            visibility:
+                              type: string
+                              enum: [visible, pending, removed, unknown]
+                            observed_at: { type: string, minLength: 1, maxLength: 40 }
+                            evidence_refs:
+                              type: array
+                              maxItems: 12
+                              items: { type: string, minLength: 1, maxLength: 2048 }
+                            affirmative_no_submit: { type: boolean }
+                            reason: { type: string, minLength: 1, maxLength: 3000 }
+                            target_author: { type: string, minLength: 0, maxLength: 20 }
+                            vote_state:
+                              type: string
+                              enum: [up, none, unknown]
+                            effect_attempted: { type: boolean }
+                        - { type: 'null' }
+                    effect_possible: { type: boolean }
+                    assessment: { type: string, minLength: 0, maxLength: 8000 }
+                version: { type: integer, minimum: 0 }
+        context: { writer_state: writer-state.data_operation_result.data }
+        inputs: { account_id: $input.account_id }
+      - id: attempt-state
+        skill: ../data-store
+        runner: read_events
+        inputs: { data_source_ref: 'local://reddit', resource: reddit_attempts, limit: 1 }
+        context: { aggregate_id: pending.pending.reservation.attempt_id }
+      - id: observe
+        agent: { role: operator, task: reddit-reconcile }
+        outputs:
+          observation:
+            type: object
+            schema:
+              required: [status, username, profile_ref, subreddit, parent_url, permalink, title, body, visibility, observed_at, evidence_refs, affirmative_no_submit, reason, target_author, vote_state, effect_attempted]
+              additionalProperties: false
+              properties:
+                status:
+                  type: string
+                  enum: [published, voted, not_submitted, uncertain, challenge]
+                username: { type: string, minLength: 0, maxLength: 20 }
+                profile_ref: { type: string, minLength: 0, maxLength: 100 }
+                subreddit: { type: string, minLength: 0, maxLength: 21 }
+                parent_url: { type: string, minLength: 0, maxLength: 2048 }
+                permalink: { type: string, minLength: 0, maxLength: 2048 }
+                title: { type: string, minLength: 0, maxLength: 300 }
+                body: { type: string, minLength: 0, maxLength: 10000 }
+                visibility:
+                  type: string
+                  enum: [visible, pending, removed, unknown]
+                observed_at: { type: string, minLength: 1, maxLength: 40 }
+                evidence_refs:
+                  type: array
+                  maxItems: 12
+                  items: { type: string, minLength: 1, maxLength: 2048 }
+                affirmative_no_submit: { type: boolean }
+                reason: { type: string, minLength: 1, maxLength: 3000 }
+                target_author: { type: string, minLength: 0, maxLength: 20 }
+                vote_state:
+                  type: string
+                  enum: [up, none, unknown]
+                effect_attempted: { type: boolean }
+        context: { pending: pending.pending }
+      - id: resolve
+        tool: { module: reddit.mjs, export: resolve }
+        outputs:
+          resolution:
+            type: object
+            schema:
+              required: [type, status, account, action, plan_digest, attempt_id, attempt_version, observation, original_observation, effect_possible, assessment]
+              additionalProperties: false
+              properties:
+                type: { type: string, const: reddit.writer }
+                status:
+                  type: string
+                  enum: [reserved, held, published_host_observed, voted_host_observed, released_unsubmitted, closed_by_operator]
+                account:
+                  type: object
+                  required: [account_id, version, config]
+                  additionalProperties: false
+                  properties:
+                    account_id: { type: string, minLength: 3, maxLength: 20, pattern: '^[a-z0-9_-]{3,20}$' }
+                    version: { type: integer, minimum: 0 }
+                    config:
+                      type: object
+                      required: [expected_username, browser_app, driver, profile_ref, binding_ref, credential_profile_ref, background_only, login_method, login_credential_profile_ref, voice]
+                      additionalProperties: false
+                      properties:
+                        expected_username: { type: string, minLength: 3, maxLength: 20, pattern: '^[A-Za-z0-9_-]{3,20}$' }
+                        browser_app:
+                          type: string
+                          enum: [brave, chrome, safari, other]
+                        driver:
+                          type: string
+                          enum: [macos_applescript, connector]
+                        profile_ref: { type: string, minLength: 1, maxLength: 100, pattern: '^[A-Za-z0-9_.:-]+$' }
+                        binding_ref: { type: string, minLength: 1, maxLength: 100, pattern: '^[A-Za-z0-9_.:-]+$' }
+                        credential_profile_ref: { type: string, minLength: 0, maxLength: 100, pattern: '^[A-Za-z0-9_.:-]*$' }
+                        background_only: { type: boolean, const: true }
+                        login_method:
+                          type: string
+                          enum: [google_oauth, reddit_password, existing_session]
+                        login_credential_profile_ref: { type: string, minLength: 0, maxLength: 100, pattern: '^[A-Za-z0-9_.:-]*$' }
+                        voice:
+                          type: object
+                          required: [casing, principles, examples]
+                          additionalProperties: false
+                          properties:
+                            casing:
+                              type: string
+                              enum: [lowercase, sentence_case, preserve]
+                            principles:
+                              type: array
+                              maxItems: 12
+                              items: { type: string, minLength: 1, maxLength: 500 }
+                            examples:
+                              type: array
+                              maxItems: 5
+                              items: { type: string, minLength: 1, maxLength: 1200 }
+                action:
+                  type: object
+                  required: [kind, subreddit, target_url, title, body, allow_bare_urls, target_author]
+                  additionalProperties: false
+                  properties:
+                    kind:
+                      type: string
+                      enum: [post, comment, upvote]
+                    subreddit: { type: string, minLength: 2, maxLength: 21, pattern: '^[A-Za-z0-9_]+$' }
+                    target_url: { type: string, minLength: 1, maxLength: 2048 }
+                    title: { type: string, minLength: 0, maxLength: 300 }
+                    body: { type: string, minLength: 1, maxLength: 10000 }
+                    allow_bare_urls: { type: boolean }
+                    target_author: { type: string, minLength: 0, maxLength: 20, pattern: '^[a-z0-9_-]*$' }
+                plan_digest: { type: string, minLength: 71, maxLength: 71, pattern: '^sha256:[a-f0-9]{64}$' }
+                attempt_id: { type: string, minLength: 71, maxLength: 71, pattern: '^sha256:[a-f0-9]{64}$' }
+                attempt_version: { type: integer, minimum: 0 }
+                observation:
+                  anyOf:
+                    - type: object
+                      required: [status, username, profile_ref, subreddit, parent_url, permalink, title, body, visibility, observed_at, evidence_refs, affirmative_no_submit, reason, target_author, vote_state, effect_attempted]
+                      additionalProperties: false
+                      properties:
+                        status:
+                          type: string
+                          enum: [published, voted, not_submitted, uncertain, challenge]
+                        username: { type: string, minLength: 0, maxLength: 20 }
+                        profile_ref: { type: string, minLength: 0, maxLength: 100 }
+                        subreddit: { type: string, minLength: 0, maxLength: 21 }
+                        parent_url: { type: string, minLength: 0, maxLength: 2048 }
+                        permalink: { type: string, minLength: 0, maxLength: 2048 }
+                        title: { type: string, minLength: 0, maxLength: 300 }
+                        body: { type: string, minLength: 0, maxLength: 10000 }
+                        visibility:
+                          type: string
+                          enum: [visible, pending, removed, unknown]
+                        observed_at: { type: string, minLength: 1, maxLength: 40 }
+                        evidence_refs:
+                          type: array
+                          maxItems: 12
+                          items: { type: string, minLength: 1, maxLength: 2048 }
+                        affirmative_no_submit: { type: boolean }
+                        reason: { type: string, minLength: 1, maxLength: 3000 }
+                        target_author: { type: string, minLength: 0, maxLength: 20 }
+                        vote_state:
+                          type: string
+                          enum: [up, none, unknown]
+                        effect_attempted: { type: boolean }
+                    - { type: 'null' }
+                original_observation:
+                  anyOf:
+                    - type: object
+                      required: [status, username, profile_ref, subreddit, parent_url, permalink, title, body, visibility, observed_at, evidence_refs, affirmative_no_submit, reason, target_author, vote_state, effect_attempted]
+                      additionalProperties: false
+                      properties:
+                        status:
+                          type: string
+                          enum: [published, voted, not_submitted, uncertain, challenge]
+                        username: { type: string, minLength: 0, maxLength: 20 }
+                        profile_ref: { type: string, minLength: 0, maxLength: 100 }
+                        subreddit: { type: string, minLength: 0, maxLength: 21 }
+                        parent_url: { type: string, minLength: 0, maxLength: 2048 }
+                        permalink: { type: string, minLength: 0, maxLength: 2048 }
+                        title: { type: string, minLength: 0, maxLength: 300 }
+                        body: { type: string, minLength: 0, maxLength: 10000 }
+                        visibility:
+                          type: string
+                          enum: [visible, pending, removed, unknown]
+                        observed_at: { type: string, minLength: 1, maxLength: 40 }
+                        evidence_refs:
+                          type: array
+                          maxItems: 12
+                          items: { type: string, minLength: 1, maxLength: 2048 }
+                        affirmative_no_submit: { type: boolean }
+                        reason: { type: string, minLength: 1, maxLength: 3000 }
+                        target_author: { type: string, minLength: 0, maxLength: 20 }
+                        vote_state:
+                          type: string
+                          enum: [up, none, unknown]
+                        effect_attempted: { type: boolean }
+                    - { type: 'null' }
+                effect_possible: { type: boolean }
+                assessment: { type: string, minLength: 0, maxLength: 8000 }
+          expected_version:
+            type: integer
+            schema: { minimum: 0 }
+          idempotency_key:
+            type: string
+            schema: { minLength: 1, maxLength: 200 }
+        context: { pending: pending.pending, observation: observe.observation }
+        inputs: { disposition: $input.disposition, closure_reason: $input.closure_reason }
+      - id: approve
+        ask: { gate: reddit.reconcile, reason: Approve this exact reconciliation disposition. A closed_by_operator disposition records no success and never retries; confirm the original host work has stopped before releasing the hold. }
+        context: { resolution: resolve.resolution, prior_attempt: pending.pending.reservation, state_version: resolve.expected_version }
+      - id: attempt-record
+        skill: ../data-store
+        runner: append_event
+        inputs: { data_source_ref: 'local://reddit', resource: reddit_attempts }
+        context: { event: resolve.resolution, idempotency_key: resolve.idempotency_key, expected_version: attempt-state.data_operation_result.data.after_version, aggregate_id: pending.pending.reservation.attempt_id }
+      - id: record
+        skill: ../data-store
+        runner: append_event
+        inputs: { data_source_ref: 'local://reddit', resource: reddit_browser, aggregate_id: writer }
+        context: { event: resolve.resolution, idempotency_key: resolve.idempotency_key, expected_version: resolve.expected_version }
+      - id: finalize
+        tool: { module: reddit.mjs, export: recordOutcome }
+        outputs:
+          result:
+            type: object
+            schema:
+              required: [status, account_id, action, observation, evidence_level, state_version, event_ref, reason]
+              additionalProperties: false
+              properties:
+                status:
+                  type: string
+                  enum: [refused, held, published_host_observed, voted_host_observed, released_unsubmitted, closed_by_operator]
+                account_id: { type: string, minLength: 3, maxLength: 20, pattern: '^[a-z0-9_-]{3,20}$' }
+                action:
+                  type: object
+                  required: [kind, subreddit, target_url, title, body, allow_bare_urls, target_author]
+                  additionalProperties: false
+                  properties:
+                    kind:
+                      type: string
+                      enum: [post, comment, upvote]
+                    subreddit: { type: string, minLength: 2, maxLength: 21, pattern: '^[A-Za-z0-9_]+$' }
+                    target_url: { type: string, minLength: 1, maxLength: 2048 }
+                    title: { type: string, minLength: 0, maxLength: 300 }
+                    body: { type: string, minLength: 1, maxLength: 10000 }
+                    allow_bare_urls: { type: boolean }
+                    target_author: { type: string, minLength: 0, maxLength: 20, pattern: '^[a-z0-9_-]*$' }
+                observation:
+                  anyOf:
+                    - type: object
+                      required: [status, username, profile_ref, subreddit, parent_url, permalink, title, body, visibility, observed_at, evidence_refs, affirmative_no_submit, reason, target_author, vote_state, effect_attempted]
+                      additionalProperties: false
+                      properties:
+                        status:
+                          type: string
+                          enum: [published, voted, not_submitted, uncertain, challenge]
+                        username: { type: string, minLength: 0, maxLength: 20 }
+                        profile_ref: { type: string, minLength: 0, maxLength: 100 }
+                        subreddit: { type: string, minLength: 0, maxLength: 21 }
+                        parent_url: { type: string, minLength: 0, maxLength: 2048 }
+                        permalink: { type: string, minLength: 0, maxLength: 2048 }
+                        title: { type: string, minLength: 0, maxLength: 300 }
+                        body: { type: string, minLength: 0, maxLength: 10000 }
+                        visibility:
+                          type: string
+                          enum: [visible, pending, removed, unknown]
+                        observed_at: { type: string, minLength: 1, maxLength: 40 }
+                        evidence_refs:
+                          type: array
+                          maxItems: 12
+                          items: { type: string, minLength: 1, maxLength: 2048 }
+                        affirmative_no_submit: { type: boolean }
+                        reason: { type: string, minLength: 1, maxLength: 3000 }
+                        target_author: { type: string, minLength: 0, maxLength: 20 }
+                        vote_state:
+                          type: string
+                          enum: [up, none, unknown]
+                        effect_attempted: { type: boolean }
+                    - { type: 'null' }
+                evidence_level:
+                  type: string
+                  enum: [host_observed, none]
+                state_version: { type: integer, minimum: 0 }
+                event_ref: { type: string, minLength: 0, maxLength: 2048 }
+                reason: { type: string, minLength: 0, maxLength: 8000 }
+        context: { transition: resolve.resolution, record: record.data_operation_result.data }
+    policy:
+      guards:
+        - { step: record, field: approve.approval_decision.data.approved, equals: true }
+        - { step: attempt-record, field: approve.approval_decision.data.approved, equals: true }
+        - { step: record, field: attempt-record.data_operation_result.data.status, equals: committed }
+harness:
+  files: [fixtures/support/discovery.graph, fixtures/support/close.graph, fixtures/support/close_continue.graph, fixtures/support/close_intervening_retry.graph, fixtures/support/close_retry.graph, fixtures/support/malformed_close.graph, fixtures/support/published_intervening_retry.graph, fixtures/support/recover.graph, fixtures/support/reddit-managed-account-vote-refused.graph, fixtures/support/reddit-markdown-link-refused.graph, fixtures/support/reddit-mixed-case-vote-readback.graph, fixtures/support/reddit-post-readback.graph, fixtures/support/reddit-self-vote-refused.graph, fixtures/support/reddit-upvote-readback.graph, fixtures/support/reddit-upvote-real-title.graph, fixtures/support/released_retry.graph, fixtures/support/rereconcile_retry.graph, fixtures/support/retry.graph, fixtures/support/session.graph]
+  cases: []

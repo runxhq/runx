@@ -121,8 +121,7 @@ pub struct ApprovalGate {
     pub reason: NonEmptyString,
     #[serde(rename = "type", skip_serializing_if = "Option::is_none")]
     pub gate_type: Option<String>,
-    /// Shallow summary payload. `rust-resolution-payload-parity` owns any
-    /// future deep typing for approval summaries.
+    /// Shallow summary payload.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub summary: Option<JsonObject>,
 }
@@ -132,20 +131,11 @@ pub struct ApprovalGate {
 #[runx_schema(spec_id = "https://runx.ai/spec/agent-act-invocation.schema.json")]
 pub struct AgentActInvocation {
     pub id: NonEmptyString,
-    pub source_type: AgentActSourceType,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub agent: Option<NonEmptyString>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub task: Option<NonEmptyString>,
+    /// The kind of agent the step asks for.
+    pub role: NonEmptyString,
+    /// The act it performs.
+    pub task: NonEmptyString,
     pub envelope: AgentContextEnvelope,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
-#[serde(rename_all = "kebab-case")]
-pub enum AgentActSourceType {
-    Agent,
-    #[serde(rename = "agent-task")]
-    AgentStep,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
@@ -153,8 +143,7 @@ pub enum AgentActSourceType {
 #[runx_schema(spec_id = "https://runx.ai/spec/resolution-response.schema.json")]
 pub struct ResolutionResponse {
     pub actor: ResolutionResponseActor,
-    /// Shallow response payload. `rust-resolution-payload-parity` owns any
-    /// future deep typing for resolution responses.
+    /// Shallow response payload.
     pub payload: JsonValue,
 }
 

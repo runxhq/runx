@@ -85,30 +85,6 @@ describe("credential and authority proof schemas", () => {
     expect(JSON.stringify(validAuthorityProof)).not.toContain("super-secret-token");
   });
 
-  it("rejects legacy connection_id fields", () => {
-    expect(
-      contractSchemaMatches(credentialEnvelopeSchema, {
-        kind: "runx.credential-envelope.v1",
-        grant_id: "grant_1",
-        provider: "github",
-        auth_mode: "api_key",
-        material_kind: "api_key",
-        connection_id: "legacy-provider-ref-1",
-        scopes: ["repo:read"],
-        material_ref: "local:github:grant_1",
-      }),
-    ).toBe(false);
-    expect(
-      contractSchemaMatches(authorityProofSchema, {
-        ...validAuthorityProof,
-        credential_material: {
-          status: "resolved",
-          connection_id: "legacy-provider-ref-1",
-        },
-      }),
-    ).toBe(false);
-  });
-
   it("rejects unknown authority proof fields", () => {
     expect(contractSchemaMatches(authorityProofSchema, { ...validAuthorityProof, raw_token: "secret" })).toBe(false);
   });

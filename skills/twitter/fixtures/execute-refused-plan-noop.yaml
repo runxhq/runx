@@ -2,8 +2,6 @@ name: twitter-refuses-non-ready-plan-before-provider
 kind: skill
 target: ..
 runner: execute
-env:
-  RUNX_DATA_SOURCES: '{"data_sources":{"tenant://twitter/refused-plan":{"adapter":"data.sqlite","database_path":".runx/data/twitter-refused-plan.sqlite","resources":{"twitter_execution":{"kind":"event_stream","partition_key":"aggregate_id"}}}}}'
 inputs:
   plan_json:
     decision: refused

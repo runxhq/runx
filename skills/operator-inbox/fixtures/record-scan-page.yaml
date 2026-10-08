@@ -25,4 +25,3 @@ metadata:
   public_skill: operator-inbox
   source_case: record-scan-page
   source: skills-fixture
-  runner_kind: graph

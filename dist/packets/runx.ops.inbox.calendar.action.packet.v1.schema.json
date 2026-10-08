@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://schemas.runx.ai/runx/ops/inbox_calendar_action_packet/v1.json",
   "x-runx-packet-id": "runx.ops.inbox_calendar_action_packet.v1",
-  "x-runx-generated-from": "skills/chief-of-staff/X.yaml#root.runners.exec.graph.steps.1",
+  "x-runx-generated-from": "skills/chief-of-staff/run.yaml#root.runners.exec.steps.1",
   "additionalProperties": false,
   "properties": {
     "calendar_mutated": {

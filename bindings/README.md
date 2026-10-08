@@ -7,7 +7,7 @@ document. This directory stores runx-owned binding data:
 
 - `binding.json`: upstream repo/path/commit provenance, trust tier,
   registry owner, publication state, and proof pointers.
-- `X.yaml`: the execution profile artifact containing runner metadata,
+- `run.yaml`: the execution profile artifact containing runner metadata,
   harness cases, policy, scopes, and receipt expectations.
 
 Use `bindings/` only when runx does **not** own the upstream `SKILL.md`.
@@ -18,7 +18,7 @@ Do not add candidate or placeholder directories here. A binding is eligible only
 after the upstream repository has a merged, pinned `SKILL.md` that starts with
 YAML frontmatter and a `name` matching `bindings/<owner>/<skill>`.
 
-Overlay produces an exact, digest-bound `binding.json` and `X.yaml` bundle from
+Overlay produces an exact, digest-bound `binding.json` and `run.yaml` bundle from
 the pinned upstream manual. Apply that bundle through the repository's normal
 authoring lane, then publish the validated package through the native registry
 command. No generated `dist/` mirror is a source of truth.

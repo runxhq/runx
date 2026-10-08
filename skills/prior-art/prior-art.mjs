@@ -29,7 +29,7 @@ export function indexSources(inputs) {
   })).filter((entry) => entry.name && entry.path);
   const inspectedSources = records(bundle.files).map((file) => ({
     path: requiredString(file.path, "file_read_bundle.files.path"),
-    kind: String(file.path).endsWith("/X.yaml") ? "skill-manifest" : "repo-document",
+    kind: String(file.path).endsWith("/run.yaml") ? "skill-manifest" : "repo-document",
     bytes: Number.isFinite(file.bytes) ? file.bytes : 0,
     digest: requiredString(file.content_digest, "file_read_bundle.files.content_digest"),
   }));
@@ -118,7 +118,7 @@ return {
 
 function addSkillManifest(target, value) {
   const name = stringValue(value)?.replace(/^\.\.\//u, "");
-  if (name && /^[a-z0-9][a-z0-9-]*$/u.test(name)) target.add(`skills/${name}/X.yaml`);
+  if (name && /^[a-z0-9][a-z0-9-]*$/u.test(name)) target.add(`skills/${name}/run.yaml`);
 }
 
 function normalizeRelative(value) {

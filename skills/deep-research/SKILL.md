@@ -1,8 +1,6 @@
 ---
 name: deep-research
 description: Produce a decision-ready deep-research brief from bounded governed evidence and preserve every material source binding.
-runx:
-  category: research
 ---
 
 # Deep Research

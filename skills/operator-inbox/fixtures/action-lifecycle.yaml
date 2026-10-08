@@ -1,6 +1,6 @@
 name: action-lifecycle-persists-disposition
 kind: graph
-target: ../harness/action-lifecycle.yaml
+target: support/action-lifecycle.graph
 operator_journeys:
   - mode: standalone
     exercises_runner: list_actions
@@ -15,8 +15,6 @@ operator_journeys:
     must_not_repeat:
       - Do not refetch the provider item.
       - Do not create another action after the stable identity is persisted.
-env:
-  RUNX_DATA_SOURCES: '{"data_sources":{"local://runx/operator-inbox/action-lifecycle":{"adapter":"data.sqlite","database_path":".runx/data/operator-inbox-action-lifecycle.sqlite","resources":{"operator_inbox_actions":{"kind":"event_stream","partition_key":"aggregate_id"}}}}}'
 expect:
   status: sealed
   receipt:
@@ -51,13 +49,11 @@ expect:
       subset:
         data_operation_result:
           data:
-            operation: append_event
+            operation: events.append
             status: committed
             after_version: 1
             provider_evidence:
-              adapter: data.sqlite
-              provider: sqlite-event-store
-              storage_class: sqlite
+              backend: sqlite
     plan-disposition:
       subset:
         transition:
@@ -77,31 +73,26 @@ expect:
       subset:
         data_operation_result:
           data:
-            operation: append_event
+            operation: events.append
             status: committed
             before_version: 1
             after_version: 2
             provider_evidence:
-              adapter: data.sqlite
-              provider: sqlite-event-store
-              storage_class: sqlite
+              backend: sqlite
     readback:
       subset:
         data_operation_result:
           data:
-            operation: read_projection
+            operation: projection.read
             status: read
             projection:
               aggregate_id: action-04a315f3a0af034c1c2022c0a15eb6b6b2819a63839f02f77187fd30163d1cd1
               event_count: 2
               version: 2
             provider_evidence:
-              adapter: data.sqlite
-              provider: sqlite-event-store
-              storage_class: sqlite
+              backend: sqlite
 metadata:
   public_skill: operator-inbox
   source_case: action-lifecycle-persists-disposition
   source: skills-fixture
-  runner_kind: graph
   graph_shape: durable_action_lifecycle

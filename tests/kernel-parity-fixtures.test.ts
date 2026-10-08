@@ -121,10 +121,10 @@ describe("kernel parity fixtures", () => {
   it("requires runner ingestion fixtures to use the runner prefix", async () => {
     const validation = await validateKernelFixture({
       $schema: "../schema/policy.schema.json",
-      name: "missing-source-runner-error",
+      name: "missing-grant-runner-error",
       input: {
-        kind: "policy.admitLocalSkill",
-        skill: { name: "missing-source" },
+        kind: "policy.admitGraphStepScopes",
+        request: { stepId: "read", requestedScopes: ["repo:read"] },
       },
       expected: {
         kind: "error",
@@ -139,19 +139,19 @@ describe("kernel parity fixtures", () => {
   it("reserves the runner prefix for fixture-runner ingestion errors", async () => {
     const validation = await validateKernelFixture({
       $schema: "../schema/policy.schema.json",
-      name: "runner-local-admission-denies-unsupported-source",
+      name: "runner-graph-scope-denies-widening",
       input: {
-        kind: "policy.admitLocalSkill",
-        skill: {
-          name: "unsupported",
-          source: { type: "unsupported" },
+        kind: "policy.admitGraphStepScopes",
+        request: {
+          stepId: "deploy",
+          requestedScopes: ["deployments:write"],
+          grant: { scopes: ["checks:read"] },
         },
       },
       expected: {
         kind: "output",
         value: {
-          reason: "unsupported_source",
-          status: "denied",
+          status: "deny",
         },
       },
     });
@@ -183,8 +183,8 @@ describe("kernel parity fixtures", () => {
   it("preserves source error details on fixture oracle failures", () => {
     try {
       evaluateKernelFixtureInput({
-        kind: "policy.admitLocalSkill",
-        skill: { name: "missing-source" },
+        kind: "policy.admitGraphStepScopes",
+        request: { stepId: "read", requestedScopes: ["repo:read"] },
       });
       throw new Error("expected fixture oracle failure");
     } catch (error) {

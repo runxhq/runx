@@ -282,14 +282,20 @@ fn not_sent(code: &'static str, reason: impl Into<String>) -> Unperformed {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::http::NativeHttpTransport;
+    use crate::http::{
+        NativeHttpTransport, RuntimeHarnessHttpExchange, RuntimeHarnessHttpRequestBody,
+    };
 
     const URL: &str = "https://fixture.runx.invalid/page";
 
     fn read(env: &BTreeMap<String, String>) -> Result<Observed, Unperformed> {
-        let responses =
-            BTreeMap::from([(URL.to_owned(), RuntimeHttpResponse::new(200, "0123456789"))]);
-        let transport = NativeHttpTransport::new(Some(&responses), None)
+        let exchanges = [RuntimeHarnessHttpExchange {
+            method: crate::http::HttpMethod::Get,
+            url: URL.to_owned(),
+            body: RuntimeHarnessHttpRequestBody::None,
+            response: RuntimeHttpResponse::new(200, "0123456789"),
+        }];
+        let transport = NativeHttpTransport::new(Some(&exchanges))
             .map_err(|error| not_sent("test", error.to_string()))?;
         let input = JsonValue::Object(JsonObject::from([(
             "url".to_owned(),

@@ -10,25 +10,25 @@ expect:
     schema: runx.receipt.v1
     state: sealed
     disposition: closed
-    reason_code: process_closed
-    child_receipt_count: 0
+    reason_code: graph_closed
+    child_receipt_count: 1
   output:
     subset:
       lane_packet:
-        schema: runx.business_ops_lane.v1
-        status: needs_input
-        decision: stop
-        consequence: read_only
-        authority:
-          requested: []
-          provided: fixture_only
-        evidence:
-          inputs_required:
-            - signal
-        next: []
+        data:
+          schema: runx.business_ops_lane.v1
+          status: needs_input
+          decision: stop
+          consequence: read_only
+          authority:
+            requested: []
+            provided: fixture_only
+          evidence:
+            inputs_required:
+              - signal
+          next: []
 metadata:
   public_skill: business-ops
   source_case: missing-signal-stops-before-routing
   source: skills-fixture
-  runner_kind: cli-tool
   graph_shape: stop_boundary

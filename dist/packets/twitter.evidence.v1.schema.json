@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://schemas.runx.ai/runx/twitter/evidence/v1.json",
   "x-runx-packet-id": "twitter.evidence.v1",
-  "x-runx-generated-from": "skills/twitter/X.yaml#root.runners.read.graph.steps.4",
+  "x-runx-generated-from": "skills/twitter/run.yaml#root.runners.read.steps.4",
   "additionalProperties": false,
   "properties": {
     "account": {

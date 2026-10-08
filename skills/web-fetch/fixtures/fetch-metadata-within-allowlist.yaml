@@ -8,11 +8,12 @@ inputs:
     - fixture.runx.invalid
   extract: metadata
 caller:
-  http_responses:
-    "https://fixture.runx.invalid/rfc9110":
-      status: 200
-      headers: { content-type: text/html }
-      body: '<html lang="en"><head><title>HTTP Semantics</title><meta name="description" content="Fixture RFC evidence"><link rel="canonical" href="https://fixture.runx.invalid/rfc9110"></head><body>HTTP Semantics</body></html>'
+  http_exchanges:
+    - request: { method: GET, url: "https://fixture.runx.invalid/rfc9110", body: none }
+      response:
+        status: 200
+        headers: { content-type: text/html }
+        body: '<html lang="en"><head><title>HTTP Semantics</title><meta name="description" content="Fixture RFC evidence"><link rel="canonical" href="https://fixture.runx.invalid/rfc9110"></head><body>HTTP Semantics</body></html>'
 expect:
   status: sealed
   receipt:

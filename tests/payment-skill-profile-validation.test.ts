@@ -17,33 +17,9 @@ const hostedPaymentSkills = [
 
 const localPaymentSimulators = ["mock-charge", "mock-pay", "mock-refund"] as const;
 
-const retiredPackages = [
-  "mpp-charge",
-  "mpp-pay",
-  "mpp-refund",
-  "stripe-charge",
-  "stripe-refund",
-] as const;
-
-const retiredStages = [
-  "charge/graph/charge-challenge",
-  "charge/graph/charge-price",
-  "charge/graph/charge-verify",
-  "spend/graph/pay-fulfill-rail",
-  "spend/graph/pay-quote",
-  "spend/graph/pay-recover",
-  "spend/graph/pay-reserve",
-] as const;
-
 describe("payment ownership boundary", () => {
   it("keeps the private payment runtime out of OSS", async () => {
     expect(existsSync(path.resolve("crates/runx-pay"))).toBe(false);
-    for (const skill of retiredPackages) {
-      expect(existsSync(path.resolve("skills", skill)), skill).toBe(false);
-    }
-    for (const stage of retiredStages) {
-      expect(existsSync(path.resolve("skills", stage)), stage).toBe(false);
-    }
 
     const runtime = await readFile(path.resolve("crates/runx-cli/src/runtime.rs"), "utf8");
     expect(runtime).not.toMatch(/PaymentEffect|PaymentFinality|EffectState|runx_pay/);
@@ -51,18 +27,16 @@ describe("payment ownership boundary", () => {
 
   it("keeps real payment effects behind hosted provider contracts", async () => {
     for (const skill of hostedPaymentSkills) {
-      const source = await readFile(path.resolve("skills", skill, "X.yaml"), "utf8");
+      const source = await readFile(path.resolve("skills", skill, "run.yaml"), "utf8");
       const manifest = validateRunnerManifestYaml(source).raw.document as {
         readonly catalog?: Record<string, unknown>;
         readonly runners: Record<string, {
-          readonly type: string;
-          readonly graph: { readonly steps: readonly {
-            readonly tool?: string;
+          readonly steps: readonly {
+            readonly tool?: string | { readonly module?: string; readonly command?: string };
             readonly operation?: string;
             readonly idempotency_key?: unknown;
-            readonly inputs?: { readonly approval?: unknown };
-            readonly run?: { readonly type?: string };
-          }[] };
+            readonly approval?: unknown;
+          }[];
         }>;
       };
 
@@ -72,17 +46,19 @@ describe("payment ownership boundary", () => {
       expect(Object.keys(manifest.runners).length, `${skill} runners`).toBeGreaterThan(0);
       const operations: string[] = [];
       for (const [name, runner] of Object.entries(manifest.runners)) {
-        expect(runner.type, `${skill}/${name} composition`).toBe("graph");
-        for (const step of runner.graph.steps) {
+        for (const step of runner.steps) {
           // Pure preparation/readback computation can accompany provider calls.
-          // It must use the isolated module lane, never a host CLI process.
-          if (step.run) expect(step.run.type, `${skill}/${name} local computation`).toBe("javascript");
+          // It must use the isolated worker lane, never a host process.
+          if (typeof step.tool === "object") {
+            expect(step.tool.command, `${skill}/${name} local computation`).toBeUndefined();
+            expect(step.tool.module, `${skill}/${name} local computation`).toBeTypeOf("string");
+          }
           if (step.operation) operations.push(step.operation);
           // The payment itself is a connector write; its readback is the
           // matching `.read` operation.
           if (step.operation && !step.operation.endsWith(".read")) {
             expect(step.idempotency_key, `${skill}/${name} retry identity`).toBeTypeOf("string");
-            expect(step.inputs?.approval, `${skill}/${name} exact-act approval`).toMatchObject({
+            expect(step.approval, `${skill}/${name} exact-act approval`).toMatchObject({
               type: expect.any(String), reason: expect.any(String),
             });
           }
@@ -100,7 +76,7 @@ describe("payment ownership boundary", () => {
 
   it("keeps deterministic mocks local, explicit, and incapable of moving money", async () => {
     for (const skill of localPaymentSimulators) {
-      const profile = await readFile(path.resolve("skills", skill, "X.yaml"), "utf8");
+      const profile = await readFile(path.resolve("skills", skill, "run.yaml"), "utf8");
       const implementation = await readFile(path.resolve("skills", skill, `${skill}.mjs`), "utf8");
       const manifest = validateRunnerManifestYaml(profile).raw.document as {
         readonly catalog?: Record<string, unknown>;
@@ -109,7 +85,7 @@ describe("payment ownership boundary", () => {
       expect(manifest.catalog?.visibility, `${skill} visibility`).toBe("internal");
       expect(manifest.catalog?.role, `${skill} role`).toBe("harness-fixture");
       expect(manifest.catalog?.requires_adapter, `${skill} adapter`).toBe(false);
-      expect(profile, `${skill} local JavaScript`).toContain("type: javascript");
+      expect(profile, `${skill} local JavaScript`).toMatch(/tool: \{ module: /);
       expect(profile, `${skill} provider access`).not.toMatch(/provider\.(?:mutate|read)/);
       expect(implementation, `${skill} simulated result`).toContain('status: "simulated"');
       expect(implementation, `${skill} no money movement`).toContain("money_moved: false");

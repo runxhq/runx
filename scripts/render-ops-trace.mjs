@@ -62,7 +62,8 @@ if (children.length < 2) {
   process.exit(1);
 }
 
-const stepName = (receipt) => receipt.subject.ref.uri.replace(/^hrn_/, '').replace(/^business-ops_/, '');
+// A step receipt's subject is runx:run:<run id>#<step>[@<attempt>].
+const stepName = (receipt) => receipt.subject.ref.uri.split('#')[1]?.replace(/@\d+$/, '') ?? receipt.subject.ref.uri;
 const shortId = (id) => id.replace('sha256:', '').slice(0, 12);
 const esc = (value) => String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 

@@ -6,11 +6,11 @@ use runx_contracts::{
     EnvironmentRequirements, ExecutionRequirements, JsonObject, JsonValue, ProvenanceEntry,
     sha256_prefixed,
 };
-use runx_parser::{SkillArtifactContract, SkillSource, SourceKind};
+use runx_parser::{AgentTask, SkillArtifactContract};
 
+use super::build_agent_act_invocation;
 use super::profiles::{BUNDLED_VOICE_PROFILE_CONTENT, bundled_profile};
-use super::{AgentActInvocationSourceType, build_agent_act_invocation};
-use crate::{CredentialDelivery, SkillInvocation};
+use crate::{CredentialDelivery, Executable, SkillInvocation};
 
 fn temp_skill(body: &str) -> Result<tempfile::TempDir, std::io::Error> {
     let directory = tempfile::tempdir()?;
@@ -30,24 +30,11 @@ fn invocation(skill_directory: PathBuf, outputs: Option<JsonObject>) -> SkillInv
         step_id: None,
         artifacts: None,
         allowed_tools: None,
-        source: SkillSource {
-            source_type: SourceKind::Agent,
-            command: None,
-            module: None,
-            javascript_export: None,
-            pages: None,
-            args: Vec::new(),
-            cwd: None,
-            timeout_seconds: None,
-            input_mode: None,
-            environment: EnvironmentRequirements::default(),
-            agent: None,
-            task: None,
-            outputs,
-            graph: None,
-            act: None,
-            raw: JsonObject::new(),
-        },
+        executable: Executable::Agent(AgentTask {
+            role: "planner".to_owned(),
+            task: "plan".to_owned(),
+        }),
+        outputs,
         requirements: ExecutionRequirements::default(),
         inputs: JsonObject::new(),
         resolved_inputs: JsonObject::new(),
@@ -90,8 +77,7 @@ fn agent_invocation_requires_declared_outputs() -> Result<(), Box<dyn std::error
     let skill = temp_skill("Produce one bounded, evidence-backed plan.")?;
     let request = invocation(skill.path().to_path_buf(), None);
 
-    let Err(error) = build_agent_act_invocation(&request, AgentActInvocationSourceType::Agent)
-    else {
+    let Err(error) = build_agent_act_invocation(&request) else {
         return Err("missing outputs must fail".into());
     };
 
@@ -104,7 +90,7 @@ fn agent_invocation_pins_voice_and_output_contracts() -> Result<(), Box<dyn std:
     let skill = temp_skill("Produce one bounded, evidence-backed plan.")?;
     let request = invocation(skill.path().to_path_buf(), Some(outputs()));
 
-    let resolved = build_agent_act_invocation(&request, AgentActInvocationSourceType::Agent)?;
+    let resolved = build_agent_act_invocation(&request)?;
 
     assert!(resolved.envelope.voice_profile.is_some());
     assert_eq!(
@@ -142,7 +128,7 @@ fn agent_invocation_hydrates_the_exact_declared_packet_schema()
         packet: None,
     });
 
-    let resolved = build_agent_act_invocation(&request, AgentActInvocationSourceType::Agent)?;
+    let resolved = build_agent_act_invocation(&request)?;
     let output_schema = resolved
         .envelope
         .output_schema
@@ -214,7 +200,7 @@ fn agent_invocation_applies_a_wrapped_packet_to_the_complete_result()
         packet: Some("runx.test.complete-agent-result.v1".to_owned()),
     });
 
-    let resolved = build_agent_act_invocation(&request, AgentActInvocationSourceType::Agent)?;
+    let resolved = build_agent_act_invocation(&request)?;
     let output_schema = resolved
         .envelope
         .output_schema
@@ -260,10 +246,6 @@ fn agent_context_carries_exact_non_secret_requirements_and_environment_readiness
     let skill = temp_skill("Use the declared execution requirements without guessing.")?;
     let mut request = invocation(skill.path().to_path_buf(), Some(outputs()));
     request.requirements = ExecutionRequirements {
-        auth: Some(JsonValue::Object(JsonObject::from([(
-            "mode".to_owned(),
-            JsonValue::String("oauth".to_owned()),
-        )]))),
         scopes: vec![
             "provider:Read.Mixed".to_owned(),
             "provider:Read.Mixed".to_owned(),
@@ -273,10 +255,6 @@ fn agent_context_carries_exact_non_secret_requirements_and_environment_readiness
             required: vec!["REGION".to_owned()],
             optional: vec!["TRACE_LABEL".to_owned()],
         },
-        runtime: Some(JsonValue::Object(JsonObject::from([(
-            "engine".to_owned(),
-            JsonValue::String("managed-agent".to_owned()),
-        )]))),
     };
     request.env = BTreeMap::from([
         ("REGION".to_owned(), "ap-southeast-2".to_owned()),
@@ -284,7 +262,7 @@ fn agent_context_carries_exact_non_secret_requirements_and_environment_readiness
         ("UNDECLARED".to_owned(), "never-visible".to_owned()),
     ]);
 
-    let resolved = build_agent_act_invocation(&request, AgentActInvocationSourceType::Agent)?;
+    let resolved = build_agent_act_invocation(&request)?;
     assert_eq!(
         resolved.envelope.requirements.declaration,
         request.requirements
@@ -326,7 +304,7 @@ fn agent_step_instructions_are_the_complete_canonical_skill_document()
         receipt_id: Some("rx_research".to_owned()),
     }];
 
-    let resolved = build_agent_act_invocation(&request, AgentActInvocationSourceType::AgentStep)?;
+    let resolved = build_agent_act_invocation(&request)?;
 
     assert_eq!(resolved.envelope.instructions.as_ref(), manual);
     assert_eq!(
@@ -346,7 +324,7 @@ fn agent_step_fails_without_skill_instructions() -> Result<(), Box<dyn std::erro
     let directory = tempfile::tempdir()?;
     let request = invocation(directory.path().to_path_buf(), Some(outputs()));
 
-    let error = build_agent_act_invocation(&request, AgentActInvocationSourceType::AgentStep)
+    let error = build_agent_act_invocation(&request)
         .expect_err("agent tasks without SKILL.md instructions must fail closed");
 
     assert!(error.to_string().contains("SKILL.md"));

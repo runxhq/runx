@@ -15,8 +15,6 @@ operator_journeys:
     must_not_repeat:
       - Do not rediscover the drift signal.
       - Do not rebuild or broaden the approved roster and limits.
-env:
-  RUNX_DATA_SOURCES: '{"data_sources":{"tenant://agency/sqlite-cases":{"adapter":"data.sqlite","database_path":".runx/data/agency-open.sqlite","resources":{"agency_cases":{"kind":"event_stream","partition_key":"aggregate_id"}}}}}'
 inputs:
   data_source_ref: tenant://agency/sqlite-cases
   case_id: case-open-1
@@ -44,10 +42,8 @@ expect:
       subset:
         data_operation_result:
           data:
-            operation: append_event
+            operation: events.append
             aggregate_id: case-open-1
             after_version: 1
             provider_evidence:
-              adapter: data.sqlite
-              provider: sqlite-event-store
-              storage_class: sqlite
+              backend: sqlite

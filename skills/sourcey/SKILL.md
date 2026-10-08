@@ -1,8 +1,6 @@
 ---
 name: sourcey
 description: Generate documentation for a project using Sourcey.
-runx:
-  category: content
 ---
 
 # Sourcey

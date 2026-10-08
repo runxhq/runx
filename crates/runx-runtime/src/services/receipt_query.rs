@@ -7,8 +7,8 @@ use self::input::QueryRequest;
 pub(crate) use self::input::ReceiptQueryInput;
 use self::projection::render_query;
 use crate::RuntimeError;
-use crate::journal::{LocalHistoryProjection, list_local_history_with_policy};
 use crate::receipts::RuntimeReceiptSignaturePolicy;
+use crate::receipts::archive::{ReceiptListing, list_receipts};
 use crate::receipts::store::LocalReceiptStore;
 use crate::services::ReceiptReadContext;
 use crate::services::receipt_proof::prove_receipts_with_context;
@@ -70,11 +70,11 @@ fn load_history(
     workspace_base: &Path,
     project_runx_dir: &Path,
     policy: RuntimeReceiptSignaturePolicy<'_>,
-) -> Result<Option<LocalHistoryProjection>, RuntimeError> {
+) -> Result<Option<ReceiptListing>, RuntimeError> {
     if request.exact_ids.is_some() {
         return Ok(None);
     }
-    list_local_history_with_policy(
+    list_receipts(
         store,
         workspace_base,
         project_runx_dir,

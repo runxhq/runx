@@ -21,7 +21,7 @@ fn skill_author_journey_discovers_harnesses_runs_verifies_and_reads_history() ->
         crate::new_skill_authoring::digest_note_manual(),
     )?;
     fs::write(
-        skill_dir.join("X.yaml"),
+        skill_dir.join("run.yaml"),
         crate::new_skill_authoring::digest_note_manifest(),
     )?;
 
@@ -48,7 +48,6 @@ fn skill_author_journey_discovers_harnesses_runs_verifies_and_reads_history() ->
     assert_eq!(inspect["readiness"]["status"], "ready");
     assert_eq!(inspect["capabilities"]["execution"], "read");
     assert_eq!(inspect["capabilities"]["completion"], "runtime_receipt");
-    assert_eq!(inspect["runner"]["type"], "graph");
     assert!(
         inspect["runner"]["inputs"]
             .as_array()
@@ -77,9 +76,10 @@ fn skill_author_journey_discovers_harnesses_runs_verifies_and_reads_history() ->
     let run = assert_json(&run, 0)?;
     assert_eq!(run["status"], "sealed");
     let receipt_id = json_string(&run, "receipt_id")?;
+    let run_id = json_string(&run, "run_id")?;
 
     assert_receipt_verifies(&root, &receipt_dir, receipt_id)?;
-    assert_history_contains_local_receipt(&root, &receipt_dir, receipt_id)?;
+    assert_history_contains_local_receipt(&root, &receipt_dir, run_id, receipt_id)?;
 
     Ok(())
 }
@@ -101,7 +101,7 @@ fn agent_handoff_journey_pauses_recovers_resumes_verifies_and_clears_history() -
     let pause_text = String::from_utf8(pause.stdout)?;
     assert!(pause_text.contains("status: needs_agent"));
     assert!(pause_text.contains("pending_requests: 1"));
-    assert!(pause_text.contains("agent_task.issue-intake.output"));
+    assert!(pause_text.contains("agent.issue-intake.output"));
     assert!(!pause_text.contains("<answers.json>"));
     assert!(!pause_text.trim_start().starts_with('{'));
     let run_id = pause_text
@@ -109,22 +109,18 @@ fn agent_handoff_journey_pauses_recovers_resumes_verifies_and_clears_history() -
         .find_map(|line| line.strip_prefix("run_id: "))
         .ok_or("pending run omitted run_id")?
         .to_owned();
-    assert!(run_id.starts_with("run_agent_task-issue-intake-output_"));
+    assert!(run_id.starts_with("run_issue-intake_"), "{run_id}");
     assert!(pause_text.contains(&format!("runx resume {run_id} -")));
 
     let pending = history_json(&root, &receipt_dir, &run_id)?;
-    assert!(
-        pending["pendingRuns"]
-            .as_array()
-            .is_some_and(|runs| runs.iter().any(|run| run["id"] == run_id))
-    );
+    assert!(run_is_paused(&pending, &run_id));
 
     let malformed_answers = root.join("malformed-answers.json");
     fs::write(
         &malformed_answers,
         serde_json::json!({
             "answers": {
-                "agent_task.issue-intake.output": {
+                "agent.issue-intake.output": {
                     "intake_report": "not-an-object"
                 }
             }
@@ -147,7 +143,7 @@ fn agent_handoff_journey_pauses_recovers_resumes_verifies_and_clears_history() -
         &answers,
         serde_json::json!({
             "answers": {
-                "agent_task.issue-intake.output": {
+                "agent.issue-intake.output": {
                     "intake_report": {
                         "summary": "Docs bug is bounded."
                     }
@@ -174,12 +170,8 @@ fn agent_handoff_journey_pauses_recovers_resumes_verifies_and_clears_history() -
     let receipt_id = json_string(&resume, "receipt_id")?;
 
     assert_receipt_verifies(&root, &receipt_dir, receipt_id)?;
-    let history = assert_history_contains_local_receipt(&root, &receipt_dir, receipt_id)?;
-    assert!(
-        history["pendingRuns"]
-            .as_array()
-            .is_some_and(|runs| runs.iter().all(|run| run["id"] != run_id))
-    );
+    let history = assert_history_contains_local_receipt(&root, &receipt_dir, &run_id, receipt_id)?;
+    assert!(!run_is_paused(&history, &run_id));
 
     Ok(())
 }
@@ -238,8 +230,9 @@ fn declined_and_superseded_agent_runs_preserve_receipts_and_exit_nonzero() -> Te
         assert_eq!(resume["closure"]["disposition"], disposition);
         assert!(resume.get("receipt").is_none());
         let receipt_id = json_string(&resume, "receipt_id")?;
+        let run_id = json_string(&resume, "run_id")?;
         assert_receipt_verifies(&case_root, &receipt_dir, receipt_id)?;
-        assert_history_contains_local_receipt(&case_root, &receipt_dir, receipt_id)?;
+        assert_history_contains_local_receipt(&case_root, &receipt_dir, run_id, receipt_id)?;
     }
 
     Ok(())
@@ -269,7 +262,7 @@ fn standalone_business_ops_journey_routes_verifies_and_reads_receipt_tree() -> T
 
     assert_eq!(run["status"], "sealed");
     assert_eq!(run["closure"]["disposition"], "closed");
-    assert_eq!(run["trace"]["graph"], "business-ops-route");
+    assert_eq!(run["trace"]["graph"], "business-ops");
     assert_eq!(run["trace"]["status"], "succeeded");
     assert_eq!(
         run["trace"]["steps"].as_array().map(|steps| steps
@@ -286,9 +279,10 @@ fn standalone_business_ops_journey_routes_verifies_and_reads_receipt_tree() -> T
     assert!(run.get("receipt").is_none());
     assert!(run.get("execution").is_none());
     let receipt_id = json_string(&run, "receipt_id")?;
+    let run_id = json_string(&run, "run_id")?;
 
     assert_receipt_verifies(&root, &receipt_dir, receipt_id)?;
-    assert_history_contains_local_receipt(&root, &receipt_dir, receipt_id)?;
+    assert_history_contains_local_receipt(&root, &receipt_dir, run_id, receipt_id)?;
 
     Ok(())
 }
@@ -383,8 +377,9 @@ fn provider_failure_is_not_success_and_readiness_is_actionable() -> TestResult {
     assert_eq!(denied["closure"]["reason_code"], "authority_denied");
     assert_eq!(denied["trace"]["status"], "blocked");
     let receipt_id = json_string(&denied, "receipt_id")?;
+    let run_id = json_string(&denied, "run_id")?;
     assert_receipt_verifies(&root, &receipt_dir, receipt_id)?;
-    assert_history_contains_local_receipt(&root, &receipt_dir, receipt_id)?;
+    assert_history_contains_local_receipt(&root, &receipt_dir, run_id, receipt_id)?;
 
     Ok(())
 }
@@ -639,11 +634,7 @@ fn stdin_resume_reuses_run_and_rejects_digest_drift() -> TestResult {
             .is_some_and(|message| message.contains("request digest mismatch"))
     );
     let pending = history_json(&root, &receipt_dir, run_id)?;
-    assert!(
-        pending["pendingRuns"]
-            .as_array()
-            .is_some_and(|runs| runs.iter().any(|run| run["id"] == run_id))
-    );
+    assert!(run_is_paused(&pending, run_id));
 
     let mut resume = command(&root);
     resume
@@ -665,7 +656,7 @@ fn stdin_resume_reuses_run_and_rejects_digest_drift() -> TestResult {
 
 #[test]
 fn nested_graph_resume_preserves_completed_effects_and_request_digests() -> TestResult {
-    for topology in ["nested", "deep", "fanout"] {
+    for topology in ["nested", "deep"] {
         let root = crate::support::temp_root(&format!("runx-{topology}-resume-effects"));
         let skill_dir = root.join("skills/nested-resume");
         let receipt_dir = root.join(".runx/receipts");
@@ -678,90 +669,51 @@ fn nested_graph_resume_preserves_completed_effects_and_request_digests() -> Test
 runners:
   run:
     default: true
-    type: graph
-    graph:
-      name: parent
-      result_from: [child]
-      steps:
-        - id: child
-          skill: .
-          runner: child
+    result_from: [child]
+    steps:
+      - id: child
+        skill: .
+        runner: child
   child:
-    type: graph
-    graph:
-      name: child
-      result_from: [second-review]
-      steps:
-        - id: first-write
-          tool: fs.write
-          scopes: [fs.write]
-          inputs:
-            path: first.txt
-            contents: executed once
-        - id: first-review
-          run:
-            type: agent-task
-            agent: reviewer
-            task: first-review
-            outputs: { decision: object }
-          context: { written: first-write.file_write.data }
-        - id: second-write
-          tool: fs.write
-          scopes: [fs.write]
-          inputs:
-            path: second.txt
-            contents: executed once
-        - id: second-review
-          run:
-            type: agent-task
-            agent: reviewer
-            task: second-review
-            outputs: { decision: object }
-          context:
-            written: second-write.file_write.data
-            prior: first-review.decision
+    result_from: [second-review]
+    steps:
+      - id: first-write
+        tool: fs.write
+        scopes: [fs.write]
+        inputs:
+          path: first.txt
+          contents: executed once
+      - id: first-review
+        agent: { role: reviewer, task: first-review }
+        outputs: { decision: object }
+        context: { written: first-write.file_write.data }
+      - id: second-write
+        tool: fs.write
+        scopes: [fs.write]
+        inputs:
+          path: second.txt
+          contents: executed once
+      - id: second-review
+        agent: { role: reviewer, task: second-review }
+        outputs: { decision: object }
+        context:
+          written: second-write.file_write.data
+          prior: first-review.decision
 "#
         .to_owned();
         if topology == "deep" {
-            manifest = manifest.replacen("          runner: child", "          runner: middle", 1);
+            manifest = manifest.replacen("        runner: child", "        runner: middle", 1);
             manifest.push_str(
                 r#"  middle:
-    type: graph
-    graph:
-      name: middle
-      result_from: [inner]
-      steps:
-        - id: inner
-          skill: .
-          runner: child
+    result_from: [inner]
+    steps:
+      - id: inner
+        skill: .
+        runner: child
 "#,
             );
-        } else if topology == "fanout" {
-            manifest = manifest.replacen(
-                "      name: parent",
-                r#"      name: parent
-      fanout:
-        groups:
-          work:
-            strategy: all
-            on_branch_failure: halt"#,
-                1,
-            );
-            manifest = manifest.replacen(
-                "        - id: child",
-                r#"        - id: sibling
-          mode: fanout
-          fanout_group: work
-          tool: fs.write
-          scopes: [fs.write]
-          inputs: { path: sibling.txt, contents: executed once }
-        - id: child
-          mode: fanout
-          fanout_group: work"#,
-                1,
-            );
         }
-        fs::write(skill_dir.join("X.yaml"), manifest)?;
+        fs::write(skill_dir.join("run.yaml"), manifest)?;
         let initial = command(&root)
             .arg("skill")
             .arg(&skill_dir)
@@ -771,14 +723,6 @@ runners:
             .output()?;
         let mut paused = assert_json(&initial, 2)?;
         let run_id = json_string(&paused, "run_id")?.to_owned();
-
-        if topology == "fanout" {
-            assert_eq!(
-                fs::read_to_string(root.join("sibling.txt"))?,
-                "executed once"
-            );
-            fs::write(root.join("sibling.txt"), "observed after pause")?;
-        }
 
         for (index, marker) in ["first.txt", "second.txt"].into_iter().enumerate() {
             assert_eq!(paused["status"], "needs_agent");
@@ -812,12 +756,6 @@ runners:
                 "observed after pause"
             );
         }
-        if topology == "fanout" {
-            assert_eq!(
-                fs::read_to_string(root.join("sibling.txt"))?,
-                "observed after pause"
-            );
-        }
         assert_eq!(paused["status"], "sealed");
         assert_eq!(paused["outcome"], "completed");
         assert_eq!(paused["result"]["decision"]["accepted"], true);
@@ -837,39 +775,30 @@ fn compact_skill_output_externalizes_oversized_intermediate_context() -> TestRes
         "---\nname: compact-output\ndescription: Proves compact graph output.\n---\n# Compact Output\n\nProduce one small terminal packet after a large intermediate value.\n",
     )?;
     fs::write(
-        skill_dir.join("X.yaml"),
+        skill_dir.join("run.yaml"),
         r#"skill: compact-output
 version: "0.1.0"
 runners:
   run:
     default: true
-    type: graph
     inputs:
       payload:
         type: string
         required: true
-    graph:
-      name: compact-output
-      result_from: [finish]
-      steps:
-        - id: expand
-          inputs:
-            payload: "$input.payload"
-          run:
-            type: javascript
-            module: compact-output.mjs
-            export: expand
-            outputs:
-              intermediate: object
-        - id: finish
-          context:
-            intermediate: expand.intermediate
-          run:
-            type: javascript
-            module: compact-output.mjs
-            export: finish
-            outputs:
-              result: object
+    result_from: [finish]
+    steps:
+      - id: expand
+        inputs:
+          payload: "$input.payload"
+        tool: { module: compact-output.mjs, export: expand }
+        outputs:
+          intermediate: object
+      - id: finish
+        context:
+          intermediate: expand.intermediate
+        tool: { module: compact-output.mjs, export: finish }
+        outputs:
+          result: object
 "#,
     )?;
     fs::write(
@@ -952,21 +881,44 @@ fn assert_receipt_verifies(root: &Path, receipt_dir: &Path, receipt_id: &str) ->
     Ok(())
 }
 
+/// The run sealed with this receipt, and the receipt inspects as the signed
+/// record: history lists the run, `--detail` reads the receipt.
 fn assert_history_contains_local_receipt(
     root: &Path,
     receipt_dir: &Path,
+    run_id: &str,
     receipt_id: &str,
 ) -> TestResult<Value> {
-    let history = history_json(root, receipt_dir, receipt_id)?;
-    let receipt = history["receipts"]
+    let history = history_json(root, receipt_dir, run_id)?;
+    let run = history["runs"]
         .as_array()
-        .and_then(|receipts| receipts.iter().find(|receipt| receipt["id"] == receipt_id))
-        .ok_or("history did not return the sealed receipt")?;
-    // History does not silently opt into local-development signature trust.
-    // The explicit verify step above proves the receipt; passive history stays
-    // fail-closed and labels the same local receipt as unverified.
-    assert_eq!(receipt["verification"]["status"], "unverified");
+        .and_then(|runs| runs.iter().find(|run| run["run_id"] == run_id))
+        .ok_or("history did not list the run")?;
+    assert_eq!(run["state"], "sealed");
+    assert_eq!(run["receipt_id"], receipt_id);
+    let detail = command(root)
+        .arg("history")
+        .arg(receipt_id)
+        .arg("--detail")
+        .arg("--receipt-dir")
+        .arg(receipt_dir)
+        .arg("--json")
+        .output()?;
+    let detail = assert_json(&detail, 0)?;
+    assert_eq!(detail["receipt"]["id"], receipt_id);
+    // Inspection does not silently opt into local-development signature
+    // trust. The explicit verify step above proves the receipt; passive
+    // inspection stays fail-closed and labels the local receipt unverified.
+    assert_eq!(detail["receipt"]["verification"]["status"], "unverified");
     Ok(history)
+}
+
+/// Whether history lists the run as paused.
+fn run_is_paused(history: &Value, run_id: &str) -> bool {
+    history["runs"].as_array().is_some_and(|runs| {
+        runs.iter()
+            .any(|run| run["run_id"] == run_id && run["state"] == "paused")
+    })
 }
 
 fn history_json(root: &Path, receipt_dir: &Path, query: &str) -> TestResult<Value> {

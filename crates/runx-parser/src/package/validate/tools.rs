@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 use runx_core::policy::admit_agent_tool_ref;
 
-use crate::{SkillSource, ValidatedTool, parse_tool_manifest_json, validate_tool_manifest};
+use crate::{ProcessTool, ValidatedTool, parse_tool_manifest_json, validate_tool_manifest};
 
 use super::super::javascript::process_module_imports;
 use super::super::path::validate_package_path;
@@ -97,7 +97,7 @@ fn validate_tool_identity(path: &str, tool: &ValidatedTool) -> Result<(), SkillP
 fn validate_tool_source_files(
     package: &SkillPackageSource,
     manifest_path: &str,
-    source: &SkillSource,
+    source: &ProcessTool,
 ) -> Result<BTreeSet<String>, SkillPackageError> {
     let tool_directory = manifest_path
         .strip_suffix("/manifest.json")
@@ -168,27 +168,17 @@ struct SourceEntry<'a> {
     required_local: bool,
 }
 
-fn source_entries(source: &SkillSource) -> Vec<SourceEntry<'_>> {
-    let mut entries = Vec::new();
-    if let Some(command) = source.command.as_deref() {
-        entries.push(SourceEntry {
-            field: "source.command".to_owned(),
-            value: command,
-            required_local: command.starts_with('.'),
-        });
-    }
+fn source_entries(source: &ProcessTool) -> Vec<SourceEntry<'_>> {
+    let mut entries = vec![SourceEntry {
+        field: "source.command".to_owned(),
+        value: &source.command,
+        required_local: source.command.starts_with('.'),
+    }];
     for (index, argument) in source.args.iter().enumerate() {
         entries.push(SourceEntry {
             field: format!("source.args[{index}]"),
             value: argument,
             required_local: looks_like_local_source(argument),
-        });
-    }
-    if let Some(module) = source.module.as_deref() {
-        entries.push(SourceEntry {
-            field: "source.module".to_owned(),
-            value: module,
-            required_local: true,
         });
     }
     entries
@@ -275,12 +265,11 @@ fn is_typescript_source(path: &str) -> bool {
     )
 }
 
-fn node_command(source: &SkillSource) -> bool {
-    source.command.as_deref().is_some_and(|command| {
-        let executable = command.rsplit(['/', '\\']).next().unwrap_or(command);
-        executable
-            .strip_suffix(".exe")
-            .unwrap_or(executable)
-            .eq_ignore_ascii_case("node")
-    })
+fn node_command(source: &ProcessTool) -> bool {
+    let command = source.command.as_str();
+    let executable = command.rsplit(['/', '\\']).next().unwrap_or(command);
+    executable
+        .strip_suffix(".exe")
+        .unwrap_or(executable)
+        .eq_ignore_ascii_case("node")
 }

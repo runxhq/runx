@@ -6,15 +6,12 @@ use runx_runtime::InvocationOutput;
 
 #[path = "volume_paths/artifact_io.rs"]
 mod artifact_io;
-#[path = "volume_paths/event_paging.rs"]
-mod event_paging;
 #[path = "volume_paths/twitter_selection.rs"]
 mod twitter_selection;
 
 #[allow(clippy::expect_used)]
 pub(super) fn register(c: &mut Criterion) {
     artifact_io::register(c);
-    event_paging::register(c);
     twitter_selection::register(c);
 }
 
@@ -62,14 +59,4 @@ fn bool_field(object: &JsonObject, field: &str) -> Result<bool, Box<dyn Error>> 
         .ok_or_else(|| {
             std::io::Error::other(format!("runtime output omitted boolean {field}")).into()
         })
-}
-
-fn record_native_metric(
-    name: &str,
-    executor: &runx_runtime::adapters::agent_tools::RuntimeToolExecutor,
-) -> Result<(), Box<dyn Error>> {
-    super::record_resource_metric(
-        name,
-        super::session_metric(executor.javascript_session_stats()),
-    )
 }

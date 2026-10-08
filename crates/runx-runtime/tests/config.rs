@@ -7,7 +7,7 @@ use runx_runtime::{
     RunxAgentConfig, RunxConfigFile, SecretString, load_local_agent_api_key,
     load_local_public_api_token, load_managed_agent_config, load_runx_config_file,
     lookup_runx_config_value, mask_runx_config_file, resolve_runx_global_home_dir,
-    resolve_runx_workspace_base, update_runx_config_value, write_runx_config_file,
+    update_runx_config_value, write_runx_config_file,
 };
 use tempfile::tempdir;
 
@@ -27,7 +27,6 @@ fn config_home_path_anchors_relative_runx_home_to_workspace_base()
 
     let env = env_map([
         ("RUNX_CWD", run_dir.to_str().unwrap_or_default()),
-        ("INIT_CWD", run_dir.to_str().unwrap_or_default()),
         ("RUNX_HOME", "home"),
     ]);
 
@@ -47,24 +46,6 @@ fn config_home_path_uses_the_admitted_environment_snapshot()
     let env = env_map([("HOME", home.to_str().unwrap_or_default())]);
 
     assert_eq!(resolve_runx_global_home_dir(&env, &cwd), home.join(".runx"));
-    Ok(())
-}
-
-#[test]
-fn explicit_init_cwd_precedes_incidental_workspace_discovery()
--> Result<(), Box<dyn std::error::Error>> {
-    let temp = tempdir()?;
-    let discovered = temp.path().join("workspace/packages/demo");
-    let explicit = temp.path().join("operator-workspace");
-    fs::create_dir_all(&discovered)?;
-    fs::create_dir_all(&explicit)?;
-    fs::write(
-        temp.path().join("workspace/pnpm-workspace.yaml"),
-        "packages:\n  - packages/*\n",
-    )?;
-    let env = env_map([("INIT_CWD", explicit.to_str().unwrap_or_default())]);
-
-    assert_eq!(resolve_runx_workspace_base(&env, &discovered), explicit);
     Ok(())
 }
 

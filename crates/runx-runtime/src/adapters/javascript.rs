@@ -101,19 +101,6 @@ impl JavaScriptAdapter {
         validated_module(request)
     }
 
-    pub(crate) fn invoke_from_package(
-        &self,
-        request: SkillInvocation,
-        loaded: &crate::LoadedSkillPackage,
-    ) -> Result<InvocationOutput, RuntimeError> {
-        if request.source.pages.is_some() || request.skill_directory != loaded.directory {
-            return self.invoke(request);
-        }
-        validate_pure_javascript_boundary(&request)?;
-        let prepared = bundle::validated_module_from_package(&request, loaded)?;
-        self.invoke_prepared(&prepared, &request.inputs)
-    }
-
     pub(crate) fn invoke_prepared(
         &self,
         prepared: &PreparedJavaScriptInvocation,
@@ -129,7 +116,7 @@ impl JavaScriptAdapter {
         request: SkillInvocation,
         local_artifacts: &crate::services::LocalArtifactService,
     ) -> Result<InvocationOutput, RuntimeError> {
-        if request.source.pages.is_some() {
+        if worker(&request)?.pages.is_some() {
             return paged::invoke(self, request, local_artifacts);
         }
         self.invoke_once(request)
@@ -158,20 +145,8 @@ impl std::fmt::Debug for JavaScriptAdapter {
 }
 
 impl SkillAdapter for JavaScriptAdapter {
-    fn adapter_type(&self) -> &'static str {
-        "javascript"
-    }
-
     fn invoke(&self, request: SkillInvocation) -> Result<InvocationOutput, RuntimeError> {
         self.invoke_with_artifacts(request, &crate::services::LocalArtifactService::default())
-    }
-
-    fn isolated_fanout_adapter(
-        &self,
-        source: &runx_parser::SkillSource,
-    ) -> Option<Box<dyn SkillAdapter + Send + Sync>> {
-        (source.source_type == runx_parser::SourceKind::JavaScript)
-            .then(|| Box::new(self.clone()) as Box<dyn SkillAdapter + Send + Sync>)
     }
 }
 
@@ -210,24 +185,21 @@ fn project_worker_outcome(
     }
 }
 
+/// The worker tool an invocation runs.
+pub(super) fn worker(request: &SkillInvocation) -> Result<&runx_parser::WorkerTool, RuntimeError> {
+    request
+        .executable
+        .worker()
+        .ok_or_else(|| RuntimeError::UnsupportedExecutable {
+            kind: request.executable.kind().to_owned(),
+        })
+}
+
 fn validate_pure_javascript_boundary(request: &SkillInvocation) -> Result<(), RuntimeError> {
-    let source = &request.source;
-    let forbidden = source.command.is_some()
-        || !source.args.is_empty()
-        || source.cwd.is_some()
-        || source.input_mode.is_some()
-        || source.agent.is_some()
-        || source.task.is_some()
-        || source.graph.is_some();
-    if source.source_type != runx_parser::SourceKind::JavaScript || forbidden {
-        return Err(RuntimeError::InvalidProcessInvocation {
-            message: "javascript sources may declare only module, export, timeout_seconds, environment, outputs, and act metadata; the deterministic worker owns its execution boundary"
-                .to_owned(),
-        });
-    }
+    worker(request)?;
     if !request.credential_delivery.secret_env().is_empty() {
         return Err(RuntimeError::InvalidProcessInvocation {
-            message: "javascript sources cannot receive credentials; route provider access through a typed native capability"
+            message: "worker tools cannot receive credentials; route provider access through a connector operation"
                 .to_owned(),
         });
     }
@@ -338,7 +310,7 @@ fn javascript_execution_limits(
                 limits.wall_milliseconds,
                 runx_contracts::javascript_worker::MAX_WALL_MILLISECONDS,
                 ExecutionLimitUnit::Milliseconds,
-                Some("source.timeout_seconds"),
+                Some("tool.timeout_seconds"),
             ),
         ),
         (
@@ -375,7 +347,7 @@ fn javascript_execution_limits(
                 limits.wall_milliseconds,
                 runx_contracts::javascript_worker::MAX_WALL_MILLISECONDS,
                 ExecutionLimitUnit::Milliseconds,
-                Some("source.timeout_seconds"),
+                Some("tool.timeout_seconds"),
             ),
             WorkerLimit::QueuedJobs => (
                 u64::from(limits.queued_jobs),

@@ -1,6 +1,6 @@
 name: sql-analyst-forwards-governed-data-store-read
 kind: graph
-target: ../harness/forward-data-store-read.yaml
+target: support/forward-data-store-read.graph
 operator_journeys:
   - mode: standalone
     exercises_runner: analyst
@@ -9,7 +9,7 @@ operator_journeys:
     expected_outcome: Validate the plan, perform only the declared data-store read, and return a source-bound interpretation without raw SQL.
 caller:
   answers:
-    agent_task.sql-plan.output:
+    agent.sql-plan.output:
       sql_plan_draft:
         decision: ready
         query_plan:
@@ -25,7 +25,7 @@ caller:
           summary: Read the declared projection before interpreting qualified trials.
           caveats: [The projection is a bounded summary, not raw event history.]
         residual_risks: [The projection may lag source events.]
-    agent_task.sql-interpret.output:
+    agent.sql-interpret.output:
       analysis_result:
         decision: answered
         answer: The bounded projection records one analysis snapshot for the launch summary.

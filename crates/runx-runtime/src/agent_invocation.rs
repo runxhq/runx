@@ -5,8 +5,8 @@ use crate::RuntimeError;
 use crate::SkillInvocation;
 use runx_contracts::schema::NonEmptyString;
 use runx_contracts::{
-    AgentActInvocation, AgentActSourceType, AgentContextEnvelope, AgentExecutionRequirements,
-    ExecutionLocation, JsonObject, OutputField, ResolutionRequest,
+    AgentActInvocation, AgentContextEnvelope, AgentExecutionRequirements, ExecutionLocation,
+    JsonObject, OutputField, ResolutionRequest,
 };
 
 const TRUST_BOUNDARY: &str = "runtime-governed: caller-mediated resolution is the default; an in-process model loop runs only with explicit per-run managed-agent consent, and every resolution is receipt-bound";
@@ -15,88 +15,59 @@ mod profiles;
 
 pub(crate) use profiles::agent_profile_metadata;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum AgentActInvocationSourceType {
-    Agent,
-    AgentStep,
-}
-
-impl AgentActInvocationSourceType {
-    pub(crate) fn from_contract_value(value: &str) -> Option<Self> {
-        match value {
-            "agent" => Some(Self::Agent),
-            "agent-task" => Some(Self::AgentStep),
-            _ => None,
-        }
-    }
-
-    const fn contract_source_type(self) -> AgentActSourceType {
-        match self {
-            Self::Agent => AgentActSourceType::Agent,
-            Self::AgentStep => AgentActSourceType::AgentStep,
-        }
-    }
-}
-
 pub(crate) fn agent_act_resolution_request(
     request: &SkillInvocation,
-    source_type: AgentActInvocationSourceType,
 ) -> Result<ResolutionRequest, RuntimeError> {
-    let id = agent_act_invocation_id(request, source_type);
+    let invocation = build_agent_act_invocation(request)?;
     Ok(ResolutionRequest::AgentAct {
-        id: id.clone().into(),
-        invocation: Box::new(build_agent_act_invocation(request, source_type)?),
+        id: invocation.id.clone(),
+        invocation: Box::new(invocation),
     })
 }
 
-pub(crate) fn agent_act_invocation_id(
-    request: &SkillInvocation,
-    source_type: AgentActInvocationSourceType,
-) -> String {
-    let skill_name = skill_name(request, source_type);
-    match source_type {
-        AgentActInvocationSourceType::Agent => {
-            format!("agent.{}.output", normalize_request_id(&skill_name))
-        }
-        AgentActInvocationSourceType::AgentStep => {
-            let name = request.source.task.as_deref().unwrap_or(&skill_name);
-            format!("agent_task.{}.output", normalize_request_id(name))
-        }
-    }
+/// The agent turn's request id: `agent.<task>.output`.
+pub(crate) fn agent_act_invocation_id(request: &SkillInvocation) -> Result<String, RuntimeError> {
+    Ok(format!(
+        "agent.{}.output",
+        normalize_request_id(&agent_task(request)?.task)
+    ))
+}
+
+fn agent_task(request: &SkillInvocation) -> Result<&runx_parser::AgentTask, RuntimeError> {
+    request
+        .executable
+        .agent()
+        .ok_or_else(|| invalid_agent_invocation(request, "the invocation is not an agent act"))
 }
 
 pub(crate) fn build_agent_act_invocation(
     request: &SkillInvocation,
-    source_type: AgentActInvocationSourceType,
 ) -> Result<AgentActInvocation, RuntimeError> {
+    let agent = agent_task(request)?;
+    let non_empty = |value: &str, field: &str| {
+        NonEmptyString::new(value.to_owned())
+            .ok_or_else(|| invalid_agent_invocation(request, format!("agent {field} is empty")))
+    };
     Ok(AgentActInvocation {
-        id: agent_act_invocation_id(request, source_type).into(),
-        source_type: source_type.contract_source_type(),
-        agent: optional_non_empty(request.source.agent.as_deref()),
-        task: optional_non_empty(request.source.task.as_deref()),
-        envelope: envelope(request, source_type)?,
+        id: agent_act_invocation_id(request)?.into(),
+        role: non_empty(&agent.role, "role")?,
+        task: non_empty(&agent.task, "task")?,
+        envelope: envelope(request)?,
     })
 }
 
-fn envelope(
-    request: &SkillInvocation,
-    source_type: AgentActInvocationSourceType,
-) -> Result<AgentContextEnvelope, RuntimeError> {
+fn envelope(request: &SkillInvocation) -> Result<AgentContextEnvelope, RuntimeError> {
     crate::execution_environment::resolve_declared_environment(
         &request.requirements,
         &request.env,
     )?;
     let manual = load_skill_instructions(&request.skill_directory)?;
     let raw_output = request
-        .source
         .outputs
         .as_ref()
         .filter(|fields| !fields.is_empty())
         .ok_or_else(|| {
-            invalid_agent_invocation(
-                request,
-                "agent-mediated runners must declare at least one output",
-            )
+            invalid_agent_invocation(request, "an agent step must declare at least one output")
         })?;
     let output = output_schema_fields(raw_output)?;
     let output_schema = crate::packet_schemas::agent_output_contract_schema(
@@ -112,7 +83,7 @@ fn envelope(
             .and_then(|run_id| NonEmptyString::new(run_id.clone()))
             .unwrap_or_else(|| "rx_pending".into()),
         step_id: optional_non_empty(request.step_id.as_deref()),
-        skill: skill_name(request, source_type).into(),
+        skill: skill_name(request).into(),
         instructions_sha256: manual.digest.into(),
         instructions: envelope_instructions(request, &manual.markdown)?.into(),
         inputs: request.inputs.clone(),
@@ -146,7 +117,7 @@ fn envelope_instructions(
     if skill_instructions.trim().is_empty() {
         return Err(invalid_agent_invocation(
             request,
-            "agent-mediated runners require operating instructions in SKILL.md",
+            "an agent step requires operating instructions in SKILL.md",
         ));
     }
     Ok(skill_instructions.to_owned())
@@ -231,12 +202,9 @@ fn parse_configured_tool_roots(env: &BTreeMap<String, String>) -> Vec<String> {
         .collect()
 }
 
-fn skill_name(request: &SkillInvocation, source_type: AgentActInvocationSourceType) -> String {
+fn skill_name(request: &SkillInvocation) -> String {
     if request.skill_name.is_empty() {
-        return match source_type {
-            AgentActInvocationSourceType::Agent => "skill".to_owned(),
-            AgentActInvocationSourceType::AgentStep => "agent-task".to_owned(),
-        };
+        return "skill".to_owned();
     }
     request.skill_name.clone()
 }

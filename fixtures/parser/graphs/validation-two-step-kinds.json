@@ -1,0 +1,1 @@
+{"expected":{"rejection":{"kind":"validation","message":"steps.0 must declare exactly one of agent, tool, operation, ask, or skill."}},"input":{"yaml":"name: bad\nsteps:\n  - id: run\n    tool: { module: one.mjs }\n    skill: ../../skills/echo\n"},"name":"validation-two-step-kinds","scope":"graphs"}

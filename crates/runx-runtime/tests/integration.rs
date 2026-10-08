@@ -6,17 +6,13 @@
 //! in Cargo.toml keeps Cargo from building each file as its own binary.
 
 mod abnormal_seal;
-mod agent_parity;
 mod approval;
 mod config;
 mod credential_delivery;
 mod credential_delivery_core;
-mod credential_grant_policy;
 mod dev;
 mod doctor;
 mod effect_finality;
-mod fanout_parity;
-mod fanout_proptest;
 mod governance_witness;
 mod graph_context_materialization;
 mod harness_fixtures;
@@ -25,15 +21,15 @@ mod init;
 mod javascript_worker;
 mod javascript_worker_hostile;
 mod javascript_worker_support;
-mod journal_history;
 mod license_boundary;
 mod managed_chat_completions;
 mod mcp_server;
 mod parity;
-#[cfg(all(feature = "catalog", feature = "cli-tool"))]
+#[cfg(all(feature = "catalog", feature = "process-tool"))]
 mod policy_approval;
-#[cfg(feature = "cli-tool")]
+#[cfg(feature = "process-tool")]
 mod process_invocation_contract;
+mod receipt_archive;
 mod receipt_paths;
 mod receipt_refs;
 mod receipt_signing;

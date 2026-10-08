@@ -436,15 +436,18 @@ fn injected(
     }))
 }
 
-/// The one instance of a connector whose only authority is `none`.
+/// The instance a connector runs under when none is selected: its public
+/// one, when its local placement admits acting with no authority. The store's
+/// is the workspace store.
 fn public(connector: &LoadedConnector) -> Option<ResolvedInstance> {
     let manifest = &connector.manifest;
-    let auth = &manifest.auth;
-    let only_none = auth.none.is_some()
-        && auth.delegated.is_none()
-        && auth.credentials.is_empty()
-        && auth.session.is_none();
-    if !only_none {
+    let admits_none = manifest.auth.none.is_some()
+        && manifest.placements.local.as_ref().is_some_and(|local| {
+            local
+                .auth
+                .contains(&runx_contracts::connector::LocalAuth::None)
+        });
+    if !admits_none {
         return None;
     }
     let instance_id = InstanceId::new(format!("public.{}", manifest.id.as_str()))?;

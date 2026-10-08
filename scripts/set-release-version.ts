@@ -25,6 +25,7 @@ const packageJsonPath = path.join(workspaceRoot, "packages", "cli", "package.jso
 const cargoLockPath = path.join(workspaceRoot, "crates", "Cargo.lock");
 const cargoCliPackagePath = path.join(workspaceRoot, "crates", "runx-cli", "Cargo.toml");
 const runtimeSourcePath = path.join(workspaceRoot, "crates", "runx-runtime", "src", "lib.rs");
+const topologyPath = path.join(workspaceRoot, "packages", "cli", "native", "supported-platforms.json");
 const options = parseArgs(process.argv.slice(2));
 const findings: Finding[] = [];
 
@@ -51,9 +52,26 @@ emit({
 function stampPackageJson(filePath: string, opts: Options, output: Finding[]): void {
   const raw = readFileSync(filePath, "utf8");
   const manifest = JSON.parse(raw) as {
+    name?: string;
     version?: string;
     optionalDependencies?: Record<string, string>;
+    runx?: { nativeSelector?: { supportedPlatforms?: string[]; nativePackagePattern?: string } };
   };
+  const topology = JSON.parse(readFileSync(topologyPath, "utf8")) as {
+    nativePackages?: Record<string, { package?: string }>;
+  };
+  const platforms = Object.keys(topology.nativePackages ?? {});
+  const selector = manifest.runx?.nativeSelector;
+  if (!manifest.name || !selector || platforms.length === 0) {
+    output.push({ file: relative(filePath), message: "CLI selector or platform topology is incomplete" });
+    return;
+  }
+  for (const platform of platforms) {
+    const expected = selector.nativePackagePattern?.replace("${platform}", platform);
+    if (topology.nativePackages?.[platform]?.package !== expected) {
+      output.push({ file: relative(filePath), message: `selector package mapping disagrees with topology for ${platform}` });
+    }
+  }
   if (opts.check) {
     if (manifest.version !== opts.version) {
       output.push({ file: relative(filePath), message: `version is ${manifest.version}, expected ${opts.version}` });
@@ -63,9 +81,13 @@ function stampPackageJson(filePath: string, opts: Options, output: Finding[]): v
         output.push({ file: relative(filePath), message: `optionalDependencies.${name} is ${spec}, expected ${opts.version}` });
       }
     }
+    if (JSON.stringify(selector.supportedPlatforms) !== JSON.stringify(platforms)) {
+      output.push({ file: relative(filePath), message: "supportedPlatforms disagrees with platform topology" });
+    }
     return;
   }
   manifest.version = opts.version;
+  selector.supportedPlatforms = platforms;
   for (const name of Object.keys(manifest.optionalDependencies ?? {})) {
     manifest.optionalDependencies![name] = opts.version;
   }

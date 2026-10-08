@@ -14,7 +14,6 @@ export const dataOperationResultStatuses = [
   "idempotent_replay",
   "read",
   "conflict",
-  "provider_unavailable",
 ] as const;
 
 export const dataOperationResultStatusSchema = stringEnum(dataOperationResultStatuses);

@@ -4,8 +4,10 @@ use std::collections::BTreeMap;
 use std::fs;
 
 use runx_contracts::{EnvironmentRequirements, ExecutionRequirements, JsonObject, JsonValue};
-use runx_parser::{ArtifactPageFraming, ArtifactPageSource, SkillSource, SourceKind};
-use runx_runtime::adapter::{InvocationOutput, InvocationStatus, SkillAdapter, SkillInvocation};
+use runx_parser::{ArtifactPageFraming, ArtifactPageSource, WorkerTool};
+use runx_runtime::adapter::{
+    Executable, InvocationOutput, InvocationStatus, SkillAdapter, SkillInvocation,
+};
 use runx_runtime::adapters::javascript::JavaScriptAdapter;
 use runx_runtime::credentials::CredentialDelivery;
 
@@ -51,8 +53,8 @@ impl JavaScriptPackage {
             "---\nname: deterministic-module\ndescription: Exercise the isolated deterministic module worker.\n---\n\n# Deterministic module\n\nCompute bounded JSON without host authority.\n",
         )?;
         fs::write(
-            root.join("X.yaml"),
-            "skill: deterministic-module\nrunners:\n  run:\n    default: true\n    type: javascript\n    module: main.mjs\n",
+            root.join("run.yaml"),
+            "skill: deterministic-module\nrunners:\n  run:\n    default: true\n    steps:\n      - id: compute\n        tool: { module: main.mjs }\n",
         )?;
         fs::write(root.join("main.mjs"), source)?;
         for (module, contents) in modules {
@@ -73,7 +75,7 @@ impl JavaScriptPackage {
         &self,
         inputs: JsonObject,
     ) -> Result<InvocationOutput, runx_runtime::RuntimeError> {
-        self.invoke_source(inputs, javascript_source(), BTreeMap::new())
+        self.invoke_worker(inputs, javascript_worker(), BTreeMap::new())
     }
 
     pub(super) fn invoke_with_environment(
@@ -82,9 +84,9 @@ impl JavaScriptPackage {
         requirements: EnvironmentRequirements,
         environment: BTreeMap<String, String>,
     ) -> Result<InvocationOutput, runx_runtime::RuntimeError> {
-        let mut source = javascript_source();
-        source.environment = requirements;
-        self.invoke_source(inputs, source, environment)
+        let mut worker = javascript_worker();
+        worker.environment = requirements;
+        self.invoke_worker(inputs, worker, environment)
     }
 
     pub(super) fn invoke_export(
@@ -92,9 +94,9 @@ impl JavaScriptPackage {
         export: &str,
         inputs: JsonObject,
     ) -> Result<InvocationOutput, runx_runtime::RuntimeError> {
-        let mut source = javascript_source();
-        source.javascript_export = Some(export.to_owned());
-        self.invoke_source(inputs, source, BTreeMap::new())
+        let mut worker = javascript_worker();
+        worker.export = Some(export.to_owned());
+        self.invoke_worker(inputs, worker, BTreeMap::new())
     }
 
     pub(super) fn invoke_paged(
@@ -139,26 +141,26 @@ impl JavaScriptPackage {
             "archive_base".to_owned(),
             JsonValue::String("skill".to_owned()),
         );
-        let mut source = javascript_source();
-        source.javascript_export = export.map(str::to_owned);
-        source.pages = Some(ArtifactPageSource {
+        let mut worker = javascript_worker();
+        worker.export = export.map(str::to_owned);
+        worker.pages = Some(ArtifactPageSource {
             path_from: "archive_file".to_owned(),
             path_scope_from: Some("archive_base".to_owned()),
             media_type: "application/javascript".to_owned(),
             framing: ArtifactPageFraming::JsonArray,
             page_bytes,
         });
-        Ok(self.invoke_source(inputs, source, BTreeMap::new())?)
+        Ok(self.invoke_worker(inputs, worker, BTreeMap::new())?)
     }
 
-    fn invoke_source(
+    fn invoke_worker(
         &self,
         inputs: JsonObject,
-        source: SkillSource,
+        worker: WorkerTool,
         env: BTreeMap<String, String>,
     ) -> Result<InvocationOutput, runx_runtime::RuntimeError> {
         let requirements = ExecutionRequirements {
-            environment: source.environment.clone(),
+            environment: worker.environment.clone(),
             ..ExecutionRequirements::default()
         };
         self.adapter.invoke(SkillInvocation {
@@ -167,7 +169,8 @@ impl JavaScriptPackage {
             step_id: None,
             artifacts: None,
             allowed_tools: None,
-            source,
+            executable: Executable::Worker(worker),
+            outputs: None,
             requirements,
             inputs,
             resolved_inputs: JsonObject::new(),
@@ -205,23 +208,12 @@ pub(super) fn expected_json(value: serde_json::Value) -> JsonValue {
     serde_json::from_value(value).expect("test JSON must satisfy the Runx JSON contract")
 }
 
-fn javascript_source() -> SkillSource {
-    SkillSource {
-        source_type: SourceKind::JavaScript,
-        command: None,
-        module: Some("main.mjs".to_owned()),
-        javascript_export: None,
-        pages: None,
-        args: Vec::new(),
-        cwd: None,
+fn javascript_worker() -> WorkerTool {
+    WorkerTool {
+        module: "main.mjs".to_owned(),
+        export: None,
         timeout_seconds: None,
-        input_mode: None,
+        pages: None,
         environment: EnvironmentRequirements::default(),
-        agent: None,
-        task: None,
-        outputs: None,
-        graph: None,
-        act: None,
-        raw: JsonObject::new(),
     }
 }

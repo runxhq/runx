@@ -364,11 +364,12 @@ function checkRuntimeAsyncHttpContract(crateName, manifest) {
   if (!/^async-http\s*=\s*\["dep:reqwest", "dep:tokio", "dep:rustls", "dep:webpki-root-certs", "tokio\/rt-multi-thread", "rmcp\?\/transport-streamable-http-client-reqwest"\]\s*$/mu.test(featuresBody)) {
     findings.push("runx-runtime async-http feature must be exactly [\"dep:reqwest\", \"dep:tokio\", \"dep:rustls\", \"dep:webpki-root-certs\", \"tokio/rt-multi-thread\", \"rmcp?/transport-streamable-http-client-reqwest\"]");
   }
-  if (!/^cli-tool\s*=\s*\["async-http"\]\s*$/mu.test(featuresBody)) {
-    findings.push("runx-runtime cli-tool feature must imply async-http so the cargo CLI exercises reviewed HTTP");
+  if (!/^process-tool\s*=\s*\["async-http"\]\s*$/mu.test(featuresBody)) {
+    findings.push("runx-runtime process-tool feature must imply async-http so the cargo CLI exercises reviewed HTTP");
   }
-  if (!/^mcp\s*=\s*\["dep:rmcp", "dep:tokio", "tokio\/process", "tokio\/io-util", "tokio\/sync", "tokio\/rt-multi-thread"\]\s*$/mu.test(featuresBody)) {
-    findings.push("runx-runtime mcp feature must be exactly [\"dep:rmcp\", \"dep:tokio\", \"tokio/process\", \"tokio/io-util\", \"tokio/sync\", \"tokio/rt-multi-thread\"]");
+  // The MCP client speaks over the guarded HTTP client, so mcp implies it.
+  if (!/^mcp\s*=\s*\["async-http", "dep:rmcp", "dep:tokio", "tokio\/process", "tokio\/io-util", "tokio\/sync", "tokio\/rt-multi-thread"\]\s*$/mu.test(featuresBody)) {
+    findings.push("runx-runtime mcp feature must be exactly [\"async-http\", \"dep:rmcp\", \"dep:tokio\", \"tokio/process\", \"tokio/io-util\", \"tokio/sync\", \"tokio/rt-multi-thread\"]");
   }
   if (!/^mcp-http-server\s*=\s*\[\s*"mcp",\s*"rmcp\/transport-streamable-http-server",\s*"dep:bytes",\s*"dep:http",\s*"dep:http-body-util",\s*"dep:hyper",\s*"dep:hyper-util",\s*"dep:tower-service",\s*\]\s*$/mu.test(featuresBody)) {
     findings.push("runx-runtime mcp-http-server feature must be exactly [\"mcp\", \"rmcp/transport-streamable-http-server\", \"dep:bytes\", \"dep:http\", \"dep:http-body-util\", \"dep:hyper\", \"dep:hyper-util\", \"dep:tower-service\"]");

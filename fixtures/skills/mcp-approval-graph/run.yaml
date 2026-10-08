@@ -1,0 +1,10 @@
+skill: mcp-approval-graph
+version: "0.1.0"
+runners:
+  default:
+    default: true
+    result_from:
+      - approve
+    steps:
+      - id: approve
+        ask: { gate: mcp-approval, reason: Approve the MCP graph run. }

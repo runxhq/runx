@@ -30,8 +30,8 @@ pub enum ActAssignmentHostKind {
 }
 
 // `ActAssignmentActor` / `ActAssignmentHost` fields stay `String`: they feed the
-// fixture-backed idempotency hash pipeline (`normalize_*`, `derive_*`) which is
-// parity-sensitive and must not be reshaped. Builders normalize empty strings
+// fixture-backed idempotency hash pipeline (`normalize_*`, `derive_*`), whose
+// digests must not change. Builders normalize empty strings
 // away before hashing; the contract keeps the raw inbound envelope permissive.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
@@ -143,10 +143,9 @@ pub struct IntentKeyInput {
 
 /// Derives the stable act assignment intent idempotency key.
 ///
-/// Cross-language parity is fixture-backed for the current contract envelope:
-/// ASCII object keys whose order matches the TypeScript oracle, JSON-string
-/// values with `JSON.stringify` escape semantics, and integer numeric values.
-/// Broader key-order parity is owned by `hash-stable-codepoint-cutover`.
+/// The digest is fixture-backed for the contract envelope: ASCII object keys in
+/// a fixed order, JSON-string values with `JSON.stringify` escape semantics, and
+/// integer numeric values.
 #[must_use]
 pub fn derive_intent_key(input: IntentKeyInput) -> String {
     sha256_prefixed(&stable_hash_json(&intent_hash_payload(input)))

@@ -6,8 +6,8 @@ use runx_runtime::{DoctorOptions, run_doctor};
 const DOCTOR_FIXTURES: &[&str] = &[
     "cross-package-reach-in",
     "empty-success",
-    "removed-tool-yaml",
     "skill-fixture-missing",
+    "skill-frontmatter-invalid",
     "tool-fixture-missing",
 ];
 

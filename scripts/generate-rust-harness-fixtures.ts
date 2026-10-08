@@ -31,7 +31,7 @@ if (process.env.RUNX_HARNESS_FIXTURE_ORACLE_BIN) {
     "-p",
     "runx-runtime",
     "--features",
-    "cli-tool",
+    "process-tool",
     "--bin",
     "runx-harness-fixture-oracles",
     "--",

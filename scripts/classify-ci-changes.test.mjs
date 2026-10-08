@@ -14,8 +14,8 @@ test("documentation changes stay in the light lane", () => {
 });
 
 test("skill-only changes run the catalog without the workspace or Windows corpus", () => {
-  assert.deepEqual(classifyFiles(["skills/twitter/SKILL.md", "skills/twitter/X.yaml"]), {
-    files: ["skills/twitter/SKILL.md", "skills/twitter/X.yaml"],
+  assert.deepEqual(classifyFiles(["skills/twitter/SKILL.md", "skills/twitter/run.yaml"]), {
+    files: ["skills/twitter/SKILL.md", "skills/twitter/run.yaml"],
     full: false,
     skills: true,
     windows: false,

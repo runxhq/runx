@@ -10,7 +10,7 @@ inputs:
   operator_context: Operator-initiated send; require dry run, idempotency, and confirmation before the real send.
 caller:
   answers:
-    agent_task.send-transactional-plan.output:
+    agent.send-transactional-plan.output:
       transactional_plan:
         decision: ready
         channel: email

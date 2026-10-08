@@ -1,5 +1,5 @@
 // Module rationale: the QuoteScanner state machine and its
-// quote-aware scanners belong next to the parity-subset rules they enforce;
+// quote-aware scanners belong next to the supported-subset rules they enforce;
 // splitting the scanner from the rules trades clarity for two-file traversal.
 use std::collections::HashSet;
 
@@ -14,14 +14,14 @@ pub fn parse_yaml_document<T>(source: &str) -> Result<T, ParseError>
 where
     T: DeserializeOwned,
 {
-    assert_yaml_parity_subset("yaml", source)?;
+    assert_yaml_supported_subset("yaml", source)?;
     serde_norway::from_str(source).map_err(|error| ParseError::InvalidYaml {
         field: "yaml".to_owned(),
         message: error.to_string(),
     })
 }
 
-pub fn assert_yaml_parity_subset(field: &str, source: &str) -> Result<(), ParseError> {
+pub fn assert_yaml_supported_subset(field: &str, source: &str) -> Result<(), ParseError> {
     let mut block_scalar_indent = None;
     for (line_index, line) in source.lines().enumerate() {
         let line_number = line_index + 1;
@@ -47,7 +47,7 @@ pub fn assert_yaml_parity_subset(field: &str, source: &str) -> Result<(), ParseE
 }
 
 pub fn assert_execution_profile_yaml_subset(field: &str, source: &str) -> Result<(), ParseError> {
-    assert_yaml_parity_subset(field, source)?;
+    assert_yaml_supported_subset(field, source)?;
     let mut mapping_stack = Vec::new();
     let mut block_scalar_indent = None;
     for (line_index, line) in source.lines().enumerate() {
@@ -162,7 +162,7 @@ fn top_level_plain_key(trimmed: &str) -> Option<(&str, usize)> {
     None
 }
 
-/// YAML quoted-scalar state machine used by the parity-subset scanners.
+/// YAML quoted-scalar state machine used by the supported-subset scanners.
 ///
 /// The earlier ad-hoc `previous != '\\'` toggle failed on YAML's double-quote
 /// escape rule (`\\` is one escape pair producing a literal `\`; the following
@@ -272,7 +272,7 @@ fn reject_document_marker(
         return Err(ParseError::InvalidYaml {
             field: field.to_owned(),
             message: format!(
-                "YAML document markers are not supported in X.yaml at line {line_number}; use one plain profile document."
+                "YAML document markers are not supported in run.yaml at line {line_number}; use one plain profile document."
             ),
         });
     }
@@ -289,7 +289,7 @@ fn reject_yaml_reference_syntax(
             return Err(ParseError::InvalidYaml {
                 field: field.to_owned(),
                 message: format!(
-                    "YAML anchors, aliases, and tags are not supported in X.yaml at line {line_number}; write the profile explicitly."
+                    "YAML anchors, aliases, and tags are not supported in run.yaml at line {line_number}; write the profile explicitly."
                 ),
             });
         }
@@ -299,7 +299,7 @@ fn reject_yaml_reference_syntax(
         return Err(ParseError::InvalidYaml {
             field: field.to_owned(),
             message: format!(
-                "YAML anchors, aliases, and tags are not supported in X.yaml at line {line_number}; write the profile explicitly."
+                "YAML anchors, aliases, and tags are not supported in run.yaml at line {line_number}; write the profile explicitly."
             ),
         });
     }
@@ -343,7 +343,7 @@ fn reject_duplicate_mapping_key(
         return Err(ParseError::InvalidYaml {
             field: field.to_owned(),
             message: format!(
-                "YAML merge keys are not supported in X.yaml at line {line_number}; write the profile explicitly."
+                "YAML merge keys are not supported in run.yaml at line {line_number}; write the profile explicitly."
             ),
         });
     }
@@ -365,14 +365,16 @@ fn reject_duplicate_mapping_key(
     let Some(frame) = stack.last_mut() else {
         return Err(ParseError::InvalidYaml {
             field: field.to_owned(),
-            message: format!("could not track mapping key {key:?} in X.yaml at line {line_number}"),
+            message: format!(
+                "could not track mapping key {key:?} in run.yaml at line {line_number}"
+            ),
         });
     };
     if !frame.keys.insert(key.to_owned()) {
         return Err(ParseError::InvalidYaml {
             field: field.to_owned(),
             message: format!(
-                "duplicate mapping key {key:?} in X.yaml at line {line_number}; keep profile keys unique."
+                "duplicate mapping key {key:?} in run.yaml at line {line_number}; keep profile keys unique."
             ),
         });
     }
@@ -519,8 +521,8 @@ fn is_special_float(value: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::{
-        assert_execution_profile_yaml_subset, assert_yaml_parity_subset, assert_yaml_scalar_subset,
-        yaml_scalar_subset_allows,
+        assert_execution_profile_yaml_subset, assert_yaml_scalar_subset,
+        assert_yaml_supported_subset, yaml_scalar_subset_allows,
     };
 
     #[test]
@@ -544,20 +546,21 @@ mod tests {
     // following ambiguous colon. The new state machine consumes `\` plus the
     // next byte as one escape unit and resolves the close correctly.
     #[test]
-    fn parity_subset_accepts_backslash_escape_in_double_quote() -> Result<(), crate::ParseError> {
+    fn supported_subset_accepts_backslash_escape_in_double_quote() -> Result<(), crate::ParseError>
+    {
         for literal in [
             "key: \"a\\\\b\"",
             "key: \"trailing\\\\\"",
             "key: \"mid\\\\\"",
             "key: \"\\\\\"",
         ] {
-            assert_yaml_parity_subset("fixture", literal)?;
+            assert_yaml_supported_subset("fixture", literal)?;
         }
         Ok(())
     }
 
     #[test]
-    fn parity_subset_rejects_colon_space_after_closed_double_quote_with_escapes() {
+    fn supported_subset_rejects_colon_space_after_closed_double_quote_with_escapes() {
         // The value `plain "escaped\\" trailing: oops` is ambiguous: the
         // quoted region terminates after `escaped\` (the `\\` is one escape
         // unit, then `"` closes), and the trailing plain text contains
@@ -567,13 +570,13 @@ mod tests {
         // missed the trailing colon-space. The state machine correctly
         // exits the quote at the close and flags the colon-space.
         let result =
-            assert_yaml_parity_subset("fixture", "key: plain \"escaped\\\\\" trailing: oops");
+            assert_yaml_supported_subset("fixture", "key: plain \"escaped\\\\\" trailing: oops");
         assert!(result.is_err(), "expected rejection, got {result:?}");
     }
 
     #[test]
-    fn parity_subset_rejects_explicit_mapping_keys() {
-        let result = assert_yaml_parity_subset("fixture", "? >\r 2>-: ");
+    fn supported_subset_rejects_explicit_mapping_keys() {
+        let result = assert_yaml_supported_subset("fixture", "? >\r 2>-: ");
         assert!(result.is_err(), "expected rejection, got {result:?}");
     }
 
@@ -603,16 +606,14 @@ mod tests {
         let sequence_result = assert_execution_profile_yaml_subset(
             "runner_manifest",
             r#"
+skill: demo
 runners:
   demo:
-    type: graph
-    graph:
-      name: demo
-      steps:
-        - id: first
-          tool: one.tool
-        - id: second
-          tool: two.tool
+    steps:
+      - id: first
+        tool: one.tool
+      - id: second
+        tool: two.tool
 "#,
         );
         assert!(
@@ -625,22 +626,22 @@ runners:
     // flipped on every `'`, so `'it''s'` mis-segmented into three scalars and
     // any `:` after byte 4 was treated as still-quoted.
     #[test]
-    fn parity_subset_handles_single_quote_double_escape() -> Result<(), crate::ParseError> {
+    fn supported_subset_handles_single_quote_double_escape() -> Result<(), crate::ParseError> {
         for literal in ["key: 'it''s'", "key: 'a''b''c'", "key: ''"] {
-            assert_yaml_parity_subset("fixture", literal)?;
+            assert_yaml_supported_subset("fixture", literal)?;
         }
         Ok(())
     }
 
     #[test]
-    fn parity_subset_keeps_unicode_mapping_delimiter_on_char_boundary()
+    fn supported_subset_keeps_unicode_mapping_delimiter_on_char_boundary()
     -> Result<(), crate::ParseError> {
-        assert_yaml_parity_subset("fixture", "\0\0\0'\0\0\0\0\u{8}'|\u{85}:")?;
+        assert_yaml_supported_subset("fixture", "\0\0\0'\0\0\0\0\u{8}'|\u{85}:")?;
         Ok(())
     }
 
     #[test]
-    fn parity_subset_rejects_colon_space_after_closed_single_quote_with_escapes() {
+    fn supported_subset_rejects_colon_space_after_closed_single_quote_with_escapes() {
         // The value `plain 'it''s' trailing: oops` is ambiguous: the single
         // quote terminates after `it's` (the `''` is one escape unit), and
         // the trailing `trailing: oops` is a mapping delimiter. The old
@@ -648,7 +649,7 @@ runners:
         // and could leave itself inside an apparent quote when the trailing
         // colon-space appeared. The state machine resolves the `''` escape
         // and flags the trailing colon-space.
-        let result = assert_yaml_parity_subset("fixture", "key: plain 'it''s' trailing: oops");
+        let result = assert_yaml_supported_subset("fixture", "key: plain 'it''s' trailing: oops");
         assert!(result.is_err(), "expected rejection, got {result:?}");
     }
 }

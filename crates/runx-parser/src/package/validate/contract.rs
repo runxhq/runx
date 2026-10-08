@@ -29,53 +29,10 @@ pub(super) fn validate_manual(markdown: &str) -> Result<ValidatedSkill, SkillPac
         path: "SKILL.md".to_owned(),
         source,
     })?;
-    validate_manual_ownership(&parsed.frontmatter)?;
     validate_skill(parsed).map_err(|source| SkillPackageError::Validation {
         path: "SKILL.md".to_owned(),
         source,
     })
-}
-
-fn validate_manual_ownership(
-    frontmatter: &runx_contracts::JsonObject,
-) -> Result<(), SkillPackageError> {
-    const MANIFEST_FIELDS: &[&str] = &[
-        "allowed_tools",
-        "artifacts",
-        "auth",
-        "credentials",
-        "execution",
-        "harness",
-        "idempotency",
-        "inputs",
-        "mutating",
-        "outputs",
-        "retry",
-        "risk",
-        "runners",
-        "runtime",
-        "source",
-    ];
-    if let Some(field) = MANIFEST_FIELDS
-        .iter()
-        .find(|field| frontmatter.contains_key(**field))
-    {
-        return Err(SkillPackageError::invalid(
-            format!("SKILL.md.{field}"),
-            "execution metadata belongs in X.yaml; SKILL.md is the operator manual",
-        ));
-    }
-    if let Some(runx_contracts::JsonValue::Object(runx)) = frontmatter.get("runx")
-        && let Some(field) = runx
-            .keys()
-            .find(|field| !matches!(field.as_str(), "category" | "tags"))
-    {
-        return Err(SkillPackageError::invalid(
-            format!("SKILL.md.runx.{field}"),
-            "execution metadata belongs in X.yaml; SKILL.md.runx may contain only catalog category and tags",
-        ));
-    }
-    Ok(())
 }
 
 pub(super) fn validate_profiles(
@@ -98,7 +55,7 @@ fn owned_profile_paths(source: &SkillPackageSource) -> Vec<String> {
     source
         .files
         .keys()
-        .filter(|path| path.as_str() == "X.yaml" || path.ends_with("/X.yaml"))
+        .filter(|path| path.as_str() == super::super::PROFILE_FILE || path.ends_with("/run.yaml"))
         .filter(|path| !has_nested_manual_boundary(path, source))
         .cloned()
         .collect()
@@ -150,14 +107,14 @@ pub(super) fn validate_package_identity(
     skill: &ValidatedSkill,
     manifest: Option<&SkillRunnerManifest>,
 ) -> Result<(), SkillPackageError> {
-    let Some(manifest_name) = manifest.and_then(|manifest| manifest.skill.as_deref()) else {
+    let Some(manifest_name) = manifest.map(|manifest| manifest.skill.as_str()) else {
         return Ok(());
     };
     if manifest_name == skill.name {
         return Ok(());
     }
     Err(SkillPackageError::invalid(
-        "X.yaml.skill",
+        "run.yaml.skill",
         format!(
             "manifest skill {manifest_name:?} does not match SKILL.md name {:?}",
             skill.name

@@ -97,6 +97,20 @@ fn project_json_output(
     project_runx_dir: &Path,
     diagnostics: bool,
 ) -> Result<JsonValue, String> {
+    let output = project_json_output_value(value, project_runx_dir, diagnostics)?;
+    if output.as_object().is_some() {
+        let wire = serde_json::to_value(&output).map_err(|error| error.to_string())?;
+        serde_json::from_value::<runx_contracts::SkillOutput>(wire)
+            .map_err(|error| format!("invalid native skill output envelope: {error}"))?;
+    }
+    Ok(output)
+}
+
+fn project_json_output_value(
+    value: &JsonValue,
+    project_runx_dir: &Path,
+    diagnostics: bool,
+) -> Result<JsonValue, String> {
     let JsonValue::Object(mut object) = value.clone() else {
         return Ok(value.clone());
     };
@@ -755,6 +769,7 @@ mod tests {
             ),
         ]));
         let value = JsonValue::Object(JsonObject::from([
+            ("status".to_owned(), JsonValue::String("failure".to_owned())),
             ("result".to_owned(), result.clone()),
             (
                 "context".to_owned(),

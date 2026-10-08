@@ -346,7 +346,7 @@ impl PacketSchemaCatalog {
     /// Add packet schemas from the exact package snapshot already admitted by
     /// the parser. Registry publication uses this instead of rereading package
     /// files after validation.
-    #[cfg(feature = "cli-tool")]
+    #[cfg(feature = "process-tool")]
     pub(crate) fn discover_loaded_package(
         &mut self,
         loaded: &crate::LoadedSkillPackage,
@@ -394,7 +394,7 @@ impl PacketSchemaCatalog {
         self.entries.get(packet_id)
     }
 
-    #[cfg(feature = "cli-tool")]
+    #[cfg(feature = "process-tool")]
     pub(crate) fn entries(&self) -> impl Iterator<Item = &PacketSchemaEntry> {
         self.entries.values()
     }
@@ -485,12 +485,10 @@ pub(crate) fn packet_schema_directories(
 }
 
 pub(crate) fn declared_runner_packet_ids(runner: &SkillRunnerDefinition) -> BTreeSet<String> {
-    let mut packet_ids = declared_artifact_packet_ids(runner.artifacts.as_ref());
+    let mut packet_ids = BTreeSet::new();
     extend_input_packet_ids(&runner.inputs, &mut packet_ids);
-    if let Some(graph) = &runner.source.graph {
-        for step in &graph.steps {
-            extend_packet_ids(step.artifacts.as_ref(), &mut packet_ids);
-        }
+    for step in &runner.graph.steps {
+        extend_packet_ids(step.artifacts.as_ref(), &mut packet_ids);
     }
     packet_ids
 }
@@ -536,8 +534,8 @@ fn extend_input_packet_ids(
 fn package_packet_directories(package: &ValidatedSkillPackage) -> BTreeSet<String> {
     let mut directories = BTreeSet::from(["packets".to_owned()]);
     directories.extend(package.profiles.keys().filter_map(|profile| {
-        profile
-            .strip_suffix("/X.yaml")
+        runx_parser::profile_directory(profile)
+            .filter(|directory| !directory.is_empty())
             .map(|directory| format!("{directory}/packets"))
     }));
     directories

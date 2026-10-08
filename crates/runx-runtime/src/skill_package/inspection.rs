@@ -6,13 +6,13 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use runx_contracts::{JsonObject, JsonValue};
-use runx_parser::{CatalogMetadata, SkillRunnerDefinition, SourceKind};
+use runx_parser::{CatalogMetadata, SkillRunnerDefinition, StepKind, ToolTarget};
 
 use super::LoadedSkillPackage;
-#[cfg(feature = "cli-tool")]
+#[cfg(feature = "process-tool")]
 pub(crate) use execution_closure::LocalExecutionClosure;
 use execution_closure::inspect_execution_closures;
-#[cfg(feature = "cli-tool")]
+#[cfg(feature = "process-tool")]
 use execution_closure::inspect_local_execution_closure;
 use runner::{catalog_capabilities, fixture_examples, fixture_operator_journeys, inspect_runner};
 use thiserror::Error;
@@ -120,11 +120,10 @@ fn runner_requirements(
 ) -> BTreeMap<String, runx_parser::ConnectorRequirement> {
     let mut used = BTreeMap::<String, runx_parser::ConnectorRequirement>::new();
     let targets = runner
-        .source
         .graph
+        .steps
         .iter()
-        .flat_map(|graph| &graph.steps)
-        .filter_map(|step| step.operation.as_ref());
+        .filter_map(runx_parser::GraphStep::operation);
     for target in targets {
         let Some(declared) = connectors.get(&target.requirement) else {
             continue;
@@ -278,7 +277,7 @@ pub(crate) fn inspect_loaded_execution_closure_binding(
     })
 }
 
-#[cfg(feature = "cli-tool")]
+#[cfg(feature = "process-tool")]
 pub(crate) fn inspect_loaded_local_execution_closure(
     loaded: &LoadedSkillPackage,
     env: &std::collections::BTreeMap<String, String>,
@@ -399,10 +398,12 @@ fn append_runner_inspection(
         JsonValue::Object(JsonObject::from([
             (
                 "may_pause".to_owned(),
-                JsonValue::Bool(matches!(
-                    runner.source.source_type,
-                    SourceKind::Agent | SourceKind::AgentStep | SourceKind::Graph
-                )),
+                JsonValue::Bool(runner.graph.steps.iter().any(|step| {
+                    !matches!(
+                        step.kind,
+                        StepKind::Tool(ToolTarget::Worker(_) | ToolTarget::Process(_))
+                    )
+                })),
             ),
             (
                 "command".to_owned(),
@@ -507,21 +508,15 @@ version: "0.1.0"
 runners:
   inspect:
     default: true
-    type: graph
-    graph:
-      name: root
-      result_from: [child]
-      steps:
-        - id: child
-          skill: child
+    result_from: [child]
+    steps:
+      - id: child
+        skill: child
   alternate:
-    type: graph
-    graph:
-      name: alternate
-      result_from: [child]
-      steps:
-        - id: child
-          skill: child
+    result_from: [child]
+    steps:
+      - id: child
+        skill: child
 "#;
     const CHILD_MANIFEST: &str = r#"
 skill: child
@@ -529,15 +524,12 @@ version: "0.1.0"
 runners:
   read:
     default: true
-    type: graph
-    graph:
-      name: child
-      result_from: [digest]
-      steps:
-        - id: digest
-          tool: data.digest
-          inputs:
-            value: inspected
+    result_from: [digest]
+    steps:
+      - id: digest
+        tool: data.digest
+        inputs:
+          value: inspected
 "#;
 
     #[test]
@@ -548,9 +540,9 @@ runners:
         let child = root.join("child");
         fs::create_dir_all(&child).expect("child skill directory");
         fs::write(root.join("SKILL.md"), ROOT_MANUAL).expect("root manual");
-        fs::write(root.join("X.yaml"), ROOT_MANIFEST).expect("root manifest");
+        fs::write(root.join("run.yaml"), ROOT_MANIFEST).expect("root manifest");
         fs::write(child.join("SKILL.md"), CHILD_MANUAL).expect("child manual");
-        fs::write(child.join("X.yaml"), CHILD_MANIFEST).expect("child manifest");
+        fs::write(child.join("run.yaml"), CHILD_MANIFEST).expect("child manifest");
 
         let inspected = inspect_skill_package(&root, None, None).expect("valid inspection");
         let JsonValue::Object(inspected) = inspected else {
@@ -598,8 +590,8 @@ runners:
         assert_eq!(
             closure.get("profiles"),
             Some(&JsonValue::Array(vec![
-                JsonValue::String("X.yaml#inspect".to_owned()),
-                JsonValue::String("child/X.yaml#read".to_owned()),
+                JsonValue::String("child/run.yaml#read".to_owned()),
+                JsonValue::String("run.yaml#inspect".to_owned()),
             ]))
         );
         let runner_names = inspected
@@ -626,27 +618,19 @@ runners:
         fs::create_dir_all(&child).expect("child skill directory");
         fs::write(root.join("SKILL.md"), ROOT_MANUAL).expect("root manual");
         fs::write(
-            root.join("X.yaml"),
+            root.join("run.yaml"),
             r#"
 skill: root
 runners:
   inspect:
     default: true
-    type: graph
-    graph:
-      name: root
-      result_from: [inline]
-      steps:
-        - id: inline
-          run:
-            type: javascript
-            module: inline.mjs
-            environment:
-              required: [ROOT_REQUIRED]
-              optional: [ROOT_OPTIONAL, SHARED]
-            outputs: { value: string }
-        - id: child
-          skill: child
+    result_from: [inline]
+    steps:
+      - id: inline
+        tool: { module: inline.mjs, environment: { required: [ROOT_REQUIRED], optional: [ROOT_OPTIONAL, SHARED] } }
+        outputs: { value: string }
+      - id: child
+        skill: child
 "#,
         )
         .expect("root manifest");
@@ -657,18 +641,16 @@ runners:
         .expect("root module");
         fs::write(child.join("SKILL.md"), CHILD_MANUAL).expect("child manual");
         fs::write(
-            child.join("X.yaml"),
+            child.join("run.yaml"),
             r#"
 skill: child
 runners:
   read:
     default: true
-    type: javascript
-    module: child.mjs
-    environment:
-      required: [CHILD_REQUIRED, SHARED]
-      optional: [CHILD_OPTIONAL]
-    outputs: { value: string }
+    steps:
+      - id: read
+        tool: { module: child.mjs, environment: { required: [CHILD_REQUIRED, SHARED], optional: [CHILD_OPTIONAL] } }
+        outputs: { value: string }
 "#,
         )
         .expect("child manifest");
@@ -715,22 +697,19 @@ runners:
         fs::create_dir_all(&external).expect("external skill directory");
         fs::write(root.join("SKILL.md"), ROOT_MANUAL).expect("root manual");
         fs::write(
-            root.join("X.yaml"),
+            root.join("run.yaml"),
             r#"
 skill: root
 runners:
   inspect:
     default: true
-    type: graph
-    graph:
-      name: root
-      result_from: [internal, research]
-      steps:
-        - id: internal
-          skill: internal
-        - id: research
-          skill: ../research
-          runner: brief
+    result_from: [internal, research]
+    steps:
+      - id: internal
+        skill: internal
+      - id: research
+        skill: ../research
+        runner: brief
 "#,
         )
         .expect("root manifest");
@@ -744,9 +723,9 @@ runners:
             )
             .expect("child manual");
             fs::write(
-                directory.join("X.yaml"),
+                directory.join("run.yaml"),
                 format!(
-                    "skill: {name}\nrunners:\n  {runner}:\n    default: true\n    type: graph\n    graph:\n      name: {name}\n      result_from: [digest]\n      steps:\n        - id: digest\n          tool: data.digest\n          inputs:\n            value: inspected\n"
+                    "skill: {name}\nrunners:\n  {runner}:\n    default: true\n    result_from: [digest]\n    steps:\n      - id: digest\n        tool: data.digest\n        inputs:\n          value: inspected\n"
                 ),
             )
             .expect("child manifest");

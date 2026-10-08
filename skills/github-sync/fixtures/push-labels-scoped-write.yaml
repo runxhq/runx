@@ -7,23 +7,24 @@ inputs:
   direction: push
   resources:
     kind: issues
-    filters: { limit: 1 }
+    filters: {limit: 1}
     mutations:
       - ref: issues/241
         op: update
-        payload: { labels: [triage] }
+        payload: {labels: [triage]}
   scope: write
 expect:
   status: sealed
   output:
     subset:
       sync_plan:
-        decision: ready_for_execution
-        scope_used: repo.write
-        mutation:
-          ref: issues/241
-          op: update
-          payload: { labels: [triage] }
-        provider_status: not_called
-  receipt: { schema: runx.receipt.v1 }
-metadata: { public_skill: github-sync, source_case: bounded-push-plan, source: skills-fixture }
+        data:
+          decision: ready_for_execution
+          scope_used: repo.write
+          mutation:
+            ref: issues/241
+            op: update
+            payload: {labels: [triage]}
+          provider_status: not_called
+  receipt: {schema: runx.receipt.v1}
+metadata: {public_skill: github-sync, source_case: bounded-push-plan, source: skills-fixture}

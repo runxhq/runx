@@ -4,7 +4,7 @@
     "ref": "fixture.local_echo",
     "name": "fixture.local_echo",
     "description": "Local inspect fixture tool.",
-    "execution_source_type": "cli-tool",
+    "execution": "process",
     "inputs": {
       "message": {
         "type": "string",

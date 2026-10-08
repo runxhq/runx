@@ -8,7 +8,7 @@ inputs:
   target_dir: skills/release-copy
 caller:
   answers:
-    agent_task.skill-lab-architecture.output:
+    agent.skill-lab-architecture.output:
       architecture_decision:
         schema: runx.skill.architecture_decision.v1
         disposition: no_skill
@@ -46,14 +46,13 @@ caller:
         resource_budget:
           max_files: 0
           max_executable_lines: 0
-          max_fanout: 0
           max_process_spawns: 0
           network_allowed: false
         preservation_obligations:
           - Preserve release as the single canonical owner.
         deletions: []
         proof_plan: []
-    agent_task.skill-lab-author.output:
+    agent.skill-lab-author.output:
       change_draft:
         schema: runx.skill.change_draft.v1
         decision: no_skill

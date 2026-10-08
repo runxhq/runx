@@ -5,7 +5,7 @@ use runx_contracts::{
     ResolutionResponseActor,
 };
 use runx_parser::{parse_graph_yaml, validate_graph};
-use runx_runtime::adapters::cli_tool::CliToolAdapter;
+use runx_runtime::adapters::process_tool::ProcessToolAdapter;
 use runx_runtime::{Host, Runtime, RuntimeError, RuntimeOptions};
 
 const CREATED_AT: &str = "2026-08-27T00:00:00Z";
@@ -15,7 +15,7 @@ fn explicit_approval_guard_binds_its_receipt_to_the_governed_step()
 -> Result<(), Box<dyn std::error::Error>> {
     let workspace = tempfile::tempdir()?;
     let graph = policy_write_graph(workspace.path(), true)?;
-    let runtime = runtime();
+    let runtime = runtime(workspace.path(), "run_explicit_guard")?;
     let mut host = ApprovalHost::new(true);
 
     let run = runtime.run_graph_with_host(workspace.path(), graph, &mut host)?;
@@ -50,7 +50,7 @@ fn scoped_write_does_not_invent_approval_and_an_explicit_denied_guard_still_bloc
 -> Result<(), Box<dyn std::error::Error>> {
     let routine_workspace = tempfile::tempdir()?;
     let routine_graph = policy_write_graph(routine_workspace.path(), false)?;
-    runtime().run_graph_with_host(
+    runtime(routine_workspace.path(), "run_routine_write")?.run_graph_with_host(
         routine_workspace.path(),
         routine_graph,
         &mut ApprovalHost::new(false),
@@ -62,7 +62,7 @@ fn scoped_write_does_not_invent_approval_and_an_explicit_denied_guard_still_bloc
 
     let guarded_workspace = tempfile::tempdir()?;
     let guarded_graph = policy_write_graph(guarded_workspace.path(), true)?;
-    let error = match runtime().run_graph_with_host(
+    let error = match runtime(guarded_workspace.path(), "run_guarded_write")?.run_graph_with_host(
         guarded_workspace.path(),
         guarded_graph,
         &mut ApprovalHost::new(false),
@@ -89,18 +89,17 @@ fn parent_approval_binds_the_composite_step_without_becoming_child_authority()
     let child_graph = child_policy_graph(workspace.path());
     let indented_graph = child_graph
         .lines()
-        .map(|line| format!("      {line}"))
+        .filter(|line| !line.starts_with("name:"))
+        .map(|line| format!("    {line}"))
         .collect::<Vec<_>>()
         .join("\n");
     std::fs::write(
-        child.join("X.yaml"),
+        child.join("run.yaml"),
         format!(
             r#"skill: child-policy-write
 runners:
   write:
     default: true
-    type: graph
-    graph:
 {indented_graph}
 "#,
         ),
@@ -110,13 +109,7 @@ runners:
 result_from: [child]
 steps:
   - id: approve
-    run: { type: approval }
-    inputs:
-      gate_id: parent.child.approval
-      reason: Approve the nested write.
-    artifacts:
-      wrap_as: approval_decision
-      packet: runx.approval.decision.v1
+    ask: { gate: parent.child.approval, reason: Approve the nested write. }
   - id: child
     skill: ./child
     runner: write
@@ -129,7 +122,11 @@ policy:
     )?)?;
 
     let mut host = ApprovalHost::new(true);
-    let run = runtime().run_graph_with_host(workspace.path(), parent, &mut host)?;
+    let run = runtime(workspace.path(), "run_nested_parent")?.run_graph_with_host(
+        workspace.path(),
+        parent,
+        &mut host,
+    )?;
     assert_eq!(
         std::fs::read_to_string(workspace.path().join("nested.txt"))?,
         "nested"
@@ -153,7 +150,11 @@ policy:
     }));
 
     let child_graph = validate_graph(parse_graph_yaml(&child_graph)?)?;
-    runtime().run_graph_with_host(&child, child_graph, &mut ApprovalHost::new(true))?;
+    runtime(workspace.path(), "run_nested_child")?.run_graph_with_host(
+        &child,
+        child_graph,
+        &mut ApprovalHost::new(true),
+    )?;
     Ok(())
 }
 
@@ -192,13 +193,7 @@ fn policy_write_graph(
 result_from: [write]
 steps:
   - id: approve
-    run: {{ type: approval }}
-    inputs:
-      gate_id: policy.write.approval
-      reason: Approve the exact fixture write.
-    artifacts:
-      wrap_as: approval_decision
-      packet: runx.approval.decision.v1
+    ask: {{ gate: policy.write.approval, reason: Approve the exact fixture write. }}
   - id: write
     tool: fs.write
     scopes: [fs.write]
@@ -211,10 +206,16 @@ steps:
     ))?)?)
 }
 
-fn runtime() -> Runtime<CliToolAdapter> {
-    let mut options = RuntimeOptions::local_development(BTreeMap::new());
+fn runtime(
+    workspace: &std::path::Path,
+    run_id: &str,
+) -> Result<Runtime<ProcessToolAdapter>, Box<dyn std::error::Error>> {
+    let mut options = RuntimeOptions::local_development(
+        BTreeMap::new(),
+        crate::support::run_in(workspace, run_id)?,
+    );
     options.created_at = CREATED_AT.to_owned();
-    Runtime::new(CliToolAdapter, options)
+    Ok(Runtime::new(ProcessToolAdapter, options))
 }
 
 struct ApprovalHost {

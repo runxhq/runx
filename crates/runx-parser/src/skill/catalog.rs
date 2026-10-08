@@ -12,14 +12,18 @@ const CATALOG_FIELDS: &[&str] = &[
     "approval",
     "audience",
     "canonical_skill",
+    "category",
     "completion",
     "execution",
     "kind",
+    "links",
+    "owner",
     "part_of",
     "provider",
     "requires_adapter",
     "role",
     "runtime_path",
+    "tags",
     "visibility",
 ];
 
@@ -180,6 +184,19 @@ pub struct CatalogMetadata {
     pub requires_adapter: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub approval: Option<CatalogApproval>,
+    /// The registry category the author requests; the registry taxonomy
+    /// decides the published facet.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub category: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tags: Vec<String>,
+    /// The registry namespace a contributed package publishes under; absent,
+    /// the package belongs to the publishing owner.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub owner: Option<String>,
+    /// Named reference URLs, such as the package's source repository.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub links: BTreeMap<String, String>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -365,10 +382,7 @@ fn package_operator_readiness(
                 true,
                 case.runner.as_deref(),
                 &case.operator_journeys,
-                case.caller
-                    .answers
-                    .as_ref()
-                    .is_some_and(|answers| !answers.is_empty()),
+                !case.caller.answers.is_empty(),
                 case.expect.status.as_ref(),
                 &mut readiness,
             );
@@ -385,11 +399,7 @@ fn package_operator_readiness(
             ) && fixture.target == "..",
             fixture.runner.as_deref(),
             &fixture.operator_journeys,
-            fixture
-                .caller
-                .get("answers")
-                .and_then(runx_contracts::JsonValue::as_object)
-                .is_some_and(|answers| !answers.is_empty()),
+            !fixture.caller.answers.is_empty(),
             fixture.expect.status.as_ref(),
             &mut readiness,
         );
@@ -531,6 +541,12 @@ pub(crate) fn validate_catalog_metadata(
         )));
     }
     validate_catalog_bindings(role, &canonical_skill, &provider, &part_of, label)?;
+    let category = FIELDS
+        .optional_non_empty_string(value.get("category"), &format!("{label}.category"))?
+        .map(|category| category.trim().to_owned());
+    let tags = parse_catalog_tags(&value, label)?;
+    let owner = parse_catalog_owner(&value, label)?;
+    let links = parse_catalog_links(&value, label)?;
     Ok(Some(CatalogMetadata {
         kind,
         audience,
@@ -544,7 +560,72 @@ pub(crate) fn validate_catalog_metadata(
         completion,
         requires_adapter,
         approval,
+        category,
+        tags,
+        owner,
+        links,
     }))
+}
+
+fn parse_catalog_tags(value: &JsonObject, label: &str) -> Result<Vec<String>, ValidationError> {
+    let field = format!("{label}.tags");
+    let tags = FIELDS
+        .optional_string_array(value.get("tags"), &field)?
+        .unwrap_or_default();
+    let mut seen = BTreeSet::new();
+    for tag in &tags {
+        if tag.trim().is_empty() || tag.trim() != tag {
+            return Err(FIELDS.validation_error(format!(
+                "{field} entries must be non-empty and carry no surrounding whitespace."
+            )));
+        }
+        if !seen.insert(tag.as_str()) {
+            return Err(FIELDS.validation_error(format!("{field} repeats '{tag}'.")));
+        }
+    }
+    Ok(tags)
+}
+
+fn parse_catalog_owner(value: &JsonObject, label: &str) -> Result<Option<String>, ValidationError> {
+    let field = format!("{label}.owner");
+    let Some(owner) = FIELDS.optional_string(value.get("owner"), &field)? else {
+        return Ok(None);
+    };
+    // `^[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?$`
+    let alphanumeric = |byte: &u8| byte.is_ascii_lowercase() || byte.is_ascii_digit();
+    let canonical = owner.as_bytes().first().is_some_and(alphanumeric)
+        && owner.as_bytes().last().is_some_and(alphanumeric)
+        && owner
+            .bytes()
+            .all(|byte| alphanumeric(&byte) || matches!(byte, b'.' | b'_' | b'-'));
+    if !canonical {
+        return Err(FIELDS.validation_error(format!(
+            "{field} must be a canonical lowercase registry namespace."
+        )));
+    }
+    Ok(Some(owner))
+}
+
+fn parse_catalog_links(
+    value: &JsonObject,
+    label: &str,
+) -> Result<BTreeMap<String, String>, ValidationError> {
+    let field = format!("{label}.links");
+    let Some(links) = FIELDS.optional_object(value.get("links"), &field)? else {
+        return Ok(BTreeMap::new());
+    };
+    links
+        .into_iter()
+        .map(|(name, url)| {
+            let url = FIELDS
+                .optional_string(Some(&url), &format!("{field}.{name}"))?
+                .filter(|url| url.starts_with("https://") && url.len() > "https://".len())
+                .ok_or_else(|| {
+                    FIELDS.validation_error(format!("{field}.{name} must be an https URL."))
+                })?;
+            Ok((name, url))
+        })
+        .collect()
 }
 
 fn parse_catalog_execution(
@@ -742,13 +823,14 @@ catalog:
 runners:
   plan:
     default: true
-    type: javascript
-    module: plan.mjs
-    outputs:
-      plan: object
-    artifacts:
-      named_emits: { plan: plan }
-      packets: { plan: runx.github_sync.plan.v1 }
+    steps:
+      - id: plan
+        tool: { module: plan.mjs }
+        outputs:
+          plan: object
+        artifacts:
+          named_emits: { plan: plan }
+          packets: { plan: runx.github_sync.plan.v1 }
 "#,
         )?;
         let report = analyze_catalog_semantics("github-sync", &manifest);
@@ -786,16 +868,13 @@ harness:
 runners:
   digest:
     default: true
-    type: graph
     inputs:
       note: { type: string, required: true, description: Exact note bytes. }
-    graph:
-      name: digest-note
-      result_from: [digest]
-      steps:
-        - id: digest
-          tool: data.digest
-          inputs: { value: $input.note }
+    result_from: [digest]
+    steps:
+      - id: digest
+        tool: data.digest
+        inputs: { value: $input.note }
 "#,
         )?;
 
@@ -839,27 +918,20 @@ harness:
           must_not_repeat: [Do not rediscover or replace the selected target.]
       caller:
         answers:
-          agent_task.fake.output: { provider_result: { id: resource-1 } }
+          agent.fake.output: { provider_result: { id: resource-1 } }
       expect: { status: sealed }
+connectors:
+  example:
+    operations: [resource.read]
 runners:
   read:
     default: true
-    type: graph
     inputs: {}
-    graph:
-      name: provider-reader
-      result_from: [readback]
-      steps:
-        - id: readback
-          tool: provider.read
-          scopes: [resource.read]
-          policy:
-            provider_permission: { verb: read }
-          inputs:
-            operation: resource.read
-            target: resource-1
-            expected_provider: example
-            result_fields: [id]
+    result_from: [readback]
+    steps:
+      - id: readback
+        operation: example/resource.read
+        input: { id: resource-1 }
 "#,
         )?;
 

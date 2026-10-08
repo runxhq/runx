@@ -28,7 +28,7 @@ The script runs three demonstrations:
 - **success:** two governed turns complete a tiny build-review loop;
 - **refusal:** a requested tool is outside the loop policy, so the loop stops
   before another turn is submitted;
-- **context gate:** an agent-task turn pauses with digest-bound skill context
+- **context gate:** an agent turn pauses with digest-bound skill context
   and explicit `allowed_tools`, showing what a host or managed provider would
   receive without requiring a model key.
 

@@ -16,7 +16,6 @@ setup:
   credentials: [twitter]
 env:
   TWITTER_USER_AUTH: '{"consumer_key":"harness-consumer","consumer_secret":"harness-secret","access_token":"harness-access","access_secret":"harness-access-secret"}'
-  RUNX_DATA_SOURCES: '{"data_sources":{"tenant://twitter/sqlite-unfollow":{"adapter":"data.sqlite","database_path":".runx/data/twitter-unfollow.sqlite","resources":{"twitter_execution":{"kind":"event_stream","partition_key":"aggregate_id"}}}}}'
 inputs:
   plan_json:
     decision: ready
@@ -105,4 +104,4 @@ expect:
               next_act_index: 2
               batch: { start_act_index: 0, selected_act_count: 4, completed_act_count: 2, failed: true, rate_limited: true }
   receipt: { schema: runx.receipt.v1, state: sealed }
-metadata: { public_skill: twitter, source_case: execute-unfollow-rate-limit, source: skills-fixture, runner_kind: graph }
+metadata: { public_skill: twitter, source_case: execute-unfollow-rate-limit, source: skills-fixture }

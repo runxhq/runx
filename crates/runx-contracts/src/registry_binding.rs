@@ -181,7 +181,7 @@ mod tests {
                 "owner": "runx",
                 "trust_tier": "first_party",
                 "version": "1.0.0",
-                "profile_path": "X.yaml",
+                "profile_path": "run.yaml",
                 "materialized_package_is_registry_artifact": true
             },
             "harness": {

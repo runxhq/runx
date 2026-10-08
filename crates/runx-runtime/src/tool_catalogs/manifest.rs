@@ -68,7 +68,7 @@ mod tests {
             r#"{
   "schema": "runx.tool.manifest.v1",
   "name": "example.packet",
-  "source": { "type": "cli-tool", "command": "example" },
+  "source": { "command": "example" },
   "inputs": {
     "plan": {
       "type": "json",

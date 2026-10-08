@@ -6,7 +6,6 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::JsonValue;
 use crate::schema::RunxSchema;
 
 /// Environment names consumed by an executable act. Values are resolved only
@@ -32,20 +31,31 @@ impl EnvironmentRequirements {
             .chain(&self.optional)
             .map(String::as_str)
     }
+
+    /// Add `other`'s names; a name required anywhere stays required.
+    pub fn extend(&mut self, other: &Self) {
+        for name in &other.required {
+            self.optional.retain(|optional| optional != name);
+            if !self.required.contains(name) {
+                self.required.push(name.clone());
+            }
+        }
+        for name in &other.optional {
+            if !self.required.contains(name) && !self.optional.contains(name) {
+                self.optional.push(name.clone());
+            }
+        }
+    }
 }
 
 /// Parser-owned projection of all execution requirements for one act.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ExecutionRequirements {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub auth: Option<JsonValue>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub scopes: Vec<String>,
     #[serde(default, skip_serializing_if = "EnvironmentRequirements::is_empty")]
     pub environment: EnvironmentRequirements,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub runtime: Option<JsonValue>,
 }
 
 /// Safe environment readiness visible to an operating agent. The value is

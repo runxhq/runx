@@ -1,42 +1,18 @@
-use std::collections::BTreeMap;
-
 use runx_contracts::{JsonValue, json_string_field};
 use serde::Deserialize;
 
 use crate::policy::{
     BuildAuthorityProofOptions, CredentialBindingRequest, GraphScopeAdmissionRequest,
-    LocalAdmissionGrant, LocalAdmissionOptions, LocalAdmissionSkill, LocalScopeAdmissionOptions,
-    ScopeGrantPolicy,
+    LocalAdmissionGrant, LocalScopeAdmissionOptions, ScopeGrantPolicy,
 };
 use crate::state_machine::{
-    FanoutBranchResult, FanoutGroupPolicy, SequentialGraphEvent, SequentialGraphState,
-    SequentialGraphStepDefinition, SingleStepEvent, SingleStepState,
+    SequentialGraphEvent, SequentialGraphState, SequentialGraphStepDefinition, SingleStepEvent,
+    SingleStepState,
 };
-
-#[derive(Debug, Deserialize)]
-#[serde(untagged)]
-pub(super) enum KernelDocument {
-    Envelope { input: KernelInput },
-    Input(KernelInput),
-}
-
-impl From<KernelDocument> for KernelInput {
-    fn from(document: KernelDocument) -> Self {
-        match document {
-            KernelDocument::Envelope { input } | KernelDocument::Input(input) => input,
-        }
-    }
-}
 
 #[derive(Debug, Deserialize)]
 #[serde(tag = "kind", rename_all_fields = "camelCase")]
 pub(super) enum KernelInput {
-    #[serde(rename = "policy.admitLocalSkill")]
-    AdmitLocalSkill {
-        skill: Box<LocalAdmissionSkill>,
-        #[serde(default)]
-        options: LocalAdmissionOptions,
-    },
     #[serde(rename = "policy.admitGraphStepScopes")]
     AdmitGraphStepScopes { request: GraphScopeAdmissionRequest },
     #[serde(rename = "policy.buildLocalScopeAdmission")]
@@ -77,47 +53,25 @@ pub(super) enum KernelInput {
     PlanSequentialGraphTransition {
         state: SequentialGraphState,
         steps: Vec<SequentialGraphStepDefinition>,
-        #[serde(default)]
-        fanout_policies: BTreeMap<String, FanoutGroupPolicy>,
-        resolved_fanout_gate_keys: Option<Vec<String>>,
     },
     #[serde(rename = "state-machine.transitionSequentialGraph")]
     TransitionSequentialGraph {
         state: SequentialGraphState,
         event: SequentialGraphEvent,
     },
-    #[serde(rename = "state-machine.evaluateFanoutSync")]
-    EvaluateFanoutSync {
-        policy: FanoutGroupPolicy,
-        results: Vec<FanoutBranchResult>,
-        resolved_gate_keys: Option<Vec<String>>,
-    },
-    #[serde(rename = "state-machine.fanoutSyncDecisionKey")]
-    FanoutSyncDecisionKey { decision: DecisionKeyInput },
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub(super) struct DecisionKeyInput {
-    pub(super) group_id: String,
-    pub(super) rule_fired: String,
 }
 
 pub(super) fn kernel_document_kind(document: &JsonValue) -> Option<&str> {
     let JsonValue::Object(fields) = document else {
         return None;
     };
-    match fields.get("input") {
-        Some(JsonValue::Object(input)) => json_string_field(input, "kind"),
-        _ => json_string_field(fields, "kind"),
-    }
+    json_string_field(fields, "kind")
 }
 
 pub(super) fn is_supported_kernel_kind(kind: &str) -> bool {
     matches!(
         kind,
-        "policy.admitLocalSkill"
-            | "policy.admitGraphStepScopes"
+        "policy.admitGraphStepScopes"
             | "policy.buildLocalScopeAdmission"
             | "policy.buildAuthorityProofMetadata"
             | "policy.validateCredentialBinding"
@@ -127,7 +81,5 @@ pub(super) fn is_supported_kernel_kind(kind: &str) -> bool {
             | "state-machine.createSequentialGraphState"
             | "state-machine.planSequentialGraphTransition"
             | "state-machine.transitionSequentialGraph"
-            | "state-machine.evaluateFanoutSync"
-            | "state-machine.fanoutSyncDecisionKey"
     )
 }

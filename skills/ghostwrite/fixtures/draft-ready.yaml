@@ -44,7 +44,7 @@ inputs:
     validation: { status: pass, findings: [] }
 caller:
   answers:
-    agent_task.ghostwrite-draft.output:
+    agent.ghostwrite-draft.output:
       content_draft:
         decision: ready
         content_brief: { objective: Explain the strongest Runx architecture signal., audience: operators, channel: brief }

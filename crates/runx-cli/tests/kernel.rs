@@ -1,18 +1,21 @@
 use std::io::Write;
-use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 
 #[test]
 fn kernel_eval_state_machine_fixture_json() -> Result<(), Box<dyn std::error::Error>> {
-    let output = runx_command()
-        .args([
-            "kernel",
-            "eval",
-            "--input",
-            "fixtures/kernel/state-machine/sequential-plan-first-step.json",
-            "--json",
-        ])
-        .output()?;
+    let fixture: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../fixtures/kernel/state-machine/sequential-plan-first-step.json"
+    ))?;
+    let mut child = crate::support::repo_runx_command()
+        .args(["kernel", "eval", "--input", "-", "--json"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()?;
+    if let Some(mut stdin) = child.stdin.take() {
+        stdin.write_all(fixture["input"].to_string().as_bytes())?;
+    }
+    let output = child.wait_with_output()?;
 
     assert!(output.status.success());
     assert_eq!(String::from_utf8(output.stderr)?, "");
@@ -27,7 +30,7 @@ fn kernel_eval_state_machine_fixture_json() -> Result<(), Box<dyn std::error::Er
 
 #[test]
 fn kernel_eval_accepts_stdin_json() -> Result<(), Box<dyn std::error::Error>> {
-    let mut child = runx_command()
+    let mut child = crate::support::repo_runx_command()
         .args(["kernel", "eval", "--input", "-", "--json"])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -50,7 +53,7 @@ fn kernel_eval_accepts_stdin_json() -> Result<(), Box<dyn std::error::Error>> {
 
 #[test]
 fn kernel_eval_usage_errors_exit_64() -> Result<(), Box<dyn std::error::Error>> {
-    let output = runx_command()
+    let output = crate::support::repo_runx_command()
         .args(["kernel", "eval", "--input", "-"])
         .output()?;
 
@@ -61,7 +64,7 @@ fn kernel_eval_usage_errors_exit_64() -> Result<(), Box<dyn std::error::Error>> 
 
 #[test]
 fn kernel_eval_invalid_json_returns_structured_error() -> Result<(), Box<dyn std::error::Error>> {
-    let mut child = runx_command()
+    let mut child = crate::support::repo_runx_command()
         .args(["kernel", "eval", "--input", "-", "--json"])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -83,7 +86,7 @@ fn kernel_eval_invalid_json_returns_structured_error() -> Result<(), Box<dyn std
 
 #[test]
 fn kernel_eval_unknown_kind_returns_structured_error() -> Result<(), Box<dyn std::error::Error>> {
-    let mut child = runx_command()
+    let mut child = crate::support::repo_runx_command()
         .args(["kernel", "eval", "--input", "-", "--json"])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -106,19 +109,4 @@ fn kernel_eval_unknown_kind_returns_structured_error() -> Result<(), Box<dyn std
             .is_some_and(|message| message.contains("unsupported kernel input kind"))
     );
     Ok(())
-}
-
-fn runx_command() -> Command {
-    let mut command = Command::new(env!("CARGO_BIN_EXE_runx"));
-    command.env("NO_COLOR", "1");
-    if let Ok(root) = repo_root() {
-        command.env("RUNX_CWD", root);
-    }
-    command
-}
-
-fn repo_root() -> Result<PathBuf, Box<dyn std::error::Error>> {
-    Ok(Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../..")
-        .canonicalize()?)
 }

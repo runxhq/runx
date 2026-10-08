@@ -1,5 +1,5 @@
-// Module rationale: the native config slice keeps parse,
-// execute, render, and parity tests together for one audited CLI surface.
+// Module rationale: the native config command keeps parse,
+// execute, render, and tests together for one audited CLI surface.
 use std::collections::BTreeMap;
 use std::ffi::OsString;
 use std::fmt;

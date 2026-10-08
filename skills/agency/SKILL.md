@@ -1,8 +1,6 @@
 ---
 name: agency
 description: "Record a bounded multi-turn case and propose one roster-constrained member dispatch at a time; a trusted external driver must execute and verify each member."
-runx:
-  category: ops
 ---
 
 # Agency

@@ -41,8 +41,8 @@ result into a verifiable receipt.
 The local CLI/runtime (`runx`, the `@runxhq/cli` npm package) is what executes
 skills and seals receipts on your machine. The hosted surfaces are optional
 complements: the registry/catalog at [runx.ai/x](https://runx.ai/x) publishes
-and discovers skills, the harness replays checked-in cases, and connectors are
-credential-bound provider adapters. You can use the local runtime alone; none
+and discovers skills, the harness replays checked-in cases, and connectors
+declare each provider operation and the credential that authorizes it. You can use the local runtime alone; none
 of the hosted surfaces are required to seal your first receipt.
 
 ## quickstart
@@ -163,8 +163,9 @@ Use this package to prove the local execution and receipt path.
 ```
 
 When a skill needs deterministic execution, typed inputs, graph stages,
-authority, artifacts, or harness cases, it also carries an `X.yaml` execution
-profile:
+authority, artifacts, or harness cases, it also carries a `run.yaml` execution
+profile. Each runner is a list of steps, and each step is one of five kinds:
+`agent`, `tool`, `operation`, `ask`, or `skill`.
 
 ```yaml
 skill: hello-world
@@ -173,19 +174,23 @@ version: "0.1.0"
 runners:
   default:
     default: true
-    type: cli-tool
-    command: node
-    args: [run.mjs]
     inputs:
       message:
         type: string
         required: true
+    steps:
+      - id: default
+        tool: { command: node, args: [run.mjs] }
+        inputs:
+          message: $input.message
+        outputs:
+          message: string
 ```
 
 The split is deliberate:
 
 - `SKILL.md` owns the knowledge a human and acting agent need.
-- `X.yaml` owns machine-checkable execution, authority, and evidence contracts.
+- `run.yaml` owns machine-checkable execution, authority, and evidence contracts.
 - package JavaScript exists only for deterministic domain computation that the
   graph and native capability plane cannot express cleanly.
 - HTTP, filesystem, process, credential, packet, and receipt mechanics belong
@@ -217,25 +222,24 @@ steps:
   - id: second
     skill: ../hello-world
     context:
-      message: first.stdout
+      message: first.message
 ```
 
 The boundary is not how many model calls happened. The boundary is what must be
 guaranteed:
 
-- **Graphs** own deterministic composition, branches, fan-out, guards, and
-  recovery.
-- **Agent tasks** own bounded judgment under the current manual and an explicit
+- **Graphs** own deterministic composition, branches, guards, and recovery.
+- **Agent steps** own bounded judgment under the current manual and an explicit
   tool set.
 - **Native capabilities** own reusable, product-neutral runtime mechanics.
 - **Deterministic modules** perform isolated JSON-to-JSON domain computation
   with no ambient filesystem, network, process, environment, clock, or random
   authority.
-- **CLI tools** are intentional trusted local executables under an exact
+- **Process tools** are intentional trusted local executables under an exact
   resolved grant. Runx controls argv, cwd, delivered environment, credentials,
   supervision, and evidence; it does not claim portable OS confinement.
-- **Provider adapters** perform governed HTTP, MCP connector, or Connect
-  operations under typed authority and effect contracts.
+- **Connector operations** perform governed HTTP, MCP, or Connect requests
+  under typed authority and effect contracts.
 
 Required mutations, API calls, payments, and provider writes belong in
 deterministic effect-owning lanes. An agent or graph author cannot acquire an
@@ -315,7 +319,7 @@ See [Demos](docs/demos.md).
 ## publish and trust
 
 A public skill is a standalone package: a substantive `SKILL.md`, optional
-`X.yaml`, and only the files Runx can consume. Publish locally first:
+`run.yaml`, and only the files Runx can consume. Publish locally first:
 
 ```bash
 runx registry publish ./skills/<your-skill>

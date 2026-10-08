@@ -3,7 +3,6 @@
   "name": "sourcey.build",
   "description": "Build a Sourcey documentation site for a configured project.",
   "source": {
-    "type": "cli-tool",
     "command": "node",
     "args": [
       "./run.mjs"

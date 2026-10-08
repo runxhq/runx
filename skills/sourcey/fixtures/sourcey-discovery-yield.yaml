@@ -10,8 +10,3 @@ metadata:
   public_skill: sourcey
   source_case: sourcey-discovery-yield
   source: skills-fixture
-  runner_kind: graph
-  graph_shape: fixture_replay
-  graph_replay_steps:
-    - step_id: discover
-      task: sourcey-discover

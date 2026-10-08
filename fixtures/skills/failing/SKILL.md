@@ -1,6 +1,6 @@
 ---
 name: failing
-description: Deterministically fail through the cli-tool adapter.
+description: Deterministically fail through a process tool.
 ---
 
-Fail deterministically for quorum and retry tests.
+Fail deterministically.

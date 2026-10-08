@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use runx_contracts::JsonObject;
 use runx_core::state_machine::GraphStatus;
-use runx_runtime::adapters::cli_tool::CliToolAdapter;
+use runx_runtime::adapters::process_tool::ProcessToolAdapter;
 use runx_runtime::{Runtime, RuntimeOptions};
 use serde::Deserialize;
 
@@ -26,15 +26,10 @@ fn hello_graph_matches_post_cutover_fixture() -> Result<(), Box<dyn std::error::
     let expected: ExpectedSummary = serde_json::from_str(include_str!(
         "../../../../fixtures/runtime/hello-graph/summary.json"
     ))?;
-    let runtime = Runtime::new(
-        CliToolAdapter,
-        RuntimeOptions {
-            current_context: Vec::new(),
-            historical_context: Vec::new(),
-            created_at: expected.created_at.clone(),
-            ..RuntimeOptions::local_development(std::env::vars().collect())
-        },
-    );
+    let (_run, run) = crate::support::scratch_run("run_hello_graph_parity")?;
+    let mut options = RuntimeOptions::local_development(std::env::vars().collect(), run);
+    options.created_at = expected.created_at.clone();
+    let runtime = Runtime::new(ProcessToolAdapter, options);
     let graph_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../../examples/hello-graph/graph.yaml")
         .canonicalize()?;
@@ -110,7 +105,5 @@ fn status_name(status: &GraphStatus) -> &'static str {
         GraphStatus::Running => "running",
         GraphStatus::Succeeded => "succeeded",
         GraphStatus::Failed => "failed",
-        GraphStatus::Paused => "paused",
-        GraphStatus::Escalated => "escalated",
     }
 }

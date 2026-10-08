@@ -2,10 +2,7 @@
 // workspace expect/unwrap bans are lifted for this test target.
 #![allow(clippy::expect_used, clippy::unwrap_used)]
 
-use runx_contracts::{
-    FanoutReceiptDecision, FanoutReceiptStrategy, FanoutReceiptSyncPoint, JsonObject, Receipt,
-    ReceiptIssuer, ReceiptSignature,
-};
+use runx_contracts::{JsonObject, Receipt, ReceiptIssuer, ReceiptSignature};
 use runx_core::state_machine::StepAdmissionWitness;
 use runx_receipts::{
     ReceiptFindingCode, ReceiptTreeConfig, SignatureVerificationFailure, SignatureVerifier,
@@ -49,7 +46,7 @@ fn runtime_resolver_verifies_graph_receipt_with_children() -> Result<(), Box<dyn
 }
 
 #[test]
-fn runtime_tree_rejects_legacy_exact_id_child_ref() -> Result<(), Box<dyn std::error::Error>> {
+fn runtime_tree_rejects_bare_id_child_ref() -> Result<(), Box<dyn std::error::Error>> {
     let (mut root, children) = graph_with_steps("tree_runtime_exact", &["child"])?;
     root.lineage.as_mut().unwrap().children[0].uri = children[0].id.clone();
     refresh_local_digest_and_signature(&mut root)?;
@@ -119,7 +116,7 @@ fn runtime_tree_rejects_missing_child_receipt() -> Result<(), Box<dyn std::error
 fn runtime_tree_rejects_extra_child_receipt() -> Result<(), Box<dyn std::error::Error>> {
     let (root, mut children) = graph_with_steps("tree_runtime_extra_child", &["child"])?;
     children.push(step_receipt(
-        "tree_runtime_extra_child",
+        scope("tree_runtime_extra_child"),
         "orphan",
         1,
         &skill_output(InvocationStatus::Success),
@@ -134,43 +131,6 @@ fn runtime_tree_rejects_extra_child_receipt() -> Result<(), Box<dyn std::error::
         ReceiptFindingCode::OrphanChildReceipt,
         "runtime_receipts[1].id",
     );
-    Ok(())
-}
-
-#[test]
-fn runtime_fanout_receipt_tree_uses_explicit_receipts() -> Result<(), Box<dyn std::error::Error>> {
-    let steps = vec![
-        step_run(
-            "tree_runtime_fanout",
-            "market",
-            Some("advisors"),
-            InvocationStatus::Success,
-        )?,
-        step_run(
-            "tree_runtime_fanout",
-            "risk",
-            Some("advisors"),
-            InvocationStatus::Failure,
-        )?,
-        step_run(
-            "tree_runtime_fanout",
-            "synthesize",
-            None,
-            InvocationStatus::Success,
-        )?,
-    ];
-    let sync_point = fanout_sync_point(&steps[..2]);
-    let mut steps = steps;
-    let root = graph_receipt(
-        "tree_runtime_fanout",
-        &mut steps,
-        vec![sync_point.clone()],
-        CREATED_AT,
-    )?;
-    let children = child_receipts(&steps);
-
-    assert_eq!(root.lineage.as_ref().unwrap().sync, vec![sync_point]);
-    assert!(validate_runtime_receipt_tree(&root, children, ReceiptTreeConfig::default()).is_ok());
     Ok(())
 }
 
@@ -315,10 +275,9 @@ fn graph_with_steps(
 ) -> Result<(Receipt, Vec<Receipt>), Box<dyn std::error::Error>> {
     let steps = step_ids
         .iter()
-        .map(|step_id| step_run(graph_name, step_id, None, InvocationStatus::Success))
+        .map(|step_id| step_run(graph_name, step_id, InvocationStatus::Success))
         .collect::<Result<Vec<_>, _>>()?;
-    let mut steps = steps;
-    let root = graph_receipt(graph_name, &mut steps, Vec::new(), CREATED_AT)?;
+    let root = graph_receipt(scope(graph_name), &steps, CREATED_AT)?;
     Ok((root, child_receipts(&steps)))
 }
 
@@ -329,12 +288,11 @@ fn child_receipts(steps: &[StepRun]) -> Vec<Receipt> {
 fn step_run(
     graph_name: &str,
     step_id: &str,
-    fanout_group: Option<&str>,
     status: InvocationStatus,
 ) -> Result<StepRun, Box<dyn std::error::Error>> {
     let output = skill_output(status);
     let receipt = step_receipt(
-        graph_name,
+        scope(graph_name),
         step_id,
         1,
         &output,
@@ -347,7 +305,6 @@ fn step_run(
         attempt: 1,
         skill: step_id.to_owned(),
         runner: None,
-        fanout_group: fanout_group.map(str::to_owned),
         contract: JsonObject::new(),
         ephemeral_contract: EphemeralValue::default(),
         outcome: output.into(),
@@ -363,25 +320,6 @@ fn skill_output(status: InvocationStatus) -> InvocationOutput {
         InvocationStatus::Failure => (String::new(), "failed".to_owned(), Some(1)),
     };
     InvocationOutput::process(status, stdout, stderr, exit_code, 1, JsonObject::new())
-}
-
-fn fanout_sync_point(steps: &[StepRun]) -> FanoutReceiptSyncPoint {
-    FanoutReceiptSyncPoint {
-        group_id: "advisors".into(),
-        strategy: FanoutReceiptStrategy::Quorum,
-        decision: FanoutReceiptDecision::Proceed,
-        rule_fired: "quorum.min_success".into(),
-        reason: "1/2 branches succeeded".into(),
-        branch_count: 2,
-        success_count: 1,
-        failure_count: 1,
-        required_successes: 1,
-        branch_receipts: child_receipts(steps)
-            .into_iter()
-            .map(|receipt| receipt.id)
-            .collect(),
-        gate: None,
-    }
 }
 
 fn resign_for_test_verifier(receipt: &mut Receipt) -> Result<(), Box<dyn std::error::Error>> {
@@ -442,4 +380,11 @@ fn assert_finding(
         "expected finding {code:?} at {path}; got {:?}",
         verification.findings
     );
+}
+
+fn scope(graph_name: &str) -> runx_runtime::receipts::RunScope<'_> {
+    runx_runtime::receipts::RunScope {
+        run_id: "run_test",
+        graph_name,
+    }
 }

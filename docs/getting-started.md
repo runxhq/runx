@@ -80,8 +80,8 @@ export RUNX_RECEIPT_SIGN_ISSUER_TYPE="hosted"
 All three variables must be set together. `RUNX_RECEIPT_SIGN_ISSUER_TYPE` must
 be `hosted` or `ci`; production receipts are never stamped as local issuers.
 When configured, the runtime signs each receipt body digest with Ed25519 and
-writes the matching public key hash in the issuer metadata. `runx history` and
-`runx verify` derive the matching verifier from that complete signing identity,
+writes the matching public key hash in the issuer metadata. `runx history --detail`
+and `runx verify` derive the matching verifier from that complete signing identity,
 so the operator that created local receipts does not configure the same key
 twice.
 

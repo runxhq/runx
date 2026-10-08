@@ -1,0 +1,30 @@
+name: agency-open-advance-status
+owner: runx
+steps:
+  - id: open
+    skill: ../..
+    runner: open
+    inputs:
+      data_source_ref: tenant://agency/journey-cases
+      case_id: case-journey-1
+      agency_ref: docs-agency
+      mandate: keep the published docs current and accurate
+      roster:
+        - { role: writer, skill: ghostwrite, scope: [docs.write] }
+        - { role: reviewer, skill: review-skill, scope: [docs.read] }
+      limits:
+        max_turns: 50
+      signal: docs drift detected on the API reference
+  - id: advance
+    skill: ../..
+    runner: advance
+    inputs:
+      data_source_ref: tenant://agency/journey-cases
+      case_id: case-journey-1
+      driver_id: drv-journey-1
+  - id: status
+    skill: ../..
+    runner: status
+    inputs:
+      data_source_ref: tenant://agency/journey-cases
+      case_id: case-journey-1

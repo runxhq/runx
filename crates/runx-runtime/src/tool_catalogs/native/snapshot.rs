@@ -99,8 +99,8 @@ fn enabled_roster_features() -> Vec<&'static str> {
     if cfg!(feature = "catalog") {
         features.push("catalog");
     }
-    if cfg!(feature = "cli-tool") {
-        features.push("cli-tool");
+    if cfg!(feature = "process-tool") {
+        features.push("process-tool");
     }
     features
 }

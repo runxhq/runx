@@ -55,6 +55,7 @@ pub mod schema_artifacts;
 mod schema_reconcile;
 pub mod signal;
 pub mod skill_authoring;
+pub mod skill_output;
 pub mod source_packet;
 pub mod suppression;
 pub mod tools;
@@ -125,9 +126,8 @@ pub use doctor::{
     DoctorStatus, DoctorSummary,
 };
 pub use execution::{
-    ArtifactContract, ExecutionSemantics, GovernedDisposition, IdempotencyPolicy,
-    InputContextCapture, InputDefinition, OutcomeState, ReceiptOutcome, ReceiptSurfaceRef,
-    RetryPolicy, input_contract_schema, input_contract_schema_with_examples,
+    ArtifactContract, IdempotencyPolicy, InputDefinition, input_contract_schema,
+    input_contract_schema_with_examples,
 };
 pub use execution_boundary::{
     EXECUTION_BOUNDARY_METADATA, ExecutionBoundaryKind, ExecutionBoundaryObservation,
@@ -152,11 +152,10 @@ pub use handoff::{
     SuppressionReason,
 };
 pub use host_protocol::{
-    AgentActInvocation, AgentActSourceType, ApprovalDecision, ApprovalGate, ExecutionEvent,
-    HostNeedsAgentState, HostRunApproval, HostRunApprovalDecision, HostRunKind, HostRunLineage,
-    HostRunLineageKind, HostRunResult, HostRunState, HostRunVerification,
-    HostRunVerificationStatus, HostTerminalState, Question, ResolutionRequest, ResolutionResponse,
-    ResolutionResponseActor,
+    AgentActInvocation, ApprovalDecision, ApprovalGate, ExecutionEvent, HostNeedsAgentState,
+    HostRunApproval, HostRunApprovalDecision, HostRunKind, HostRunLineage, HostRunLineageKind,
+    HostRunResult, HostRunState, HostRunVerification, HostRunVerificationStatus, HostTerminalState,
+    Question, ResolutionRequest, ResolutionResponse, ResolutionResponseActor,
 };
 pub use json::{
     JsonNumber, JsonObject, JsonValue, MAX_PORTABLE_INTEGER, json_bool_field, json_object,
@@ -257,12 +256,11 @@ pub use policy_proof::{
 pub use provider_operation::ProviderOperationPacket;
 pub use receipt::{
     EFFECT_FINALITY_RECEIPT_SCHEMA, EffectFinalityPhase, EffectFinalityReceipt,
-    EffectFinalityReceiptSchema, FanoutReceiptDecision, FanoutReceiptStrategy,
-    FanoutReceiptSyncPoint, Lineage, RECEIPT_CANONICALIZATION, RECEIPT_SCHEMA, Receipt, ReceiptAct,
-    ReceiptAuthority, ReceiptClass, ReceiptCommitment, ReceiptCommitmentScope, ReceiptEnforcement,
-    ReceiptEvidence, ReceiptIdempotency, ReceiptInputContext, ReceiptIssuer, ReceiptIssuerType,
-    ReceiptPaidInvocationBinding, ReceiptSchema, ReceiptSignature, RunnerProvenance, Seal,
-    SignatureAlgorithm, Subject, receipt_subject_kind,
+    EffectFinalityReceiptSchema, Lineage, RECEIPT_CANONICALIZATION, RECEIPT_SCHEMA, Receipt,
+    ReceiptAct, ReceiptAuthority, ReceiptClass, ReceiptCommitment, ReceiptCommitmentScope,
+    ReceiptEnforcement, ReceiptEvidence, ReceiptIdempotency, ReceiptInputContext, ReceiptIssuer,
+    ReceiptIssuerType, ReceiptPaidInvocationBinding, ReceiptSchema, ReceiptSignature,
+    RunnerProvenance, Seal, SignatureAlgorithm, Subject, receipt_subject_kind,
 };
 pub use redaction::{HashAlgorithm, HashCommitment, REDACTION_SCHEMA, Redaction, RedactionSchema};
 pub use reference::{ActRef, ProofKind, Reference, ReferenceLink, ReferenceType, RunxPrincipalId};
@@ -298,7 +296,7 @@ pub use source_packet::{SOURCE_PACKET_SCHEMA, SourcePacket, SourcePacketSchema};
 pub use suppression::{SuppressionRecord, SuppressionRecordSchema, SuppressionScope};
 pub use tools::{
     RuntimeCommand, ToolCommandInputMode, ToolIdempotencyPolicy, ToolInput, ToolManifest,
-    ToolManifestSchema, ToolRetryPolicy, ToolSource, ToolSourceType,
+    ToolManifestSchema, ToolSource,
 };
 pub use verification::{
     ReceiptVerificationSummary, VERIFICATION_SCHEMA, Verification, VerificationCheck,
@@ -317,3 +315,5 @@ pub use x402::{
     X402ResourceInfo, X402ServiceName, X402SettleResponse, X402Tag, X402Tags, X402Version2,
     parse_runx_invocation_extension, runx_invocation_extension_value,
 };
+
+pub use skill_output::{ProjectArtifactRef, SkillOutput};

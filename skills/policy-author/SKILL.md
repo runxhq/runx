@@ -74,10 +74,6 @@ permissions:
   require_human_merge_gate: boolean
 ```
 
-Do not substitute older convenience fields such as top-level `target_repos`, a
-single `runner`, or agent-authored `lint` findings. They are not the runtime
-contract.
-
 ## Stop conditions
 
 - Missing repository, locator, runner, or owner evidence: `needs_input` with

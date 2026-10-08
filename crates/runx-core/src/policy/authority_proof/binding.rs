@@ -1,6 +1,9 @@
+use runx_contracts::policy_proof::{
+    CredentialEnvelope, CredentialGrantReference, ScopeAdmission, ScopeAdmissionStatus,
+};
+
 use crate::policy::{
-    CredentialBindingDecision, CredentialBindingRequest, CredentialEnvelope,
-    CredentialGrantReference, LocalAdmissionGrant, ScopeAdmission, ScopeAdmissionStatus,
+    CredentialBindingDecision, CredentialBindingRequest, LocalAdmissionGrant,
     credential_grant::{
         CredentialGrantRequirement, credential_grant_requirement, has_grant_reference,
     },

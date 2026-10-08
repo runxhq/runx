@@ -34,7 +34,7 @@ pub enum RunxExportMode {
 #[derive(Clone, Debug, PartialEq)]
 pub struct RunxExportRunner {
     /// `None` is the unnamed SKILL.md execution front used by packages without
-    /// X.yaml. Named X.yaml runners are always explicit in generated commands.
+    /// run.yaml. Named run.yaml runners are always explicit in generated commands.
     pub name: Option<String>,
     pub default: bool,
     pub execution_closure_digest: Option<String>,
@@ -204,7 +204,8 @@ fn export_skill(
         validate_export_skill_inputs(&runner.inputs)?;
     }
     Ok(RunxExportSkill {
-        name: export_skill_name(&skill.name)?,
+        // The strict manual rule makes every name one safe path segment.
+        name: skill.name,
         description: skill
             .description
             .unwrap_or_else(|| "Run this skill through runx governance.".to_owned()),
@@ -224,7 +225,7 @@ fn load_export_package(
     let workspace_root = canonicalize(workspace_root, "canonicalizing export workspace")?;
     let is_workspace_manual = skill_dir == workspace_root
         && workspace_root.join("skills").is_dir()
-        && !workspace_root.join("X.yaml").is_file();
+        && !workspace_root.join(runx_parser::PROFILE_FILE).is_file();
     if is_workspace_manual {
         let manual_path = workspace_root.join("SKILL.md");
         let manual =
@@ -262,7 +263,7 @@ fn export_runners(
             name: None,
             default: true,
             execution_closure_digest: None,
-            inputs: package.skill.inputs.clone(),
+            inputs: std::collections::BTreeMap::new(),
             examples: Vec::new(),
         }];
     };
@@ -291,29 +292,6 @@ fn export_runners(
             .then_with(|| left.name.cmp(&right.name))
     });
     runners
-}
-
-fn export_skill_name(name: &str) -> Result<String, RunxExportLoadError> {
-    if name.contains('\\') {
-        return Err(RunxExportLoadError::InvalidArgs(format!(
-            "skill name {name:?} cannot be exported because it is not a safe path segment"
-        )));
-    }
-    let segments = name.split('/').collect::<Vec<_>>();
-    if segments.iter().any(|segment| {
-        segment.is_empty()
-            || matches!(*segment, "." | "..")
-            || segment.starts_with('-')
-            || segment.ends_with('-')
-            || !segment.chars().all(|character| {
-                character.is_ascii_alphanumeric() || matches!(character, '-' | '_' | '.')
-            })
-    }) {
-        return Err(RunxExportLoadError::InvalidArgs(format!(
-            "skill name {name:?} cannot be exported because it cannot be normalized to a safe name"
-        )));
-    }
-    Ok(segments.join("-"))
 }
 
 fn validate_export_skill_inputs(
@@ -380,7 +358,8 @@ mod tests {
             "---\nname: demo\ndescription: Demo skill.\n---\n\n# Demo\n",
         )
         .expect("child manual");
-        fs::write(root.join("unrelated/X.yaml"), "not: [valid").expect("unrelated repository file");
+        fs::write(root.join("unrelated/run.yaml"), "not: [valid")
+            .expect("unrelated repository file");
 
         let skills = load_export_skills(root, &[]).expect("export skills");
 

@@ -2,12 +2,9 @@ use std::collections::BTreeMap;
 use std::fmt;
 use std::sync::Arc;
 
-use runx_parser::GraphStep;
-
 use super::{
     EffectAdmission, EffectOutputRequest, EffectPreparationOutcome, EffectReceiptRequest,
-    EffectReplay, EffectReplayOutputRequest, EffectReplayReceiptRequest, EffectStepRequest,
-    RuntimeEffect, RuntimeEffectError,
+    EffectStepRequest, RuntimeEffect, RuntimeEffectError,
 };
 
 mod catalog;
@@ -15,9 +12,10 @@ mod catalog;
 #[derive(Clone)]
 pub struct RuntimeEffectRegistry {
     families: BTreeMap<&'static str, Arc<dyn RuntimeEffect>>,
-    /// Exact response bytes admitted by the harness front. This state has no
-    /// environment or skill-input loader and is absent from every live registry.
-    harness_http_responses: Option<Arc<BTreeMap<String, crate::http::RuntimeHttpResponse>>>,
+    /// The exact HTTP exchanges admitted by the harness front. This state has
+    /// no environment or skill-input loader and is absent from every live
+    /// registry.
+    harness_http: Option<Arc<Vec<crate::http::RuntimeHarnessHttpExchange>>>,
 }
 
 impl RuntimeEffectRegistry {
@@ -38,23 +36,23 @@ impl RuntimeEffectRegistry {
     pub fn empty() -> Self {
         Self {
             families: BTreeMap::new(),
-            harness_http_responses: None,
+            harness_http: None,
         }
     }
 
     pub(crate) fn with_harness_http(
         mut self,
-        responses: Option<Arc<BTreeMap<String, crate::http::RuntimeHttpResponse>>>,
+        exchanges: Option<Arc<Vec<crate::http::RuntimeHarnessHttpExchange>>>,
     ) -> Self {
-        self.harness_http_responses = responses;
+        self.harness_http = exchanges;
         self
     }
 
     #[cfg(feature = "catalog")]
-    pub(crate) fn harness_http_responses(
+    pub(crate) fn harness_http_exchanges(
         &self,
-    ) -> Option<&BTreeMap<String, crate::http::RuntimeHttpResponse>> {
-        self.harness_http_responses.as_deref()
+    ) -> Option<&[crate::http::RuntimeHarnessHttpExchange]> {
+        self.harness_http.as_deref().map(Vec::as_slice)
     }
 
     pub fn with_effect<T>(effect: T) -> Result<Self, RuntimeEffectError>
@@ -116,26 +114,6 @@ impl RuntimeEffectRegistry {
         self.register_effect(effect)
     }
 
-    pub(crate) fn find_replay(
-        &self,
-        request: EffectStepRequest<'_>,
-    ) -> Result<Option<EffectReplay>, RuntimeEffectError> {
-        if let Some(effect) = self.resolved_effect(request)? {
-            return effect.find_replay(request);
-        }
-        Ok(None)
-    }
-
-    pub(crate) fn recover_pending(
-        &self,
-        request: EffectStepRequest<'_>,
-    ) -> Result<(), RuntimeEffectError> {
-        if let Some(effect) = self.resolved_effect(request)? {
-            return effect.recover_pending(request);
-        }
-        Ok(())
-    }
-
     pub(crate) fn admit(
         &self,
         request: EffectStepRequest<'_>,
@@ -188,34 +166,12 @@ impl RuntimeEffectRegistry {
         self.require_effect(family)?.persist(request)
     }
 
-    pub(crate) fn prepare_replay_output(
-        &self,
-        request: EffectReplayOutputRequest<'_>,
-    ) -> Result<(), RuntimeEffectError> {
-        let family = request.replay.family();
-        self.require_effect(family)?.prepare_replay_output(request)
-    }
-
-    pub(crate) fn validate_replay(
-        &self,
-        request: EffectReplayReceiptRequest<'_>,
-    ) -> Result<(), RuntimeEffectError> {
-        let family = request.replay.family();
-        self.require_effect(family)?.validate_replay(request)
-    }
-
     pub(crate) fn authority(
         &self,
         admission: &EffectAdmission,
     ) -> Result<crate::receipts::SealAuthority, RuntimeEffectError> {
         self.require_effect(admission.family())?
             .authority(admission)
-    }
-
-    pub(crate) fn allows_parallel_step(&self, step: &GraphStep) -> bool {
-        self.families
-            .values()
-            .all(|effect| effect.can_run_parallel(step))
     }
 
     fn resolved_effect(
@@ -265,11 +221,11 @@ impl fmt::Debug for RuntimeEffectRegistry {
             .debug_struct("RuntimeEffectRegistry")
             .field("families", &families)
             .field(
-                "harness_http_response_count",
+                "harness_http_exchange_count",
                 &self
-                    .harness_http_responses
+                    .harness_http
                     .as_ref()
-                    .map_or(0, |responses| responses.len()),
+                    .map_or(0, |exchanges| exchanges.len()),
             )
             .finish()
     }

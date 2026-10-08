@@ -3,7 +3,6 @@
   "name": "sourcey.package",
   "description": "Package a completed Sourcey run into a reusable Sourcey packet.",
   "source": {
-    "type": "cli-tool",
     "command": "node",
     "args": [
       "./run.mjs"

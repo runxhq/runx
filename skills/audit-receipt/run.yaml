@@ -1,0 +1,94 @@
+skill: audit-receipt
+version: "0.3.5"
+catalog:
+  kind: graph
+  audience: operator
+  visibility: public
+  role: canonical
+  execution: read
+  completion: runtime_receipt
+  requires_adapter: false
+  approval: none
+  category: security
+runners:
+  audit:
+    default: true
+    inputs:
+      receipt_id:
+        type: string
+        required: false
+        description: Exact receipt id to resolve through the native ledger.
+      receipt_summary:
+        type: string
+        required: false
+        description: Sanitized authority, act, approval, refusal, and material-reference summary.
+      granted_scopes:
+        type: json
+        required: false
+        description: Operator grant baseline to compare with the receipt's native exercised authority.
+      objective:
+        type: string
+        required: false
+        description: Operator intent focusing the audit.
+      receipt_rows:
+        type: json
+        required: false
+        description: Explicit native-projection rows for deterministic replay only.
+      receipt_details:
+        type: json
+        required: false
+        description: Explicit native redacted receipt details for deterministic replay only.
+    result_from: [audit]
+    steps:
+      - id: evidence
+        label: resolve and verify receipt evidence
+        skill: ../ledger
+        runner: read
+        inputs:
+          question: Resolve the exact receipt referenced by this governance audit.
+          receipt_ids:
+            - $input.receipt_id
+          proof:
+            verify_chain: true
+          receipts: $input.receipt_rows
+          receipt_details: $input.receipt_details
+      - id: audit
+        label: audit authority against bounded receipt evidence
+        agent: { role: reviewer, task: audit-receipt }
+        outputs:
+          receipt_audit:
+            type: object
+            schema:
+              required: [decision, run_ref, granted_scopes, exercised_scopes, refusals, findings, verdict, rationale, recommendations, success_checkpoint]
+              additionalProperties: false
+              properties:
+                decision: { type: string, enum: [ready, needs_more_evidence] }
+                run_ref: { type: string }
+                granted_scopes: { type: array, items: { type: string }, uniqueItems: true }
+                exercised_scopes: { type: array, items: { type: string }, uniqueItems: true }
+                refusals: { type: array, items: { type: string } }
+                findings:
+                  type: array
+                  items:
+                    type: object
+                    required: [id, severity, message]
+                    additionalProperties: false
+                    properties:
+                      id: { type: string, minLength: 1 }
+                      severity: { type: string, enum: [info, warning, error] }
+                      message: { type: string, minLength: 1 }
+                verdict: { type: string, enum: [clean, anomaly, needs_more_evidence] }
+                rationale: { type: string, minLength: 1 }
+                recommendations: { type: array, items: { type: string } }
+                success_checkpoint:
+                  type: object
+                  required: [milestone, description]
+                  additionalProperties: false
+                  properties:
+                    milestone: { type: string, minLength: 1 }
+                    description: { type: string, minLength: 1 }
+        context:
+          receipt_evidence: evidence.ledger_answer_packet.data
+        artifacts:
+          wrap_as: receipt_audit_packet
+          packet: runx.receipt_audit.v1

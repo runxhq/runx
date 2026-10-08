@@ -10,7 +10,7 @@ inputs:
   operator_context: Require dry run, consent basis, source, and confirmation before the real import.
 caller:
   answers:
-    agent_task.import-contacts-plan.output:
+    agent.import-contacts-plan.output:
       import_plan:
         decision: ready
         source: inline

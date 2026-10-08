@@ -198,7 +198,6 @@ mod tests {
         let output = capture_help(&NativeInvocation {
             inputs: &inputs,
             observed_at: "2026-01-01T00:00:00Z",
-            data_source_binding: None,
             env: &env,
             skill_directory: workspace.path(),
             credential_delivery: &delivery,
@@ -231,7 +230,6 @@ mod tests {
         let error = capture_help(&NativeInvocation {
             inputs: &inputs,
             observed_at: "2026-01-01T00:00:00Z",
-            data_source_binding: None,
             env: &env,
             skill_directory: workspace.path(),
             credential_delivery: &delivery,

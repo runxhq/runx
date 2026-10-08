@@ -1,8 +1,6 @@
 ---
 name: research-analyze
 description: Internal evidence-index analysis and verification stage for the canonical research skill.
-runx:
-  category: research
 ---
 
 # Research Analyze

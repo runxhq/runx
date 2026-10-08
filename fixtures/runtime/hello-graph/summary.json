@@ -7,26 +7,22 @@
   ],
   "contracts": [
     {
-      "message": {
-        "data": "hello from graph"
-      }
+      "message": "hello from graph"
     },
     {
-      "message": {
-        "data": "hello from graph"
-      }
+      "message": "hello from graph"
     }
   ],
   "createdAt": "2026-05-18T00:00:00Z",
-  "graphSealDigest": "sha256:f930a7cc83cfb0abf41eaa4556f5d9cabaf32e0f316a03274aeb2050580bfaf3",
+  "graphSealDigest": "sha256:e6823eb2f84647fe4e1772c6f85fe78edaa54cb395c8a04a9aeaaf82d137b03b",
   "childSealDigests": [
-    "sha256:472aa2f6ab49f4a5bbc8aee77d0beb6a45ceab145d8731b0fe06a8d1bc2fd29e",
-    "sha256:7e6ead623dabb61a88b405e2f4036970d76bca8b7440b72cca91e2dac8c93f71"
+    "sha256:982c69b53271767b528dbb22f66c7ec9d1c6c5b8d5c9c6a5043c8e24d7be5507",
+    "sha256:4b3edbfcb678bc6a4c1acab0b335cba75f6820b35e132ac670787dde0459e5e0"
   ],
   "enforcementProfileHash": "sha256:635fdb0a7eef93911e3c6bd0b25b5e635edba32e0259133042b3a5f1fb19394e",
-  "graphReceiptId": "sha256:8a27689a978ec498ef95a3f1622cf90cc99c4b136da6fe9a4172774455b88c2b",
+  "graphReceiptId": "sha256:ee58b3a0f437bced7be8f674c37b11e2b35dba1eb8586ad2a5a09b90a6c3313d",
   "childReceiptIds": [
-    "sha256:e9c861b85bb5e2ca2b998b166874b754e513e3f963bc3c9b6a658f721d8a1a82",
-    "sha256:31acf1237da9e27fb4881b98b8e8bf14acf6f92b85d95999b8efdc857723868f"
+    "sha256:08b75b7c3b84f8f95f792ea5e41fdf621d6d6c71f05401bbd99082c44811e943",
+    "sha256:3595e91912f289abd1191234a9821399c758d810a86af5817e963dedf61df69b"
   ]
 }

@@ -163,44 +163,13 @@ fn parse_skill_arg(
         return Err("runx skill runner names and option values must be UTF-8".to_owned());
     }
     let token = string_arg(args, index)?;
-    if is_retired_skill_option(&token) {
-        return Err(
-            "retired runx skill receipt option is not supported; use --receipt-dir".to_owned(),
-        );
-    }
     match token.as_str() {
         value if value.starts_with("--receipt-dir=") => {
             state.receipt_dir = Some(PathBuf::from(value.trim_start_matches("--receipt-dir=")));
         }
-        value if value.starts_with("-R=") => {
-            state.receipt_dir = Some(PathBuf::from(value.trim_start_matches("-R=")));
-        }
-        value if value.starts_with("--receipts=") => {
-            state.receipt_dir = Some(PathBuf::from(value.trim_start_matches("--receipts=")));
-        }
-        "--receipt-dir" => {
+        "--receipt-dir" | "-R" => {
             index += 1;
-            state.receipt_dir = Some(PathBuf::from(path_arg(args, index, "--receipt-dir")?));
-        }
-        "--receipts" => {
-            index += 1;
-            state.receipt_dir = Some(PathBuf::from(path_arg(args, index, "--receipts")?));
-        }
-        "-R" => {
-            index += 1;
-            state.receipt_dir = Some(PathBuf::from(path_arg(args, index, "-R")?));
-        }
-        value if value.starts_with("--run-id=") || value == "--run-id" => {
-            return Err(skill_resume_flag_error());
-        }
-        value if value.starts_with("--answers=") || value == "--answers" => {
-            return Err(skill_resume_flag_error());
-        }
-        value if value.starts_with("--runner=") || value == "--runner" => {
-            return Err(
-                "runx skill --runner is no longer supported; use `runx skill <skill> <runner>`"
-                    .to_owned(),
-            );
+            state.receipt_dir = Some(PathBuf::from(path_arg(args, index, &token)?));
         }
         value if value.starts_with("--registry=") => {
             state.registry = Some(non_empty_flag_value(
@@ -372,22 +341,6 @@ fn non_empty_flag_value(flag: &str, value: &str) -> Result<String, String> {
         return Err(format!("runx skill {flag} requires a non-empty value"));
     }
     Ok(value.to_owned())
-}
-
-fn skill_resume_flag_error() -> String {
-    "runx skill continuation flags are no longer supported; use `runx resume <run-id> <answers.json|->`".to_owned()
-}
-
-fn is_retired_skill_option(token: &str) -> bool {
-    let Some(flag) = token.strip_prefix("--") else {
-        return false;
-    };
-    let name = flag.split_once('=').map_or(flag, |(name, _value)| name);
-    name == "receipt" || name == retired_receipt_dir_option_name()
-}
-
-fn retired_receipt_dir_option_name() -> String {
-    ["receipt", "Dir"].concat()
 }
 
 fn string_arg(args: &[OsString], index: usize) -> Result<String, String> {

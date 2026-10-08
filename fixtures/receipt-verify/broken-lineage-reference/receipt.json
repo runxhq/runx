@@ -6,14 +6,14 @@
         "closed_at": "2026-05-18T00:00:00Z",
         "disposition": "closed",
         "reason_code": "process_exit",
-        "summary": "cli-tool exited successfully"
+        "summary": "process exited successfully"
       },
       "criterion_bindings": [
         {
           "criterion_id": "process_exit",
           "evidence_refs": [],
           "status": "verified",
-          "summary": "cli-tool exited successfully",
+          "summary": "process exited successfully",
           "verification_refs": []
         }
       ],
@@ -28,7 +28,7 @@
           {
             "criterion_id": "process_exit",
             "required": true,
-            "statement": "cli-tool exits successfully"
+            "statement": "process exits successfully"
           }
         ]
       },
@@ -87,8 +87,8 @@
       "selected_harness_ref": null
     }
   ],
-  "digest": "sha256:41f28dc7d5a47276608a1c67a24c980f4492951100239ef6fd12c23ee8685f49",
-  "id": "sha256:e5362779396a14763b05d841e9b357a67e581c2e6ad98d226870f852f9e5a070",
+  "digest": "sha256:5eb43696ef1c06f10f128b2f56d35d4b684fbb333595ddf7cc41922f76221829",
+  "id": "sha256:84a9e99f5866eb7e1ac4a1607a1b069b950769b26c3c98577fe4c1d6d2e55411",
   "idempotency": {
     "content_hash": "sha256:sequential-echo-first-content",
     "intent_key": "sha256:sequential-echo-first-intent",
@@ -104,8 +104,7 @@
     "parent": {
       "type": "receipt",
       "uri": "runx:receipt:sha256:bbb6f5a2853c8c4953c0a5880d5e3c25def4ece13445b39e539b558bcab76465"
-    },
-    "sync": []
+    }
   },
   "schema": "runx.receipt.v1",
   "seal": {
@@ -115,7 +114,7 @@
         "criterion_id": "process_exit",
         "evidence_refs": [],
         "status": "verified",
-        "summary": "cli-tool exited successfully",
+        "summary": "process exited successfully",
         "verification_refs": []
       }
     ],
@@ -127,14 +126,15 @@
   "signals": [],
   "signature": {
     "alg": "Ed25519",
-    "value": "sig:sha256:41f28dc7d5a47276608a1c67a24c980f4492951100239ef6fd12c23ee8685f49"
+    "value": "sig:sha256:5eb43696ef1c06f10f128b2f56d35d4b684fbb333595ddf7cc41922f76221829"
   },
   "subject": {
     "commitments": [],
     "kind": "skill",
     "ref": {
-      "type": "harness",
-      "uri": "hrn_sequential-echo_first"
+      "label": "sequential-echo",
+      "type": "run",
+      "uri": "runx:run:sequential-echo#first"
     }
   }
 }

@@ -6,7 +6,7 @@ use std::path::{Component, Path, PathBuf};
 use std::sync::Arc;
 
 use runx_contracts::{EnvironmentRequirements, JsonValue, sha256_prefixed};
-use runx_parser::{GraphStep, SourceKind};
+use runx_parser::{GraphStep, StepKind, ToolTarget};
 use serde::Serialize;
 
 use super::super::LoadedSkillPackage;
@@ -28,6 +28,15 @@ struct ClosureAccumulator {
     declared_artifact: bool,
 }
 
+impl ClosureAccumulator {
+    fn extend_environment(&mut self, environment: &runx_contracts::EnvironmentRequirements) {
+        self.environment_required
+            .extend(environment.required.iter().cloned());
+        self.environment_optional
+            .extend(environment.optional.iter().cloned());
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct LocalSkillEdge {
     pub source_package_root: PathBuf,
@@ -37,7 +46,7 @@ pub(crate) struct LocalSkillEdge {
 }
 
 #[derive(Default)]
-#[cfg(feature = "cli-tool")]
+#[cfg(feature = "process-tool")]
 pub(crate) struct LocalExecutionClosure {
     pub packages: BTreeMap<PathBuf, BTreeSet<String>>,
     pub skill_edges: BTreeSet<LocalSkillEdge>,
@@ -122,7 +131,7 @@ pub(super) fn inspect_execution_closures(
         .collect()
 }
 
-#[cfg(feature = "cli-tool")]
+#[cfg(feature = "process-tool")]
 pub(super) fn inspect_local_execution_closure(
     loaded: Arc<LoadedSkillPackage>,
     env: &BTreeMap<String, String>,
@@ -162,7 +171,7 @@ pub(super) fn inspect_local_execution_closure(
     Ok(closure)
 }
 
-#[cfg(feature = "cli-tool")]
+#[cfg(feature = "process-tool")]
 impl ClosureAccumulator {
     fn into_local_execution_closure(self) -> LocalExecutionClosure {
         LocalExecutionClosure {
@@ -172,7 +181,7 @@ impl ClosureAccumulator {
     }
 }
 
-#[cfg(feature = "cli-tool")]
+#[cfg(feature = "process-tool")]
 fn merge_local_execution_closure(
     target: &mut LocalExecutionClosure,
     source: LocalExecutionClosure,
@@ -230,7 +239,7 @@ impl<'a> ExecutionClosureInspector<'a> {
             .root
             .profile_path
             .as_deref()
-            .unwrap_or("X.yaml")
+            .unwrap_or(runx_parser::PROFILE_FILE)
             .to_owned();
         self.walk_runner(
             RunnerWalkTarget {
@@ -246,7 +255,7 @@ impl<'a> ExecutionClosureInspector<'a> {
         Ok(closure)
     }
 
-    #[cfg(feature = "cli-tool")]
+    #[cfg(feature = "process-tool")]
     fn inspect_harness_graph_accumulator(
         &mut self,
         fixture_path: &str,
@@ -372,7 +381,7 @@ impl<'a> ExecutionClosureInspector<'a> {
         walk.closure
             .profiles
             .insert(format!("{profile_path}#{runner_name}"));
-        self.walk_source(
+        self.walk_graph(
             loaded.clone(),
             GraphWalkContext {
                 directory: &skill_directory,
@@ -380,50 +389,9 @@ impl<'a> ExecutionClosureInspector<'a> {
                 edge_depth,
                 materialize_local,
             },
-            &runner.source,
-            runner.artifacts.is_some(),
+            &runner.graph,
             walk,
         )
-    }
-
-    fn walk_source(
-        &mut self,
-        loaded: Arc<LoadedSkillPackage>,
-        context: GraphWalkContext<'_>,
-        source: &runx_parser::SkillSource,
-        declared_artifact: bool,
-        walk: &mut ExecutionWalkState<'_>,
-    ) -> Result<(), SkillInspectionError> {
-        walk.closure
-            .environment_required
-            .extend(source.environment.required.iter().cloned());
-        walk.closure
-            .environment_optional
-            .extend(source.environment.optional.iter().cloned());
-        match source.source_type {
-            SourceKind::Graph => {
-                let graph = source
-                    .graph
-                    .as_ref()
-                    .ok_or(SkillInspectionError::GraphMissing)?;
-                self.walk_graph(loaded, context, graph, walk)?;
-            }
-            SourceKind::Agent | SourceKind::AgentStep => {
-                walk.closure.agent_acts = walk.closure.agent_acts.saturating_add(1);
-                walk.closure.declared_artifact |= declared_artifact;
-            }
-            SourceKind::JavaScript => {
-                walk.closure.components.insert("javascript".to_owned());
-            }
-            SourceKind::CliTool => {
-                let component = source.command.as_deref().map_or_else(
-                    || "cli-tool".to_owned(),
-                    |command| format!("cli-tool:{command}"),
-                );
-                walk.closure.components.insert(component);
-            }
-        }
-        Ok(())
     }
 
     fn walk_graph(
@@ -443,14 +411,31 @@ impl<'a> ExecutionClosureInspector<'a> {
             }
         }
         for step in &graph.steps {
-            if let Some(tool) = &step.tool {
-                walk.closure.components.insert(format!("tool:{tool}"));
-            }
-            if let Some(target) = &step.operation {
-                walk.closure.components.insert(match &target.operation {
-                    Some(operation) => format!("operation:{}/{operation}", target.requirement),
-                    None => format!("operation:{}", target.requirement),
-                });
+            match &step.kind {
+                StepKind::Tool(ToolTarget::Catalog(tool)) => {
+                    walk.closure.components.insert(format!("tool:{tool}"));
+                }
+                StepKind::Tool(ToolTarget::Worker(worker)) => {
+                    walk.closure.components.insert("worker".to_owned());
+                    walk.closure.extend_environment(&worker.environment);
+                }
+                StepKind::Tool(ToolTarget::Process(process)) => {
+                    walk.closure
+                        .components
+                        .insert(format!("process:{}", process.command));
+                    walk.closure.extend_environment(&process.environment);
+                }
+                StepKind::Operation(target) => {
+                    walk.closure.components.insert(match &target.operation {
+                        Some(operation) => format!("operation:{}/{operation}", target.requirement),
+                        None => format!("operation:{}", target.requirement),
+                    });
+                }
+                StepKind::Agent(_) => {
+                    walk.closure.agent_acts = walk.closure.agent_acts.saturating_add(1);
+                    walk.closure.declared_artifact |= step.artifacts.is_some();
+                }
+                StepKind::Ask(_) | StepKind::Skill(_) => {}
             }
             if let Some(resolved) =
                 self.resolve_step_skill(context.directory, context.profile_path, step)?
@@ -460,8 +445,9 @@ impl<'a> ExecutionClosureInspector<'a> {
                     static_external_name,
                     nested,
                 } = resolved;
+                let reference = step_reference(step);
                 if context.materialize_local
-                    && !is_registry_step_ref(step.skill.as_deref().unwrap_or_default())
+                    && !is_registry_step_ref(reference)
                     && let Some(nested) = nested.as_ref()
                 {
                     let source_package_root =
@@ -475,7 +461,7 @@ impl<'a> ExecutionClosureInspector<'a> {
                                 context.directory,
                                 "bound graph directory",
                             )?,
-                            reference: step.skill.clone().unwrap_or_default(),
+                            reference: reference.to_owned(),
                             target_package_root,
                         });
                     }
@@ -494,8 +480,8 @@ impl<'a> ExecutionClosureInspector<'a> {
                     );
                 }
                 if let Some(nested) = nested {
-                    let nested_materialize_local = context.materialize_local
-                        && !is_registry_step_ref(step.skill.as_deref().unwrap_or_default());
+                    let nested_materialize_local =
+                        context.materialize_local && !is_registry_step_ref(reference);
                     self.walk_runner(
                         RunnerWalkTarget {
                             loaded: nested.loaded,
@@ -509,15 +495,6 @@ impl<'a> ExecutionClosureInspector<'a> {
                     )?;
                 }
             }
-            if let Some(run_source) = step.run.as_ref().and_then(|run| run.source()) {
-                self.walk_source(
-                    loaded.clone(),
-                    context,
-                    run_source,
-                    step.artifacts.is_some(),
-                    walk,
-                )?;
-            }
         }
         Ok(())
     }
@@ -528,10 +505,11 @@ impl<'a> ExecutionClosureInspector<'a> {
         profile_path: &str,
         step: &GraphStep,
     ) -> Result<Option<ResolvedStepSkill>, SkillInspectionError> {
-        let Some(reference) = step.skill.as_deref() else {
+        let Some(target) = step.skill() else {
             return Ok(None);
         };
-        let requested_runner = step.runner.as_deref().unwrap_or("default");
+        let reference = target.reference.as_str();
+        let requested_runner = target.runner.as_deref().unwrap_or("default");
         if reference.starts_with('$') || (is_registry_step_ref(reference) && self.env.is_none()) {
             return Ok(Some(ResolvedStepSkill {
                 edge: format!("{reference}#{requested_runner}"),
@@ -555,14 +533,14 @@ impl<'a> ExecutionClosureInspector<'a> {
                     path: nested.directory.clone(),
                 })?;
         let nested_runner =
-            crate::execution::graph::select_step_runner(manifest, step.runner.as_deref())?
+            crate::execution::graph::select_step_runner(manifest, target.runner.as_deref())?
                 .name
                 .clone();
         let nested_profile = if is_registry_step_ref(reference) {
             nested
                 .profile_path
                 .clone()
-                .unwrap_or_else(|| "X.yaml".to_owned())
+                .unwrap_or_else(|| runx_parser::PROFILE_FILE.to_owned())
         } else {
             nested_profile_path(profile_path, reference)?
         };
@@ -631,9 +609,18 @@ fn record_direct_external_skill_edge(
     } else if let Some(skill) = static_external_name {
         edges.insert(DirectExternalSkillEdge {
             skill,
-            runner: step.runner.as_deref().unwrap_or("default").to_owned(),
+            runner: step
+                .skill()
+                .and_then(|target| target.runner.as_deref())
+                .unwrap_or("default")
+                .to_owned(),
         });
     }
+}
+
+/// A skill step's reference; empty for any other step.
+fn step_reference(step: &GraphStep) -> &str {
+    step.skill().map_or("", |target| target.reference.as_str())
 }
 
 fn canonical_directory(path: &Path, label: &'static str) -> Result<PathBuf, SkillInspectionError> {
@@ -738,11 +725,11 @@ fn nested_profile_path(
     let current_dir = Path::new(current_profile)
         .parent()
         .unwrap_or_else(|| Path::new(""));
-    normalize_relative_path(current_dir.join(reference).join("X.yaml")).ok_or_else(|| {
-        SkillInspectionError::ProfileEscape {
+    normalize_relative_path(current_dir.join(reference).join(runx_parser::PROFILE_FILE)).ok_or_else(
+        || SkillInspectionError::ProfileEscape {
             reference: reference.to_owned(),
-        }
-    })
+        },
+    )
 }
 
 fn normalize_relative_path(path: PathBuf) -> Option<String> {

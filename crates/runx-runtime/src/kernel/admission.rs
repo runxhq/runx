@@ -31,10 +31,12 @@ use runx_parser::{ConnectorRequirement, DuplicatePolicy, OperationStepTarget, Un
 
 use super::capability::{self, Capability, CapabilityRequest};
 use super::connectors::{ConnectorScope, LoadedConnector};
+use super::custody::{EffectCustody, Pending};
 use super::instances::{Instances, ResolvedInstance};
 use super::operation::call::{ApprovalText, OperationCall};
 use super::operation::{egress, hosted::HostedClient};
-use super::usage::{UsageLedger, UseCover};
+use super::store::KernelStore;
+use super::usage::{UsageError, UsageLedger, UseCover};
 
 /// Where admission reads connectors, instances and evidence from.
 #[derive(Clone, Copy)]
@@ -58,8 +60,10 @@ pub(crate) struct Evaluation<'a> {
     /// missing hosted implementation.
     pub fixture_stand_in: bool,
     pub run_authority: Option<&'a super::authority::RunAuthority>,
-    pub usage: &'a UsageLedger,
-    pub call_key: &'a str,
+    /// Where the act's custody and its evidence uses are kept.
+    pub store: &'a Arc<KernelStore>,
+    /// The run the call belongs to: a read's custody, and the run a new use
+    /// is attributed to.
     pub run_id: &'a str,
     pub context: Context<'a>,
 }
@@ -75,6 +79,13 @@ pub(crate) struct Admitted {
     pub capability: Capability,
     pub delegations: Vec<AuthorityTerm>,
     pub mandate_ref: Option<Reference>,
+    /// The act's custody, kept for a mutation or a bounded call.
+    pub custody: Option<EffectCustody>,
+    /// The act's unsettled attempt of this same intent, which this call
+    /// recovers.
+    pub pending: Option<Pending>,
+    /// The evidence use of the attempt sequence this call joins.
+    pub use_key: Option<String>,
     pub usage_covers: Vec<UseCover>,
     pub target: String,
     pub request_key: Option<String>,
@@ -139,6 +150,16 @@ impl Admitted {
     }
 }
 
+/// Why an exact call cannot run.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) enum AdmitError {
+    /// A check refused it.
+    Refused(Refusal),
+    /// The kernel's state holds it: the act has an unsettled attempt the
+    /// call cannot recover, or the state cannot be read.
+    State(String),
+}
+
 /// A refusal: the reasons up to and including the check that failed.
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct Refusal {
@@ -181,18 +202,18 @@ impl Reasons {
         });
     }
 
-    fn refuse(mut self, check: AdmissionCheck, detail: impl Into<String>) -> Refusal {
+    fn refuse(mut self, check: AdmissionCheck, detail: impl Into<String>) -> AdmitError {
         self.push(check, CheckOutcome::Fail, detail);
-        Refusal {
+        AdmitError::Refused(Refusal {
             check,
             reasons: self.0,
             verb: self.1,
-        }
+        })
     }
 }
 
 /// Admit one exact call.
-pub(crate) fn admit(evaluation: &Evaluation<'_>) -> Result<Admitted, Refusal> {
+pub(crate) fn admit(evaluation: &Evaluation<'_>) -> Result<Admitted, AdmitError> {
     let mut reasons = Reasons(Vec::new(), None);
     let call = evaluation.call;
 
@@ -377,31 +398,56 @@ pub(crate) fn admit(evaluation: &Evaluation<'_>) -> Result<Admitted, Refusal> {
             return Err(reasons.refuse(check, detail));
         }
     };
-    let use_key = runx_contracts::sha256_prefixed(
-        format!("{}\0{intent_digest}", evaluation.call_key).as_bytes(),
-    );
+
+    // Custody: the act's attempts, from any run. A call recovers an
+    // unsettled attempt of its own intent and is held by any other; a
+    // bounded call takes the use of the attempt sequence it joins.
+    let custody = (access == OperationAccess::Mutate || !parent_limits.is_empty()).then(|| {
+        EffectCustody::for_act(
+            Arc::clone(evaluation.store),
+            &intent,
+            &intent_digest,
+            evaluation.run_id,
+        )
+    });
+    let (pending, use_key) = match &custody {
+        Some(custody) => match custody.custody() {
+            Ok(state) => (
+                state.pending,
+                Some(custody.use_key(state.sequence, intent_digest.as_str())),
+            ),
+            Err(error) => return Err(AdmitError::State(error.to_string())),
+        },
+        None => (None, None),
+    };
+    if let Some(pending) = &pending {
+        held(pending, intent_digest.as_str(), mandate_ref.as_ref())?;
+    }
+    let usage = UsageLedger::new(Arc::clone(evaluation.store));
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map_or(0, |duration| duration.as_secs());
     let mut usage_covers = Vec::new();
     for parent in std::iter::once(&capability.term).chain(delegations.iter()) {
-        if let Some(limit) = &parent.bounds.uses {
-            match evaluation.usage.cover(
-                &format!("term:{}", parent.term_id),
-                limit,
-                &use_key,
-                intent_digest.as_str(),
-                evaluation.run_id,
-                now,
-            ) {
-                Ok(cover) => usage_covers.push(cover),
-                Err(error) => {
-                    return Err(reasons.refuse(
-                        AdmissionCheck::Delegation,
-                        format!("bounded authority use was refused: {error}"),
-                    ));
-                }
+        let (Some(limit), Some(use_key)) = (&parent.bounds.uses, &use_key) else {
+            continue;
+        };
+        match usage.cover(
+            &format!("term:{}", parent.term_id),
+            limit,
+            use_key,
+            intent_digest.as_str(),
+            evaluation.run_id,
+            now,
+        ) {
+            Ok(cover) => usage_covers.push(cover),
+            Err(error @ (UsageError::TotalExhausted | UsageError::DailyExhausted)) => {
+                return Err(reasons.refuse(
+                    AdmissionCheck::Delegation,
+                    format!("bounded authority use was refused: {error}"),
+                ));
             }
+            Err(error) => return Err(AdmitError::State(error.to_string())),
         }
     }
     reasons.pass(
@@ -483,6 +529,9 @@ pub(crate) fn admit(evaluation: &Evaluation<'_>) -> Result<Admitted, Refusal> {
         capability,
         delegations,
         mandate_ref,
+        custody,
+        pending,
+        use_key,
         usage_covers,
         target,
         request_key,
@@ -490,6 +539,26 @@ pub(crate) fn admit(evaluation: &Evaluation<'_>) -> Result<Admitted, Refusal> {
         guarded,
         term_request,
     })
+}
+
+/// An unsettled attempt of the act holds a call of any other intent or
+/// mandate.
+fn held(
+    pending: &Pending,
+    intent_digest: &str,
+    mandate_ref: Option<&Reference>,
+) -> Result<(), AdmitError> {
+    if pending.intent_digest != intent_digest {
+        return Err(AdmitError::State(
+            "an unsettled attempt of this act carries another intent; reconcile it before running a different call".to_owned(),
+        ));
+    }
+    if pending.mandate_ref.as_ref() != mandate_ref {
+        return Err(AdmitError::State(
+            "an unsettled attempt of this act was admitted under another mandate; reconcile it before resuming".to_owned(),
+        ));
+    }
+    Ok(())
 }
 
 /// The readiness of every operation a skill's connectors block lists, from

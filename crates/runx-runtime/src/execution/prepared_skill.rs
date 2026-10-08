@@ -13,7 +13,7 @@ use std::path::{Path, PathBuf};
 use runx_contracts::{
     ExecutionBoundaryKind, JsonObject, JsonValue, Reference, ReferenceType, sha256_prefixed,
 };
-use runx_parser::{GraphRetryPolicy, GraphRunTarget, SkillRunnerDefinition, SkillRunnerManifest};
+use runx_parser::{SkillRunnerDefinition, SkillRunnerManifest, StepKind};
 use serde::{Deserialize, Serialize};
 
 use super::operator_context::{
@@ -86,7 +86,6 @@ pub struct PreparedGovernanceSummary {
     pub authority_scopes: Vec<String>,
     pub execution_boundaries: Vec<ExecutionBoundaryKind>,
     pub gates: Vec<String>,
-    pub retry_policies: Vec<String>,
     pub idempotency_keys: Vec<String>,
     pub managed_agent_acts: usize,
     pub managed_agent_enabled: bool,
@@ -313,7 +312,7 @@ pub(crate) fn prepare_skill_run_with_effects(
     let loaded = std::sync::Arc::new(crate::load_validated_skill_package(&request.skill_path)?);
     let manifest = loaded.manifest().cloned().ok_or_else(|| {
         SkillRunError::Invalid(format!(
-            "skill package {} does not declare X.yaml runners",
+            "skill package {} does not declare run.yaml runners",
             loaded.directory.display()
         ))
     })?;
@@ -335,17 +334,7 @@ pub(crate) fn prepare_skill_run_with_effects(
         let workspace =
             crate::services::WorkspaceEnv::new(request.env.clone(), request.cwd.clone())
                 .map_err(RuntimeError::from)?;
-        let receipts =
-            crate::services::ReceiptServices::from_env_or_local_development(workspace.env())
-                .map_err(|error| SkillRunError::Invalid(error.to_string()))?;
-        super::skill_front::restore_continuation_inputs(
-            &mut request,
-            &runner,
-            &workspace,
-            &receipts,
-            &package_digest,
-            execution_closure_digest.as_deref(),
-        )?;
+        super::skill_front::restore_continuation_inputs(&mut request, &workspace)?;
     }
     crate::input_contract::apply_defaults(&runner.inputs, &mut request.inputs);
     let input_failure = match crate::input_contract::materialize_present_runner_inputs(
@@ -406,12 +395,7 @@ pub(crate) fn prepare_skill_run_with_effects(
             failure.insert("stage".to_owned(), JsonValue::String(stage));
         }
         Some(super::skill_front::seal_skill_preflight_refusal(
-            &request,
-            &manifest,
-            &runner,
-            &package_digest,
-            execution_closure_digest.as_deref(),
-            failure,
+            &request, &manifest, &runner, failure,
         )?)
     } else {
         None
@@ -679,8 +663,6 @@ fn governance_summary(chain: &SkillOperatorContextChain) -> PreparedGovernanceSu
     summary.execution_boundaries.dedup();
     summary.gates.sort();
     summary.gates.dedup();
-    summary.retry_policies.sort();
-    summary.retry_policies.dedup();
     summary.idempotency_keys.sort();
     summary.idempotency_keys.dedup();
     summary
@@ -690,18 +672,9 @@ fn summarize_node(node: &SkillOperatorContextNode, summary: &mut PreparedGoverna
     summary
         .authority_scopes
         .extend(node.runner.scopes.iter().cloned());
-    if let Some(observation) = node.runner.execution_boundary {
-        summary.execution_boundaries.push(observation.kind);
-    }
     summary
         .execution_boundaries
         .extend(node.tools.iter().map(|tool| tool.execution_boundary.kind));
-    if matches!(
-        node.runner.source_type.as_str(),
-        "agent" | "agent-task" | "agent-step"
-    ) {
-        summary.managed_agent_acts += 1;
-    }
     for step in &node.steps {
         let definition = &step.definition;
         if definition.when.is_some() {
@@ -716,47 +689,17 @@ fn summarize_node(node: &SkillOperatorContextNode, summary: &mut PreparedGoverna
         summary
             .authority_scopes
             .extend(definition.scopes.iter().cloned());
-        if matches!(definition.run, Some(GraphRunTarget::Approval)) {
-            summary.gates.push(approval_gate_label(step));
-        }
-        if let Some(retry) = &definition.retry {
-            summary
-                .retry_policies
-                .push(retry_policy_label(&step.node_path, retry));
+        match &definition.kind {
+            StepKind::Ask(ask) => summary.gates.push(ask.gate.clone()),
+            StepKind::Agent(_) => summary.managed_agent_acts += 1,
+            _ => {}
         }
         if let Some(idempotency_key) = &definition.idempotency_key {
             summary.idempotency_keys.push(idempotency_key.clone());
         }
-        if matches!(
-            &definition.run,
-            Some(GraphRunTarget::Source(source))
-                if matches!(source.source_type.as_str(), "agent" | "agent-task" | "agent-step")
-        ) {
-            summary.managed_agent_acts += 1;
-        }
         if let Some(child) = &step.child {
             summarize_node(child, summary);
         }
-    }
-}
-
-fn approval_gate_label(step: &super::operator_context::SkillOperatorContextStep) -> String {
-    step.definition
-        .inputs
-        .get("gate_id")
-        .and_then(JsonValue::as_str)
-        .filter(|value| !value.trim().is_empty())
-        .unwrap_or(&step.node_path)
-        .to_owned()
-}
-
-fn retry_policy_label(node_path: &str, retry: &GraphRetryPolicy) -> String {
-    match retry.backoff_ms {
-        Some(backoff_ms) => format!(
-            "{node_path}: max_attempts={}, backoff_ms={backoff_ms}",
-            retry.max_attempts
-        ),
-        None => format!("{node_path}: max_attempts={}", retry.max_attempts),
     }
 }
 
@@ -773,7 +716,7 @@ fn collect_node_guards(node: &SkillOperatorContextNode, guards: &mut BTreeMap<Pa
     if let Some(path) = &node.skill_markdown.path {
         guards.insert(path.clone(), node.skill_markdown.sha256.clone());
     }
-    let manifest_path = node.package.directory.join("X.yaml");
+    let manifest_path = node.package.directory.join(runx_parser::PROFILE_FILE);
     if let Ok(content) = fs::read(&manifest_path) {
         guards.insert(manifest_path, sha256_prefixed(&content));
     }
@@ -845,9 +788,9 @@ mod tests {
     fn write_skill(directory: &Path, inputs: &str, body: &str) -> Result<(), Box<dyn Error>> {
         write_manual(directory, "prepared", body)?;
         fs::write(
-            directory.join("X.yaml"),
+            directory.join("run.yaml"),
             format!(
-                "skill: prepared\nrunners:\n  main:\n    default: true\n    type: agent-task\n    agent: reviewer\n    task: review\n    outputs:\n      result: object\n{inputs}"
+                "skill: prepared\nrunners:\n  main:\n    default: true\n{inputs}    steps:\n      - id: review\n        agent: {{ role: reviewer, task: review }}\n        outputs:\n          result: object\n"
             ),
         )?;
         Ok(())
@@ -948,16 +891,16 @@ mod tests {
         write_manual(&entry, "twitter", "# Twitter")?;
         write_manual(&child, "data-store", "# Data store")?;
         fs::write(
-            child.join("X.yaml"),
-            "skill: data-store\nrunners:\n  read:\n    default: true\n    type: javascript\n    module: run.mjs\n    outputs:\n      version:\n        type: integer\n        required: true\n",
+            child.join("run.yaml"),
+            "skill: data-store\nrunners:\n  read:\n    default: true\n    steps:\n      - id: read\n        tool: { module: run.mjs }\n        outputs:\n          version:\n            type: integer\n            required: true\n",
         )?;
         fs::write(
             child.join("run.mjs"),
             "export default () => ({ version: 1 });\n",
         )?;
         fs::write(
-            entry.join("X.yaml"),
-            "skill: twitter\nrunners:\n  inspect:\n    default: true\n    type: graph\n    graph:\n      name: twitter\n      result_from: [store]\n      steps:\n        - id: store\n          skill: ../data-store\n          runner: read\n",
+            entry.join("run.yaml"),
+            "skill: twitter\nrunners:\n  inspect:\n    default: true\n    result_from: [store]\n    steps:\n      - id: store\n        skill: ../data-store\n        runner: read\n",
         )?;
         let closure = crate::skill_package::inspect_loaded_execution_closure_binding(
             crate::load_validated_skill_package(&entry)?.into(),
@@ -1045,11 +988,17 @@ mod tests {
             Some(&closure),
         )?;
         assert_eq!(result.status, RunStatus::NeedsAgent);
-        let ledger = fs::read_dir(receipt_dir.join("ledgers"))?
-            .next()
-            .ok_or("bound continuation did not write a pause ledger")??;
-        let persisted = fs::read_to_string(ledger.path())?;
-        assert!(persisted.contains(&format!("\"execution_closure_digest\":\"{closure}\"")));
+        let run_id = result
+            .output
+            .as_object()
+            .and_then(|output| output.get("run_id"))
+            .and_then(runx_contracts::JsonValue::as_str)
+            .ok_or("the paused run has no id")?;
+        let paused =
+            crate::execution::run_record::paused_run(&BTreeMap::new(), temp.path(), run_id)?
+                .ok_or("the bound run did not pause in its record")?;
+        assert_eq!(paused.package_digest, package_digest);
+        assert_eq!(paused.execution_closure_digest, closure);
         Ok(())
     }
 
@@ -1210,8 +1159,8 @@ mod tests {
         let temp = tempdir()?;
         write_manual(temp.path(), "prepared", "# Prepared")?;
         fs::write(
-            temp.path().join("X.yaml"),
-            "skill: prepared\nrunners:\n  main:\n    default: true\n    type: graph\n    graph:\n      name: prepared\n      result_from: [call]\n      steps:\n        - id: call\n          tool: missing.tool\n",
+            temp.path().join("run.yaml"),
+            "skill: prepared\nrunners:\n  main:\n    default: true\n    result_from: [call]\n    steps:\n      - id: call\n        tool: missing.tool\n",
         )?;
         let prepared = prepare_skill_run(
             request(temp.path()),
@@ -1243,7 +1192,6 @@ mod tests {
   "schema": "runx.tool.manifest.v1",
   "name": "example.record",
   "source": {
-    "type": "cli-tool",
     "command": "sh",
     "args": ["-c", "touch \"$RUNX_CWD/tool-ran\""],
     "input_mode": "none"
@@ -1252,8 +1200,8 @@ mod tests {
 "#,
         )?;
         fs::write(
-            temp.path().join("X.yaml"),
-            "skill: prepared\nrunners:\n  main:\n    default: true\n    type: graph\n    graph:\n      name: prepared\n      result_from: [record]\n      steps:\n        - id: record\n          tool: example.record\n          idempotency_key: record-1\n",
+            temp.path().join("run.yaml"),
+            "skill: prepared\nrunners:\n  main:\n    default: true\n    result_from: [record]\n    steps:\n      - id: record\n        tool: example.record\n        idempotency_key: record-1\n",
         )?;
 
         let prepared = prepare_skill_run(
@@ -1279,31 +1227,25 @@ mod tests {
         let temp = tempdir()?;
         write_manual(temp.path(), "prepared", "# Prepared")?;
         fs::write(
-            temp.path().join("X.yaml"),
+            temp.path().join("run.yaml"),
             r#"skill: prepared
 runners:
   main:
     default: true
-    type: graph
-    graph:
-      name: prepared
-      result_from: [approve-publish]
-      steps:
-        - id: approve-publish
-          run:
-            type: approval
-          inputs:
-            gate_id: release.publish.approval
-            reason: Approve the exact release.
-          scopes:
-            - release:publish
-          retry:
-            max_attempts: 3
-            backoff_ms: 250
-          when:
-            field: input.ready
-            equals: true
-          idempotency_key: release-publish-1
+    result_from: [publish]
+    steps:
+      - id: approve-publish
+        ask: { gate: release.publish.approval, reason: Approve the exact release. }
+        when:
+          field: input.ready
+          equals: true
+      - id: publish
+        tool: { command: node }
+        scopes:
+          - release:publish
+        idempotency_key: release-publish-1
+        outputs:
+          result: object
 "#,
         )?;
 
@@ -1314,14 +1256,10 @@ runners:
         )?;
         let governance = &prepared.report().governance;
 
-        assert_eq!(governance.declared_steps, 0);
+        assert_eq!(governance.declared_steps, 1);
         assert_eq!(governance.conditional_steps, 1);
         assert_eq!(governance.authority_scopes, ["release:publish"]);
         assert_eq!(governance.gates, ["release.publish.approval"]);
-        assert_eq!(
-            governance.retry_policies,
-            ["entry.approve-publish: max_attempts=3, backoff_ms=250"]
-        );
         assert_eq!(governance.idempotency_keys, ["release-publish-1"]);
         assert_eq!(governance.managed_agent_acts, 0);
         Ok(())
@@ -1332,14 +1270,17 @@ runners:
         let temp = tempdir()?;
         write_manual(temp.path(), "prepared", "# Prepared")?;
         fs::write(
-            temp.path().join("X.yaml"),
+            temp.path().join("run.yaml"),
             r#"skill: prepared
 runners:
   mutate:
     default: true
-    type: cli-tool
-    command: example-mutator
-    scopes: [example:write]
+    steps:
+      - id: mutate
+        tool: { command: example-mutator }
+        scopes: [example:write]
+        outputs:
+          result: object
 "#,
         )?;
 
@@ -1432,27 +1373,21 @@ runners:
         write_manual(&entry, "entry", "# Entry")?;
         write_manual(&child, "child", "# Child")?;
         fs::write(
-            child.join("X.yaml"),
-            "skill: child\nrunners:\n  child:\n    default: true\n    type: agent-task\n    agent: reviewer\n    task: before\n",
+            child.join("run.yaml"),
+            "skill: child\nrunners:\n  child:\n    default: true\n    steps:\n      - id: child\n        agent: { role: reviewer, task: before }\n        outputs:\n          result: object\n",
         )?;
         fs::write(
-            entry.join("X.yaml"),
-            "skill: entry\nrunners:\n  main:\n    default: true\n    type: graph\n    graph:\n      name: entry\n      result_from: [child]\n      steps:\n        - id: child\n          skill: ./child\n          artifacts:\n            wrap_as: child_result\n",
+            entry.join("run.yaml"),
+            "skill: entry\nrunners:\n  main:\n    default: true\n    result_from: [child]\n    steps:\n      - id: child\n        skill: ./child\n        artifacts:\n          wrap_as: child_result\n",
         )?;
         let mut prepared =
             prepare_skill_run(request(&entry), None, PreparedEntryProvenance::default())?;
         prepared.bind_context()?;
         fs::write(
-            child.join("X.yaml"),
-            "skill: child\nrunners:\n  child:\n    default: true\n    type: agent-task\n    agent: reviewer\n    task: after\n",
+            child.join("run.yaml"),
+            "skill: child\nrunners:\n  child:\n    default: true\n    steps:\n      - id: child\n        agent: { role: reviewer, task: after }\n        outputs:\n          result: object\n",
         )?;
-        let step = &prepared
-            .runner
-            .source
-            .graph
-            .as_ref()
-            .ok_or("missing graph")?
-            .steps[0];
+        let step = &prepared.runner.graph.steps[0];
         let error = match load_step_skill(
             &entry,
             step,
@@ -1464,7 +1399,7 @@ runners:
             Err(error) => error,
         };
         assert!(error.to_string().contains("drift at use boundary"));
-        assert!(error.to_string().contains("child/X.yaml"));
+        assert!(error.to_string().contains("child/run.yaml"));
         Ok(())
     }
 
@@ -1491,7 +1426,10 @@ runners:
             crate::execution::output_projection::project_step_claim(BTreeMap::new());
         let receipt = seal_step(
             StepSeal {
-                graph_name: "prepared",
+                scope: crate::receipts::RunScope {
+                    run_id: "run_prepared",
+                    graph_name: "prepared",
+                },
                 step_id: "execute",
                 attempt: 1,
                 output: &output,
@@ -1548,7 +1486,7 @@ runners:
         );
     }
 
-    #[cfg(feature = "cli-tool")]
+    #[cfg(feature = "process-tool")]
     #[test]
     fn prepared_skill_unprepared_receipt_rejects_forged_internal_env() -> Result<(), Box<dyn Error>>
     {
@@ -1557,8 +1495,8 @@ runners:
         let temp = tempdir()?;
         write_manual(temp.path(), "unprepared", "# Unprepared")?;
         fs::write(
-            temp.path().join("X.yaml"),
-            "skill: unprepared\nrunners:\n  main:\n    default: true\n    type: cli-tool\n    command: \"true\"\n    args: []\n",
+            temp.path().join("run.yaml"),
+            "skill: unprepared\nrunners:\n  main:\n    default: true\n    steps:\n      - id: main\n        tool: { command: \"true\", args: [] }\n        outputs:\n          result: object\n",
         )?;
         let mut request = request(temp.path());
         request.env.insert(

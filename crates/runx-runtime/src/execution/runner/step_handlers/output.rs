@@ -28,12 +28,7 @@ pub(super) fn build_step_output_projection(
     if !output.succeeded() {
         return Ok(project_step_claim(JsonObject::new()));
     }
-    let declared_outputs = step
-        .run
-        .as_ref()
-        .and_then(|run| run.source())
-        .and_then(|source| source.outputs.as_ref())
-        .or(extra_outputs);
+    let declared_outputs = step.outputs.as_ref().or(extra_outputs);
     let artifacts = step.artifacts.as_ref().or(extra_artifacts);
     let claim = project_declared_output_claim(&step.id, &output.value, declared_outputs, artifacts)
         .map_err(|error| RuntimeError::InvalidRunStep {
@@ -62,12 +57,7 @@ pub(super) fn build_ephemeral_step_output(
         return JsonObject::new();
     };
     let fields = value.as_object();
-    let declared_outputs = step
-        .run
-        .as_ref()
-        .and_then(|run| run.source())
-        .and_then(|source| source.outputs.as_ref())
-        .or(extra_outputs);
+    let declared_outputs = step.outputs.as_ref().or(extra_outputs);
     let mut projected = JsonObject::new();
     if let (Some(fields), Some(declared)) = (fields, declared_outputs) {
         for name in declared.keys() {
@@ -143,14 +133,11 @@ mod tests {
 name: optional-output-contract
 steps:
   - id: produce
-    run:
-      type: javascript
-      module: produce.mjs
-      export: run
-      outputs:
-        result:
-          type: object
-          required: false
+    tool: { module: produce.mjs, export: run }
+    outputs:
+      result:
+        type: object
+        required: false
 "#,
         )?)?;
         let step = graph
@@ -176,12 +163,9 @@ steps:
 name: output-contract
 steps:
   - id: produce
-    run:
-      type: javascript
-      module: produce.mjs
-      export: run
-      outputs:
-        result: object
+    tool: { module: produce.mjs, export: run }
+    outputs:
+      result: object
 "#,
         )?)?;
         graph

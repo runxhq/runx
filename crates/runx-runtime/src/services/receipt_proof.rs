@@ -3,8 +3,8 @@ use std::path::Path;
 
 use runx_contracts::{JsonObject, JsonValue};
 
-use crate::journal::project_receipt_inspection_with_policy;
 use crate::receipts::RuntimeReceiptSignaturePolicy;
+use crate::receipts::inspection::project_receipt_inspection_with_policy;
 use crate::receipts::store::LocalReceiptStore;
 use crate::services::ReceiptReadContext;
 use crate::{ReceiptTreeConfig, RuntimeError, verify_runtime_receipt_tree_with_policy};

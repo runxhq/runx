@@ -18,7 +18,7 @@ pub enum ParseError {
     InvalidJson { field: String, message: String },
     #[error("{field}: {message}")]
     InvalidDocument { field: String, message: String },
-    #[error("{field}: scalar form is outside the parser parity subset: {literal}")]
+    #[error("{field}: scalar form is outside the supported YAML subset: {literal}")]
     UnsupportedScalar { field: String, literal: String },
 }
 

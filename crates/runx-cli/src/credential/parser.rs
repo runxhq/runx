@@ -25,6 +25,7 @@ fn parse_set(args: &[OsString]) -> Result<CredentialPlan, String> {
     let mut credential = None;
     let mut profile = None;
     let mut scopes = Vec::new();
+    let mut parameters = std::collections::BTreeMap::new();
     let mut from_stdin = false;
     let mut json = false;
     let mut index = 3;
@@ -40,6 +41,13 @@ fn parse_set(args: &[OsString]) -> Result<CredentialPlan, String> {
             "--credential" => credential = Some(flag_value(args, &mut index, flag, inline)?),
             "--profile" => profile = Some(flag_value(args, &mut index, flag, inline)?),
             "--scope" => scopes.push(flag_value(args, &mut index, flag, inline)?),
+            "--parameter" => {
+                let (name, value) =
+                    crate::connector::parameter(&flag_value(args, &mut index, flag, inline)?)?;
+                if parameters.insert(name.clone(), value).is_some() {
+                    return Err(format!("runx credential set sets parameter {name} once"));
+                }
+            }
             "--from-stdin" => {
                 reject_inline(flag, inline)?;
                 from_stdin = true;
@@ -63,6 +71,7 @@ fn parse_set(args: &[OsString]) -> Result<CredentialPlan, String> {
             connector,
             credential,
             scopes,
+            parameters,
             from_stdin,
         },
         json,

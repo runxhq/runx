@@ -1,9 +1,0 @@
-skill: uncovered
-runners:
-  default:
-    default: true
-    type: cli-tool
-    command: node
-    args:
-      - -e
-      - "process.stdout.write('{}')"

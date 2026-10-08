@@ -11,7 +11,7 @@ inputs:
     connector: unavailable
 caller:
   answers:
-    agent_task.send-as.output:
+    agent.send-as.output:
       send_plan:
         decision: ready
         action_family: send-as

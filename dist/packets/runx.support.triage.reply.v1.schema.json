@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://schemas.runx.ai/runx/support/triage_reply/v1.json",
   "x-runx-packet-id": "runx.support.triage_reply.v1",
-  "x-runx-generated-from": "skills/helpdesk/X.yaml#root.runners.triage",
+  "x-runx-generated-from": "skills/helpdesk/run.yaml#root.runners.triage.steps.0",
   "type": "object",
   "required": [
     "classification",

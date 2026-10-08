@@ -234,6 +234,7 @@ mod tests {
                 &credential,
                 secret,
                 &[],
+                runx_contracts::JsonObject::new(),
                 &crate::services::WorkspaceEnv::new(env.clone(), root.path().to_path_buf())
                     .unwrap(),
             )

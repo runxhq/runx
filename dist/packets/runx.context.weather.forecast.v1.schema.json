@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://schemas.runx.ai/runx/context/weather_forecast/v1.json",
   "x-runx-packet-id": "runx.context.weather_forecast.v1",
-  "x-runx-generated-from": "skills/weather-forecast/X.yaml#root.runners.normalize.graph.steps.1",
+  "x-runx-generated-from": "skills/weather-forecast/run.yaml#root.runners.normalize.steps.1",
   "type": "object",
   "required": [
     "decision",

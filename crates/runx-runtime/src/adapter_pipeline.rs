@@ -40,7 +40,7 @@ impl AdapterProjection {
         }
     }
 
-    #[cfg(feature = "cli-tool")]
+    #[cfg(feature = "process-tool")]
     pub(crate) fn process_output(
         &self,
         status: InvocationStatus,

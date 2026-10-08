@@ -1,5 +1,5 @@
-use runx_parser::{parse_graph_yaml, parse_runner_manifest_yaml, parse_skill_markdown};
-use runx_parser::{validate_graph, validate_runner_manifest, validate_skill};
+use runx_parser::{parse_graph_yaml, parse_runner_manifest_yaml};
+use runx_parser::{validate_graph, validate_runner_manifest};
 
 #[test]
 fn graph_accepts_catalog_style_allowed_tools() -> Result<(), String> {
@@ -9,10 +9,7 @@ fn graph_accepts_catalog_style_allowed_tools() -> Result<(), String> {
 name: allowed-tools
 steps:
   - id: review
-    run:
-      type: agent-task
-      agent: builder
-      task: review
+    agent: { role: builder, task: review }
     allowed_tools:
       - fs.read
       - git.current_branch
@@ -42,10 +39,7 @@ fn graph_rejects_path_like_allowed_tools() -> Result<(), String> {
 name: bad-allowed-tools
 steps:
   - id: review
-    run:
-      type: agent-task
-      agent: builder
-      task: review
+    agent: { role: builder, task: review }
     allowed_tools:
       - ../tools/read/manifest.json
 "#,
@@ -90,46 +84,17 @@ steps:
 }
 
 #[test]
-fn skill_rejects_path_like_allowed_tools() -> Result<(), String> {
-    let raw = parse_skill_markdown(
-        r#"---
-name: bad-allowed-tools
-source:
-  type: agent
-  task: Review
-runx:
-  allowed_tools:
-    - /tmp/tool/manifest.json
----
-Body
-"#,
-    )
-    .map_err(|error| error.to_string())?;
-
-    let error = validate_skill(raw)
-        .err()
-        .ok_or_else(|| "expected skill allowed_tools rejection".to_owned())?;
-    assert!(
-        error
-            .to_string()
-            .contains("not an admissible agent tool ref"),
-        "{error}"
-    );
-    Ok(())
-}
-
-#[test]
 fn runner_rejects_path_like_allowed_tools() -> Result<(), String> {
     let raw = parse_runner_manifest_yaml(
         r#"
+skill: demo
 runners:
   default:
-    source:
-      type: agent
-      task: Review
-    runx:
-      allowed_tools:
-        - manifest.json
+    steps:
+      - id: default
+        agent: { role: reviewer, task: review }
+        allowed_tools:
+          - /tmp/tool/manifest.json
 "#,
     )
     .map_err(|error| error.to_string())?;

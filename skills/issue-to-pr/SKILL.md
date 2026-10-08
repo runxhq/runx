@@ -1,8 +1,6 @@
 ---
 name: issue-to-pr
 description: Implement one bounded repository issue with normal host tools, prove the tested change through one scafld finalize wall, and optionally publish the exact pull request through scoped provider authority with readback.
-runx:
-  category: code
 ---
 
 # Issue to PR

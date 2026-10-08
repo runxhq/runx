@@ -11,7 +11,7 @@
 //! - `admission`: the one evaluator that admits an operation call or projects
 //!   a requirement's readiness.
 //! - `standing`: standing approvals and their usage.
-//! - `custody`: effect custody for each operation call.
+//! - `custody`: effect custody for each act, across runs.
 //! - `operation`: operation steps, from admission to the sealed packet.
 
 #[cfg(feature = "async-http")]
@@ -29,6 +29,8 @@ pub mod operation;
 pub(crate) mod session;
 #[cfg(feature = "async-http")]
 pub mod setup;
+#[cfg(feature = "async-http")]
 pub mod standing;
 pub mod store;
+#[cfg(feature = "async-http")]
 pub(crate) mod usage;

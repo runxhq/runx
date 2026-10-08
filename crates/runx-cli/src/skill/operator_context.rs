@@ -2,8 +2,7 @@ use std::io::Write;
 
 use runx_runtime::skill_front::{
     PreparedSkillRunReport, SkillOperatorContextContextSkill, SkillOperatorContextDocument,
-    SkillOperatorContextNode, SkillOperatorContextStep, SkillOperatorContextTerminal,
-    SkillOperatorContextTool,
+    SkillOperatorContextNode, SkillOperatorContextStep, SkillOperatorContextTool,
 };
 
 // Function rationale: compact and full modes share one ordered
@@ -168,16 +167,10 @@ fn append_node(
         ));
     }
     out.push_str(&format!(
-        "runner_name: {}\nrunner_type: {}\nrunner_selection: {}\nrunner_scopes: {}\nrunner_execution_boundary: {}\nterminal: {}\n",
+        "runner_name: {}\nrunner_selection: {}\nrunner_scopes: {}\n",
         node.runner.name,
-        node.runner.source_type,
         node.runner.selection,
         list_or_none(&node.runner.scopes),
-        node.runner
-            .execution_boundary
-            .map(|observation| observation.kind.as_str())
-            .unwrap_or("none"),
-        terminal_label(&node.terminal),
     ));
     if let Some(requested) = &node.runner.requested_name {
         out.push_str(&format!("runner_requested_name: {requested}\n"));
@@ -315,12 +308,5 @@ fn append_string_list(out: &mut String, label: &str, values: &[String]) {
         out.push_str(&format!("{label}: none\n"));
     } else {
         out.push_str(&format!("{label}: {}\n", values.join(", ")));
-    }
-}
-
-fn terminal_label(terminal: &SkillOperatorContextTerminal) -> &'static str {
-    match terminal {
-        SkillOperatorContextTerminal::ExpandedGraph => "expanded-graph",
-        SkillOperatorContextTerminal::Runner => "terminal-runner",
     }
 }

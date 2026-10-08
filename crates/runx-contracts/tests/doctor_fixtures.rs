@@ -3,8 +3,8 @@ use runx_contracts::DoctorReport;
 const FIXTURES: &[&str] = &[
     include_str!("../../../fixtures/doctor/cross-package-reach-in/expected.json"),
     include_str!("../../../fixtures/doctor/empty-success/expected.json"),
-    include_str!("../../../fixtures/doctor/removed-tool-yaml/expected.json"),
     include_str!("../../../fixtures/doctor/skill-fixture-missing/expected.json"),
+    include_str!("../../../fixtures/doctor/skill-frontmatter-invalid/expected.json"),
     include_str!("../../../fixtures/doctor/tool-fixture-missing/expected.json"),
 ];
 

@@ -62,7 +62,6 @@ jobs:
         run: |
           pnpm core-skills:audit
           pnpm canonical:check
-          pnpm receipts:importer-audit
 
       - name: Audit Rust dependency advisories
         run: cargo deny --manifest-path crates/Cargo.toml check advisories
@@ -70,8 +69,7 @@ jobs:
       - name: Exercise runtime stress boundaries
         run: |
           pnpm stress:runtime:mcp
-          pnpm stress:runtime:cli-tool
-          pnpm stress:runtime:fanout
+          pnpm stress:runtime:process-tool
 
       - name: Verify performance harness
         run: pnpm perf:harness-check
@@ -80,7 +78,7 @@ jobs:
         run: |
           pnpm perf:runtime:capture -- \
             --output .runx/evidence/runtime-quality.json \
-            --workloads native_capability_dispatch,pure_module_session_reuse,bounded_parallel_fanout \
+            --workloads native_capability_dispatch,pure_module_session_reuse \
             --sample-size 10 \
             --warm-up-time 1 \
             --measurement-time 2

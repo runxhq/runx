@@ -53,7 +53,7 @@ fn capability_snapshot_is_sorted_and_pins_the_catalog_feature_profile() {
         Some(&vec![
             serde_json::Value::String("async-http".to_owned()),
             serde_json::Value::String("catalog".to_owned()),
-            serde_json::Value::String("cli-tool".to_owned()),
+            serde_json::Value::String("process-tool".to_owned()),
         ])
     );
     let capabilities = snapshot
@@ -117,7 +117,7 @@ fn capability_registry_owns_inspect_search_and_artifacts() {
             .expect("the operation effect should register");
     let inspected = super::inspect("runx.skill.apply", std::path::Path::new("."), &effects)
         .expect("native capability should inspect");
-    assert_eq!(inspected.tool.execution_source_type, "native");
+    assert_eq!(inspected.tool.execution, "native");
     assert!(super::artifacts("runx.skill.apply", &effects).is_some());
     assert!(
         super::search("skill", 20, &effects)
@@ -139,7 +139,6 @@ fn capability_registry_dispatch_projects_only_declared_inputs() {
         observed_at: "2026-07-20T00:00:00Z",
         inputs,
         scopes: &[],
-        data_source_binding: None,
         env: &BTreeMap::new(),
         skill_directory: std::path::Path::new("."),
         credential_delivery: &CredentialDelivery::none(),
@@ -219,22 +218,4 @@ fn native_output_contract_is_exact_and_rejects_invalid_inner_fields() {
         ])),
     )]));
     assert!(capability.validate_output(&invalid).is_err());
-}
-
-#[test]
-fn data_operation_schemas_expose_domain_inputs_not_runtime_bindings() {
-    for tool_ref in [
-        "data.append_event",
-        "data.read_events",
-        "data.read_projection",
-        "data.list_stream_heads",
-    ] {
-        let inputs = definition(tool_ref)
-            .unwrap_or_else(|| panic!("{tool_ref} should be registered"))
-            .catalog_inputs()
-            .unwrap_or_else(|error| panic!("{tool_ref} should derive inputs: {error}"));
-        assert!(inputs.contains_key("data_source_ref"));
-        assert!(!inputs.contains_key("data_source_binding"));
-        assert!(!inputs.contains_key("operation"));
-    }
 }

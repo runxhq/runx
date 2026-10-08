@@ -8,11 +8,12 @@ inputs:
     - fixture.runx.invalid
   extract: metadata
 caller:
-  http_responses:
-    "https://fixture.runx.invalid/example":
-      status: 200
-      headers: { content-type: text/html }
-      body: '<html lang="en"><head><title>Example Domain</title><meta name="description" content="Example fixture"><link rel="canonical" href="https://fixture.runx.invalid/example"></head><body>Example Domain</body></html>'
+  http_exchanges:
+    - request: { method: GET, url: "https://fixture.runx.invalid/example", body: none }
+      response:
+        status: 200
+        headers: { content-type: text/html }
+        body: '<html lang="en"><head><title>Example Domain</title><meta name="description" content="Example fixture"><link rel="canonical" href="https://fixture.runx.invalid/example"></head><body>Example Domain</body></html>'
 expect:
   status: sealed
   receipt:

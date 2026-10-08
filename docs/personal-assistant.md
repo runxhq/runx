@@ -303,13 +303,12 @@ acknowledgement is persisted before readback so an immediate readback failure
 can likewise resume without resending. A timeout before that acknowledgement
 is saved remains an unknown effect and requires explicit reconciliation; it is
 never treated as permission to issue a second write.
-Native graph checkpoints retain terminal receipt identity for closed, blocked,
-deferred, and failed runs; a repeated bound invocation replays that sealed
-outcome. The terminal checkpoint includes the sealed receipts and is synced
-before receipt files are written, so a retry can finish receipt persistence
-without executing the graph again. Rejected or digest-mismatched continuation
-answers leave the original request pending. Checkpoint replacement syncs the
-file and parent directory. Every outward effect remains behind the exact
+A run's record keeps the sealed receipts of a closed, blocked, deferred or
+failed run, and continuing a pinned run that has sealed returns that outcome.
+The record seals before receipt files are written, so a retry can finish
+receipt persistence without executing the graph again. Rejected or
+digest-mismatched continuation answers leave the original request pending.
+Every outward effect remains behind the exact
 human approval request even when private progress posts have standing authority.
 
 Notification is off when `allowed_action_ids` is empty and `notification` is
@@ -338,8 +337,8 @@ continue during quiet hours even while notification is pending.
 If the provider posted but did not return a matching acknowledgement, inspect
 the exact message and use `reconcile-notification --message-locator <locator>`.
 That command verifies the pinned failed run and read-only provider result before
-acknowledging the original intent. An unreserved failed intent can instead be
-discarded while paused; a dispatched or unknown intent cannot be discarded.
+acknowledging the original intent. A failed intent that was never attempted can
+instead be discarded while paused; an attempted intent cannot be discarded.
 An explicit `grant` after a source binding change renews the same authority ID
 without resetting its expiry or spent quota, provided no reservation remains
 unresolved. Hosted credential authentication happens before Runx records a
@@ -367,11 +366,11 @@ malformed private-term policy refuses the mutation. This applies to every
 connector write; direct MCP writes are not an admitted assistant work route
 in this version and require an owning delivery check before being configured.
 
-If a pinned notification is blocked before native reservation, pause the profile
-and run `discard-notification`; Runx checks the exact idempotency key in its
-authority ledger before allowing the discard. Resuming then rescans from page
-one and constructs a new intent. A reserved intent cannot be discarded this way
-because its provider outcome may need reconciliation.
+If a pinned notification is blocked before it is attempted, pause the profile
+and run `discard-notification`; Runx checks its custody of the notification,
+named by its exact idempotency key, before allowing the discard. Resuming then
+rescans from page one and constructs a new intent. An attempted intent cannot be
+discarded this way because its provider outcome may need reconciliation.
 
 On macOS, `install-timer` installs two owned launchd jobs for intake and work,
 and snapshots the exact

@@ -1,8 +1,6 @@
 ---
 name: vuln-disclosure
 description: Prepare an evidence-bound vulnerability publication and publish the exact approved advisory through any compatible provider binding with independent readback.
-runx:
-  category: security
 ---
 
 # Vulnerability Disclosure

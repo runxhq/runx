@@ -1,48 +1,35 @@
-// Module rationale: the skill front owns source-type dispatch,
-// domain-act frame construction, and shared sealed-output projection for all
-// first-class skill runners.
-//! The skill front: compiles a skill-run request into an execution (cli-tool,
-//! agent, or graph runner) and seals it through the shared act engine. This is
-//! one of the source-type "fronts" from `plans/governed-execution-layer.md`;
-//! the act engine (`execution::runner`) owns admit -> execute -> seal.
+// Module rationale: the skill front owns run preparation, domain-act frame
+// construction, and shared sealed-output projection for every runner.
+//! The skill front: compiles a skill-run request into a run of the runner's
+//! graph and seals it through the shared act engine (`execution::runner`),
+//! which owns admit -> execute -> seal.
 
 use std::collections::BTreeMap;
-use std::fs;
 use std::path::Path;
 
-use runx_contracts::{ClosureDisposition, JsonNumber, JsonObject, JsonValue, ResolutionRequest};
+use runx_contracts::{ClosureDisposition, JsonNumber, JsonObject, JsonValue};
 use runx_parser::{ActDeclaration, SkillRunnerDefinition, SkillRunnerManifest};
 use serde::Serialize;
 use thiserror::Error;
 
 use crate::RuntimeError;
-use crate::adapter::{InvocationOutput, SkillInvocation};
-use crate::agent_invocation::{AgentActInvocationSourceType, agent_act_resolution_request};
+use crate::adapter::InvocationOutput;
 use crate::effects::RuntimeEffectRegistry;
-use crate::execution::disposition::agent_answer_disposition_or_closed;
 use crate::execution::orchestrator::{RunResult, RunStatus, SkillRunRequest};
-use crate::execution::output_projection::project_step_claim;
-use crate::output_contract::project_declared_output_claim;
 use crate::receipts::paths::RUNX_RECEIPT_DIR_ENV;
 use crate::receipts::signing::strip_receipt_signing_env;
 use crate::receipts::store::ReceiptStoreError;
 use crate::receipts::{
-    DomainActFrame, RuntimeReceiptSignatureConfig, StepSeal, StepSealClosure, seal_step,
+    DomainActFrame, RunScope, RuntimeReceiptSignatureConfig, StepSeal, StepSealClosure, seal_step,
 };
 use crate::services::{ReceiptServices, WorkspaceEnv};
 
-mod agent;
+mod executable_adapter;
 mod graph;
-#[cfg(feature = "cli-tool")]
+#[cfg(feature = "process-tool")]
 mod inline_harness;
 mod resolution_answers;
 pub(crate) mod runner_manifest;
-mod source_adapter;
-mod state_store;
-
-pub use self::state_store::{
-    SealedGraphRun, inspect_paused_skill_request, inspect_sealed_graph_run,
-};
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct PendingSkillRequest {
@@ -50,20 +37,19 @@ pub struct PendingSkillRequest {
     pub value: JsonValue,
 }
 
+pub(crate) use self::executable_adapter::ExecutableAdapter;
 pub(crate) use self::graph::graph_domain_act_receipt;
-#[cfg(feature = "cli-tool")]
+#[cfg(feature = "process-tool")]
 pub(crate) use self::inline_harness::run_package_harness_with_effects;
-pub(crate) use self::source_adapter::SkillSourceAdapter;
 
-use self::agent::execute_agent_skill_run;
 use self::graph::execute_graph_skill_run;
-use self::runner_manifest::{execute_adapter_skill_run, runner_invocation, selected_runner};
+use self::runner_manifest::selected_runner;
 
 pub use super::operator_context::{
     SkillOperatorContextChain, SkillOperatorContextContextSkill, SkillOperatorContextDocument,
     SkillOperatorContextNode, SkillOperatorContextOptions, SkillOperatorContextPackage,
     SkillOperatorContextRegistry, SkillOperatorContextRunner, SkillOperatorContextStep,
-    SkillOperatorContextTerminal, SkillOperatorContextTool, load_skill_operator_context_chain,
+    SkillOperatorContextTool, load_skill_operator_context_chain,
 };
 pub use super::prepared_skill::{
     PREPARED_SKILL_REPORT_SCHEMA, PreparedEntryProvenance, PreparedGovernanceSummary,
@@ -72,10 +58,15 @@ pub use super::prepared_skill::{
 };
 
 // The canonical public boundary is a bounded result envelope. Full receipts
-// and graph checkpoints remain durable in their owning stores instead of being
+// and the run record remain durable in their owning stores instead of being
 // copied into every CLI/SDK response.
 const SKILL_RUN_SCHEMA: &str = "runx.skill_run.v1";
-const GRAPH_SKILL_STATE_SCHEMA: &str = "runx.graph_skill_state.v1";
+
+impl From<crate::execution::run_record::RunRecordError> for SkillRunError {
+    fn from(error: crate::execution::run_record::RunRecordError) -> Self {
+        Self::Runtime(error.into())
+    }
+}
 
 #[derive(Debug, Error)]
 pub enum SkillRunError {
@@ -121,9 +112,10 @@ pub(crate) struct ResolvedSkillRun<'a> {
 
 #[derive(Clone, Copy)]
 struct SkillExecutionContext<'a> {
-    loaded: Option<&'a std::sync::Arc<crate::LoadedSkillPackage>>,
     request: &'a SkillRunRequest,
     overrides: &'a SkillRunOverrides,
+    /// The package directory, canonical as the loader resolved it.
+    skill_dir: &'a Path,
     effects: &'a RuntimeEffectRegistry,
     workspace: &'a WorkspaceEnv,
     receipts: &'a ReceiptServices,
@@ -159,7 +151,7 @@ pub(crate) fn execute_bound_skill_run_with_overrides(
     let skill_dir = loaded.directory.clone();
     let manifest = loaded.manifest().cloned().ok_or_else(|| {
         invalid(format!(
-            "skill package {} does not declare X.yaml runners",
+            "skill package {} does not declare run.yaml runners",
             skill_dir.display(),
         ))
     })?;
@@ -210,14 +202,8 @@ fn execute_skill_run_with_resolved_trust(
         package_digest,
         execution_closure_digest,
     } = resolved;
-    let (request, workspace, receipts) = prepare_skill_execution(
-        request,
-        manifest,
-        runner,
-        package_digest,
-        execution_closure_digest,
-        trusted_prepared,
-    )?;
+    let (request, workspace, receipts) =
+        prepare_skill_execution(request, manifest, runner, trusted_prepared)?;
     let request = &request;
     let skill_env = workspace.skill_env_for_skill(skill_dir);
     if !trusted_prepared {
@@ -231,18 +217,14 @@ fn execute_skill_run_with_resolved_trust(
             .with_effects(effects.clone()),
         )?;
     }
-    let mut invocation =
-        runner_invocation(skill_dir, manifest, runner, &request.inputs, &skill_env);
-    invocation.current_context = request.current_context.clone();
-    invocation.historical_context = request.historical_context.clone();
     crate::execution_environment::resolve_declared_environment(
-        &invocation.requirements,
-        &invocation.env,
+        &manifest.execution_requirements(runner),
+        &skill_env,
     )?;
     let context = SkillExecutionContext {
-        loaded: Some(loaded),
         request,
         overrides,
+        skill_dir,
         effects,
         workspace: &workspace,
         receipts: &receipts,
@@ -251,75 +233,15 @@ fn execute_skill_run_with_resolved_trust(
         package_digest,
         execution_closure_digest,
     };
-    if runner.source.source_type == runx_parser::SourceKind::Graph {
-        return execute_graph_skill_run(&context);
-    }
-    if !matches!(
-        runner.source.source_type,
-        runx_parser::SourceKind::Agent | runx_parser::SourceKind::AgentStep
-    ) {
-        return execute_adapter_skill_run(&context, invocation);
-    }
-
-    execute_agent_skill_run(&context, invocation)
+    execute_graph_skill_run(&context)
 }
 
-#[derive(Serialize)]
-struct GeneratedRunIdentity<'a> {
-    schema: &'static str,
-    skill: &'a str,
-    runner: &'a str,
-    source_type: &'a str,
-    request_id: Option<&'a str>,
-    inputs: &'a BTreeMap<String, JsonValue>,
-    current_context: &'a [runx_contracts::ContextEntry],
-    historical_context: &'a [runx_contracts::ContextEntry],
-    run_authority: Option<&'a crate::RunAuthority>,
-    package_digest: &'a str,
-    execution_closure_digest: &'a str,
-}
-
-fn generated_run_id(
-    segment: &str,
-    manifest: &SkillRunnerManifest,
-    runner: &SkillRunnerDefinition,
-    request_id: Option<&str>,
-    request: &SkillRunRequest,
-    package_digest: &str,
-    execution_closure_digest: Option<&str>,
-) -> Result<String, SkillRunError> {
-    let execution_closure_digest = execution_closure_digest
-        .ok_or_else(|| invalid("generated run identity requires an execution-closure digest"))?;
-    let skill = manifest.skill.as_deref().unwrap_or(&runner.name);
-    let identity = GeneratedRunIdentity {
-        schema: "runx.skill_run_identity.v1",
-        skill,
-        runner: &runner.name,
-        source_type: runner.source.source_type.as_str(),
-        request_id,
-        inputs: &request.inputs,
-        current_context: &request.current_context,
-        historical_context: &request.historical_context,
-        run_authority: request.run_authority.as_ref(),
-        package_digest,
-        execution_closure_digest,
-    };
-    let bytes = serde_json::to_vec(&identity)
-        .map_err(|error| invalid(format!("failed to derive skill run identity: {error}")))?;
-    let digest = runx_contracts::sha256_prefixed(&bytes);
-    let suffix = digest
-        .strip_prefix("sha256:")
-        .and_then(|value| value.get(..16))
-        .ok_or_else(|| invalid("failed to derive skill run identity digest"))?;
-    Ok(format!("run_{}_{}", identifier_segment(segment), suffix))
-}
-
+/// Seal the refusal of a run that never started: its request failed
+/// preparation before admission.
 pub(super) fn seal_skill_preflight_refusal(
     request: &SkillRunRequest,
     manifest: &SkillRunnerManifest,
     runner: &SkillRunnerDefinition,
-    package_digest: &str,
-    execution_closure_digest: Option<&str>,
     failure: JsonObject,
 ) -> Result<String, SkillRunError> {
     let workspace =
@@ -327,16 +249,8 @@ pub(super) fn seal_skill_preflight_refusal(
     let receipts = ReceiptServices::from_env_or_local_development(workspace.env())
         .map_err(|error| SkillRunError::Invalid(error.to_string()))?;
     let run_id = match &request.run_id {
-        Some(run_id) => run_id.clone(),
-        None => generated_run_id(
-            &runner.name,
-            manifest,
-            runner,
-            None,
-            request,
-            package_digest,
-            execution_closure_digest,
-        )?,
+        Some(run_id) => crate::execution::run_record::validate_run_id(run_id)?.to_owned(),
+        None => crate::execution::run_record::mint_run_id(&manifest.skill)?,
     };
     let message = failure
         .get("message")
@@ -351,17 +265,22 @@ pub(super) fn seal_skill_preflight_refusal(
         0,
         JsonObject::new(),
     );
-    let receipt = SkillSealContext::from_services(&run_id, runner, &receipts, &workspace)
-        .seal_output(
-            &output,
-            None,
-            StepSealClosure {
-                disposition: ClosureDisposition::Blocked,
-                reason_code: "preflight_refused".to_owned(),
-                summary: message,
-            },
-            Some(receipt_metadata),
-        )?;
+    let receipt = seal_refusal(
+        RunScope {
+            run_id: &run_id,
+            graph_name: &manifest.skill,
+        },
+        runner,
+        receipts.signature_config(),
+        workspace.env(),
+        &output,
+        StepSealClosure {
+            disposition: ClosureDisposition::Blocked,
+            reason_code: "preflight_refused".to_owned(),
+            summary: message,
+        },
+        receipt_metadata,
+    )?;
     runner_manifest::write_skill_receipt(request, &workspace, &receipts, &receipt)?;
     Ok(receipt.id.to_string())
 }
@@ -370,8 +289,6 @@ fn prepare_skill_execution(
     request: &SkillRunRequest,
     manifest: &SkillRunnerManifest,
     runner: &SkillRunnerDefinition,
-    package_digest: &str,
-    execution_closure_digest: Option<&str>,
     trusted_prepared: bool,
 ) -> Result<(SkillRunRequest, WorkspaceEnv, ReceiptServices), SkillRunError> {
     let mut request = request.clone();
@@ -379,14 +296,7 @@ fn prepare_skill_execution(
         WorkspaceEnv::new(request.env.clone(), request.cwd.clone()).map_err(RuntimeError::from)?;
     let receipts = ReceiptServices::from_env_or_local_development(raw_workspace.env())
         .map_err(|error| SkillRunError::Invalid(error.to_string()))?;
-    restore_continuation_inputs(
-        &mut request,
-        runner,
-        &raw_workspace,
-        &receipts,
-        package_digest,
-        execution_closure_digest,
-    )?;
+    restore_continuation_inputs(&mut request, &raw_workspace)?;
     crate::input_contract::apply_defaults(&runner.inputs, &mut request.inputs);
     let materialize = if request.answers_path.is_some() {
         crate::input_contract::materialize_present_runner_inputs
@@ -402,14 +312,7 @@ fn prepare_skill_execution(
                 "stage".to_owned(),
                 JsonValue::String("validate_inputs".to_owned()),
             );
-            let receipt_id = seal_skill_preflight_refusal(
-                &request,
-                manifest,
-                runner,
-                package_digest,
-                execution_closure_digest,
-                failure,
-            )?;
+            let receipt_id = seal_skill_preflight_refusal(&request, manifest, runner, failure)?;
             return Err(SkillRunError::PreflightRefused {
                 source: Box::new(source),
                 receipt_id,
@@ -432,46 +335,44 @@ fn prepare_skill_execution(
     Ok((request, workspace, receipts))
 }
 
+/// A continuation runs under the inputs its run was started with; the
+/// request may restate them but never replace them.
 pub(crate) fn restore_continuation_inputs(
     request: &mut SkillRunRequest,
-    runner: &SkillRunnerDefinition,
     workspace: &WorkspaceEnv,
-    receipts: &ReceiptServices,
-    package_digest: &str,
-    execution_closure_digest: Option<&str>,
 ) -> Result<(), SkillRunError> {
     if request.answers_path.is_none() {
         return Ok(());
     }
-    match runner.source.source_type {
-        runx_parser::SourceKind::Agent | runx_parser::SourceKind::AgentStep => {
-            state_store::restore_agent_inputs(
-                request,
-                workspace,
-                receipts,
-                &runner.name,
-                package_digest,
-                execution_closure_digest,
-            )
-        }
-        runx_parser::SourceKind::Graph => state_store::restore_graph_inputs(
-            request,
-            workspace,
-            receipts,
-            &runner.name,
-            package_digest,
-            execution_closure_digest.ok_or_else(|| {
-                invalid("graph continuation requires an execution-closure digest")
-            })?,
-        ),
-        _ => Ok(()),
+    let run_id = request
+        .run_id
+        .as_deref()
+        .ok_or_else(|| invalid("graph continuation requires run_id"))?;
+    let store = crate::kernel::store::KernelStore::for_workspace(workspace.env(), workspace.cwd())
+        .map_err(crate::execution::run_record::RunRecordError::from)?;
+    let record = crate::execution::run_record::RunLog::open(
+        store,
+        crate::execution::run_record::validate_run_id(run_id)?,
+    )?
+    .load()?
+    .ok_or_else(|| invalid(format!("run {run_id} has no record to continue")))?;
+    if request
+        .inputs
+        .iter()
+        .any(|(name, value)| record.inputs.get(name) != Some(value))
+    {
+        return Err(invalid(
+            "graph run identity cannot replace its original inputs",
+        ));
     }
+    request.inputs = record.inputs.into_iter().collect();
+    Ok(())
 }
 
 /// Aggregate result of running a package's inline and conventional fixture
 /// cases. Mirrors the publish-harness summary the registry records: a status,
 /// counts, per-case assertion failures, case names, sealed receipt ids, and how
-/// many cases exercised a graph.
+/// many `kind: graph` fixtures proved the skill composes into a graph.
 #[derive(Clone, Debug, Serialize)]
 pub struct PackageHarnessReport {
     pub status: &'static str,
@@ -484,7 +385,7 @@ pub struct PackageHarnessReport {
 }
 
 impl PackageHarnessReport {
-    #[cfg(feature = "cli-tool")]
+    #[cfg(feature = "process-tool")]
     fn not_declared() -> Self {
         Self {
             status: "not_declared",
@@ -496,20 +397,6 @@ impl PackageHarnessReport {
             graph_case_count: 0,
         }
     }
-}
-
-fn agent_invocation_source_type(
-    value: &str,
-) -> Result<AgentActInvocationSourceType, SkillRunError> {
-    AgentActInvocationSourceType::from_contract_value(value)
-        .ok_or_else(|| invalid(format!("unsupported agent source type {value}")))
-}
-
-fn agent_request(
-    invocation: &SkillInvocation,
-    source_type: AgentActInvocationSourceType,
-) -> Result<ResolutionRequest, SkillRunError> {
-    agent_act_resolution_request(invocation, source_type).map_err(Into::into)
 }
 
 fn needs_agent_output(
@@ -530,7 +417,7 @@ fn needs_agent_output(
     );
     output.insert(
         "skill_name".to_owned(),
-        JsonValue::String(manifest.skill.clone().unwrap_or_else(|| "skill".to_owned())),
+        JsonValue::String(manifest.skill.clone()),
     );
     output.insert("runner".to_owned(), JsonValue::String(runner.to_owned()));
     output.insert("run_id".to_owned(), JsonValue::String(run_id.to_owned()));
@@ -562,128 +449,8 @@ fn request_for_public_loop(request_id: &str, request: JsonValue) -> JsonValue {
     JsonValue::Object(object)
 }
 
-fn read_answer(
-    path: &Path,
-    request_id: &str,
-    request: &JsonValue,
-) -> Result<JsonValue, SkillRunError> {
-    let raw = fs::read_to_string(path)
-        .map_err(|source| RuntimeError::io(format!("reading {}", path.display()), source))?;
-    let value = serde_json::from_str::<JsonValue>(&raw).map_err(|source| {
-        RuntimeError::json(format!("parsing answers file {}", path.display()), source)
-    })?;
-    let answers = match &value {
-        JsonValue::Object(object) => {
-            if let Some(digests) = object.get("request_digests") {
-                let digests = digests
-                    .as_object()
-                    .ok_or_else(|| invalid("request_digests field must be a JSON object"))?;
-                let supplied = digests
-                    .get(request_id)
-                    .and_then(JsonValue::as_str)
-                    .ok_or_else(|| {
-                        invalid(format!(
-                            "request_digests did not include pending request {request_id}"
-                        ))
-                    })?;
-                let bytes = serde_json::to_vec(request).map_err(|source| {
-                    RuntimeError::json("serializing pending request for digest binding", source)
-                })?;
-                let expected = runx_contracts::sha256_prefixed(&bytes);
-                if supplied != expected {
-                    return Err(invalid(format!(
-                        "request digest mismatch for {request_id}: supplied {supplied}, current {expected}"
-                    )));
-                }
-            }
-            match object.get("answers") {
-                Some(JsonValue::Object(nested)) => nested,
-                _ => object,
-            }
-        }
-        _ => return Err(invalid("answers file must be a JSON object")),
-    };
-    answers
-        .get(request_id)
-        .cloned()
-        .ok_or_else(|| invalid(format!("answers file did not include {request_id}")))
-}
-
-#[derive(Clone, Copy)]
-struct SkillSealContext<'a> {
-    run_id: &'a str,
-    runner: &'a SkillRunnerDefinition,
-    signature_config: &'a RuntimeReceiptSignatureConfig,
-    env: &'a std::collections::BTreeMap<String, String>,
-}
-
-impl<'a> SkillSealContext<'a> {
-    fn from_services(
-        run_id: &'a str,
-        runner: &'a SkillRunnerDefinition,
-        receipts: &'a ReceiptServices,
-        workspace: &'a WorkspaceEnv,
-    ) -> Self {
-        Self {
-            run_id,
-            runner,
-            signature_config: receipts.signature_config(),
-            env: workspace.env(),
-        }
-    }
-
-    fn seal_answer(
-        self,
-        answer: &JsonValue,
-        claim_payload: &JsonValue,
-        disposition: ClosureDisposition,
-        metadata: JsonObject,
-    ) -> Result<runx_contracts::Receipt, SkillRunError> {
-        let disposition_label = disposition.label();
-        let succeeded = disposition == ClosureDisposition::Closed;
-        let skill_output = if succeeded {
-            InvocationOutput::runtime_success(answer.clone(), 0, metadata)
-        } else {
-            InvocationOutput::runtime_failure(
-                answer.clone(),
-                format!("agent act closed with {disposition_label}"),
-                0,
-                metadata,
-            )
-        };
-        self.seal_output(
-            &skill_output,
-            Some(claim_payload),
-            StepSealClosure {
-                disposition,
-                reason_code: format!("agent_act_{disposition_label}"),
-                summary: format!("agent act closed with {disposition_label}"),
-            },
-            None,
-        )
-    }
-}
-
-/// Build the domain act frame for a governed turn when its runner declares an
-/// `act:` block: the trusted mapping from the driver's pinned beat inputs and the
-/// model's reason text to the receipt's act, decision, and authority. Returns
-/// `None` for runners without an `act:` block (sealed generically, exactly as
-/// before). The model supplies only the reason prose; every structural field is
-/// read from the runner declaration and the trusted inputs, never the model.
-fn domain_act_frame(
-    invocation: &SkillInvocation,
-    answer: &JsonValue,
-    governed_effect: Option<&JsonValue>,
-) -> Option<DomainActFrame> {
-    let act = invocation.source.act.as_ref()?;
-    // An agent turn carries no credential; its held authority is the declared
-    // scope.
-    build_domain_act_frame(act, &invocation.inputs, answer, governed_effect, Vec::new())
-}
-
-/// The core of [`domain_act_frame`], reusable by the graph path: build the domain
-/// act frame from a declared `act:` block, the trusted run inputs, the model's
-/// authored reason source, and the real governed effect.
+/// Build the domain act frame from a declared `act:` block, the trusted run
+/// inputs, the model's authored reason source, and the real governed effect.
 // Function rationale: act-frame construction is intentionally one
 // branch table so each declared field, input fallback, and governed-effect
 // reference is visible in one receipt-shaping pass.
@@ -694,10 +461,7 @@ fn build_domain_act_frame(
     governed_effect: Option<&JsonValue>,
     authority_grant_refs: Vec<runx_contracts::Reference>,
 ) -> Option<DomainActFrame> {
-    use runx_contracts::{
-        ActForm, AuthorityAttenuation, AuthoritySubsetProof, AuthorityTerm, DecisionChoice,
-        Reference, ReferenceType,
-    };
+    use runx_contracts::{ActForm, DecisionChoice, Reference, ReferenceType};
 
     // A declared field may be a static literal (`form: review`) or driver-pinned
     // from an input (`form_from: act_form` names the input key). The driver-pinned
@@ -805,40 +569,6 @@ fn build_domain_act_frame(
         artifact_refs.push(reference);
     }
 
-    // Charter attenuation, read from driver-pinned inputs (the model never sets
-    // authority). The member's child term, the parent charter reference, and the
-    // subset proof each ride a trusted input key named by the act declaration.
-    // Attenuation is recorded only when both a parent and a proof are present; a
-    // term without them is a root and carries no proof, as the receipt verifier
-    // requires.
-    let authority_terms = act
-        .authority_term_from
-        .as_deref()
-        .and_then(|key| inputs.get(key))
-        .and_then(|value| serde_json::to_value(value).ok())
-        .and_then(|value| serde_json::from_value::<AuthorityTerm>(value).ok())
-        .map(|term| vec![term])
-        .unwrap_or_default();
-    let parent_authority_ref = act
-        .authority_parent_from
-        .as_deref()
-        .and_then(|key| inputs.get(key))
-        .and_then(|value| serde_json::to_value(value).ok())
-        .and_then(|value| serde_json::from_value::<Reference>(value).ok());
-    let subset_proof = act
-        .authority_subset_proof_from
-        .as_deref()
-        .and_then(|key| inputs.get(key))
-        .and_then(|value| serde_json::to_value(value).ok())
-        .and_then(|value| serde_json::from_value::<AuthoritySubsetProof>(value).ok());
-    let authority_attenuation = match (parent_authority_ref, subset_proof) {
-        (Some(parent), Some(proof)) => Some(AuthorityAttenuation {
-            parent_authority_ref: Some(parent),
-            subset_proof: Some(proof),
-        }),
-        _ => None,
-    };
-
     Some(DomainActFrame {
         form,
         purpose: purpose.into(),
@@ -856,8 +586,8 @@ fn build_domain_act_frame(
         authority_scope_refs: input_ref(act.authority_from.as_deref(), ReferenceType::Grant)
             .into_iter()
             .collect(),
-        authority_terms,
-        authority_attenuation,
+        authority_terms: Vec::new(),
+        authority_attenuation: None,
         previous: input_ref(act.previous_from.as_deref(), ReferenceType::Receipt),
     })
 }
@@ -879,50 +609,34 @@ fn map_decision_choice(value: &str) -> Option<runx_contracts::DecisionChoice> {
     }
 }
 
-impl SkillSealContext<'_> {
-    fn seal_output(
-        self,
-        output: &InvocationOutput,
-        claim_payload: Option<&JsonValue>,
-        closure: StepSealClosure,
-        receipt_metadata: Option<JsonObject>,
-    ) -> Result<runx_contracts::Receipt, SkillRunError> {
-        let graph_name = identifier_segment(self.run_id);
-        let step_id = identifier_segment(&self.runner.name);
-        let claim = if output.succeeded() {
-            project_declared_output_claim(
-                &self.runner.name,
-                claim_payload.unwrap_or(&output.value),
-                self.runner.source.outputs.as_ref(),
-                self.runner.artifacts.as_ref(),
-            )?
-        } else {
-            JsonObject::new()
-        };
-        let mut projection = project_step_claim(claim);
-        Ok(seal_step(
-            StepSeal {
-                graph_name: &graph_name,
-                step_id: &step_id,
-                attempt: 1,
-                output,
-                claim: &projection.outputs,
-                projection_refs: std::mem::take(&mut projection.refs),
-                created_at: &crate::time::now_iso8601(),
-                authority: crate::receipts::SealAuthority::default(),
-                operator_refs: super::prepared_skill::prepared_receipt_references(self.env),
-                child_receipts: &[],
-                descendant_receipts: &[],
-                closure: Some(closure),
-                receipt_metadata,
-            },
-            self.signature_config.signature_policy(),
-        )?)
-    }
-}
-
-fn answer_disposition(answer: &JsonValue) -> Result<ClosureDisposition, SkillRunError> {
-    agent_answer_disposition_or_closed(answer).map_err(|error| invalid(format!("{error}")))
+/// Seal a run that was refused before any step ran.
+fn seal_refusal(
+    scope: RunScope<'_>,
+    runner: &SkillRunnerDefinition,
+    signature_config: &RuntimeReceiptSignatureConfig,
+    env: &BTreeMap<String, String>,
+    output: &InvocationOutput,
+    closure: StepSealClosure,
+    receipt_metadata: JsonObject,
+) -> Result<runx_contracts::Receipt, SkillRunError> {
+    Ok(seal_step(
+        StepSeal {
+            scope,
+            step_id: &runner.name,
+            attempt: 1,
+            output,
+            claim: &JsonObject::new(),
+            projection_refs: Default::default(),
+            created_at: &crate::time::now_iso8601(),
+            authority: crate::receipts::SealAuthority::default(),
+            operator_refs: super::prepared_skill::prepared_receipt_references(env),
+            child_receipts: &[],
+            descendant_receipts: &[],
+            closure: Some(closure),
+            receipt_metadata: Some(receipt_metadata),
+        },
+        signature_config.signature_policy(),
+    )?)
 }
 
 fn sealed_output(
@@ -942,7 +656,7 @@ fn sealed_output(
     output.insert("status".to_owned(), JsonValue::String("sealed".to_owned()));
     output.insert(
         "skill_name".to_owned(),
-        JsonValue::String(manifest.skill.clone().unwrap_or_else(|| "skill".to_owned())),
+        JsonValue::String(manifest.skill.clone()),
     );
     output.insert("runner".to_owned(), JsonValue::String(runner.to_owned()));
     output.insert("run_id".to_owned(), JsonValue::String(run_id.to_owned()));
@@ -1022,35 +736,6 @@ fn closure_output(seal: &runx_contracts::Seal) -> JsonObject {
     closure
 }
 
-fn normalize_request_id(value: &str) -> String {
-    let mut normalized = String::new();
-    let mut replaced = false;
-    for character in value.chars() {
-        if character.is_ascii_alphanumeric() || matches!(character, '_' | '.' | '-') {
-            normalized.push(character);
-            replaced = false;
-        } else if !replaced {
-            normalized.push('_');
-            replaced = true;
-        }
-    }
-    normalized
-}
-
-fn identifier_segment(value: &str) -> String {
-    normalize_request_id(value)
-        .trim_matches(['.', '_', '-'])
-        .replace('.', "-")
-}
-
-fn contract_json_value(value: &impl serde::Serialize) -> Result<JsonValue, SkillRunError> {
-    let value = serde_json::to_value(value)
-        .map_err(|source| RuntimeError::json("serializing native skill contract value", source))?;
-    serde_json::from_value(value).map_err(|source| {
-        RuntimeError::json("normalizing native skill contract value", source).into()
-    })
-}
-
 fn invalid(message: impl Into<String>) -> SkillRunError {
     SkillRunError::Invalid(message.into())
 }
@@ -1106,129 +791,6 @@ mod domain_act_frame_tests {
         )
         .ok_or_else(|| std::io::Error::other("frame"))?;
         assert_eq!(frame.summary.as_str(), "settle the accepted claim");
-        Ok(())
-    }
-}
-
-#[cfg(test)]
-mod run_identity_tests {
-    use super::*;
-    use crate::ManagedAgentPolicy;
-    use std::path::PathBuf;
-
-    fn identity_request(inputs: BTreeMap<String, JsonValue>) -> SkillRunRequest {
-        SkillRunRequest {
-            inputs,
-            current_context: Vec::new(),
-            historical_context: Vec::new(),
-            run_authority: None,
-            skill_path: PathBuf::from("."),
-            receipt_dir: None,
-            run_id: None,
-            answers_path: None,
-            env: BTreeMap::new(),
-            cwd: PathBuf::from("."),
-            managed_agent: ManagedAgentPolicy::HostDriven,
-        }
-    }
-
-    fn manifest() -> Result<SkillRunnerManifest, Box<dyn std::error::Error>> {
-        let raw = runx_parser::parse_runner_manifest_yaml(
-            r#"
-skill: identity-test
-runners:
-  execute:
-    default: true
-    type: agent-task
-    agent: reviewer
-    task: review
-    outputs:
-      result: object
-"#,
-        )?;
-        Ok(runx_parser::validate_runner_manifest(raw)?)
-    }
-
-    #[test]
-    fn generated_run_identity_binds_package_and_execution_closure()
-    -> Result<(), Box<dyn std::error::Error>> {
-        let manifest = manifest()?;
-        let runner = manifest
-            .runners
-            .get("execute")
-            .ok_or("missing execute runner")?;
-        let inputs = BTreeMap::from([(
-            "claim_id".to_owned(),
-            JsonValue::String("claim-1".to_owned()),
-        )]);
-        let baseline = generated_run_id(
-            "execute",
-            &manifest,
-            runner,
-            None,
-            &identity_request(inputs.clone()),
-            "sha256:package-a",
-            Some("sha256:closure-a"),
-        )?;
-        let same = generated_run_id(
-            "execute",
-            &manifest,
-            runner,
-            None,
-            &identity_request(inputs.clone()),
-            "sha256:package-a",
-            Some("sha256:closure-a"),
-        )?;
-        let changed_package = generated_run_id(
-            "execute",
-            &manifest,
-            runner,
-            None,
-            &identity_request(inputs.clone()),
-            "sha256:package-b",
-            Some("sha256:closure-a"),
-        )?;
-        let changed_closure = generated_run_id(
-            "execute",
-            &manifest,
-            runner,
-            None,
-            &identity_request(inputs.clone()),
-            "sha256:package-a",
-            Some("sha256:closure-b"),
-        )?;
-
-        assert_eq!(baseline, same);
-        assert_ne!(baseline, changed_package);
-        assert_ne!(baseline, changed_closure);
-        Ok(())
-    }
-
-    #[test]
-    fn generated_run_identity_refuses_unbound_execution() -> Result<(), Box<dyn std::error::Error>>
-    {
-        let manifest = manifest()?;
-        let runner = manifest
-            .runners
-            .get("execute")
-            .ok_or("missing execute runner")?;
-        let error = generated_run_id(
-            "execute",
-            &manifest,
-            runner,
-            None,
-            &identity_request(BTreeMap::new()),
-            "sha256:package",
-            None,
-        )
-        .err()
-        .ok_or("unbound generated run identity did not fail")?;
-
-        assert!(
-            error
-                .to_string()
-                .contains("requires an execution-closure digest")
-        );
         Ok(())
     }
 }

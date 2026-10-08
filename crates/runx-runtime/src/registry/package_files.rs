@@ -75,7 +75,7 @@ pub(crate) fn validate_registry_package_file_path(path: &str) -> Result<(), Stri
         }
         depth += 1;
     }
-    if depth == 1 && matches!(path, "SKILL.md" | "X.yaml") {
+    if depth == 1 && matches!(path, "SKILL.md" | runx_parser::PROFILE_FILE) {
         return Err(format!("{path} is stored in its dedicated registry field"));
     }
     Ok(())
@@ -114,18 +114,18 @@ mod tests {
     fn package_digest_uses_locale_independent_path_ordering() {
         let files = vec![
             RegistryPackageFile {
-                path: "graph/plan/run.mjs".to_owned(),
-                content: "run\n".to_owned(),
+                path: "graph/plan/run.yaml".to_owned(),
+                content: "graph\n".to_owned(),
             },
             RegistryPackageFile {
-                path: "graph/plan/X.yaml".to_owned(),
-                content: "graph\n".to_owned(),
+                path: "graph/plan/SKILL.md".to_owned(),
+                content: "manual\n".to_owned(),
             },
         ];
 
         assert_eq!(
             registry_package_digest(&files).as_deref(),
-            Some("c812b21fa4090ecab0ec657df6d4d8c22a0acce04e4cb98cc85a5cb29f02651b")
+            Some("70f0608aac8193a5b10fdf5f9b9d5d3be4f836ef6a8d8ce58b803698cada3d90")
         );
     }
 }

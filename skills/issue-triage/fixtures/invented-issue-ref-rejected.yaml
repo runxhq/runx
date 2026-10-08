@@ -11,7 +11,7 @@ inputs:
     body: The docs mention two different output directories.
 caller:
   answers:
-    agent_task.issue-triage-respond.output:
+    agent.issue-triage-respond.output:
       issue_profile:
         repository: runxhq/runx
         number: "999"

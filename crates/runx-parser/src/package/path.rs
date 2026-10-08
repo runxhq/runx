@@ -102,7 +102,7 @@ pub(super) fn normalize_context_ref(
         || reference.contains('\\')
     {
         return Err(SkillPackageError::invalid(
-            "X.yaml",
+            super::PROFILE_FILE,
             format!(
                 "context skill ref {reference:?} must be a relative POSIX path or registry ref"
             ),
@@ -118,13 +118,13 @@ pub(super) fn normalize_context_ref(
             .any(|segment| segment.is_empty() || *segment == "..")
     {
         return Err(SkillPackageError::invalid(
-            "X.yaml",
+            super::PROFILE_FILE,
             format!("context skill ref {reference:?} must not traverse the package"),
         ));
     }
     if segments.contains(&"graph") {
         return Err(SkillPackageError::invalid(
-            "X.yaml",
+            super::PROFILE_FILE,
             format!("context skill ref {reference:?} must not target an internal graph stage"),
         ));
     }

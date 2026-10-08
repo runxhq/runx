@@ -17,20 +17,21 @@ they behave differently.
 
 The skill must be real and runnable:
 
-- A valid `SKILL.md` (frontmatter `name`, `description`, and `source`) and an
-  execution profile (`X.yaml`) when the skill has a runnable path. Format:
-  https://runx.ai/SKILL.md
-  Use `runx.category` for the runx catalog category/facet; runx categories are
-  maintained slugs, not arbitrary tags. See
-  [skill-catalog.md](skill-catalog.md) before choosing one.
+- A valid `SKILL.md` and an execution profile (`run.yaml`) when the skill has
+  a runnable path. `SKILL.md` frontmatter carries only the Agent Skills fields
+  (`name`, `description`, `license`, `compatibility`, `metadata`,
+  `allowed-tools`). Format: https://runx.ai/SKILL.md
+  Use `catalog.category` in `run.yaml` for the runx catalog category/facet and
+  `catalog.tags` for search tags; runx categories are maintained slugs, not
+  arbitrary tags. See [skill-catalog.md](skill-catalog.md) before choosing one.
 - It passes the harness:
   ```bash
   runx harness ./skills/<your-skill> --json
   ```
 
-`X.yaml` is the canonical v1 filename, but the artifact is an execution profile:
-runner wiring, typed inputs and outputs, tool/context refs, authority and receipt
-mapping, side-effect posture, and harness cases. Do not use it as a strategy
+`run.yaml` is the execution profile: runners and their steps, typed inputs and
+outputs, tool/context refs, authority and receipt mapping, side-effect posture,
+and harness cases. Do not use it as a strategy
 document, target registry, copy deck, generated state file, or secret container.
 Keep profile YAML explicit: anchors, aliases, merge keys, custom tags,
 multi-document markers, duplicate mapping keys, and unknown profile fields are
@@ -56,7 +57,7 @@ verified runs.
 For humans, start at https://runx.ai/x/publish. There are two publish lanes:
 
 - **Public URL publish.** Paste a public repository URL. runx indexes every valid
-  `SKILL.md`/`X.yaml` package it finds and leaves the source in the upstream repo.
+  `SKILL.md`/`run.yaml` package it finds and leaves the source in the upstream repo.
   This is the fastest way to get a community listing into the catalog.
 - **Authenticated CLI publish.** Use this for publisher-controlled releases. Sign
   in once, then publish the package directly from your local checkout. Hosted
@@ -84,12 +85,12 @@ purpose-scoped runx credential. It does not store the provider token.
 For remote publishes the CLI sends a bounded skill package:
 
 - `SKILL.md` is the portable skill contract and is sent as the primary document.
-- `X.yaml`, when present, is the execution profile and is sent as the profile
+- `run.yaml`, when present, is the execution profile and is sent as the profile
   document.
 - Package files are the exact parser-admitted material for the package:
   - process entrypoints and their complete static local source closure;
   - deterministic modules reachable from execution profiles;
-  - nested `SKILL.md` / `X.yaml` files for graph stages, context skills, and
+  - nested `SKILL.md` / `run.yaml` files for graph stages, context skills, and
     local sub-skills called by the graph;
   - harness-only support files explicitly declared in `harness.files`, confined
     to the owning profile's `fixtures/` directory and staged profile-relative
@@ -159,8 +160,8 @@ runx treats it like every other governed action, with no special-casing:
   and hosted verified-run evidence are separate signals recorded when the skill
   is executed.
 - When a contributor-owned package is accepted into the Runx repository,
-  `registry_owner` in `SKILL.md` frontmatter preserves that contributor's
-  namespace for later hardened versions. Repository inclusion does not silently
+  `catalog.owner` in `run.yaml` preserves that contributor's namespace for
+  later hardened versions. Repository inclusion does not silently
   transfer the registry row to `runx/*`; such a transfer must be explicit.
 
 ## After you publish

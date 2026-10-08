@@ -1,8 +1,6 @@
 ---
 name: spend
 description: Execute one governed outbound payment through Runx Hosted with approval and provider readback.
-runx:
-  category: payments
 ---
 
 # Spend

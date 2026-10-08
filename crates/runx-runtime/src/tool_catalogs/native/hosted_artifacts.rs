@@ -148,31 +148,13 @@ fn allocate(
         media_type,
         &content_digest,
     )?;
-    let body = JsonObject::from([
-        (
-            "operation".to_owned(),
-            JsonValue::String(ALLOCATE_TOOL.to_owned()),
-        ),
-        ("run_id".to_owned(), JsonValue::String(run_id.to_owned())),
-        (
-            "input".to_owned(),
-            JsonValue::Object(JsonObject::from([
-                (
-                    "idempotency_key".to_owned(),
-                    JsonValue::String(idempotency_key.clone()),
-                ),
-                ("data_base64".to_owned(), JsonValue::String(data_base64)),
-                (
-                    "content_digest".to_owned(),
-                    JsonValue::String(content_digest.clone()),
-                ),
-                (
-                    "media_type".to_owned(),
-                    JsonValue::String(media_type.to_owned()),
-                ),
-            ])),
-        ),
-    ]);
+    let body = allocate_request(
+        run_id,
+        &idempotency_key,
+        data_base64,
+        &content_digest,
+        media_type,
+    );
     let (packet, principal_ref) = invoke(invocation, ALLOCATE_TOOL, body)?;
     validate_packet(
         &packet,
@@ -200,30 +182,12 @@ fn handoff(
         source_artifact_ref,
         target_principal_id,
     )?;
-    let body = JsonObject::from([
-        (
-            "operation".to_owned(),
-            JsonValue::String(HANDOFF_TOOL.to_owned()),
-        ),
-        ("run_id".to_owned(), JsonValue::String(run_id.to_owned())),
-        (
-            "input".to_owned(),
-            JsonValue::Object(JsonObject::from([
-                (
-                    "source_artifact_ref".to_owned(),
-                    JsonValue::String(invocation.inputs.source_artifact_ref.clone()),
-                ),
-                (
-                    "target_principal_id".to_owned(),
-                    JsonValue::String(target_principal_id.to_owned()),
-                ),
-                (
-                    "idempotency_key".to_owned(),
-                    JsonValue::String(idempotency_key.clone()),
-                ),
-            ])),
-        ),
-    ]);
+    let body = handoff_request(
+        run_id,
+        source_artifact_ref,
+        target_principal_id,
+        &idempotency_key,
+    );
     let (packet, principal_ref) = invoke(invocation, HANDOFF_TOOL, body)?;
     validate_packet(
         &packet,
@@ -242,13 +206,80 @@ fn handoff(
     })
 }
 
+/// The hosted request that allocates one artifact.
+fn allocate_request(
+    run_id: &str,
+    idempotency_key: &str,
+    data_base64: String,
+    content_digest: &str,
+    media_type: &str,
+) -> JsonObject {
+    operation_request(
+        ALLOCATE_TOOL,
+        run_id,
+        JsonObject::from([
+            (
+                "idempotency_key".to_owned(),
+                JsonValue::String(idempotency_key.to_owned()),
+            ),
+            ("data_base64".to_owned(), JsonValue::String(data_base64)),
+            (
+                "content_digest".to_owned(),
+                JsonValue::String(content_digest.to_owned()),
+            ),
+            (
+                "media_type".to_owned(),
+                JsonValue::String(media_type.to_owned()),
+            ),
+        ]),
+    )
+}
+
+/// The hosted request that hands one artifact to another principal.
+fn handoff_request(
+    run_id: &str,
+    source_artifact_ref: &str,
+    target_principal_id: &str,
+    idempotency_key: &str,
+) -> JsonObject {
+    operation_request(
+        HANDOFF_TOOL,
+        run_id,
+        JsonObject::from([
+            (
+                "source_artifact_ref".to_owned(),
+                JsonValue::String(source_artifact_ref.to_owned()),
+            ),
+            (
+                "target_principal_id".to_owned(),
+                JsonValue::String(target_principal_id.to_owned()),
+            ),
+            (
+                "idempotency_key".to_owned(),
+                JsonValue::String(idempotency_key.to_owned()),
+            ),
+        ]),
+    )
+}
+
+fn operation_request(operation: &str, run_id: &str, input: JsonObject) -> JsonObject {
+    JsonObject::from([
+        (
+            "operation".to_owned(),
+            JsonValue::String(operation.to_owned()),
+        ),
+        ("run_id".to_owned(), JsonValue::String(run_id.to_owned())),
+        ("input".to_owned(), JsonValue::Object(input)),
+    ])
+}
+
 fn invoke<I>(
     invocation: &NativeInvocation<'_, I>,
     operation: &'static str,
     body: JsonObject,
 ) -> Result<(ProviderOperationPacket, String), RuntimeError> {
     let transport = NativeHttpTransport::for_hosted_api(
-        invocation.harness_http_responses(),
+        invocation.harness_http_exchanges(),
         hosted_private_network_allowed(false, invocation.env),
     )
     .map_err(|error| runtime_failure(operation, error.to_string()))?;
@@ -637,7 +668,38 @@ mod tests {
     use super::*;
     use crate::credentials::CredentialDelivery;
     use crate::effects::RuntimeEffectRegistry;
-    use crate::http::RuntimeHttpResponse;
+    use crate::http::{
+        HttpMethod, RuntimeHarnessHttpExchange, RuntimeHarnessHttpRequestBody, RuntimeHttpResponse,
+    };
+
+    /// The two exchanges a hosted artifact call makes: who the token is, then
+    /// the exact operation request.
+    fn hosted_exchanges(
+        base_url: &str,
+        request: JsonObject,
+        packet: &ProviderOperationPacket,
+    ) -> Option<std::sync::Arc<Vec<RuntimeHarnessHttpExchange>>> {
+        Some(std::sync::Arc::new(vec![
+            RuntimeHarnessHttpExchange {
+                method: HttpMethod::Get,
+                url: format!("{base_url}/v1/me"),
+                body: RuntimeHarnessHttpRequestBody::None,
+                response: RuntimeHttpResponse::new(
+                    200,
+                    r#"{"status":"success","principal":{"principal_id":"operator:test"}}"#,
+                ),
+            },
+            RuntimeHarnessHttpExchange {
+                method: HttpMethod::Post,
+                url: format!("{base_url}/v1/artifact-operations"),
+                body: RuntimeHarnessHttpRequestBody::Json(JsonValue::Object(request)),
+                response: RuntimeHttpResponse::new(
+                    200,
+                    serde_json::to_string(packet).expect("packet JSON"),
+                ),
+            },
+        ]))
+    }
 
     #[test]
     fn allocation_accepts_one_canonical_source() {
@@ -736,7 +798,6 @@ mod tests {
         let result = allocate(&NativeInvocation {
             inputs: &input,
             observed_at: "2026-08-24T00:00:00Z",
-            data_source_binding: None,
             env: &env,
             skill_directory: std::path::Path::new("."),
             credential_delivery: &credentials,
@@ -932,7 +993,8 @@ mod tests {
             idempotency_scope: "ausca.document-ocr.output.v1".to_owned(),
         };
         let maximum_bytes = 1024;
-        let (_, bytes) = allocation_bytes(&input, maximum_bytes).expect("allocation bytes");
+        let (data_base64, bytes) =
+            allocation_bytes(&input, maximum_bytes).expect("allocation bytes");
         let content_digest = runx_contracts::sha256_prefixed(&bytes);
         let artifact_ref = format!(
             "runx:artifact:sha256:{}",
@@ -970,7 +1032,7 @@ mod tests {
             ),
             (
                 "content_digest".to_owned(),
-                JsonValue::String(content_digest),
+                JsonValue::String(content_digest.clone()),
             ),
             (
                 "media_type".to_owned(),
@@ -1005,32 +1067,25 @@ mod tests {
             plan_digest: None,
             result_digest: Some(hosted_result_digest),
             operation_id: Some("runx:artifact-operation:fixture".to_owned()),
-            idempotency_key: Some(idempotency_key),
+            idempotency_key: Some(idempotency_key.clone()),
             host: None,
             account_ref: None,
             operation_digest: None,
             implementation_digest: None,
         };
-        let responses = BTreeMap::from([
-            (
-                format!("{base_url}/v1/me"),
-                RuntimeHttpResponse::new(
-                    200,
-                    r#"{"status":"success","principal":{"principal_id":"operator:test"}}"#,
-                ),
-            ),
-            (
-                format!("{base_url}/v1/artifact-operations"),
-                RuntimeHttpResponse::new(200, serde_json::to_string(&packet).expect("packet JSON")),
-            ),
-        ]);
+        let request = allocate_request(
+            "run-fixture",
+            &idempotency_key,
+            data_base64,
+            &content_digest,
+            &input.media_type,
+        );
         let effects = RuntimeEffectRegistry::default()
-            .with_harness_http(Some(std::sync::Arc::new(responses)));
+            .with_harness_http(hosted_exchanges(base_url, request, &packet));
         let credentials = CredentialDelivery::none();
         let output = allocate(&NativeInvocation {
             inputs: &input,
             observed_at: "2026-08-24T00:00:00Z",
-            data_source_binding: None,
             env: &env,
             skill_directory: std::path::Path::new("."),
             credential_delivery: &credentials,
@@ -1215,7 +1270,7 @@ mod tests {
             plan_digest: None,
             result_digest: Some(result_digest),
             operation_id: Some("runx:artifact-operation:fixture".to_owned()),
-            idempotency_key: Some(idempotency_key),
+            idempotency_key: Some(idempotency_key.clone()),
             host: None,
             account_ref: None,
             operation_digest: None,
@@ -1235,26 +1290,18 @@ mod tests {
                 "run-fixture".to_owned(),
             ),
         ]);
-        let responses = BTreeMap::from([
-            (
-                format!("{base_url}/v1/me"),
-                RuntimeHttpResponse::new(
-                    200,
-                    r#"{"status":"success","principal":{"principal_id":"operator:test"}}"#,
-                ),
-            ),
-            (
-                format!("{base_url}/v1/artifact-operations"),
-                RuntimeHttpResponse::new(200, serde_json::to_string(&packet).expect("packet JSON")),
-            ),
-        ]);
+        let request = handoff_request(
+            "run-fixture",
+            source_artifact_ref,
+            &input.target_principal_id,
+            &idempotency_key,
+        );
         let effects = RuntimeEffectRegistry::default()
-            .with_harness_http(Some(std::sync::Arc::new(responses)));
+            .with_harness_http(hosted_exchanges(base_url, request, &packet));
         let credentials = CredentialDelivery::none();
         let output = handoff(&NativeInvocation {
             inputs: &input,
             observed_at: "2026-08-31T00:00:00Z",
-            data_source_binding: None,
             env: &env,
             skill_directory: std::path::Path::new("."),
             credential_delivery: &credentials,

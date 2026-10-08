@@ -1,1 +1,1 @@
-export default (inputs) => inputs.message;
+export default (inputs) => ({ message: inputs.message });

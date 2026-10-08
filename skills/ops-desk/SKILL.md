@@ -1,8 +1,6 @@
 ---
 name: ops-desk
 description: "Operate a project, workspace, or account from an agent or manager dashboard: inspect state, triage risks, prepare governed actions, route to the right skill lane, require approvals for consequential acts, and verify receipts after execution."
-runx:
-  category: ops
 ---
 
 # Ops Desk
@@ -83,7 +81,7 @@ it.
   registry client, or provider SDK.
 - To bypass a human gate because the agent or UI believes the action is obvious.
 - To replace a domain skill from the registry, such as `send-as` or `release`,
-  a payments lane, or a provider adapter.
+  a payments lane, or a connector.
 - To operate from stale, missing, or unverifiable state while claiming readiness.
 - To put secrets, private keys, raw customer lists, or provider dumps into the
   ops desk packet.
@@ -107,8 +105,8 @@ Ops desk packets name existing execution surfaces; they do not implement them.
 - `release` owns release preparation, approval, publish handoff, and
   post-release verification.
 - `ledger`, `audit-receipt`, and `run-history` own proof questions.
-- `send-as` owns authority for live communications; provider adapter skills own
-  provider-specific execution details.
+- `send-as` owns authority for live communications; branded provider skills and
+  their connectors own provider-specific execution details.
 - `spend`, `charge`, `refund`, and branded payment skills own money movement.
 - Project skills own product vocabulary and product-specific actions.
 - CLI commands, hosted API routes, and GitHub workflows remain deterministic
@@ -145,11 +143,12 @@ product gap. Do not invent a private workaround.
      existing release workflow/commands.
    - Audit questions route to `ledger`, `audit-receipt`, `run-history`,
      or `least-privilege`.
-   - Live communication routes through `send-as` and then a provider adapter.
+   - Live communication routes through `send-as` and then the provider's
+     connector.
    - Payment collection, payout, refund, chargeback, or target changes route to
      the matching payment lane.
    - Board, thread, and provider actions route to the product's own governed
-     skill from the registry or a provider adapter, such as `issue-intake` or
+     skill from the registry or a connector operation, such as `issue-intake` or
      `issue-to-pr`.
    - Deploy and config changes route to the product-owned deploy lane.
 

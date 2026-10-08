@@ -1,0 +1,265 @@
+skill: operator-inbox
+version: "0.3.0"
+
+catalog:
+  kind: graph
+  audience: operator
+  visibility: public
+  role: canonical
+  execution: execute
+  completion: runtime_receipt
+  requires_adapter: true
+  approval: conditional
+  category: ops
+
+runners:
+  record_scan_page:
+    inputs:
+      data_source_ref:
+        type: string
+        required: true
+      expected_version:
+        type: number
+        required: true
+      observed_at:
+        type: string
+        required: true
+      scan:
+        type: json
+        required: true
+      messages:
+        type: json
+        required: true
+    result_from: [append]
+    steps:
+      - id: plan
+        skill: ./graph/plan
+        inputs:
+          operation: scan_page
+          expected_version: "$input.expected_version"
+          observed_at: "$input.observed_at"
+          scan: "$input.scan"
+          messages: "$input.messages"
+      - id: append
+        skill: ../data-store
+        runner: append_event
+        inputs:
+          data_source_ref: "$input.data_source_ref"
+          resource: operator_inbox_scans
+          aggregate_id: "$input.scan.query_digest"
+          expected_version: "$input.expected_version"
+          observed_at: "$input.observed_at"
+        context:
+          idempotency_key: plan.transition.data.idempotency_key
+          event: plan.transition.data.event
+
+  record_action_observation:
+    inputs:
+      data_source_ref:
+        type: string
+        required: true
+      expected_version:
+        type: number
+        required: true
+      current_action:
+        type: json
+        required: false
+      observed_at:
+        type: string
+        required: true
+      message:
+        type: json
+        required: true
+      triage:
+        type: json
+        required: true
+    result_from: [append]
+    steps:
+      - id: plan
+        skill: ./graph/plan
+        inputs:
+          operation: action_observation
+          expected_version: "$input.expected_version"
+          current_action: "$input.current_action"
+          observed_at: "$input.observed_at"
+          message: "$input.message"
+          triage: "$input.triage"
+      - id: append
+        skill: ../data-store
+        runner: append_event
+        inputs:
+          data_source_ref: "$input.data_source_ref"
+          resource: operator_inbox_actions
+          expected_version: "$input.expected_version"
+          observed_at: "$input.message.occurred_at"
+        context:
+          aggregate_id: plan.transition.data.event.payload.action.action_id
+          idempotency_key: plan.transition.data.idempotency_key
+          event: plan.transition.data.event
+
+  record_disposition:
+    inputs:
+      data_source_ref:
+        type: string
+        required: true
+      expected_version:
+        type: number
+        required: true
+      current_action:
+        type: json
+        required: true
+      observed_at:
+        type: string
+        required: true
+      disposition:
+        type: json
+        required: true
+    result_from: [append]
+    steps:
+      - id: plan
+        skill: ./graph/plan
+        inputs:
+          operation: disposition
+          expected_version: "$input.expected_version"
+          current_action: "$input.current_action"
+          observed_at: "$input.observed_at"
+          disposition: "$input.disposition"
+      - id: append
+        skill: ../data-store
+        runner: append_event
+        inputs:
+          data_source_ref: "$input.data_source_ref"
+          resource: operator_inbox_actions
+          expected_version: "$input.expected_version"
+          observed_at: "$input.observed_at"
+        context:
+          aggregate_id: plan.transition.data.event.payload.action.action_id
+          idempotency_key: plan.transition.data.idempotency_key
+          event: plan.transition.data.event
+
+  import_action:
+    inputs:
+      data_source_ref:
+        type: string
+        required: true
+      expected_version:
+        type: number
+        required: true
+      observed_at:
+        type: string
+        required: true
+      action:
+        type: json
+        required: true
+    result_from: [append]
+    steps:
+      - id: plan
+        skill: ./graph/plan
+        inputs:
+          operation: import_action
+          expected_version: "$input.expected_version"
+          observed_at: "$input.observed_at"
+          action: "$input.action"
+      - id: append
+        skill: ../data-store
+        runner: append_event
+        inputs:
+          data_source_ref: "$input.data_source_ref"
+          resource: operator_inbox_actions
+          expected_version: "$input.expected_version"
+          observed_at: "$input.action.latest_message.occurred_at"
+        context:
+          aggregate_id: plan.transition.data.event.payload.action.action_id
+          idempotency_key: plan.transition.data.idempotency_key
+          event: plan.transition.data.event
+
+  read_action:
+    inputs:
+      data_source_ref:
+        type: string
+        required: true
+      action_id:
+        type: string
+        required: true
+    result_from: [read]
+    steps:
+      - id: read
+        skill: ../data-store
+        runner: read_events
+        inputs:
+          data_source_ref: "$input.data_source_ref"
+          resource: operator_inbox_actions
+          aggregate_id: "$input.action_id"
+          limit: 1
+
+  read_scan:
+    inputs:
+      data_source_ref:
+        type: string
+        required: true
+      query_digest:
+        type: string
+        required: true
+    result_from: [read]
+    steps:
+      - id: read
+        skill: ../data-store
+        runner: read_events
+        inputs:
+          data_source_ref: "$input.data_source_ref"
+          resource: operator_inbox_scans
+          aggregate_id: "$input.query_digest"
+          limit: 1
+
+  list_actions:
+    default: true
+    inputs:
+      data_source_ref:
+        type: string
+        required: false
+        default: local://runx/operator-inbox/default
+        description: Local `.runx` inbox source by default; a hosted binding is explicit opt-in.
+      event_types:
+        type: json
+        required: false
+      limit:
+        type: number
+        required: false
+        default: 25
+      cursor:
+        type: string
+        required: false
+    result_from: [read]
+    steps:
+      - id: read
+        skill: ../data-store
+        runner: list_stream_heads
+        inputs:
+          data_source_ref: "$input.data_source_ref"
+          resource: operator_inbox_actions
+          event_types: "$input.event_types"
+          limit: "$input.limit"
+          cursor: "$input.cursor"
+
+  list_scans:
+    inputs:
+      data_source_ref:
+        type: string
+        required: true
+      limit:
+        type: number
+        required: false
+        default: 1
+    result_from: [read]
+    steps:
+      - id: read
+        skill: ../data-store
+        runner: list_stream_heads
+        inputs:
+          data_source_ref: "$input.data_source_ref"
+          resource: operator_inbox_scans
+          limit: "$input.limit"
+
+harness:
+  files: [fixtures/support/action-lifecycle.graph]
+  cases: []

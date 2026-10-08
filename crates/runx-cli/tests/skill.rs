@@ -143,7 +143,7 @@ fn native_skill_resolves_bare_local_skill_and_documented_input_flags()
     let skills_root = root.join("skills");
     fs::create_dir_all(&skills_root)?;
     let skill_dir = crate::support::write_agent_task_skill(&skills_root)?;
-    let profile_path = skill_dir.join("X.yaml");
+    let profile_path = skill_dir.join("run.yaml");
     let profile = fs::read_to_string(&profile_path)?;
     fs::write(
         &profile_path,
@@ -319,7 +319,10 @@ fn graph_action_approval_yields_one_operator_resolution() -> Result<(), Box<dyn 
     let declined = serde_json::from_slice::<serde_json::Value>(&declined.stdout)?;
     assert_eq!(declined["status"], "sealed");
     assert_ne!(declined["closure"]["disposition"], "closed");
-    assert!(runx_runtime::journal::find_paused_run(&receipt_dir, run_id)?.is_none());
+    assert!(
+        runx_runtime::run_record::paused_run(&std::collections::BTreeMap::new(), &root, run_id)?
+            .is_none()
+    );
     let receipt_id = declined["receipt_id"]
         .as_str()
         .ok_or("missing receipt id")?;
@@ -375,10 +378,7 @@ fn native_skill_positional_runner_selects_non_default_runner()
         ])
         .output()?;
     let output_json = assert_json(&output, Some(2))?;
-    assert_eq!(
-        output_json["requests"][0]["id"],
-        "agent_task.second-task.output"
-    );
+    assert_eq!(output_json["requests"][0]["id"], "agent.second-task.output");
 
     Ok(())
 }
@@ -392,22 +392,19 @@ fn native_skill_inspect_binds_pinned_local_registry_dependencies()
     fs::create_dir_all(&skill_dir)?;
     fs::write(
         skill_dir.join("SKILL.md"),
-        "---\nname: parent\n---\n# Parent\n",
+        "---\nname: parent\ndescription: parent fixture.\n---\n# Parent\n",
     )?;
     fs::write(
-        skill_dir.join("X.yaml"),
+        skill_dir.join("run.yaml"),
         r#"skill: parent
 runners:
   default:
     default: true
-    type: graph
-    graph:
-      name: parent
-      result_from: [child]
-      steps:
-        - id: child
-          skill: registry:acme/echo@1.0.0
-          runner: default
+    result_from: [child]
+    steps:
+      - id: child
+        skill: registry:acme/echo@1.0.0
+        runner: default
 "#,
     )?;
 
@@ -444,7 +441,7 @@ fn native_skill_exported_shim_resolves_to_source_skill() -> Result<(), Box<dyn s
     fs::write(
         shim_dir.join("SKILL.md"),
         format!(
-            "---\nname: issue-intake\n---\n# issue-intake\n<!-- runx-export:claude source={} - generated, do not edit -->\n",
+            "---\nname: issue-intake\ndescription: issue-intake fixture.\n---\n# issue-intake\n<!-- runx-export:claude source={} - generated, do not edit -->\n",
             source_dir.display()
         ),
     )?;
@@ -489,7 +486,7 @@ fn native_skill_resolves_trusted_registry_ref() -> Result<(), Box<dyn std::error
     let output_json = assert_json(&output, Some(2))?;
     let skill_dir = needs_agent_skill_directory(&output_json)?;
     assert!(skill_dir.join("SKILL.md").exists());
-    assert!(skill_dir.join("X.yaml").exists());
+    assert!(skill_dir.join("run.yaml").exists());
     assert!(skill_dir.to_string_lossy().contains("registry-skills"));
     assert!(skill_dir.to_string_lossy().contains("1.0.0"));
 
@@ -633,11 +630,11 @@ fn native_skill_resolves_registry_versions_side_by_side() -> Result<(), Box<dyn 
     assert!(v2_dir.to_string_lossy().contains("1.1.0"));
     assert_eq!(
         fs::read_to_string(v1_dir.join("SKILL.md"))?,
-        "---\nname: echo\n---\n# Echo\n"
+        "---\nname: echo\ndescription: echo fixture.\n---\n# Echo\n"
     );
     assert_eq!(
         fs::read_to_string(v2_dir.join("SKILL.md"))?,
-        "---\nname: echo\n---\n# Echo\n\nVersion two.\n"
+        "---\nname: echo\ndescription: echo fixture.\n---\n# Echo\n\nVersion two.\n"
     );
 
     Ok(())
@@ -712,100 +709,6 @@ fn native_skill_json_parse_failure_uses_failure_envelope() -> Result<(), Box<dyn
 }
 
 #[test]
-fn native_skill_rejects_legacy_answers_flag() -> Result<(), Box<dyn std::error::Error>> {
-    let root = crate::support::temp_root("runx-skill-reject-answers");
-    let skill_dir = crate::support::write_agent_task_skill(&root)?;
-    let answers_path = root.join("answers.json");
-    fs::write(&answers_path, "{}")?;
-    let output = runx_command()
-        .args([
-            "skill",
-            skill_dir.to_str().ok_or("non-utf8 skill dir")?,
-            "--answers",
-            answers_path.to_str().ok_or("non-utf8 answers path")?,
-        ])
-        .output()?;
-
-    assert_eq!(output.status.code(), Some(64));
-    assert!(
-        String::from_utf8(output.stderr)?.contains("use `runx resume <run-id> <answers.json|->`")
-    );
-    assert_eq!(String::from_utf8(output.stdout)?, "");
-
-    Ok(())
-}
-
-#[test]
-fn native_skill_rejects_legacy_run_id_flag() -> Result<(), Box<dyn std::error::Error>> {
-    let root = crate::support::temp_root("runx-skill-reject-run-id");
-    let skill_dir = crate::support::write_agent_task_skill(&root)?;
-    let output = runx_command()
-        .args([
-            "skill",
-            skill_dir.to_str().ok_or("non-utf8 skill dir")?,
-            "--run-id",
-            "issue-intake-run",
-        ])
-        .output()?;
-
-    assert_eq!(output.status.code(), Some(64));
-    assert!(
-        String::from_utf8(output.stderr)?.contains("use `runx resume <run-id> <answers.json|->`")
-    );
-    assert_eq!(String::from_utf8(output.stdout)?, "");
-
-    Ok(())
-}
-
-#[test]
-fn native_skill_rejects_retired_receipt_options() -> Result<(), Box<dyn std::error::Error>> {
-    let root = crate::support::temp_root("runx-skill-reject-retired-receipt");
-    let skill_dir = crate::support::write_agent_task_skill(&root)?;
-    let receipt_dir = root.join("receipts");
-    let retired_receipt = format!("--{}", "receipt");
-    let retired_receipt_dir = format!("--{}", ["receipt", "Dir"].concat());
-    let retired_receipt_dir_equals = format!(
-        "{}={}",
-        retired_receipt_dir,
-        receipt_dir.to_str().ok_or("non-utf8 receipt dir")?
-    );
-
-    for args in [
-        vec![
-            "skill".to_owned(),
-            skill_dir.to_str().ok_or("non-utf8 skill dir")?.to_owned(),
-            retired_receipt,
-            receipt_dir
-                .to_str()
-                .ok_or("non-utf8 receipt dir")?
-                .to_owned(),
-        ],
-        vec![
-            "skill".to_owned(),
-            skill_dir.to_str().ok_or("non-utf8 skill dir")?.to_owned(),
-            retired_receipt_dir,
-            receipt_dir
-                .to_str()
-                .ok_or("non-utf8 receipt dir")?
-                .to_owned(),
-        ],
-        vec![
-            "skill".to_owned(),
-            skill_dir.to_str().ok_or("non-utf8 skill dir")?.to_owned(),
-            retired_receipt_dir_equals,
-        ],
-    ] {
-        let output = runx_command().args(args).output()?;
-        assert_eq!(output.status.code(), Some(64));
-        assert!(String::from_utf8(output.stderr)?.contains("retired runx skill receipt option"));
-        assert_eq!(String::from_utf8(output.stdout)?, "");
-    }
-
-    Ok(())
-}
-
-#[cfg(unix)]
-#[test]
 fn terminal_interrupt_exits_130_and_kills_the_active_skill_context()
 -> Result<(), Box<dyn std::error::Error>> {
     let root = crate::support::temp_root("runx-skill-interrupt");
@@ -816,19 +719,12 @@ fn terminal_interrupt_exits_130_and_kills_the_active_skill_context()
         "---\nname: interrupt-fixture\ndescription: Interrupt fixture.\n---\n\n# Interrupt fixture\n",
     )?;
     fs::write(
-        skill_dir.join("X.yaml"),
+        skill_dir.join("run.yaml"),
         r#"skill: interrupt-fixture
 version: "0.1.0"
 runners:
   default:
     default: true
-    type: cli-tool
-    command: sh
-    args:
-      - ./run.sh
-      - "{{started_path}}"
-      - "{{sentinel_path}}"
-    timeout_seconds: 30
     inputs:
       started_path:
         type: string
@@ -836,6 +732,14 @@ runners:
       sentinel_path:
         type: string
         required: true
+    steps:
+      - id: default
+        tool: { command: sh, args: [./run.sh, "{{started_path}}", "{{sentinel_path}}"], timeout_seconds: 30 }
+        inputs:
+          started_path: $input.started_path
+          sentinel_path: $input.sentinel_path
+        outputs:
+          completed: boolean
 "#,
     )?;
     fs::write(
@@ -910,19 +814,22 @@ fn terminal_interrupt_kills_the_active_javascript_worker_before_the_watchdog()
         "---\nname: javascript-interrupt-fixture\ndescription: JavaScript interrupt fixture.\n---\n\n# JavaScript interrupt fixture\n",
     )?;
     fs::write(
-        skill_dir.join("X.yaml"),
+        skill_dir.join("run.yaml"),
         r#"skill: javascript-interrupt-fixture
 version: "0.1.0"
 runners:
   default:
     default: true
-    type: javascript
-    module: main.mjs
+    steps:
+      - id: default
+        tool: { module: main.mjs }
+        outputs:
+          completed: boolean
 "#,
     )?;
     fs::write(
         skill_dir.join("main.mjs"),
-        "export default function run() { return {}; }\n",
+        "export default function run() { return { completed: true }; }\n",
     )?;
 
     // `wc` blocks on the worker protocol pipe without producing a response.
@@ -1063,15 +970,15 @@ fn write_operator_context_skill(root: &Path) -> Result<PathBuf, Box<dyn std::err
     fs::create_dir_all(child_dir.join("tools/example/record"))?;
     fs::write(
         skill_dir.join("SKILL.md"),
-        "---\nname: operator-context\n---\n# Operator Context Fixture\n",
+        "---\nname: operator-context\ndescription: operator-context fixture.\n---\n# Operator Context Fixture\n",
     )?;
     fs::write(
         child_dir.join("SKILL.md"),
-        "---\nname: nested-review\n---\n# Nested Review Skill\n\nJudge the work against the supplied review-rubric context skill.\n",
+        "---\nname: nested-review\ndescription: nested-review fixture.\n---\n# Nested Review Skill\n\nJudge the work against the supplied review-rubric context skill.\n",
     )?;
     fs::write(
         child_dir.join("context/review-rubric/SKILL.md"),
-        "---\nname: review-rubric\nrunx:\n  category: context\n---\n# Review Rubric\n\nproduction bar from context skill\n",
+        "---\nname: review-rubric\ndescription: Review rubric context skill.\n---\n# Review Rubric\n\nproduction bar from context skill\n",
     )?;
     fs::write(
         child_dir.join("tools/example/record/manifest.json"),
@@ -1080,7 +987,6 @@ fn write_operator_context_skill(root: &Path) -> Result<PathBuf, Box<dyn std::err
   "name": "example.record",
   "description": "Records a reviewed decision.",
   "source": {
-    "type": "cli-tool",
     "command": "node",
     "args": ["record.mjs"],
     "input_mode": "stdin"
@@ -1104,46 +1010,37 @@ fn write_operator_context_skill(root: &Path) -> Result<PathBuf, Box<dyn std::err
         "process.stdout.write(JSON.stringify({ decision: 'recorded' }));\n",
     )?;
     fs::write(
-        skill_dir.join("X.yaml"),
+        skill_dir.join("run.yaml"),
         r#"
 skill: operator-context
 runners:
   review:
     default: true
-    type: graph
-    graph:
-      name: operator-context-review
-      result_from: [review]
-      steps:
-        - id: review
-          skill: ./nested-review
+    result_from: [review]
+    steps:
+      - id: review
+        skill: ./nested-review
 "#,
     )?;
     fs::write(
-        child_dir.join("X.yaml"),
+        child_dir.join("run.yaml"),
         r#"
 skill: nested-review
 runners:
   nested-review:
     default: true
-    type: graph
-    graph:
-      name: nested-review
-      result_from: [record]
-      steps:
-        - id: verdict
-          run:
-            type: agent-task
-            agent: reviewer
-            task: operator-context-review
-            outputs:
-              decision: string
-          context_skills:
-            - ./context/review-rubric
-        - id: record
-          tool: example.record
-          context:
-            decision: verdict.decision
+    result_from: [record]
+    steps:
+      - id: verdict
+        agent: { role: reviewer, task: operator-context-review }
+        outputs:
+          decision: string
+        context_skills:
+          - ./context/review-rubric
+      - id: record
+        tool: example.record
+        context:
+          decision: verdict.decision
 "#,
     )?;
     Ok(skill_dir)
@@ -1154,39 +1051,26 @@ fn write_approval_graph_skill(root: &Path) -> Result<PathBuf, Box<dyn std::error
     fs::create_dir_all(&skill_dir)?;
     fs::write(
         skill_dir.join("SKILL.md"),
-        "---\nname: approval-graph\n---\n# Approval Graph\n",
+        "---\nname: approval-graph\ndescription: approval-graph fixture.\n---\n# Approval Graph\n",
     )?;
     fs::write(
         skill_dir.join("fail.mjs"),
         "export function fail() { throw new Error('expected terminal fault'); }\n",
     )?;
     fs::write(
-        skill_dir.join("X.yaml"),
+        skill_dir.join("run.yaml"),
         r#"
 skill: approval-graph
 runners:
   approval-graph:
     default: true
-    type: graph
-    graph:
-      name: approval-graph
-      result_from: [fail]
-      steps:
-        - id: approve
-          run:
-            type: approval
-          inputs:
-            gate_id: approval-graph.local-development
-            reason: approve the local development fixture
-          artifacts:
-            wrap_as: approval_decision
-            packet: runx.approval.decision.v1
-        - id: fail
-          run:
-            type: javascript
-            module: fail.mjs
-            export: fail
-            outputs: { result: object }
+    result_from: [fail]
+    steps:
+      - id: approve
+        ask: { gate: approval-graph.local-development, reason: approve the local development fixture }
+      - id: fail
+        tool: { module: fail.mjs, export: fail }
+        outputs: { result: object }
 "#,
     )?;
     Ok(skill_dir)
@@ -1197,26 +1081,26 @@ fn write_multi_runner_skill(root: &Path) -> Result<PathBuf, Box<dyn std::error::
     fs::create_dir_all(&skill_dir)?;
     fs::write(
         skill_dir.join("SKILL.md"),
-        "---\nname: multi-runner\n---\n# Multi Runner\n",
+        "---\nname: multi-runner\ndescription: multi-runner fixture.\n---\n# Multi Runner\n",
     )?;
     fs::write(
-        skill_dir.join("X.yaml"),
+        skill_dir.join("run.yaml"),
         r#"
 skill: multi-runner
 runners:
   first:
     default: true
-    type: agent-task
-    agent: builder
-    task: first-task
-    outputs:
-      result: object
+    steps:
+      - id: first
+        agent: { role: builder, task: first-task }
+        outputs:
+          result: object
   second:
-    type: agent-task
-    agent: builder
-    task: second-task
-    outputs:
-      result: object
+    steps:
+      - id: second
+        agent: { role: builder, task: second-task }
+        outputs:
+          result: object
 "#,
     )?;
     Ok(skill_dir)
@@ -1244,11 +1128,11 @@ fn publish_registry_echo_version_into(
     fs::create_dir_all(&skill_dir)?;
     fs::write(
         skill_dir.join("SKILL.md"),
-        format!("---\nname: echo\n---\n{markdown_body}"),
+        format!("---\nname: echo\ndescription: echo fixture.\n---\n{markdown_body}"),
     )?;
     fs::write(
-        skill_dir.join("X.yaml"),
-        include_str!("../../../fixtures/registry/install/echo-X.yaml"),
+        skill_dir.join("run.yaml"),
+        include_str!("../../../fixtures/registry/install/echo-run.yaml"),
     )?;
     let publish = trusted_registry_runx_command(root)?
         .args([

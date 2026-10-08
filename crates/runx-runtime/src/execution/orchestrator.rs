@@ -16,9 +16,7 @@ use super::harness::{HarnessReplayError, HarnessReplayOutput};
 use super::prepared_skill::{
     PreparedEntryProvenance, PreparedSkillRun, prepare_skill_run_with_effects,
 };
-#[cfg(feature = "cli-tool")]
-use super::runner::GraphRun;
-#[cfg(feature = "cli-tool")]
+#[cfg(feature = "process-tool")]
 use super::skill_front::PackageHarnessReport;
 use super::skill_front::SkillRunError;
 use crate::effects::RuntimeEffectRegistry;
@@ -86,11 +84,6 @@ pub struct SkillRunRequest {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct GraphRunRequest {
-    pub graph_path: PathBuf,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct HarnessRunRequest {
     pub fixture_path: PathBuf,
     pub receipt_dir: Option<PathBuf>,
@@ -114,7 +107,6 @@ pub struct RunContinuation {
 #[derive(Clone, Debug, PartialEq)]
 pub enum RunRequest {
     Skill(Box<SkillRunRequest>),
-    Graph(GraphRunRequest),
     Harness(HarnessRunRequest),
 }
 
@@ -174,9 +166,9 @@ pub enum OrchestratorError {
     #[error(transparent)]
     ReceiptStore(#[from] crate::receipts::store::ReceiptStoreError),
     #[error(
-        "native graph orchestration is unavailable because runx-runtime was built without the cli-tool feature"
+        "native graph orchestration is unavailable because runx-runtime was built without the process-tool feature"
     )]
-    CliToolFeatureDisabled,
+    ProcessToolFeatureDisabled,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -216,7 +208,6 @@ impl LocalOrchestrator {
     pub fn run(&self, request: RunRequest) -> Result<RunResult, OrchestratorError> {
         match request {
             RunRequest::Skill(request) => self.run_skill(&request),
-            RunRequest::Graph(request) => self.run_graph(&request),
             RunRequest::Harness(request) => self.run_harness(&request),
         }
     }
@@ -344,27 +335,11 @@ impl LocalOrchestrator {
         Ok(output)
     }
 
-    pub fn run_graph(&self, request: &GraphRunRequest) -> Result<RunResult, OrchestratorError> {
-        #[cfg(feature = "cli-tool")]
-        {
-            let mut options = super::runner::RuntimeOptions::from_env(self.environment.clone())?;
-            options.effects = self.effects.clone();
-            let runtime =
-                super::runner::Runtime::new(crate::adapters::cli_tool::CliToolAdapter, options);
-            graph_result(runtime.run_graph_file(&request.graph_path)?)
-        }
-        #[cfg(not(feature = "cli-tool"))]
-        {
-            let _ = (&self.environment, request);
-            Err(OrchestratorError::CliToolFeatureDisabled)
-        }
-    }
-
     pub fn run_harness(&self, request: &HarnessRunRequest) -> Result<RunResult, OrchestratorError> {
         harness_result(self.run_harness_fixture(request)?)
     }
 
-    #[cfg(feature = "cli-tool")]
+    #[cfg(feature = "process-tool")]
     pub fn run_package_harness(
         &self,
         request: &PackageHarnessRequest,
@@ -377,13 +352,12 @@ impl LocalOrchestrator {
         )?)
     }
 
-    #[cfg(feature = "cli-tool")]
+    #[cfg(feature = "process-tool")]
     pub fn run_harness_fixture(
         &self,
         request: &HarnessRunRequest,
     ) -> Result<HarnessReplayOutput, OrchestratorError> {
         let (mut options, receipt_dir) = standalone_harness_options(request, &self.environment)?;
-        options.created_at = crate::time::DEFAULT_CREATED_AT.to_owned();
         options.effects = self.effects.clone();
         // Like a package case, the case runs in a home and a receipt root of
         // its own, so neither the operator's profiles nor another case's
@@ -407,29 +381,29 @@ impl LocalOrchestrator {
         );
         let output = super::harness::run_harness_fixture_with_adapter(
             &request.fixture_path,
-            super::skill_front::SkillSourceAdapter::default(),
+            super::skill_front::ExecutableAdapter,
             case,
         )?;
         persist_harness_receipts(&output, &options, &receipt_dir)?;
         Ok(output)
     }
 
-    #[cfg(not(feature = "cli-tool"))]
+    #[cfg(not(feature = "process-tool"))]
     pub fn run_harness_fixture(
         &self,
         request: &HarnessRunRequest,
     ) -> Result<HarnessReplayOutput, OrchestratorError> {
         let _ = self;
         let _ = request;
-        Err(OrchestratorError::CliToolFeatureDisabled)
+        Err(OrchestratorError::ProcessToolFeatureDisabled)
     }
 }
 
-#[cfg(feature = "cli-tool")]
+#[cfg(feature = "process-tool")]
 fn standalone_harness_options(
     request: &HarnessRunRequest,
     environment: &BTreeMap<String, String>,
-) -> Result<(super::runner::RuntimeOptions, PathBuf), OrchestratorError> {
+) -> Result<(super::harness::HarnessOptions, PathBuf), OrchestratorError> {
     use crate::receipts::paths::RUNX_RECEIPT_DIR_ENV;
 
     let workspace = crate::WorkspaceEnv::from_admitted(environment.clone())
@@ -449,44 +423,30 @@ fn standalone_harness_options(
         RUNX_RECEIPT_DIR_ENV.to_owned(),
         receipt_dir.to_string_lossy().into_owned(),
     );
-    let options = super::runner::RuntimeOptions::from_env_or_local_development(env)?;
+    let options = super::harness::HarnessOptions::from_env(env)?;
     Ok((options, receipt_dir))
 }
 
-#[cfg(feature = "cli-tool")]
+#[cfg(feature = "process-tool")]
 fn persist_harness_receipts(
     output: &HarnessReplayOutput,
-    options: &super::runner::RuntimeOptions,
+    options: &super::harness::HarnessOptions,
     receipt_dir: &std::path::Path,
 ) -> Result<(), OrchestratorError> {
-    options.receipt_services().write_local_receipts(
-        output
-            .steps
-            .iter()
-            .flat_map(|step| {
-                step.nested_receipts
-                    .iter()
-                    .chain(std::iter::once(&step.receipt))
-            })
-            .chain(std::iter::once(&output.receipt)),
-        receipt_dir,
-    )?;
+    crate::services::ReceiptServices::from_signature_config(options.receipt_signature.clone())
+        .write_local_receipts(
+            output
+                .steps
+                .iter()
+                .flat_map(|step| {
+                    step.nested_receipts
+                        .iter()
+                        .chain(std::iter::once(&step.receipt))
+                })
+                .chain(std::iter::once(&output.receipt)),
+            receipt_dir,
+        )?;
     Ok(())
-}
-
-#[cfg(feature = "cli-tool")]
-fn graph_result(run: GraphRun) -> Result<RunResult, OrchestratorError> {
-    let status = status_from_receipt(&run.receipt);
-    let output = receipt_json(&run.receipt)?;
-    Ok(RunResult {
-        status,
-        disposition: Some(run.receipt.seal.disposition.clone()),
-        output,
-        receipt_refs: vec![run.receipt.id.to_string()],
-        child_receipt_refs: child_receipt_refs(&run.receipt),
-        pending_requests: Vec::new(),
-        diagnostics: Vec::new(),
-    })
 }
 
 fn harness_result(output: HarnessReplayOutput) -> Result<RunResult, OrchestratorError> {

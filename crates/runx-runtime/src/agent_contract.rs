@@ -80,8 +80,8 @@ mod tests {
     use std::collections::BTreeMap;
 
     use runx_contracts::{
-        AgentActInvocation, AgentActSourceType, AgentContextEnvelope, JsonValue, OutputField,
-        OutputType, ResolutionRequest,
+        AgentActInvocation, AgentContextEnvelope, JsonValue, OutputField, OutputType,
+        ResolutionRequest,
     };
 
     use super::verified_agent_metadata;
@@ -109,9 +109,8 @@ mod tests {
             id: "req_1".into(),
             invocation: Box::new(AgentActInvocation {
                 id: "act_1".into(),
-                source_type: AgentActSourceType::Agent,
-                agent: None,
-                task: None,
+                role: "planner".into(),
+                task: "notify".into(),
                 envelope,
             }),
         })

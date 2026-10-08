@@ -108,7 +108,7 @@ function readFilter(value) {
     status,
     from: stringValue(timeRange.from),
     to: stringValue(timeRange.to),
-    source: stringValue(filter.source),
+    issuer: stringValue(filter.issuer),
     actor: stringValue(filter.actor) || stringValue(filter.principal),
     limit: boundedLimit(filter.limit),
   };

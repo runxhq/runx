@@ -21,7 +21,7 @@ inputs:
   operator_context: Refuse any request to bypass approval for a live customer send.
 caller:
   answers:
-    agent_task.send-as.output:
+    agent.send-as.output:
       send_plan:
         decision: refused
         action_family: send-as
@@ -68,15 +68,16 @@ expect:
   output:
     subset:
       send_plan:
-        decision: refused
-        gates:
-          human_approval_required: true
-          approval_ref: ""
-        blockers:
-          - live customer send approval cannot be bypassed
-        provider_actions: []
-        success_checkpoint:
-          milestone: send_refused
+        data:
+          decision: refused
+          gates:
+            human_approval_required: true
+            approval_ref: ""
+          blockers:
+            - live customer send approval cannot be bypassed
+          provider_actions: []
+          success_checkpoint:
+            milestone: send_refused
 metadata:
   public_skill: send-as
   source_case: approval-bypass-is-refused

@@ -1,3 +1,4 @@
+#[cfg(feature = "async-http")]
 mod http;
 #[cfg(feature = "async-http")]
 mod index;
@@ -6,10 +7,11 @@ mod local;
 pub(crate) mod package_bundle;
 mod package_files;
 mod package_metadata;
+#[cfg(feature = "async-http")]
 mod payload;
 #[cfg(feature = "async-http")]
 mod publish;
-#[cfg(feature = "cli-tool")]
+#[cfg(feature = "process-tool")]
 mod publish_package;
 mod refs;
 mod source_authority;
@@ -18,6 +20,7 @@ mod types;
 
 use runx_contracts::{JsonNumber, JsonObject, JsonValue};
 
+#[cfg(feature = "async-http")]
 pub use http::{AcquireOptions, RegistryClient, RegistryClientError};
 #[cfg(feature = "async-http")]
 pub use index::{
@@ -41,7 +44,7 @@ pub use publish::{
     HostedAdminSkillPublishRequest, HostedSkillPublishRequest, HostedSkillPublishResult,
     RegistryPublishError, publish_hosted_admin_skill, publish_hosted_skill,
 };
-#[cfg(feature = "cli-tool")]
+#[cfg(feature = "process-tool")]
 pub use publish_package::{
     RegistryPublishPackage, RegistryPublishPackageError, RegistryPublishPackageParts,
     RegistryPublishPackageRequest, prepare_registry_publish_package,

@@ -3,16 +3,8 @@ use super::super::types::{
 };
 use super::index::SequentialGraphStepIndex;
 
-pub(super) fn retry_budget_exhausted(
-    step_state: &SequentialGraphStepState,
-    step_definition: &SequentialGraphStepDefinition,
-) -> bool {
+pub(super) fn step_failed(step_state: &SequentialGraphStepState) -> bool {
     step_state.status == GraphStepStatus::Failed
-        && step_state.attempts
-            >= step_definition
-                .retry
-                .as_ref()
-                .map_or(1, |retry| retry.max_attempts)
 }
 
 fn missing_context(

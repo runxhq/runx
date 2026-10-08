@@ -349,7 +349,7 @@ fn validate_provider_boundary(
     let provider_lane = architecture
         .required_behaviors
         .iter()
-        .any(|behavior| behavior.lane == SkillExecutionLane::ProviderAdapter);
+        .any(|behavior| behavior.lane == SkillExecutionLane::Operation);
     let provider_effect = architecture
         .effects
         .iter()

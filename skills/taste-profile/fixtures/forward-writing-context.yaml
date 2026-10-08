@@ -1,9 +1,9 @@
 name: taste-profile-forwards-to-two-writing-tasks
 kind: graph
-target: ../harness/forward-writing-context.yaml
+target: support/forward-writing-context.graph
 caller:
   answers:
-    agent_task.taste-profile-synthesize.output:
+    agent.taste-profile-synthesize.output:
       taste_profile_draft:
         decision: ready
         subject: runx maintainer
@@ -22,7 +22,7 @@ caller:
           - { rule: Choose operational clarity over decorative flourish., source_refs: [source:1, source:2], confidence: inferred }
         redactions: []
         stop_conditions: [Do not apply this packet outside the declared surface.]
-    agent_task.ghostwrite-draft.output:
+    agent.ghostwrite-draft.output:
       content_draft:
         decision: ready
         content_brief: { objective: Explain the strongest Runx architecture signal., audience: operators, channel: brief }
@@ -36,7 +36,7 @@ caller:
             - { packet_digest: sha256:b5ab80e6d9bee911cfbed34c80f55539bc57a22a72a4cc775bc02085ab2472e9, applied_rules: [Choose operational clarity over decorative flourish.] }
         review_checklist: []
         distribution_notes: { primary_channel: brief }
-    agent_task.twitter-plan.output:
+    agent.twitter-plan.output:
       twitter_plan:
         decision: ready
         objective: Prepare one exact public update about governed receipts.

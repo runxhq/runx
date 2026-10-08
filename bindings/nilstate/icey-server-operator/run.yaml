@@ -1,0 +1,108 @@
+skill: icey-server-operator
+
+runners:
+  operator-plan:
+    default: true
+    inputs:
+      request:
+        type: string
+        required: true
+        description: "The icey-server maintenance, release, packaging, runtime, or docs task to plan."
+      target_surface:
+        type: string
+        required: false
+        description: "Optional explicit surface: server, web, docker, packaging, release, docs, or runtime."
+    runx:
+      tags:
+        - cpp
+        - operator
+        - release
+        - packaging
+    steps:
+      - id: operator-plan
+        agent: { role: operator, task: icey-server-operator-plan }
+        inputs:
+          request: $input.request
+          target_surface: $input.target_surface
+        outputs:
+          classification:
+            type: string
+          evidence_to_inspect:
+            type: array
+          command_plan:
+            type: array
+          validation_plan:
+            type: array
+          safety_notes:
+            type: array
+          operator_plan:
+            type: object
+        artifacts:
+          named_emits:
+            operator_plan: operator_plan
+        scopes:
+          - repo:read
+
+harness:
+  cases:
+    - name: operator-plan-classifies-surfaces
+      runner: operator-plan
+      inputs:
+        request: "Plan a safe change to the browser smoke workflow after adjusting the bundled web UI."
+        target_surface: "web"
+      caller:
+        answers:
+          agent.icey-server-operator-plan.output:
+            classification: "web"
+            evidence_to_inspect:
+              - "README.md"
+              - "web/package.json"
+              - ".github/workflows/ci.yml"
+            command_plan:
+              - "Inspect the web package scripts and existing browser smoke gates."
+              - "Build the Vite bundle before touching runtime claims."
+            validation_plan:
+              - "Run the web build."
+              - "Run the browser smoke path described by the repo when available."
+            safety_notes:
+              - "Do not claim Safari support from Linux WebKit smoke alone."
+            operator_plan:
+              surface: "web"
+              summary: "Inspect and validate the bundled web UI smoke path without widening browser support claims."
+      expect:
+        status: sealed
+        receipt:
+          schema: runx.receipt.v1
+          state: sealed
+
+    - name: release-plan-preserves-pins
+      runner: operator-plan
+      inputs:
+        request: "Plan an icey-server release package update."
+        target_surface: "release"
+      caller:
+        answers:
+          agent.icey-server-operator-plan.output:
+            classification: "release"
+            evidence_to_inspect:
+              - "VERSION"
+              - "ICEY_VERSION"
+              - "CHANGELOG.md"
+              - ".github/workflows/release.yml"
+              - "packaging/README.md"
+            command_plan:
+              - "Read VERSION and ICEY_VERSION before making release claims."
+              - "Keep package-manager manifests tied to generated archives and checksums."
+            validation_plan:
+              - "Run release metadata validation."
+              - "Run package-manager checks when publication metadata changes."
+            safety_notes:
+              - "Do not float the pinned nilstate/icey dependency during release work."
+            operator_plan:
+              surface: "release"
+              summary: "Preserve VERSION and ICEY_VERSION provenance while validating release packaging metadata."
+      expect:
+        status: sealed
+        receipt:
+          schema: runx.receipt.v1
+          state: sealed

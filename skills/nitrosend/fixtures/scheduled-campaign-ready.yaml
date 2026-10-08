@@ -23,7 +23,7 @@ inputs:
   operator_context: Live delivery requires explicit operator confirmation before nitro_control_delivery.
 caller:
   answers:
-    agent_task.send-campaign.output:
+    agent.send-campaign.output:
       campaign_plan:
         decision: ready
         canonical_skill: runx/send-as

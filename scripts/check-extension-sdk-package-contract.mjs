@@ -22,7 +22,6 @@ const exec = {
   },
 };
 
-await assertRetiredAuthoringPackage();
 await execFileAsync(process.execPath, ["scripts/build-workspace.mjs", "--pack"], {
   cwd: workspaceRoot,
   ...exec,
@@ -88,20 +87,6 @@ try {
 } finally {
   await Promise.all(tarballs.map((tarball) => rm(tarball, { force: true })));
   await rm(tempRoot, { recursive: true, force: true });
-}
-
-async function assertRetiredAuthoringPackage() {
-  const rootManifest = JSON.parse(await readFile(path.join(workspaceRoot, "package.json"), "utf8"));
-  if (rootManifest.devDependencies?.["@runxhq/authoring"] !== undefined) {
-    throw new Error("root manifest still depends on retired @runxhq/authoring");
-  }
-  try {
-    await readFile(path.join(workspaceRoot, "packages", "authoring", "package.json"), "utf8");
-    throw new Error("packages/authoring still owns a package manifest");
-  } catch (error) {
-    if (error instanceof Error && "code" in error && error.code === "ENOENT") return;
-    throw error;
-  }
 }
 
 async function pack(packageRoot) {

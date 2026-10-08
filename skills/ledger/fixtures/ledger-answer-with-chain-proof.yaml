@@ -44,4 +44,3 @@ metadata:
   public_skill: ledger
   source_case: ledger-answer-with-chain-proof
   source: skills-fixture
-  runner_kind: cli-tool

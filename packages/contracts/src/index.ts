@@ -813,3 +813,5 @@ export const runxAuxiliarySchemas = {
 } as const;
 
 export const runxGeneratedSchemaArtifacts = runxSchemaArtifacts;
+
+export { skillOutputV1Schema, projectArtifactRefV1Schema, validateSkillOutputContract, validateProjectArtifactRefContract, type SkillOutputContract, type ProjectArtifactRefContract } from "./schemas/skill-output.js";

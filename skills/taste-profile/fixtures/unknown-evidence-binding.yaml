@@ -9,7 +9,7 @@ inputs:
     - { kind: disliked, content: Decorative marketing cards that hide the workflow. }
 caller:
   answers:
-    agent_task.taste-profile-synthesize.output:
+    agent.taste-profile-synthesize.output:
       taste_profile_draft:
         decision: ready
         subject: runx maintainer

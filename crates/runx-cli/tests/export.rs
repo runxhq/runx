@@ -28,7 +28,7 @@ fn exports_public_skills_to_claude_global_with_absolute_delegation()
     assert_eq!(report.exported[0].skill, "visible");
     let shim = fixture.read_home_file(".claude/skills/visible/SKILL.md")?;
     assert!(shim.contains(
-        "allowed-tools: Bash(/opt/runx/bin/runx skill *), Bash(/opt/runx/bin/runx resume *)"
+        "allowed-tools: Bash(/opt/runx/bin/runx skill *) Bash(/opt/runx/bin/runx resume *)"
     ));
     assert!(!shim.contains("allowed-tools: Bash(/opt/runx/bin/runx *)"));
     assert!(shim.contains("/opt/runx/bin/runx skill"));
@@ -209,32 +209,6 @@ Choose the smallest governed skill and invoke it with `runx skill`.
     assert!(shim.contains("runx-export:codex"));
     assert!(!shim.contains("/opt/runx/bin/runx skill"));
     assert!(!shim.contains("--prompt \"<prompt>\""));
-    Ok(())
-}
-
-#[test]
-fn exports_namespaced_repo_skills_with_codex_safe_names() -> Result<(), Box<dyn std::error::Error>>
-{
-    let fixture = ExportFixture::new("runx-export-namespaced")?;
-    fixture.write_namespaced_skill("acme", "triage")?;
-
-    let report = run_export_command(
-        &ExportPlan {
-            target: Target::Codex,
-            refs: Vec::new(),
-            project: false,
-            json: false,
-        },
-        &fixture.project,
-        &fixture.env,
-    )?;
-
-    assert_eq!(report.exported.len(), 1);
-    assert_eq!(report.exported[0].skill, "acme-triage");
-    let shim = fixture.read_home_file(".codex/skills/acme-triage/SKILL.md")?;
-    assert!(shim.contains("name: acme-triage"));
-    assert!(shim.contains("skill /"));
-    assert!(shim.contains("skills/acme/triage"));
     Ok(())
 }
 
@@ -455,7 +429,7 @@ fn reexport_prunes_only_marked_generated_files() -> Result<(), Box<dyn std::erro
     fs::write(
         &managed,
         format!(
-            "---\nname: stale\n---\n<!-- runx-export:claude source={} - generated, do not edit -->\n",
+            "---\nname: stale\ndescription: stale fixture.\n---\n<!-- runx-export:claude source={} - generated, do not edit -->\n",
             fs::canonicalize(&fixture.project)?
                 .join("skills/stale")
                 .display()
@@ -463,9 +437,12 @@ fn reexport_prunes_only_marked_generated_files() -> Result<(), Box<dyn std::erro
     )?;
     fs::write(
         &foreign,
-        "---\nname: foreign\n---\n<!-- runx-export:claude source=/another/workspace/skills/foreign - generated, do not edit -->\n",
+        "---\nname: foreign\ndescription: foreign fixture.\n---\n<!-- runx-export:claude source=/another/workspace/skills/foreign - generated, do not edit -->\n",
     )?;
-    fs::write(&manual, "---\nname: manual\n---\n# Hand-authored\n")?;
+    fs::write(
+        &manual,
+        "---\nname: manual\ndescription: manual fixture.\n---\n# Hand-authored\n",
+    )?;
 
     let report = run_export_command(
         &ExportPlan {
@@ -496,7 +473,7 @@ fn full_export_outside_a_skill_workspace_fails_before_pruning()
     fs::write(
         &managed,
         format!(
-            "---\nname: existing\n---\n<!-- runx-export:codex source={} - generated, do not edit -->\n",
+            "---\nname: existing\ndescription: existing fixture.\n---\n<!-- runx-export:codex source={} - generated, do not edit -->\n",
             fixture.project.join("skills/existing").display()
         ),
     )?;
@@ -530,7 +507,10 @@ fn export_refuses_to_overwrite_an_unmanaged_skill() -> Result<(), Box<dyn std::e
     fixture.write_skill("visible", None)?;
     let manual = fixture.home.join(".codex/skills/visible/SKILL.md");
     fs::create_dir_all(manual.parent().ok_or("manual parent")?)?;
-    fs::write(&manual, "---\nname: visible\n---\n# Hand-authored\n")?;
+    fs::write(
+        &manual,
+        "---\nname: visible\ndescription: visible fixture.\n---\n# Hand-authored\n",
+    )?;
 
     let Err(error) = run_export_command(
         &ExportPlan {
@@ -553,7 +533,7 @@ fn export_refuses_to_overwrite_an_unmanaged_skill() -> Result<(), Box<dyn std::e
     }
     assert_eq!(
         fs::read_to_string(manual)?,
-        "---\nname: visible\n---\n# Hand-authored\n"
+        "---\nname: visible\ndescription: visible fixture.\n---\n# Hand-authored\n"
     );
     Ok(())
 }
@@ -644,12 +624,10 @@ fn rejects_skill_names_that_escape_export_directory() -> Result<(), Box<dyn std:
         Err(error) => error,
     };
 
-    match error {
-        ExportError::InvalidArgs(message) => {
-            assert!(message.contains("cannot be exported"));
-        }
-        other => return Err(format!("unexpected error: {other}").into()),
-    }
+    assert!(
+        error.to_string().contains("name '../outside' must be"),
+        "unexpected error: {error}"
+    );
     assert!(!fixture.home.join(".claude/outside/SKILL.md").exists());
     Ok(())
 }
@@ -774,9 +752,9 @@ impl ExportFixture {
             ),
         )?;
         fs::write(
-            dir.join("X.yaml"),
+            dir.join("run.yaml"),
             format!(
-                "skill: {name}\ncatalog:\n  kind: skill\n  audience: public\n  visibility: {}\n  role: context\n{harness}runners:\n  default:\n    default: true\n    type: agent-task\n    agent: reviewer\n    task: {name}\n    inputs:\n      {input_name}:\n        type: string\n        required: true\n        description: Work to perform.\n",
+                "skill: {name}\ncatalog:\n  kind: skill\n  audience: public\n  visibility: {}\n  role: context\n{harness}runners:\n  default:\n    default: true\n    inputs:\n      {input_name}:\n        type: string\n        required: true\n        description: Work to perform.\n    steps:\n      - id: default\n        agent: {{ role: reviewer, task: {name} }}\n        outputs:\n          result: object\n",
                 visibility.unwrap_or("public")
             ),
         )?;
@@ -801,33 +779,9 @@ impl ExportFixture {
             ),
         )?;
         fs::write(
-            dir.join("X.yaml"),
+            dir.join("run.yaml"),
             format!(
-                "skill: {name}\ncatalog:\n  kind: skill\n  audience: operator\n  visibility: public\n  role: canonical\nrunners:\n  payments:\n    type: graph\n    graph:\n      name: payments\n      result_from: [read]\n      steps:\n        - id: read\n          tool: data.compare\n  payout_preflight:\n    type: graph\n    inputs:\n      claim:\n        type: string\n        required: true\n    graph:\n      name: payout-preflight\n      result_from: [read]\n      steps:\n        - id: read\n          tool: data.compare\n"
-            ),
-        )?;
-        Ok(())
-    }
-
-    fn write_namespaced_skill(
-        &self,
-        owner: &str,
-        name: &str,
-    ) -> Result<(), Box<dyn std::error::Error>> {
-        let declared_name = format!("{owner}/{name}");
-        let dir = self.project.join("skills").join(owner).join(name);
-        let harness = readiness_harness("default", &["objective"]);
-        fs::create_dir_all(&dir)?;
-        fs::write(
-            dir.join("SKILL.md"),
-            format!(
-                "---\nname: {declared_name}\ndescription: Export {declared_name} through runx.\n---\n# {declared_name}\n"
-            ),
-        )?;
-        fs::write(
-            dir.join("X.yaml"),
-            format!(
-                "skill: {declared_name}\ncatalog:\n  kind: skill\n  audience: operator\n  visibility: public\n  role: canonical\n{harness}runners:\n  default:\n    default: true\n    type: agent-task\n    agent: reviewer\n    task: {name}\n    inputs:\n      objective:\n        type: string\n        required: true\n        description: Work to perform.\n"
+                "skill: {name}\ncatalog:\n  kind: skill\n  audience: operator\n  visibility: public\n  role: canonical\nrunners:\n  payments:\n    result_from: [read]\n    steps:\n      - id: read\n        tool: data.compare\n  payout_preflight:\n    inputs:\n      claim:\n        type: string\n        required: true\n    result_from: [read]\n    steps:\n      - id: read\n        tool: data.compare\n"
             ),
         )?;
         Ok(())
@@ -853,9 +807,9 @@ impl ExportFixture {
             format!("---\nname: {name}\ndescription: Export {name} through runx.\n---\n# {name}\n"),
         )?;
         fs::write(
-            dir.join("X.yaml"),
+            dir.join("run.yaml"),
             format!(
-                "skill: {name}\ncatalog:\n  kind: skill\n  audience: public\n  visibility: public\n  role: canonical\n{harness}runners:\n  plan:\n    default: true\n    type: agent-task\n    agent: reviewer\n    task: {name}\n    inputs:\n      objective:\n        type: string\n        required: true\n        description: Bounded send objective.\n      principal:\n        type: string\n        required: true\n        description: Principal represented by the send.\n      provider_context:\n        type: json\n        required: false\n        description: Provider readiness.\n"
+                "skill: {name}\ncatalog:\n  kind: skill\n  audience: public\n  visibility: public\n  role: canonical\n{harness}runners:\n  plan:\n    default: true\n    inputs:\n      objective:\n        type: string\n        required: true\n        description: Bounded send objective.\n      principal:\n        type: string\n        required: true\n        description: Principal represented by the send.\n      provider_context:\n        type: json\n        required: false\n        description: Provider readiness.\n    steps:\n      - id: plan\n        agent: {{ role: reviewer, task: {name} }}\n        outputs:\n          result: object\n"
             ),
         )?;
         Ok(())

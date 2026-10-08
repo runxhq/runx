@@ -1,0 +1,1 @@
+{"expected":{"rejection":{"kind":"validation","message":"source.command is required."}},"input":{"yaml":"schema: runx.tool.manifest.v1\nname: bad.tool\nsource:\n  args: [\"tools/read.mjs\"]\n"},"name":"validation-source-missing-command","scope":"tool-manifests"}

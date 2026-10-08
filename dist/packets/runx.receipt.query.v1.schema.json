@@ -3,7 +3,7 @@
   "$id": "https://schemas.runx.ai/runx/receipt/query/v1.json",
   "x-runx-packet-id": "runx.receipt.query.v1",
   "type": "object",
-  "required": ["schema", "source", "store_label", "filter", "receipt_ids", "receipts", "pending_runs", "receipt_details", "verification"],
+  "required": ["schema", "source", "store_label", "filter", "receipt_ids", "receipts", "receipt_details", "verification"],
   "properties": {
     "schema": { "const": "runx.receipt.query.v1" },
     "source": { "const": "native_receipt_store" },
@@ -11,7 +11,6 @@
     "filter": { "type": "object", "additionalProperties": true },
     "receipt_ids": { "type": "array", "items": { "type": "string", "minLength": 1 } },
     "receipts": { "type": "array", "items": { "type": "object", "additionalProperties": true } },
-    "pending_runs": { "type": "array", "items": { "type": "object", "additionalProperties": true } },
     "receipt_details": { "type": "array", "maxItems": 100, "items": { "type": "object", "additionalProperties": true } },
     "verification": {
       "type": "object",

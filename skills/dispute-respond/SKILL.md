@@ -1,8 +1,6 @@
 ---
 name: dispute-respond
 description: Prepare and explicitly file an evidence-bound payment dispute response using native receipt proof, approval, provider execution, and independent readback.
-runx:
-  category: payments
 ---
 
 # Dispute Respond

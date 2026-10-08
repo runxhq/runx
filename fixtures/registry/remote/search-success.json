@@ -7,7 +7,6 @@
       "description": "Echo input",
       "owner": "acme",
       "version": "1.0.0",
-      "source_type": "cli-tool",
       "profile_mode": "portable",
       "runner_names": ["default"],
       "required_scopes": [],

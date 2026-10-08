@@ -7,6 +7,8 @@
 //! - `paths`: workspace and receipt-store path resolution.
 
 pub(crate) mod act;
+pub mod archive;
+pub mod inspection;
 pub(crate) mod issuer;
 pub mod paths;
 pub mod seal;
@@ -18,12 +20,10 @@ pub(crate) use issuer::local_runtime_issuer;
 pub(crate) use seal::{
     DomainActFrame, DomainActReceiptRequest, GraphClosure, RuntimeReceiptProofContextProvider,
     StepReceiptWithDisposition, StepSeal, StepSealClosure, domain_act_receipt,
-    graph_receipt_with_disposition_and_policy, graph_receipt_with_effects_and_signature_policy,
-    seal_step, step_receipt_with_declared_claim_and_policy,
-    step_receipt_with_disposition_and_policy,
+    graph_receipt_with_closure, seal_step, step_receipt_with_declared_claim_and_policy,
 };
 pub use seal::{
-    RuntimeReceiptSignaturePolicy, SealAuthority, graph_receipt,
+    RunScope, RuntimeReceiptSignaturePolicy, SealAuthority, graph_receipt,
     graph_receipt_with_signature_policy, step_receipt, step_receipt_with_authority_grant_refs,
     step_receipt_with_signature_policy,
 };

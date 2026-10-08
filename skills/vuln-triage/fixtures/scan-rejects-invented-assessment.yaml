@@ -21,7 +21,7 @@ inputs:
     verification: { verified: true }
 caller:
   answers:
-    agent_task.vuln-triage-assess.output:
+    agent.vuln-triage-assess.output:
       risk_assessment_draft:
         decision: remediate
         advisory_assessments:

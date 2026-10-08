@@ -1,0 +1,27 @@
+skill: workspace-read
+version: "0.1.0"
+harness:
+  cases:
+    - name: reads-owned-skill-manual
+      inputs:
+        path: skills/workspace-read/SKILL.md
+      expect:
+        status: sealed
+runners:
+  default:
+    default: true
+    inputs:
+      path:
+        type: string
+        required: true
+        description: File path to read.
+    steps:
+      - id: default
+        tool: { command: node, args: [-e, "const fs = require('node:fs'); const path = require('node:path'); const file = process.env.RUNX_INPUT_PATH; process.stdout.write(JSON.stringify({ cwd: process.cwd(), path: file, contents: fs.readFileSync(path.join(process.cwd(), file), 'utf8') }));"], cwd: "{{env.RUNX_CWD}}", timeout_seconds: 10 }
+        inputs:
+          path: $input.path
+        scopes: [fs:read]
+        outputs:
+          cwd: string
+          path: string
+          contents: string

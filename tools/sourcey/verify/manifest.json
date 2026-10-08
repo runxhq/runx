@@ -3,7 +3,6 @@
   "name": "sourcey.verify",
   "description": "Verify that a Sourcey build produced an index.html output.",
   "source": {
-    "type": "cli-tool",
     "command": "node",
     "args": [
       "./run.mjs"

@@ -320,7 +320,7 @@ fn write_skill_inspection(
     }
 }
 
-// Function rationale: inspection assembles one public JSON contract from SKILL.md, X.yaml, fixtures, and selected runner metadata.
+// Function rationale: inspection assembles one public JSON contract from SKILL.md, run.yaml, fixtures, and selected runner metadata.
 fn inspect_skill(
     skill_path: &Path,
     selected_runner: Option<&str>,

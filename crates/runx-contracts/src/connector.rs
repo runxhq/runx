@@ -94,6 +94,10 @@ pub struct ConnectorManifest {
     pub name: NonEmptyString,
     pub description: NonEmptyString,
     pub auth: ConnectorAuth,
+    /// The JSON Schema of what an instance pins besides its authority, such
+    /// as a store's location. Templates bind them as `$parameter`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub parameters: Option<JsonObject>,
     pub placements: ConnectorPlacements,
     pub operations: BTreeMap<OperationName, ConnectorOperation>,
     /// How the provider's messages address people, for a connector a person
@@ -204,8 +208,11 @@ pub struct CredentialDeclaration {
     pub fields: NonEmptyVec<CredentialField>,
     /// How the local placement delivers the secret to an implementation.
     pub delivery: CredentialDelivery,
-    /// Hosts the credential may be sent to.
-    pub audience: NonEmptyVec<NonEmptyString>,
+    /// Hosts the credential may be sent to. A credential only a `store`
+    /// implementation uses has none: it goes only to the store its instance
+    /// pins.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub audience: Vec<NonEmptyString>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
@@ -698,8 +705,8 @@ pub struct HostedImplementation {
 }
 
 /// What one operation does, written as a single-key map: `{http: ...}`,
-/// `{mcp: ...}`, `{process: ...}` or `{web: {}}`. The local placement runs
-/// every kind; the hosted placement runs `http`.
+/// `{mcp: ...}`, `{process: ...}`, `{web: {}}` or `{store: {}}`. The local
+/// placement runs every kind; the hosted placement runs `http`.
 #[derive(Clone, Debug, PartialEq, Serialize, RunxSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum Implementation {
@@ -707,6 +714,7 @@ pub enum Implementation {
     Mcp(McpImplementation),
     Process(ProcessImplementation),
     Web(WebImplementation),
+    Store(StoreImplementation),
 }
 
 single_key_enum!(Implementation, "an implementation", {
@@ -714,6 +722,7 @@ single_key_enum!(Implementation, "an implementation", {
     "mcp" => Mcp,
     "process" => Process,
     "web" => Web,
+    "store" => Store,
 });
 
 impl Implementation {
@@ -724,6 +733,7 @@ impl Implementation {
             Self::Mcp(_) => "mcp",
             Self::Process(_) => "process",
             Self::Web(_) => "web",
+            Self::Store(_) => "store",
         }
     }
 }
@@ -734,6 +744,14 @@ impl Implementation {
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub struct WebImplementation {}
+
+/// The runtime's event store: append-only streams with an expected version
+/// and an idempotency key per append, a rolling projection per stream, and
+/// stream heads by latest event. The instance's `url` parameter chooses
+/// SQLite, Postgres or Redis; without one it is the workspace store.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
+#[serde(deny_unknown_fields)]
+pub struct StoreImplementation {}
 
 /// Whether an allowlist entry admits `host`: an entry is a host, or
 /// `*.domain` for exactly one label under that domain.

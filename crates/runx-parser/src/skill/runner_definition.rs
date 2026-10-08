@@ -1,105 +1,37 @@
 use runx_contracts::{JsonObject, JsonValue};
 
 use crate::ValidationError;
+use crate::graph::{RawGraphIr, validate_graph_document};
 
-use super::{
-    FIELDS, SkillGovernance, SkillRunnerDefinition, field_value, first_value,
-    flattened_source_record, validate_allowed_tools, validate_artifact_contract,
-    validate_execution_semantics, validate_idempotency, validate_inputs, validate_retry,
-    validate_source, validate_source_fields,
-};
+use super::{ActDeclaration, FIELDS, SkillRunnerDefinition, validate_inputs};
 
 const RUNNER_FIELDS: &[&str] = &[
     "act",
-    "agent",
-    "allowed_tools",
-    "args",
-    "artifacts",
-    "auth",
-    "command",
-    "context",
-    "context_skills",
-    "cwd",
     "default",
-    "environment",
     "examples",
-    "execution",
-    "export",
-    "graph",
-    "headers",
-    "hook",
-    "http",
-    "idempotency",
-    "input_mode",
     "inputs",
-    "method",
-    "module",
-    "outputs",
-    "pages",
     "policy",
-    "retry",
-    "risk",
+    "result_from",
     "runx",
-    "runtime",
-    "scopes",
-    "source",
-    "task",
-    "timeout_seconds",
-    "type",
-    "url",
-    "allow_private_network",
+    "steps",
 ];
 
+/// The graph keys a runner carries for its steps.
+const GRAPH_FIELDS: &[&str] = &["policy", "result_from", "steps"];
+
+const RUNX_FIELDS: &[&str] = &["post_run"];
+
 pub(crate) fn validate_runner_definition(
+    skill: &str,
     name: &str,
     runner: JsonObject,
 ) -> Result<SkillRunnerDefinition, ValidationError> {
-    if runner.contains_key("instructions") {
-        return Err(FIELDS.validation_error(format!(
-            "runners.{name}.instructions is not supported; put agent operating instructions in the owning SKILL.md"
-        )));
-    }
     FIELDS.reject_unknown_fields(&runner, &format!("runners.{name}"), RUNNER_FIELDS)?;
     let runx = FIELDS.optional_object(runner.get("runx"), &format!("runners.{name}.runx"))?;
-    if runner
-        .get("risk")
-        .and_then(JsonValue::as_object)
-        .is_some_and(|risk| risk.contains_key("mutating"))
-    {
-        return Err(FIELDS.validation_error(format!(
-            "runners.{name}.risk.mutating is not supported; approval and authority are owned by invoked capabilities"
-        )));
-    }
-    for field in [
-        "auth",
-        "credential",
-        "environment",
-        "mutating",
-        "runtime",
-        "sandbox",
-        "scopes",
-    ] {
-        if runx
-            .as_ref()
-            .is_some_and(|metadata| metadata.contains_key(field))
-        {
-            return Err(FIELDS.validation_error(format!(
-                "runners.{name}.runx contains unknown field '{field}'; execution requirements belong on the runner or its source"
-            )));
-        }
+    if let Some(runx) = &runx {
+        FIELDS.reject_unknown_fields(runx, &format!("runners.{name}.runx"), RUNX_FIELDS)?;
     }
     crate::runner::resolve_post_run_reflect_policy(runx.as_ref(), &format!("runners.{name}.runx"))?;
-    let source_record =
-        match FIELDS.optional_object(runner.get("source"), &format!("runners.{name}.source"))? {
-            Some(source) => {
-                validate_source_fields(&source, &format!("runners.{name}.source"))?;
-                source
-            }
-            None => flattened_source_record(&runner),
-        };
-    let governance = validate_runner_governance(name, &runner, runx.as_ref())?;
-    let source = validate_source(&source_record)?;
-    validate_runner_lane_constraints(name, &source, governance.artifacts.as_ref())?;
     let inputs = validate_inputs(
         FIELDS
             .optional_object(runner.get("inputs"), &format!("runners.{name}.inputs"))?
@@ -113,26 +45,42 @@ pub(crate) fn validate_runner_definition(
         default: FIELDS
             .optional_bool(runner.get("default"), &format!("runners.{name}.default"))?
             .unwrap_or(false),
-        source,
         inputs,
         examples,
-        scopes: validate_scopes(
-            FIELDS
-                .optional_string_array(runner.get("scopes"), &format!("runners.{name}.scopes"))?
-                .unwrap_or_default(),
-            &format!("runners.{name}.scopes"),
-        )?,
-        auth: runner.get("auth").cloned(),
-        risk: runner.get("risk").cloned(),
-        runtime: runner.get("runtime").cloned(),
-        retry: governance.retry,
-        idempotency: governance.idempotency,
-        artifacts: governance.artifacts,
-        allowed_tools: governance.allowed_tools,
-        execution: governance.execution,
+        act: validate_act_declaration(runner.get("act"))?,
         runx,
+        graph: runner_graph(skill, name, &runner)?,
         raw: runner,
     })
+}
+
+/// The runner's steps as the graph the engine runs, named for its skill so
+/// receipts carry the skill's identity. `result_from` defaults to the last
+/// step.
+fn runner_graph(
+    skill: &str,
+    name: &str,
+    runner: &JsonObject,
+) -> Result<crate::ExecutionGraph, ValidationError> {
+    let mut document = runner
+        .iter()
+        .filter(|(key, _)| GRAPH_FIELDS.contains(&key.as_str()))
+        .map(|(key, value)| (key.clone(), value.clone()))
+        .collect::<JsonObject>();
+    document.insert("name".to_owned(), JsonValue::String(skill.to_owned()));
+    if !document.contains_key("result_from")
+        && let Some(last) = runner
+            .get("steps")
+            .and_then(JsonValue::as_array)
+            .and_then(|steps| steps.last())
+            .and_then(JsonValue::as_object)
+            .and_then(|step| step.get("id"))
+            .cloned()
+    {
+        document.insert("result_from".to_owned(), JsonValue::Array(vec![last]));
+    }
+    validate_graph_document(document.clone(), Some(RawGraphIr { document }))
+        .map_err(|error| FIELDS.validation_error(format!("runners.{name}: {error}")))
 }
 
 fn parse_runner_examples(
@@ -184,73 +132,78 @@ pub fn validate_input_examples(
     Ok(())
 }
 
-fn validate_runner_lane_constraints(
-    name: &str,
-    source: &super::SkillSource,
-    artifacts: Option<&super::SkillArtifactContract>,
-) -> Result<(), ValidationError> {
-    if source.source_type == super::SourceKind::Graph && artifacts.is_some() {
-        return Err(FIELDS.validation_error(format!(
-            "runners.{name}.artifacts is ambiguous for a graph source; declare the packet on the graph's terminal output-producing step"
-        )));
-    }
-    if source.source_type == super::SourceKind::Graph && !source.environment.is_empty() {
-        return Err(FIELDS.validation_error(format!(
-            "runners.{name}.environment is ambiguous for a graph source; declare environment requirements on the executable run step"
-        )));
-    }
-    if source.source_type == super::SourceKind::Graph && source.outputs.is_some() {
-        return Err(FIELDS.validation_error(format!(
-            "runners.{name}.outputs is ambiguous for a graph source; declare outputs on the graph's terminal output-producing step"
-        )));
-    }
-    if source.source_type == super::SourceKind::Graph
-        && source
-            .graph
-            .as_ref()
-            .is_none_or(|graph| graph.result_from.is_empty())
-    {
-        return Err(FIELDS.validation_error(format!(
-            "runners.{name}.graph.result_from must name at least one intentional public result producer"
-        )));
+/// Validate a declared `act:` block at load: deserialize it into the typed
+/// `ActDeclaration` and fail closed if it is present but malformed, so a skill
+/// author sees the error instead of silently sealing a generic observation act.
+pub(crate) fn validate_act_declaration(
+    value: Option<&JsonValue>,
+) -> Result<Option<ActDeclaration>, ValidationError> {
+    let Some(value) = value else {
+        return Ok(None);
+    };
+    let act = serde_json::to_value(value)
+        .and_then(serde_json::from_value::<ActDeclaration>)
+        .map_err(|error| FIELDS.validation_error(format!("act is malformed: {error}")))?;
+    validate_act_reason_coherence(&act)?;
+    Ok(Some(act))
+}
+
+/// Reject incoherent reason declarations: the operator-authored path
+/// (`reason_from_input`) and the step-authored path (`reason_step`/`reason_from`)
+/// are mutually exclusive; the sealed reason has exactly one author.
+fn validate_act_reason_coherence(act: &ActDeclaration) -> Result<(), ValidationError> {
+    if act.reason_from_input.is_some() && (act.reason_step.is_some() || act.reason_from.is_some()) {
+        return Err(FIELDS.validation_error(
+            "act.reason_from_input (operator-authored) is mutually exclusive with the step-authored reason_step / reason_from keys.",
+        ));
     }
     Ok(())
 }
 
-fn validate_scopes(scopes: Vec<String>, field: &str) -> Result<Vec<String>, ValidationError> {
-    if scopes.iter().any(|scope| scope.trim().is_empty()) {
-        return Err(
-            FIELDS.validation_error(format!("{field} must contain only non-empty scope strings"))
-        );
-    }
-    Ok(scopes)
-}
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::unwrap_used)]
+mod tests {
+    use runx_contracts::JsonValue;
 
-fn validate_runner_governance(
-    name: &str,
-    runner: &JsonObject,
-    runx: Option<&JsonObject>,
-) -> Result<SkillGovernance, ValidationError> {
-    Ok(SkillGovernance {
-        retry: validate_retry(
-            first_value(runner.get("retry"), field_value(runx, "retry")),
-            &format!("runners.{name}.retry"),
-        )?,
-        idempotency: validate_idempotency(
-            first_value(runner.get("idempotency"), field_value(runx, "idempotency")),
-            &format!("runners.{name}.idempotency"),
-        )?,
-        artifacts: validate_artifact_contract(
-            first_value(runner.get("artifacts"), field_value(runx, "artifacts")),
-            &format!("runners.{name}.artifacts"),
-        )?,
-        allowed_tools: validate_allowed_tools(
-            field_value(runx, "allowed_tools"),
-            &format!("runners.{name}.runx.allowed_tools"),
-        )?,
-        execution: validate_execution_semantics(
-            first_value(runner.get("execution"), field_value(runx, "execution")),
-            &format!("runners.{name}.execution"),
-        )?,
-    })
+    use super::validate_act_declaration;
+    use serde_json::json;
+
+    fn act_value(value: serde_json::Value) -> JsonValue {
+        serde_json::from_value(value).expect("convertible act value")
+    }
+
+    fn act_err(value: serde_json::Value) -> String {
+        validate_act_declaration(Some(&act_value(value)))
+            .err()
+            .map(|error| error.to_string())
+            .expect("act unexpectedly validated")
+    }
+
+    #[test]
+    fn operator_reason_input_validates() {
+        let act = validate_act_declaration(Some(&act_value(json!({
+            "reason_from_input": "line",
+        }))))
+        .expect("valid act")
+        .expect("present act");
+        assert_eq!(act.reason_from_input.as_deref(), Some("line"));
+    }
+
+    #[test]
+    fn operator_reason_input_conflicts_with_reason_step() {
+        let message = act_err(json!({
+            "reason_from_input": "line",
+            "reason_step": "voice",
+        }));
+        assert!(message.contains("mutually exclusive"));
+    }
+
+    #[test]
+    fn operator_reason_input_conflicts_with_reason_from() {
+        let message = act_err(json!({
+            "reason_from_input": "line",
+            "reason_from": "line",
+        }));
+        assert!(message.contains("mutually exclusive"));
+    }
 }

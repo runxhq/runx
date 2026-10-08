@@ -22,8 +22,8 @@ workspace = true
 [features]
 default = []
 async-http = ["dep:reqwest", "dep:tokio", "dep:rustls", "dep:webpki-root-certs", "tokio/rt-multi-thread", "rmcp?/transport-streamable-http-client-reqwest"]
-cli-tool = ["async-http"]
-mcp = ["dep:rmcp", "dep:tokio", "tokio/process", "tokio/io-util", "tokio/sync", "tokio/rt-multi-thread"]
+process-tool = ["async-http"]
+mcp = ["async-http", "dep:rmcp", "dep:tokio", "tokio/process", "tokio/io-util", "tokio/sync", "tokio/rt-multi-thread"]
 # Expose the governed MCP server over streamable HTTP/SSE (rmcp's tower service
 # driven by hyper). Inbound HTTP server surface; gated behind its own feature.
 mcp-http-server = [
@@ -37,7 +37,9 @@ mcp-http-server = [
     "dep:tower-service",
 ]
 agent = ["async-http", "catalog"]
-catalog = ["cli-tool"]
+# The store connector's Postgres and Redis backends; SQLite is always present.
+store = ["async-http", "dep:postgres", "dep:tokio-postgres-rustls", "dep:redis"]
+catalog = ["process-tool"]
 
 [dependencies]
 aes-gcm = "0.11.0"
@@ -60,6 +62,9 @@ reqwest = { version = "=0.13.5", default-features = false, features = ["rustls-n
 ring = "0.17.14"
 regex.workspace = true
 rusqlite = { version = "0.40.1", default-features = false, features = ["backup", "bundled", "cache"] }
+postgres = { version = "0.19.14", default-features = false, optional = true }
+tokio-postgres-rustls = { version = "0.14.0", optional = true }
+redis = { version = "1.7.1", default-features = false, features = ["script", "tls-rustls"], optional = true }
 jsonschema = { version = "0.56.0", default-features = false }
 # Drive rustls with the ring provider (already linked via `ring`) instead of
 # reqwest's default aws-lc-rs, so the vendored aws-lc-sys C crypto blob is not

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://schemas.runx.ai/runx/security/least_privilege/v1.json",
   "x-runx-packet-id": "runx.security.least_privilege.v1",
-  "x-runx-generated-from": "skills/least-privilege/X.yaml#root.runners.audit.graph.steps.1",
+  "x-runx-generated-from": "skills/least-privilege/run.yaml#root.runners.audit.steps.1",
   "type": "object",
   "required": [
     "attenuation_proposals",
@@ -66,7 +66,6 @@
             "observation_source": {
               "enum": [
                 "native_receipt_detail",
-                "supplied_replay",
                 "none"
               ],
               "type": "string"
@@ -77,12 +76,6 @@
               },
               "type": "array",
               "uniqueItems": true
-            },
-            "receipt_window": {
-              "type": [
-                "string",
-                "null"
-              ]
             }
           },
           "required": [
@@ -91,7 +84,6 @@
             "missing_receipt_ids",
             "chain_verification",
             "observation_source",
-            "receipt_window",
             "grant_source",
             "limitations"
           ],

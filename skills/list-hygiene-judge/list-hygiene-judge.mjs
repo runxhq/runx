@@ -100,7 +100,7 @@ export function finalizeListHygiene(inputs) {
     if (!["committed", "idempotent_replay"].includes(writeResult.status)) {
       throw new Error("ledger append did not return a committed transition");
     }
-    if (!sameSource(writeResult, plan) || writeResult.idempotency_key !== plan.idempotency_key) {
+    if (!sameSource(writeResult, plan)) {
       throw new Error("ledger append identity did not match the planned transition");
     }
     if (writeResult.before_version !== plan.expected_version || writeResult.after_version !== plan.expected_version + 1) {

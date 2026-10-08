@@ -16,18 +16,14 @@ pub(super) fn validated_module_from_package(
     request: &SkillInvocation,
     loaded: &crate::LoadedSkillPackage,
 ) -> Result<PreparedJavaScriptInvocation, RuntimeError> {
-    let module =
-        request
-            .source
-            .module
-            .as_deref()
-            .ok_or_else(|| RuntimeError::InvalidProcessInvocation {
-                message: "javascript source is missing module".to_owned(),
-            })?;
-    let entry_module = package_relative(profile_directory(loaded.profile_path.as_deref()), module);
+    let worker = super::worker(request)?;
+    let entry_module = package_relative(
+        profile_directory(loaded.profile_path.as_deref()),
+        &worker.module,
+    );
     let modules = reachable_modules(&loaded.package, &entry_module)?;
     let mut limits = InvocationLimits::default();
-    if let Some(timeout_seconds) = request.source.timeout_seconds {
+    if let Some(timeout_seconds) = worker.timeout_seconds {
         limits.wall_milliseconds =
             timeout_seconds
                 .checked_mul(1_000)
@@ -42,14 +38,13 @@ pub(super) fn validated_module_from_package(
         })?;
     Ok(PreparedJavaScriptInvocation {
         entry_module,
-        export_name: request
-            .source
-            .javascript_export
+        export_name: worker
+            .export
             .clone()
             .unwrap_or_else(|| "default".to_owned()),
         modules,
-        environment: crate::execution_environment::resolve_declared_environment(
-            &request.requirements,
+        environment: crate::execution_environment::resolve_environment(
+            &worker.environment,
             &request.env,
         )?,
         worker_path: request.env.get(super::WORKER_PATH_ENV).cloned(),
@@ -101,7 +96,7 @@ fn reachable_modules(
 
 fn profile_directory(profile_path: Option<&str>) -> &str {
     profile_path
-        .and_then(|path| path.strip_suffix("/X.yaml"))
+        .and_then(runx_parser::profile_directory)
         .unwrap_or("")
 }
 

@@ -3,8 +3,8 @@
 This workspace contains the Rust packages that back the `runx` distribution:
 contracts, kernel decisions, parser, receipts, the native runtime, the CLI
 binary, and the blocking SDK. Architectural authority lives in
-[`docs/rust-kernel-architecture.md`](../docs/rust-kernel-architecture.md);
-the current cutover boundary lives in
+[`docs/architecture/runx-system.md`](../docs/architecture/runx-system.md); the
+language package boundary lives in
 [`docs/ts-interop-boundary.md`](../docs/ts-interop-boundary.md).
 
 ## Commands
@@ -47,10 +47,10 @@ before they may be added to `deny.toml`.
 - `runx-runtime`: impure runtime. Owns filesystem, exact process invocation and
   supervision, journals, registry clients, harness replay, doctor, dev loop,
   project initialization, generic authority gating, and the adapter set. Adapter
-  families are opt-in features: `async-http`, `cli-tool`, `mcp`,
-  `mcp-http-server`, `agent`, and `catalog`.
+  families are opt-in features: `async-http`, `process-tool`, `mcp`,
+  `mcp-http-server`, `agent`, `catalog`, and `store`.
   The `async-http` feature owns runtime HTTP with reqwest over rustls, disables
-  redirect following, and uses bounded request/connect timeouts. `cli-tool`
+  redirect following, and uses bounded request/connect timeouts. `process-tool`
   enables `async-http`; defaults keep the runtime dependency-light.
 - `runx-sdk`: blocking CLI-backed Rust SDK v0. Depends on `runx-contracts`
   only; explicit non-dep on `runx-core` and `runx-runtime`.

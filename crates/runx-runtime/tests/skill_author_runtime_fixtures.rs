@@ -1,4 +1,4 @@
-#![cfg(feature = "cli-tool")]
+#![cfg(feature = "process-tool")]
 
 use std::collections::BTreeMap;
 use std::fs;
@@ -6,10 +6,10 @@ use std::path::{Path, PathBuf};
 use std::time::Instant;
 
 use runx_contracts::{JsonObject, JsonValue};
-use runx_parser::SkillSource;
+use runx_parser::ProcessTool;
 use runx_runtime::RUNX_CWD_ENV;
-use runx_runtime::adapter::{InvocationStatus, SkillAdapter, SkillInvocation};
-use runx_runtime::adapters::cli_tool::CliToolAdapter;
+use runx_runtime::adapter::{Executable, InvocationStatus, SkillAdapter, SkillInvocation};
+use runx_runtime::adapters::process_tool::ProcessToolAdapter;
 use runx_runtime::credentials::CredentialDelivery;
 use serde::Deserialize;
 
@@ -51,13 +51,14 @@ fn rust_matches_skill_author_runtime_fixtures() -> Result<(), Box<dyn std::error
     for fixture in suite.cases {
         let temp_dir = tempfile::tempdir()?;
         let started = Instant::now();
-        let output = CliToolAdapter.invoke(SkillInvocation {
+        let output = ProcessToolAdapter.invoke(SkillInvocation {
             historical_context: Vec::new(),
             skill_name: format!("skill-author-runtime.{}", fixture.id),
             step_id: None,
             artifacts: None,
             allowed_tools: None,
-            source: fixture_source(&fixture, &probe_path)?,
+            executable: Executable::Process(fixture_tool(&fixture, &probe_path)?),
+            outputs: None,
             inputs: fixture_inputs(&fixture),
             resolved_inputs: JsonObject::new(),
             current_context: Vec::new(),
@@ -114,27 +115,17 @@ fn fixture_suite(fixture_root: &Path) -> Result<FixtureSuite, Box<dyn std::error
     Ok(serde_json::from_str(&suite)?)
 }
 
-fn fixture_source(
+fn fixture_tool(
     fixture: &FixtureCase,
     probe_path: &Path,
-) -> Result<SkillSource, Box<dyn std::error::Error>> {
-    Ok(SkillSource {
-        act: None,
-        source_type: runx_parser::SourceKind::CliTool,
-        command: Some("node".to_owned()),
-        module: None,
-        javascript_export: None,
-        pages: None,
+) -> Result<ProcessTool, Box<dyn std::error::Error>> {
+    Ok(ProcessTool {
+        command: "node".to_owned(),
         args: vec![path_string(probe_path)?, fixture.mode.clone()],
         cwd: fixture.cwd.clone(),
         timeout_seconds: Some(fixture.timeout_seconds),
         input_mode: fixture.input_mode,
-        agent: None,
-        task: None,
-        outputs: None,
-        graph: None,
         environment: Default::default(),
-        raw: JsonObject::new(),
     })
 }
 

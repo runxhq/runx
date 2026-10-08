@@ -1,4 +1,4 @@
-//! Pure Rust parser parity crate for runx skills, graphs, and tools.
+//! The pure Rust parser for runx skills, graphs, and tools.
 
 pub mod connector;
 pub mod dev_fixture;
@@ -26,11 +26,10 @@ pub use dev_fixture::{
 pub use error::{ParseError, ParseErrorKind, ValidationError, ValidationErrorKind};
 pub use eval::{ParserEvalError, ParserEvalOutput, evaluate_parser_document_str};
 pub use graph::{
-    DuplicatePolicy, ExecutionGraph, FanoutBranchFailurePolicy, FanoutConflictAction,
-    FanoutConflictGate, FanoutGroupPolicy, FanoutSyncStrategy, FanoutThresholdAction,
-    FanoutThresholdGate, GraphContextEdge, GraphGuard, GraphPolicy, GraphRetryPolicy,
-    GraphRunTarget, GraphStep, MintAuthorityDirective, OperationStepTarget, RawGraphIr,
-    UncertainOutcome, parse_graph_yaml, validate_graph, validate_graph_document,
+    AgentTask, AskGate, DuplicatePolicy, ExecutionGraph, GraphContextEdge, GraphGuard, GraphPolicy,
+    GraphStep, OperationStepTarget, ProcessTool, RawGraphIr, SkillTarget, StepKind, ToolTarget,
+    UncertainOutcome, WorkerTool, parse_graph_yaml, validate_graph, validate_graph_document,
+    validate_process_tool,
 };
 pub use harness_fixture::{
     HarnessProviderAccess, HarnessProviderGrantFixture, HarnessProviderOperationFixture,
@@ -40,9 +39,10 @@ pub use install::{
     SkillInstallError, SkillInstallOrigin, ValidatedSkillInstall, validate_skill_install,
 };
 pub use package::{
-    SkillPackageError, SkillPackageSource, ValidatedJavaScriptModule, ValidatedPackageTool,
-    ValidatedSkillPackage, javascript_module_imports, javascript_process_module_imports,
-    resolve_javascript_module_import, validate_skill_package,
+    PROFILE_FILE, SkillPackageError, SkillPackageSource, ValidatedJavaScriptModule,
+    ValidatedPackageTool, ValidatedSkillPackage, javascript_module_imports,
+    javascript_process_module_imports, profile_directory, resolve_javascript_module_import,
+    validate_skill_package,
 };
 pub use packet::{
     PACKET_ID_FIELD, PacketSchemaError, ValidatedPacketSchema, parse_packet_schema_document,
@@ -55,21 +55,20 @@ pub use skill::{
     ActDeclaration, ArtifactPageFraming, ArtifactPageSource, CatalogApproval, CatalogAudience,
     CatalogCompletion, CatalogExecution, CatalogKind, CatalogMetadata, CatalogOperatorReadiness,
     CatalogRole, CatalogSemanticCode, CatalogSemanticDiagnostic, CatalogSemanticReport,
-    CatalogVisibility, ConnectorRequirement, HarnessCallerFixture, HarnessExpectation,
+    CatalogVisibility, ConnectorRequirement, HarnessCaller, HarnessExpectation,
     HarnessHttpExchangeFixture, HarnessHttpRequestBodyFixture, HarnessHttpResponseFixture,
     HarnessMcpCallFixture, InputMode, OperatorJourneyClaim, OperatorJourneyMode, RawSkillIr,
     ReceiptExpectation, RunnerHarnessCase, RunnerHarnessManifest, SkillArtifactContract,
-    SkillIdempotencyPolicy, SkillInput, SkillRetryPolicy, SkillRunnerDefinition, SkillSource,
-    SourceKind, ValidateSkillMode, ValidateSkillOptions, ValidatedSkill, analyze_catalog_semantics,
+    SkillIdempotencyPolicy, SkillInput, SkillRunnerDefinition, ValidateSkillMode,
+    ValidateSkillOptions, ValidatedSkill, analyze_catalog_semantics,
     analyze_package_catalog_semantics, parse_skill_markdown, validate_input_examples,
-    validate_skill, validate_skill_artifact_contract, validate_skill_source,
-    validate_skill_with_options,
+    validate_skill, validate_skill_artifact_contract, validate_skill_with_options,
 };
 pub use tool::{
     RawToolManifestIr, ValidatedTool, parse_tool_manifest_json, parse_tool_manifest_yaml,
     validate_tool_manifest,
 };
 pub use yaml::{
-    assert_execution_profile_yaml_subset, assert_yaml_parity_subset, assert_yaml_scalar_subset,
+    assert_execution_profile_yaml_subset, assert_yaml_scalar_subset, assert_yaml_supported_subset,
     parse_yaml_document, yaml_scalar_subset_allows,
 };

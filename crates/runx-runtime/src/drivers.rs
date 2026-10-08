@@ -11,4 +11,5 @@ pub(crate) mod http;
 #[cfg(feature = "mcp")]
 pub(crate) mod mcp;
 pub(crate) mod process;
+pub(crate) mod store;
 pub(crate) mod web;

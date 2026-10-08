@@ -142,7 +142,6 @@ export type ReceiptSignatureContract = DeepReadonly<{
   alg: "Ed25519";
   value: string;
 }>;
-export type FanoutReceiptSyncPointContract = ContractObject;
 
 export const referenceSchema = generatedSchema<ReferenceContract>("reference.schema.json");
 export const referenceLinkSchema = generatedSchema<ReferenceLinkContract>("reference-link.schema.json");
@@ -367,11 +366,6 @@ export const receiptSignatureSchema = schemaAt<ReceiptSignatureContract>(
   receiptRootSchema,
   ["properties", "signature"],
   "receipt.signature",
-);
-export const fanoutReceiptSyncPointSchema = schemaAt<FanoutReceiptSyncPointContract>(
-  receiptRootSchema,
-  ["properties", "lineage", "properties", "sync", "items"],
-  "receipt.lineage.sync[]",
 );
 
 export const referenceTypes = enumValues(referenceTypeSchema, "reference.type");

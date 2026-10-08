@@ -1,0 +1,498 @@
+skill: github-sync
+version: "0.5.4"
+
+catalog:
+  kind: skill
+  audience: public
+  visibility: public
+  role: canonical
+  provider: github
+  runtime_path: github
+  execution: execute
+  completion: provider_readback
+  requires_adapter: true
+  approval: none
+  category: ops
+
+input_definitions:
+  repository:
+    type: string
+    required: true
+    description: Target GitHub repository as owner/name.
+    schema:
+      pattern: '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$'
+      examples: [runxhq/runx]
+  direction:
+    type: string
+    required: true
+    description: Synchronization direction.
+    schema:
+      enum: [pull, push]
+  scope:
+    type: string
+    required: true
+    description: Requested repository access.
+    schema:
+      enum: [read, write]
+  resources:
+    type: object
+    required: true
+    description: Bounded issue, pull-request, or thread selector with up to eight typed mutations.
+    schema:
+      required: [kind]
+      additionalProperties: false
+      properties:
+        kind:
+          type: string
+          enum: [issues, prs, threads, batch]
+        filters: {}
+        refs: {}
+        mutations: {}
+      allOf:
+        - if:
+            properties: { kind: { const: issues } }
+            required: [kind]
+          then:
+            properties:
+              filters:
+                type: object
+                additionalProperties: false
+                properties:
+                  state: { type: string, enum: [open, closed, all] }
+                  labels:
+                    type: array
+                    maxItems: 100
+                    uniqueItems: true
+                    items: { type: string, minLength: 1, maxLength: 100, pattern: '^[^\u0000]+$' }
+                  since: { type: string, minLength: 1, maxLength: 64 }
+                  limit: { type: integer, minimum: 1, maximum: 100, default: 30 }
+                  cursor: { type: string, pattern: '^[1-9][0-9]{0,4}$', description: GitHub page number a listing continues from. }
+              refs:
+                type: array
+                maxItems: 100
+                uniqueItems: true
+                items: { type: string, pattern: '^issues/[1-9][0-9]*$' }
+              mutations:
+                type: array
+                maxItems: 8
+                items:
+                  type: object
+                  required: [ref, op, payload]
+                  additionalProperties: false
+                  properties:
+                    ref: { type: string, pattern: '^issues/[1-9][0-9]*$' }
+                    op: { const: update }
+                    payload:
+                      type: object
+                      minProperties: 1
+                      additionalProperties: false
+                      properties:
+                        title: { type: string, minLength: 1, maxLength: 256, pattern: '^[^\u0000]+$' }
+                        body: { type: string, maxLength: 65536, pattern: '^[^\u0000]*$' }
+                        state: { type: string, enum: [open, closed] }
+                        state_reason: { type: string, enum: [completed, not_planned, reopened] }
+                        labels:
+                          type: array
+                          maxItems: 100
+                          uniqueItems: true
+                          items: { type: string, minLength: 1, maxLength: 100, pattern: '^[^\u0000]+$' }
+                        assignees:
+                          type: array
+                          maxItems: 20
+                          uniqueItems: true
+                          items: { type: string, minLength: 1, maxLength: 100, pattern: '^[^\u0000]+$' }
+                        milestone:
+                          type: [integer, 'null']
+                          minimum: 1
+        - if:
+            properties: { kind: { const: prs } }
+            required: [kind]
+          then:
+            properties:
+              filters:
+                type: object
+                additionalProperties: false
+                properties:
+                  state: { type: string, enum: [open, closed, all] }
+                  base: { type: string, minLength: 1, maxLength: 255, pattern: '^[A-Za-z0-9._/-]+$' }
+                  head: { type: string, minLength: 1, maxLength: 255, pattern: '^[A-Za-z0-9._:/-]+$' }
+                  sort: { type: string, enum: [created, updated, popularity, long-running] }
+                  direction: { type: string, enum: [asc, desc] }
+                  limit: { type: integer, minimum: 1, maximum: 100, default: 30 }
+                  cursor: { type: string, pattern: '^[1-9][0-9]{0,4}$', description: GitHub page number a listing continues from. }
+              refs:
+                type: array
+                maxItems: 100
+                uniqueItems: true
+                items: { type: string, pattern: '^pulls/[1-9][0-9]*$' }
+              mutations:
+                type: array
+                maxItems: 8
+                items:
+                  type: object
+                  required: [ref, op, payload]
+                  additionalProperties: false
+                  properties:
+                    ref: { type: string, pattern: '^pulls/[1-9][0-9]*$' }
+                    op: { const: update }
+                    payload:
+                      type: object
+                      minProperties: 1
+                      additionalProperties: false
+                      properties:
+                        title: { type: string, minLength: 1, maxLength: 256, pattern: '^[^\u0000]+$' }
+                        body: { type: string, maxLength: 65536, pattern: '^[^\u0000]*$' }
+                        state: { type: string, enum: [open, closed] }
+                        base: { type: string, minLength: 1, maxLength: 255, pattern: '^[A-Za-z0-9._/-]+$' }
+                        maintainer_can_modify: { type: boolean }
+        - if:
+            properties: { kind: { const: threads } }
+            required: [kind]
+          then:
+            properties:
+              filters:
+                type: object
+                additionalProperties: false
+                properties:
+                  thread_ref: { type: string, pattern: '^(issues|pulls)/[1-9][0-9]*/comments$' }
+                  limit: { type: integer, minimum: 1, maximum: 100, default: 30 }
+              refs:
+                type: array
+                maxItems: 100
+                uniqueItems: true
+                items: { type: string, pattern: '^(issues|pulls)/[1-9][0-9]*/comments$' }
+              mutations:
+                type: array
+                maxItems: 8
+                items:
+                  oneOf:
+                    - type: object
+                      required: [ref, op, payload]
+                      additionalProperties: false
+                      properties:
+                        ref: { type: string, pattern: '^(issues|pulls)/[1-9][0-9]*/comments$' }
+                        op: { const: comment }
+                        payload:
+                          type: object
+                          required: [body]
+                          additionalProperties: false
+                          properties:
+                            body: { type: string, minLength: 1, maxLength: 65536, pattern: '^[^\u0000]+$' }
+        - if:
+            properties: { kind: { const: batch } }
+            required: [kind]
+          then:
+            properties:
+              mutations:
+                type: array
+                minItems: 1
+                maxItems: 8
+                items:
+                  oneOf:
+                    - type: object
+                      required: [ref, op, payload]
+                      additionalProperties: false
+                      properties:
+                        ref: { type: string, pattern: '^issues/[1-9][0-9]*$' }
+                        op: { const: update }
+                        payload:
+                          type: object
+                          minProperties: 1
+                          additionalProperties: false
+                          properties:
+                            title: { type: string, minLength: 1, maxLength: 256, pattern: '^[^\u0000]+$' }
+                            body: { type: string, maxLength: 65536, pattern: '^[^\u0000]*$' }
+                            state: { type: string, enum: [open, closed] }
+                            state_reason: { type: string, enum: [completed, not_planned, reopened] }
+                            labels:
+                              type: array
+                              maxItems: 100
+                              uniqueItems: true
+                              items: { type: string, minLength: 1, maxLength: 100, pattern: '^[^\u0000]+$' }
+                            assignees:
+                              type: array
+                              maxItems: 20
+                              uniqueItems: true
+                              items: { type: string, minLength: 1, maxLength: 100, pattern: '^[^\u0000]+$' }
+                            milestone:
+                              type: [integer, 'null']
+                              minimum: 1
+                    - type: object
+                      required: [ref, op, payload]
+                      additionalProperties: false
+                      properties:
+                        ref: { type: string, pattern: '^pulls/[1-9][0-9]*$' }
+                        op: { const: update }
+                        payload:
+                          type: object
+                          minProperties: 1
+                          additionalProperties: false
+                          properties:
+                            title: { type: string, minLength: 1, maxLength: 256, pattern: '^[^\u0000]+$' }
+                            body: { type: string, maxLength: 65536, pattern: '^[^\u0000]*$' }
+                            state: { type: string, enum: [open, closed] }
+                            base: { type: string, minLength: 1, maxLength: 255, pattern: '^[A-Za-z0-9._/-]+$' }
+                            maintainer_can_modify: { type: boolean }
+                    - type: object
+                      required: [ref, op, payload]
+                      additionalProperties: false
+                      properties:
+                        ref: { type: string, pattern: '^(issues|pulls)/[1-9][0-9]*/comments$' }
+                        op: { const: comment }
+                        payload:
+                          type: object
+                          required: [body]
+                          additionalProperties: false
+                          properties:
+                            body: { type: string, minLength: 1, maxLength: 65536, pattern: '^[^\u0000]+$' }
+                    - type: object
+                      required: [ref, op, payload]
+                      additionalProperties: false
+                      properties:
+                        ref: { type: string, pattern: '^issues/comments/[1-9][0-9]*$' }
+                        op: { const: update }
+                        payload:
+                          type: object
+                          required: [body]
+                          additionalProperties: false
+                          properties:
+                            body: { type: string, minLength: 1, maxLength: 65536, pattern: '^[^\u0000]+$' }
+connectors:
+  github:
+    operations: [issues.read, issues.list, pullrequests.read, pullrequests.list, comments.list, issues.update, pullrequests.update, comments.create, comments.update]
+runners:
+  github-sync:
+    default: true
+    inputs:
+      repo: { definition: repository }
+      direction: { definition: direction }
+      resources: { definition: resources }
+      scope: { definition: scope }
+      idempotency_key:
+        type: string
+        required: false
+        description: Stable retry key required for push and ignored for pull.
+    examples:
+      - repo: runxhq/runx
+        direction: pull
+        resources: { kind: issues, filters: { state: open, labels: [triage], limit: 25 } }
+        scope: read
+    result_from: [pull, push, plan]
+    steps:
+      - id: plan
+        inputs:
+          repo: $input.repo
+          direction: $input.direction
+          resources: $input.resources
+          scope: $input.scope
+        tool: { module: github-sync.mjs }
+        outputs:
+          sync_plan: object
+        artifacts:
+          named_emits:
+            sync_plan: sync_plan
+          packets:
+            sync_plan: runx.github_sync.v1
+
+      - id: pull
+        when:
+          field: plan.sync_plan.data.decision
+          equals: ready
+        operation: github
+        context:
+          operation: plan.sync_plan.data.provider_operation
+          input: plan.sync_plan.data.provider_input
+
+      - id: push
+        when:
+          field: plan.sync_plan.data.decision
+          equals: ready_for_execution
+        skill: .
+        runner: push
+        inputs:
+          repo: $input.repo
+          resources: $input.resources
+          idempotency_key: $input.idempotency_key
+
+  plan:
+    inputs:
+      repo: { definition: repository }
+      direction: { definition: direction }
+      resources: { definition: resources }
+      scope: { definition: scope }
+    examples:
+      - repo: runxhq/runx
+        direction: pull
+        resources: { kind: issues, filters: { state: open, labels: [triage], limit: 25 } }
+        scope: read
+    steps:
+      - id: plan
+        tool: { module: github-sync.mjs }
+        inputs:
+          repo: $input.repo
+          direction: $input.direction
+          resources: $input.resources
+          scope: $input.scope
+        outputs:
+          sync_plan: object
+        artifacts:
+          named_emits:
+            sync_plan: sync_plan
+          packets:
+            sync_plan: runx.github_sync.v1
+
+  pull:
+    inputs:
+      repo: { definition: repository }
+      resources: { definition: resources }
+    examples:
+      - repo: runxhq/runx
+        resources: { kind: issues, filters: { state: open, limit: 25 } }
+    result_from: [pull]
+    steps:
+      - id: plan
+        inputs:
+          repo: $input.repo
+          direction: pull
+          resources: $input.resources
+          scope: read
+        tool: { module: github-sync.mjs }
+        outputs:
+          sync_plan: object
+        artifacts:
+          named_emits:
+            sync_plan: sync_plan
+          packets:
+            sync_plan: runx.github_sync.v1
+
+      - id: pull
+        when:
+          field: plan.sync_plan.data.decision
+          equals: ready
+        operation: github
+        context:
+          operation: plan.sync_plan.data.provider_operation
+          input: plan.sync_plan.data.provider_input
+
+  push:
+    inputs:
+      repo: { definition: repository }
+      resources: { definition: resources }
+      idempotency_key:
+        type: string
+        required: true
+        description: Stable retry key for this exact mutation.
+    examples:
+      - repo: runxhq/runx
+        resources:
+          kind: issues
+          mutations:
+            - { ref: issues/241, op: update, payload: { labels: [triage] } }
+        idempotency_key: runxhq/runx:issues/241:labels:triage
+    result_from: [apply]
+    steps:
+      - id: plan
+        inputs:
+          repo: $input.repo
+          direction: push
+          resources: $input.resources
+          scope: write
+        tool: { module: github-sync.mjs }
+        outputs:
+          sync_plan: object
+        artifacts:
+          named_emits:
+            sync_plan: sync_plan
+          packets:
+            sync_plan: runx.github_sync.v1
+
+      - id: apply
+        when:
+          field: plan.sync_plan.data.decision
+          equals: ready_for_execution
+        operation: github
+        idempotency_key: $input.idempotency_key
+        context:
+          operation: plan.sync_plan.data.provider_operation
+          input: plan.sync_plan.data.provider_input
+
+  plan_and_append_cursor:
+    inputs:
+      data_source_ref:
+        type: string
+        required: true
+        description: Logical data source for cursor events.
+      resource:
+        type: string
+        required: true
+        description: Declared cursor event resource.
+      aggregate_id:
+        type: string
+        required: true
+        description: Cursor stream key.
+      expected_version:
+        type: number
+        required: true
+        description: Current cursor stream version.
+      idempotency_key:
+        type: string
+        required: true
+        description: Stable retry key.
+      repo: { definition: repository }
+      direction: { definition: direction }
+      resources: { definition: resources }
+      scope: { definition: scope }
+    examples:
+      - data_source_ref: tenant://github-sync/sqlite-cursors
+        resource: github_sync_events
+        aggregate_id: runxhq/runx:triage-open
+        expected_version: 0
+        idempotency_key: runxhq/runx:triage-open:pull:v2
+        repo: runxhq/runx
+        direction: pull
+        resources: { kind: issues, filters: { state: open, labels: [triage], limit: 25 } }
+        scope: read
+    result_from: [append-cursor-event, readback]
+    steps:
+      - id: read-cursor
+        skill: ../data-store
+        runner: read_projection
+        inputs:
+          data_source_ref: $input.data_source_ref
+          resource: $input.resource
+          aggregate_id: $input.aggregate_id
+
+      - id: plan
+        inputs:
+          repo: $input.repo
+          direction: $input.direction
+          resources: $input.resources
+          scope: $input.scope
+        tool: { module: github-sync.mjs }
+        outputs:
+          sync_plan: object
+        artifacts:
+          named_emits:
+            sync_plan: sync_plan
+          packets:
+            sync_plan: runx.github_sync.v1
+
+      - id: append-cursor-event
+        skill: ../data-store
+        runner: append_event
+        inputs:
+          data_source_ref: $input.data_source_ref
+          resource: $input.resource
+          aggregate_id: $input.aggregate_id
+          expected_version: $input.expected_version
+          idempotency_key: $input.idempotency_key
+        context:
+          event: plan.sync_plan.data
+
+      - id: readback
+        skill: ../data-store
+        runner: read_projection
+        inputs:
+          data_source_ref: $input.data_source_ref
+          resource: $input.resource
+          aggregate_id: $input.aggregate_id

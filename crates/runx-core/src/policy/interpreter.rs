@@ -5,20 +5,20 @@ pub(crate) struct InlineInterpreter {
     pub trigger: String,
 }
 
-pub fn strict_cli_tool_inline_code_denial(
+pub fn strict_process_tool_inline_code_denial(
     command: Option<&str>,
     args: &[String],
     policy: Option<&super::LocalExecutionPolicy>,
 ) -> Option<String> {
     if !policy
-        .and_then(|policy| policy.strict_cli_tool_inline_code)
+        .and_then(|policy| policy.strict_process_tool_inline_code)
         .unwrap_or(false)
     {
         return None;
     }
     let interpreter = detect_inline_interpreter(command, args)?;
     Some(format!(
-        "cli-tool source '{}' uses inline code via '{}', which is rejected by strict workspace policy; move the program into a checked-in script and invoke that file instead",
+        "process '{}' uses inline code via '{}', which is rejected by strict workspace policy; move the program into a checked-in script and invoke that file instead",
         interpreter.command, interpreter.trigger
     ))
 }
@@ -197,7 +197,7 @@ mod tests {
     }
 
     #[test]
-    fn lowercases_cmd_trigger_to_match_typescript() {
+    fn lowercases_the_cmd_trigger() {
         let args = vec!["/C".to_owned(), "echo hi".to_owned()];
 
         let detected = detect_inline_interpreter(Some("cmd"), &args);

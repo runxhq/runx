@@ -5,8 +5,6 @@ description: >-
   act plans for posting and account hygiene, and gated execution with per-act
   provider evidence. Nothing reaches a live timeline or mutates an account
   without an explicit approval recorded in the receipt.
-runx:
-  category: growth
 ---
 
 # Twitter

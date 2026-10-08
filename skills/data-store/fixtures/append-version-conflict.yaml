@@ -17,10 +17,10 @@ expect:
   receipt:
     schema: runx.receipt.v1
   steps:
+    - store-append
     - append
 metadata:
   public_skill: data-store
   source_case: append-version-conflict
   source: skills-fixture
-  runner_kind: graph
   graph_shape: append_event_conflict

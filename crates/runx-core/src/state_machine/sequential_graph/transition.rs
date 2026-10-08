@@ -73,12 +73,6 @@ fn apply_sequential_graph_event_owned_with_index(
             state.status = GraphStatus::Succeeded;
         }
         SequentialGraphEvent::Complete => {}
-        SequentialGraphEvent::PauseGraph { .. } => {
-            state.status = GraphStatus::Paused;
-        }
-        SequentialGraphEvent::EscalateGraph { .. } => {
-            state.status = GraphStatus::Escalated;
-        }
         SequentialGraphEvent::FailGraph { .. } => {
             state.status = GraphStatus::Failed;
         }
@@ -234,8 +228,6 @@ mod tests {
         let definitions = vec![SequentialGraphStepDefinition {
             id: "step".to_owned(),
             context_from: None,
-            retry: None,
-            fanout_group: None,
         }];
         let index = create_sequential_graph_step_index(&definitions);
         let mut borrowed = create_sequential_graph_state("graph", &definitions);

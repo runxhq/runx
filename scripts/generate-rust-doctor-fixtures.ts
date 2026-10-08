@@ -35,20 +35,6 @@ const cases: readonly DoctorFixtureCase[] = [
     files: [],
   },
   {
-    name: "removed-tool-yaml",
-    expectedExitCode: 1,
-    files: [
-      file("tools/demo/removed/tool.yaml", `name: demo.removed
-description: Removed tool fixture.
-source:
-  type: cli-tool
-  command: node
-  args:
-    - ./run.mjs
-`),
-    ],
-  },
-  {
     name: "tool-fixture-missing",
     expectedExitCode: 1,
     files: [
@@ -57,7 +43,6 @@ source:
         name: "demo.echo",
         description: "Echo fixture.",
         source: {
-          type: "cli-tool",
           command: "node",
           args: ["./run.mjs"],
         },
@@ -79,15 +64,41 @@ description: Doctor fixture with an execution profile and no harness proof.
 
 Exercise the missing-harness diagnostic for a valid skill package.
 `),
-      file("skills/uncovered/X.yaml", `skill: uncovered
+      file("skills/uncovered/run.yaml", `skill: uncovered
 runners:
   default:
     default: true
-    type: cli-tool
-    command: node
-    args:
-      - -e
-      - "process.stdout.write('{}')"
+    steps:
+      - id: default
+        tool: { command: node, args: [-e, "process.stdout.write(JSON.stringify({ ok: true }))"] }
+        outputs:
+          ok: boolean
+`),
+    ],
+  },
+  {
+    name: "skill-frontmatter-invalid",
+    expectedExitCode: 1,
+    files: [
+      file("skills/catalog-in-manual/SKILL.md", `---
+name: catalog-in-manual
+description: Doctor fixture whose frontmatter carries catalog metadata.
+runx:
+  category: content
+---
+
+# Catalog in manual
+
+Catalog metadata belongs in run.yaml, so Agent Skills hosts reject this manual.
+`),
+      file("skills/renamed-directory/SKILL.md", `---
+name: original-name
+description: Doctor fixture whose name no longer matches its directory.
+---
+
+# Original name
+
+Hosts discover this skill by its directory, so the name must match it.
 `),
     ],
   },

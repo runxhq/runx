@@ -104,7 +104,7 @@
       },
       "name": "resolver-error",
       "resolver_error_receipt_ids": [
-        "hrn_rcpt_child_a"
+        "rcpt_child_a"
       ],
       "root_receipt": "root_to_a",
       "supplied_child_receipts": []
@@ -345,7 +345,7 @@
       "created_at": "2026-05-22T00:00:00Z",
       "decisions": [],
       "digest": "sha256:9999999999999999999999999999999999999999999999999999999999999999",
-      "id": "hrn_rcpt_child_a",
+      "id": "rcpt_child_a",
       "idempotency": {
         "content_hash": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
         "intent_key": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
@@ -357,8 +357,7 @@
         "type": "local"
       },
       "lineage": {
-        "children": [],
-        "sync": []
+        "children": []
       },
       "schema": "runx.receipt.v1",
       "seal": {
@@ -378,8 +377,8 @@
         "commitments": [],
         "kind": "skill",
         "ref": {
-          "type": "harness",
-          "uri": "runx:harness:hrn_rcpt_child_a"
+          "type": "run",
+          "uri": "runx:run:rcpt_child_a"
         }
       }
     },
@@ -410,7 +409,7 @@
       "created_at": "2026-05-22T00:00:00Z",
       "decisions": [],
       "digest": "sha256:9999999999999999999999999999999999999999999999999999999999999999",
-      "id": "hrn_rcpt_child_a",
+      "id": "rcpt_child_a",
       "idempotency": {
         "content_hash": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
         "intent_key": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
@@ -422,8 +421,7 @@
         "type": "local"
       },
       "lineage": {
-        "children": [],
-        "sync": []
+        "children": []
       },
       "schema": "runx.receipt.v1",
       "seal": {
@@ -443,8 +441,8 @@
         "commitments": [],
         "kind": "skill",
         "ref": {
-          "type": "harness",
-          "uri": "runx:harness:hrn_rcpt_child_a"
+          "type": "run",
+          "uri": "runx:run:rcpt_child_a"
         }
       }
     },
@@ -475,7 +473,7 @@
       "created_at": "2026-05-22T00:00:00Z",
       "decisions": [],
       "digest": "sha256:9999999999999999999999999999999999999999999999999999999999999999",
-      "id": "hrn_rcpt_child_a",
+      "id": "rcpt_child_a",
       "idempotency": {
         "content_hash": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
         "intent_key": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
@@ -490,10 +488,9 @@
         "children": [
           {
             "type": "receipt",
-            "uri": "runx:receipt:hrn_rcpt_child_a"
+            "uri": "runx:receipt:rcpt_child_a"
           }
-        ],
-        "sync": []
+        ]
       },
       "schema": "runx.receipt.v1",
       "seal": {
@@ -513,8 +510,8 @@
         "commitments": [],
         "kind": "skill",
         "ref": {
-          "type": "harness",
-          "uri": "runx:harness:hrn_rcpt_child_a"
+          "type": "run",
+          "uri": "runx:run:rcpt_child_a"
         }
       }
     },
@@ -545,7 +542,7 @@
       "created_at": "2026-05-22T00:00:00Z",
       "decisions": [],
       "digest": "sha256:9999999999999999999999999999999999999999999999999999999999999999",
-      "id": "hrn_rcpt_child_a",
+      "id": "rcpt_child_a",
       "idempotency": {
         "content_hash": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
         "intent_key": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
@@ -560,10 +557,9 @@
         "children": [
           {
             "type": "receipt",
-            "uri": "runx:receipt:hrn_rcpt_child_b"
+            "uri": "runx:receipt:rcpt_child_b"
           }
-        ],
-        "sync": []
+        ]
       },
       "schema": "runx.receipt.v1",
       "seal": {
@@ -583,8 +579,8 @@
         "commitments": [],
         "kind": "skill",
         "ref": {
-          "type": "harness",
-          "uri": "runx:harness:hrn_rcpt_child_a"
+          "type": "run",
+          "uri": "runx:run:rcpt_child_a"
         }
       }
     },
@@ -615,7 +611,7 @@
       "created_at": "2026-05-22T00:00:00Z",
       "decisions": [],
       "digest": "sha256:9999999999999999999999999999999999999999999999999999999999999999",
-      "id": "hrn_rcpt_child_a",
+      "id": "rcpt_child_a",
       "idempotency": {
         "content_hash": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
         "intent_key": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
@@ -631,8 +627,7 @@
         "parent": {
           "type": "receipt",
           "uri": "runx:receipt:other"
-        },
-        "sync": []
+        }
       },
       "schema": "runx.receipt.v1",
       "seal": {
@@ -652,8 +647,8 @@
         "commitments": [],
         "kind": "skill",
         "ref": {
-          "type": "harness",
-          "uri": "runx:harness:hrn_rcpt_child_a"
+          "type": "run",
+          "uri": "runx:run:rcpt_child_a"
         }
       }
     },
@@ -684,7 +679,7 @@
       "created_at": "2026-05-22T00:00:00Z",
       "decisions": [],
       "digest": "sha256:9999999999999999999999999999999999999999999999999999999999999999",
-      "id": "hrn_rcpt_child_b",
+      "id": "rcpt_child_b",
       "idempotency": {
         "content_hash": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
         "intent_key": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
@@ -696,8 +691,7 @@
         "type": "local"
       },
       "lineage": {
-        "children": [],
-        "sync": []
+        "children": []
       },
       "schema": "runx.receipt.v1",
       "seal": {
@@ -717,8 +711,8 @@
         "commitments": [],
         "kind": "skill",
         "ref": {
-          "type": "harness",
-          "uri": "runx:harness:hrn_rcpt_child_b"
+          "type": "run",
+          "uri": "runx:run:rcpt_child_b"
         }
       }
     },
@@ -749,7 +743,7 @@
       "created_at": "2026-05-22T00:00:00Z",
       "decisions": [],
       "digest": "sha256:9999999999999999999999999999999999999999999999999999999999999999",
-      "id": "hrn_rcpt_root",
+      "id": "rcpt_root",
       "idempotency": {
         "content_hash": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
         "intent_key": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
@@ -761,8 +755,7 @@
         "type": "local"
       },
       "lineage": {
-        "children": [],
-        "sync": []
+        "children": []
       },
       "schema": "runx.receipt.v1",
       "seal": {
@@ -782,8 +775,8 @@
         "commitments": [],
         "kind": "skill",
         "ref": {
-          "type": "harness",
-          "uri": "runx:harness:hrn_rcpt_root"
+          "type": "run",
+          "uri": "runx:run:rcpt_root"
         }
       }
     },
@@ -814,7 +807,7 @@
       "created_at": "2026-05-22T00:00:00Z",
       "decisions": [],
       "digest": "sha256:9999999999999999999999999999999999999999999999999999999999999999",
-      "id": "hrn_rcpt_root",
+      "id": "rcpt_root",
       "idempotency": {
         "content_hash": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
         "intent_key": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
@@ -829,10 +822,9 @@
         "children": [
           {
             "type": "receipt",
-            "uri": "hrn_rcpt_child_a"
+            "uri": "rcpt_child_a"
           }
-        ],
-        "sync": []
+        ]
       },
       "schema": "runx.receipt.v1",
       "seal": {
@@ -852,8 +844,8 @@
         "commitments": [],
         "kind": "skill",
         "ref": {
-          "type": "harness",
-          "uri": "runx:harness:hrn_rcpt_root"
+          "type": "run",
+          "uri": "runx:run:rcpt_root"
         }
       }
     },
@@ -884,7 +876,7 @@
       "created_at": "2026-05-22T00:00:00Z",
       "decisions": [],
       "digest": "sha256:9999999999999999999999999999999999999999999999999999999999999999",
-      "id": "hrn_rcpt_root",
+      "id": "rcpt_root",
       "idempotency": {
         "content_hash": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
         "intent_key": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
@@ -899,10 +891,9 @@
         "children": [
           {
             "type": "receipt",
-            "uri": "runx:receipt:hrn_rcpt_child_a"
+            "uri": "runx:receipt:rcpt_child_a"
           }
-        ],
-        "sync": []
+        ]
       },
       "schema": "runx.receipt.v1",
       "seal": {
@@ -922,8 +913,8 @@
         "commitments": [],
         "kind": "skill",
         "ref": {
-          "type": "harness",
-          "uri": "runx:harness:hrn_rcpt_root"
+          "type": "run",
+          "uri": "runx:run:rcpt_root"
         }
       }
     },
@@ -954,7 +945,7 @@
       "created_at": "2026-05-22T00:00:00Z",
       "decisions": [],
       "digest": "sha256:9999999999999999999999999999999999999999999999999999999999999999",
-      "id": "hrn_rcpt_root",
+      "id": "rcpt_root",
       "idempotency": {
         "content_hash": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
         "intent_key": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
@@ -969,14 +960,13 @@
         "children": [
           {
             "type": "receipt",
-            "uri": "runx:receipt:hrn_rcpt_child_a"
+            "uri": "runx:receipt:rcpt_child_a"
           },
           {
             "type": "receipt",
-            "uri": "runx:receipt:hrn_rcpt_child_b"
+            "uri": "runx:receipt:rcpt_child_b"
           }
-        ],
-        "sync": []
+        ]
       },
       "schema": "runx.receipt.v1",
       "seal": {
@@ -996,8 +986,8 @@
         "commitments": [],
         "kind": "skill",
         "ref": {
-          "type": "harness",
-          "uri": "runx:harness:hrn_rcpt_root"
+          "type": "run",
+          "uri": "runx:run:rcpt_root"
         }
       }
     },
@@ -1028,7 +1018,7 @@
       "created_at": "2026-05-22T00:00:00Z",
       "decisions": [],
       "digest": "sha256:9999999999999999999999999999999999999999999999999999999999999999",
-      "id": "hrn_rcpt_root",
+      "id": "rcpt_root",
       "idempotency": {
         "content_hash": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
         "intent_key": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
@@ -1043,10 +1033,9 @@
         "children": [
           {
             "type": "receipt",
-            "uri": "runx:graph_receipt:hrn_rcpt_child_a"
+            "uri": "runx:graph_receipt:rcpt_child_a"
           }
-        ],
-        "sync": []
+        ]
       },
       "schema": "runx.receipt.v1",
       "seal": {
@@ -1066,8 +1055,8 @@
         "commitments": [],
         "kind": "skill",
         "ref": {
-          "type": "harness",
-          "uri": "runx:harness:hrn_rcpt_root"
+          "type": "run",
+          "uri": "runx:run:rcpt_root"
         }
       }
     }

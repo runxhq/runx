@@ -1,0 +1,260 @@
+skill: prior-art
+version: "0.2.5"
+catalog:
+  kind: graph
+  audience: builder
+  visibility: public
+  role: context
+  execution: read
+  completion: runtime_receipt
+  requires_adapter: false
+  approval: none
+harness:
+  files:
+    - fixtures/workspace/skills/moltbook/SKILL.md
+    - fixtures/workspace/skills/moltbook/run.yaml
+  cases:
+    - name: prior-art-recommends-catalog-reuse
+      operator_journeys:
+        - mode: standalone
+          confusors: [research, knowledge-router]
+          request: Inspect prior art for this design before I create anything new.
+          expected_outcome: Return bounded citation-backed findings and a reuse, amend, new-work, or stop recommendation.
+        - mode: composed
+          request: Continue this design decision from the supplied repository and catalog evidence.
+          expected_outcome: Reuse the bounded source set and return a prior-art recommendation without broad repository rediscovery.
+          prior_evidence:
+            - The explicit source paths, objective, and catalog evidence supplied in the fixture.
+          must_not_repeat:
+            - Do not enumerate or grep the whole repository again.
+            - Do not reacquire catalog evidence already included in the bounded source set.
+      inputs:
+        objective: Add a Moltbook opportunity scan to an existing governed pipeline.
+        repo_root: fixtures/workspace
+        source_paths:
+          - skills/moltbook/run.yaml
+        decomposition:
+          objective_summary: Add a Moltbook opportunity scan step.
+          orchestration_steps:
+            - id: scan
+              skill: ../moltbook
+              runner: scan
+          required_skills:
+            - name: moltbook
+              exists: true
+      caller:
+        answers:
+          agent.prior-art-research.output:
+            prior_art_draft:
+              decision: ready
+              findings:
+                - claim: The existing Moltbook package owns the opportunity scan boundary.
+                  source: skills/moltbook/run.yaml
+                  relevance: Reuse avoids a duplicate public scanner.
+                  confidence: verified
+              catalog_fit:
+                decision: reuse
+                adjacent_skills:
+                  - moltbook
+                rationale: Compose the existing scan runner and add only pipeline glue.
+              quality_bar:
+                audience: Runx skill maintainers
+                artifact: A source-bound reuse decision.
+                evidence: Cite the inspected manifest.
+                stop_conditions:
+                  - Stop if the runner cannot be verified.
+              recommended_flow:
+                - step: scan
+                  rationale: Reuse the existing Moltbook scan runner.
+              sources:
+                - path: skills/moltbook/run.yaml
+                  kind: skill-manifest
+              risks: []
+      expect:
+        status: sealed
+        steps:
+          - plan
+          - catalog
+          - read
+          - index
+          - research
+          - validate
+        step_outputs:
+          validate:
+            subset:
+              decision: ready
+              catalog_fit:
+                decision: reuse
+                adjacent_skills:
+                  - moltbook
+              evidence:
+                cited_paths:
+                  - skills/moltbook/run.yaml
+              validation:
+                status: pass
+                findings: []
+        receipt:
+          schema: runx.receipt.v1
+    - name: prior-art-missing-source-stops
+      inputs:
+        objective: Verify a nonexistent local design note.
+        repo_root: fixtures/workspace
+        source_paths:
+          - docs/does-not-exist.md
+      caller:
+        answers:
+          agent.prior-art-research.output:
+            prior_art_draft:
+              decision: ready
+              findings:
+                - claim: The missing note defines the required protocol.
+                  source: docs/does-not-exist.md
+                  relevance: It would constrain the design if it existed.
+                  confidence: verified
+              catalog_fit:
+                decision: new_work
+                adjacent_skills: []
+                rationale: No reusable package was identified.
+              quality_bar: {}
+              recommended_flow: []
+              sources:
+                - path: docs/does-not-exist.md
+                  kind: repo-document
+              risks: []
+      expect:
+        status: sealed
+        steps:
+          - plan
+          - catalog
+          - read
+          - index
+          - research
+          - validate
+        step_outputs:
+          validate:
+            subset:
+              decision: needs_more_evidence
+              validation:
+                status: hold
+                findings:
+                  - code: source.missing
+                    path: docs/does-not-exist.md
+        receipt:
+          schema: runx.receipt.v1
+runners:
+  prior-art-agent:
+    default: true
+    inputs:
+      objective:
+        type: string
+        required: true
+        description: Build, content, or operator objective being researched.
+      decomposition:
+        type: json
+        required: false
+        description: Structured decomposition output from work-plan.
+      graph_purpose:
+        type: string
+        required: false
+        description: Downstream purpose such as skill proposal, docs, content, issue, or release.
+      audience:
+        type: string
+        required: false
+        description: Reader or operator who will use the downstream artifact.
+      artifact_contract:
+        type: json
+        required: false
+        description: Expected downstream output shape.
+      source_paths:
+        type: json
+        required: false
+        description: Bounded repo-relative files to inspect in addition to catalog manifests derived from decomposition.
+      repo_root:
+        type: string
+        required: false
+        default: .
+        description: Workspace root used for native catalog and bounded file inspection.
+    result_from: [validate]
+    steps:
+      - id: plan
+        label: derive the bounded source set
+        inputs:
+          decomposition: $input.decomposition
+          source_paths: $input.source_paths
+        tool: { module: prior-art.mjs, export: planSources }
+        outputs:
+          paths: array
+          limits: object
+        artifacts:
+          named_emits:
+            paths: paths
+            limits: limits
+      - id: catalog
+        label: inspect the native skill catalog
+        tool: runx.skill.inspect
+        scopes:
+          - fs.read
+        inputs:
+          repo_root: $input.repo_root
+      - id: read
+        label: read and digest the bounded source set
+        tool: fs.read_bundle
+        scopes:
+          - fs.read
+        inputs:
+          repo_root: $input.repo_root
+          max_bytes: 262144
+          on_missing: report
+        context:
+          paths: plan.paths.data
+      - id: index
+        label: bind catalog and file evidence
+        tool: { module: prior-art.mjs, export: indexSources }
+        outputs:
+          evidence_index: object
+        context:
+          limits: plan.limits.data
+          authoring_context: catalog.authoring_context.data
+          file_read_bundle: read.file_read_bundle.data
+        artifacts:
+          named_emits:
+            evidence_index: evidence_index
+      - id: research
+        label: compare inspected prior art
+        agent: { role: researcher, task: prior-art-research }
+        outputs:
+          prior_art_draft: object
+        inputs:
+          objective: $input.objective
+          decomposition: $input.decomposition
+          graph_purpose: $input.graph_purpose
+          audience: $input.audience
+          artifact_contract: $input.artifact_contract
+        context:
+          evidence_index: index.evidence_index.data
+        allowed_tools:
+          - fs.read
+        scopes:
+          - fs.read
+        artifacts:
+          named_emits:
+            prior_art_draft: prior_art_draft
+      - id: validate
+        label: validate citations and catalog fit
+        context:
+          evidence_index: index.evidence_index.data
+          prior_art_draft: research.prior_art_draft.data
+        tool: { module: prior-art.mjs, export: validatePriorArt }
+        outputs:
+          decision: string
+          findings: array
+          catalog_fit: object
+          quality_bar: object
+          recommended_flow: array
+          sources: array
+          risks: array
+          evidence: object
+          validation: object
+        artifacts:
+          wrap_as: prior_art_report
+          packet: runx.builder.prior_art.v1

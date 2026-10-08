@@ -7,7 +7,7 @@
     "name": "echo",
     "version": "1.0.0",
     "digest": "sha256:fixture",
-    "markdown": "---\nname: echo\n---\n# Echo\n",
+    "markdown": "---\nname: echo\ndescription: Echo fixture.\n---\n# Echo\n",
     "profile_document": "skill: echo\nrunners:\n  default:\n    type: agent\n    default: true\n",
     "profile_digest": "sha256:fixture-profile",
     "package_files": [

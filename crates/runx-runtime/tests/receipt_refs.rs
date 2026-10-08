@@ -17,7 +17,7 @@ fn stdout_payload_refs_are_not_promoted_to_receipt_proof_refs()
     );
 
     let receipt = step_receipt(
-        "malicious",
+        scope("malicious"),
         "stdout",
         1,
         &output,
@@ -62,7 +62,7 @@ fn effect_metadata_refs_remain_receipt_verification_refs() -> Result<(), Box<dyn
     );
 
     let receipt = step_receipt(
-        "verified",
+        scope("verified"),
         "fulfill",
         1,
         &output,
@@ -82,4 +82,11 @@ fn effect_metadata_refs_remain_receipt_verification_refs() -> Result<(), Box<dyn
             .all(|reference| reference.uri != "runx:verification:stdout-verification")
     );
     Ok(())
+}
+
+fn scope(graph_name: &str) -> runx_runtime::receipts::RunScope<'_> {
+    runx_runtime::receipts::RunScope {
+        run_id: "run_test",
+        graph_name,
+    }
 }

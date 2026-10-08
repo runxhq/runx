@@ -148,7 +148,7 @@ No dual-reads, dual-writes, or runtime fallbacks. When changing schemas or ident
 
 Use the canonical `skill-lab` skill for skill design, creation, improvement, and
 harness work. Its `SKILL.md` is the complete operating contract supplied to the
-authoring agent; do not duplicate that contract here or in `X.yaml`. Apply the
+authoring agent; do not duplicate that contract here or in `run.yaml`. Apply the
 same ownership test to native/core work and keep one source of truth for every
 contract. See `docs/skill-quality-standard.md` for the review bar.
 

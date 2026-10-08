@@ -1,6 +1,7 @@
 name: "bounded-docs-fix"
-kind: "agent_task"
-runner: "issue-intake"
+kind: "skill"
+target: "../../../../../skills/issue-intake"
+runner: "intake"
 inputs:
   artifact:
     artifact_id: "eb_docs_work_101"
@@ -37,7 +38,7 @@ inputs:
   thread_title: "README should point users to issue-to-pr"
 caller:
   answers:
-    agent_task.issue-intake.output:
+    agent.issue-intake.output:
       change_set:
         action_decision: "proceed_to_build"
         category: "docs"
@@ -144,14 +145,6 @@ caller:
           recommended_lane: "issue-to-pr"
           severity: "low"
         updated_at: "2026-05-15T00:00:00Z"
-      decision:
-        schema: "runx.decision.v1"
-        decision_id: "dec_bounded-docs-fix"
-        choice: "open"
-        summary: "The report is a bounded one-repo documentation fix with low risk."
-        recommended_lane: "issue-to-pr"
-  approvals:
-    {}
 expect:
   status: "sealed"
   receipt:
@@ -161,4 +154,3 @@ expect:
 metadata:
   product_skill: "issue-intake"
   source_case: "bounded-docs-fix"
-  runner_kind: "agent_task"

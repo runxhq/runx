@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://schemas.runx.ai/runx/history_report/v1.json",
   "x-runx-packet-id": "runx.history_report.v1",
-  "x-runx-generated-from": "skills/run-history/X.yaml#root.runners.report.graph.steps.3",
+  "x-runx-generated-from": "skills/run-history/run.yaml#root.runners.report.steps.3",
   "type": "object",
   "required": [
     "history_report"
@@ -64,7 +64,7 @@
           "additionalProperties": false,
           "properties": {
             "limit": {
-              "maximum": 10000,
+              "maximum": 1000,
               "minimum": 1,
               "type": "integer"
             },
@@ -199,7 +199,7 @@
             "history": {
               "enum": [
                 "supplied_replay",
-                "receipt.query"
+                "run.list"
               ],
               "type": "string"
             }

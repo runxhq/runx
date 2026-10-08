@@ -32,7 +32,7 @@ inputs:
     repo_root: .
     branch: fix/442-operator-first
     commit: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-    files: [oss/skills/issue-to-pr/X.yaml]
+    files: [oss/skills/issue-to-pr/run.yaml]
     tests:
       - command: cargo test -p runx-cli --test integration issue_to_pr_journey
         status: passed
@@ -50,15 +50,17 @@ inputs:
       idempotency_key: issue-to-pr-442-v1
     errors: []
 caller:
-  http_responses:
-    "https://api.github.com/user":
-      status: 200
-      headers: { content-type: application/json }
-      body: '{"id": 7, "login": "operator"}'
-    "https://api.github.com/repos/runxhq/runx/pulls?base=main&head=runxhq%3Afix%2F442-operator-first&per_page=2&state=open":
-      status: 200
-      headers: { content-type: application/json }
-      body: '[{"number": 77, "title": "Make issue-to-PR operator-first", "state": "open", "body": "Closes #442.", "html_url": "https://github.com/runxhq/runx/pull/77", "head": {"ref": "fix/442-operator-first", "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}, "base": {"ref": "main"}, "draft": false}]'
+  http_exchanges:
+    - request: { method: GET, url: "https://api.github.com/user", body: none }
+      response:
+        status: 200
+        headers: { content-type: application/json }
+        body: '{"id": 7, "login": "operator"}'
+    - request: { method: GET, url: "https://api.github.com/repos/runxhq/runx/pulls?base=main&head=runxhq%3Afix%2F442-operator-first&per_page=2&state=open", body: none }
+      response:
+        status: 200
+        headers: { content-type: application/json }
+        body: '[{"number": 77, "title": "Make issue-to-PR operator-first", "state": "open", "body": "Closes #442.", "html_url": "https://github.com/runxhq/runx/pull/77", "head": {"ref": "fix/442-operator-first", "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}, "base": {"ref": "main"}, "draft": false}]'
 expect:
   status: sealed
   receipt: { schema: runx.receipt.v1 }

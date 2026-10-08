@@ -1,8 +1,11 @@
 use std::path::{Path, PathBuf};
 
+#[cfg(feature = "async-http")]
 use crate::http::RuntimeHttpTransport;
 
+#[cfg(feature = "async-http")]
 use super::http::{RegistryClient, RegistryClientError};
+#[cfg(feature = "async-http")]
 use super::types::ResolvedRegistryRef;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -13,6 +16,7 @@ pub struct ParsedRegistryRef {
 
 #[derive(Debug, thiserror::Error)]
 pub enum RegistryResolveError {
+    #[cfg(feature = "async-http")]
     #[error("{0}")]
     Client(#[from] RegistryClientError),
     #[error("Registry ref '{0}' is ambiguous. Use '<owner>/<name>' instead.")]
@@ -46,6 +50,7 @@ pub fn parse_registry_ref(value: &str) -> ParsedRegistryRef {
     }
 }
 
+#[cfg(feature = "async-http")]
 pub fn resolve_remote_registry_ref<T: RuntimeHttpTransport>(
     client: &RegistryClient<T>,
     registry_ref: &str,

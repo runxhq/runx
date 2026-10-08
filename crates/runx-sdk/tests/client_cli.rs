@@ -129,7 +129,7 @@ fn fake_runx_script() -> &'static str {
     r#"#!/bin/sh
 printf '%s\n' "$@" > "$RUNX_SDK_ARGS"
 if [ "$1" = "skill" ] && [ "$2" = "search" ]; then
-  printf '%s\n' '{"status":"success","results":[{"skill_id":"acme/sourcey","name":"sourcey","owner":"acme","source":"runx-registry","source_label":"runx registry","source_type":"cli-tool","trust_tier":"community","required_scopes":["repo:read"],"tags":["docs"],"version":"1.0.0"}]}'
+  printf '%s\n' '{"status":"success","results":[{"skill_id":"acme/sourcey","name":"sourcey","owner":"acme","source":"runx-registry","source_label":"runx registry","trust_tier":"community","required_scopes":["repo:read"],"tags":["docs"],"version":"1.0.0"}]}'
 elif [ "$1" = "resume" ]; then
   cat "$3" > "$RUNX_SDK_STDIN"
   printf '%s\n' '{"status":"sealed","args":["skill"]}'

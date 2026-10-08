@@ -7,11 +7,22 @@
     "declaration": true,
     "sourceMap": true,
     "ignoreDeprecations": "6.0",
-    "types": ["node"],
+    "types": [
+      "node"
+    ],
     "paths": {
-      "@runxhq/extension-sdk": ["./packages/extension-sdk/src/index.ts"],
-      "@runxhq/contracts": ["./packages/contracts/src/index.ts"],
-      "@runxhq/host-adapters": ["./packages/host-adapters/src/index.ts"]
+      "@runxhq/extension-sdk": [
+        "./packages/extension-sdk/src/index.ts"
+      ],
+      "@runxhq/contracts": [
+        "./packages/contracts/src/index.ts"
+      ],
+      "@runxhq/client": [
+        "./packages/client/src/index.ts"
+      ],
+      "@runxhq/client/adapters": [
+        "./packages/client/src/adapters/index.ts"
+      ]
     }
   }
 }

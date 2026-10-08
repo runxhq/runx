@@ -1,4 +1,4 @@
-# Rust parser parity fixtures
+# Parser fixtures
 
 Parser fixtures are executable examples owned by the native `runx-parser`
 crate. `scripts/generate-rust-parser-fixtures.ts` refreshes their expected
@@ -21,7 +21,5 @@ fields live under `expected.raw.frontmatter`, `expected.raw.rawFrontmatter`,
 and `expected.raw.body`. Raw object subtrees use the shared
 `runx_contracts::JsonValue` model and stable sorted-key JSON.
 
-The YAML scalar subset intentionally excludes host-divergent forms until a
-separate compatibility spec proves them across TypeScript and Rust:
-sexagesimal values, implicit `yes`/`no`/`on`/`off` booleans, octal/hex integer
+The YAML scalar subset excludes host-divergent forms: sexagesimal values, implicit `yes`/`no`/`on`/`off` booleans, octal/hex integer
 forms, timestamps, unquoted date-like strings, and special floats.

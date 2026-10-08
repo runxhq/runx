@@ -1,8 +1,6 @@
 ---
 name: knowledge-router
 description: Route one question or source event through a supplied knowledge catalog to validated source, owner, escalation, and follow-up skill references. Use for evidence discovery and ownership routing, not broad business-action fanout or answering the question itself.
-runx:
-  category: ops
 ---
 
 # Knowledge Router

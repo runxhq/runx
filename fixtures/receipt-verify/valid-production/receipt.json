@@ -13,14 +13,14 @@
         "closed_at": "2026-06-10T00:00:00Z",
         "disposition": "closed",
         "reason_code": "process_exit",
-        "summary": "cli-tool exited successfully"
+        "summary": "process exited successfully"
       },
       "criterion_bindings": [
         {
           "criterion_id": "process_exit",
           "evidence_refs": [],
           "status": "verified",
-          "summary": "cli-tool exited successfully",
+          "summary": "process exited successfully",
           "verification_refs": []
         }
       ],
@@ -35,7 +35,7 @@
           {
             "criterion_id": "process_exit",
             "required": true,
-            "statement": "cli-tool exits successfully"
+            "statement": "process exits successfully"
           }
         ]
       },
@@ -101,8 +101,8 @@
       "selected_harness_ref": null
     }
   ],
-  "digest": "sha256:5eda2427b84b8fbb97c1e6b5fc75ce65858d2d15cdd273567b1ad0245c713930",
-  "id": "sha256:19d4c3ef22caf1ac8e6f4bbaaefe4867c2424382970f20b3422d3c3f0e908b27",
+  "digest": "sha256:3dc01fd24f1472f5f81af39c74ff42f8dfb8e7e2106df4875a43ac4225aa9734",
+  "id": "sha256:20e48f90c347fa956b52ca63eacfbf298bc343603cb605e179f7254d4e7ee1c1",
   "idempotency": {
     "content_hash": "sha256:receipt-verify-production-verified-content",
     "intent_key": "sha256:receipt-verify-production-verified-intent",
@@ -114,8 +114,7 @@
     "type": "hosted"
   },
   "lineage": {
-    "children": [],
-    "sync": []
+    "children": []
   },
   "schema": "runx.receipt.v1",
   "seal": {
@@ -125,7 +124,7 @@
         "criterion_id": "process_exit",
         "evidence_refs": [],
         "status": "verified",
-        "summary": "cli-tool exited successfully",
+        "summary": "process exited successfully",
         "verification_refs": []
       }
     ],
@@ -137,14 +136,15 @@
   "signals": [],
   "signature": {
     "alg": "Ed25519",
-    "value": "base64:r-GgK-ciJZ1e_oE3a4BMZO5NKo8hXWQsCS123j-OwlnEQ6i8WphZIW9GxpNQHjsv8RoGm07rp2_Mat6CfeekAw"
+    "value": "base64:Gw6eD5NTQjlcyGaShAppu3cgvF2p1lbbcOb3nApvYdBMvCLVWUrQMoHiUGX0inms_B8yLtsXeQ1RmjHT6Q0yCA"
   },
   "subject": {
     "commitments": [],
     "kind": "skill",
     "ref": {
-      "type": "harness",
-      "uri": "hrn_receipt-verify_production-verified"
+      "label": "receipt-verify",
+      "type": "run",
+      "uri": "runx:run:receipt-verify#production-verified"
     }
   }
 }

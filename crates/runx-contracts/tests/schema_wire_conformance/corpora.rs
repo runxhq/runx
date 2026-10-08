@@ -189,7 +189,6 @@ pub(super) fn tool_manifest_corpus() -> Vec<(&'static str, Value)> {
         "name": "fs.read",
         "description": "Read a file",
         "source": {
-            "type": "cli-tool",
             "command": "node",
             "args": ["tool.mjs"],
             "input_mode": "stdin",
@@ -1219,7 +1218,7 @@ pub(super) fn agent_context_envelope_corpus() -> Vec<(&'static str, Value)> {
 pub(super) fn receipt_corpus() -> Vec<(&'static str, Value)> {
     let valid = json!({
         "schema": "runx.receipt.v1",
-        "id": "hrn_rcpt_1",
+        "id": "rcpt_1",
         "created_at": "2026-01-01T00:00:00Z",
         "canonicalization": "runx.receipt.c14n.v1",
         "issuer": {

@@ -32,7 +32,7 @@ inputs:
         windSpeed: 8 mph
 caller:
   answers:
-    agent_task.weather-forecast-interpret.output:
+    agent.weather-forecast-interpret.output:
       forecast_draft:
         decision: ready
         location: Washington Monument

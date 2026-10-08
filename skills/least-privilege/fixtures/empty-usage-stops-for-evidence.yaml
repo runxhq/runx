@@ -9,8 +9,6 @@ inputs:
     - repo:read
   receipt_ids: []
   receipt_rows: []
-  usage_summary:
-    observed: []
   objective: Audit a newly published skill with no runs.
 expect:
   status: sealed
@@ -20,4 +18,3 @@ metadata:
   public_skill: least-privilege
   source_case: empty-usage-stops-for-evidence
   source: skills-fixture
-  runner_kind: graph

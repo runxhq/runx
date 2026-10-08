@@ -24,8 +24,8 @@ fn registry_local_publish_search_resolve_install_json() -> Result<(), Box<dyn st
         include_str!("../../../fixtures/registry/install/echo-SKILL.md"),
     )?;
     fs::write(
-        skill_dir.join("X.yaml"),
-        include_str!("../../../fixtures/registry/install/echo-X.yaml"),
+        skill_dir.join("run.yaml"),
+        include_str!("../../../fixtures/registry/install/echo-run.yaml"),
     )?;
 
     let publish = runx_command()?
@@ -132,7 +132,7 @@ fn registry_local_publish_install_executes_bundled_sibling()
         "---\nname: bundled-root\ndescription: Registry bundle integration fixture.\n---\n# Bundled root\n",
     )?;
     fs::write(
-        skill_dir.join("X.yaml"),
+        skill_dir.join("run.yaml"),
         r#"skill: bundled-root
 harness:
   cases:
@@ -143,16 +143,13 @@ harness:
 runners:
   default:
     default: true
-    type: graph
-    graph:
-      name: bundled-root
-      result_from: [sibling]
-      steps:
-        - id: sibling
-          skill: ../sibling
-          artifacts:
-            wrap_as: sibling_packet
-            packet: runx.test.registry-sibling.v1
+    result_from: [sibling]
+    steps:
+      - id: sibling
+        skill: ../sibling
+        artifacts:
+          wrap_as: sibling_packet
+          packet: runx.test.registry-sibling.v1
 "#,
     )?;
     fs::write(
@@ -164,18 +161,15 @@ runners:
         "---\nname: bundled-sibling\ndescription: Bundled dependency fixture.\n---\n# Bundled sibling\n",
     )?;
     fs::write(
-        sibling_dir.join("X.yaml"),
+        sibling_dir.join("run.yaml"),
         r#"skill: bundled-sibling
 runners:
   default:
     default: true
-    type: graph
-    graph:
-      name: bundled-sibling
-      result_from: [leaf]
-      steps:
-        - id: leaf
-          skill: ../leaf
+    result_from: [leaf]
+    steps:
+      - id: leaf
+        skill: ../leaf
 "#,
     )?;
     fs::write(
@@ -183,20 +177,17 @@ runners:
         "---\nname: bundled-leaf\ndescription: Transitive bundled dependency fixture.\n---\n# Bundled leaf\n",
     )?;
     fs::write(
-        leaf_dir.join("X.yaml"),
+        leaf_dir.join("run.yaml"),
         r#"skill: bundled-leaf
 runners:
   default:
     default: true
-    type: graph
-    graph:
-      name: bundled-leaf
-      result_from: [digest]
-      steps:
-        - id: digest
-          tool: data.digest
-          inputs:
-            value: installed-leaf
+    result_from: [digest]
+    steps:
+      - id: digest
+        tool: data.digest
+        inputs:
+          value: installed-leaf
 "#,
     )?;
 
@@ -213,8 +204,8 @@ runners:
         &[
             "\"action\": \"package\"",
             "\"path\": \"runx.package.json\"",
-            "\"path\": \"dependencies/sibling/X.yaml\"",
-            "\"path\": \"dependencies/leaf/X.yaml\"",
+            "\"path\": \"dependencies/sibling/run.yaml\"",
+            "\"path\": \"dependencies/leaf/run.yaml\"",
         ],
     )?;
 
@@ -250,8 +241,8 @@ runners:
 
     let installed = install_dir.join("acme").join("bundled-root").join("1.0.0");
     assert!(installed.join("runx.package.json").is_file());
-    assert!(installed.join("dependencies/sibling/X.yaml").is_file());
-    assert!(installed.join("dependencies/leaf/X.yaml").is_file());
+    assert!(installed.join("dependencies/sibling/run.yaml").is_file());
+    assert!(installed.join("dependencies/leaf/run.yaml").is_file());
     let run = crate::support::isolated_runx_command_with_inherited_cwd("registry-bundle-run")
         .current_dir(&root)
         .env("RUNX_HOME", root.join("home"))
@@ -358,8 +349,9 @@ fn registry_install_reports_typed_trust_anchor_errors() -> Result<(), Box<dyn st
                 serde_json::Value::String("base64:invalid".to_owned());
         }),
         ("digest_mismatch", |version| {
-            version["markdown"] =
-                serde_json::Value::String("---\nname: echo\n---\n# Tampered\n".to_owned());
+            version["markdown"] = serde_json::Value::String(
+                "---\nname: echo\ndescription: echo fixture.\n---\n# Tampered\n".to_owned(),
+            );
         }),
     ];
 
@@ -584,8 +576,8 @@ fn publish_registry_fixture(root: &std::path::Path) -> Result<PathBuf, Box<dyn s
         include_str!("../../../fixtures/registry/install/echo-SKILL.md"),
     )?;
     fs::write(
-        skill_dir.join("X.yaml"),
-        include_str!("../../../fixtures/registry/install/echo-X.yaml"),
+        skill_dir.join("run.yaml"),
+        include_str!("../../../fixtures/registry/install/echo-run.yaml"),
     )?;
 
     let publish = runx_command()?
@@ -621,8 +613,8 @@ fn publish_fixture_version(
             .replace("# Echo", &format!("# {title}")),
     )?;
     fs::write(
-        skill_dir.join("X.yaml"),
-        include_str!("../../../fixtures/registry/install/echo-X.yaml"),
+        skill_dir.join("run.yaml"),
+        include_str!("../../../fixtures/registry/install/echo-run.yaml"),
     )?;
     let publish = runx_command()?
         .args([
@@ -742,6 +734,7 @@ fn test_manifest_key_pair() -> Result<ring::signature::Ed25519KeyPair, std::io::
 fn runx_command() -> Result<Command, Box<dyn std::error::Error>> {
     let mut command = Command::new(env!("CARGO_BIN_EXE_runx"));
     command.env("NO_COLOR", "1");
+    crate::support::isolate_project(&mut command);
     command.env(
         runx_runtime::registry::RUNX_REGISTRY_MANIFEST_TRUST_KEY_ENV,
         STANDARD.encode(test_manifest_key_pair()?.public_key().as_ref()),

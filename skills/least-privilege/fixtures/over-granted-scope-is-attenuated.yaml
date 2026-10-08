@@ -8,7 +8,7 @@ operator_journeys:
     request: Determine the narrowest grant supported by these receipt-backed authority observations.
     expected_outcome: Verify the cited receipts and return a least-privilege scope proposal with unsupported scopes removed.
   - mode: composed
-    request: Attenuate this grant from the supplied authority-usage summary and receipt IDs.
+    request: Attenuate this grant from the cited receipts.
     expected_outcome: Reuse verified usage evidence without rerunning provider operations or widening the observed scope set.
     prior_evidence:
       - The normalized authority usage, granted scopes, and cited receipt rows supplied in the fixture.
@@ -84,4 +84,3 @@ metadata:
   public_skill: least-privilege
   source_case: over-granted-scope-is-attenuated
   source: skills-fixture
-  runner_kind: graph

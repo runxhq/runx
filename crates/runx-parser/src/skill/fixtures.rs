@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::ValidationError;
 pub use crate::harness_fixture::{
-    HarnessExpectation, HarnessHttpExchangeFixture, HarnessHttpRequestBodyFixture,
+    HarnessCaller, HarnessExpectation, HarnessHttpExchangeFixture, HarnessHttpRequestBodyFixture,
     HarnessHttpResponseFixture, HarnessMcpCallFixture, OperatorJourneyClaim, OperatorJourneyMode,
     ReceiptExpectation,
 };
@@ -23,28 +23,6 @@ const HARNESS_CASE_FIELDS: &[&str] = &[
     "expect",
     "operator_journeys",
 ];
-const HARNESS_CALLER_FIELDS: &[&str] = &[
-    "answers",
-    "approvals",
-    "http_exchanges",
-    "http_responses",
-    "mcp_calls",
-];
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct HarnessCallerFixture {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub answers: Option<JsonObject>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub approvals: Option<BTreeMap<String, bool>>,
-    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
-    pub http_responses: BTreeMap<String, HarnessHttpResponseFixture>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub http_exchanges: Vec<HarnessHttpExchangeFixture>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub mcp_calls: Vec<HarnessMcpCallFixture>,
-}
-
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct RunnerHarnessCase {
     pub name: String,
@@ -52,7 +30,7 @@ pub struct RunnerHarnessCase {
     pub runner: Option<String>,
     pub inputs: JsonObject,
     pub env: BTreeMap<String, String>,
-    pub caller: HarnessCallerFixture,
+    pub caller: HarnessCaller,
     pub expect: HarnessExpectation,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub operator_journeys: Vec<OperatorJourneyClaim>,
@@ -168,45 +146,9 @@ fn validate_string_object(
 fn validate_harness_caller(
     value: JsonObject,
     field: &str,
-) -> Result<HarnessCallerFixture, ValidationError> {
-    FIELDS.reject_unknown_fields(&value, field, HARNESS_CALLER_FIELDS)?;
-    Ok(HarnessCallerFixture {
-        answers: FIELDS.optional_object(value.get("answers"), &format!("{field}.answers"))?,
-        approvals: Some(validate_bool_object(
-            FIELDS
-                .optional_object(value.get("approvals"), &format!("{field}.approvals"))?
-                .unwrap_or_default(),
-            &format!("{field}.approvals"),
-        )?),
-        http_responses: crate::harness_fixture::parse_harness_http_responses(
-            value.get("http_responses"),
-            &format!("{field}.http_responses"),
-        )
-        .map_err(|error| FIELDS.validation_error(error.to_string()))?,
-        http_exchanges: crate::harness_fixture::parse_harness_http_exchanges(
-            value.get("http_exchanges"),
-            &format!("{field}.http_exchanges"),
-        )
-        .map_err(|error| FIELDS.validation_error(error.to_string()))?,
-        mcp_calls: crate::harness_fixture::parse_harness_mcp_calls(
-            value.get("mcp_calls"),
-            &format!("{field}.mcp_calls"),
-        )
-        .map_err(|error| FIELDS.validation_error(error.to_string()))?,
-    })
-}
-
-fn validate_bool_object(
-    value: JsonObject,
-    field: &str,
-) -> Result<BTreeMap<String, bool>, ValidationError> {
-    value
-        .into_iter()
-        .map(|(key, value)| match value {
-            JsonValue::Bool(value) => Ok((key, value)),
-            _ => Err(FIELDS.validation_error(format!("{field}.{key} must be a boolean."))),
-        })
-        .collect()
+) -> Result<HarnessCaller, ValidationError> {
+    crate::harness_fixture::parse_harness_caller(value)
+        .map_err(|error| FIELDS.validation_error(format!("{field}: {error}")))
 }
 
 fn validate_harness_expectation(
@@ -240,16 +182,13 @@ harness:
 runners:
   fixture:
     default: true
-    type: graph
-    graph:
-      name: fixture
-      result_from:
-        - digest
-      steps:
-        - id: digest
-          tool: data.digest
-          inputs:
-            value: fixture
+    result_from:
+      - digest
+    steps:
+      - id: digest
+        tool: data.digest
+        inputs:
+          value: fixture
 "#
             ))?;
             let Err(error) = validate_runner_manifest(raw) else {
@@ -284,15 +223,12 @@ harness:
 runners:
   fixture:
     default: true
-    type: graph
-    graph:
-      name: fixture
-      result_from: [digest]
-      steps:
-        - id: digest
-          tool: data.digest
-          inputs:
-            value: fixture
+    result_from: [digest]
+    steps:
+      - id: digest
+        tool: data.digest
+        inputs:
+          value: fixture
 "#,
         )?;
         let manifest = validate_runner_manifest(raw)?;
@@ -327,15 +263,12 @@ harness:
 runners:
   fixture:
     default: true
-    type: graph
-    graph:
-      name: fixture
-      result_from: [digest]
-      steps:
-        - id: digest
-          tool: data.digest
-          inputs:
-            value: fixture
+    result_from: [digest]
+    steps:
+      - id: digest
+        tool: data.digest
+        inputs:
+          value: fixture
 "#,
         )?;
         let Err(error) = validate_runner_manifest(raw) else {
@@ -374,15 +307,12 @@ harness:
 runners:
   fixture:
     default: true
-    type: graph
-    graph:
-      name: fixture
-      result_from: [digest]
-      steps:
-        - id: digest
-          tool: data.digest
-          inputs:
-            value: fixture
+    result_from: [digest]
+    steps:
+      - id: digest
+        tool: data.digest
+        inputs:
+          value: fixture
 "#,
         )?;
         let manifest = validate_runner_manifest(raw)?;
@@ -424,15 +354,12 @@ harness:
 runners:
   fixture:
     default: true
-    type: graph
-    graph:
-      name: fixture
-      result_from: [digest]
-      steps:
-        - id: digest
-          tool: data.digest
-          inputs:
-            value: fixture
+    result_from: [digest]
+    steps:
+      - id: digest
+        tool: data.digest
+        inputs:
+          value: fixture
 "#,
             );
             let raw = parse_runner_manifest_yaml(&yaml)?;
@@ -477,15 +404,12 @@ harness:
 runners:
   fixture:
     default: true
-    type: graph
-    graph:
-      name: fixture
-      result_from: [digest]
-      steps:
-        - id: digest
-          tool: data.digest
-          inputs:
-            value: fixture
+    result_from: [digest]
+    steps:
+      - id: digest
+        tool: data.digest
+        inputs:
+          value: fixture
 "#,
             );
             let raw = parse_runner_manifest_yaml(&yaml)?;

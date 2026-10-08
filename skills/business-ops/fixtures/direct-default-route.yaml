@@ -42,5 +42,4 @@ metadata:
   public_skill: business-ops
   source_case: direct-default-routes-one-lane
   source: operator-journey
-  runner_kind: graph
   graph_shape: standalone_route

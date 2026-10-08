@@ -42,7 +42,7 @@ pub(super) fn load_mcp_server_tool(
     let manifest = loaded.manifest().ok_or_else(|| {
         mcp_runner_error(
             &loaded.package.skill.name,
-            "skill package does not declare X.yaml runners",
+            "skill package does not declare run.yaml runners",
         )
     })?;
     let runner = crate::execution::skill_front::runner_manifest::selected_runner(

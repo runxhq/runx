@@ -8,23 +8,20 @@ use runx_parser::{
 };
 
 const GRAPH_FIXTURES: &[&str] = &[
-    include_str!("../../../fixtures/parser/graphs/fanout-structured-gates.json"),
-    include_str!("../../../fixtures/parser/graphs/inline-run.json"),
     include_str!("../../../fixtures/parser/graphs/parse-malformed-yaml.json"),
     include_str!("../../../fixtures/parser/graphs/sequential-context.json"),
+    include_str!("../../../fixtures/parser/graphs/step-kinds.json"),
     include_str!("../../../fixtures/parser/graphs/tool-and-policy.json"),
-    include_str!("../../../fixtures/parser/graphs/validation-fanout-prose-gate.json"),
     include_str!("../../../fixtures/parser/graphs/validation-missing-step-id.json"),
+    include_str!("../../../fixtures/parser/graphs/validation-two-step-kinds.json"),
 ];
 
 const SKILL_FIXTURES: &[&str] = &[
-    include_str!("../../../fixtures/parser/skills/graph-source.json"),
-    include_str!("../../../fixtures/parser/skills/portable-agent.json"),
-    include_str!("../../../fixtures/parser/skills/validation-missing-command.json"),
+    include_str!("../../../fixtures/parser/skills/portable-manual.json"),
+    include_str!("../../../fixtures/parser/skills/validation-manual-inputs.json"),
 ];
 
 const RUNNER_MANIFEST_FIXTURES: &[&str] = &[
-    include_str!("../../../fixtures/parser/runner-manifests/execution-evidence-refs.json"),
     include_str!("../../../fixtures/parser/runner-manifests/harness-basic.json"),
     include_str!(
         "../../../fixtures/parser/runner-manifests/validation-harness-unknown-runner.json"
@@ -35,8 +32,8 @@ const RUNNER_MANIFEST_FIXTURES: &[&str] = &[
 ];
 
 const TOOL_MANIFEST_FIXTURES: &[&str] = &[
-    include_str!("../../../fixtures/parser/tool-manifests/cli-tool.json"),
-    include_str!("../../../fixtures/parser/tool-manifests/validation-agent-source-not-tool.json"),
+    include_str!("../../../fixtures/parser/tool-manifests/process.json"),
+    include_str!("../../../fixtures/parser/tool-manifests/validation-source-missing-command.json"),
 ];
 
 const INSTALL_FIXTURES: &[&str] = &[include_str!(
@@ -138,7 +135,7 @@ enum RejectionKind {
 }
 
 #[test]
-fn graph_fixtures_match_typescript() -> Result<(), String> {
+fn graph_fixtures_match_expected() -> Result<(), String> {
     for fixture_json in GRAPH_FIXTURES {
         let fixture: GraphFixture =
             serde_json::from_str(fixture_json).map_err(|error| error.to_string())?;
@@ -148,7 +145,7 @@ fn graph_fixtures_match_typescript() -> Result<(), String> {
 }
 
 #[test]
-fn skill_fixtures_match_typescript() -> Result<(), String> {
+fn skill_fixtures_match_expected() -> Result<(), String> {
     for fixture_json in SKILL_FIXTURES {
         let fixture: SkillFixture =
             serde_json::from_str(fixture_json).map_err(|error| error.to_string())?;
@@ -158,53 +155,96 @@ fn skill_fixtures_match_typescript() -> Result<(), String> {
 }
 
 #[test]
-fn skill_category_accepts_portable_top_level_field() -> Result<(), String> {
-    let skill = validate_skill(parse_skill_markdown(
-        "---\nname: docs-demo\ndescription: Demo skill.\ncategory: documentation\n---\n# Demo\n",
-    ).map_err(|error| error.to_string())?)
-    .map_err(|error| error.to_string())?;
-
-    assert_eq!(skill.category.as_deref(), Some("documentation"));
-    assert_eq!(skill.runx_category.as_deref(), None);
-    Ok(())
-}
-
-#[test]
-fn skill_category_accepts_runx_catalog_override() -> Result<(), String> {
-    let skill = validate_skill(parse_skill_markdown(
-        "---\nname: docs-demo\ndescription: Demo skill.\ncategory: documentation\nrunx:\n  category: content\n---\n# Demo\n",
-    ).map_err(|error| error.to_string())?)
-    .map_err(|error| error.to_string())?;
-
-    assert_eq!(skill.category.as_deref(), Some("documentation"));
-    assert_eq!(skill.runx_category.as_deref(), Some("content"));
-    Ok(())
-}
-
-#[test]
-fn skill_registry_owner_preserves_contributor_namespace() -> Result<(), String> {
-    let skill = validate_skill(parse_skill_markdown(
-        "---\nname: docs-demo\ndescription: Demo skill.\nregistry_owner: zhtwangk\n---\n# Demo\n",
-    ).map_err(|error| error.to_string())?)
-    .map_err(|error| error.to_string())?;
-
-    assert_eq!(skill.registry_owner.as_deref(), Some("zhtwangk"));
-    Ok(())
-}
-
-#[test]
-fn skill_registry_owner_rejects_noncanonical_namespace() -> Result<(), String> {
-    let raw = parse_skill_markdown(
-        "---\nname: docs-demo\ndescription: Demo skill.\nregistry_owner: ZHTWangK\n---\n# Demo\n",
+fn catalog_carries_category_tags_owner_and_links() -> Result<(), String> {
+    let manifest = validate_runner_manifest(
+        parse_runner_manifest_yaml(
+            r#"
+skill: docs-demo
+catalog:
+  kind: skill
+  audience: public
+  visibility: public
+  role: canonical
+  category: content
+  tags: [docs, writing]
+  owner: zhtwangk
+  links:
+    source: https://github.com/example/docs-demo
+runners:
+  main:
+    steps:
+      - id: write
+        agent: { role: writer, task: write }
+"#,
+        )
+        .map_err(|error| error.to_string())?,
     )
     .map_err(|error| error.to_string())?;
 
-    assert!(validate_skill(raw).is_err());
+    let catalog = manifest.catalog.ok_or("catalog should be present")?;
+    assert_eq!(catalog.category.as_deref(), Some("content"));
+    assert_eq!(catalog.tags, vec!["docs".to_owned(), "writing".to_owned()]);
+    assert_eq!(catalog.owner.as_deref(), Some("zhtwangk"));
+    assert_eq!(
+        catalog.links.get("source").map(String::as_str),
+        Some("https://github.com/example/docs-demo")
+    );
     Ok(())
 }
 
 #[test]
-fn runner_manifest_fixtures_match_typescript() -> Result<(), String> {
+fn catalog_rejects_noncanonical_owner_and_non_https_links() -> Result<(), String> {
+    for (field, value) in [
+        ("owner", "ZHTWangK"),
+        ("links", "{source: http://example.com/repo}"),
+        ("tags", "[docs, docs]"),
+    ] {
+        let raw = parse_runner_manifest_yaml(&format!(
+            "skill: docs-demo\ncatalog:\n  kind: skill\n  audience: public\n  visibility: public\n  role: canonical\n  {field}: {value}\nrunners:\n  main:\n    steps:\n      - id: write\n        agent: {{ role: writer, task: write }}\n"
+        ))
+        .map_err(|error| error.to_string())?;
+        assert!(
+            validate_runner_manifest(raw).is_err(),
+            "catalog.{field}: {value} should be rejected"
+        );
+    }
+    Ok(())
+}
+
+#[test]
+fn strict_frontmatter_applies_the_agent_skills_rules() -> Result<(), String> {
+    let accepted = "---\nname: docs-demo\ndescription: Demo skill.\nlicense: Apache-2.0\ncompatibility: Requires git.\nmetadata:\n  author: runx\nallowed-tools: Bash(git:*) Read\n---\n# Demo\n";
+    validate_skill(parse_skill_markdown(accepted).map_err(|error| error.to_string())?)
+        .map_err(|error| error.to_string())?;
+
+    let long_description = "x".repeat(1025);
+    let long_compatibility = "x".repeat(501);
+    for frontmatter in [
+        "name: docs-demo\ndescription: Demo.\nrunx:\n  category: content".to_owned(),
+        "name: docs-demo\ndescription: Demo.\nregistry_owner: zhtwangk".to_owned(),
+        "name: Docs-Demo\ndescription: Demo.".to_owned(),
+        "name: docs--demo\ndescription: Demo.".to_owned(),
+        "name: -docs-demo\ndescription: Demo.".to_owned(),
+        "name: docs_demo\ndescription: Demo.".to_owned(),
+        format!("name: {}\ndescription: Demo.", "a".repeat(65)),
+        "name: docs-demo".to_owned(),
+        format!("name: docs-demo\ndescription: {long_description}"),
+        format!("name: docs-demo\ndescription: Demo.\ncompatibility: {long_compatibility}"),
+        "name: docs-demo\ndescription: Demo.\nmetadata:\n  count: 3".to_owned(),
+        "name: docs-demo\ndescription: Demo.\nallowed-tools: [Read]".to_owned(),
+    ] {
+        let raw = parse_skill_markdown(&format!("---\n{frontmatter}\n---\n# Demo\n"))
+            .map_err(|error| error.to_string())?;
+        assert!(
+            validate_skill(raw).is_err(),
+            "strict validation should reject: {frontmatter}"
+        );
+    }
+    Ok(())
+}
+
+#[test]
+fn runner_manifest_fixtures_match_expected() -> Result<(), String> {
     for fixture_json in RUNNER_MANIFEST_FIXTURES {
         let fixture: RunnerManifestFixture =
             serde_json::from_str(fixture_json).map_err(|error| error.to_string())?;
@@ -214,7 +254,7 @@ fn runner_manifest_fixtures_match_typescript() -> Result<(), String> {
 }
 
 #[test]
-fn tool_manifest_fixtures_match_typescript() -> Result<(), String> {
+fn tool_manifest_fixtures_match_expected() -> Result<(), String> {
     for fixture_json in TOOL_MANIFEST_FIXTURES {
         let fixture: ToolManifestFixture =
             serde_json::from_str(fixture_json).map_err(|error| error.to_string())?;
@@ -224,7 +264,7 @@ fn tool_manifest_fixtures_match_typescript() -> Result<(), String> {
 }
 
 #[test]
-fn install_fixtures_match_typescript() -> Result<(), String> {
+fn install_fixtures_match_expected() -> Result<(), String> {
     for fixture_json in INSTALL_FIXTURES {
         let fixture: InstallFixture =
             serde_json::from_str(fixture_json).map_err(|error| error.to_string())?;

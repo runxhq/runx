@@ -1,8 +1,6 @@
 ---
 name: mock-charge
 description: Simulate a provider charge locally for deterministic Runx harness tests.
-runx:
-  category: payments
 ---
 
 # Mock Charge

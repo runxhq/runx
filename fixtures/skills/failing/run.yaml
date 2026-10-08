@@ -1,0 +1,10 @@
+skill: failing
+version: "0.1.0"
+runners:
+  default:
+    default: true
+    steps:
+      - id: default
+        tool: { command: sh, args: [./run.sh], timeout_seconds: 10 }
+        outputs:
+          message: string

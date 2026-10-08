@@ -1,11 +1,11 @@
-#![cfg(feature = "cli-tool")]
+#![cfg(feature = "process-tool")]
 
 use std::path::{Path, PathBuf};
 
 use runx_contracts::{ClosureDisposition, JsonValue};
 use runx_receipts::validate_receipt;
 use runx_runtime::{
-    HarnessExpectedStatus, HarnessReplayOutput, adapters::cli_tool::CliToolAdapter,
+    HarnessExpectedStatus, HarnessReplayOutput, adapters::process_tool::ProcessToolAdapter,
     load_harness_fixture, run_harness_fixture_with_adapter,
 };
 
@@ -26,20 +26,25 @@ fn issue_intake_generated_fixtures_replay_to_receipts() -> Result<(), Box<dyn st
             output.receipt.id.starts_with("sha256:"),
             "{case_name}: receipt id must be content-addressed"
         );
-        assert_eq!(output.receipt.acts.len(), 1);
-        assert_eq!(output.receipt.decisions.len(), 1);
 
         let payload = skill_payload(&output)?;
         assert_object_field(&payload, "intake_report", case_name)?;
         assert_object_field(&payload, "change_set", case_name)?;
         assert_object_field(&payload, "signal", case_name)?;
-        assert_object_field(&payload, "decision", case_name)?;
 
+        // The agent step's receipt carries the act and the bound signal.
+        let [intake] = output.step_receipts.as_slice() else {
+            return Err(format!("{case_name}: expected one step receipt").into());
+        };
+        validate_receipt(intake)
+            .map_err(|verification| format!("{case_name}: {:?}", verification.findings))?;
         assert!(
-            !output.receipt.signals.is_empty(),
+            !intake.signals.is_empty(),
             "{case_name}: receipt should bind the emitted signal"
         );
-        let act = output.receipt.acts.first().ok_or("missing contained act")?;
+        let [act] = intake.acts.as_slice() else {
+            return Err(format!("{case_name}: expected one contained act").into());
+        };
         assert!(
             !act.source_refs.is_empty(),
             "{case_name}: act should bind source event refs"
@@ -47,10 +52,6 @@ fn issue_intake_generated_fixtures_replay_to_receipts() -> Result<(), Box<dyn st
         assert!(
             !act.artifact_refs.is_empty(),
             "{case_name}: act should bind target surface refs"
-        );
-        assert_eq!(
-            output.receipt.decisions[0].selected_act_id.as_deref(),
-            Some(act.id.as_str())
         );
     }
     Ok(())
@@ -102,8 +103,8 @@ fn issue_intake_generated_fixtures_keep_product_skill_source_unchanged()
 fn run_case(case_name: &str) -> Result<HarnessReplayOutput, Box<dyn std::error::Error>> {
     Ok(run_harness_fixture_with_adapter(
         case_path(case_name),
-        CliToolAdapter,
-        crate::support::local_harness_runtime_options(),
+        ProcessToolAdapter,
+        crate::support::local_harness_options(),
     )?)
 }
 

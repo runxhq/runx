@@ -21,18 +21,19 @@ inputs:
   principal: account:ops-bot
   connector: { provider: slack, target: channel:incidents }
 caller:
-  http_responses:
-    "https://fixture.runx.invalid/source":
-      status: 200
-      headers: { content-type: text/plain }
-      body: hello world
+  http_exchanges:
+    - request: { method: GET, url: "https://fixture.runx.invalid/source", body: none }
+      response:
+        status: 200
+        headers: { content-type: text/plain }
+        body: hello world
   answers:
-    agent_task.redact-pii-detect.output:
+    agent.redact-pii-detect.output:
       redaction_draft:
         decision: ready
         detected: []
         residual_risk: { level: low, reason_code: none }
-    agent_task.send-as.output:
+    agent.send-as.output:
       send_plan:
         decision: ready
         action_family: send-as

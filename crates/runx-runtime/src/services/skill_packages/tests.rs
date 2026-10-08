@@ -50,7 +50,7 @@ harness:
             - Do not rediscover supplied evidence.
       caller:
         answers:
-          agent_task.demo-decide.output:
+          agent.demo-decide.output:
             decision:
               status: ready
       expect:
@@ -59,11 +59,11 @@ harness:
 runners:
   decide:
     default: true
-    type: agent-task
-    agent: builder
-    task: demo-decide
-    outputs:
-      decision: object
+    steps:
+      - id: decide
+        agent: { role: builder, task: demo-decide }
+        outputs:
+          decision: object
 "#;
 
 fn architecture(
@@ -136,7 +136,7 @@ fn architecture(
             json!([{
                 "id": "decide",
                 "outcome": "Return one bounded decision.",
-                "lane": "agent_task"
+                "lane": "agent"
             }])
         } else {
             json!([])
@@ -160,7 +160,6 @@ fn architecture(
         "resource_budget": {
             "max_files": 8,
             "max_executable_lines": 0,
-            "max_fanout": 1,
             "max_process_spawns": 0,
             "network_allowed": false
         },
@@ -225,7 +224,7 @@ fn skill_authoring_workspace_inspection_includes_base_digest()
     let skill = temp.path().join("skills/team/demo");
     fs::create_dir_all(&skill)?;
     fs::write(skill.join("SKILL.md"), VALID_MANUAL)?;
-    fs::write(skill.join("X.yaml"), VALID_MANIFEST)?;
+    fs::write(skill.join("run.yaml"), VALID_MANIFEST)?;
     let expected_digest = package_snapshot(&skill)?.digest;
 
     let report = inspect_skill_workspace(
@@ -277,7 +276,7 @@ fn skill_authoring_workspace_inspection_includes_base_digest()
                     .as_object()
                     .and_then(|skill| skill.get("path"))
                     .and_then(JsonValue::as_str)
-                    == Some("skills/team/demo/X.yaml")
+                    == Some("skills/team/demo/run.yaml")
             }))
     );
     Ok(())
@@ -290,7 +289,7 @@ fn skill_authoring_workspace_keeps_invalid_target_repairable()
     let skill = temp.path().join("skills/team/demo");
     fs::create_dir_all(&skill)?;
     fs::write(skill.join("SKILL.md"), VALID_MANUAL)?;
-    fs::write(skill.join("X.yaml"), "skill: demo\nrunners: []\n")?;
+    fs::write(skill.join("run.yaml"), "skill: demo\nrunners: []\n")?;
 
     let report = inspect_skill_workspace(
         temp.path(),
@@ -352,7 +351,7 @@ fn skill_authoring_invalid_candidate_does_not_touch_target()
         architecture(SkillArchitectureDisposition::Build, &[]),
         &[
             ("SKILL.md", "not valid skill frontmatter"),
-            ("X.yaml", "schema: runx.runner.v1\n"),
+            ("run.yaml", "schema: runx.runner.v1\n"),
         ],
         &[],
     );
@@ -492,7 +491,7 @@ fn skill_authoring_rejects_stale_base_and_plan_drift() -> Result<(), Box<dyn std
     let target = temp.path().join("skills/demo");
     fs::create_dir_all(&target)?;
     fs::write(target.join("SKILL.md"), VALID_MANUAL)?;
-    fs::write(target.join("X.yaml"), VALID_MANIFEST)?;
+    fs::write(target.join("run.yaml"), VALID_MANIFEST)?;
     let base = package_snapshot(&target)?.digest;
     let mut bundle = change_bundle(
         &base,
@@ -546,7 +545,7 @@ fn skill_authoring_apply_is_idempotent_and_reports_deletion_delta()
     let target = temp.path().join("skills/demo");
     fs::create_dir_all(&target)?;
     fs::write(target.join("SKILL.md"), VALID_MANUAL)?;
-    fs::write(target.join("X.yaml"), VALID_MANIFEST)?;
+    fs::write(target.join("run.yaml"), VALID_MANIFEST)?;
     fs::write(target.join("obsolete.txt"), "old path\n")?;
     let base = package_snapshot(&target)?.digest;
     let bundle = change_bundle(
@@ -631,7 +630,10 @@ fn skill_authoring_candidate_stage_preserves_relative_sibling_skill_context()
     let dependency = skills.join("data-store");
     fs::create_dir_all(&target)?;
     fs::create_dir_all(&dependency)?;
-    fs::write(target.join("SKILL.md"), "---\nname: twitter\n---\n")?;
+    fs::write(
+        target.join("SKILL.md"),
+        "---\nname: twitter\ndescription: twitter fixture.\n---\n",
+    )?;
 
     let stage = CandidateStage::prepare(
         temp.path(),

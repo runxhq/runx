@@ -68,4 +68,3 @@ metadata:
   public_skill: ledger
   source_case: read-ledger-by-exact-id
   source: skills-fixture
-  runner_kind: graph

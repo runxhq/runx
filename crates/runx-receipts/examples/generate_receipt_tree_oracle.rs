@@ -26,17 +26,17 @@ fn main() {
     let path = root_dir.join("fixtures/runtime/receipt-tree/oracle.json");
 
     let receipts = json!({
-        "child_a": rec("hrn_rcpt_child_a", &[], None),
-        "child_b": rec("hrn_rcpt_child_b", &[], None),
-        "child_a_to_b": rec("hrn_rcpt_child_a", &["hrn_rcpt_child_b"], None),
-        "child_a_duplicate": rec("hrn_rcpt_child_a", &[], None),
-        "child_a_self_cycle": rec("hrn_rcpt_child_a", &["hrn_rcpt_child_a"], None),
-        "child_a_wrong_parent": rec("hrn_rcpt_child_a", &[], Some("runx:receipt:other")),
-        "root_empty": rec("hrn_rcpt_root", &[], None),
-        "root_to_a": rec("hrn_rcpt_root", &["hrn_rcpt_child_a"], None),
-        "root_to_a_b": rec("hrn_rcpt_root", &["hrn_rcpt_child_a", "hrn_rcpt_child_b"], None),
-        "root_malformed_uri": rec_raw_child("hrn_rcpt_root", "hrn_rcpt_child_a"),
-        "root_wrong_namespace": rec_wrong_ns_child("hrn_rcpt_root", "hrn_rcpt_child_a"),
+        "child_a": rec("rcpt_child_a", &[], None),
+        "child_b": rec("rcpt_child_b", &[], None),
+        "child_a_to_b": rec("rcpt_child_a", &["rcpt_child_b"], None),
+        "child_a_duplicate": rec("rcpt_child_a", &[], None),
+        "child_a_self_cycle": rec("rcpt_child_a", &["rcpt_child_a"], None),
+        "child_a_wrong_parent": rec("rcpt_child_a", &[], Some("runx:receipt:other")),
+        "root_empty": rec("rcpt_root", &[], None),
+        "root_to_a": rec("rcpt_root", &["rcpt_child_a"], None),
+        "root_to_a_b": rec("rcpt_root", &["rcpt_child_a", "rcpt_child_b"], None),
+        "root_malformed_uri": rec_raw_child("rcpt_root", "rcpt_child_a"),
+        "root_wrong_namespace": rec_wrong_ns_child("rcpt_root", "rcpt_child_a"),
     });
 
     let cases = json!([
@@ -84,7 +84,7 @@ fn main() {
             "resolver-error",
             "root_to_a",
             &[],
-            &["hrn_rcpt_child_a"],
+            &["rcpt_child_a"],
             cfg(64, 1024, false),
             false,
             &[("ChildReceiptResolverError", "lineage.children[0]"),]
@@ -291,7 +291,7 @@ fn base(id: &str) -> Receipt {
         class: runx_contracts::ReceiptClass::Executed,
         subject: Subject {
             kind: receipt_subject_kind::SKILL.into(),
-            reference: Reference::runx(ReferenceType::Harness, id),
+            reference: Reference::runx(ReferenceType::Run, id),
             input_context: None,
             commitments: Vec::new(),
             paid_invocation: None,

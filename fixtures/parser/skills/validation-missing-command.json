@@ -1,1 +1,0 @@
-{"expected":{"rejection":{"kind":"validation","message":"source.command is required."}},"input":{"markdown":"---\nname: bad-cli\nsource:\n  type: cli-tool\n---\n# Bad\n"},"name":"validation-missing-command","scope":"skills"}

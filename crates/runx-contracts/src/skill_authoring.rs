@@ -61,11 +61,11 @@ pub enum SkillArchitectureDisposition {
 pub enum SkillExecutionLane {
     Manual,
     Graph,
-    AgentTask,
+    Agent,
     NativeCapability,
     DomainModule,
-    CliTool,
-    ProviderAdapter,
+    Process,
+    Operation,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, RunxSchema)]
@@ -203,7 +203,6 @@ pub struct SkillChainPlan {
 pub struct SkillResourceBudget {
     pub max_files: u64,
     pub max_executable_lines: u64,
-    pub max_fanout: u64,
     pub max_process_spawns: u64,
     pub network_allowed: bool,
 }

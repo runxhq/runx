@@ -37,7 +37,7 @@ inputs:
     - summarization
 caller:
   answers:
-    agent_task.overlay-binding-profile.output:
+    agent.overlay-binding-profile.output:
       profile_draft:
         decision: ready
         profile_document: |
@@ -46,30 +46,24 @@ caller:
           runners:
             summarize:
               default: true
-              type: agent-task
-              agent: analyst
-              task: borrowed-summarize
               inputs:
                 content:
                   type: string
                   required: true
                   description: Text to summarize.
-              outputs:
-                summary: string
-                caveats: array
-              scopes:
-                - runx:content:read
               runx:
-                allowed_tools: []
                 tags:
                   - summarization
-                category: content
-                source:
-                  upstream:
-                    repo: example/borrowed-skills
-                    path: SKILL.md
-                    commit: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-                    blob_sha: 66cececa3c93fc6b128e9d4341ecfe2a208cd2b9
+              steps:
+                - id: summarize
+                  agent: { role: analyst, task: borrowed-summarize }
+                  inputs:
+                    content: $input.content
+                  outputs:
+                    summary: string
+                    caveats: array
+                  scopes:
+                    - runx:content:read
           harness:
             cases:
               - name: summarize-ready
@@ -77,7 +71,7 @@ caller:
                   content: The launch is delayed one week because the audit is still open.
                 caller:
                   answers:
-                    agent_task.borrowed-summarize.output:
+                    agent.borrowed-summarize.output:
                       summary: The launch is delayed one week pending the audit.
                       caveats:
                         - The audit outcome is not yet known.
@@ -90,7 +84,7 @@ caller:
                   content: ""
                 caller:
                   answers:
-                    agent_task.borrowed-summarize.output:
+                    agent.borrowed-summarize.output:
                       summary: No summary was produced.
                       caveats:
                         - Source text is required.
@@ -127,7 +121,7 @@ expect:
               git_blob_sha: 66cececa3c93fc6b128e9d4341ecfe2a208cd2b9
             files:
               - path: bindings/example/summarize/binding.json
-              - path: bindings/example/summarize/X.yaml
+              - path: bindings/example/summarize/run.yaml
             validation:
               status: pass
               harness:

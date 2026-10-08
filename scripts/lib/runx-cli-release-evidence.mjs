@@ -1,3 +1,9 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+import { loadRustCliPlatforms } from "../rust-cli-topology.mjs";
+
 const REPOSITORY = "runxhq/runx";
 const GHCR_IMAGE = "ghcr.io/runxhq/runx";
 const HOMEBREW_FORMULA_URL =
@@ -5,13 +11,11 @@ const HOMEBREW_FORMULA_URL =
 const SCOOP_MANIFEST_URL =
   "https://raw.githubusercontent.com/runxhq/scoop-bucket/main/bucket/runx.json";
 
+const ossRoot = path.resolve(fileURLToPath(new URL("../..", import.meta.url)));
+const cliManifest = JSON.parse(readFileSync(path.join(ossRoot, "packages/cli/package.json"), "utf8"));
 export const RUNX_CLI_NPM_PACKAGES = Object.freeze([
-  "@runxhq/cli",
-  "@runxhq/cli-darwin-arm64",
-  "@runxhq/cli-darwin-x64",
-  "@runxhq/cli-linux-arm64",
-  "@runxhq/cli-linux-x64",
-  "@runxhq/cli-win32-x64",
+  cliManifest.name,
+  ...loadRustCliPlatforms(ossRoot).map((platform) => platform.package),
 ]);
 
 export const RUNX_CLI_REQUIRED_RELEASE_CHECKS = Object.freeze([
@@ -129,6 +133,8 @@ export function validateRunxCliReleaseNotes({ body, version, previousTag }) {
  *   expectedCommit?: string;
  *   fetchImpl?: typeof fetch;
  *   githubToken?: string;
+ *   ghcrTag?: string;
+ *   ghcrDigest?: string;
  * }} options
  */
 export async function observeRunxCliRelease(options) {
@@ -137,6 +143,8 @@ export async function observeRunxCliRelease(options) {
     expectedCommit,
     fetchImpl = globalThis.fetch,
     githubToken = process.env.GH_TOKEN ?? process.env.GITHUB_TOKEN,
+    ghcrTag = version,
+    ghcrDigest,
   } = options;
   assertStableVersion(version);
   if (typeof fetchImpl !== "function") {
@@ -153,7 +161,7 @@ export async function observeRunxCliRelease(options) {
     observeGitTag({ tag, expectedCommit, fetchImpl, githubHeaders }),
     observeReleaseWorkflow({ tag, expectedCommit, fetchImpl, githubHeaders }),
     observeNpm({ version, fetchImpl }),
-    observeGhcr({ version, fetchImpl }),
+    observeGhcr({ version, tag: ghcrTag, expectedDigest: ghcrDigest, fetchImpl }),
     observeHomebrew({ version, tag, fetchImpl }),
     observeScoop({ version, tag, fetchImpl }),
   ]);
@@ -240,23 +248,31 @@ export async function observeRunxCliCandidateChecks({
 }
 
 /**
- * @param {{ fetchImpl?: typeof fetch; version?: string }} [options]
+ * @param {{ fetchImpl?: typeof fetch; version?: string; tag?: string; expectedDigest?: string }} [options]
  */
 export async function checkRunxGhcrAnonymousAccess({
   fetchImpl = globalThis.fetch,
   version,
+  tag = version,
+  expectedDigest,
 } = {}) {
   if (typeof fetchImpl !== "function") {
     throw new Error("GHCR access check requires a fetch implementation");
   }
   if (version) assertStableVersion(version);
+  if (tag && !/^[a-zA-Z0-9_][a-zA-Z0-9_.-]{0,127}$/u.test(tag)) {
+    throw new Error("GHCR tag is invalid");
+  }
+  if (expectedDigest && !/^sha256:[0-9a-f]{64}$/u.test(expectedDigest)) {
+    throw new Error("GHCR expected digest is invalid");
+  }
   const access = await anonymousGhcrToken(fetchImpl);
-  const id = version ? "ghcr" : "ghcr_anonymous_access";
+  const id = tag ? "ghcr" : "ghcr_anonymous_access";
   if (!access.token) return check(id, false, access.detail);
-  if (!version) return check(id, true, "GHCR grants anonymous pull access");
+  if (!tag) return check(id, true, "GHCR grants anonymous pull access");
   try {
     const manifestResponse = await fetchImpl(
-      `https://ghcr.io/v2/runxhq/runx/manifests/${version}`,
+      `https://ghcr.io/v2/runxhq/runx/manifests/${tag}`,
       {
         headers: {
           accept: [
@@ -268,13 +284,13 @@ export async function checkRunxGhcrAnonymousAccess({
         },
       },
     );
-    return check(
-      id,
-      manifestResponse.ok,
-      manifestResponse.ok
-        ? `${GHCR_IMAGE}:${version} is anonymously pullable`
-        : `${GHCR_IMAGE}:${version} manifest returned HTTP ${manifestResponse.status}`,
-    );
+    const observedDigest = manifestResponse.headers.get("docker-content-digest");
+    const passed = manifestResponse.ok && (!expectedDigest || observedDigest === expectedDigest);
+    return check(id, passed, manifestResponse.ok
+      ? expectedDigest
+        ? `${GHCR_IMAGE}:${tag} digest ${observedDigest ?? "<missing>"}, expected ${expectedDigest}`
+        : `${GHCR_IMAGE}:${tag} is anonymously pullable`
+      : `${GHCR_IMAGE}:${tag} manifest returned HTTP ${manifestResponse.status}`);
   } catch (error) {
     return check(id, false, errorMessage(error));
   }
@@ -486,9 +502,9 @@ async function observeNpm({ version, fetchImpl }) {
   };
 }
 
-async function observeGhcr({ version, fetchImpl }) {
+async function observeGhcr({ version, tag, expectedDigest, fetchImpl }) {
   return {
-    check: await checkRunxGhcrAnonymousAccess({ version, fetchImpl }),
+    check: await checkRunxGhcrAnonymousAccess({ version, tag, expectedDigest, fetchImpl }),
   };
 }
 

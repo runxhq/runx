@@ -1,9 +1,9 @@
 use runx_contracts::JsonValue;
 use runx_core::policy::{
     BuildAuthorityProofOptions, CredentialBindingRequest, GraphScopeAdmissionRequest,
-    LocalAdmissionGrant, LocalAdmissionOptions, LocalAdmissionSkill, LocalScopeAdmissionOptions,
-    ScopeGrantPolicy, admit_graph_step_scopes, admit_local_skill, build_authority_proof_metadata,
-    build_local_scope_admission, scope_grant_allows, validate_credential_binding,
+    LocalAdmissionGrant, LocalScopeAdmissionOptions, ScopeGrantPolicy, admit_graph_step_scopes,
+    build_authority_proof_metadata, build_local_scope_admission, scope_grant_allows,
+    validate_credential_binding,
 };
 use serde::Deserialize;
 
@@ -95,46 +95,6 @@ const FIXTURES: &[(&str, &str)] = &[
         include_str!("../../../fixtures/kernel/policy/graph-scope-omits-grant-id-when-absent.json"),
     ),
     (
-        "local-admission-allows-cli-tool",
-        include_str!("../../../fixtures/kernel/policy/local-admission-allows-cli-tool.json"),
-    ),
-    (
-        "local-admission-allows-connected-wildcard-grant",
-        include_str!(
-            "../../../fixtures/kernel/policy/local-admission-allows-connected-wildcard-grant.json"
-        ),
-    ),
-    (
-        "local-admission-denies-connected-prefix-substring",
-        include_str!(
-            "../../../fixtures/kernel/policy/local-admission-denies-connected-prefix-substring.json"
-        ),
-    ),
-    (
-        "local-admission-denies-connected-universal-wildcard",
-        include_str!(
-            "../../../fixtures/kernel/policy/local-admission-denies-connected-universal-wildcard.json"
-        ),
-    ),
-    (
-        "local-admission-denies-inline-python-through-env",
-        include_str!(
-            "../../../fixtures/kernel/policy/local-admission-denies-inline-python-through-env.json"
-        ),
-    ),
-    (
-        "local-admission-denies-inline-windows-path-interpreter",
-        include_str!(
-            "../../../fixtures/kernel/policy/local-admission-denies-inline-windows-path-interpreter.json"
-        ),
-    ),
-    (
-        "local-admission-denies-unsupported-source",
-        include_str!(
-            "../../../fixtures/kernel/policy/local-admission-denies-unsupported-source.json"
-        ),
-    ),
-    (
         "scope-grant-delegated-allows-one-segment",
         include_str!(
             "../../../fixtures/kernel/policy/scope-grant-delegated-allows-one-segment.json"
@@ -186,12 +146,6 @@ struct ExpectedOutput {
 #[derive(Debug, Deserialize)]
 #[serde(tag = "kind")]
 enum PolicyInput {
-    #[serde(rename = "policy.admitLocalSkill")]
-    AdmitLocalSkill {
-        skill: Box<LocalAdmissionSkill>,
-        #[serde(default)]
-        options: LocalAdmissionOptions,
-    },
     #[serde(rename = "policy.admitGraphStepScopes")]
     AdmitGraphStepScopes { request: GraphScopeAdmissionRequest },
     #[serde(rename = "policy.buildLocalScopeAdmission")]
@@ -232,9 +186,6 @@ fn policy_fixtures_match_rust_policy() -> Result<(), serde_json::Error> {
 
 fn evaluate_policy_input(input: PolicyInput) -> Result<serde_json::Value, serde_json::Error> {
     match input {
-        PolicyInput::AdmitLocalSkill { skill, options } => {
-            serde_json::to_value(admit_local_skill(&skill, &options))
-        }
         PolicyInput::AdmitGraphStepScopes { request } => {
             serde_json::to_value(admit_graph_step_scopes(&request))
         }

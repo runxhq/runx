@@ -1,8 +1,6 @@
 ---
 name: business-ops
 description: "Route one business signal through a replayable governed ops graph: classify, docs, release, work, outreach, spend, and proof, with consequential actions stopping at the right gate."
-runx:
-  category: ops
 ---
 
 # Business Ops
@@ -107,7 +105,7 @@ later execution should be verified.
 - **Code work** routes to `issue-to-pr` or a project-owned implementation lane,
   with merge held behind review.
 - **Outreach and customer communication** route first to `send-as`, then to a
-  provider adapter that implements the send lane. Branded provider skills are
+  provider connector that implements the send lane. Branded provider skills are
   the right place for vendor-specific compose, test, review, schedule, or send
   details. Broad outbound marketing should be its own skill or product broadcast
   skill, not extra logic hidden in this graph.

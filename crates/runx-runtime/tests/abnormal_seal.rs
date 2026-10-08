@@ -1,4 +1,4 @@
-#![cfg(feature = "cli-tool")]
+#![cfg(feature = "process-tool")]
 
 use std::fs;
 use std::path::PathBuf;
@@ -7,7 +7,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use runx_contracts::{ClosureDisposition, JsonObject};
 use runx_runtime::{
-    HarnessExpectedStatus, InvocationOutput, RuntimeOptions, SkillAdapter, SkillInvocation,
+    HarnessExpectedStatus, HarnessOptions, InvocationOutput, SkillAdapter, SkillInvocation,
     run_harness_fixture_with_adapter,
 };
 
@@ -16,8 +16,8 @@ const FIXTURE_CREATED_AT: &str = "2026-05-18T00:00:00Z";
 #[test]
 fn harness_blocks_closure_and_seals_graph_receipt() -> Result<(), Box<dyn std::error::Error>> {
     let case = TempCase::new("abnormal-seal")?;
-    case.write_skill("act", "act")?;
-    case.write_skill("closure", "closure")?;
+    case.write_skill("act", "act", "approved: boolean")?;
+    case.write_skill("closure", "closure", "closed: boolean")?;
     case.write_graph()?;
     case.write_harness()?;
 
@@ -35,7 +35,18 @@ fn harness_blocks_closure_and_seals_graph_receipt() -> Result<(), Box<dyn std::e
     );
     assert_eq!(adapter.calls()?, vec!["act".to_owned()]);
 
-    let children = output.step_receipts.clone();
+    // Each step ran its child skill as a nested graph; the tree holds the
+    // step receipts and every receipt beneath them.
+    let children = output
+        .steps
+        .iter()
+        .flat_map(|step| {
+            step.nested_receipts
+                .iter()
+                .chain(std::iter::once(&step.receipt))
+                .cloned()
+        })
+        .collect::<Vec<_>>();
     assert!(
         runx_runtime::validate_runtime_receipt_tree(
             &output.receipt,
@@ -69,10 +80,6 @@ impl RecordingAdapter {
 }
 
 impl SkillAdapter for RecordingAdapter {
-    fn adapter_type(&self) -> &'static str {
-        "cli-tool"
-    }
-
     fn invoke(
         &self,
         request: SkillInvocation,
@@ -117,7 +124,7 @@ impl TempCase {
         self.root.join("harness.yaml")
     }
 
-    fn write_skill(&self, directory: &str, name: &str) -> Result<(), std::io::Error> {
+    fn write_skill(&self, directory: &str, name: &str, output: &str) -> Result<(), std::io::Error> {
         let skill_dir = self.root.join(directory);
         crate::support::write_test_skill_package(
             &skill_dir,
@@ -136,9 +143,11 @@ Emits structured test output through the harness adapter.
 runners:
   {name}:
     default: true
-    type: cli-tool
-    command: runx-test-adapter
-    args: []
+    steps:
+      - id: {name}
+        tool: {{ command: runx-test-adapter, args: [] }}
+        outputs:
+          {output}
 "#
             )
             .as_str(),
@@ -190,11 +199,8 @@ impl Drop for TempCase {
     }
 }
 
-fn runtime_options() -> RuntimeOptions {
-    RuntimeOptions {
-        current_context: Vec::new(),
-        historical_context: Vec::new(),
-        created_at: FIXTURE_CREATED_AT.to_owned(),
-        ..RuntimeOptions::local_development(std::env::vars().collect())
-    }
+fn runtime_options() -> HarnessOptions {
+    let mut options = HarnessOptions::local_development(std::env::vars().collect());
+    options.created_at = FIXTURE_CREATED_AT.to_owned();
+    options
 }

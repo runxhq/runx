@@ -15,11 +15,11 @@
 
 use std::collections::BTreeSet;
 
-use runx_contracts::connector::OperationVerb;
+use runx_contracts::connector::{ConnectorOperation, Implementation, OperationVerb};
 use runx_contracts::schema::NonEmptyString;
 use runx_contracts::{
-    AuthorityBounds, AuthorityResourceFamily, AuthorityTerm, AuthorityVerb, ConnectorInstance,
-    InstanceAuthority, Reference, ReferenceType,
+    AuthorityBounds, AuthorityResourceFamily, AuthorityTerm, ConnectorInstance, InstanceAuthority,
+    Reference, ReferenceType,
 };
 
 use super::connectors::LoadedConnector;
@@ -123,27 +123,41 @@ pub(crate) fn evidence(request: &CapabilityRequest<'_>) -> Result<Capability, St
             instance,
             request.connector,
             format!("local-session:{}:{}", connector.id, instance.instance_id),
-            session_scopes(request.connector, true),
+            reachable_scopes(request.connector, |_| true),
             Vec::new(),
         )),
         (InstanceAuthority::Public, _) => Ok(capability(
             instance,
             request.connector,
             format!("public:{}", connector.id),
-            session_scopes(request.connector, connector.auth.unauthenticated()),
+            reachable_scopes(request.connector, |operation| {
+                public_may(request.connector, operation)
+            }),
             Vec::new(),
         )),
     }
 }
 
-/// The scopes of every operation a session or public instance can reach:
-/// all of them, or only the reads.
-fn session_scopes(connector: &LoadedConnector, writes: bool) -> Vec<String> {
+/// Whether an instance with no authority may call `operation`: a read; a
+/// write on a connector that takes no authority at all, which stands on the
+/// operator's exact approval; or a write to a store, which reaches only the
+/// storage the operator configured.
+fn public_may(connector: &LoadedConnector, operation: &ConnectorOperation) -> bool {
+    operation.verb == OperationVerb::Read
+        || connector.manifest.auth.unauthenticated()
+        || matches!(operation.implementation, Some(Implementation::Store(_)))
+}
+
+/// The scopes of every operation an instance can reach.
+fn reachable_scopes(
+    connector: &LoadedConnector,
+    reaches: impl Fn(&ConnectorOperation) -> bool,
+) -> Vec<String> {
     connector
         .manifest
         .operations
         .values()
-        .filter(|operation| writes || operation.verb == OperationVerb::Read)
+        .filter(|operation| reaches(operation))
         .flat_map(|operation| {
             operation
                 .scopes
@@ -165,14 +179,13 @@ fn capability(
     scopes: Vec<String>,
     targets: Vec<String>,
 ) -> Capability {
-    let reads_only = matches!(instance.authority, InstanceAuthority::Public)
-        && !connector.manifest.auth.unauthenticated();
+    let public = matches!(instance.authority, InstanceAuthority::Public);
     let verbs = connector
         .manifest
         .operations
         .values()
+        .filter(|operation| !public || public_may(connector, operation))
         .map(|operation| operation.verb.authority_verb())
-        .filter(|verb| !reads_only || *verb == AuthorityVerb::Read)
         .collect::<Vec<_>>();
     let mut unique_verbs = Vec::new();
     for verb in verbs {

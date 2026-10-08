@@ -1,8 +1,6 @@
 ---
 name: chief-of-staff
 description: Convert bounded mailbox and calendar evidence into a reviewable executive action packet.
-runx:
-  category: ops
 ---
 
 # Chief of Staff

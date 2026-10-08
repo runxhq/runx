@@ -1,66 +1,15 @@
-// Module rationale: policy parity wire types stay colocated so serde surface changes are reviewed together.
+// Module rationale: policy wire types stay colocated so serde surface changes are reviewed together.
+use runx_contracts::policy_proof::{
+    AuthorityKind, AuthorityProof, CredentialEnvelope, ScopeAdmission,
+};
 use runx_contracts::{ExecutionBoundaryObservation, JsonValue};
 use serde::{Deserialize, Serialize};
-
-// These wire contracts now have their authoritative Rust type in
-// `runx-contracts` (covered by the schema wire-conformance gate). Re-export them so
-// every existing policy/runtime importer keeps compiling unchanged.
-pub use runx_contracts::policy_proof::{
-    AuthorityKind, AuthorityProof, AuthorityProofApprovalDecision,
-    AuthorityProofApprovalDecisionValue, AuthorityProofCredentialMaterial,
-    AuthorityProofCredentialMaterialStatus, AuthorityProofRedaction,
-    AuthorityProofRedactionSecretMaterial, AuthorityProofRedactionStatus,
-    AuthorityProofRedactionStream, AuthorityProofRequested, AuthorityProofSchemaVersion,
-    CredentialEnvelope, CredentialEnvelopeKind, CredentialGrantReference, ScopeAdmission,
-    ScopeAdmissionStatus,
-};
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct LocalAdmissionSkill {
-    pub name: String,
-    pub source: LocalAdmissionSource,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub auth: Option<JsonValue>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub runtime: Option<JsonValue>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct LocalAdmissionSource {
-    #[serde(rename = "type")]
-    pub source_type: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub command: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub args: Option<Vec<String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub timeout_seconds: Option<i64>,
-}
-
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct LocalAdmissionOptions {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub allowed_source_types: Option<Vec<String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub max_timeout_seconds: Option<i64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub connected_grants: Option<Vec<LocalAdmissionGrant>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub connected_auth_checked_at: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub skip_connected_auth: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub execution_policy: Option<LocalExecutionPolicy>,
-}
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct LocalExecutionPolicy {
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub strict_cli_tool_inline_code: Option<bool>,
+    pub strict_process_tool_inline_code: Option<bool>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -240,8 +189,10 @@ pub enum GraphScopeAdmissionDecision {
 
 #[cfg(test)]
 mod tests {
+    use runx_contracts::policy_proof::AuthorityKind;
+
     use super::{
-        AdmissionDecision, AuthorityKind, GraphScopeAdmissionDecision, LocalAdmissionGrant,
+        AdmissionDecision, GraphScopeAdmissionDecision, LocalAdmissionGrant,
         LocalAdmissionGrantStatus,
     };
 

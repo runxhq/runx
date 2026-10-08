@@ -32,7 +32,7 @@ fn new_skill_authoring_waits_for_agent_then_applies_one_validated_package() -> T
     let run_id = line_value(&pending_text, "run_id: ")?;
 
     assert!(pending_text.contains("status: needs_agent"));
-    assert!(pending_text.contains("agent_task.skill-lab-architecture.output"));
+    assert!(pending_text.contains("agent.skill-lab-architecture.output"));
     assert!(pending_text.contains(&format!(
         "runx resume {run_id} - --receipt-dir {}",
         receipts.display()
@@ -56,10 +56,10 @@ fn new_skill_authoring_waits_for_agent_then_applies_one_validated_package() -> T
 
     assert_eq!(completed["status"], "sealed");
     assert_eq!(completed["closure"]["disposition"], "closed");
-    assert_eq!(completed["trace"]["graph"], "skill-lab-build");
+    assert_eq!(completed["trace"]["graph"], "skill-lab");
     assert_eq!(fs::read_dir(&target)?.count(), 2);
     assert!(target.join("SKILL.md").is_file());
-    assert!(target.join("X.yaml").is_file());
+    assert!(target.join("run.yaml").is_file());
     assert!(package_modules(&target)?.is_empty());
 
     fs::remove_dir_all(root)?;
@@ -93,6 +93,7 @@ fn new_skill_authoring_rejects_outside_workspace_without_writing() -> TestResult
 fn command(repo: &Path, runx_home: &Path) -> Command {
     let mut command = crate::support::unsigned_runx_command_at(repo);
     command.env("RUNX_HOME", runx_home.join("home"));
+    crate::support::isolate_project(&mut command);
     command
 }
 
@@ -131,7 +132,7 @@ fn assert_json(output: &Output, expected: i32) -> TestResult<Value> {
 fn authoring_answers() -> String {
     serde_json::json!({
         "answers": {
-            "agent_task.skill-lab-architecture.output": {
+            "agent.skill-lab-architecture.output": {
                 "architecture_decision": {
                     "schema": "runx.skill.architecture_decision.v1",
                     "disposition": "build",
@@ -201,7 +202,6 @@ fn authoring_answers() -> String {
                     "resource_budget": {
                         "max_files": 2,
                         "max_executable_lines": 0,
-                        "max_fanout": 1,
                         "max_process_spawns": 0,
                         "network_allowed": false
                     },
@@ -226,7 +226,7 @@ fn authoring_answers() -> String {
                     ]
                 }
             },
-            "agent_task.skill-lab-author.output": {
+            "agent.skill-lab-author.output": {
                 "change_draft": {
                     "schema": "runx.skill.change_draft.v1",
                     "decision": "write",
@@ -234,7 +234,7 @@ fn authoring_answers() -> String {
                     "non_goals": ["Do not add JavaScript, network access, or provider effects."],
                     "writes": [
                         { "path": "SKILL.md", "contents": digest_note_manual() },
-                        { "path": "X.yaml", "contents": digest_note_manifest() }
+                        { "path": "run.yaml", "contents": digest_note_manifest() }
                     ],
                     "deletes": [],
                     "expected_outputs": [{
@@ -319,21 +319,18 @@ harness:
 runners:
   digest:
     default: true
-    type: graph
     inputs:
       note:
         type: string
         required: true
         description: Exact UTF-8 note to digest.
-    graph:
-      name: digest-note
-      result_from:
-        - digest
-      steps:
-        - id: digest
-          tool: data.digest
-          inputs:
-            value: $input.note
-            encoding: utf8_text
+    result_from:
+      - digest
+    steps:
+      - id: digest
+        tool: data.digest
+        inputs:
+          value: $input.note
+          encoding: utf8_text
 "#
 }

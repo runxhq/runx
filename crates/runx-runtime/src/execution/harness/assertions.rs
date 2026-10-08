@@ -16,7 +16,7 @@ use replayed_answers::assert_caller_answers_replayed;
 #[derive(Clone, Debug, PartialEq)]
 pub struct HarnessReplayReceipt {
     pub receipt_id: String,
-    pub harness_id: String,
+    pub subject_ref: String,
     pub state: String,
     pub disposition: ClosureDisposition,
     pub reason_code: String,
@@ -144,11 +144,11 @@ fn assert_receipt_identity(
     expected: &ReceiptExpectation,
     summary: &HarnessReplayReceipt,
 ) -> Result<(), HarnessReplayError> {
-    if let Some(expected_harness_id) = &expected.harness_id {
+    if let Some(expected_subject_ref) = &expected.subject_ref {
         assert_equal(
-            "expect.receipt.harness_id",
-            expected_harness_id,
-            &summary.harness_id,
+            "expect.receipt.subject_ref",
+            expected_subject_ref,
+            &summary.subject_ref,
         )?;
     }
     if let Some(expected_state) = &expected.state {
@@ -255,7 +255,7 @@ fn summarize_receipt(receipt: &Receipt) -> HarnessReplayReceipt {
     };
     HarnessReplayReceipt {
         receipt_id: receipt.id.to_string(),
-        harness_id: receipt.subject.reference.uri.clone().into_string(),
+        subject_ref: receipt.subject.reference.uri.clone().into_string(),
         state,
         disposition: receipt.seal.disposition.clone(),
         reason_code: receipt.seal.reason_code.to_string(),

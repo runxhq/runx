@@ -1,6 +1,6 @@
 // Module rationale: native registry CLI keeps local and hosted
 // search/read/resolve/install/publish command wiring together so the command
-// matrix and output envelope stay auditable during the hosted-registry cutover.
+// matrix and output envelope stay auditable.
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;

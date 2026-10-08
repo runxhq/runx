@@ -521,14 +521,21 @@ fn validate_profile(profile: &AssistantProfile) -> Result<(), String> {
         return Err("assistant skills_root must be an existing absolute directory".to_owned());
     }
     for (name, path) in &profile.skill_paths {
-        if !valid_skill_ref(name) || !path.is_absolute() || !path.join("X.yaml").is_file() {
+        if !valid_skill_ref(name)
+            || !path.is_absolute()
+            || !path.join(runx_runtime::PROFILE_FILE).is_file()
+        {
             return Err(
                 "assistant skill_paths must bind names to absolute skill packages".to_owned(),
             );
         }
     }
     for name in ["operator-inbox", "attention-review"] {
-        if !profile.skill_path(name).join("X.yaml").is_file() {
+        if !profile
+            .skill_path(name)
+            .join(runx_runtime::PROFILE_FILE)
+            .is_file()
+        {
             return Err(format!("assistant skills_root is missing {name}"));
         }
     }
@@ -578,7 +585,11 @@ fn validate_profile(profile: &AssistantProfile) -> Result<(), String> {
         }) {
             return Err("assistant source locator prefixes must not overlap".to_owned());
         }
-        if !profile.skill_path(&source.skill).join("X.yaml").is_file() {
+        if !profile
+            .skill_path(&source.skill)
+            .join(runx_runtime::PROFILE_FILE)
+            .is_file()
+        {
             return Err(format!("assistant skills_root is missing {}", source.skill));
         }
         if source
@@ -773,7 +784,7 @@ fn validate_profile(profile: &AssistantProfile) -> Result<(), String> {
                 .starts_with(&format!("{}://", notification.provider))
             || !profile
                 .skill_path(&notification.skill)
-                .join("X.yaml")
+                .join(runx_runtime::PROFILE_FILE)
                 .is_file()
         {
             return Err("assistant notification binding is incomplete".to_owned());

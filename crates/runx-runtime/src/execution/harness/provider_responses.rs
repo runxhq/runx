@@ -44,20 +44,14 @@ pub(crate) fn injected_grant_env(
 #[derive(Clone, Debug)]
 pub(super) struct HarnessTransport {
     pub(super) provider: Option<HarnessProviderResponsesFixture>,
-    pub(super) responses: Option<Arc<BTreeMap<String, RuntimeHttpResponse>>>,
-    pub(super) exchanges: Option<Arc<Vec<RuntimeHarnessHttpExchange>>>,
+    pub(super) exchanges: Arc<Vec<RuntimeHarnessHttpExchange>>,
     pub(super) mutation_keys: Arc<Mutex<BTreeMap<(String, String), String>>>,
 }
 
 impl RuntimeHttpTransport for HarnessTransport {
     fn send(&self, request: RuntimeHttpRequest) -> Result<RuntimeHttpResponse, RuntimeHttpError> {
         if !request.url.starts_with(HARNESS_PROVIDER_BASE_URL) {
-            return exact_harness_response(
-                self.responses.as_deref(),
-                self.exchanges.as_deref().map(Vec::as_slice),
-                &request,
-                false,
-            );
+            return exact_harness_response(&self.exchanges, &request);
         }
         let fixture = self
             .provider

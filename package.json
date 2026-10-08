@@ -46,7 +46,6 @@
     "catalog:check": "node scripts/check-skill-version-drift.mjs && node scripts/check-skill-version-drift.mjs --self-test && node scripts/harness-sweep.mjs --self-test && pnpm capabilities:snapshot:check",
     "capabilities:snapshot:check": "tsx scripts/generate-native-capability-snapshot.ts --check",
     "capabilities:snapshot:generate": "tsx scripts/generate-native-capability-snapshot.ts",
-    "commands:check-drift": "node scripts/check-command-drift.mjs",
     "domains:check": "node scripts/check-public-domain-urls.mjs",
     "release:version:check": "tsx scripts/set-release-version.ts --check",
     "release:smoke-live": "node scripts/smoke-released-cli-live.mjs",
@@ -75,11 +74,9 @@
     "fixtures:skills:generate": "tsx scripts/generate-rust-skill-fixtures.ts",
     "fixtures:doctor:check": "tsx scripts/generate-rust-doctor-fixtures.ts --check",
     "fixtures:doctor:generate": "tsx scripts/generate-rust-doctor-fixtures.ts",
-    "fixtures:fanout:check": "tsx scripts/generate-rust-fanout-fixtures.ts --check",
-    "fixtures:fanout:generate": "tsx scripts/generate-rust-fanout-fixtures.ts",
     "fixtures:tool-catalog:check": "tsx scripts/generate-tool-catalog-oracles.ts --check",
     "fixtures:tool-catalog:generate": "tsx scripts/generate-tool-catalog-oracles.ts",
-    "fixtures:skill-author-runtime:check": "cargo test --manifest-path crates/Cargo.toml -p runx-runtime --features cli-tool --test integration -- skill_author_runtime_fixtures --nocapture",
+    "fixtures:skill-author-runtime:check": "cargo test --manifest-path crates/Cargo.toml -p runx-runtime --features process-tool --test integration -- skill_author_runtime_fixtures --nocapture",
     "packet-schemas:check": "tsx scripts/generate-packet-schemas.ts --check",
     "packet-schemas:generate": "tsx scripts/generate-packet-schemas.ts",
     "rust:check": "node scripts/check-rust-kernel-parity.mjs",
@@ -91,10 +88,8 @@
     "perf:runtime:verify-quality": "node scripts/runtime-throughput.mjs verify-quality",
     "perf:compare": "node scripts/perf-compare.mjs",
     "perf:harness-check": "node scripts/check-runtime-perf-harness.mjs",
-    "stress:runtime:mcp": "cargo test --manifest-path crates/Cargo.toml -p runx-runtime --features cli-tool,catalog,mcp --test integration -- mcp_server",
-    "stress:runtime:cli-tool": "cargo test --manifest-path crates/Cargo.toml -p runx-runtime --features cli-tool,catalog --test integration -- cli_tool_contract",
-    "stress:runtime:fanout": "cargo test --manifest-path crates/Cargo.toml -p runx-runtime --features cli-tool,catalog,mcp --test integration -- fanout_parity fanout_proptest",
-    "receipts:importer-audit": "tsx scripts/check-receipt-importers.ts",
+    "stress:runtime:mcp": "cargo test --manifest-path crates/Cargo.toml -p runx-runtime --features process-tool,catalog,mcp --test integration -- mcp_server",
+    "stress:runtime:process-tool": "cargo test --manifest-path crates/Cargo.toml -p runx-runtime --features process-tool,catalog --test integration -- process_tool_contract",
     "canonical:check": "cargo test --manifest-path crates/Cargo.toml -p runx-contracts --lib canonical_json::tests && cargo test --manifest-path crates/Cargo.toml -p runx-receipts --lib canonical::tests && cargo test --manifest-path crates/Cargo.toml -p runx-receipts --test integration conformance::",
     "x402:conformance": "node scripts/x402-upstream-conformance.mjs --check",
     "x402:contract-conformance": "node scripts/x402-contract-conformance.mjs",
@@ -106,12 +101,12 @@
   "devDependencies": {
     "@runxhq/contracts": "workspace:^0.3.0",
     "@runxhq/extension-sdk": "workspace:^0.1.0",
-    "@runxhq/host-adapters": "workspace:^0.1.1",
     "@types/node": "^26.5.1",
     "@x402/core": "2.27.0",
     "ajv": "^8.20.0",
     "tsx": "^4.23.13",
     "typescript": "^7.0.2",
-    "vitest": "^4.1.11"
+    "vitest": "^4.1.11",
+    "@runxhq/client": "workspace:^"
   }
 }

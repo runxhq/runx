@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use super::invalid;
 use crate::RuntimeError;
-use crate::journal::HistoryFilter;
+use crate::receipts::archive::ReceiptFilter;
 
 const MAX_LIMIT: usize = 10_000;
 const MAX_EXACT_RECEIPTS: usize = 100;
@@ -20,7 +20,7 @@ pub(crate) struct ReceiptQueryInput {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) status: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) source: Option<String>,
+    pub(crate) issuer: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) actor: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -43,7 +43,7 @@ pub(super) struct QueryRequest {
     pub(super) exact_ids: Option<Vec<String>>,
     pub(super) verify_chain: bool,
     pub(super) limit: usize,
-    pub(super) filter: HistoryFilter,
+    pub(super) filter: ReceiptFilter,
 }
 
 impl QueryRequest {
@@ -62,7 +62,7 @@ impl QueryRequest {
             ("query".to_owned(), optional_json(&self.filter.query)),
             ("skill".to_owned(), optional_json(&self.filter.skill)),
             ("status".to_owned(), optional_json(&self.filter.status)),
-            ("source".to_owned(), optional_json(&self.filter.source)),
+            ("issuer".to_owned(), optional_json(&self.filter.issuer)),
             ("actor".to_owned(), optional_json(&self.filter.actor)),
             (
                 "artifact_type".to_owned(),
@@ -90,18 +90,17 @@ impl QueryRequest {
     }
 }
 
-fn history_filter(inputs: &ReceiptQueryInput, limit: usize) -> Result<HistoryFilter, RuntimeError> {
-    Ok(HistoryFilter {
+fn history_filter(inputs: &ReceiptQueryInput, limit: usize) -> Result<ReceiptFilter, RuntimeError> {
+    Ok(ReceiptFilter {
         query: optional_string(inputs.query.as_deref()),
         skill: optional_string(inputs.skill.as_deref()),
         status: optional_string(inputs.status.as_deref()),
-        source: optional_string(inputs.source.as_deref()),
+        issuer: optional_string(inputs.issuer.as_deref()),
         actor: optional_string(inputs.actor.as_deref()),
         artifact_type: optional_string(inputs.artifact_type.as_deref()),
         since: resolve_since(inputs)?,
         until: optional_string(inputs.until.as_deref()),
         limit: Some(limit),
-        include_harness: false,
         include_internal: false,
     })
 }
@@ -113,27 +112,9 @@ fn resolve_since(inputs: &ReceiptQueryInput) -> Result<Option<String>, RuntimeEr
     let Some(period) = optional_string(inputs.period.as_deref()) else {
         return Ok(None);
     };
-    let (amount, unit_seconds) = if let Some(amount) = period.strip_suffix(['d', 'D']) {
-        (amount, 86_400)
-    } else if let Some(amount) = period.strip_suffix(['h', 'H']) {
-        (amount, 3_600)
-    } else {
-        return Err(invalid("period must use d or h units"));
-    };
-    let amount = amount
-        .parse::<i64>()
-        .ok()
-        .filter(|amount| *amount > 0)
-        .ok_or_else(|| invalid("period must be a positive duration such as 7d or 24h"))?;
-    let as_of = optional_string(inputs.as_of.as_deref()).unwrap_or_else(crate::time::now_iso8601);
-    let (days, seconds, _) = runx_core::policy::parse_rfc3339_moment(&as_of)
-        .ok_or_else(|| invalid("as_of must be an RFC3339 timestamp"))?;
-    let epoch_seconds = days
-        .checked_mul(86_400)
-        .and_then(|value| value.checked_add(seconds))
-        .and_then(|value| value.checked_sub(amount.saturating_mul(unit_seconds)))
-        .ok_or_else(|| invalid("period is outside the supported timestamp range"))?;
-    Ok(Some(crate::time::iso8601_from_unix_seconds(epoch_seconds)))
+    crate::time::lookback_since(&period, optional_string(inputs.as_of.as_deref()).as_deref())
+        .map(Some)
+        .map_err(invalid)
 }
 
 fn bounded_limit(value: u64) -> Result<usize, RuntimeError> {

@@ -2,8 +2,6 @@ name: execute-digest-mismatch-refuses
 kind: skill
 target: ..
 runner: execute
-env:
-  RUNX_DATA_SOURCES: '{"data_sources":{"tenant://twitter/sqlite-mismatch":{"adapter":"data.sqlite","database_path":".runx/data/twitter-mismatch.sqlite","resources":{"twitter_execution":{"kind":"event_stream","partition_key":"aggregate_id"}}}}}'
 inputs:
   plan_json:
     decision: ready
@@ -35,5 +33,4 @@ metadata:
   public_skill: twitter
   source_case: execute-digest-mismatch-refuses
   source: skills-fixture
-  runner_kind: graph
   graph_shape: refused_before_approval

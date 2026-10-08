@@ -1,9 +1,11 @@
 use runx_contracts::{JsonObject, JsonValue, json_string_field as string_field};
 use serde::{Deserialize, Serialize};
 
+use runx_contracts::policy_proof::AuthorityKind;
+
 use super::rfc3339::parse_rfc3339_moment;
 use super::{
-    AuthorityKind, LocalAdmissionGrant,
+    LocalAdmissionGrant,
     scope::{ScopeGrantPolicy, scope_grant_allows},
 };
 

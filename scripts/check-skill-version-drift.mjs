@@ -33,7 +33,7 @@ function checkCurrentCatalog() {
   const documents = [];
   for (const entry of readdirSync(skillsRoot, { withFileTypes: true })) {
     if (!entry.isDirectory()) continue;
-    const profilePath = path.join(skillsRoot, entry.name, "X.yaml");
+    const profilePath = path.join(skillsRoot, entry.name, "run.yaml");
     if (!existsSync(profilePath)) continue;
     const source = readFileSync(profilePath, "utf8");
     documents.push({ skill: entry.name, source });
@@ -45,59 +45,18 @@ function checkCurrentCatalog() {
   for (const [index, document] of documents.entries()) {
     const result = results[index];
     if (result?.status !== "success") {
-      findings.push(`skills/${document.skill}/X.yaml: ${result?.error?.message ?? "invalid runner manifest"}`);
+      findings.push(`skills/${document.skill}/run.yaml: ${result?.error?.message ?? "invalid runner manifest"}`);
       continue;
     }
     const profile = result.value;
     currentProfiles.set(document.skill, profile);
     if (!isSemver(profile?.version)) {
-      findings.push(`skills/${document.skill}/X.yaml: version must be quoted semantic version x.y.z`);
+      findings.push(`skills/${document.skill}/run.yaml: version must be quoted semantic version x.y.z`);
     } else if (!document.source.split("\n").some((line) => line === `version: "${profile.version}"`)) {
-      findings.push(`skills/${document.skill}/X.yaml: version must be quoted as "${profile.version}"`);
-    }
-    for (const match of retiredGraphInputBindings(profile)) {
-      findings.push(
-        `skills/${document.skill}/X.yaml: retired graph input binding ${match.binding} at ${match.path}; use $input.${match.input}`,
-      );
+      findings.push(`skills/${document.skill}/run.yaml: version must be quoted as "${profile.version}"`);
     }
   }
   return findings;
-}
-
-function retiredGraphInputBindings(profile) {
-  const findings = [];
-  for (const [runnerName, runner] of Object.entries(profile?.runners ?? {})) {
-    const steps = runner?.raw?.graph?.steps;
-    if (!Array.isArray(steps)) continue;
-    for (const [index, step] of steps.entries()) {
-      if (!step || typeof step !== "object" || Array.isArray(step)) continue;
-      const stepName = typeof step.id === "string" ? step.id : String(index);
-      collectRetiredGraphInputBindings(
-        step.inputs,
-        `runners.${runnerName}.graph.steps.${stepName}.inputs`,
-        findings,
-      );
-    }
-  }
-  return findings;
-}
-
-function collectRetiredGraphInputBindings(value, pathPrefix, findings) {
-  if (typeof value === "string") {
-    const match = /^\{\{\s*([A-Za-z0-9_.]+)\s*\}\}$/u.exec(value);
-    if (match) findings.push({ binding: match[0], input: match[1], path: pathPrefix });
-    return;
-  }
-  if (Array.isArray(value)) {
-    value.forEach((entry, index) => {
-      collectRetiredGraphInputBindings(entry, `${pathPrefix}[${index}]`, findings);
-    });
-    return;
-  }
-  if (!value || typeof value !== "object") return;
-  for (const [key, entry] of Object.entries(value)) {
-    collectRetiredGraphInputBindings(entry, `${pathPrefix}.${key}`, findings);
-  }
 }
 
 function checkVersionDrift(base) {
@@ -169,7 +128,7 @@ function isPublishableRelative(relative) {
   if (parts.includes("references")) return fileName.endsWith(".md");
   if (fileName.endsWith(".mjs") || fileName.endsWith(".js")) return true;
   if (fileName.endsWith(".manifest.json")) return true;
-  return ["SKILL.md", "X.yaml", "manifest.json", "run.mjs", "run.js", "harness.mjs", "harness.js"]
+  return ["SKILL.md", "run.yaml", "manifest.json", "run.mjs", "run.js", "harness.mjs", "harness.js"]
     .includes(fileName);
 }
 
@@ -205,7 +164,7 @@ function compareSemver(left, right) {
 function loadBaseProfiles(base, skills) {
   const documents = skills.flatMap((skill) => {
     try {
-      return [{ skill, source: git(["show", `${base}:skills/${skill}/X.yaml`]) }];
+      return [{ skill, source: git(["show", `${base}:skills/${skill}/run.yaml`]) }];
     } catch {
       return [];
     }
@@ -254,25 +213,6 @@ function runSelfTests() {
   assert(versionFinding("old-skill", "0.1.0", null, ["skills/old-skill/SKILL.md"]) === null, "deleted skill is allowed");
   assert(versionFinding("same", "0.1.0", "0.1.0", ["skills/same/SKILL.md"]) !== null, "unchanged version fails");
   assert(versionFinding("bumped", "0.1.0", "0.1.1", ["skills/bumped/SKILL.md"]) === null, "increased version passes");
-  const bindingFindings = retiredGraphInputBindings({
-    runners: {
-      default: {
-        raw: {
-          graph: {
-            steps: [{
-              id: "example",
-              inputs: {
-                retired: "{{legacy.value}}",
-                domain_placeholder: "prefix {{domain.value}} suffix",
-              },
-            }],
-          },
-        },
-      },
-    },
-  });
-  assert(bindingFindings.length === 1, "only exact graph-input bindings are retired");
-  assert(bindingFindings[0].input === "legacy.value", "retired binding preserves its input path");
   console.log("skill version drift self-tests ok");
 }
 

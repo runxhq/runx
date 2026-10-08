@@ -5,7 +5,7 @@ inputs:
   action: {kind: upvote, subreddit: learnprogramming, target_url: 'https://www.reddit.com/r/learnprogramming/comments/abc123/example/', title: '', body: inspect the response in the network tab., allow_bare_urls: false, target_author: another_builder}
 caller:
   answers:
-    agent_task.reddit-vote.output:
+    agent.reddit-vote.output:
       observation:
         status: voted
         username: example_builder
@@ -30,4 +30,3 @@ expect:
     vote:
       subset:
         result: {status: voted_host_observed, evidence_level: host_observed}
-env: {RUNX_DATA_SOURCES: '{"data_sources": {"local://reddit": {"adapter": "data.sqlite", "database_path": ".runx/reddit-fixtures/reddit-upvote-readback.sqlite", "resources": {"reddit_accounts": {"kind": "event_stream", "partition_key": "aggregate_id"}, "reddit_browser": {"kind": "event_stream", "partition_key": "aggregate_id"}, "reddit_attempts": {"kind": "event_stream", "partition_key": "aggregate_id"}}}}}'}

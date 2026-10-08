@@ -1,0 +1,33 @@
+name: sql-analyst-forward-data-store-read
+steps:
+  - id: seed
+    skill: ../../../data-store
+    runner: append_event
+    inputs:
+      data_source_ref: local://runx/sql-analyst/forward-read
+      resource: analysis_snapshots
+      aggregate_id: launch-summary
+      expected_version: 0
+      idempotency_key: launch-summary:create:v1
+      event:
+        type: analysis_snapshot.created
+        payload: { qualified_trials: 12 }
+  - id: analyze
+    skill: ../..
+    inputs:
+      question: Inspect the declared launch summary projection.
+      dialect: sqlite
+      as_of: "2026-07-17T12:00:00Z"
+      schema_summary:
+        source_ref: schema:launch-summary:v1
+        source_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+        observed_at: "2026-07-17T10:00:00Z"
+        tables:
+          launch_metrics:
+            fields: [account_id, qualified_trials, observed_at]
+      constraints: { allowed_tables: [launch_metrics], read_only: true, max_rows: 1 }
+      execution_context:
+        runner: read_projection
+        data_source_ref: local://runx/sql-analyst/forward-read
+        resource: analysis_snapshots
+        aggregate_id: launch-summary

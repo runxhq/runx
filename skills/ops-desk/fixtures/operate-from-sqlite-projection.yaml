@@ -14,8 +14,6 @@ operator_journeys:
     must_not_repeat:
       - Do not reacquire provider state already projected locally.
       - Do not replay completed actions represented by receipts.
-env:
-  RUNX_DATA_SOURCES: '{"data_sources":{"tenant://ops-desk/sqlite-state":{"adapter":"data.sqlite","database_path":".runx/data/ops-desk-state.sqlite","resources":{"ops_projection":{"kind":"event_stream","partition_key":"aggregate_id"}}}}}'
 inputs:
   data_source_ref: tenant://ops-desk/sqlite-state
   resource: ops_projection
@@ -31,7 +29,7 @@ inputs:
   operator_policy: Route live sends through send-as and money movement through spend or refund.
 caller:
   answers:
-    agent_task.ops-desk.output:
+    agent.ops-desk.output:
       ops_desk_packet:
         decision: needs_input
         scope_ref: workspace:example
@@ -73,19 +71,16 @@ expect:
         data_operation_result:
           data:
             schema: runx.data.operation_result.v1
-            operation: read_projection
+            operation: projection.read
             aggregate_id: workspace-example
             projection:
               aggregate_id: workspace-example
               event_count: 0
               version: 0
             provider_evidence:
-              adapter: data.sqlite
-              provider: sqlite-event-store
-              storage_class: sqlite
+              backend: sqlite
 metadata:
   public_skill: ops-desk
   source_case: operate-from-sqlite-projection
   source: skills-fixture
-  runner_kind: graph
   graph_shape: operate_from_projection

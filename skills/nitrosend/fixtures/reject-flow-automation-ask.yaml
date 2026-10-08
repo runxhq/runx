@@ -9,7 +9,7 @@ inputs:
   operator_context: Reject anything that leaves the single-campaign lane.
 caller:
   answers:
-    agent_task.send-campaign.output:
+    agent.send-campaign.output:
       campaign_plan:
         decision: reject
         canonical_skill: runx/send-as

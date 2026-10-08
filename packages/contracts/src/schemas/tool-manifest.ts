@@ -1,14 +1,11 @@
 import type { DeepReadonly, JsonSchema, UnknownRecord } from "../internal.js";
 import { runxSchemaArtifacts } from "../schema-artifacts.js";
 
-export type ToolManifestSourceTypeContract = "cli-tool" | "javascript";
 export type ToolCommandInputModeContract = "args" | "stdin" | "none";
 
+/** A tool's executable: a trusted host process. */
 export type ToolManifestSourceContract = DeepReadonly<{
-  type: ToolManifestSourceTypeContract;
-  command?: string;
-  module?: string;
-  export?: string;
+  command: string;
   args?: readonly string[];
   cwd?: string;
   input_mode?: ToolCommandInputModeContract;
@@ -37,10 +34,6 @@ export type ToolManifestArtifactContract = DeepReadonly<{
   wrap_as?: string;
 }>;
 
-export type ToolRetryPolicyContract = DeepReadonly<{
-  max_attempts: number;
-}>;
-
 export type ToolIdempotencyPolicyContract = DeepReadonly<{
   key?: string;
 }>;
@@ -53,9 +46,7 @@ export type ToolManifestContract = DeepReadonly<{
   source: ToolManifestSourceContract;
   inputs?: Readonly<Record<string, ToolManifestInputContract>>;
   scopes?: readonly string[];
-  risk?: unknown;
   artifacts?: ToolManifestArtifactContract;
-  retry?: ToolRetryPolicyContract;
   idempotency?: ToolIdempotencyPolicyContract;
 }>;
 

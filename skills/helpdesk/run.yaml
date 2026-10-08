@@ -1,0 +1,75 @@
+skill: helpdesk
+version: "0.1.4"
+
+catalog:
+  kind: skill
+  audience: public
+  visibility: public
+  role: canonical
+  execution: read
+  completion: runtime_receipt
+  requires_adapter: false
+  approval: none
+  category: ops
+  links:
+    source: https://github.com/runxhq/runx/tree/main/skills/helpdesk
+
+runners:
+  triage:
+    default: true
+    inputs:
+      support_request:
+        type: json
+        required: true
+        description: Bounded support request packet.
+      policy:
+        type: json
+        required: false
+        description: Product-safe support policy and signature hints.
+    steps:
+      - id: triage
+        tool: { module: helpdesk.mjs }
+        inputs:
+          support_request: $input.support_request
+          policy: $input.policy
+        outputs:
+          classification: string
+          severity: string
+          confidence: number
+          recommended_path: string
+          evidence:
+            type: object
+            schema:
+              required: [source, source_summary, matched_signals, missing_context, taxonomy_coverage, private_data_required, send_side_effects]
+              additionalProperties: false
+              properties:
+                source: { type: string, minLength: 1 }
+                source_summary: { type: string, minLength: 1 }
+                matched_signals: { type: array, items: { type: string }, uniqueItems: true }
+                missing_context: { type: array, items: { type: string }, uniqueItems: true }
+                taxonomy_coverage: { type: array, items: { type: string }, uniqueItems: true }
+                private_data_required: { type: boolean }
+                send_side_effects: { const: none }
+          draft_email:
+            type: object
+            schema:
+              required: [proposed, subject, body]
+              additionalProperties: false
+              properties:
+                proposed: { type: boolean }
+                subject: { type: [string, "null"] }
+                body: { type: [string, "null"] }
+                reason: { type: string }
+                recipient_hint: { type: string }
+          send_gate:
+            type: object
+            schema:
+              required: [status, action, rationale]
+              additionalProperties: false
+              properties:
+                status: { const: requires_human_approval }
+                action: { type: string, enum: [send_customer_email, no_customer_send_proposed] }
+                rationale: { type: string, minLength: 1 }
+        artifacts:
+          wrap_as: support_triage_packet
+          packet: runx.support.triage_reply.v1

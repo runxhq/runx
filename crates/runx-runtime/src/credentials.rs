@@ -6,12 +6,13 @@ use std::fmt;
 use std::sync::Arc;
 
 use base64::Engine as _;
+use runx_contracts::policy_proof::CredentialEnvelope;
 use runx_contracts::{
     CredentialDeliveryMode, CredentialDeliveryObservation, CredentialDeliveryObservationStatus,
     CredentialDeliveryPurpose, CredentialEnvelopeKind, JsonObject, JsonValue, ProofKind, Reference,
     ReferenceType, sha256_hex, sha256_prefixed,
 };
-use runx_core::policy::{CredentialBindingDecision, CredentialEnvelope};
+use runx_core::policy::CredentialBindingDecision;
 use subtle::ConstantTimeEq;
 use thiserror::Error;
 use zeroize::Zeroize;
@@ -382,51 +383,6 @@ fn form_urlencoded_value(value: &str) -> String {
         .strip_prefix('=')
         .unwrap_or_default()
         .to_owned()
-}
-
-/// Detect raw credential fields at untrusted configuration/provider boundaries.
-///
-/// This is deliberately separate from [`SecretTaint`]: taint precisely scrubs
-/// credential values Runx delivered, while external configuration and provider
-/// output can contain material Runx never minted and therefore cannot taint.
-/// Exact normalized field names keep this fail-closed admission check from
-/// turning into a general text redactor or a substring guess.
-#[cfg(any(feature = "catalog", test))]
-pub(crate) fn first_unregistered_secret_field(value: &JsonValue) -> Option<String> {
-    match value {
-        JsonValue::Object(object) => object.iter().find_map(|(key, value)| {
-            if is_unregistered_secret_field(key) {
-                return Some(key.clone());
-            }
-            first_unregistered_secret_field(value)
-        }),
-        JsonValue::Array(values) => values.iter().find_map(first_unregistered_secret_field),
-        JsonValue::Null | JsonValue::Bool(_) | JsonValue::Number(_) | JsonValue::String(_) => None,
-    }
-}
-
-#[cfg(any(feature = "catalog", test))]
-fn is_unregistered_secret_field(field: &str) -> bool {
-    let normalized = field
-        .chars()
-        .filter(|character| character.is_ascii_alphanumeric())
-        .flat_map(char::to_lowercase)
-        .collect::<String>();
-    matches!(
-        normalized.as_str(),
-        "apikey"
-            | "accesstoken"
-            | "refreshtoken"
-            | "clientsecret"
-            | "secretkey"
-            | "privatekey"
-            | "password"
-            | "bearertoken"
-            | "connectionstring"
-            | "authorization"
-            | "token"
-            | "secret"
-    )
 }
 
 impl CredentialDelivery {
@@ -826,33 +782,6 @@ mod tests {
         assert_eq!(
             CredentialDelivery::none().redact_bytes_to_string(output, 64 * 1024),
             "{\"message\":\"hello\"}\n"
-        );
-    }
-
-    #[test]
-    fn unregistered_secret_field_detection_is_exact_not_substring_based() {
-        let safe = JsonValue::Object(JsonObject::from([
-            (
-                "token_budget".to_owned(),
-                JsonValue::String("10".to_owned()),
-            ),
-            (
-                "credential_profile".to_owned(),
-                JsonValue::String("production".to_owned()),
-            ),
-        ]));
-        let unsafe_value = JsonValue::Object(JsonObject::from([(
-            "nested".to_owned(),
-            JsonValue::Object(JsonObject::from([(
-                "access_token".to_owned(),
-                JsonValue::String("raw-provider-material".to_owned()),
-            )])),
-        )]));
-
-        assert_eq!(first_unregistered_secret_field(&safe), None);
-        assert_eq!(
-            first_unregistered_secret_field(&unsafe_value).as_deref(),
-            Some("access_token")
         );
     }
 

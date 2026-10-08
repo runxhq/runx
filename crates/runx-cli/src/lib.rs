@@ -8,7 +8,6 @@ pub mod config;
 pub mod connect;
 pub mod connector;
 pub mod credential;
-pub mod data;
 pub mod dev;
 pub mod doctor;
 pub mod document_input;

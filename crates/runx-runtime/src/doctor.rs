@@ -11,7 +11,7 @@ use runx_contracts::{
     sha256_prefixed,
 };
 
-// Module rationale: this first doctor slice keeps parity checks and builders together until follow-up diagnostics add natural module boundaries.
+// Module rationale: doctor checks and builders stay together until more diagnostics add natural module boundaries.
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct DoctorOptions;
@@ -50,7 +50,7 @@ pub fn run_doctor(root: &Path, options: &DoctorOptions) -> Result<DoctorReport, 
     })
 }
 
-// Function rationale: cross-package reach-in parity mirrors the TypeScript scanner in one read-only pass.
+// Function rationale: cross-package reach-in detection is one read-only pass.
 fn discover_cross_package_reach_in_diagnostics(
     root: &Path,
 ) -> Result<Vec<DoctorDiagnostic>, RuntimeError> {
@@ -140,15 +140,6 @@ fn discover_tool_diagnostics(root: &Path) -> Result<Vec<DoctorDiagnostic>, Runti
             }
             let tool_dir = tool_entry.path;
             let tool_ref = format!("{}.{}", namespace_entry.name, tool_entry.name);
-            let removed_format_path = tool_dir.join("tool.yaml");
-            if removed_format_path.exists() {
-                diagnostics.push(removed_tool_yaml_diagnostic(
-                    root,
-                    &tool_ref,
-                    &removed_format_path,
-                )?);
-            }
-
             let manifest_path = tool_dir.join("manifest.json");
             if !manifest_path.exists() {
                 continue;
@@ -169,40 +160,6 @@ fn discover_tool_diagnostics(root: &Path) -> Result<Vec<DoctorDiagnostic>, Runti
         }
     }
     Ok(diagnostics)
-}
-
-fn removed_tool_yaml_diagnostic(
-    root: &Path,
-    tool_ref: &str,
-    removed_format_path: &Path,
-) -> Result<DoctorDiagnostic, RuntimeError> {
-    let location_path = project_path(root, removed_format_path);
-    let expected_manifest =
-        project_path(root, &removed_format_path.with_file_name("manifest.json"));
-    let target = object([
-        ("kind", string_value("tool")),
-        ("ref", string_value(tool_ref)),
-    ]);
-    let location = DoctorLocation {
-        path: location_path.clone(),
-        json_pointer: None,
-    };
-    let evidence = object([("expected_manifest", string_value(&expected_manifest))]);
-    create_diagnostic(DiagnosticParts {
-        id: "runx.tool.manifest.removed_format",
-        severity: DoctorDiagnosticSeverity::Error,
-        title: "tool.yaml is no longer supported",
-        message: format!("Tool {tool_ref} still uses tool.yaml. Runx resolves manifest.json only."),
-        target,
-        location,
-        evidence: Some(evidence),
-        repairs: vec![manual_repair(
-            "replace_removed_tool_manifest",
-            DoctorRepairConfidence::High,
-            DoctorRepairRisk::Medium,
-            true,
-        )],
-    })
 }
 
 fn tool_fixture_missing_diagnostic(
@@ -250,6 +207,14 @@ fn discover_skill_diagnostics(root: &Path) -> Result<Vec<DoctorDiagnostic>, Runt
             || ".".to_owned(),
             |name| name.to_string_lossy().into_owned(),
         );
+        let manual = skill_manual_diagnostics(root, &skill_dir, &skill_name)?;
+        let manual_invalid = manual
+            .iter()
+            .any(|diagnostic| diagnostic.severity == DoctorDiagnosticSeverity::Error);
+        diagnostics.extend(manual);
+        if manual_invalid {
+            continue;
+        }
         let loaded = match crate::load_validated_skill_package(&skill_dir) {
             Ok(loaded) => loaded,
             Err(error) => {
@@ -297,7 +262,127 @@ fn discover_skill_diagnostics(root: &Path) -> Result<Vec<DoctorDiagnostic>, Runt
     Ok(diagnostics)
 }
 
-/// Parse and validate a skill execution profile (X.yaml) the same way the
+/// The longest `SKILL.md` the Agent Skills guidance recommends; longer manuals
+/// should move reference material into bundled files.
+const MAX_MANUAL_LINES: usize = 500;
+
+/// Check a `SKILL.md` against the Agent Skills rules `skills-ref` applies, so
+/// every host that loads the skill accepts it. A package directly under
+/// `skills/` is the one hosts discover, so its name must match its directory.
+fn skill_manual_diagnostics(
+    root: &Path,
+    skill_dir: &Path,
+    skill_name: &str,
+) -> Result<Vec<DoctorDiagnostic>, RuntimeError> {
+    let manual_path = skill_dir.join("SKILL.md");
+    let contents = read_to_string(&manual_path)?;
+    let mut diagnostics = Vec::new();
+    let validated = runx_parser::parse_skill_markdown(&contents)
+        .map_err(|error| error.to_string())
+        .and_then(|raw| runx_parser::validate_skill(raw).map_err(|error| error.to_string()));
+    let problem = match validated {
+        Err(error) => Some(error),
+        Ok(skill)
+            if skill_dir.parent() == Some(root.join("skills").as_path())
+                && skill.name != skill_name =>
+        {
+            Some(format!(
+                "name '{}' must match its directory '{skill_name}'.",
+                skill.name
+            ))
+        }
+        Ok(_) => None,
+    };
+    if let Some(problem) = problem {
+        diagnostics.push(skill_frontmatter_invalid_diagnostic(
+            root,
+            &manual_path,
+            skill_name,
+            &problem,
+        )?);
+    }
+    let lines = contents.lines().count();
+    if lines > MAX_MANUAL_LINES {
+        diagnostics.push(skill_manual_too_long_diagnostic(
+            root,
+            &manual_path,
+            skill_name,
+            lines,
+        )?);
+    }
+    Ok(diagnostics)
+}
+
+fn skill_frontmatter_invalid_diagnostic(
+    root: &Path,
+    manual_path: &Path,
+    skill_name: &str,
+    message: &str,
+) -> Result<DoctorDiagnostic, RuntimeError> {
+    let target = object([
+        ("kind", string_value("skill")),
+        ("ref", string_value(skill_name)),
+    ]);
+    let location = DoctorLocation {
+        path: project_path(root, manual_path),
+        json_pointer: None,
+    };
+    let evidence = object([("error", string_value(message))]);
+    create_diagnostic(DiagnosticParts {
+        id: "runx.skill.frontmatter.invalid",
+        severity: DoctorDiagnosticSeverity::Error,
+        title: "Skill frontmatter breaks the Agent Skills rules",
+        message: format!("Skill {skill_name} has invalid SKILL.md frontmatter: {message}"),
+        target,
+        location,
+        evidence: Some(evidence),
+        repairs: vec![manual_repair(
+            "fix_skill_frontmatter",
+            DoctorRepairConfidence::High,
+            DoctorRepairRisk::Low,
+            true,
+        )],
+    })
+}
+
+fn skill_manual_too_long_diagnostic(
+    root: &Path,
+    manual_path: &Path,
+    skill_name: &str,
+    lines: usize,
+) -> Result<DoctorDiagnostic, RuntimeError> {
+    let target = object([
+        ("kind", string_value("skill")),
+        ("ref", string_value(skill_name)),
+    ]);
+    let location = DoctorLocation {
+        path: project_path(root, manual_path),
+        json_pointer: None,
+    };
+    let evidence = object([
+        ("line_count", number_value(lines as u64)),
+        ("max_lines", number_value(MAX_MANUAL_LINES as u64)),
+    ]);
+    create_diagnostic(DiagnosticParts {
+        id: "runx.skill.manual.too_long",
+        severity: DoctorDiagnosticSeverity::Warning,
+        title: "Skill manual is longer than 500 lines",
+        message: format!(
+            "Skill {skill_name} has a {lines}-line SKILL.md; move reference material into bundled files."
+        ),
+        target,
+        location,
+        evidence: Some(evidence),
+        repairs: vec![manual_repair(
+            "move_reference_material_to_files",
+            DoctorRepairConfidence::Medium,
+            DoctorRepairRisk::Low,
+            false,
+        )],
+    })
+}
+
+/// Parse and validate a skill execution profile (run.yaml) the same way the
 /// publish path does, so doctor catches an invalid harness status, an unknown
 /// runner shape, or malformed YAML before publish rather than at publish time.
 #[cfg(test)]
@@ -588,19 +673,22 @@ mod tests {
     use super::validate_skill_profile;
 
     const VALID_PROFILE: &str = r#"
+skill: doctor-profile
 runners:
   main:
     default: true
-    type: agent-task
-    agent: builder
-    task: probe
-    outputs:
-      result: string
     inputs:
       objective:
         type: string
         required: true
         description: "x"
+    steps:
+      - id: main
+        agent: { role: builder, task: probe }
+        inputs:
+          objective: $input.objective
+        outputs:
+          result: string
 harness:
   cases:
     - name: ok
@@ -608,7 +696,7 @@ harness:
         objective: x
       caller:
         answers:
-          agent_task.probe.output:
+          agent.probe.output:
             result: ok
       expect:
         status: sealed
@@ -619,19 +707,22 @@ harness:
 "#;
 
     const INVALID_HARNESS_STATUS_PROFILE: &str = r#"
+skill: doctor-profile
 runners:
   main:
     default: true
-    type: agent-task
-    agent: builder
-    task: probe
-    outputs:
-      result: string
     inputs:
       objective:
         type: string
         required: true
         description: "x"
+    steps:
+      - id: main
+        agent: { role: builder, task: probe }
+        inputs:
+          objective: $input.objective
+        outputs:
+          result: string
 harness:
   cases:
     - name: bad
@@ -639,7 +730,7 @@ harness:
         objective: x
       caller:
         answers:
-          agent_task.probe.output:
+          agent.probe.output:
             result: ok
       expect:
         status: success

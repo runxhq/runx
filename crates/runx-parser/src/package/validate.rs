@@ -30,10 +30,14 @@ pub fn validate_skill_package(
     let manual_markdown = required_text_file(&source, "SKILL.md")?.to_owned();
     let skill = validate_manual(&manual_markdown)?;
     let profiles = validate_profiles(&source)?;
-    validate_package_identity(&skill, profiles.get("X.yaml"))?;
+    validate_package_identity(&skill, profiles.get(super::PROFILE_FILE))?;
     let harness_fixtures = validate_harness_fixtures(&source)?;
-    validate_catalog_semantics(&skill.name, profiles.get("X.yaml"), &harness_fixtures)?;
-    let mut references = collect_package_references(&profiles, &source)?;
+    validate_catalog_semantics(
+        &skill.name,
+        profiles.get(super::PROFILE_FILE),
+        &harness_fixtures,
+    )?;
+    let mut references = collect_package_references(&profiles)?;
     let harness_fixture_files =
         collect_harness_fixture_references(&harness_fixtures, &source, &mut references)?;
     let tools = validate_package_tools(&source)?;
@@ -122,7 +126,7 @@ fn validate_catalog_semantics(
         .collect::<Vec<_>>()
         .join("; ");
     Err(SkillPackageError::invalid(
-        "X.yaml.catalog",
+        "run.yaml.catalog",
         format!("catalog semantic enforcement rejected the package: {corrections}"),
     ))
 }

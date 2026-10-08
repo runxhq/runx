@@ -9,7 +9,7 @@ inputs:
   filter_catalog_json: '{"contact_country":{"type":"string","predicates":["eq"]},"contact_subscribed_email":{"type":"boolean","predicates":["true"]},"contact_created_at":{"type":"date","predicates":["gteq"]}}'
 caller:
   answers:
-    agent_task.segment-from-prose-plan.output:
+    agent.segment-from-prose-plan.output:
       segment_plan:
         decision: ready
         rationale: The request maps directly to email subscription, country, and join date filters.

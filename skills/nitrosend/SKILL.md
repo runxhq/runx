@@ -1,8 +1,6 @@
 ---
 name: nitrosend
 description: "Operate a Nitrosend account through one governed Runx skill: inspect readiness, entities, inboxes, analytics, subscription plans, and purchase status; plan and apply campaign/flow/template/segment drafts; import consented contacts; and review, test, approve, or deliver messaging operations with provider readback."
-runx:
-  category: growth
 ---
 
 # Nitrosend

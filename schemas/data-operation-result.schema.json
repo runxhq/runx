@@ -104,8 +104,7 @@
         "committed",
         "idempotent_replay",
         "read",
-        "conflict",
-        "provider_unavailable"
+        "conflict"
       ],
       "type": "string"
     },

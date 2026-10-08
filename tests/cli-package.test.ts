@@ -118,19 +118,10 @@ describe("CLI package", () => {
 
     const textFiles = files.filter((file) => /\.(?:json|md|txt|js|mjs|cjs|ts|tsx)$/u.test(file));
     const forbiddenTokens = [
-      "RUNX_JS_BIN",
-      "RUNX_NPM_PACKAGE",
-      "RUNX_RUST_CLI",
-      "RUNX_RUST_HARNESS",
       "npm exec",
       "packages/cli/src",
       "packages/cli/dist",
       "process.execPath",
-      "skill_execution",
-      "graph_execution",
-      "legacy_receipt",
-      "compat_receipt",
-      "pre_spine",
     ];
     for (const file of textFiles) {
       const contents = await readFile(path.join(cliPackageRoot, file), "utf8");

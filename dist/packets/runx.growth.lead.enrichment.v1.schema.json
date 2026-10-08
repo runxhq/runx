@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://schemas.runx.ai/runx/growth/lead_enrichment/v1.json",
   "x-runx-packet-id": "runx.growth.lead_enrichment.v1",
-  "x-runx-generated-from": "skills/lead-enrichment/X.yaml#root.runners.enrich.graph.steps.1",
+  "x-runx-generated-from": "skills/lead-enrichment/run.yaml#root.runners.enrich.steps.1",
   "additionalProperties": false,
   "properties": {
     "consent": {

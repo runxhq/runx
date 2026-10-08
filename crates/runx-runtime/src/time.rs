@@ -1,6 +1,6 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
-/// Deterministic fixture timestamp for harness/parity/oracle callers that must
+/// Deterministic fixture timestamp for harness and oracle callers that must
 /// keep receipt content stable. Live runtime paths should call [`now_iso8601`].
 pub(crate) const DEFAULT_CREATED_AT: &str = "2026-05-18T00:00:00Z";
 
@@ -45,4 +45,31 @@ fn civil_from_days(days_since_epoch: i64) -> (i32, u32, u32) {
         u32::try_from(month).unwrap_or(1),
         u32::try_from(day).unwrap_or(1),
     )
+}
+
+/// The instant a relative lookback such as `7d` or `24h` starts, counted back
+/// from `as_of` (an RFC 3339 instant) or from now.
+pub(crate) fn lookback_since(period: &str, as_of: Option<&str>) -> Result<String, String> {
+    let period = period.trim();
+    let (amount, unit_seconds) = if let Some(amount) = period.strip_suffix(['d', 'D']) {
+        (amount, 86_400)
+    } else if let Some(amount) = period.strip_suffix(['h', 'H']) {
+        (amount, 3_600)
+    } else {
+        return Err("period must use d or h units".to_owned());
+    };
+    let amount = amount
+        .parse::<i64>()
+        .ok()
+        .filter(|amount| *amount > 0)
+        .ok_or("period must be a positive duration such as 7d or 24h")?;
+    let as_of = as_of.map_or_else(now_iso8601, str::to_owned);
+    let (days, seconds, _) = runx_core::policy::parse_rfc3339_moment(&as_of)
+        .ok_or("as_of must be an RFC3339 timestamp")?;
+    let epoch_seconds = days
+        .checked_mul(86_400)
+        .and_then(|value| value.checked_add(seconds))
+        .and_then(|value| value.checked_sub(amount.saturating_mul(unit_seconds)))
+        .ok_or("period is outside the supported timestamp range")?;
+    Ok(iso8601_from_unix_seconds(epoch_seconds))
 }

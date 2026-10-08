@@ -2,7 +2,7 @@ use runx_contracts::{JsonNumber, JsonObject, JsonValue};
 
 use super::ProofProjection;
 use crate::RuntimeError;
-use crate::journal::ReceiptInspection;
+use crate::receipts::inspection::ReceiptInspection;
 
 pub(super) fn proof_packet(
     receipt_ids: Vec<String>,

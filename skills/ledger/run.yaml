@@ -1,0 +1,245 @@
+skill: ledger
+version: "0.5.0"
+
+catalog:
+  kind: graph
+  audience: operator
+  visibility: public
+  role: canonical
+  execution: read
+  completion: runtime_receipt
+  requires_adapter: false
+  approval: none
+  category: security
+
+runners:
+  read:
+    default: true
+    inputs:
+      question:
+        type: string
+        required: false
+        description: The audit question bounding this read.
+      filter:
+        type: json
+        required: false
+        description: Query narrowing by principal, skill_ref, status, issuer, actor, time_range, and a bounded limit.
+      receipt_ids:
+        type: json
+        required: false
+        description: Exact receipt ids to resolve through native runx history.
+      proof:
+        type: json
+        required: false
+        description: "Chain-verification request, for example { verify_chain: true }."
+      receipts:
+        type: json
+        required: false
+        description: Explicit native-projection rows for deterministic replay only.
+      receipt_details:
+        type: json
+        required: false
+        description: Explicit native redacted receipt-detail projections for deterministic replay only.
+    result_from: [finalize-live, finalize-replay, finalize-empty]
+    steps:
+      - id: prepare
+        label: normalize the bounded ledger query
+        inputs:
+          question: $input.question
+          filter: $input.filter
+          receipt_ids: $input.receipt_ids
+          proof: $input.proof
+          receipts: $input.receipts
+        tool: { module: ledger.mjs, export: prepareLedger }
+        outputs:
+          ledger_context: object
+        artifacts:
+          named_emits:
+            ledger_context: ledger_context
+      - id: query
+        label: query and prove native receipt evidence
+        when:
+          field: prepare.ledger_context.data.path
+          equals: live
+        tool: receipt.query
+        scopes:
+          - receipt.read
+        context:
+          actor: prepare.ledger_context.data.filter.actor
+          skill: prepare.ledger_context.data.filter.skill_ref
+          status: prepare.ledger_context.data.native_status
+          issuer: prepare.ledger_context.data.filter.issuer
+          since: prepare.ledger_context.data.filter.from
+          until: prepare.ledger_context.data.filter.to
+          limit: prepare.ledger_context.data.filter.limit
+          receipt_ids: prepare.ledger_context.data.receipt_ids
+          verify_chain: prepare.ledger_context.data.proof_requested
+      - id: finalize-live
+        label: answer from native receipt evidence
+        when:
+          field: prepare.ledger_context.data.path
+          equals: live
+        tool: { module: ledger.mjs, export: finalizeLedger }
+        outputs:
+          ledger_answer:
+            type: object
+            schema:
+              required: [decision, question, query]
+              additionalProperties: false
+              properties:
+                decision: { type: string, enum: [answered, needs_more_evidence, needs_agent] }
+                question: { type: string }
+                query:
+                  type: object
+                  required: [principal, skill_ref, status, time_range, receipt_ids]
+                  additionalProperties: false
+                  properties:
+                    principal: { type: string }
+                    skill_ref: { type: string }
+                    status: { type: array, items: { type: string } }
+                    time_range:
+                      type: object
+                      required: [from, to]
+                      properties: { from: { type: string }, to: { type: string } }
+                      additionalProperties: false
+                    receipt_ids: { type: array, items: { type: string }, uniqueItems: true }
+          matched_receipts: array
+          receipt_details: array
+          chain_verification:
+            type: object
+            schema:
+              required: [checked, intact, breaks]
+              additionalProperties: false
+              properties:
+                checked: { type: boolean }
+                intact: { type: [boolean, "null"] }
+                breaks:
+                  type: array
+                  items:
+                    type: object
+                    required: [from_receipt_id, to_receipt_id, reason]
+                    properties:
+                      from_receipt_id: { type: string }
+                      to_receipt_id: { type: string }
+                      reason: { type: string }
+                    additionalProperties: false
+          summary: string
+        context:
+          ledger_context: prepare.ledger_context.data
+          receipt_query: query.receipt_query.data
+        artifacts:
+          wrap_as: ledger_answer_packet
+          packet: runx.ledger_answer.v1
+      - id: finalize-replay
+        label: answer from supplied replay evidence
+        when:
+          field: prepare.ledger_context.data.path
+          equals: replay
+        inputs:
+          receipts: $input.receipts
+          receipt_details: $input.receipt_details
+        tool: { module: ledger.mjs, export: finalizeLedger }
+        outputs:
+          ledger_answer:
+            type: object
+            schema:
+              required: [decision, question, query]
+              additionalProperties: false
+              properties:
+                decision: { type: string, enum: [answered, needs_more_evidence, needs_agent] }
+                question: { type: string }
+                query:
+                  type: object
+                  required: [principal, skill_ref, status, time_range, receipt_ids]
+                  additionalProperties: false
+                  properties:
+                    principal: { type: string }
+                    skill_ref: { type: string }
+                    status: { type: array, items: { type: string } }
+                    time_range:
+                      type: object
+                      required: [from, to]
+                      properties: { from: { type: string }, to: { type: string } }
+                      additionalProperties: false
+                    receipt_ids: { type: array, items: { type: string }, uniqueItems: true }
+          matched_receipts: array
+          receipt_details: array
+          chain_verification:
+            type: object
+            schema:
+              required: [checked, intact, breaks]
+              additionalProperties: false
+              properties:
+                checked: { type: boolean }
+                intact: { type: [boolean, "null"] }
+                breaks:
+                  type: array
+                  items:
+                    type: object
+                    required: [from_receipt_id, to_receipt_id, reason]
+                    properties:
+                      from_receipt_id: { type: string }
+                      to_receipt_id: { type: string }
+                      reason: { type: string }
+                    additionalProperties: false
+          summary: string
+        context:
+          ledger_context: prepare.ledger_context.data
+        artifacts:
+          wrap_as: ledger_answer_packet
+          packet: runx.ledger_answer.v1
+      - id: finalize-empty
+        label: stop when no audit question was supplied
+        when:
+          field: prepare.ledger_context.data.path
+          equals: no_question
+        tool: { module: ledger.mjs, export: finalizeLedger }
+        outputs:
+          ledger_answer:
+            type: object
+            schema:
+              required: [decision, question, query]
+              additionalProperties: false
+              properties:
+                decision: { type: string, enum: [answered, needs_more_evidence, needs_agent] }
+                question: { type: string }
+                query:
+                  type: object
+                  required: [principal, skill_ref, status, time_range, receipt_ids]
+                  additionalProperties: false
+                  properties:
+                    principal: { type: string }
+                    skill_ref: { type: string }
+                    status: { type: array, items: { type: string } }
+                    time_range:
+                      type: object
+                      required: [from, to]
+                      properties: { from: { type: string }, to: { type: string } }
+                      additionalProperties: false
+                    receipt_ids: { type: array, items: { type: string }, uniqueItems: true }
+          matched_receipts: array
+          receipt_details: array
+          chain_verification:
+            type: object
+            schema:
+              required: [checked, intact, breaks]
+              additionalProperties: false
+              properties:
+                checked: { type: boolean }
+                intact: { type: [boolean, "null"] }
+                breaks:
+                  type: array
+                  items:
+                    type: object
+                    required: [from_receipt_id, to_receipt_id, reason]
+                    properties:
+                      from_receipt_id: { type: string }
+                      to_receipt_id: { type: string }
+                      reason: { type: string }
+                    additionalProperties: false
+          summary: string
+        context:
+          ledger_context: prepare.ledger_context.data
+        artifacts:
+          wrap_as: ledger_answer_packet
+          packet: runx.ledger_answer.v1

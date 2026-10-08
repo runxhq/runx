@@ -19,15 +19,17 @@ inputs:
     filters: { state: open, labels: [triage], limit: 25 }
   scope: read
 caller:
-  http_responses:
-    "https://api.github.com/user":
-      status: 200
-      headers: { content-type: application/json }
-      body: '{"id": 7, "login": "operator"}'
-    "https://api.github.com/repos/runxhq/runx/issues?labels=triage&per_page=25&state=open":
-      status: 200
-      headers: { content-type: application/json }
-      body: '[{"number": 442, "title": "Make GitHub reads operator-first", "state": "open", "body": "Use the existing local gh session for routine reads.", "html_url": "https://github.com/runxhq/runx/issues/442", "labels": [{"name": "triage"}], "assignees": []}]'
+  http_exchanges:
+    - request: { method: GET, url: "https://api.github.com/user", body: none }
+      response:
+        status: 200
+        headers: { content-type: application/json }
+        body: '{"id": 7, "login": "operator"}'
+    - request: { method: GET, url: "https://api.github.com/repos/runxhq/runx/issues?labels=triage&per_page=25&state=open", body: none }
+      response:
+        status: 200
+        headers: { content-type: application/json }
+        body: '[{"number": 442, "title": "Make GitHub reads operator-first", "state": "open", "body": "Use the existing local gh session for routine reads.", "html_url": "https://github.com/runxhq/runx/issues/442", "labels": [{"name": "triage"}], "assignees": []}]'
 expect:
   status: sealed
   output:

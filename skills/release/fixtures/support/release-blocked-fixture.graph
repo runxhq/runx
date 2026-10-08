@@ -1,0 +1,17 @@
+name: release-fixture-blocked-preparation
+steps:
+  - id: setup
+    inputs: { prepare_status: blocked }
+    tool: { command: node, args: [./setup_release_fixture.mjs] }
+    outputs:
+      project_root: string
+      profile_ref: string
+  - id: prepare
+    skill: ../..
+    runner: prepare
+    inputs:
+      channel: fixture
+      version: 1.2.3
+    context:
+      project_root: setup.project_root
+      profile_ref: setup.profile_ref

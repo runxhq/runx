@@ -1,5 +1,4 @@
 use runx_contracts::{AuthorityVerb, JsonObject, JsonValue};
-use runx_core::state_machine::FanoutSyncDecision;
 use thiserror::Error;
 
 use crate::credentials::CredentialDeliveryError;
@@ -54,7 +53,22 @@ pub enum RuntimeError {
     ResolutionPending {
         step_id: String,
         reason: String,
-        checkpoint: Option<Box<crate::execution::runner::GraphCheckpoint>>,
+        /// The request the innermost step asked its host.
+        request: Box<runx_contracts::ResolutionRequest>,
+        /// The child run that holds the request, when the step is a nested
+        /// skill; `None` when the step asked its host itself.
+        child: Option<String>,
+    },
+    /// A step sealed a governed closure other than `closed`: an agent act
+    /// that declined, deferred, blocked, or was superseded. The graph stops
+    /// there with that disposition; it is an outcome, not a fault.
+    #[error("graph step '{step_id}' closed with {}: {summary}", disposition.label())]
+    StepClosed {
+        step_id: String,
+        disposition: runx_contracts::ClosureDisposition,
+        /// The step receipt's own reason code, which the graph seal keeps.
+        reason_code: String,
+        summary: String,
     },
     #[error(transparent)]
     ContextEdgeUnresolved(Box<ContextEdgeUnresolvedError>),
@@ -74,27 +88,12 @@ pub enum RuntimeError {
         #[source]
         source: Box<crate::adapters::agent::AgentResolverError>,
     },
-    #[error("graph step '{step_id}' paused: {reason}")]
-    GraphPaused {
-        step_id: String,
-        reason: String,
-        sync_decision: Box<FanoutSyncDecision>,
-    },
-    #[error("graph step '{step_id}' escalated: {reason}")]
-    GraphEscalated {
-        step_id: String,
-        reason: String,
-        sync_decision: Box<FanoutSyncDecision>,
-    },
     #[error(
         "provider mutation was applied but independent readback is unavailable at graph step '{step_id}': {reason}"
     )]
     ProviderReadbackPending { step_id: String, reason: String },
-    #[error("checkpoint graph '{checkpoint_graph}' cannot resume graph '{graph}'")]
-    CheckpointGraphMismatch {
-        checkpoint_graph: String,
-        graph: String,
-    },
+    #[error(transparent)]
+    RunRecord(#[from] crate::execution::run_record::RunRecordError),
     #[error("unsupported adapter '{adapter_type}'")]
     UnsupportedAdapter { adapter_type: String },
     #[error("runtime engine failed while {context}: {source}")]
@@ -108,14 +107,10 @@ pub enum RuntimeError {
         context: &'static str,
         message: String,
     },
-    #[error("parallel fanout attempted unsupported host operation '{operation}'")]
-    ParallelHostInteraction { operation: &'static str },
-    #[error("unsupported source kind '{source_kind}'")]
-    UnsupportedSource { source_kind: String },
+    #[error("this adapter does not run a {kind} executable")]
+    UnsupportedExecutable { kind: String },
     #[error("runner selection '{runner}' is not supported by the native runtime yet")]
     UnsupportedRunnerSelection { runner: String },
-    #[error("cli-tool source is missing command")]
-    MissingCommand,
     #[error("process invocation is invalid: {message}")]
     InvalidProcessInvocation { message: String },
     #[error(
@@ -196,8 +191,6 @@ impl RuntimeError {
             source @ (Self::AuthorityDenied { .. }
             | Self::GraphBlocked { .. }
             | Self::ResolutionPending { .. }
-            | Self::GraphPaused { .. }
-            | Self::GraphEscalated { .. }
             | Self::ProviderReadbackPending { .. }) => source,
             source => Self::EngineFailure {
                 context,
@@ -213,10 +206,9 @@ impl RuntimeError {
         match self {
             Self::StepMissing { .. }
             | Self::GraphPlanningFailed { .. }
-            | Self::CheckpointGraphMismatch { .. }
+            | Self::RunRecord(_)
             | Self::EngineFailure { .. }
             | Self::EngineInvariant { .. }
-            | Self::ParallelHostInteraction { .. }
             | Self::EffectState { .. }
             | Self::ProviderEffectUnknown { .. }
             | Self::ProviderReadbackPending { .. }
@@ -233,14 +225,12 @@ impl RuntimeError {
             | Self::UnsupportedRunStep { .. }
             | Self::GraphBlocked { .. }
             | Self::ResolutionPending { .. }
+            | Self::StepClosed { .. }
             | Self::ContextEdgeUnresolved(_)
             | Self::AuthorityDenied { .. }
-            | Self::GraphPaused { .. }
-            | Self::GraphEscalated { .. }
             | Self::UnsupportedAdapter { .. }
-            | Self::UnsupportedSource { .. }
+            | Self::UnsupportedExecutable { .. }
             | Self::UnsupportedRunnerSelection { .. }
-            | Self::MissingCommand
             | Self::InvalidProcessInvocation { .. }
             | Self::MissingEnvironment { .. }
             | Self::JavaScriptWorker { .. }
@@ -360,10 +350,9 @@ impl RuntimeError {
             | Self::UnsupportedRunStep { step_id, .. }
             | Self::GraphBlocked { step_id, .. }
             | Self::ResolutionPending { step_id, .. }
+            | Self::StepClosed { step_id, .. }
             | Self::AuthorityDenied { step_id, .. }
             | Self::GraphPlanningFailed { step_id, .. }
-            | Self::GraphPaused { step_id, .. }
-            | Self::GraphEscalated { step_id, .. }
             | Self::ProviderReadbackPending { step_id, .. } => Some(step_id),
             Self::InputContract { step_id, .. } => step_id.as_deref(),
             #[cfg(feature = "agent")]
@@ -399,34 +388,20 @@ impl RuntimeError {
                 reason,
             },
             Self::ResolutionPending {
-                reason, checkpoint, ..
+                reason,
+                request,
+                child,
+                ..
             } => Self::ResolutionPending {
                 step_id: step_id.to_owned(),
                 reason,
-                checkpoint,
+                request,
+                child,
             },
             Self::AuthorityDenied { verb, reason, .. } => Self::AuthorityDenied {
                 verb,
                 step_id: step_id.to_owned(),
                 reason,
-            },
-            Self::GraphPaused {
-                reason,
-                sync_decision,
-                ..
-            } => Self::GraphPaused {
-                step_id: step_id.to_owned(),
-                reason,
-                sync_decision,
-            },
-            Self::GraphEscalated {
-                reason,
-                sync_decision,
-                ..
-            } => Self::GraphEscalated {
-                step_id: step_id.to_owned(),
-                reason,
-                sync_decision,
             },
             Self::ProviderReadbackPending { reason, .. } => Self::ProviderReadbackPending {
                 step_id: step_id.to_owned(),

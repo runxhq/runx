@@ -36,7 +36,6 @@ mod http;
 mod init;
 mod input_contract;
 pub mod interrupt;
-pub mod journal;
 pub mod kernel;
 mod lifecycle;
 pub mod list;
@@ -58,21 +57,18 @@ pub mod tool_catalogs;
 
 pub use execution::harness;
 pub use execution::orchestrator;
+pub use execution::run_record;
 pub use execution::runner;
 pub use execution::skill_front;
 pub use execution_environment::environment_requirement_statuses;
-pub use tool_catalogs::native::{
-    EventStoreMigrationProof, EventStoreMigrationRequest, EventStoreMigrationStatus,
-    migrate_event_store,
-};
 #[cfg(feature = "catalog")]
 pub use tool_catalogs::native::{NativeCapabilitySnapshot, native_capability_snapshot};
 
 pub mod adapters;
 
 pub use adapter::{
-    EphemeralValue, InvocationDiagnostics, InvocationOutput, InvocationStatus, SkillAdapter,
-    SkillInvocation,
+    EphemeralValue, Executable, InvocationDiagnostics, InvocationOutput, InvocationStatus,
+    SkillAdapter, SkillInvocation,
 };
 pub use approval::{ApprovalError, LocalApprovalGateResolver, request_approval};
 pub use capability::{
@@ -112,14 +108,13 @@ pub use effects::{
 };
 pub use effects::{
     EffectAdmission, EffectOutputRequest, EffectPreparationOutcome, EffectReceiptRequest,
-    EffectReplay, EffectReplayOutputRequest, EffectReplayReceiptRequest, EffectStepRequest,
-    EffectToolRequest, RuntimeEffect, RuntimeEffectError, RuntimeEffectRegistry,
+    EffectStepRequest, EffectToolRequest, RuntimeEffect, RuntimeEffectError, RuntimeEffectRegistry,
     insert_effect_verification_ref,
 };
 pub use error::RuntimeError;
 pub use harness::{
-    HarnessExpectedStatus, HarnessFixtureError, HarnessFixtureKind, HarnessReplayError,
-    HarnessReplayOutput, load_harness_fixture, run_harness_fixture,
+    HarnessExpectedStatus, HarnessFixtureError, HarnessFixtureKind, HarnessOptions,
+    HarnessReplayError, HarnessReplayOutput, load_harness_fixture, run_harness_fixture,
     run_harness_fixture_with_adapter,
 };
 pub use host::{Host, NoopHost};
@@ -135,15 +130,16 @@ pub use hosted_api::{
     publish_hosted_receipt, request_hosted_skill_challenge, start_hosted_login,
     store_authenticated_hosted_environment,
 };
+pub use http::RuntimeHttpError;
+#[cfg(feature = "async-http")]
 pub use http::{
-    ExactLoopbackHttpTransport, HttpMethod, ReqwestHttpTransport, RuntimeHttpError,
-    RuntimeHttpHeader, RuntimeHttpRequest, RuntimeHttpResponse, RuntimeHttpTransport,
+    ExactLoopbackHttpTransport, HttpMethod, ReqwestHttpTransport, RuntimeHttpHeader,
+    RuntimeHttpRequest, RuntimeHttpResponse, RuntimeHttpTransport,
 };
 pub use init::{
     InitAction, InitError, InitGeneratedValues, RunxInitOptions, RunxInitResult, RunxInstallState,
     RunxProjectState, ensure_runx_install_state, ensure_runx_project_state, runx_init,
 };
-pub use journal::ExecutionJournal;
 pub use kernel::authority::RunAuthority;
 pub use kernel::connectors::{
     ConnectorOrigin, ConnectorRegistryError, ConnectorScope, LoadedConnector,
@@ -160,6 +156,7 @@ pub use kernel::operation::egress::{
 pub use kernel::operation::{
     OPERATION_EFFECT_FAMILY, OperationEffect, PAID_EXTERNAL_JOB_AUTHORITY_ENV,
 };
+#[cfg(feature = "async-http")]
 pub use kernel::standing::{
     STANDING_APPROVAL_ID_ENV, STANDING_DELEGATE_DIGEST_ENV, StandingApproval, StandingApprovals,
     StandingError, StandingStatus,
@@ -170,7 +167,7 @@ pub use list::{
     list_authoring_primitives, list_authoring_primitives_with_effects,
 };
 pub use orchestrator::{
-    DEFAULT_MANAGED_AGENT_MAX_ROUNDS, GraphRunRequest, HarnessRunRequest, LocalOrchestrator,
+    DEFAULT_MANAGED_AGENT_MAX_ROUNDS, HarnessRunRequest, LocalOrchestrator,
     MANAGED_AGENT_MAX_ROUNDS_LIMIT, ManagedAgentPolicy, OrchestratorError, PackageHarnessRequest,
     RunContinuation, RunRequest, RunResult, RunStatus, SkillRunRequest,
 };
@@ -180,10 +177,10 @@ pub use provider_operations::{
     validate_provider_grant_id, validate_provider_operation,
 };
 pub use receipts::paths::{
-    INIT_CWD_ENV, RUNTIME_RECEIPTS_DIR_CONFIG_KEY, RUNX_CWD_ENV, RUNX_PROJECT_DIR_ENV,
-    RUNX_RECEIPT_DIR_ENV, ReceiptPathInputs, ReceiptPathSource, ReceiptStoreLabel,
-    ResolvedReceiptPath, RuntimeReceiptConfig, resolve_project_runx_dir, resolve_receipt_path,
-    resolve_workspace_base, safe_receipt_store_label,
+    RUNTIME_RECEIPTS_DIR_CONFIG_KEY, RUNX_CWD_ENV, RUNX_PROJECT_DIR_ENV, RUNX_RECEIPT_DIR_ENV,
+    ReceiptPathInputs, ReceiptPathSource, ReceiptStoreLabel, ResolvedReceiptPath,
+    RuntimeReceiptConfig, resolve_project_runx_dir, resolve_receipt_path, resolve_workspace_base,
+    safe_receipt_store_label,
 };
 pub use receipts::store::{
     LocalReceiptStore, ReceiptStoreError, ReceiptStoreIndex, ReceiptStoreIndexEntry,
@@ -201,15 +198,13 @@ pub use receipts::{
     RuntimeReceiptVerifierSource, receipt_verifier_from_env,
 };
 pub use registry::{RegistryInstallMetadataInput, registry_install_receipt_metadata};
-pub use runner::{
-    GraphCheckpoint, GraphRun, RUNX_MAX_FANOUT_CONCURRENCY_ENV, RUNX_RUN_ID_ENV, Runtime,
-    RuntimeOptions, StepOutcome, StepRun,
-};
+pub use run_record::{RunLog, RunRecordError, RunState, RunSummary};
+pub use runner::{GraphRun, RUNX_RUN_ID_ENV, Runtime, RuntimeOptions, StepOutcome, StepRun};
 pub use runx_core::kernel_eval;
 pub use runx_core::policy::{ScopeGrantPolicy, missing_granted_scopes, scope_grant_allows};
 pub use runx_parser::{
-    SkillArtifactContract, SkillPackageSource, SkillRunnerDefinition, SkillRunnerManifest,
-    SkillSource, ValidatedSkillPackage,
+    PROFILE_FILE, SkillArtifactContract, SkillPackageSource, SkillRunnerDefinition,
+    SkillRunnerManifest, ValidatedSkillPackage,
 };
 pub use runx_receipts::ReceiptTreeConfig;
 pub use services::{

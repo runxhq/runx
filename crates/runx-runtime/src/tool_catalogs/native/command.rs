@@ -169,7 +169,6 @@ mod tests {
         let output = json_output(execute(&NativeInvocation {
             inputs: &inputs,
             observed_at: "2026-01-01T00:00:00Z",
-            data_source_binding: None,
             env: &env,
             skill_directory: workspace.path(),
             credential_delivery: &delivery,
@@ -224,7 +223,6 @@ mod tests {
         let output = json_output(plan(&NativeInvocation {
             inputs: &inputs,
             observed_at: "2026-01-01T00:00:00Z",
-            data_source_binding: None,
             env: &env,
             skill_directory: workspace.path(),
             credential_delivery: &delivery,
@@ -262,7 +260,6 @@ mod tests {
         plan(&NativeInvocation {
             inputs: &inputs,
             observed_at: "2026-01-01T00:00:00Z",
-            data_source_binding: None,
             env: &env,
             skill_directory: workspace.path(),
             credential_delivery: &delivery,
@@ -275,7 +272,6 @@ mod tests {
         let error = plan(&NativeInvocation {
             inputs: &inputs,
             observed_at: "2026-01-01T00:00:00Z",
-            data_source_binding: None,
             env: &env,
             skill_directory: workspace.path(),
             credential_delivery: &delivery,
@@ -313,7 +309,6 @@ mod tests {
         let error = execute(&NativeInvocation {
             inputs: &inputs,
             observed_at: "2026-01-01T00:00:00Z",
-            data_source_binding: None,
             env: &env,
             skill_directory: workspace.path(),
             credential_delivery: &delivery,
@@ -345,7 +340,6 @@ mod tests {
         let planned = json_output(plan(&NativeInvocation {
             inputs: &inputs,
             observed_at: "2026-01-01T00:00:00Z",
-            data_source_binding: None,
             env: &env,
             skill_directory: workspace.path(),
             credential_delivery: &delivery,
@@ -366,7 +360,6 @@ mod tests {
         let error = execute(&NativeInvocation {
             inputs: &inputs,
             observed_at: "2026-01-01T00:00:00Z",
-            data_source_binding: None,
             env: &env,
             skill_directory: workspace.path(),
             credential_delivery: &delivery,

@@ -1,15 +1,9 @@
-use std::collections::BTreeMap;
-
 use proptest::prelude::*;
-use proptest::test_runner::TestCaseError;
-use runx_contracts::{JsonNumber, JsonValue};
 use runx_core::state_machine::{
-    FanoutBranchFailurePolicy, FanoutBranchResult, FanoutGateAction, FanoutGroupPolicy,
-    FanoutSyncDecision, FanoutSyncOutcome, FanoutSyncStrategy, FanoutThresholdGate, GraphStatus,
-    GraphStepStatus, SequentialGraphEvent, SequentialGraphPlan, SequentialGraphState,
+    GraphStatus, GraphStepStatus, SequentialGraphEvent, SequentialGraphPlan, SequentialGraphState,
     SequentialGraphStepDefinition, SequentialGraphStepState, SingleStepEvent, SingleStepState,
-    StepAdmissionWitness, StepStatus, evaluate_fanout_sync, fanout_sync_decision_key,
-    plan_sequential_graph_transition, transition_sequential_graph, transition_single_step,
+    StepAdmissionWitness, StepStatus, plan_sequential_graph_transition,
+    transition_sequential_graph, transition_single_step,
 };
 
 proptest! {
@@ -53,27 +47,12 @@ proptest! {
     }
 
     #[test]
-    fn graph_status_override_events_are_unconditional(
+    fn failing_the_graph_is_unconditional(
         state in sequential_graph_state(),
-        reason in safe_string(),
         error in safe_string(),
     ) {
-        let paused = transition_sequential_graph(
-            &state,
-            &SequentialGraphEvent::PauseGraph {
-                reason: reason.clone(),
-            },
-        );
-        let escalated = transition_sequential_graph(
-            &state,
-            &SequentialGraphEvent::EscalateGraph {
-                reason,
-            },
-        );
         let failed = transition_sequential_graph(&state, &SequentialGraphEvent::FailGraph { error });
 
-        prop_assert_eq!(paused.status, GraphStatus::Paused);
-        prop_assert_eq!(escalated.status, GraphStatus::Escalated);
         prop_assert_eq!(failed.status, GraphStatus::Failed);
     }
 
@@ -103,67 +82,13 @@ proptest! {
         }
     }
 
-    #[test]
-    fn fanout_decision_keys_are_structural(
-        group_id in safe_string(),
-        rule_fired in safe_string(),
-    ) {
-        let left = fanout_sync_decision_key(&group_id, &rule_fired);
-        let right = fanout_sync_decision_key(&group_id, &rule_fired);
-        let encoded = serde_json::to_string(&left).map_err(test_case_error)?;
-        let decoded: String = serde_json::from_str(&encoded).map_err(test_case_error)?;
-
-        prop_assert_eq!(&left, &right);
-        prop_assert_eq!(&left, &decoded);
-    }
-
-    #[test]
-    fn fanout_decision_keys_survive_decision_roundtrip(
-        decision in fanout_sync_decision(),
-    ) {
-        let encoded = serde_json::to_string(&decision).map_err(test_case_error)?;
-        let decoded: FanoutSyncDecision = serde_json::from_str(&encoded).map_err(test_case_error)?;
-        let before_key = fanout_sync_decision_key(&decision.group_id, &decision.rule_fired);
-        let after_key = fanout_sync_decision_key(&decoded.group_id, &decoded.rule_fired);
-
-        prop_assert_eq!(before_key, after_key);
-    }
 }
 
 #[test]
-fn threshold_compared_to_serializes_whole_numbers_like_javascript() -> Result<(), serde_json::Error>
-{
-    let decision = evaluate_fanout_sync(
-        &threshold_policy(JsonNumber::F64(1.0)),
-        &[threshold_result(JsonNumber::I64(2))],
-        None,
-    );
-    let json = serde_json::to_string(&decision)?;
-
-    assert!(json.contains(r#""comparedTo":1"#));
-    assert!(!json.contains(r#""comparedTo":1.0"#));
-    Ok(())
-}
-
-#[test]
-fn non_finite_threshold_output_is_non_numeric() {
-    let decision = evaluate_fanout_sync(
-        &threshold_policy(JsonNumber::F64(0.8)),
-        &[threshold_result(JsonNumber::F64(f64::NAN))],
-        None,
-    );
-
-    assert_eq!(decision.decision, FanoutSyncOutcome::Halt);
-    assert_eq!(decision.rule_fired, "threshold.risk.risk_score.non_numeric");
-}
-
-#[test]
-fn empty_fanout_group_behaves_like_linear_step() {
+fn a_pending_step_is_planned_as_its_first_attempt() {
     let steps = vec![SequentialGraphStepDefinition {
         id: "first".to_owned(),
         context_from: None,
-        retry: None,
-        fanout_group: Some(String::new()),
     }];
     let state = SequentialGraphState {
         graph_id: "graph".to_owned(),
@@ -180,7 +105,7 @@ fn empty_fanout_group_behaves_like_linear_step() {
         }],
     };
 
-    let plan = plan_sequential_graph_transition(&state, &steps, &BTreeMap::new(), None);
+    let plan = plan_sequential_graph_transition(&state, &steps);
 
     assert_eq!(
         plan,
@@ -190,34 +115,6 @@ fn empty_fanout_group_behaves_like_linear_step() {
             context_from: Vec::new(),
         }
     );
-}
-
-fn threshold_policy(above: JsonNumber) -> FanoutGroupPolicy {
-    FanoutGroupPolicy {
-        group_id: "risk".to_owned(),
-        strategy: FanoutSyncStrategy::All,
-        min_success: None,
-        on_branch_failure: FanoutBranchFailurePolicy::Halt,
-        threshold_gates: Some(vec![FanoutThresholdGate {
-            step: "risk".to_owned(),
-            field: "risk_score".to_owned(),
-            above,
-            action: FanoutGateAction::Pause,
-        }]),
-        conflict_gates: None,
-    }
-}
-
-fn threshold_result(value: JsonNumber) -> FanoutBranchResult {
-    FanoutBranchResult {
-        step_id: "risk".to_owned(),
-        status: GraphStepStatus::Succeeded,
-        outputs: Some(
-            [("risk_score".to_owned(), JsonValue::Number(value))]
-                .into_iter()
-                .collect(),
-        ),
-    }
 }
 
 fn single_step_state() -> impl Strategy<Value = SingleStepState> {
@@ -312,8 +209,6 @@ fn sequential_graph_event() -> impl Strategy<Value = SequentialGraphEvent> {
             SequentialGraphEvent::StepFailed { step_id, at, error }
         }),
         Just(SequentialGraphEvent::Complete),
-        safe_string().prop_map(|reason| SequentialGraphEvent::PauseGraph { reason }),
-        safe_string().prop_map(|reason| SequentialGraphEvent::EscalateGraph { reason }),
         safe_string().prop_map(|error| SequentialGraphEvent::FailGraph { error }),
     ]
 }
@@ -334,8 +229,6 @@ fn graph_status() -> impl Strategy<Value = GraphStatus> {
         Just(GraphStatus::Running),
         Just(GraphStatus::Succeeded),
         Just(GraphStatus::Failed),
-        Just(GraphStatus::Paused),
-        Just(GraphStatus::Escalated),
     ]
 }
 
@@ -348,63 +241,6 @@ fn graph_step_status() -> impl Strategy<Value = GraphStepStatus> {
     ]
 }
 
-fn fanout_sync_decision() -> impl Strategy<Value = FanoutSyncDecision> {
-    (
-        safe_string(),
-        fanout_sync_outcome(),
-        fanout_sync_strategy(),
-        safe_string(),
-        safe_string(),
-        0_usize..8,
-        0_usize..8,
-        0_usize..8,
-        0_usize..8,
-    )
-        .prop_map(
-            |(
-                group_id,
-                decision,
-                strategy,
-                rule_fired,
-                reason,
-                branch_count,
-                success_count,
-                failure_count,
-                required_successes,
-            )| {
-                FanoutSyncDecision {
-                    group_id,
-                    decision,
-                    strategy,
-                    rule_fired,
-                    reason,
-                    branch_count,
-                    success_count,
-                    failure_count,
-                    required_successes,
-                    gate: None,
-                }
-            },
-        )
-}
-
-fn fanout_sync_outcome() -> impl Strategy<Value = FanoutSyncOutcome> {
-    prop_oneof![
-        Just(FanoutSyncOutcome::Proceed),
-        Just(FanoutSyncOutcome::Halt),
-        Just(FanoutSyncOutcome::Pause),
-        Just(FanoutSyncOutcome::Escalate),
-    ]
-}
-
-fn fanout_sync_strategy() -> impl Strategy<Value = FanoutSyncStrategy> {
-    prop_oneof![
-        Just(FanoutSyncStrategy::All),
-        Just(FanoutSyncStrategy::Any),
-        Just(FanoutSyncStrategy::Quorum),
-    ]
-}
-
 fn safe_string() -> impl Strategy<Value = String> {
     (0_u8..26, prop::collection::vec(0_u8..37, 0..12)).prop_map(|(first, rest)| {
         let mut output = String::with_capacity(rest.len() + 1);
@@ -414,10 +250,6 @@ fn safe_string() -> impl Strategy<Value = String> {
         }
         output
     })
-}
-
-fn test_case_error(error: serde_json::Error) -> TestCaseError {
-    TestCaseError::fail(error.to_string())
 }
 
 fn safe_char(value: u8) -> char {

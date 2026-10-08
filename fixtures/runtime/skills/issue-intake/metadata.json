@@ -3,10 +3,10 @@
   "generated_at": "2026-05-18T00:00:00Z",
   "source": {
     "skill": "skills/issue-intake/SKILL.md",
-    "profile": "skills/issue-intake/X.yaml"
+    "profile": "skills/issue-intake/run.yaml"
   },
   "skill_name": "issue-intake",
-  "manifest_hash": "sha256:039954034ec3a011e2cd6ec022bcef4eb9c171337faa5b5cf68457634b4ecc7a",
+  "manifest_hash": "sha256:3631f776a0a1344f7b181d8bcdf9d33af3ef3df698d29a3c7167afe4f5d4c18d",
   "harness_schema": "runx.receipt.v1",
   "case_names": [
     "bounded-docs-fix",

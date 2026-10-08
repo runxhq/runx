@@ -14,10 +14,7 @@ import {
 type SkillRunner = {
   readonly name: string;
   readonly default: boolean;
-  readonly source: {
-    readonly type: string;
-    readonly graph?: { readonly steps: readonly unknown[] };
-  };
+  readonly graph: { readonly steps: readonly unknown[] };
 };
 
 type SkillRunnerManifest = {
@@ -42,7 +39,7 @@ describe("official skill catalog", () => {
     const packages = await Promise.all(officialSkillPackages().map(async (skillName) => {
       const skillDir = path.resolve("skills", skillName);
       const skillMarkdownPath = path.join(skillDir, "SKILL.md");
-      const manifestPath = path.join(skillDir, "X.yaml");
+      const manifestPath = path.join(skillDir, "run.yaml");
 
       expect(existsSync(skillDir)).toBe(true);
       expect(existsSync(skillMarkdownPath)).toBe(true);
@@ -86,7 +83,7 @@ describe("official skill catalog", () => {
       const manifest = validateRunnerManifestYaml(readFileSync(manifestPath, "utf8")).raw.document;
       expect(findObjectKeyPaths(manifest, "instructions"), manifestPath).toEqual([]);
 
-      if (findAgentTaskNames(manifest).length === 0) {
+      if (findAgentTasks(manifest).length === 0) {
         continue;
       }
       const skillMarkdownPath = path.join(path.dirname(manifestPath), "SKILL.md");
@@ -102,7 +99,7 @@ describe("official skill catalog", () => {
       if (catalogRole(skillName) === "context") {
         continue;
       }
-      const manifest = validateRunnerManifestYaml(readFileSync(path.resolve("skills", skillName, "X.yaml"), "utf8"));
+      const manifest = validateRunnerManifestYaml(readFileSync(path.resolve("skills", skillName, "run.yaml"), "utf8"));
       const fixtures = publicSkillFixtureCases(skillName);
       const inlineCases = manifest.harness?.cases ?? [];
 
@@ -121,16 +118,14 @@ describe("official skill catalog", () => {
         fixtures
           .filter((entry) => entry.kind === "graph")
           .every((entry) => {
-            if (entry.target?.startsWith("../harness/") === true) return true;
-            // Native package admission requires explicit harness support files
-            // under fixtures/. Match that declared edge as well as legacy harness/.
+            // Journey graphs are declared harness support files under fixtures/.
             const target = entry.target;
             return typeof target === "string"
               && !path.posix.isAbsolute(target)
               && !target.split("/").some((part) => part === "." || part === ".." || part === "")
               && (manifest.harness?.files ?? []).includes(`fixtures/${target}`);
           }),
-        `${skillName} journey fixtures must target their package harness or declared fixture support`,
+        `${skillName} journey fixtures must target declared fixture support`,
       ).toBe(true);
     }
   });
@@ -141,7 +136,7 @@ function officialSkillPackages(): readonly string[] {
     .filter((entry) => entry.isDirectory())
     .filter((entry) => !entry.name.startsWith("."))
     .filter((entry) => existsSync(path.resolve("skills", entry.name, "SKILL.md")))
-    .filter((entry) => existsSync(path.resolve("skills", entry.name, "X.yaml")))
+    .filter((entry) => existsSync(path.resolve("skills", entry.name, "run.yaml")))
     .map((entry) => entry.name)
     .sort();
 }
@@ -152,7 +147,7 @@ function skillManifestPaths(root: string): readonly string[] {
     const entryPath = path.join(root, entry.name);
     if (entry.isDirectory()) {
       paths.push(...skillManifestPaths(entryPath));
-    } else if (entry.name === "X.yaml") {
+    } else if (entry.name === "run.yaml") {
       paths.push(entryPath);
     }
   }
@@ -172,28 +167,29 @@ function findObjectKeyPaths(value: unknown, key: string, prefix = "$"): readonly
   ]);
 }
 
-function findAgentTaskNames(value: unknown): readonly string[] {
+function findAgentTasks(value: unknown): readonly string[] {
   if (Array.isArray(value)) {
-    return value.flatMap(findAgentTaskNames);
+    return value.flatMap(findAgentTasks);
   }
   if (!value || typeof value !== "object") {
     return [];
   }
   const record = value as Record<string, unknown>;
-  const current = record.type === "agent-task" && typeof record.task === "string"
-    ? [record.task]
+  const agent = record.agent as Record<string, unknown> | undefined;
+  const current = agent && typeof agent === "object" && typeof agent.task === "string"
+    ? [agent.task]
     : [];
-  return [...current, ...Object.values(record).flatMap(findAgentTaskNames)];
+  return [...current, ...Object.values(record).flatMap(findAgentTasks)];
 }
 
 function catalogVisibility(skillName: string): "public" | "internal" {
-  const manifest = validateRunnerManifestYaml(readFileSync(path.resolve("skills", skillName, "X.yaml"), "utf8"));
+  const manifest = validateRunnerManifestYaml(readFileSync(path.resolve("skills", skillName, "run.yaml"), "utf8"));
   const catalog = manifest.catalog as { readonly visibility?: "public" | "internal" } | undefined;
   return catalog?.visibility ?? "public";
 }
 
 function catalogRole(skillName: string): string | undefined {
-  const manifest = validateRunnerManifestYaml(readFileSync(path.resolve("skills", skillName, "X.yaml"), "utf8"));
+  const manifest = validateRunnerManifestYaml(readFileSync(path.resolve("skills", skillName, "run.yaml"), "utf8"));
   const catalog = manifest.catalog as { readonly role?: string } | undefined;
   return catalog?.role;
 }

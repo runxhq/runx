@@ -19,7 +19,7 @@ mod retention;
 #[cfg(feature = "async-http")]
 pub use inspection::inspect_connector_readiness;
 pub(crate) use inspection::inspect_loaded_execution_closure_binding;
-#[cfg(feature = "cli-tool")]
+#[cfg(feature = "process-tool")]
 pub(crate) use inspection::{LocalExecutionClosure, inspect_loaded_local_execution_closure};
 pub use inspection::{SkillInspectionError, inspect_skill_package};
 pub use retention::{
@@ -203,7 +203,7 @@ pub fn load_validated_skill_package(path: &Path) -> Result<LoadedSkillPackage, R
 /// A repository may carry a root `SKILL.md` as its native operator manual while
 /// also owning a `skills/` catalog. That manual is exportable agent context, not
 /// a package boundary around the entire repository. A standalone root remains a
-/// package, as does an explicit root `X.yaml` package in a catalog workspace.
+/// package, as does an explicit root `run.yaml` package in a catalog workspace.
 pub(crate) fn discover_workspace_skill_package_dirs(
     root: &Path,
 ) -> Result<Vec<PathBuf>, RuntimeError> {
@@ -213,7 +213,9 @@ pub(crate) fn discover_workspace_skill_package_dirs(
         .filter(|path| !is_fixture_manual(&skills_root, path))
         .filter_map(|path| path.parent().map(Path::to_path_buf))
         .collect::<Vec<_>>();
-    if root.join("SKILL.md").is_file() && (!skills_root.is_dir() || root.join("X.yaml").is_file()) {
+    if root.join("SKILL.md").is_file()
+        && (!skills_root.is_dir() || root.join(runx_parser::PROFILE_FILE).is_file())
+    {
         directories.push(root.to_path_buf());
     }
     directories.sort();
@@ -245,7 +247,7 @@ pub(crate) fn resolve_skill_package_directory(path: &Path) -> Result<PathBuf, Ru
     if metadata.is_file()
         && matches!(
             path.file_name().and_then(|name| name.to_str()),
-            Some("SKILL.md" | "X.yaml")
+            Some("SKILL.md" | runx_parser::PROFILE_FILE)
         )
     {
         return path.parent().map(Path::to_path_buf).ok_or_else(|| {
@@ -258,21 +260,21 @@ pub(crate) fn resolve_skill_package_directory(path: &Path) -> Result<PathBuf, Ru
     }
     Err(runx_parser::SkillPackageError::invalid(
         path.to_string_lossy(),
-        "skill package reference must be a directory, SKILL.md, or X.yaml",
+        "skill package reference must be a directory, SKILL.md, or run.yaml",
     )
     .into())
 }
 
 fn resolve_owning_package_root(directory: &Path) -> Result<PathBuf, RuntimeError> {
     if let Some(package_root) = find_owning_package_root(directory)
-        && (package_root == directory || directory.join("X.yaml").is_file())
+        && (package_root == directory || directory.join(runx_parser::PROFILE_FILE).is_file())
     {
         return Ok(package_root);
     }
-    if !directory.join("X.yaml").is_file() {
+    if !directory.join(runx_parser::PROFILE_FILE).is_file() {
         return Err(runx_parser::SkillPackageError::invalid(
             directory.to_string_lossy(),
-            "skill package directory must contain SKILL.md or an owned X.yaml profile",
+            "skill package directory must contain SKILL.md or an owned run.yaml profile",
         )
         .into());
     }
@@ -294,7 +296,7 @@ fn selected_profile_path(
     package_root: &Path,
     directory: &Path,
 ) -> Result<Option<String>, RuntimeError> {
-    if !directory.join("X.yaml").is_file() {
+    if !directory.join(runx_parser::PROFILE_FILE).is_file() {
         return Ok(None);
     }
     let relative = directory.strip_prefix(package_root).map_err(|_| {
@@ -304,9 +306,13 @@ fn selected_profile_path(
         )
     })?;
     if relative.as_os_str().is_empty() {
-        return Ok(Some("X.yaml".to_owned()));
+        return Ok(Some(runx_parser::PROFILE_FILE.to_owned()));
     }
-    Ok(Some(format!("{}/X.yaml", relative_path(relative)?)))
+    Ok(Some(format!(
+        "{}/{}",
+        relative_path(relative)?,
+        runx_parser::PROFILE_FILE
+    )))
 }
 
 #[derive(Default)]
@@ -444,7 +450,7 @@ mod tests {
 
     use super::discover_workspace_skill_package_dirs;
 
-    const MANUAL: &str = "---\nname: demo\ndescription: Demo skill.\nsource:\n  type: cli-tool\n  command: demo\n---\n\n# Demo\n";
+    const MANUAL: &str = "---\nname: demo\ndescription: Demo skill.\n---\n\n# Demo\n";
 
     #[test]
     fn catalog_workspace_does_not_wrap_root_manual_around_repository() {

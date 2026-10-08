@@ -20,7 +20,7 @@ inputs:
   objective: Stand up a fail-closed issue-flow policy for the three repos.
 caller:
   answers:
-    agent_task.policy-author-draft.output:
+    agent.policy-author-draft.output:
       policy_proposal:
         decision: ready
         policy:
@@ -161,4 +161,3 @@ metadata:
   public_skill: policy-author
   source_case: issue-flow-policy-from-brief
   source: skills-fixture
-  runner_kind: graph

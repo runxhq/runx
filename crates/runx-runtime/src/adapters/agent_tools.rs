@@ -33,7 +33,6 @@ pub struct RuntimeToolExecutor {
     observed_at: String,
     allowed_tools: BTreeSet<String>,
     scopes: Vec<String>,
-    javascript: crate::adapters::javascript::JavaScriptAdapter,
     local_artifacts: crate::services::LocalArtifactService,
 }
 
@@ -54,14 +53,8 @@ impl RuntimeToolExecutor {
             observed_at: observed_at.into(),
             allowed_tools: allowed_tools.into_iter().collect(),
             scopes,
-            javascript: crate::adapters::javascript::JavaScriptAdapter::default(),
             local_artifacts: crate::services::LocalArtifactService::default(),
         }
-    }
-
-    #[must_use]
-    pub fn javascript_session_stats(&self) -> crate::adapters::javascript::JavaScriptSessionStats {
-        self.javascript.session_stats()
     }
 }
 
@@ -100,7 +93,6 @@ impl ToolExecutor for RuntimeToolExecutor {
             skill_directory: &self.skill_directory,
             credential_delivery: &CredentialDelivery::none(),
             local_artifacts: &self.local_artifacts,
-            javascript: &self.javascript,
             skill_name: tool,
             allow_explicit_manifest_path: false,
             effect_admission: None,

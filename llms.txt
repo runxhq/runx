@@ -13,7 +13,8 @@
 - [Skill Author Runtime Contract](docs/skill-author-runtime-contract.md)
 - [Skill Catalog](docs/skill-catalog.md)
 - [Security Authority Proof](docs/security-authority-proof.md)
-- [Rust Kernel Architecture](docs/rust-kernel-architecture.md)
+- [Runx System Architecture](docs/architecture/runx-system.md)
+- [Act Model](docs/act-model.md)
 - [How We Test](docs/how-we-test.md)
 
 ## Examples

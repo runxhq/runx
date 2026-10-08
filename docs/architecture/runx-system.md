@@ -82,7 +82,7 @@ give a human and an acting agent the context that changes how they operate:
 - how to interpret outputs, receipts, readback, and unresolved state; and
 - when and why to route to a declared adjacent skill.
 
-`X.yaml` owns runner composition, typed inputs and outputs, effects, scopes,
+`run.yaml` owns runner composition, typed inputs and outputs, effects, scopes,
 approvals, harness cases, and skill references. It must not repeat the manual.
 Package JavaScript exists only for deterministic domain computation the graph
 and native capability plane cannot express cleanly. It never exists merely to
@@ -99,29 +99,30 @@ manual.
 
 Each target has one meaning and one authority boundary:
 
-- **Graph:** deterministic composition, dependencies, branches, explicit
-  bounded fan-out, guards, and recovery. A graph author cannot choose an effect
+- **Graph:** deterministic composition, dependencies, branches, guards, and
+  recovery. A graph author cannot choose an effect
   owner or gain provider/process authority by naming inputs.
-- **Agent task:** bounded judgment under the current manual and an explicit
+- **Agent step:** bounded judgment under the current manual and an explicit
   allowed-tool set. It yields `needs_agent` by default. In-process managed-agent
   execution requires fresh per-run consent and a visible round budget;
   configured credentials never imply consent.
 - **Native capability:** trusted, product-neutral Rust behavior registered from
   one typed definition that owns schema, defaults, dispatch, authority, effect,
   and catalog metadata.
-- **Deterministic module (`javascript`):** an isolated
+- **Worker tool (`tool: { module: ... }`):** an isolated
   `(JSON, { environment }) -> JSON` computation. It has no ambient filesystem,
   network, process environment, credential, host clock, or host randomness
   authority; only exact manifest-declared non-secret values cross its typed
   worker protocol.
-- **CLI tool:** intentional trusted host code with explicit command, arguments,
+- **Process tool (`tool: { command: ... }`):** intentional trusted host code
+  with explicit command, arguments,
   declared environment, timeout, and output policy. Runx supervises the
   process and records the boundary but does not claim filesystem, network, or
   syscall confinement. Bundled tool manifests and their local
   source closure are parser-owned skill-package truth, not a second runtime or
   registry scan.
-- **Provider adapter:** a supervised HTTP, MCP connector, or Connect operation
-  under typed authority and effect contracts. Hosted credentials remain
+- **Connector operation:** a supervised HTTP, MCP, or Connect request under
+  typed authority and effect contracts. Hosted credentials remain
   opaque.
 
 Harness fixtures are test data interpreted by the runtime harness. They are not
@@ -227,7 +228,7 @@ Generic local capabilities do not impose human approval merely because they
 write a file, execute a command, or send a bounded HTTP request. Their declared
 scopes, workspace/target containment, and host grant are the permission
 boundary. When a domain workflow genuinely needs a human decision and no
-effect owns it, one explicit `run: approval` step may guard that exact action;
+effect owns it, one explicit `ask` step may guard that exact action;
 its verified receipt is bound to the governed step. The decision does not
 become ambient authority for nested work.
 
@@ -308,8 +309,7 @@ below those features.
 Performance is measured by named, replayable workloads rather than line-count
 intuition. Baselines cover graph planning and context projection, native
 dispatch, deterministic module cold and warm execution, large payloads,
-bounded fan-out, provider-effect transitions, receipt sealing/storage, and
-process launch.
+provider-effect transitions, receipt sealing/storage, and process launch.
 
 The deterministic JavaScript adapter reuses supervised workers. Arbitrary CLI commands are
 never pooled. Every workload records throughput, p99 latency, allocation or

@@ -1,8 +1,6 @@
 ---
 name: research
 description: Produce bounded, source-backed research packets for product, ecosystem, and operator decisions.
-runx:
-  category: research
 ---
 
 # Research

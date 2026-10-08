@@ -1,8 +1,6 @@
 ---
 name: github-sync
 description: Read or synchronize bounded GitHub issues, threads, and pull requests through the GitHub connector, with scoped authority and readback.
-runx:
-  category: ops
 ---
 
 # GitHub Sync

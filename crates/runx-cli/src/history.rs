@@ -4,33 +4,35 @@ use std::fmt;
 use std::path::{Path, PathBuf};
 
 use crate::cli_args;
-use runx_runtime::journal::{
-    HistoryFilter, JournalProjectionError, ReceiptInspectionProjection, inspect_local_receipt,
-    inspect_local_receipt_with_policy, list_local_history, list_local_history_with_policy,
+use runx_runtime::receipts::inspection::{
+    ReceiptInspectionProjection, inspect_local_receipt, inspect_local_receipt_with_policy,
 };
+use runx_runtime::run_record::{RunFilter, RunListing, RunRecordError, RunState, list_runs};
 use runx_runtime::{
-    Ed25519ReceiptVerifier, LocalReceiptStore, ReceiptPathInputs, ResolvedReceiptPath,
+    Ed25519ReceiptVerifier, LocalReceiptStore, ReceiptPathInputs, ReceiptStoreError,
     RuntimeReceiptConfig, RuntimeReceiptSignaturePolicy, receipt_verifier_from_env,
     resolve_receipt_path,
 };
 
-// Module rationale: the native history CLI slice keeps
-// parsing, rendering, and CLI parity tests together until the rest of the Rust
-// command routing settles.
+// Module rationale: the native history command keeps
+// parsing, rendering, and CLI tests together.
 #[derive(Debug)]
 pub enum HistoryCliError {
     InvalidArgs(String),
     InvalidReceiptVerifier(String),
-    Projection(JournalProjectionError),
+    Runs(RunRecordError),
+    Receipt(ReceiptStoreError),
     Serialize(serde_json::Error),
 }
 
 impl fmt::Display for HistoryCliError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::InvalidArgs(message) => formatter.write_str(message),
-            Self::InvalidReceiptVerifier(message) => formatter.write_str(message),
-            Self::Projection(error) => write!(formatter, "{error}"),
+            Self::InvalidArgs(message) | Self::InvalidReceiptVerifier(message) => {
+                formatter.write_str(message)
+            }
+            Self::Runs(error) => write!(formatter, "{error}"),
+            Self::Receipt(error) => write!(formatter, "{error}"),
             Self::Serialize(error) => write!(formatter, "failed to serialize history: {error}"),
         }
     }
@@ -48,7 +50,7 @@ pub struct HistoryCliResult {
 struct ParsedHistoryArgs {
     receipt_dir: Option<PathBuf>,
     query: Option<String>,
-    filter: HistoryFilter,
+    filter: RunFilter,
     detail: bool,
     json: bool,
 }
@@ -59,6 +61,45 @@ pub fn run_history_command(
     cwd: &Path,
 ) -> Result<HistoryCliResult, HistoryCliError> {
     let parsed = parse_history_args(args)?;
+    if parsed.detail {
+        return run_receipt_detail(&parsed, env, cwd);
+    }
+    let listing = list_runs(env, cwd, &parsed.filter).map_err(HistoryCliError::Runs)?;
+    let output = if parsed.json {
+        format!(
+            "{}\n",
+            serde_json::to_string_pretty(&listing).map_err(HistoryCliError::Serialize)?
+        )
+    } else {
+        render_history(
+            &listing,
+            parsed.query.as_deref(),
+            parsed.receipt_dir.as_deref(),
+        )
+    };
+    Ok(successful_result(output))
+}
+
+/// One receipt from the receipt directory, inspected and verified.
+fn run_receipt_detail(
+    parsed: &ParsedHistoryArgs,
+    env: &BTreeMap<String, String>,
+    cwd: &Path,
+) -> Result<HistoryCliResult, HistoryCliError> {
+    let receipt_reference = parsed.query.as_deref().ok_or_else(|| {
+        HistoryCliError::InvalidArgs("history --detail requires one exact receipt id".to_owned())
+    })?;
+    let filter = &parsed.filter;
+    if filter.skill.is_some()
+        || filter.state.is_some()
+        || filter.since.is_some()
+        || filter.until.is_some()
+        || filter.limit.is_some()
+    {
+        return Err(HistoryCliError::InvalidArgs(
+            "history --detail does not accept list filters".to_owned(),
+        ));
+    }
     let receipt_config = RuntimeReceiptConfig::default();
     let resolved = resolve_receipt_path(ReceiptPathInputs {
         explicit_dir: parsed.receipt_dir.as_deref(),
@@ -67,32 +108,12 @@ pub fn run_history_command(
         cwd,
     });
     let store = LocalReceiptStore::new(&resolved.path);
-    let verifier = receipt_verifier_from_env(env)
+    let verifier: Option<Ed25519ReceiptVerifier> = receipt_verifier_from_env(env)
         .map(|resolved| resolved.map(|verifier| verifier.into_verifier()))
         .map_err(|error| HistoryCliError::InvalidReceiptVerifier(error.to_string()))?;
-    if parsed.detail {
-        return run_receipt_detail(&parsed, &store, &resolved, verifier.as_ref());
-    }
-    run_history_list(&parsed, &store, &resolved, verifier.as_ref())
-}
-
-fn run_receipt_detail(
-    parsed: &ParsedHistoryArgs,
-    store: &LocalReceiptStore,
-    resolved: &ResolvedReceiptPath,
-    verifier: Option<&Ed25519ReceiptVerifier>,
-) -> Result<HistoryCliResult, HistoryCliError> {
-    let receipt_reference = parsed.query.as_deref().ok_or_else(|| {
-        HistoryCliError::InvalidArgs("history --detail requires one exact receipt id".to_owned())
-    })?;
-    if has_non_query_filters(&parsed.filter) {
-        return Err(HistoryCliError::InvalidArgs(
-            "history --detail does not accept list filters".to_owned(),
-        ));
-    }
-    let inspection = if let Some(verifier) = verifier {
+    let inspection = if let Some(verifier) = verifier.as_ref() {
         inspect_local_receipt_with_policy(
-            store,
+            &store,
             &resolved.workspace_base,
             &resolved.project_runx_dir,
             receipt_reference,
@@ -100,13 +121,13 @@ fn run_receipt_detail(
         )
     } else {
         inspect_local_receipt(
-            store,
+            &store,
             &resolved.workspace_base,
             &resolved.project_runx_dir,
             receipt_reference,
         )
     }
-    .map_err(HistoryCliError::Projection)?;
+    .map_err(HistoryCliError::Receipt)?;
     let output = if parsed.json {
         format!(
             "{}\n",
@@ -118,44 +139,6 @@ fn run_receipt_detail(
     Ok(successful_result(output))
 }
 
-fn run_history_list(
-    parsed: &ParsedHistoryArgs,
-    store: &LocalReceiptStore,
-    resolved: &ResolvedReceiptPath,
-    verifier: Option<&Ed25519ReceiptVerifier>,
-) -> Result<HistoryCliResult, HistoryCliError> {
-    let history = if let Some(verifier) = verifier {
-        list_local_history_with_policy(
-            store,
-            &resolved.workspace_base,
-            &resolved.project_runx_dir,
-            &parsed.filter,
-            RuntimeReceiptSignaturePolicy::production(verifier),
-        )
-    } else {
-        list_local_history(
-            store,
-            &resolved.workspace_base,
-            &resolved.project_runx_dir,
-            &parsed.filter,
-        )
-    }
-    .map_err(HistoryCliError::Projection)?;
-    let output = if parsed.json {
-        format!(
-            "{}\n",
-            serde_json::to_string_pretty(&history).map_err(HistoryCliError::Serialize)?
-        )
-    } else {
-        render_history(
-            &history,
-            parsed.query.as_deref(),
-            parsed.receipt_dir.as_deref(),
-        )
-    };
-    Ok(successful_result(output))
-}
-
 fn successful_result(output: String) -> HistoryCliResult {
     HistoryCliResult {
         output,
@@ -163,8 +146,8 @@ fn successful_result(output: String) -> HistoryCliResult {
     }
 }
 
-// Function rationale: this mirrors the public history CLI
-// flag grammar in one parser during the hard cutover.
+// Function rationale: the public history CLI flag grammar
+// lives in one parser.
 fn parse_history_args(args: &[OsString]) -> Result<ParsedHistoryArgs, HistoryCliError> {
     if args.first().and_then(|arg| arg.to_str()) != Some("history") {
         return Err(HistoryCliError::InvalidArgs(
@@ -183,97 +166,33 @@ fn parse_history_args(args: &[OsString]) -> Result<ParsedHistoryArgs, HistoryCli
         }
         let (flag, inline_value) = cli_args::split_flag(token);
         match flag {
-            "--json" => {
+            "--json" | "--detail" => {
                 if inline_value.is_some() {
-                    return Err(invalid_args("--json does not take a value"));
+                    return Err(invalid_args(format!("{flag} does not take a value")));
                 }
-                parsed.json = true;
+                if flag == "--json" {
+                    parsed.json = true;
+                } else {
+                    parsed.detail = true;
+                }
                 index += 1;
             }
-            "--detail" => {
-                if inline_value.is_some() {
-                    return Err(invalid_args("--detail does not take a value"));
+            "--receipt-dir" | "--skill" | "--status" | "--since" | "--until" | "--limit" => {
+                let (value, next_index) =
+                    cli_args::flag_value(args, index, flag, inline_value, "history")
+                        .map_err(invalid_args)?;
+                match flag {
+                    "--receipt-dir" => parsed.receipt_dir = Some(PathBuf::from(value)),
+                    "--skill" => parsed.filter.skill = Some(value),
+                    "--status" => parsed.filter.state = Some(value),
+                    "--since" => parsed.filter.since = Some(value),
+                    "--until" => parsed.filter.until = Some(value),
+                    _ => {
+                        parsed.filter.limit = Some(value.parse().map_err(|_| {
+                            invalid_args(format!("invalid --limit value '{value}'"))
+                        })?);
+                    }
                 }
-                parsed.detail = true;
-                index += 1;
-            }
-            "--include-harness" => {
-                if inline_value.is_some() {
-                    return Err(invalid_args("--include-harness does not take a value"));
-                }
-                parsed.filter.include_harness = true;
-                index += 1;
-            }
-            "--include-internal" => {
-                if inline_value.is_some() {
-                    return Err(invalid_args("--include-internal does not take a value"));
-                }
-                parsed.filter.include_internal = true;
-                index += 1;
-            }
-            "--receipt-dir" => {
-                let (value, next_index) =
-                    cli_args::flag_value(args, index, flag, inline_value, "history")
-                        .map_err(invalid_args)?;
-                parsed.receipt_dir = Some(PathBuf::from(value));
-                index = next_index;
-            }
-            "--skill" => {
-                let (value, next_index) =
-                    cli_args::flag_value(args, index, flag, inline_value, "history")
-                        .map_err(invalid_args)?;
-                parsed.filter.skill = Some(value);
-                index = next_index;
-            }
-            "--status" => {
-                let (value, next_index) =
-                    cli_args::flag_value(args, index, flag, inline_value, "history")
-                        .map_err(invalid_args)?;
-                parsed.filter.status = Some(value);
-                index = next_index;
-            }
-            "--source" => {
-                let (value, next_index) =
-                    cli_args::flag_value(args, index, flag, inline_value, "history")
-                        .map_err(invalid_args)?;
-                parsed.filter.source = Some(value);
-                index = next_index;
-            }
-            "--actor" => {
-                let (value, next_index) =
-                    cli_args::flag_value(args, index, flag, inline_value, "history")
-                        .map_err(invalid_args)?;
-                parsed.filter.actor = Some(value);
-                index = next_index;
-            }
-            "--artifact-type" | "--artifact_type" | "--artifactType" => {
-                let (value, next_index) =
-                    cli_args::flag_value(args, index, flag, inline_value, "history")
-                        .map_err(invalid_args)?;
-                parsed.filter.artifact_type = Some(value);
-                index = next_index;
-            }
-            "--since" => {
-                let (value, next_index) =
-                    cli_args::flag_value(args, index, flag, inline_value, "history")
-                        .map_err(invalid_args)?;
-                parsed.filter.since = Some(value);
-                index = next_index;
-            }
-            "--until" => {
-                let (value, next_index) =
-                    cli_args::flag_value(args, index, flag, inline_value, "history")
-                        .map_err(invalid_args)?;
-                parsed.filter.until = Some(value);
-                index = next_index;
-            }
-            "--limit" => {
-                let (value, next_index) =
-                    cli_args::flag_value(args, index, flag, inline_value, "history")
-                        .map_err(invalid_args)?;
-                parsed.filter.limit = Some(value.parse().map_err(|_| {
-                    HistoryCliError::InvalidArgs(format!("invalid --limit value '{value}'"))
-                })?);
                 index = next_index;
             }
             _ => {
@@ -293,120 +212,58 @@ fn parse_history_args(args: &[OsString]) -> Result<ParsedHistoryArgs, HistoryCli
     Ok(parsed)
 }
 
-fn has_non_query_filters(filter: &HistoryFilter) -> bool {
-    filter.skill.is_some()
-        || filter.status.is_some()
-        || filter.source.is_some()
-        || filter.actor.is_some()
-        || filter.artifact_type.is_some()
-        || filter.since.is_some()
-        || filter.until.is_some()
-        || filter.limit.is_some()
-        || filter.include_harness
-        || filter.include_internal
-}
-
-fn render_history(
-    history: &runx_runtime::journal::LocalHistoryProjection,
-    query: Option<&str>,
-    receipt_dir: Option<&Path>,
-) -> String {
-    let total = history.receipts.len() + history.pending_runs.len();
-    if total == 0 {
+fn render_history(listing: &RunListing, query: Option<&str>, receipt_dir: Option<&Path>) -> String {
+    if listing.runs.is_empty() {
         if let Some(query) = query {
             return format!(
-                "\n  No receipts matched {query}.\n  Try runx history to see every local run.\n\n"
+                "\n  No runs matched {query}.\n  Try runx history to see every local run.\n\n"
             );
         }
-        return "\n  No receipts yet. Try a live run first:\n  runx skill <skill-dir> --json\n\n"
+        return "\n  No runs yet. Try a live run first:\n  runx skill <skill-dir> --json\n\n"
             .to_owned();
     }
-    let mut lines = Vec::new();
-    lines.push(String::new());
-    lines.push(history_header(history));
-    lines.push(String::new());
-    for pending in &history.pending_runs {
-        push_pending_run_lines(&mut lines, pending, receipt_dir);
+    let paused = listing
+        .runs
+        .iter()
+        .filter(|run| run.state == RunState::Paused)
+        .count();
+    let mut lines = vec![
+        String::new(),
+        if paused == 0 {
+            format!("  history  {} run(s)", listing.runs.len())
+        } else {
+            format!("  history  {} run(s), {paused} paused", listing.runs.len())
+        },
+        String::new(),
+    ];
+    for run in &listing.runs {
+        let status = run
+            .disposition
+            .as_ref()
+            .map_or(run.state.label(), |disposition| disposition.label());
+        lines.push(format!("  {status}  {}  {}", run.skill, run.run_id));
+        if let Some(receipt_id) = &run.receipt_id {
+            lines.push(format!("     receipt  {receipt_id}"));
+        }
+        if let Some(request_id) = &run.pending_request_id {
+            let resume =
+                crate::resume::render_skill_resume_command(crate::resume::SkillResumeCommand {
+                    run_id: &run.run_id,
+                    receipt_dir,
+                    answers_path: None,
+                });
+            lines.push(format!("     waits on  {request_id}"));
+            lines.push(format!("     next  {resume}"));
+        }
     }
-    for receipt in &history.receipts {
-        push_receipt_line(&mut lines, receipt);
-    }
     lines.push(String::new());
-    lines.push(history_next_line(history));
+    lines.push(if paused == 0 {
+        "  next  runx history <receipt-id> --detail --json".to_owned()
+    } else {
+        "  next  pipe one answers object into one of the commands above".to_owned()
+    });
     lines.push(String::new());
     lines.join("\n")
-}
-
-fn history_header(history: &runx_runtime::journal::LocalHistoryProjection) -> String {
-    if history.pending_runs.is_empty() {
-        format!("  history  {} receipt(s)", history.receipts.len())
-    } else {
-        format!(
-            "  history  {} receipt(s), {} needs_agent",
-            history.receipts.len(),
-            history.pending_runs.len()
-        )
-    }
-}
-
-fn push_pending_run_lines(
-    lines: &mut Vec<String>,
-    pending: &runx_runtime::journal::PausedRunSummary,
-    receipt_dir: Option<&Path>,
-) {
-    let step = pending
-        .step_labels
-        .first()
-        .or_else(|| pending.step_ids.first())
-        .map_or("", String::as_str);
-    lines.push(format!(
-        "  *  {}  needs_agent  {}  {}",
-        pending.name,
-        step,
-        short_id(&pending.id)
-    ));
-    if pending.resume_skill_ref.is_some() {
-        let resume_command =
-            crate::resume::render_skill_resume_command(crate::resume::SkillResumeCommand {
-                run_id: &pending.id,
-                receipt_dir,
-                answers_path: None,
-            });
-        lines.push(format!("     next  {resume_command}"));
-    } else {
-        lines.push(
-            "     next  this legacy pending run lacks a resumable skill binding; rerun the original skill"
-                .to_owned(),
-        );
-    }
-}
-
-fn push_receipt_line(
-    lines: &mut Vec<String>,
-    receipt: &runx_runtime::journal::LocalHistoryReceipt,
-) {
-    lines.push(format!(
-        "  {}  {}  {}  {}",
-        receipt.status,
-        receipt.name,
-        receipt.verification.status,
-        short_id(&receipt.id)
-    ));
-}
-
-fn history_next_line(history: &runx_runtime::journal::LocalHistoryProjection) -> String {
-    if history.pending_runs.is_empty() {
-        "  next  runx history <receipt-id> --detail --json".to_owned()
-    } else if history
-        .pending_runs
-        .iter()
-        .any(|run| run.resume_skill_ref.is_some())
-    {
-        "  next  pipe one answers object into one of the commands above".to_owned()
-    } else {
-        "  next  rerun the original skill; these legacy pending runs lack resume bindings"
-            .to_owned()
-    }
 }
 
 fn render_receipt_inspection(inspection: &ReceiptInspectionProjection) -> String {
@@ -434,10 +291,6 @@ fn render_receipt_inspection(inspection: &ReceiptInspectionProjection) -> String
     lines.join("\n")
 }
 
-fn short_id(value: &str) -> &str {
-    value.get(..12).unwrap_or(value)
-}
-
 fn invalid_args(message: impl Into<String>) -> HistoryCliError {
     HistoryCliError::InvalidArgs(message.into())
 }
@@ -449,13 +302,10 @@ mod tests {
 
     use super::*;
     use runx_contracts::ReceiptIssuerType;
-    use runx_runtime::journal::{PausedRunCheckpoint, append_paused_run_checkpoint};
     use runx_runtime::receipts::step_receipt_with_signature_policy;
     use runx_runtime::{
-        Ed25519ReceiptSigner, InvocationOutput, RUNX_RECEIPT_SIGN_ED25519_SEED_BASE64_ENV,
-        RUNX_RECEIPT_SIGN_ISSUER_TYPE_ENV, RUNX_RECEIPT_SIGN_KID_ENV,
-        RUNX_RECEIPT_VERIFY_ED25519_PUBLIC_KEY_BASE64_ENV, RUNX_RECEIPT_VERIFY_KID_ENV,
-        RuntimeError,
+        Ed25519ReceiptSigner, InvocationOutput, RUNX_RECEIPT_VERIFY_ED25519_PUBLIC_KEY_BASE64_ENV,
+        RUNX_RECEIPT_VERIFY_KID_ENV, RuntimeError,
     };
 
     #[test]
@@ -465,17 +315,17 @@ mod tests {
             "sourcey".into(),
             "--skill".into(),
             "source".into(),
-            "--status=needs_agent".into(),
-            "--artifact-type".into(),
-            "artifact".into(),
+            "--status=paused".into(),
+            "--limit".into(),
+            "5".into(),
             "--json".into(),
         ])
         .map_err(|error| io::Error::other(error.to_string()))?;
 
         assert_eq!(parsed.query.as_deref(), Some("sourcey"));
         assert_eq!(parsed.filter.skill.as_deref(), Some("source"));
-        assert_eq!(parsed.filter.status.as_deref(), Some("needs_agent"));
-        assert_eq!(parsed.filter.artifact_type.as_deref(), Some("artifact"));
+        assert_eq!(parsed.filter.state.as_deref(), Some("paused"));
+        assert_eq!(parsed.filter.limit, Some(5));
         assert!(parsed.json);
         Ok(())
     }
@@ -508,175 +358,18 @@ mod tests {
     }
 
     #[test]
-    fn executes_history_json_with_pending_run() -> Result<(), io::Error> {
+    fn history_lists_no_runs_in_an_empty_workspace() -> Result<(), io::Error> {
         let temp = tempfile_dir()?;
-        let receipt_dir = temp.join("receipts");
-        write_needs_agent_ledger(&receipt_dir)?;
-
         let mut env = BTreeMap::new();
         env.insert("RUNX_CWD".to_owned(), temp.to_string_lossy().to_string());
-        let result = run_history_command(
-            &[
-                "history".into(),
-                "--receipt-dir".into(),
-                receipt_dir.into_os_string(),
-                "--json".into(),
-            ],
-            &env,
-            &temp,
-        )
-        .map_err(|error| io::Error::other(error.to_string()))?;
-        let output: HistoryOutput = serde_json::from_str(&result.output)
+        let result = run_history_command(&["history".into(), "--json".into()], &env, &temp)
             .map_err(|error| io::Error::other(error.to_string()))?;
-        let first_pending_run = output.pending_runs.first().ok_or_else(|| {
-            io::Error::new(
-                io::ErrorKind::InvalidData,
-                "history output has no pending run",
-            )
-        })?;
-
-        assert_eq!(output.pending_runs.len(), 1);
-        assert_eq!(first_pending_run.id, "gx_needs_agent_oracle");
-        assert_eq!(first_pending_run.status, "paused");
-        assert_eq!(
-            first_pending_run.selected_runner,
-            Some("agent-task".to_owned())
-        );
-        assert_eq!(
-            first_pending_run.resume_skill_ref,
-            Some("../skills/sourcey".to_owned())
-        );
-        Ok(())
-    }
-
-    #[test]
-    fn history_human_pending_run_includes_resume_command() -> Result<(), io::Error> {
-        let temp = tempfile_dir()?;
-        let receipt_dir = temp.join("receipts");
-        write_needs_agent_ledger(&receipt_dir)?;
-
-        let mut env = BTreeMap::new();
-        env.insert("RUNX_CWD".to_owned(), temp.to_string_lossy().to_string());
-        let result = run_history_command(
-            &[
-                "history".into(),
-                "--receipt-dir".into(),
-                receipt_dir.clone().into_os_string(),
-            ],
-            &env,
-            &temp,
-        )
-        .map_err(|error| io::Error::other(error.to_string()))?;
-
-        let receipt_dir_arg = receipt_dir.to_string_lossy();
-        assert!(
-            result
-                .output
-                .contains("next  runx resume gx_needs_agent_oracle -")
-        );
-        assert!(
-            result
-                .output
-                .contains(&format!("--receipt-dir {}", receipt_dir_arg))
-        );
-        assert!(
-            result
-                .output
-                .contains("pipe one answers object into one of the commands above")
-        );
-        Ok(())
-    }
-
-    #[test]
-    fn history_human_pending_run_omits_default_receipt_dir_from_resume_command()
-    -> Result<(), io::Error> {
-        let temp = tempfile_dir()?;
-        let receipt_dir = temp.join(".runx").join("receipts");
-        write_needs_agent_ledger(&receipt_dir)?;
-
-        let mut env = BTreeMap::new();
-        env.insert("RUNX_CWD".to_owned(), temp.to_string_lossy().to_string());
-        let result = run_history_command(&["history".into()], &env, &temp)
+        let listing: serde_json::Value = serde_json::from_str(&result.output)
             .map_err(|error| io::Error::other(error.to_string()))?;
-
-        assert!(
-            result
-                .output
-                .contains("next  runx resume gx_needs_agent_oracle -")
-        );
-        assert!(
-            !result.output.contains("--receipt-dir"),
-            "default receipt dir must not be echoed into resume commands:\n{}",
-            result.output
-        );
-        Ok(())
-    }
-
-    #[test]
-    fn history_human_pending_run_does_not_invent_resume_command() -> Result<(), io::Error> {
-        let temp = tempfile_dir()?;
-        let receipt_dir = temp.join("receipts");
-        write_needs_agent_ledger_with_resume(&receipt_dir, None)?;
-
-        let mut env = BTreeMap::new();
-        env.insert("RUNX_CWD".to_owned(), temp.to_string_lossy().to_string());
-        let result = run_history_command(
-            &[
-                "history".into(),
-                "--receipt-dir".into(),
-                receipt_dir.into_os_string(),
-            ],
-            &env,
-            &temp,
-        )
-        .map_err(|error| io::Error::other(error.to_string()))?;
-
-        assert!(!result.output.contains("runx skill sourcey"));
-        assert!(!result.output.contains("runx resume"));
-        assert!(result.output.contains("lacks a resumable skill binding"));
-        Ok(())
-    }
-
-    #[test]
-    fn history_json_reports_production_verified_receipts_from_verifier_or_signer_environment()
-    -> Result<(), io::Error> {
-        let temp = tempfile_dir()?;
-        let receipt_dir = temp.join("receipts");
-        let signer = fixture_signer().map_err(|error| io::Error::other(error.to_string()))?;
-        let receipt = production_signed_receipt(&signer)
+        assert_eq!(listing["runs"], serde_json::json!([]));
+        let human = run_history_command(&["history".into()], &env, &temp)
             .map_err(|error| io::Error::other(error.to_string()))?;
-        let store = LocalReceiptStore::new(&receipt_dir);
-        let verifier = Ed25519ReceiptVerifier::new([signer.production_key()]);
-        store
-            .write_receipt_with_policy(
-                &receipt,
-                RuntimeReceiptSignaturePolicy::production(&verifier),
-            )
-            .map_err(|error| io::Error::other(error.to_string()))?;
-
-        for mut env in [verifier_env(&signer), signer_env()] {
-            env.insert("RUNX_CWD".to_owned(), temp.to_string_lossy().to_string());
-            let result = run_history_command(
-                &[
-                    "history".into(),
-                    receipt.id.to_string().into(),
-                    "--receipt-dir".into(),
-                    receipt_dir.clone().into_os_string(),
-                    "--json".into(),
-                ],
-                &env,
-                &temp,
-            )
-            .map_err(|error| io::Error::other(error.to_string()))?;
-            let output: HistoryOutput = serde_json::from_str(&result.output)
-                .map_err(|error| io::Error::other(error.to_string()))?;
-            let first_receipt = output.receipts.first().ok_or_else(|| {
-                io::Error::new(io::ErrorKind::InvalidData, "history output has no receipt")
-            })?;
-
-            assert_eq!(first_receipt.id, receipt.id.to_string());
-            assert_eq!(first_receipt.verification.status, "verified");
-        }
+        assert!(human.output.contains("No runs yet"));
         Ok(())
     }
 
@@ -730,58 +423,6 @@ mod tests {
         Ok(())
     }
 
-    #[derive(serde::Deserialize)]
-    #[serde(rename_all = "camelCase")]
-    struct HistoryOutput {
-        receipts: Vec<HistoryReceipt>,
-        pending_runs: Vec<HistoryPendingRun>,
-    }
-
-    #[derive(serde::Deserialize)]
-    struct HistoryReceipt {
-        id: String,
-        verification: HistoryReceiptVerification,
-    }
-
-    #[derive(serde::Deserialize)]
-    struct HistoryReceiptVerification {
-        status: String,
-    }
-
-    #[derive(serde::Deserialize)]
-    #[serde(rename_all = "camelCase")]
-    struct HistoryPendingRun {
-        id: String,
-        status: String,
-        resume_skill_ref: Option<String>,
-        selected_runner: Option<String>,
-    }
-
-    fn write_needs_agent_ledger(receipt_dir: &Path) -> Result<(), io::Error> {
-        write_needs_agent_ledger_with_resume(receipt_dir, Some("../skills/sourcey"))
-    }
-
-    fn write_needs_agent_ledger_with_resume(
-        receipt_dir: &Path,
-        resume_skill_ref: Option<&str>,
-    ) -> Result<(), io::Error> {
-        append_paused_run_checkpoint(
-            receipt_dir,
-            &PausedRunCheckpoint {
-                id: "gx_needs_agent_oracle".to_owned(),
-                name: "sourcey".to_owned(),
-                kind: "graph".to_owned(),
-                started_at: Some("2026-04-28T01:00:00.000Z".to_owned()),
-                resume_skill_ref: resume_skill_ref.map(str::to_owned),
-                selected_runner: Some("agent-task".to_owned()),
-                package_digest: Some("sha256:package".to_owned()),
-                execution_closure_digest: Some("sha256:closure".to_owned()),
-                step_ids: vec!["discover".to_owned()],
-                step_labels: vec!["inspect repo".to_owned()],
-            },
-        )
-    }
-
     fn tempfile_dir() -> Result<PathBuf, io::Error> {
         let path = std::env::temp_dir().join(format!(
             "runx-cli-history-{}-{}",
@@ -800,33 +441,6 @@ mod tests {
 
     fn fixture_signer() -> Result<Ed25519ReceiptSigner, runx_runtime::RuntimeReceiptSigningError> {
         Ed25519ReceiptSigner::from_seed(FIXTURE_KID, ReceiptIssuerType::Hosted, &FIXTURE_SEED)
-    }
-
-    fn verifier_env(signer: &Ed25519ReceiptSigner) -> BTreeMap<String, String> {
-        BTreeMap::from([
-            (
-                RUNX_RECEIPT_VERIFY_KID_ENV.to_owned(),
-                FIXTURE_KID.to_owned(),
-            ),
-            (
-                RUNX_RECEIPT_VERIFY_ED25519_PUBLIC_KEY_BASE64_ENV.to_owned(),
-                base64_standard(signer.public_key()),
-            ),
-        ])
-    }
-
-    fn signer_env() -> BTreeMap<String, String> {
-        BTreeMap::from([
-            (RUNX_RECEIPT_SIGN_KID_ENV.to_owned(), FIXTURE_KID.to_owned()),
-            (
-                RUNX_RECEIPT_SIGN_ISSUER_TYPE_ENV.to_owned(),
-                "hosted".to_owned(),
-            ),
-            (
-                RUNX_RECEIPT_SIGN_ED25519_SEED_BASE64_ENV.to_owned(),
-                base64_standard(&FIXTURE_SEED),
-            ),
-        ])
     }
 
     fn production_signed_receipt(
@@ -859,7 +473,10 @@ mod tests {
                     message: "history fixture output must be an object".to_owned(),
                 })?;
         step_receipt_with_signature_policy(
-            "cli-history",
+            runx_runtime::receipts::RunScope {
+                run_id: "run_cli-history",
+                graph_name: "cli-history",
+            },
             "production-verified",
             1,
             &output,

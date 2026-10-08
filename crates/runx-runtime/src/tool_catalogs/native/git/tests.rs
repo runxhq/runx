@@ -145,7 +145,6 @@ fn invoke_tool<I, O: serde::Serialize>(
     let output = tool(&NativeInvocation {
         inputs: &inputs,
         observed_at: "2026-01-01T00:00:00Z",
-        data_source_binding: None,
         env: &env,
         skill_directory: root,
         credential_delivery: &delivery,

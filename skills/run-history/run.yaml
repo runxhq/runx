@@ -1,0 +1,338 @@
+skill: run-history
+version: "0.2.5"
+
+catalog:
+  kind: skill
+  audience: operator
+  visibility: public
+  role: canonical
+  execution: read
+  completion: runtime_receipt
+  requires_adapter: false
+  approval: none
+  category: data
+
+harness:
+  cases:
+    - name: reports-native-history-and-catalog-coverage
+      operator_journeys:
+        - mode: standalone
+          confusors: [ledger, audit-receipt]
+          request: Summarize recent Runx outcomes and catalog test coverage for this project.
+          expected_outcome: Return deterministic bounded run outcomes, paused runs, and catalog coverage facts with truthful follow-ups.
+        - mode: composed
+          request: Analyze these existing run and catalog projections for operator follow-up.
+          expected_outcome: Reuse supplied native projections without rereading run records or inventing metrics.
+          prior_evidence:
+            - The bounded run rows and catalog items supplied in the fixture.
+          must_not_repeat:
+            - Do not list runs again when replay projections are supplied.
+            - Do not inspect catalog entries already included in the projection.
+      inputs:
+        objective: Show how Runx behaved over the supplied window.
+        scope: workspace
+        period: 30d
+        runs:
+          - run_id: run_release_1
+            skill: release
+            state: sealed
+            disposition: closed
+          - run_id: run_release_2
+            skill: release
+            state: sealed
+            disposition: blocked
+        catalog_items:
+          - name: release
+            status: ok
+            fixtures: 2
+            harness_cases: 1
+          - name: untested
+            status: ok
+            fixtures: 0
+            harness_cases: 0
+      expect:
+        status: sealed
+        step_outputs:
+          finalize-replay:
+            subset:
+              history_report:
+                schema: runx.history_report.v1
+                decision: ready
+                catalog:
+                  entry_count: 2
+                  tested_entry_count: 1
+                  untested_entry_count: 1
+                  coverage_rate: 0.5
+                runs:
+                  terminal_count: 2
+                  pending_count: 0
+                  closed_rate: 0.5
+                  refusal_rate: 0.5
+                sources:
+                  history: supplied_replay
+                  catalog: supplied_replay
+        receipt:
+          schema: runx.receipt.v1
+
+    - name: filters-one-skill
+      inputs:
+        objective: Review release runs only.
+        scope: release
+        runs:
+          - run_id: run_release
+            skill: release
+            state: sealed
+            disposition: closed
+          - run_id: run_research
+            skill: research
+            state: sealed
+            disposition: failed
+        catalog_items: []
+      expect:
+        status: sealed
+        receipt:
+          schema: runx.receipt.v1
+
+    - name: empty-history-stops-for-evidence
+      inputs:
+        objective: Show how our skills are doing.
+        runs: []
+        catalog_items: []
+      expect:
+        status: sealed
+        receipt:
+          schema: runx.receipt.v1
+
+runners:
+  report:
+    default: true
+    inputs:
+      objective:
+        type: string
+        required: true
+        description: The bounded history question.
+      scope:
+        type: string
+        required: false
+        default: workspace
+        description: workspace, all, or one skill/subject name.
+      period:
+        type: string
+        required: false
+        description: Relative lookback such as 7d or 30d, or an RFC 3339 lower bound.
+      as_of:
+        type: string
+        required: false
+        description: Optional RFC3339 anchor for a reproducible relative lookback.
+      limit:
+        type: number
+        required: false
+        default: 1000
+        description: Maximum runs to inspect; must be from 1 to 1000.
+      runs:
+        type: json
+        required: false
+        description: Explicit run rows for deterministic replay; live runs use the native run list.
+      catalog_items:
+        type: json
+        required: false
+        description: Explicit catalog rows paired with runs for deterministic replay.
+    result_from: [finalize-live, finalize-replay]
+    steps:
+      - id: prepare
+        label: normalize the bounded report request
+        inputs:
+          objective: $input.objective
+          scope: $input.scope
+          period: $input.period
+          as_of: $input.as_of
+          limit: $input.limit
+          runs: $input.runs
+          catalog_items: $input.catalog_items
+        tool: { module: run-history.mjs, export: prepareHistory }
+        outputs:
+          history_context: object
+        artifacts:
+          named_emits:
+            history_context: history_context
+      - id: history
+        label: list the workspace's runs
+        when:
+          field: prepare.history_context.data.path
+          equals: live
+        tool: run.list
+        scopes:
+          - run.read
+        context:
+          skill: prepare.history_context.data.skill_filter
+          since: prepare.history_context.data.since
+          period: prepare.history_context.data.lookback
+          as_of: prepare.history_context.data.as_of
+          limit: prepare.history_context.data.limit
+      - id: catalog
+        label: inspect native skill coverage
+        when:
+          field: prepare.history_context.data.path
+          equals: live
+        tool: runx.skill.inspect
+        scopes:
+          - fs.read
+        inputs:
+          repo_root: .
+      - id: finalize-live
+        label: calculate the live history report
+        when:
+          field: prepare.history_context.data.path
+          equals: live
+        tool: { module: run-history.mjs, export: finalizeHistory }
+        outputs:
+          history_report:
+            type: object
+            schema:
+              required: [schema, decision, objective, query, sources, runs, catalog, recommendations, limitations]
+              additionalProperties: false
+              properties:
+                schema: { const: runx.history_report.v1 }
+                decision: { type: string, enum: [ready, needs_more_evidence] }
+                objective: { type: string, minLength: 1 }
+                query:
+                  type: object
+                  required: [scope, period, since, skill_filter, limit]
+                  additionalProperties: false
+                  properties:
+                    scope: { type: string }
+                    period: { type: [string, "null"] }
+                    since: { type: [string, "null"] }
+                    skill_filter: { type: [string, "null"] }
+                    limit: { type: integer, minimum: 1, maximum: 1000 }
+                sources:
+                  type: object
+                  required: [history, catalog]
+                  properties:
+                    history: { type: string, enum: [supplied_replay, run.list] }
+                    catalog: { type: string, enum: [supplied_replay, runx.skill.inspect] }
+                  additionalProperties: false
+                runs:
+                  type: object
+                  required: [terminal_count, pending_count, statuses, closed_rate, refusal_rate, top_subjects]
+                  additionalProperties: false
+                  properties:
+                    terminal_count: { type: integer, minimum: 0 }
+                    pending_count: { type: integer, minimum: 0 }
+                    statuses: { type: object, additionalProperties: { type: integer, minimum: 0 } }
+                    closed_rate: { type: [number, "null"], minimum: 0, maximum: 1 }
+                    refusal_rate: { type: [number, "null"], minimum: 0, maximum: 1 }
+                    top_subjects:
+                      type: array
+                      items:
+                        type: object
+                        required: [subject, count]
+                        properties:
+                          subject: { type: string }
+                          count: { type: integer, minimum: 0 }
+                        additionalProperties: false
+                catalog:
+                  type: object
+                  required: [entry_count, tested_entry_count, untested_entry_count, coverage_rate]
+                  additionalProperties: false
+                  properties:
+                    entry_count: { type: integer, minimum: 0 }
+                    tested_entry_count: { type: integer, minimum: 0 }
+                    untested_entry_count: { type: integer, minimum: 0 }
+                    coverage_rate: { type: [number, "null"], minimum: 0, maximum: 1 }
+                recommendations:
+                  type: array
+                  items:
+                    type: object
+                    required: [lane, action]
+                    properties:
+                      lane: { type: string }
+                      action: { type: string }
+                    additionalProperties: false
+                limitations: { type: array, items: { type: string } }
+        context:
+          history_context: prepare.history_context.data
+          run_list: history.run_list.data
+          authoring_context: catalog.authoring_context.data
+        artifacts:
+          wrap_as: history_report_packet
+          packet: runx.history_report.v1
+      - id: finalize-replay
+        label: calculate the supplied replay report
+        when:
+          field: prepare.history_context.data.path
+          equals: replay
+        inputs:
+          runs: $input.runs
+          catalog_items: $input.catalog_items
+        tool: { module: run-history.mjs, export: finalizeHistory }
+        outputs:
+          history_report:
+            type: object
+            schema:
+              required: [schema, decision, objective, query, sources, runs, catalog, recommendations, limitations]
+              additionalProperties: false
+              properties:
+                schema: { const: runx.history_report.v1 }
+                decision: { type: string, enum: [ready, needs_more_evidence] }
+                objective: { type: string, minLength: 1 }
+                query:
+                  type: object
+                  required: [scope, period, since, skill_filter, limit]
+                  additionalProperties: false
+                  properties:
+                    scope: { type: string }
+                    period: { type: [string, "null"] }
+                    since: { type: [string, "null"] }
+                    skill_filter: { type: [string, "null"] }
+                    limit: { type: integer, minimum: 1, maximum: 1000 }
+                sources:
+                  type: object
+                  required: [history, catalog]
+                  properties:
+                    history: { type: string, enum: [supplied_replay, run.list] }
+                    catalog: { type: string, enum: [supplied_replay, runx.skill.inspect] }
+                  additionalProperties: false
+                runs:
+                  type: object
+                  required: [terminal_count, pending_count, statuses, closed_rate, refusal_rate, top_subjects]
+                  additionalProperties: false
+                  properties:
+                    terminal_count: { type: integer, minimum: 0 }
+                    pending_count: { type: integer, minimum: 0 }
+                    statuses: { type: object, additionalProperties: { type: integer, minimum: 0 } }
+                    closed_rate: { type: [number, "null"], minimum: 0, maximum: 1 }
+                    refusal_rate: { type: [number, "null"], minimum: 0, maximum: 1 }
+                    top_subjects:
+                      type: array
+                      items:
+                        type: object
+                        required: [subject, count]
+                        properties:
+                          subject: { type: string }
+                          count: { type: integer, minimum: 0 }
+                        additionalProperties: false
+                catalog:
+                  type: object
+                  required: [entry_count, tested_entry_count, untested_entry_count, coverage_rate]
+                  additionalProperties: false
+                  properties:
+                    entry_count: { type: integer, minimum: 0 }
+                    tested_entry_count: { type: integer, minimum: 0 }
+                    untested_entry_count: { type: integer, minimum: 0 }
+                    coverage_rate: { type: [number, "null"], minimum: 0, maximum: 1 }
+                recommendations:
+                  type: array
+                  items:
+                    type: object
+                    required: [lane, action]
+                    properties:
+                      lane: { type: string }
+                      action: { type: string }
+                    additionalProperties: false
+                limitations: { type: array, items: { type: string } }
+        context:
+          history_context: prepare.history_context.data
+        artifacts:
+          wrap_as: history_report_packet
+          packet: runx.history_report.v1

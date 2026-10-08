@@ -1,8 +1,6 @@
 ---
 name: charge
 description: Verify and settle one provider-side paid call through Runx Hosted with approval and provider readback.
-runx:
-  category: payments
 ---
 
 # Charge

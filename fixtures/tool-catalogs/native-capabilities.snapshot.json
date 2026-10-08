@@ -5,10 +5,10 @@
     "features": [
       "async-http",
       "catalog",
-      "cli-tool"
+      "process-tool"
     ]
   },
-  "capability_count": 34,
+  "capability_count": 31,
   "capabilities": [
     {
       "id": "artifact.admit",
@@ -143,21 +143,6 @@
       "execution_boundary": "native_capability"
     },
     {
-      "id": "data.append_event",
-      "owner": "runx-runtime/event-store",
-      "scopes": [
-        "runx:data:append"
-      ],
-      "effect": "mutate",
-      "approval": "none",
-      "artifacts": {
-        "kind": "wrapped",
-        "output": "data_operation_result",
-        "packet": "runx.data.operation_result.v1"
-      },
-      "execution_boundary": "native_capability"
-    },
-    {
       "id": "data.compare",
       "owner": "runx-runtime/data",
       "scopes": [],
@@ -180,51 +165,6 @@
         "kind": "named",
         "output": "digest_result",
         "packet": "runx.data.digest.v1"
-      },
-      "execution_boundary": "native_capability"
-    },
-    {
-      "id": "data.list_stream_heads",
-      "owner": "runx-runtime/event-store",
-      "scopes": [
-        "runx:data:read"
-      ],
-      "effect": "read",
-      "approval": "none",
-      "artifacts": {
-        "kind": "wrapped",
-        "output": "data_operation_result",
-        "packet": "runx.data.operation_result.v1"
-      },
-      "execution_boundary": "native_capability"
-    },
-    {
-      "id": "data.read_events",
-      "owner": "runx-runtime/event-store",
-      "scopes": [
-        "runx:data:read"
-      ],
-      "effect": "read",
-      "approval": "none",
-      "artifacts": {
-        "kind": "wrapped",
-        "output": "data_operation_result",
-        "packet": "runx.data.operation_result.v1"
-      },
-      "execution_boundary": "native_capability"
-    },
-    {
-      "id": "data.read_projection",
-      "owner": "runx-runtime/event-store",
-      "scopes": [
-        "runx:data:read"
-      ],
-      "effect": "read",
-      "approval": "none",
-      "artifacts": {
-        "kind": "wrapped",
-        "output": "data_operation_result",
-        "packet": "runx.data.operation_result.v1"
       },
       "execution_boundary": "native_capability"
     },
@@ -422,6 +362,21 @@
         "kind": "named",
         "output": "receipt_query",
         "packet": "runx.receipt.query.v1"
+      },
+      "execution_boundary": "native_capability"
+    },
+    {
+      "id": "run.list",
+      "owner": "runx-runtime/runs",
+      "scopes": [
+        "run.read"
+      ],
+      "effect": "read",
+      "approval": "none",
+      "artifacts": {
+        "kind": "named",
+        "output": "run_list",
+        "packet": "runx.run.list.v1"
       },
       "execution_boundary": "native_capability"
     },

@@ -138,8 +138,6 @@ pub struct RegistrySearchResult {
     pub summary: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub category: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub source_category: Option<String>,
     pub owner: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub version: Option<String>,
@@ -149,7 +147,6 @@ pub struct RegistrySearchResult {
     pub source: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source_label: Option<String>,
-    pub source_type: String,
     pub profile_mode: ProfileMode,
     pub runner_names: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -174,8 +171,6 @@ pub struct RegistrySkillVersion {
     pub description: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub category: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub source_category: Option<String>,
     pub version: String,
     pub digest: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -192,7 +187,6 @@ pub struct RegistrySkillVersion {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub paid_listing: Option<PaidSkillListing>,
     pub runner_names: Vec<String>,
-    pub source_type: String,
     pub trust_tier: TrustTier,
     #[serde(default)]
     pub maturity: MaturityTier,
@@ -207,14 +201,6 @@ pub struct RegistrySkillVersion {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub attestations: Vec<RegistryAttestation>,
     pub required_scopes: Vec<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub runtime: Option<JsonValue>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub auth: Option<JsonValue>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub risk: Option<JsonValue>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub runx: Option<runx_contracts::JsonObject>,
     pub tags: Vec<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub harness_cases: Vec<super::RegistryHarnessCaseMetadata>,
@@ -232,8 +218,6 @@ pub struct RegistrySkill {
     pub description: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub category: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub source_category: Option<String>,
     pub latest_version: String,
     pub latest_digest: String,
     pub versions: Vec<RegistrySkillVersion>,
@@ -261,7 +245,6 @@ pub struct RegistrySkillResolution {
     pub signed_manifest: Option<RegistrySignedManifest>,
     pub source: String,
     pub source_label: String,
-    pub source_type: String,
     pub trust_tier: TrustTier,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub registry_url: Option<String>,
@@ -281,7 +264,6 @@ pub struct PublishSkillMarkdownResult {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub profile_digest: Option<String>,
     pub runner_names: Vec<String>,
-    pub source_type: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub registry_url: Option<String>,
     #[serde(default)]
@@ -343,8 +325,6 @@ pub struct RegistrySkillDetail {
     pub description: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub category: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub source_category: Option<String>,
     pub version: String,
     pub digest: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -359,7 +339,6 @@ pub struct RegistrySkillDetail {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub paid_listing: Option<PaidSkillListing>,
     pub runner_names: Vec<String>,
-    pub source_type: String,
     pub trust_tier: TrustTier,
     pub required_scopes: Vec<String>,
     pub tags: Vec<String>,

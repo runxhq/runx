@@ -9,7 +9,7 @@ inputs:
       content: Runx receipts bind operator actions to explicit authority evidence.
 caller:
   answers:
-    agent_task.brand-voice-synthesize.output:
+    agent.brand-voice-synthesize.output:
       brand_voice_draft:
         decision: ready
         brand: runx

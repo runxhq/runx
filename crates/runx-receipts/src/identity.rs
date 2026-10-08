@@ -8,7 +8,7 @@ use runx_contracts::{Receipt, ReceiptIssuerType};
 pub struct SignedDisplayIdentity {
     pub subject_kind: String,
     pub subject_ref: String,
-    pub source_type: String,
+    pub issuer_type: String,
     pub actors: Vec<String>,
 }
 
@@ -17,7 +17,7 @@ pub fn signed_display_identity(receipt: &Receipt) -> SignedDisplayIdentity {
     SignedDisplayIdentity {
         subject_kind: receipt.subject.kind.to_string(),
         subject_ref: receipt.subject.reference.uri.to_string(),
-        source_type: issuer_type_name(&receipt.issuer.issuer_type).to_owned(),
+        issuer_type: issuer_type_name(&receipt.issuer.issuer_type).to_owned(),
         actors: signed_actor_labels(receipt),
     }
 }

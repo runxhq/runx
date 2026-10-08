@@ -20,23 +20,20 @@ use runx_contracts::schema::{IsoDateTime, NonEmptyString};
 use runx_contracts::{
     AdmissionDisposition, ApprovalGate, AuthorityApproval, AuthorityVerb, ExecutionBoundaryKind,
     ExternalJobStageRequest, InstanceAuthority, JsonObject, JsonValue, ProofKind, Reference,
-    ReferenceType,
+    ReferenceType, ResolutionRequest,
 };
 use runx_core::state_machine::AuthorityAdmissionWitness;
 use runx_parser::{DuplicatePolicy, GraphStep};
 
-use super::admission::{self, Admitted, Context, Evaluation};
+use super::admission::{self, AdmitError, Admitted, Context, Evaluation};
 use super::connectors::ConnectorScope;
-use super::custody::{
-    Acknowledgement, ApprovalActor, ApprovalRecord, Attempt, EffectCustody, Pending,
-};
+use super::custody::{Acknowledgement, ApprovalActor, ApprovalRecord, Attempt, EffectCustody};
 use super::instances::Instances;
 use super::standing::{
     STANDING_APPROVAL_ID_ENV, STANDING_DELEGATE_DIGEST_ENV, StandingApprovals, StandingCall,
     StandingCover,
 };
 use super::store::KernelStore;
-use super::usage::UsageLedger;
 use crate::approval::ApprovalResolution;
 use crate::drivers::http::Egress;
 use crate::effects::{
@@ -275,8 +272,6 @@ pub(crate) struct OperationAdmission {
     call: OperationCall,
     shape: ResultShape,
     duplicates: Option<DuplicatePolicy>,
-    custody: Option<EffectCustody>,
-    pending: Option<Pending>,
     /// What the host supplied for approval lanes, bound at admission.
     lanes: LaneInputs,
     /// Set when the step is prepared for dispatch.
@@ -292,13 +287,13 @@ struct LaneInputs {
 }
 
 impl LaneInputs {
-    fn read(env: &BTreeMap<String, String>) -> Self {
+    fn read(env: &BTreeMap<String, String>, run_id: &str) -> Self {
         let value = |name: &str| env.get(name).filter(|value| !value.is_empty()).cloned();
         Self {
             paid_job: value(PAID_EXTERNAL_JOB_AUTHORITY_ENV),
             standing_id: value(STANDING_APPROVAL_ID_ENV),
             delegate_digest: value(STANDING_DELEGATE_DIGEST_ENV).unwrap_or_default(),
-            run_id: value(crate::execution::runner::RUNX_RUN_ID_ENV).unwrap_or_default(),
+            run_id: run_id.to_owned(),
         }
     }
 }
@@ -384,30 +379,20 @@ impl RuntimeEffect for OperationEffect {
     }
 
     fn matches_target(&self, request: EffectStepRequest<'_>) -> bool {
-        request.step.operation.is_some()
+        request.step.operation().is_some()
     }
 
     fn admit(
         &self,
         request: EffectStepRequest<'_>,
     ) -> Result<Option<EffectAdmission>, RuntimeEffectError> {
-        let Some(target) = request.step.operation.as_ref() else {
+        let Some(target) = request.step.operation() else {
             return Ok(None);
         };
         let call = OperationCall::decode(request.inputs).map_err(invalid)?;
         let shape = call.shape().map_err(invalid)?;
         let store = KernelStore::for_workspace(request.env, request.graph_dir).map_err(state)?;
-        let run_id = request
-            .env
-            .get(crate::execution::runner::RUNX_RUN_ID_ENV)
-            .map_or("local", String::as_str);
-        let custody = EffectCustody::open(
-            Arc::clone(&store),
-            run_id,
-            &request.graph_dir.to_string_lossy(),
-            &request.step.id,
-        );
-        let usage = UsageLedger::new(Arc::clone(&store));
+        let lanes = LaneInputs::read(request.env, request.run_id);
         let scope = ConnectorScope::for_skill(request.graph_dir)
             .map_err(|error| invalid(error.to_string()))?;
         let instances = Instances::new(Arc::clone(&store));
@@ -419,9 +404,8 @@ impl RuntimeEffect for OperationEffect {
             duplicates: request.step.duplicates,
             fixture_stand_in: self.fixture_stand_in,
             run_authority: request.run_authority,
-            usage: &usage,
-            call_key: custody.key(),
-            run_id,
+            store: &store,
+            run_id: &lanes.run_id,
             context: Context {
                 scope: &scope,
                 instances: &instances,
@@ -430,33 +414,26 @@ impl RuntimeEffect for OperationEffect {
                 cwd: request.graph_dir,
             },
         })
-        .map_err(|refusal| RuntimeEffectError::Denied {
-            family: OPERATION_EFFECT_FAMILY.to_owned(),
-            message: refusal.message(),
-            // A requirement that names no operation has no verb of its own;
-            // it is refused as the write it might have been.
-            verb: refusal.verb.unwrap_or(AuthorityVerb::Write),
+        .map_err(|error| match error {
+            AdmitError::Refused(refusal) => RuntimeEffectError::Denied {
+                family: OPERATION_EFFECT_FAMILY.to_owned(),
+                message: refusal.message(),
+                // A requirement that names no operation has no verb of its
+                // own; it is refused as the write it might have been.
+                verb: refusal.verb.unwrap_or(AuthorityVerb::Write),
+            },
+            AdmitError::State(message) => state(message),
         })?;
         let verb = admitted.operation().verb.authority_verb();
-        let mut context = OperationAdmission {
+        let context = OperationAdmission {
             placements: Arc::clone(&self.placements),
             admitted,
             call,
             shape,
             duplicates: request.step.duplicates,
-            custody: None,
-            pending: None,
-            lanes: LaneInputs::read(request.env),
+            lanes,
             attempt: None,
         };
-        if context.mutation() || !context.admitted.usage_covers.is_empty() {
-            let pending = custody.pending().map_err(state)?;
-            if let Some(pending) = &pending {
-                check_pending(&context, pending)?;
-            }
-            context.custody = Some(custody);
-            context.pending = pending;
-        }
         let admitted = &context.admitted;
         let intent = admitted.intent();
         let witness = AuthorityAdmissionWitness {
@@ -498,6 +475,7 @@ impl RuntimeEffect for OperationEffect {
             .ok_or_else(|| state("the operation admission is missing"))?;
         let mut plan = AttemptPlan {
             number: context
+                .admitted
                 .pending
                 .as_ref()
                 .map_or(1, |pending| pending.attempt + 1),
@@ -516,7 +494,9 @@ impl RuntimeEffect for OperationEffect {
                     plan.standing = approved.standing;
                     plan.evidence_refs = approved.refs;
                 }
-                Lane::Pending(reason) => return Ok(EffectPreparationOutcome::Pending { reason }),
+                Lane::Pending { reason, request } => {
+                    return Ok(EffectPreparationOutcome::Pending { reason, request });
+                }
             }
         }
         context.attempt = Some(plan);
@@ -627,7 +607,7 @@ impl RuntimeEffect for OperationEffect {
             .admission
             .context::<OperationAdmission>()
             .ok_or_else(|| state("the operation admission is missing"))?;
-        let Some(custody) = &context.custody else {
+        let Some(custody) = &context.admitted.custody else {
             return Ok(());
         };
         crate::receipts::store::LocalReceiptStore::new(receipt_root(
@@ -751,7 +731,7 @@ pub(crate) fn execute(
         .term_id
         .as_str();
 
-    if let Some(pending) = &context.pending
+    if let Some(pending) = &context.admitted.pending
         && (pending.authority_term_id != authority_term_id
             || pending.mandate_ref != admitted.mandate_ref)
     {
@@ -761,7 +741,7 @@ pub(crate) fn execute(
         ));
     }
 
-    if let Some(pending) = &context.pending {
+    if let Some(pending) = &context.admitted.pending {
         if pending.implementation_digest != implementation_digest {
             return Err(unknown(
                 "the implementation changed since the unsettled attempt; reconcile it before resuming".to_owned(),
@@ -791,7 +771,7 @@ pub(crate) fn execute(
         },
         false => failed(context, reason),
     })?;
-    if let Some(custody) = &context.custody {
+    if let Some(custody) = &context.admitted.custody {
         custody
             .attempt(
                 &Attempt {
@@ -825,7 +805,7 @@ pub(crate) fn execute(
     });
     match outcome {
         Ok(readback) => {
-            if let Some(custody) = &context.custody {
+            if let Some(custody) = &context.admitted.custody {
                 custody.read_back(readback.clone()).map_err(|error| {
                     RuntimeError::effect_state("recording the readback", error.to_string())
                 })?;
@@ -838,8 +818,8 @@ pub(crate) fn execute(
             reason,
             release,
         }) => {
-            if let Some(custody) = &context.custody {
-                if context.pending.is_some() {
+            if let Some(custody) = &context.admitted.custody {
+                if context.admitted.pending.is_some() {
                     let held =
                         "a prior attempt may have executed; a later refusal cannot settle it";
                     custody.unknown(held.to_owned()).map_err(|error| {
@@ -868,9 +848,9 @@ pub(crate) fn execute(
             Err(read_failure(context, step_id, reason))
         }
         Err(Failure::Unknown(reason) | Failure::ReadbackPending(reason))
-            if context.custody.is_some() =>
+            if context.admitted.custody.is_some() =>
         {
-            if let Some(custody) = &context.custody {
+            if let Some(custody) = &context.admitted.custody {
                 custody.unknown(reason.clone()).map_err(|error| {
                     RuntimeError::effect_state("recording the unknown outcome", error.to_string())
                 })?;
@@ -1036,12 +1016,13 @@ fn dispatch(
     };
     let recovery = confirm::Recovery {
         acknowledged: context
+            .admitted
             .pending
             .as_ref()
             .and_then(|pending| pending.acknowledgement.clone()),
         resend_safe: context.resend_safe(),
     };
-    let mut record = |acknowledgement: &Acknowledgement| match &context.custody {
+    let mut record = |acknowledgement: &Acknowledgement| match &context.admitted.custody {
         Some(custody) => custody
             .acknowledged(acknowledgement.clone())
             .map_err(|error| error.to_string()),
@@ -1113,6 +1094,17 @@ fn dispatch(
             confirm::run(&driver, &call, &Checks::default(), recovery, &mut record)
         }
         Implementation::Mcp(spec) => mcp(context, &call, spec, recovery, &mut record),
+        Implementation::Store(_) => {
+            let checks = Checks {
+                preconditions: Vec::new(),
+                readbacks: match call.mutation() {
+                    true => vec![crate::drivers::store::readback_matches()],
+                    false => Vec::new(),
+                },
+            };
+            let driver = crate::drivers::store::Store { call: &call };
+            confirm::run(&driver, &call, &checks, recovery, &mut record)
+        }
         Implementation::Process(spec) => {
             let delivery = process_delivery(context, call.credential)?;
             let scopes = spec
@@ -1463,6 +1455,9 @@ fn finish(
         (Placement::Local, Some(Implementation::Web(_))) => {
             ("local_web", ExecutionBoundaryKind::NativeCapability)
         }
+        (Placement::Local, Some(Implementation::Store(_))) => {
+            ("local_store", ExecutionBoundaryKind::NativeCapability)
+        }
         (Placement::Local, _) => ("local_http", ExecutionBoundaryKind::NativeCapability),
     };
     let mut packet = readback
@@ -1506,7 +1501,10 @@ fn finish(
 
 enum Lane {
     Approved(Box<Approved>),
-    Pending(String),
+    Pending {
+        reason: String,
+        request: Box<ResolutionRequest>,
+    },
 }
 
 struct Approved {
@@ -1547,13 +1545,14 @@ fn approve(
 ) -> Result<Lane, RuntimeEffectError> {
     let admitted = &context.admitted;
     let operation = admitted.operation();
-    let store = context.custody.as_ref().map(EffectCustody::store);
+    let store = context.admitted.custody.as_ref().map(EffectCustody::store);
     let paid = context.lanes.paid_job.clone();
     let standing_id = context.lanes.standing_id.clone();
     let floored = operation.approval == ApprovalFloor::Required
         || admitted.guarded
         || context.call.approval.is_some();
     if let Some(record) = context
+        .admitted
         .pending
         .as_ref()
         .and_then(|pending| pending.approval.clone())
@@ -1644,7 +1643,10 @@ fn standing_cover(
             "a standing notification carries exactly {target_field} equal to the target and {text_field}"
         )));
     }
-    let provider_key = context.provider_key().unwrap_or_default();
+    let use_key = admitted
+        .use_key
+        .as_deref()
+        .ok_or_else(|| state("standing approval needs effect custody"))?;
     StandingApprovals::new(Arc::clone(store))
         .cover(
             approval_id,
@@ -1656,7 +1658,7 @@ fn standing_cover(
                 delegate_digest: &context.lanes.delegate_digest,
                 text: text.unwrap_or_default(),
                 intent_digest: admitted.intent_digest().as_str(),
-                idempotency_key: &provider_key,
+                use_key,
                 run_id: &context.lanes.run_id,
             },
         )
@@ -1804,6 +1806,10 @@ fn human(
             .or_else(|| Some("operation".to_owned())),
         summary: Some(summary),
     };
+    let request = ResolutionRequest::Approval {
+        id: gate_id.clone().into(),
+        gate: gate.clone(),
+    };
     match crate::request_approval(host, gate_id.clone(), gate)
         .map_err(|error| denied(error.to_string()))?
     {
@@ -1820,33 +1826,11 @@ fn human(
                 format!("operation step '{}' was denied", step.id)
             })))
         }
-        ApprovalResolution::Pending { .. } => Ok(Lane::Pending(format!(
-            "approval {gate_id:?} for step '{}' is pending",
-            step.id
-        ))),
+        ApprovalResolution::Pending { .. } => Ok(Lane::Pending {
+            reason: format!("approval {gate_id:?} for step '{}' is pending", step.id),
+            request: Box::new(request),
+        }),
     }
-}
-
-/// A pending attempt must be the same call under the same instance.
-fn check_pending(
-    context: &OperationAdmission,
-    pending: &Pending,
-) -> Result<(), RuntimeEffectError> {
-    let admitted = &context.admitted;
-    if pending.intent_digest != admitted.intent_digest().as_str()
-        || pending.instance_id != admitted.instance.instance.instance_id.as_str()
-        || pending.mandate_ref != admitted.mandate_ref
-    {
-        return Err(state(
-            "an unsettled attempt of this step belongs to another intent or instance; reconcile it before running a different call",
-        ));
-    }
-    if pending.idempotency_key != context.provider_key().unwrap_or_default() {
-        return Err(state(
-            "an unsettled attempt of this step carries a different provider key",
-        ));
-    }
-    Ok(())
 }
 
 /// `runx:<intent digest>`, or a UUID derived from it where the provider

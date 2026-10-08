@@ -27,7 +27,7 @@ inputs:
     approvals: []
 caller:
   answers:
-    agent_task.ops-desk-action-review.output:
+    agent.ops-desk-action-review.output:
       action_review:
         decision: awaiting_approval
         consequence: money_movement

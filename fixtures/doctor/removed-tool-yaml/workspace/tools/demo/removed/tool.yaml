@@ -1,7 +1,0 @@
-name: demo.removed
-description: Removed tool fixture.
-source:
-  type: cli-tool
-  command: node
-  args:
-    - ./run.mjs

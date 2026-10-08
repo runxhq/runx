@@ -1,12 +1,14 @@
+use runx_contracts::policy_proof::{
+    AuthorityProof, AuthorityProofApprovalDecision, AuthorityProofApprovalDecisionValue,
+    AuthorityProofCredentialMaterial, AuthorityProofCredentialMaterialStatus,
+    AuthorityProofRedaction, AuthorityProofRedactionSecretMaterial, AuthorityProofRedactionStatus,
+    AuthorityProofRedactionStream, AuthorityProofRequested, AuthorityProofSchemaVersion,
+    CredentialEnvelope, ScopeAdmission, ScopeAdmissionStatus,
+};
 use runx_contracts::sha256_hex;
 
 use crate::policy::{
-    AuthorityProof, AuthorityProofApprovalDecision, AuthorityProofApprovalDecisionValue,
-    AuthorityProofCredentialMaterial, AuthorityProofCredentialMaterialStatus,
-    AuthorityProofMetadata, AuthorityProofRedaction, AuthorityProofRedactionSecretMaterial,
-    AuthorityProofRedactionStatus, AuthorityProofRedactionStream, AuthorityProofRequested,
-    AuthorityProofSchemaVersion, BuildAuthorityProofOptions, CredentialEnvelope,
-    LocalScopeAdmissionOptions, ScopeAdmission, ScopeAdmissionStatus,
+    AuthorityProofMetadata, BuildAuthorityProofOptions, LocalScopeAdmissionOptions,
     credential_grant::{CredentialGrantRequirement, credential_grant_requirement},
     scope::unique_strings,
 };

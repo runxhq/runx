@@ -226,85 +226,75 @@ fn openai_batch_with_late_unknown_tool_executes_nothing() -> Result<(), Box<dyn 
 }
 
 #[test]
-fn both_managed_skill_frontends_execute_governed_tool_round_trip()
--> Result<(), Box<dyn std::error::Error>> {
-    for frontend in ["standalone", "graph"] {
-        let temp = tempdir()?;
-        let skill_dir = temp.path().join(frontend);
-        fs::create_dir_all(&skill_dir)?;
-        fs::write(
-            skill_dir.join("SKILL.md"),
-            format!(
-                "---\nname: fixture-{frontend}\n---\n# Fixture\n\nCall data.digest with value proof and encoding utf8_text, then finish with status done.\n"
-            ),
-        )?;
-        let runner = if frontend == "graph" {
-            format!(
-                "skill: fixture-{frontend}\nrunners:\n  proof:\n    default: true\n    type: graph\n    graph:\n      name: fixture-{frontend}\n      result_from: [verify]\n      steps:\n        - id: verify\n          run:\n            type: agent-task\n            agent: fixture\n            task: proof\n            outputs:\n              status: string\n          allowed_tools: [data.digest]\n"
-            )
-        } else {
-            format!(
-                "skill: fixture-{frontend}\nrunners:\n  proof:\n    default: true\n    type: agent-task\n    agent: fixture\n    task: proof\n    outputs:\n      status: string\n    runx:\n      allowed_tools: [data.digest]\n"
-            )
-        };
-        fs::write(skill_dir.join("X.yaml"), runner)?;
+fn managed_agent_step_executes_governed_tool_round_trip() -> Result<(), Box<dyn std::error::Error>>
+{
+    let temp = tempdir()?;
+    let skill_dir = temp.path().join("skill");
+    fs::create_dir_all(&skill_dir)?;
+    fs::write(
+        skill_dir.join("SKILL.md"),
+        "---\nname: fixture-agent\ndescription: fixture-agent fixture.\n---\n# Fixture\n\nCall data.digest with value proof and encoding utf8_text, then finish with status done.\n",
+    )?;
+    fs::write(
+        skill_dir.join("run.yaml"),
+        "skill: fixture-agent\nrunners:\n  proof:\n    default: true\n    steps:\n      - id: verify\n        agent: { role: fixture, task: proof }\n        outputs:\n          status: string\n        allowed_tools: [data.digest]\n",
+    )?;
 
-        let listener = TcpListener::bind("127.0.0.1:0")?;
-        let endpoint = format!("http://{}/v1/chat/completions", listener.local_addr()?);
-        let server = std::thread::spawn(move || {
-            serve_responses(
-                listener,
-                [
-                    json!({"choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[{"id":"call-digest","type":"function","function":{"name":"data_digest","arguments":"{\"value\":\"proof\",\"encoding\":\"utf8_text\"}"}}]}}]}),
-                    json!({"choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[{"id":"call-final","type":"function","function":{"name":"runx_final_result","arguments":"{\"status\":\"done\"}"}}]}}]}),
-                ],
-            )
-        });
+    let listener = TcpListener::bind("127.0.0.1:0")?;
+    let endpoint = format!("http://{}/v1/chat/completions", listener.local_addr()?);
+    let server = std::thread::spawn(move || {
+        serve_responses(
+            listener,
+            [
+                json!({"choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[{"id":"call-digest","type":"function","function":{"name":"data_digest","arguments":"{\"value\":\"proof\",\"encoding\":\"utf8_text\"}"}}]}}]}),
+                json!({"choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[{"id":"call-final","type":"function","function":{"name":"runx_final_result","arguments":"{\"status\":\"done\"}"}}]}}]}),
+            ],
+        )
+    });
 
-        let mut env = BTreeMap::from([
-            (
-                "RUNX_HOME".to_owned(),
-                temp.path().join("home").to_string_lossy().into_owned(),
+    let mut env = BTreeMap::from([
+        (
+            "RUNX_HOME".to_owned(),
+            temp.path().join("home").to_string_lossy().into_owned(),
+        ),
+        ("RUNX_AGENT_PROVIDER".to_owned(), "openai".to_owned()),
+        ("RUNX_AGENT_MODEL".to_owned(), "fixture-model".to_owned()),
+        ("RUNX_AGENT_AUTH_MODE".to_owned(), "local_none".to_owned()),
+        ("RUNX_AGENT_ENDPOINT_URL".to_owned(), endpoint),
+    ]);
+    crate::support::insert_test_signing_env(&mut env);
+    let result = LocalOrchestrator::default().run_skill(&SkillRunRequest {
+        current_context: Vec::new(),
+        historical_context: Vec::new(),
+        run_authority: None,
+        skill_path: skill_dir,
+        receipt_dir: Some(temp.path().join("receipts")),
+        run_id: None,
+        answers_path: None,
+        inputs: BTreeMap::new(),
+        env,
+        cwd: temp.path().to_path_buf(),
+        managed_agent: ManagedAgentPolicy::inline(3)?,
+    })?;
+    let output = serde_json::to_value(&result.output)?;
+    assert_eq!(output["status"], "sealed", "{output}");
+    assert_eq!(output["result"]["status"], "done", "{output}");
+    let requests = finish_server(server)?;
+    assert_eq!(requests.len(), 2);
+    assert_eq!(requests[0]["tools"][0]["function"]["name"], "data_digest");
+    assert!(
+        requests[1]["messages"]
+            .as_array()
+            .is_some_and(
+                |messages| messages.iter().any(|message| message["role"] == "tool"
+                    && message["tool_call_id"] == "call-digest"
+                    && message["content"]
+                        .as_str()
+                        .is_some_and(|content| content.contains(
+                            "c1cda26362828b69266512052b97cb3729e3b052e4ade47c0a1e3383defe73c7"
+                        )))
             ),
-            ("RUNX_AGENT_PROVIDER".to_owned(), "openai".to_owned()),
-            ("RUNX_AGENT_MODEL".to_owned(), "fixture-model".to_owned()),
-            ("RUNX_AGENT_AUTH_MODE".to_owned(), "local_none".to_owned()),
-            ("RUNX_AGENT_ENDPOINT_URL".to_owned(), endpoint),
-        ]);
-        crate::support::insert_test_signing_env(&mut env);
-        let result = LocalOrchestrator::default().run_skill(&SkillRunRequest {
-            current_context: Vec::new(),
-            historical_context: Vec::new(),
-            run_authority: None,
-            skill_path: skill_dir,
-            receipt_dir: Some(temp.path().join("receipts")),
-            run_id: None,
-            answers_path: None,
-            inputs: BTreeMap::new(),
-            env,
-            cwd: temp.path().to_path_buf(),
-            managed_agent: ManagedAgentPolicy::inline(3)?,
-        })?;
-        let output = serde_json::to_value(&result.output)?;
-        assert_eq!(output["status"], "sealed", "{frontend}: {output}");
-        assert_eq!(output["result"]["status"], "done", "{frontend}: {output}");
-        let requests = finish_server(server)?;
-        assert_eq!(requests.len(), 2, "{frontend}");
-        assert_eq!(requests[0]["tools"][0]["function"]["name"], "data_digest");
-        assert!(
-            requests[1]["messages"]
-                .as_array()
-                .is_some_and(
-                    |messages| messages.iter().any(|message| message["role"] == "tool"
-                        && message["tool_call_id"] == "call-digest"
-                        && message["content"]
-                            .as_str()
-                            .is_some_and(|content| content.contains(
-                                "c1cda26362828b69266512052b97cb3729e3b052e4ade47c0a1e3383defe73c7"
-                            )))
-                ),
-            "{frontend} must replay the actual native digest result"
-        );
-    }
+        "the step must replay the actual native digest result"
+    );
     Ok(())
 }

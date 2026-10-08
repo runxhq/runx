@@ -101,6 +101,7 @@
                     "change_request",
                     "repository",
                     "signal",
+                    "run",
                     "act",
                     "receipt",
                     "graph_receipt",

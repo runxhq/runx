@@ -1,0 +1,220 @@
+skill: research
+version: "0.3.3"
+
+catalog:
+  kind: graph
+  audience: public
+  visibility: public
+  role: context
+  execution: read
+  completion: runtime_receipt
+  requires_adapter: false
+  approval: none
+  category: research
+
+harness:
+  files:
+    - fixtures/local-architecture-evidence.txt
+  cases:
+    - name: research-native-local-files-use-the-shared-analysis-path
+      operator_journeys:
+        - mode: standalone
+          request: Research this question from the bounded local sources and return a source-backed packet.
+          expected_outcome: Read the admitted sources once and return bounded findings with exact provenance and caveats.
+        - mode: composed
+          request: Continue the decision from these already admitted research sources.
+          expected_outcome: Reuse the supplied source artifacts and provenance without rereading or rediscovering unrelated material.
+          prior_evidence:
+            - The admitted local source artifacts and objective supplied in the fixture.
+          must_not_repeat:
+            - Do not enumerate the repository beyond the admitted paths.
+            - Do not reacquire source content already present in the evidence packet.
+      runner: local-files
+      inputs:
+        objective: Decide where generic evidence admission belongs.
+        paths: [fixtures/local-architecture-evidence.txt]
+        path_scope: skill
+      caller:
+        answers:
+          agent.research-synthesize.output:
+            research_candidate:
+              decision: ready
+              research_brief:
+                objective: Decide where generic evidence admission belongs.
+                scope: supplied architecture evidence
+                summary: Generic evidence admission belongs in the native runtime, while skills own domain judgment.
+                open_questions: []
+              evidence_log:
+                - claim: Generic evidence admission belongs in the native runtime.
+                  source_digest: sha256:684d3c1ea722d675969c1abd8b00d3a91ff22c0088b6b71ab3c1e70382e82e45
+                  content_digest: sha256:684d3c1ea722d675969c1abd8b00d3a91ff22c0088b6b71ab3c1e70382e82e45
+                  confidence: verified
+                  relevance: Establishes the reusable ownership boundary.
+              decision_support:
+                - option: Keep evidence admission native and domain interpretation in skills.
+                  rationale: The admitted local evidence states that boundary directly.
+                  source_digests: [sha256:684d3c1ea722d675969c1abd8b00d3a91ff22c0088b6b71ab3c1e70382e82e45]
+              risks: []
+      expect:
+        status: sealed
+        steps: [read-local, index, analyze]
+        step_outputs:
+          analyze:
+            subset:
+              research_packet:
+                data:
+                  decision: ready
+                  validation: { status: pass }
+                  source_evidence:
+                    - evidence_digest: sha256:684d3c1ea722d675969c1abd8b00d3a91ff22c0088b6b71ab3c1e70382e82e45
+                      content_digest: sha256:684d3c1ea722d675969c1abd8b00d3a91ff22c0088b6b71ab3c1e70382e82e45
+                      source_kind: local_file
+                      source_ref: file:fixtures/local-architecture-evidence.txt
+        receipt: { schema: runx.receipt.v1 }
+
+input_definitions:
+  objective:
+    type: string
+    required: true
+    description: Bounded question the research pass must answer.
+    schema: { minLength: 1, maxLength: 4000 }
+  domain:
+    type: string
+    required: false
+    description: Domain or market context for the question.
+  deliverable:
+    type: string
+    required: false
+    description: Target artifact or decision the research must support.
+  operator_context:
+    type: string
+    required: false
+    description: Local constraints that shape interpretation but do not count as evidence.
+  target_entities:
+    type: json
+    required: false
+    description: Bounded entity names or caller-owned structured selectors to include or compare.
+    schema:
+      oneOf:
+        - { type: array, maxItems: 100 }
+        - { type: object, maxProperties: 100 }
+
+runners:
+  research:
+    default: true
+    inputs:
+      objective: { definition: objective }
+      source_packets:
+        type: array
+        required: true
+        description: Bounded governed provider or fetch evidence packets.
+        schema: { maxItems: 20 }
+      domain: { definition: domain }
+      deliverable: { definition: deliverable }
+      operator_context: { definition: operator_context }
+      target_entities: { definition: target_entities }
+    examples:
+      - objective: Decide whether the supplied API evidence supports a native integration.
+        source_packets:
+          - final_url: https://example.com/api
+            status: 200
+            content_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+            extracted: The API exposes a stable bounded operation contract.
+            provenance: { fetched_at: '2026-07-18T00:00:00Z', bytes: 52, redirects: [] }
+    result_from: [analyze]
+    steps:
+      - id: index
+        label: index bounded source evidence
+        tool: evidence.index_sources
+        scopes: [runx:evidence:read]
+        inputs:
+          objective: $input.objective
+          source_packets: $input.source_packets
+        artifacts:
+          named_emits: { source_index: source_index }
+
+      - id: analyze
+        skill: graph/analyze
+        scopes: [runx:evidence:read]
+        inputs:
+          objective: $input.objective
+          domain: $input.domain
+          deliverable: $input.deliverable
+          operator_context: $input.operator_context
+          target_entities: $input.target_entities
+        context:
+          source_index: index.source_index.data
+
+  local-files:
+    inputs:
+      objective: { definition: objective }
+      paths:
+        type: array
+        required: true
+        description: One to sixteen UTF-8 file paths below the selected root.
+        schema:
+          minItems: 1
+          maxItems: 16
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 4096 }
+      repo_root:
+        type: string
+        required: false
+        default: .
+        description: Workspace-relative or explicit absolute root containing the files.
+      path_scope:
+        type: string
+        required: false
+        default: workspace
+        description: Root ownership boundary used by the native filesystem reader.
+        schema: { enum: [workspace, skill] }
+      max_bytes:
+        type: integer
+        required: false
+        default: 500000
+        description: Maximum UTF-8 bytes read from each source file.
+        schema: { minimum: 1, maximum: 8388608 }
+      domain: { definition: domain }
+      deliverable: { definition: deliverable }
+      operator_context: { definition: operator_context }
+      target_entities: { definition: target_entities }
+    examples:
+      - objective: Identify the strongest architecture decision in the local design notes.
+        paths: [docs/architecture.md, docs/constraints.md]
+        repo_root: .
+        path_scope: workspace
+    result_from: [analyze]
+    steps:
+      - id: read-local
+        label: read bounded local evidence
+        tool: fs.read_bundle
+        scopes: [fs.read]
+        inputs:
+          repo_root: $input.repo_root
+          path_scope: $input.path_scope
+          paths: $input.paths
+          max_bytes: $input.max_bytes
+          on_missing: error
+
+      - id: index
+        label: index bounded local evidence
+        tool: evidence.index_sources
+        scopes: [runx:evidence:read]
+        inputs:
+          objective: $input.objective
+        context:
+          source_packets: read-local.file_read_bundle.data.files
+        artifacts:
+          named_emits: { source_index: source_index }
+
+      - id: analyze
+        skill: graph/analyze
+        scopes: [runx:evidence:read]
+        inputs:
+          objective: $input.objective
+          domain: $input.domain
+          deliverable: $input.deliverable
+          operator_context: $input.operator_context
+          target_entities: $input.target_entities
+        context:
+          source_index: index.source_index.data

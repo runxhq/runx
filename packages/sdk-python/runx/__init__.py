@@ -14,7 +14,6 @@ class SkillSearchResult:
     owner: str
     source: str
     source_label: str
-    source_type: str
     trust_tier: str
     required_scopes: tuple[str, ...]
     tags: tuple[str, ...]
@@ -32,7 +31,6 @@ class SkillSearchResult:
             owner=str(value["owner"]),
             source=str(value["source"]),
             source_label=str(value["source_label"]),
-            source_type=str(value["source_type"]),
             trust_tier=str(value["trust_tier"]),
             required_scopes=tuple(str(item) for item in value.get("required_scopes", [])),
             tags=tuple(str(item) for item in value.get("tags", [])),

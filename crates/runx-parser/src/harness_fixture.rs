@@ -8,17 +8,11 @@ use thiserror::Error;
 
 use crate::{ParseError, parse_yaml_document};
 
-const RETIRED_RECEIPT_FIELDS: &[&str] =
-    &["kind", "skill_name", "source_type", "graph_name", "owner"];
-
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum HarnessFixtureKind {
     Skill,
     Graph,
-    Agent,
-    #[serde(rename = "agent_task")]
-    AgentStep,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -150,6 +144,30 @@ pub struct HarnessProviderResponsesFixture {
     pub operations: Vec<HarnessProviderOperationFixture>,
 }
 
+/// What the caller stands in for during a harness run: the agent acts it
+/// answers, the approval gates it decides, and the world the run reaches.
+/// Fixture files, inline runner cases and dev fixtures share this one shape.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct HarnessCaller {
+    /// Agent act outputs, by request id.
+    #[serde(default, skip_serializing_if = "JsonObject::is_empty")]
+    pub answers: JsonObject,
+    /// Approval decisions, by gate id.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub approvals: BTreeMap<String, bool>,
+    /// The exact HTTP exchanges the run may make; any other request is
+    /// refused, never sent.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub http_exchanges: Vec<HarnessHttpExchangeFixture>,
+    /// The MCP tool calls the run may make.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub mcp_calls: Vec<HarnessMcpCallFixture>,
+    /// The hosted provider the run's operations reach.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provider_responses: Option<HarnessProviderResponsesFixture>,
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct HarnessFixture {
     pub name: String,
@@ -159,7 +177,7 @@ pub struct HarnessFixture {
     pub setup: HarnessSetup,
     pub inputs: JsonObject,
     pub env: BTreeMap<String, String>,
-    pub caller: JsonObject,
+    pub caller: HarnessCaller,
     pub expect: HarnessExpectation,
     pub operator_journeys: Vec<OperatorJourneyClaim>,
     pub metadata: JsonObject,
@@ -203,7 +221,7 @@ pub struct ReceiptExpectation {
     pub body_digest: Option<String>,
     pub receipt_id: Option<String>,
     pub receipt_digest: Option<String>,
-    pub harness_id: Option<String>,
+    pub subject_ref: Option<String>,
     pub state: Option<String>,
     pub disposition: Option<ClosureDisposition>,
     pub reason_code: Option<String>,
@@ -257,7 +275,7 @@ struct RawReceiptExpectation {
     body_digest: Option<String>,
     receipt_id: Option<String>,
     receipt_digest: Option<String>,
-    harness_id: Option<String>,
+    subject_ref: Option<String>,
     state: Option<String>,
     disposition: Option<ClosureDisposition>,
     reason_code: Option<String>,
@@ -284,8 +302,6 @@ pub enum HarnessFixtureError {
     Empty { field: &'static str },
     #[error("invalid harness fixture {field}: {message}")]
     Invalid { field: String, message: String },
-    #[error("retired receipt expectation field {field_path}")]
-    RetiredReceiptField { field_path: String },
     #[error("unknown receipt expectation field {field_path}")]
     UnknownReceiptField { field_path: String },
 }
@@ -309,7 +325,7 @@ pub(crate) fn parse_operator_journey(
 }
 
 /// Validate an inline runner-harness expectation through the same contract as
-/// a conventional fixture. Inline `X.yaml` cases and standalone fixture files
+/// a conventional fixture. Inline `run.yaml` cases and standalone fixture files
 /// must not acquire parallel expectation vocabularies.
 pub fn parse_harness_expectation(
     value: JsonObject,
@@ -327,34 +343,38 @@ pub fn parse_harness_expectation(
     validate_expectation(expectation)
 }
 
+/// Validate a caller through the same contract wherever it is written.
+pub fn parse_harness_caller(value: JsonObject) -> Result<HarnessCaller, HarnessFixtureError> {
+    let caller = JsonValue::Object(value)
+        .deserialize_into::<HarnessCaller>()
+        .map_err(|error| HarnessFixtureError::Invalid {
+            field: "caller".to_owned(),
+            message: error.to_string(),
+        })?;
+    validate_caller(caller)
+}
+
+fn validate_caller(caller: HarnessCaller) -> Result<HarnessCaller, HarnessFixtureError> {
+    Ok(HarnessCaller {
+        http_exchanges: validate_http_exchanges(caller.http_exchanges, "caller.http_exchanges")?,
+        mcp_calls: validate_mcp_calls(caller.mcp_calls, "caller.mcp_calls")?,
+        provider_responses: caller
+            .provider_responses
+            .map(|fixture| {
+                validate_harness_provider_responses(fixture, "caller.provider_responses")
+            })
+            .transpose()?,
+        ..caller
+    })
+}
+
 fn validate_fixture(fixture: RawHarnessFixture) -> Result<HarnessFixture, HarnessFixtureError> {
     require_non_empty(&fixture.name, "name")?;
     let target = fixture.target.unwrap_or_default();
-    if !matches!(fixture.kind, HarnessFixtureKind::AgentStep) {
-        require_non_empty(&target, "target")?;
-    }
+    require_non_empty(&target, "target")?;
     if let Some(runner) = &fixture.runner {
         require_non_empty(runner, "runner")?;
     }
-    if fixture.caller.contains_key("web_responses") {
-        return Err(HarnessFixtureError::Invalid {
-            field: "caller.web_responses".to_owned(),
-            message: "was renamed to caller.http_responses".to_owned(),
-        });
-    }
-    parse_harness_http_responses(
-        fixture.caller.get("http_responses"),
-        "caller.http_responses",
-    )?;
-    parse_harness_http_exchanges(
-        fixture.caller.get("http_exchanges"),
-        "caller.http_exchanges",
-    )?;
-    parse_harness_provider_responses(
-        fixture.caller.get("provider_responses"),
-        "caller.provider_responses",
-    )?;
-    parse_harness_mcp_calls(fixture.caller.get("mcp_calls"), "caller.mcp_calls")?;
     Ok(HarnessFixture {
         name: fixture.name,
         kind: fixture.kind,
@@ -363,7 +383,7 @@ fn validate_fixture(fixture: RawHarnessFixture) -> Result<HarnessFixture, Harnes
         setup: validate_setup(fixture.setup)?,
         inputs: fixture.inputs,
         env: fixture.env,
-        caller: fixture.caller,
+        caller: parse_harness_caller(fixture.caller)?,
         expect: validate_expectation(fixture.expect)?,
         operator_journeys: fixture
             .operator_journeys
@@ -372,26 +392,6 @@ fn validate_fixture(fixture: RawHarnessFixture) -> Result<HarnessFixture, Harnes
             .collect::<Result<_, _>>()?,
         metadata: fixture.metadata,
     })
-}
-
-/// Parse the deterministic hosted-provider lane used by conventional harness
-/// fixtures. The compact fixture describes authority and readback; the runtime
-/// owns the wire protocol and every governance transition around it.
-pub fn parse_harness_provider_responses(
-    value: Option<&JsonValue>,
-    field: &str,
-) -> Result<Option<HarnessProviderResponsesFixture>, HarnessFixtureError> {
-    let Some(value) = value else {
-        return Ok(None);
-    };
-    let fixture = value
-        .clone()
-        .deserialize_into::<HarnessProviderResponsesFixture>()
-        .map_err(|error| HarnessFixtureError::Invalid {
-            field: field.to_owned(),
-            message: error.to_string(),
-        })?;
-    validate_harness_provider_responses(fixture, field).map(Some)
 }
 
 fn validate_harness_provider_responses(
@@ -452,57 +452,17 @@ fn validate_harness_provider_responses(
     Ok(fixture)
 }
 
-/// Parse the deterministic HTTP-response lane shared by conventional and inline
-/// harness fixtures. The caller owns exact request URLs; the runtime owns
-/// transport selection and never falls through to the network when this map is
-/// present.
-pub fn parse_harness_http_responses(
-    value: Option<&JsonValue>,
-    field: &str,
-) -> Result<BTreeMap<String, HarnessHttpResponseFixture>, HarnessFixtureError> {
-    let Some(value) = value else {
-        return Ok(BTreeMap::new());
-    };
-    let encoded = serde_json::to_value(value).map_err(|error| HarnessFixtureError::Invalid {
-        field: field.to_owned(),
-        message: error.to_string(),
-    })?;
-    let responses = serde_json::from_value::<BTreeMap<String, HarnessHttpResponseFixture>>(encoded)
-        .map_err(|error| HarnessFixtureError::Invalid {
-            field: field.to_owned(),
-            message: error.to_string(),
-        })?;
-    if responses.is_empty() {
-        return Err(HarnessFixtureError::Invalid {
-            field: field.to_owned(),
-            message: "must contain at least one exact response when declared".to_owned(),
-        });
-    }
-    validate_harness_http_responses(responses, field)
-}
-
-/// Parse request-sensitive deterministic exchanges. Unlike URL-only response
-/// fixtures, an exact exchange may admit a mutation because the harness proves
-/// the complete outbound request and never reaches the network.
-pub fn parse_harness_mcp_calls(
-    value: Option<&JsonValue>,
+fn validate_mcp_calls(
+    calls: Vec<HarnessMcpCallFixture>,
     field: &str,
 ) -> Result<Vec<HarnessMcpCallFixture>, HarnessFixtureError> {
     const MAX_CALLS: usize = 32;
-    let Some(value) = value else {
-        return Ok(Vec::new());
-    };
     let invalid = |message: String| HarnessFixtureError::Invalid {
         field: field.to_owned(),
         message,
     };
-    let encoded = serde_json::to_value(value).map_err(|error| invalid(error.to_string()))?;
-    let calls = serde_json::from_value::<Vec<HarnessMcpCallFixture>>(encoded)
-        .map_err(|error| invalid(error.to_string()))?;
-    if calls.is_empty() || calls.len() > MAX_CALLS {
-        return Err(invalid(format!(
-            "must contain one to {MAX_CALLS} exact calls when declared"
-        )));
+    if calls.len() > MAX_CALLS {
+        return Err(invalid(format!("must contain at most {MAX_CALLS} calls")));
     }
     if calls.iter().any(|call| call.tool.trim().is_empty()) {
         return Err(invalid("every call names its tool".to_owned()));
@@ -510,30 +470,14 @@ pub fn parse_harness_mcp_calls(
     Ok(calls)
 }
 
-pub fn parse_harness_http_exchanges(
-    value: Option<&JsonValue>,
+/// Exact exchanges: the method, URL and JSON body identify each request, so
+/// an exchange may answer a mutation without the harness reaching the network.
+fn validate_http_exchanges(
+    mut exchanges: Vec<HarnessHttpExchangeFixture>,
     field: &str,
 ) -> Result<Vec<HarnessHttpExchangeFixture>, HarnessFixtureError> {
     const MAX_EXCHANGES: usize = 32;
     const MAX_REQUEST_BODY_BYTES: usize = 1_048_576;
-    let Some(value) = value else {
-        return Ok(Vec::new());
-    };
-    let encoded = serde_json::to_value(value).map_err(|error| HarnessFixtureError::Invalid {
-        field: field.to_owned(),
-        message: error.to_string(),
-    })?;
-    let mut exchanges = serde_json::from_value::<Vec<HarnessHttpExchangeFixture>>(encoded)
-        .map_err(|error| HarnessFixtureError::Invalid {
-            field: field.to_owned(),
-            message: error.to_string(),
-        })?;
-    if exchanges.is_empty() {
-        return Err(HarnessFixtureError::Invalid {
-            field: field.to_owned(),
-            message: "must contain at least one exact exchange when declared".to_owned(),
-        });
-    }
     if exchanges.len() > MAX_EXCHANGES {
         return Err(HarnessFixtureError::Invalid {
             field: field.to_owned(),
@@ -592,32 +536,6 @@ pub fn parse_harness_http_exchanges(
         validate_harness_http_response(&exchange.response, &format!("{field}[{index}].response"))?;
     }
     Ok(exchanges)
-}
-
-fn validate_harness_http_responses(
-    responses: BTreeMap<String, HarnessHttpResponseFixture>,
-    field: &str,
-) -> Result<BTreeMap<String, HarnessHttpResponseFixture>, HarnessFixtureError> {
-    const MAX_RESPONSES: usize = 32;
-    if responses.len() > MAX_RESPONSES {
-        return Err(HarnessFixtureError::Invalid {
-            field: field.to_owned(),
-            message: format!("must contain at most {MAX_RESPONSES} responses"),
-        });
-    }
-    let mut normalized = BTreeMap::new();
-    for (url, response) in responses {
-        let response_field = format!("{field}.{url}");
-        let url = validate_harness_http_url(&url, &response_field)?;
-        validate_harness_http_response(&response, &response_field)?;
-        if normalized.insert(url, response).is_some() {
-            return Err(HarnessFixtureError::Invalid {
-                field: response_field,
-                message: "duplicates an earlier canonical final URL".to_owned(),
-            });
-        }
-    }
-    Ok(normalized)
 }
 
 fn validate_harness_http_url(url: &str, field: &str) -> Result<String, HarnessFixtureError> {
@@ -841,18 +759,16 @@ fn validate_receipt_expectation(
     receipt: RawReceiptExpectation,
 ) -> Result<ReceiptExpectation, HarnessFixtureError> {
     if let Some(field) = receipt.extra.keys().next() {
-        let field_path = format!("expect.receipt.{field}");
-        if is_retired_receipt_field(field) {
-            return Err(HarnessFixtureError::RetiredReceiptField { field_path });
-        }
-        return Err(HarnessFixtureError::UnknownReceiptField { field_path });
+        return Err(HarnessFixtureError::UnknownReceiptField {
+            field_path: format!("expect.receipt.{field}"),
+        });
     }
     Ok(ReceiptExpectation {
         schema: receipt.schema,
         body_digest: receipt.body_digest,
         receipt_id: receipt.receipt_id,
         receipt_digest: receipt.receipt_digest,
-        harness_id: receipt.harness_id,
+        subject_ref: receipt.subject_ref,
         state: receipt.state,
         disposition: receipt.disposition,
         reason_code: receipt.reason_code,
@@ -862,16 +778,6 @@ fn validate_receipt_expectation(
         child_receipt_count: receipt.child_receipt_count,
         verification_refs: receipt.verification_refs,
     })
-}
-
-fn is_retired_receipt_field(field: &str) -> bool {
-    RETIRED_RECEIPT_FIELDS.contains(&field)
-        || field == retired_execution_receipt_field("skill")
-        || field == retired_execution_receipt_field("graph")
-}
-
-fn retired_execution_receipt_field(prefix: &str) -> String {
-    format!("{prefix}_{}", "execution")
 }
 
 fn require_non_empty(value: &str, field: &'static str) -> Result<(), HarnessFixtureError> {

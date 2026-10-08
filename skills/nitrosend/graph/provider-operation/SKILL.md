@@ -1,8 +1,6 @@
 ---
 name: nitrosend-provider-operation
 description: Run one bounded Nitrosend connector operation and project its result as provider evidence.
-runx:
-  category: communications
 ---
 
 # Nitrosend provider operation

@@ -4,9 +4,8 @@
 use runx_contracts::maturity::MaturityTier;
 use runx_contracts::schema::NonEmptyString;
 use runx_contracts::{
-    JsonObject, JsonValue, MediationListingRef, OfferRevisionRef, PaidSkillListing,
-    PaidSkillOfferTerms, PaidSkillOffers, PaidSkillRunnerOffer, PrincipalReference,
-    RunxPrincipalId, Sha256Digest, sha256_hex,
+    MediationListingRef, OfferRevisionRef, PaidSkillListing, PaidSkillOfferTerms, PaidSkillOffers,
+    PaidSkillRunnerOffer, PrincipalReference, RunxPrincipalId, Sha256Digest, sha256_hex,
 };
 use serde::Deserialize;
 
@@ -67,7 +66,6 @@ pub(super) fn build_registry_skill_version(
         name: metadata.name,
         description: metadata.description,
         category: metadata.category,
-        source_category: metadata.source_category,
         version: defaults.version,
         digest,
         signed_manifest: None,
@@ -78,7 +76,6 @@ pub(super) fn build_registry_skill_version(
         package_digest,
         paid_listing,
         runner_names: metadata.runner_names,
-        source_type: metadata.source_type,
         trust_tier: defaults.trust_tier,
         maturity: initial_registry_maturity(),
         catalog_kind: Some(metadata.catalog_kind),
@@ -87,10 +84,6 @@ pub(super) fn build_registry_skill_version(
         source_metadata: defaults.source_metadata,
         attestations: defaults.attestations,
         required_scopes: metadata.required_scopes,
-        runtime: metadata.runtime,
-        auth: metadata.auth,
-        risk: metadata.risk,
-        runx: metadata.runx,
         tags: metadata.tags,
         harness_cases: metadata.harness_cases,
         publisher: defaults.publisher,
@@ -304,12 +297,12 @@ pub(super) fn normalize_registry_skill_version(
         payload.profile_document.as_deref(),
         &package_files,
     )?;
-    let category = payload
-        .category
-        .or_else(|| package.skill.runx_category.clone());
-    let source_category = payload
-        .source_category
-        .or_else(|| package.skill.category.clone());
+    let category = payload.category.or_else(|| {
+        package
+            .root_manifest()
+            .and_then(|manifest| manifest.catalog.as_ref())
+            .and_then(|catalog| catalog.category.clone())
+    });
     let skill_id = required_string(payload.skill_id, "registry_version.skill_id")?;
     let version = required_string(payload.version, "registry_version.version")?;
     let digest = required_string(payload.digest, "registry_version.digest")?;
@@ -345,7 +338,6 @@ pub(super) fn normalize_registry_skill_version(
         name: required_string(payload.name, "registry_version.name")?,
         description: payload.description,
         category,
-        source_category,
         version,
         digest,
         signed_manifest: payload.signed_manifest,
@@ -356,7 +348,6 @@ pub(super) fn normalize_registry_skill_version(
         package_digest,
         paid_listing,
         runner_names: payload.runner_names.unwrap_or_default(),
-        source_type: required_string(payload.source_type, "registry_version.source_type")?,
         trust_tier: governance.trust_tier,
         // Preserved through re-ingest; defaults to the Alpha floor when absent.
         maturity: payload.maturity.unwrap_or_default(),
@@ -366,10 +357,6 @@ pub(super) fn normalize_registry_skill_version(
         source_metadata: governance.source_metadata,
         attestations: governance.attestations,
         required_scopes: payload.required_scopes.unwrap_or_default(),
-        runtime: payload.runtime,
-        auth: payload.auth,
-        risk: payload.risk,
-        runx: payload.runx,
         tags: payload.tags.unwrap_or_default(),
         harness_cases: payload.harness_cases.unwrap_or_default(),
         publisher: governance.publisher,
@@ -468,6 +455,10 @@ pub(super) fn normalize_registry_catalog(
         completion: None,
         requires_adapter: None,
         approval: None,
+        category: None,
+        tags: Vec::new(),
+        owner: None,
+        links: std::collections::BTreeMap::new(),
     }
 }
 
@@ -478,7 +469,6 @@ pub(super) struct RegistrySkillVersionPayload {
     name: Option<String>,
     description: Option<String>,
     category: Option<String>,
-    source_category: Option<String>,
     version: Option<String>,
     digest: Option<String>,
     signed_manifest: Option<super::super::types::RegistrySignedManifest>,
@@ -489,7 +479,6 @@ pub(super) struct RegistrySkillVersionPayload {
     package_digest: Option<String>,
     paid_listing: Option<PaidSkillListing>,
     runner_names: Option<Vec<String>>,
-    source_type: Option<String>,
     trust_tier: Option<TrustTier>,
     maturity: Option<MaturityTier>,
     catalog_kind: Option<String>,
@@ -498,10 +487,6 @@ pub(super) struct RegistrySkillVersionPayload {
     source_metadata: Option<RegistrySourceMetadata>,
     attestations: Option<Vec<RegistryAttestation>>,
     required_scopes: Option<Vec<String>>,
-    runtime: Option<JsonValue>,
-    auth: Option<JsonValue>,
-    risk: Option<JsonValue>,
-    runx: Option<JsonObject>,
     tags: Option<Vec<String>>,
     harness_cases: Option<Vec<super::super::RegistryHarnessCaseMetadata>>,
     publisher: Option<RegistryPublisher>,

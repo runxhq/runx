@@ -21,7 +21,7 @@ inputs:
   operator_context: Live delivery requires explicit operator approval.
 caller:
   answers:
-    agent_task.send-as.output:
+    agent.send-as.output:
       send_plan:
         decision: ready
         action_family: send-as
@@ -63,21 +63,22 @@ expect:
   output:
     subset:
       send_plan:
-        decision: ready
-        action_family: send-as
-        audience:
-          type: list
-          ref: newsletter-subscribers
-          requires_reconfirmation: false
-        content:
-          digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-        gates:
-          preflight_required: true
-          human_approval_required: true
-          approval_ref: approval:pending
-        blockers: []
-        success_checkpoint:
-          milestone: send_ready_for_approval
+        data:
+          decision: ready
+          action_family: send-as
+          audience:
+            type: list
+            ref: newsletter-subscribers
+            requires_reconfirmation: false
+          content:
+            digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+          gates:
+            preflight_required: true
+            human_approval_required: true
+            approval_ref: approval:pending
+          blockers: []
+          success_checkpoint:
+            milestone: send_ready_for_approval
 metadata:
   public_skill: send-as
   source_case: campaign-send-plan-ready

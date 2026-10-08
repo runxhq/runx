@@ -1,6 +1,6 @@
 #![cfg(feature = "mcp")]
 
-#[cfg(all(feature = "mcp", feature = "cli-tool"))]
+#[cfg(all(feature = "mcp", feature = "process-tool"))]
 use std::fs;
 use std::io::Cursor;
 #[cfg(feature = "mcp")]
@@ -177,7 +177,7 @@ fn mcp_server_handles_many_calls_in_one_streaming_session() -> Result<(), Box<dy
 }
 
 #[test]
-#[cfg(all(feature = "mcp", feature = "cli-tool"))]
+#[cfg(all(feature = "mcp", feature = "process-tool"))]
 fn mcp_server_concurrent_call_completes_while_slow_skill_runs()
 -> Result<(), Box<dyn std::error::Error>> {
     let slow_skill = tempfile::tempdir()?;
@@ -192,18 +192,18 @@ Slow fixture.
 "#,
     )?;
     fs::write(
-        slow_skill.path().join("X.yaml"),
+        slow_skill.path().join("run.yaml"),
         r#"skill: slow-cli
 version: "0.1.0"
 runners:
   default:
     default: true
-    type: cli-tool
-    command: sh
-    args:
-      - ./run.sh
-    timeout_seconds: 5
     inputs: {}
+    steps:
+      - id: default
+        tool: { command: sh, args: [./run.sh], timeout_seconds: 5 }
+        outputs:
+          slow: boolean
 "#,
     )?;
     fs::write(
@@ -777,6 +777,14 @@ fn mcp_server_execution_options(
     env.insert(
         "RUNX_CWD".to_owned(),
         repo_root()?.to_string_lossy().into_owned(),
+    );
+    // The server's runs and effect custody belong to this test, not to the
+    // repository's own `.runx`.
+    env.insert(
+        "RUNX_PROJECT_DIR".to_owned(),
+        crate::support::test_project_dir("mcp-server")?
+            .to_string_lossy()
+            .into_owned(),
     );
     env.extend(crate::support::test_signing_env());
     Ok(McpServerExecutionOptions {

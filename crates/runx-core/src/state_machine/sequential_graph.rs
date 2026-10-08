@@ -1,12 +1,9 @@
-mod fanout_group;
-mod fanout_sync;
 mod index;
 mod planning;
 mod state;
 mod step_readiness;
 mod transition;
 
-pub use fanout_sync::evaluate_sequential_fanout_sync;
 pub use index::{SequentialGraphStepIndex, create_sequential_graph_step_index};
 pub use planning::{
     plan_sequential_graph_transition, plan_sequential_graph_transition_indexed,

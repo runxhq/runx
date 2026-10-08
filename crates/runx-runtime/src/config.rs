@@ -1,5 +1,5 @@
 // Module rationale: local config, encrypted local key
-// storage, managed-agent overlay, and profile resolution are one parity slice.
+// storage, managed-agent overlay, and profile resolution are one unit.
 use std::collections::BTreeMap;
 use std::fs;
 use std::io;
@@ -696,7 +696,6 @@ fn random_config_secret_bytes() -> Result<[u8; 32], ConfigError> {
 pub fn resolve_runx_workspace_base(env: &BTreeMap<String, String>, cwd: &Path) -> PathBuf {
     env.get("RUNX_CWD")
         .map(|path| resolve_base_path(path, cwd))
-        .or_else(|| env.get("INIT_CWD").map(|path| resolve_base_path(path, cwd)))
         .or_else(|| find_runx_workspace_root(&admitted_cwd(cwd)))
         .unwrap_or_else(|| admitted_cwd(cwd))
 }

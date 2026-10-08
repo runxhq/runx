@@ -1,0 +1,404 @@
+skill: organic-growth
+version: "0.1.3"
+
+catalog:
+  kind: graph
+  audience: public
+  visibility: public
+  role: canonical
+  execution: plan
+  completion: runtime_receipt
+  requires_adapter: false
+  approval: none
+
+harness:
+  cases:
+    - name: produces-cross-source-priorities-with-bound-evidence
+      operator_journeys:
+        - mode: standalone
+          confusors: [google-search-console, google-analytics]
+          request: Prioritize SEO and answer-engine growth work from this bounded search, analytics, site, and market evidence.
+          expected_outcome: Return evidence-bound priorities, actions, and a measurement plan without guaranteed-ranking claims.
+        - mode: composed
+          request: Continue growth planning from these completed Search Console, analytics, and site evidence packets.
+          expected_outcome: Reuse normalized source packets without rerunning analytics or search acquisition.
+          prior_evidence:
+            - The bounded search, analytics, site, and market packets supplied in the fixture.
+          must_not_repeat:
+            - Do not query Google or crawl the site again.
+            - Do not renormalize evidence already supplied by connector skills.
+      inputs:
+        objective: Improve qualified organic acquisition for the Runx guides.
+        site_url: https://example.com/
+        search_evidence:
+          schema: runx.search.performance.evidence.v1
+          decision: ready
+          provider: google-search-console
+          provider_status: readback_verified
+          source_status: provider_readback
+          property: https://example.com/
+          request:
+            start_date: "2026-06-01"
+            end_date: "2026-06-30"
+            dimensions: [page]
+            search_type: web
+            data_state: final
+          rows:
+            - dimensions: { page: https://example.com/guides/runx }
+              metrics: { clicks: 42, impressions: 600, ctr: 0.07, position: 4.2 }
+          row_count: 1
+          pagination: { complete: true, returned_rows: 1 }
+          freshness: { complete: true, data_state: final }
+          caveats: []
+          validation: { status: pass, findings: [] }
+          evidence_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+        analytics_evidence:
+          schema: runx.analytics.report.evidence.v1
+          decision: ready
+          provider: google-analytics
+          provider_status: readback_verified
+          source_status: provider_readback
+          property: properties/123456
+          report_type: standard
+          request:
+            date_ranges:
+              - { start_date: "2026-06-01", end_date: "2026-06-30" }
+            dimensions: [landingPagePlusQueryString, sessionDefaultChannelGroup]
+            metrics: [sessions, keyEvents]
+          rows:
+            - dimensions:
+                landingPagePlusQueryString: /guides/runx
+                sessionDefaultChannelGroup: Organic Search
+              metrics: { sessions: 120, keyEvents: 9 }
+          row_count: 1
+          pagination: { complete: true, returned_rows: 1 }
+          measurement: { time_zone: Australia/Sydney }
+          privacy: { subject_to_thresholding: false, data_loss_from_other_row: false }
+          caveats: []
+          validation: { status: pass, findings: [] }
+          evidence_digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+        site_evidence:
+          - source_ref: https://example.com/guides/runx
+            kind: first_party_page
+            content_digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+            summary: The guide explains installation but has no direct comparison table, author date, or linked implementation evidence.
+        business_context:
+          primary_outcome: qualified product evaluation
+          audience: engineering operators
+      caller:
+        answers:
+          agent.organic-growth-analyze.output:
+            growth_candidate:
+              decision: ready
+              objective: Improve qualified organic acquisition for the Runx guides.
+              site_url: https://example.com/
+              executive_summary: The guide already has search visibility and measured organic outcomes; improve decision usefulness before expanding topic coverage.
+              observations:
+                - statement: The guide page received measurable search visibility and clicks in the period.
+                  epistemic_status: observed
+                  source_digests: [sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa]
+                - statement: The organic landing-page slice recorded sessions and key events in the same date window.
+                  epistemic_status: observed
+                  source_digests: [sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb]
+              hypotheses:
+                - statement: Decision-oriented evidence may improve usefulness for evaluators.
+                  epistemic_status: hypothesized
+                  source_digests:
+                    - sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+                    - sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+              opportunities:
+                - title: Strengthen the existing guide before creating another page.
+                  rationale: The page already attracts discovery and the supplied page evidence identifies a decision-support gap.
+                  source_digests:
+                    - sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+                    - sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+              recommended_actions:
+                - id: guide-decision-evidence
+                  title: Add a concise comparison and implementation-evidence section.
+                  rationale: Address the observed decision-support gap on a page with existing visibility.
+                  priority: high
+                  confidence: medium
+                  effort: medium
+                  owner_type: content_and_product
+                  expected_signal: Better qualified engagement and key-event rate without loss of search visibility.
+                  verification: Compare the same page, channel, and date-length windows after recrawl and sufficient traffic.
+                  stop_condition: Stop if the section cannot be supported by first-party evidence.
+                  source_digests:
+                    - sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+                    - sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+                    - sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+              geo_review:
+                assessment: Evidence clarity and stable first-party support are the useful answer-engine improvements here; citation inclusion is not guaranteed.
+                source_digests: [sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc]
+              measurement_plan:
+                baseline: Preserve the supplied June search and analytics packet digests.
+                leading_signals: Search visibility, CTR, and qualified landing-page engagement on the same page.
+                business_outcomes: Key-event rate for qualified product evaluation.
+                comparison_window: Use equal-length complete periods after recrawl and enough traffic.
+                reconsideration_trigger: Reconsider if visibility or qualified outcomes fall outside normal variation.
+              claims:
+                - claim: The guide has existing search visibility and measured organic outcomes.
+                  source_digests:
+                    - sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+                    - sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+                - claim: The supplied page evidence identifies missing decision-support elements.
+                  source_digests: [sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc]
+              risks: [Attribution will be weak if unrelated page changes ship in the same window.]
+              missing_evidence: [Query-level intent and technical crawl evidence would sharpen the next iteration.]
+              external_status: not_executed
+      expect:
+        status: sealed
+        steps: [admit, analyze, finalize]
+        step_outputs:
+          finalize:
+            subset:
+              organic_growth_packet:
+                data:
+                  decision: ready
+                  objective: Improve qualified organic acquisition for the Runx guides.
+                  site_url: https://example.com/
+                  external_status: not_executed
+                  validation: { status: pass }
+                  source_evidence:
+                    - { kind: search_performance, source_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa }
+                    - { kind: analytics_report, source_digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb }
+                    - { kind: first_party_page, source_digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc }
+        receipt: { schema: runx.receipt.v1 }
+
+    - name: rejects-invented-recommendation-evidence
+      inputs:
+        objective: Improve the guide.
+        site_url: https://example.com/
+        site_evidence:
+          - source_ref: https://example.com/guides/runx
+            kind: first_party_page
+            content_digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+            summary: The page contains an installation guide.
+      caller:
+        answers:
+          agent.organic-growth-analyze.output:
+            growth_candidate:
+              decision: ready
+              objective: Improve the guide.
+              site_url: https://example.com/
+              executive_summary: Add unsupported material.
+              observations: []
+              hypotheses: []
+              opportunities: []
+              recommended_actions:
+                - id: invented
+                  title: Publish an invented benchmark.
+                  rationale: Unsupported.
+                  priority: high
+                  confidence: high
+                  effort: low
+                  expected_signal: More traffic.
+                  verification: Observe traffic.
+                  stop_condition: None.
+                  source_digests: [sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd]
+              geo_review: { assessment: "", source_digests: [] }
+              measurement_plan:
+                baseline: Current traffic.
+                leading_signals: Traffic.
+                business_outcomes: Revenue.
+                comparison_window: Later.
+                reconsideration_trigger: No change.
+              claims:
+                - claim: An invented benchmark will improve traffic.
+                  source_digests: [sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd]
+              risks: []
+              missing_evidence: []
+              external_status: not_executed
+      expect:
+        status: sealed
+        steps: [admit, analyze, finalize]
+        step_outputs:
+          finalize:
+            subset:
+              organic_growth_packet:
+                data:
+                  decision: needs_more_evidence
+                  validation: { status: fail }
+                  external_status: not_executed
+        receipt: { schema: runx.receipt.v1 }
+
+    - name: stops-without-evidence
+      inputs:
+        objective: Maximize organic growth.
+        site_url: https://example.com/
+      expect:
+        status: sealed
+        steps: [admit, reject]
+        step_outputs:
+          reject:
+            subset:
+              organic_growth_packet:
+                data:
+                  decision: needs_more_evidence
+                  objective: Maximize organic growth.
+                  site_url: https://example.com/
+                  external_status: not_executed
+                  validation: { status: fail }
+        receipt: { schema: runx.receipt.v1 }
+
+runners:
+  analyze:
+    default: true
+    inputs:
+      objective:
+        type: string
+        required: true
+        description: Bounded organic-discovery outcome or decision.
+      site_url:
+        type: string
+        required: true
+        description: Canonical HTTPS site root.
+      search_evidence:
+        type: json
+        required: false
+        description: Sealed search-performance evidence packet.
+      analytics_evidence:
+        type: json
+        required: false
+        description: Sealed analytics report evidence packet.
+      site_evidence:
+        type: json
+        required: false
+        description: Bounded site or market evidence records with SHA-256 digests.
+      business_context:
+        type: json
+        required: false
+        description: Business outcomes, audiences, offers, and known constraints; context is not source evidence.
+      constraints:
+        type: json
+        required: false
+        description: Time, risk, brand, legal, technical, and resource constraints.
+    result_from: [reject, finalize]
+    steps:
+      - id: admit
+        inputs:
+          objective: $input.objective
+          site_url: $input.site_url
+          search_evidence: $input.search_evidence
+          analytics_evidence: $input.analytics_evidence
+          site_evidence: $input.site_evidence
+          business_context: $input.business_context
+          constraints: $input.constraints
+        tool: { module: organic-growth.mjs, export: admitGrowthEvidence }
+        outputs:
+          growth_context: object
+        artifacts:
+          named_emits: { growth_context: growth_context }
+
+      - id: reject
+        when:
+          field: admit.growth_context.data.decision
+          equals: needs_more_evidence
+        tool: evidence.verify_artifact
+        scopes:
+          - runx:evidence:read
+        inputs:
+          artifact_name: organic_growth_packet
+          candidate: { decision: ready }
+          require_claim_bindings: true
+          fallback_artifact:
+            decision: needs_more_evidence
+            objective: ""
+            site_url: ""
+            executive_summary: ""
+            observations: []
+            hypotheses: []
+            opportunities: []
+            recommended_actions: []
+            geo_review: {}
+            measurement_plan: {}
+            claims: []
+            risks: []
+            missing_evidence: []
+            source_evidence: []
+            analysis_scope: {}
+            input_caveats: []
+            external_status: not_executed
+          fallback_bindings:
+            - { target_path: objective, source_path: objective }
+            - { target_path: site_url, source_path: site_url }
+            - { target_path: missing_evidence, source_path: blockers }
+            - { target_path: source_evidence, source_path: sources }
+            - { target_path: analysis_scope, source_path: analysis_scope }
+            - { target_path: input_caveats, source_path: caveats }
+        context:
+          source_digests: admit.growth_context.data.source_digests
+          source_records: admit.growth_context.data.source_records
+          fallback_source: admit.growth_context.data
+        artifacts:
+          named_emits: { organic_growth_packet: verified_artifact }
+
+      - id: analyze
+        when:
+          field: admit.growth_context.data.decision
+          equals: ready
+        agent: { role: growth, task: organic-growth-analyze }
+        outputs:
+          growth_candidate: object
+        context:
+          growth_context: admit.growth_context.data
+        artifacts:
+          named_emits: { growth_candidate: growth_candidate }
+
+      - id: finalize
+        when:
+          field: admit.growth_context.data.decision
+          equals: ready
+        tool: evidence.verify_artifact
+        scopes:
+          - runx:evidence:read
+        inputs:
+          artifact_name: organic_growth_packet
+          required_paths:
+            - executive_summary
+            - recommended_actions
+            - measurement_plan
+            - claims
+          required_value_bindings:
+            - { candidate_path: objective, source_path: objective }
+            - { candidate_path: site_url, source_path: site_url }
+          authoritative_bindings:
+            - { target_path: source_evidence, source_path: sources }
+            - { target_path: analysis_scope, source_path: analysis_scope }
+            - { target_path: input_caveats, source_path: caveats }
+          fallback_artifact:
+            decision: needs_more_evidence
+            objective: ""
+            site_url: ""
+            executive_summary: ""
+            observations: []
+            hypotheses: []
+            opportunities: []
+            recommended_actions: []
+            geo_review: {}
+            measurement_plan: {}
+            claims: []
+            risks: []
+            missing_evidence:
+              - Evidence bindings or required analysis fields did not validate.
+            source_evidence: []
+            analysis_scope: {}
+            input_caveats: []
+            external_status: not_executed
+          fallback_bindings:
+            - { target_path: objective, source_path: objective }
+            - { target_path: site_url, source_path: site_url }
+            - { target_path: source_evidence, source_path: sources }
+            - { target_path: analysis_scope, source_path: analysis_scope }
+            - { target_path: input_caveats, source_path: caveats }
+        context:
+          candidate: analyze.growth_candidate.data
+          claim_bindings: analyze.growth_candidate.data.claims
+          reference_bindings: analyze.growth_candidate.data.recommended_actions
+          source_digests: admit.growth_context.data.source_digests
+          source_records: admit.growth_context.data.source_records
+          identity_source: admit.growth_context.data
+          authoritative_source: admit.growth_context.data
+          fallback_source: admit.growth_context.data
+        artifacts:
+          named_emits: { organic_growth_packet: verified_artifact }

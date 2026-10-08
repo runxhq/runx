@@ -1,11 +1,10 @@
 use std::fs;
-use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 #[test]
 fn policy_inspect_json_redacts_raw_locators() -> Result<(), Box<dyn std::error::Error>> {
-    let output = runx_command()
+    let output = crate::support::repo_runx_command()
         .args([
             "policy",
             "inspect",
@@ -27,7 +26,7 @@ fn policy_inspect_json_redacts_raw_locators() -> Result<(), Box<dyn std::error::
 
 #[test]
 fn policy_lint_json_reports_semantic_failure() -> Result<(), Box<dyn std::error::Error>> {
-    let output = runx_command()
+    let output = crate::support::repo_runx_command()
         .args([
             "policy",
             "lint",
@@ -47,7 +46,7 @@ fn policy_lint_json_reports_semantic_failure() -> Result<(), Box<dyn std::error:
 
 #[test]
 fn policy_inspect_human_output_is_stable() -> Result<(), Box<dyn std::error::Error>> {
-    let output = runx_command()
+    let output = crate::support::repo_runx_command()
         .args([
             "policy",
             "inspect",
@@ -69,7 +68,7 @@ fn policy_inspect_human_output_is_stable() -> Result<(), Box<dyn std::error::Err
 
 #[test]
 fn policy_missing_path_exits_usage() -> Result<(), Box<dyn std::error::Error>> {
-    let output = runx_command()
+    let output = crate::support::repo_runx_command()
         .args(["policy", "inspect", "--json"])
         .output()?;
 
@@ -86,7 +85,7 @@ fn policy_missing_path_exits_usage() -> Result<(), Box<dyn std::error::Error>> {
 
 #[test]
 fn policy_json_exposes_redacted_readback_surface() -> Result<(), Box<dyn std::error::Error>> {
-    let output = runx_command()
+    let output = crate::support::repo_runx_command()
         .args([
             "policy",
             "inspect",
@@ -98,7 +97,7 @@ fn policy_json_exposes_redacted_readback_surface() -> Result<(), Box<dyn std::er
     let actual = String::from_utf8(output.stdout)?;
     assert_json_subset(
         &actual,
-        repo_root()?.join("fixtures/operational-policy/provider-like.json"),
+        crate::support::repo_root()?.join("fixtures/operational-policy/provider-like.json"),
     )?;
     Ok(())
 }
@@ -107,7 +106,7 @@ fn policy_json_exposes_redacted_readback_surface() -> Result<(), Box<dyn std::er
 fn policy_rejects_invalid_created_at_contract_value() -> Result<(), Box<dyn std::error::Error>> {
     let policy_path = write_invalid_created_at_policy()?;
     let policy_arg = policy_path.to_string_lossy().into_owned();
-    let output = runx_command()
+    let output = crate::support::repo_runx_command()
         .args(["policy", "inspect", policy_arg.as_str(), "--json"])
         .output()?;
 
@@ -117,26 +116,11 @@ fn policy_rejects_invalid_created_at_contract_value() -> Result<(), Box<dyn std:
     Ok(())
 }
 
-fn runx_command() -> Command {
-    let mut command = Command::new(env!("CARGO_BIN_EXE_runx"));
-    command.env("NO_COLOR", "1");
-    if let Ok(root) = repo_root() {
-        command.env("RUNX_CWD", root);
-    }
-    command
-}
-
-fn repo_root() -> Result<PathBuf, Box<dyn std::error::Error>> {
-    Ok(Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../..")
-        .canonicalize()?)
-}
-
 fn assert_json_subset(
     actual: &str,
     fixture_path: PathBuf,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let repo = repo_root()?;
+    let repo = crate::support::repo_root()?;
     let display_path = fixture_path
         .strip_prefix(&repo)
         .unwrap_or(&fixture_path)
@@ -159,8 +143,9 @@ fn write_invalid_created_at_policy() -> Result<PathBuf, Box<dyn std::error::Erro
     ));
     fs::create_dir_all(&temp_dir)?;
     let path = temp_dir.join("invalid-created-at.json");
-    let raw =
-        fs::read_to_string(repo_root()?.join("fixtures/operational-policy/provider-like.json"))?;
+    let raw = fs::read_to_string(
+        crate::support::repo_root()?.join("fixtures/operational-policy/provider-like.json"),
+    )?;
     fs::write(
         &path,
         raw.replace(

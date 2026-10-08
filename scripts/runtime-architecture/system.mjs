@@ -60,95 +60,6 @@ export function checkCrateDependencyDirection(findings) {
   }
 }
 
-export function checkDataOperationOwnership(findings) {
-  for (const relPath of [
-    "skills/data-store/tools/data/local",
-    "skills/data-store/tools/data/sqlite",
-  ]) {
-    if (existsSync(path.join(workspaceRoot, relPath))) {
-      findings.push(`${relPath} is superseded by the native event-store implementation`);
-    }
-  }
-
-  const nativePath = path.join(
-    workspaceRoot,
-    "crates/runx-runtime/src/tool_catalogs/native/event_store.rs",
-  );
-  const nativeSource = existsSync(nativePath) ? readFileSync(nativePath, "utf8") : "";
-  for (const toolRef of [
-    "data.append_event",
-    "data.read_events",
-    "data.read_projection",
-    "data.list_stream_heads",
-  ]) {
-    if (!nativeSource.includes(`\"${toolRef}\"`)) {
-      findings.push(`${relative(nativePath)} must own exact native operation ${toolRef}`);
-    }
-  }
-  const inputPath = path.join(
-    workspaceRoot,
-    "crates/runx-runtime/src/tool_catalogs/native/event_store/input.rs",
-  );
-  const inputSource = existsSync(inputPath) ? readFileSync(inputPath, "utf8") : "";
-  if (/data_source_binding/u.test(inputSource)) {
-    findings.push(`${relative(inputPath)} exposes runtime-owned data binding as a public capability input`);
-  }
-  const dispatchPath = path.join(
-    workspaceRoot,
-    "crates/runx-runtime/src/tool_catalogs/dispatch.rs",
-  );
-  const dispatchSource = existsSync(dispatchPath) ? readFileSync(dispatchPath, "utf8") : "";
-  for (const token of ["prepare_data_operation", "validate_result", "InvocationContract::DataAdapter"]) {
-    if (!dispatchSource.includes(token)) {
-      findings.push(`${relative(dispatchPath)} must enforce the native data contract through ${token}`);
-    }
-  }
-  const redisManifestPath = path.join(
-    workspaceRoot,
-    "skills/data-store/tools/data/redis/manifest.json",
-  );
-  if (existsSync(redisManifestPath)) {
-    const redisManifest = JSON.parse(readFileSync(redisManifestPath, "utf8"));
-    const inputNames = Object.keys(redisManifest.inputs ?? {}).sort();
-    if (JSON.stringify(inputNames) !== JSON.stringify(["data_source_binding", "operation"])) {
-      findings.push(`${relative(redisManifestPath)} must declare only runtime-owned adapter routing inputs`);
-    }
-  }
-
-  const forbiddenTokens = [
-    ["data.source", /\bdata\.source\b/u],
-    ["data.local", /\bdata\.local\b/u],
-    ["store_id", /\bstore_id\b/u],
-  ];
-  for (const root of ["skills", "docs", "tests", "crates/runx-runtime/src"]) {
-    const absoluteRoot = path.join(workspaceRoot, root);
-    for (const filePath of existsSync(absoluteRoot) ? walk(absoluteRoot) : []) {
-      if (!/\.(?:md|ya?ml|json|rs|js|mjs|ts)$/u.test(filePath)) continue;
-      if (isArchitectureCheckFile(filePath)) continue;
-      const source = readFileSync(filePath, "utf8");
-      for (const [token, pattern] of forbiddenTokens) {
-        if (pattern.test(source)) {
-          findings.push(`${relative(filePath)} retains retired data-operation surface ${token}`);
-        }
-      }
-    }
-  }
-
-  for (const relPath of [
-    "crates/runx-runtime/src/tool_catalogs/native/event_store",
-    "skills/data-store/tools/data/redis",
-  ]) {
-    const absoluteRoot = path.join(workspaceRoot, relPath);
-    for (const filePath of existsSync(absoluteRoot) ? walk(absoluteRoot) : []) {
-      if (!/\.(?:rs|mjs)$/u.test(filePath)) continue;
-      const source = readFileSync(filePath, "utf8");
-      if (/\bevent_digests\s*:/u.test(source) || /["']event_digests["']\.to_owned\(\)\s*,/u.test(source)) {
-        findings.push(`${relative(filePath)} retains an unbounded full-history projection`);
-      }
-    }
-  }
-}
-
 export function checkCanonicalToolManifestOwnership(findings) {
   const manifestPaths = [];
   const toolRoot = path.join(workspaceRoot, "tools");
@@ -234,35 +145,6 @@ export function checkManagedAgentDefault(findings) {
 }
 
 export function checkTypedCapabilityPlane(findings) {
-  const legacyCatalog = path.join(
-    workspaceRoot,
-    "crates/runx-runtime/src/tool_catalogs/native.rs",
-  );
-  if (existsSync(legacyCatalog)) {
-    findings.push(`${relative(legacyCatalog)} must be replaced by module-owned capabilities`);
-  }
-
-  const roots = [
-    "crates/runx-runtime/src/tool_catalogs/native",
-    "crates/runx-runtime/src/effects",
-  ];
-  const forbidden = [
-    /\bstruct\s+NativeInput\b/u,
-    /\bstruct\s+NativeTool\b/u,
-    /\bEffectToolContract\b/u,
-    /\bEffectToolInput\b/u,
-  ];
-  for (const root of roots) {
-    for (const filePath of rustFiles(root)) {
-      const source = readFileSync(filePath, "utf8");
-      for (const pattern of forbidden) {
-        if (pattern.test(source)) {
-          findings.push(`${relative(filePath)} retains parallel capability metadata ${pattern}`);
-        }
-      }
-    }
-  }
-
   const capabilityPath = path.join(
     workspaceRoot,
     "crates/runx-runtime/src/capability.rs",

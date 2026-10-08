@@ -9,6 +9,11 @@ export default defineConfig({
   test: {
     include: [
       "packages/**/*.test.ts",
+      "tests/openai-adapter.test.ts",
+      "tests/anthropic-adapter.test.ts",
+      "tests/vercel-ai-adapter.test.ts",
+      "tests/langchain-adapter.test.ts",
+      "tests/crewai-adapter.test.ts",
       "tests/kernel-parity-fixtures.test.ts",
       "tests/cli-feature-parity.test.ts",
       "tests/least-privilege-scope.test.ts",

@@ -164,7 +164,6 @@ export type ReceiptLineageContract = DeepReadonly<{
   parent?: ReferenceContract;
   previous?: ReferenceContract;
   children: readonly ReferenceContract[];
-  sync: readonly UnknownRecord[];
   resume_ref?: ReferenceContract;
 }>;
 

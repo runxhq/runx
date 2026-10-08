@@ -3,7 +3,7 @@ lane: repo-integration
 target:
   kind: skill
   ref: workspace-read
-repo:
+workspace:
   files:
     README.md: |
       hello from repo integration

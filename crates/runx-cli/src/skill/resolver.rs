@@ -273,7 +273,6 @@ fn materialize_trusted_registry_skill(
                 install.destination.display()
             )
         })?;
-    restore_runner_manifest_from_profile_state(&runnable_path)?;
     if cache_root == CacheRoot::Official {
         sync_packaged_official_skill_assets(&runnable_path, skill_id)?;
     }
@@ -423,64 +422,6 @@ fn official_registry_override(
         .to_owned()
 }
 
-fn restore_runner_manifest_from_profile_state(skill_dir: &Path) -> Result<(), String> {
-    let manifest_path = skill_dir.join("X.yaml");
-    if manifest_path.exists() {
-        return Ok(());
-    }
-    let state_path = skill_dir.join(".runx").join("profile.json");
-    let state_raw = fs::read_to_string(&state_path).map_err(|error| {
-        format!(
-            "failed to read profile state {}: {error}",
-            state_path.display()
-        )
-    })?;
-    let state = serde_json::from_str::<runx_contracts::JsonValue>(&state_raw).map_err(|error| {
-        format!(
-            "failed to parse profile state {}: {error}",
-            state_path.display()
-        )
-    })?;
-    let profile = state
-        .as_object()
-        .and_then(|object| object.get("profile"))
-        .and_then(|value| value.as_object())
-        .ok_or_else(|| {
-            format!(
-                "profile state {} is missing profile data",
-                state_path.display()
-            )
-        })?;
-    let document = profile
-        .get("document")
-        .and_then(|value| value.as_str())
-        .filter(|value| !value.trim().is_empty())
-        .ok_or_else(|| {
-            format!(
-                "profile state {} is missing profile document",
-                state_path.display()
-            )
-        })?;
-    let expected_digest = profile.get("digest").and_then(|value| value.as_str());
-    if let Some(expected_digest) = expected_digest {
-        let actual_digest = sha256_prefixed(document.as_bytes());
-        if !digest_matches(expected_digest, &actual_digest) {
-            return Err(format!(
-                "profile state {} digest mismatch: expected {}, received {}",
-                state_path.display(),
-                expected_digest,
-                actual_digest
-            ));
-        }
-    }
-    fs::write(&manifest_path, document).map_err(|error| {
-        format!(
-            "failed to restore runner manifest {}: {error}",
-            manifest_path.display()
-        )
-    })
-}
-
 // Function rationale: asset sync preserves packaged official-skill cache invariants in one pass.
 fn sync_packaged_official_skill_assets(
     target_skill_dir: &Path,
@@ -598,13 +539,6 @@ fn copy_dir_all(source: &Path, target: &Path) -> Result<(), String> {
     Ok(())
 }
 
-fn digest_matches(expected: &str, actual_prefixed: &str) -> bool {
-    expected == actual_prefixed
-        || actual_prefixed
-            .strip_prefix("sha256:")
-            .is_some_and(|actual_hex| expected == actual_hex)
-}
-
 fn is_bare_skill_ref(skill_ref: &Path) -> bool {
     skill_ref.components().count() == 1
 }
@@ -653,7 +587,7 @@ fn resolve_exported_skill_shim(skill_ref: &Path) -> Result<PathBuf, String> {
     } else {
         skill_ref
     };
-    if skill_dir.join("X.yaml").exists() {
+    if skill_dir.join(runx_parser::PROFILE_FILE).exists() {
         return Ok(skill_ref.to_path_buf());
     }
 
@@ -671,7 +605,7 @@ fn resolve_exported_skill_shim(skill_ref: &Path) -> Result<PathBuf, String> {
     let Some(source_path) = exported_source_path(&source) else {
         return Ok(skill_ref.to_path_buf());
     };
-    if source_path.join("X.yaml").exists() {
+    if source_path.join(runx_parser::PROFILE_FILE).exists() {
         return Ok(source_path);
     }
     Err(format!(

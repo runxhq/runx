@@ -87,7 +87,6 @@ fn search_rejects_unknown_trust_tier_with_field_path() -> Result<(), Box<dyn std
             "skill_id": "acme/echo",
             "name": "echo",
             "owner": "acme",
-            "source_type": "cli-tool",
             "profile_mode": "portable",
             "runner_names": [],
             "required_scopes": [],
@@ -414,7 +413,6 @@ fn search_skill(skill_id: &str, name: &str, version: &str) -> serde_json::Value 
         "name": name,
         "owner": skill_id.split('/').next().unwrap_or("acme"),
         "version": version,
-        "source_type": "cli-tool",
         "profile_mode": "portable",
         "runner_names": [],
         "required_scopes": [],
@@ -429,7 +427,7 @@ fn install_candidate() -> Result<InstallCandidate, Box<dyn std::error::Error>> {
     Ok(InstallCandidate {
         markdown: include_str!("../../../fixtures/registry/install/echo-SKILL.md").to_owned(),
         profile_document: Some(
-            include_str!("../../../fixtures/registry/install/echo-X.yaml").to_owned(),
+            include_str!("../../../fixtures/registry/install/echo-run.yaml").to_owned(),
         ),
         package_files: Vec::new(),
         package_digest: None,
@@ -459,7 +457,7 @@ fn skill_digest() -> String {
 }
 
 fn profile_digest() -> String {
-    sha256_prefixed(include_str!("../../../fixtures/registry/install/echo-X.yaml").as_bytes())
+    sha256_prefixed(include_str!("../../../fixtures/registry/install/echo-run.yaml").as_bytes())
 }
 
 fn trusted_manifest_keys() -> Result<Vec<TrustedRegistryManifestKey>, Box<dyn std::error::Error>> {

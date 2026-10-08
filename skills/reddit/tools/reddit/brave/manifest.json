@@ -4,7 +4,6 @@
   "version": "0.1.0",
   "description": "Read a named Reddit session through a fixed, account-bound Brave operator on macOS.",
   "source": {
-    "type": "cli-tool",
     "command": "python3",
     "args": ["./brave.py"]
   },
@@ -17,6 +16,5 @@
     "url": {"type": "string", "required": false, "description": "Exact Reddit navigation or comment permalink URL."},
     "body_file": {"type": "string", "required": false, "description": "UTF-8 file containing the exact approved body for comment readback."}
   },
-  "scopes": ["fs:write", "host:browser:read"],
-  "retry": {"max_attempts": 1}
+  "scopes": ["fs:write", "host:browser:read"]
 }

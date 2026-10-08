@@ -4,6 +4,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::OnceLock;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -49,7 +50,20 @@ fn unique_temp_suffix() -> String {
 pub fn signed_runx_command(signing_key_id: &str) -> Command {
     let mut command = Command::new(env!("CARGO_BIN_EXE_runx"));
     command.env("NO_COLOR", "1");
+    isolate_project(&mut command);
     apply_fixture_signing(&mut command, signing_key_id);
+    command
+}
+
+/// `runx` resolving the repository as its workspace, with its own project
+/// state.
+pub fn repo_runx_command() -> Command {
+    let mut command = Command::new(env!("CARGO_BIN_EXE_runx"));
+    command.env("NO_COLOR", "1");
+    if let Ok(root) = repo_root() {
+        command.env("RUNX_CWD", root);
+    }
+    isolate_project(&mut command);
     command
 }
 
@@ -61,8 +75,27 @@ pub fn isolated_runx_command(signing_key_id: &str) -> Result<Command, Box<dyn st
 
 pub fn isolated_runx_command_with_inherited_cwd(signing_key_id: &str) -> Command {
     let mut command = unsigned_runx_command_with_inherited_cwd();
+    isolate_project(&mut command);
     apply_fixture_signing(&mut command, signing_key_id);
     command
+}
+
+/// Keep a command's project state (kernel store, runs, custody) in this test
+/// process's own directory, so a command run from inside the repository
+/// never writes the repository's `.runx`. Call it after any `env_clear`.
+pub fn isolate_project(command: &mut Command) {
+    command.env("RUNX_PROJECT_DIR", test_project_dir());
+}
+
+/// nextest runs each test in its own process, so each test gets its own.
+fn test_project_dir() -> &'static Path {
+    static PROJECT: OnceLock<PathBuf> = OnceLock::new();
+    PROJECT.get_or_init(|| {
+        Path::new(env!("CARGO_TARGET_TMPDIR"))
+            .join("runx-cli-projects")
+            .join(unique_temp_suffix())
+            .join(".runx")
+    })
 }
 
 pub fn unsigned_runx_command_with_inherited_cwd() -> Command {
@@ -209,24 +242,26 @@ pub fn write_agent_task_skill(root: &Path) -> Result<PathBuf, Box<dyn std::error
     fs::create_dir_all(&skill_dir)?;
     fs::write(
         skill_dir.join("SKILL.md"),
-        "---\nname: issue-intake\n---\n# Issue Intake\n",
+        "---\nname: issue-intake\ndescription: issue-intake fixture.\n---\n# Issue Intake\n",
     )?;
     fs::write(
-        skill_dir.join("X.yaml"),
+        skill_dir.join("run.yaml"),
         r#"
 skill: issue-intake
 runners:
   intake:
     default: true
-    type: agent-task
-    agent: builder
-    task: issue-intake
-    outputs:
-      intake_report: object
     inputs:
       thread_title:
         type: string
         required: false
+    steps:
+      - id: intake
+        agent: { role: builder, task: issue-intake }
+        inputs:
+          thread_title: $input.thread_title
+        outputs:
+          intake_report: object
 "#,
     )?;
     Ok(skill_dir)
@@ -253,7 +288,7 @@ fn governed_harness_document(
             body_digest: None,
             receipt_id: None,
             receipt_digest: None,
-            harness_id: None,
+            subject_ref: None,
             state: None,
             disposition: None,
             reason_code: None,

@@ -173,7 +173,7 @@ explanatory prose. Skill-chain facts are owned by the typed execution closure
 emitted by native `runx skill inspect` and surfaced in operator preflight.
 Manuals should still explain meaningful upstream and downstream relationships
 in natural language, but they do not duplicate that closure in a machine-parsed
-prose registry. The audit does not parse `X.yaml` through a parallel JavaScript
+prose registry. The audit does not parse `run.yaml` through a parallel JavaScript
 model. Private nested stages remain visible in native execution-closure
 evidence.
 
@@ -199,7 +199,7 @@ operator.
 
 ## Execution profile discipline
 
-`X.yaml` owns executable capability and governance:
+`run.yaml` owns executable capability and governance:
 
 - runner-owned nested inputs declare their JSON Schema fragment inline;
 - an input that is exactly one canonical packet declares `type: json` and
@@ -232,10 +232,10 @@ operator.
 - side-effect posture and truthful completion semantics;
 - artifact packets and focused harness declarations.
 
-Typed outputs and packets belong to their producing runner or graph step. A
-graph runner is a composition boundary, not a second producer: it must end in
-an explicit package/finalize step when the workflow needs one reusable result,
-and that terminal producer owns the output and packet contract.
+Typed outputs and packets belong to the step that produces them. A runner is a
+composition boundary, not a second producer: it must end in an explicit
+package/finalize step when the workflow needs one reusable result, and that
+terminal producer owns the output and packet contract.
 
 ## Packet versions and native catalog drift
 
@@ -243,20 +243,9 @@ Public packet ids use lowercase
 `<publisher>.<name>[.<name>...].vN`, where `N` is a positive integer without
 leading zeroes. Runx-owned packets use the `runx` publisher namespace; product
 and extension owners retain their own namespace. Runtime capability admission
-enforces this shape; `.v1` is not an informal label. Before the first stable
-public catalog release, internal V1
-contracts remain greenfield and change in place, with every intentional native
-catalog change visible in the generated capability snapshot. Do not add V2,
-aliases, or compatibility readers during that phase.
-
-After a capability is present in a stable public catalog release, an
-incompatible packet change mints a new packet id and the superseded contract
-receives at least 180 days of announced deprecation before removal. A
-deprecation retains only the narrow public projection needed for migration; it
-must not fork domain state, payment state, provider effects, or business logic.
-Removal before the window expires requires a security or legal emergency with
-an explicit operator record. Compatible documentation changes do not mint a
-packet version; wire-shape or semantic reinterpretation does.
+enforces this shape; `.v1` is not an informal label. Contracts change in
+place, with every intentional native catalog change visible in the generated
+capability snapshot. Do not add V2, aliases, or compatibility readers.
 
 It does not own static model instructions. Keep those exclusively in the
 owning `SKILL.md`; the runtime supplies the current task and contracts
@@ -269,7 +258,7 @@ the execution profile.
 
 Standalone fixtures should live under `fixtures/` and exercise public runners.
 Inline cases remain acceptable where the runtime package already uses them as a
-focused evaluator or graph contract, but they should not turn `X.yaml` into a
+focused evaluator or graph contract, but they should not turn `run.yaml` into a
 large scenario archive.
 
 ## Architecture admission
@@ -305,15 +294,16 @@ Skill authoring must decide ownership before it writes files:
 - Add package executable code only for irreducible domain computation. Its
   admission names the domain boundary, why the graph cannot express it, and
   which existing owners and tools were inspected.
-- Express irreducible JavaScript through `source.type: javascript`: a cohesive
+- Express irreducible JavaScript through a worker step, `tool: { module: ... }`: a cohesive
   package module exposes focused functions from resolved inputs and frozen
   declared non-secret environment to JSON values, while Runx owns process
   input, output, errors, wall limits, and worker isolation. Do not simulate named
   operations with public inputs or create one process wrapper per graph step.
   The runtime must enforce a read-only, no-network worker with no workspace,
-  writable paths, ambient OS environment, or injected credentials. Reserve
-  `cli-tool` for a genuine executable or protocol boundary.
-- Local CLI tools, process MCP servers, and process adapters are trusted host
+  writable paths, ambient OS environment, or injected credentials. Reserve a
+  process tool, `tool: { command: ... }`, for a genuine executable or protocol
+  boundary.
+- Process tools and process MCP servers are trusted host
   code. Runx supervises exact invocation and delivered authority but does not
   claim portable filesystem, network, or syscall confinement. Use this lane
   only for irreducible protocol work; never generate sandbox declarations,
@@ -351,8 +341,8 @@ entry path and is reported separately in catalog reviews.
 
 Registry ownership is provenance, not a maintainer convenience. A public
 package accepted from a contributor preserves that publisher namespace in
-`SKILL.md` frontmatter as `registry_owner`; packages without the field belong
-to the first-party `runx` namespace. The field guides repository release
+`run.yaml` as `catalog.owner`; packages without the field belong to the
+first-party `runx` namespace. The field guides repository release
 tooling but grants no publish authority. Moving a package between namespaces
 requires an explicit ownership transfer, never an automatic rewrite during
 merge or hardening.

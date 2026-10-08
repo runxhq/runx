@@ -6,7 +6,7 @@ import { defineTool, failure, isRecord } from "@runxhq/extension-sdk";
 export default defineTool({
   name: "sourcey.verify",
   run({ inputs, env }) {
-    const inputBase = env.RUNX_CWD || env.INIT_CWD || process.cwd();
+    const inputBase = env.RUNX_CWD || process.cwd();
     const outputDir = path.resolve(inputBase, inputs.output_dir);
     const indexPath = path.resolve(outputDir, inputs.index_path || "index.html");
     if (!existsSync(indexPath)) {

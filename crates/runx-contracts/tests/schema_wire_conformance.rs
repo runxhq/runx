@@ -12,58 +12,10 @@ mod corpora;
 mod covered;
 mod support;
 
-use corpora::set_field;
 use covered::covered;
 use runx_contracts::Receipt;
-use runx_contracts::policy_proof::{AuthorityProofCredentialMaterial, CredentialEnvelope};
 use serde_json::{Value, json};
 use support::{SchemaDirRetriever, committed_dir};
-
-#[test]
-fn credential_envelope_rejects_legacy_provider_shaped_wire_key() {
-    let valid = json!({
-        "kind": "runx.credential-envelope.v1",
-        "grant_id": "grant_1",
-        "provider": "github",
-        "auth_mode": "api_key",
-        "material_kind": "token",
-        "provider_reference": "provider-ref-1",
-        "scopes": ["issues:write"],
-        "material_ref": "ref:abc",
-    });
-    assert!(serde_json::from_value::<CredentialEnvelope>(valid).is_ok());
-
-    let legacy = set_field(
-        json!({
-            "kind": "runx.credential-envelope.v1",
-            "grant_id": "grant_1",
-            "provider": "github",
-            "auth_mode": "api_key",
-            "material_kind": "token",
-            "scopes": ["issues:write"],
-            "material_ref": "ref:abc",
-        }),
-        &legacy_provider_reference_key(),
-        json!("provider-ref-1"),
-    );
-    assert!(serde_json::from_value::<CredentialEnvelope>(legacy).is_err());
-}
-
-#[test]
-fn authority_proof_credential_material_rejects_legacy_provider_shaped_wire_key() {
-    assert!(
-        serde_json::from_value::<AuthorityProofCredentialMaterial>(
-            json!({ "status": "resolved", "provider_reference": "provider-ref-1" }),
-        )
-        .is_ok()
-    );
-    let legacy = set_field(
-        json!({ "status": "resolved" }),
-        &legacy_provider_reference_key(),
-        json!("provider-ref-1"),
-    );
-    assert!(serde_json::from_value::<AuthorityProofCredentialMaterial>(legacy).is_err());
-}
 
 #[test]
 fn receipt_requires_an_exact_explicit_class() -> Result<(), String> {
@@ -81,13 +33,9 @@ fn receipt_requires_an_exact_explicit_class() -> Result<(), String> {
     assert!(serde_json::from_value::<Receipt>(missing).is_err());
 
     let mut unknown = valid;
-    unknown["class"] = json!("legacy");
+    unknown["class"] = json!("unknown");
     assert!(serde_json::from_value::<Receipt>(unknown).is_err());
     Ok(())
-}
-
-fn legacy_provider_reference_key() -> String {
-    ["connection", "id"].join("_")
 }
 
 #[test]

@@ -1,0 +1,22 @@
+name: lead-enrichment-forward-lead-router
+steps:
+  - id: enrich
+    skill: ../..
+    runner: enrich
+    inputs:
+      lead: { account_id: acct_42, company: ExampleCRM, role: Head of Lifecycle }
+      as_of: "2026-07-17T12:00:00Z"
+      max_age_days: 30
+      signals:
+        - { source_ref: signal_pricing, source_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, type: product, claim: Viewed pricing twice., observed_at: "2026-07-16T10:00:00Z" }
+        - { source_ref: signal_guidance, source_digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb, type: crm, claim: Requested deliverability guidance., observed_at: "2026-07-15T09:00:00Z" }
+      constraints: { opted_in: true, do_not_contact: false, channels_allowed: [email] }
+  - id: route
+    skill: ../../../lead-router
+    runner: lead-router
+    inputs:
+      principal: account:growth-bot
+      objective: Offer a deliverability review.
+      provider_context: { name: example-email, account_ref: provider-account:growth, runtime_path: email.send }
+    context:
+      enrichment_packet: enrich.lead_enrichment_packet.data

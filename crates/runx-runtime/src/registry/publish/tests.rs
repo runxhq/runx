@@ -17,7 +17,7 @@ fn publish_skill_sends_the_complete_package_contract() -> Result<(), Box<dyn std
         "https://runx.test/",
         "rxk_secret",
         &HostedSkillPublishRequest {
-            markdown: "---\nname: hello\n---\nHello.\n",
+            markdown: "---\nname: hello\ndescription: hello fixture.\n---\nHello.\n",
             profile_document: Some("skill: hello\nrunners: {}\n"),
             version: Some("sha-123"),
             package_files: &files,
@@ -48,7 +48,7 @@ fn publish_skill_rejects_an_unsuccessful_success_status_envelope()
         "https://runx.test",
         "rxk_secret",
         &HostedSkillPublishRequest {
-            markdown: "---\nname: hello\n---\nHello.\n",
+            markdown: "---\nname: hello\ndescription: hello fixture.\n---\nHello.\n",
             profile_document: None,
             version: None,
             package_files: &[],
@@ -100,7 +100,7 @@ fn publish_admin_sends_owner_harness_and_upsert() -> Result<(), Box<dyn std::err
         "admin-token",
         &HostedAdminSkillPublishRequest {
             owner: "runx",
-            markdown: "---\nname: hello\n---\nHello.\n",
+            markdown: "---\nname: hello\ndescription: hello fixture.\n---\nHello.\n",
             profile_document: Some("skill: hello\nrunners: {}\n"),
             version: Some("sha-123"),
             upsert: true,

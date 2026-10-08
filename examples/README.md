@@ -24,7 +24,7 @@ The curated proof set is also machine-checked in
 
 | Example | Front | Run |
 | --- | --- | --- |
-| `hello-world` | cli-tool (top-level runner) | `runx harness examples/hello-world` |
+| `hello-world` | process tool (one-step runner) | `runx harness examples/hello-world` |
 | `loop-orchestration` | outer loop over governed runx turns, with receipts, refusal, and agent context preview | `sh examples/loop-orchestration/run.sh` |
 
 ## Runnable previews

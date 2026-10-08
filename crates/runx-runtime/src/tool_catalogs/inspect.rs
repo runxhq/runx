@@ -90,11 +90,10 @@ fn inspect_local_tool(
         tool_ref: options.tool_ref.clone(),
         name: tool.name,
         description: tool.description,
-        execution_source_type: tool.source.source_type.as_str().to_owned(),
+        execution: "process".to_owned(),
         inputs: tool.inputs,
         scopes: tool.scopes,
-        runtime: super::projection::runtime_command(&tool.source),
-        risk: tool.risk,
+        runtime: Some(super::projection::runtime_command(&tool.source)),
         reference_path: display_path(manifest_path),
         skill_directory: manifest_path
             .parent()

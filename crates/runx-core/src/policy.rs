@@ -5,7 +5,6 @@ pub mod authority_proof;
 mod credential_grant;
 mod graph_scope;
 mod interpreter;
-mod local;
 mod maturity;
 pub(crate) mod posix_basename;
 mod rfc3339;
@@ -30,22 +29,14 @@ pub use authority_proof::{
     validate_credential_binding,
 };
 pub use graph_scope::admit_graph_step_scopes;
-pub use interpreter::strict_cli_tool_inline_code_denial;
-pub use local::admit_local_skill;
+pub use interpreter::strict_process_tool_inline_code_denial;
 pub use maturity::compute_maturity;
 pub use rfc3339::parse_rfc3339_moment;
 pub use scope::{ScopeGrantPolicy, missing_granted_scopes, scope_grant_allows};
 pub use tool_ref::{ToolRefAdmission, admit_agent_tool_ref};
 pub use types::{
-    AdmissionDecision, AuthorityKind, AuthorityProof, AuthorityProofApproval,
-    AuthorityProofApprovalDecision, AuthorityProofApprovalDecisionValue,
-    AuthorityProofApprovalGate, AuthorityProofCredentialMaterial,
-    AuthorityProofCredentialMaterialStatus, AuthorityProofMetadata, AuthorityProofRedaction,
-    AuthorityProofRedactionSecretMaterial, AuthorityProofRedactionStatus,
-    AuthorityProofRedactionStream, AuthorityProofRequested, AuthorityProofSchemaVersion,
+    AdmissionDecision, AuthorityProofApproval, AuthorityProofApprovalGate, AuthorityProofMetadata,
     BuildAuthorityProofOptions, CredentialBindingDecision, CredentialBindingRequest,
-    CredentialEnvelope, CredentialEnvelopeKind, CredentialGrantReference,
     GraphScopeAdmissionDecision, GraphScopeAdmissionRequest, GraphScopeGrant, LocalAdmissionGrant,
-    LocalAdmissionGrantStatus, LocalAdmissionOptions, LocalAdmissionSkill, LocalAdmissionSource,
-    LocalExecutionPolicy, LocalScopeAdmissionOptions, ScopeAdmission, ScopeAdmissionStatus,
+    LocalAdmissionGrantStatus, LocalExecutionPolicy, LocalScopeAdmissionOptions,
 };

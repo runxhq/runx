@@ -73,10 +73,8 @@ independent readback regardless of transport. A skill adds one exact resumable
 human approval only when the action itself warrants that extra decision.
 
 Changing an implicit default is a versioned behavior change, not an immediate
-release. Existing explicitly named runners whose semantics remain truthful are
-kept for at least one normal compatibility release. Callers that need plan-only
-behavior must select the named `plan` runner; unqualified invocation follows
-the new advertised default. Publication and deployment remain separate
+release. Callers that need plan-only behavior select the named `plan` runner;
+unqualified invocation follows the advertised default. Publication and deployment remain separate
 operator decisions.
 
 Package admission and `core-skills:audit` require an executable cold-selection
@@ -113,8 +111,8 @@ rename never resets the row.
 ## Canonical category slugs
 
 Registry categories are maintained by runx, not invented per package. A skill
-author may request a category with `runx.category` in `SKILL.md` or the execution
-profile, but the hosted registry owns the final facet shown on `runx.ai/x`.
+author requests a category with `catalog.category` in `run.yaml`, but the hosted
+registry owns the final facet shown on `runx.ai/x`.
 
 | Slug | Label | Use for |
 | --- | --- | --- |
@@ -181,7 +179,7 @@ A strong proposal answers:
 - Which existing packages did you compare against?
 - Why is this a new first-party package rather than a community registry
   package, graph composition, or patch to an existing skill?
-- What runner files, `SKILL.md`, `X.yaml`, fixtures, harness evidence, receipt,
+- What runner files, `SKILL.md`, `run.yaml`, fixtures, harness evidence, receipt,
   and public registry URL prove it works?
 - What authority, network, filesystem, provider, or spend boundaries does the
   execution profile declare?
@@ -218,7 +216,7 @@ belongs in runx rather than in the publisher's own repo.
 
 When reviewing a skill PR, maintainers should check:
 
-- the requested `runx.category` is one of the canonical slugs above;
+- the requested `catalog.category` is one of the canonical slugs above;
 - the public registry search does not already return a maintained equivalent;
 - any overlap is explicitly explained in the PR body;
 - the package contains only consumable skill material;

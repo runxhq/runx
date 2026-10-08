@@ -1,0 +1,16 @@
+skill: reviewer-boundary
+version: "0.1.0"
+runners:
+  default:
+    default: true
+    inputs:
+      prompt:
+        type: string
+        required: true
+    steps:
+      - id: default
+        agent: { role: codex, task: review-boundary }
+        inputs:
+          prompt: $input.prompt
+        outputs:
+          verdict: string

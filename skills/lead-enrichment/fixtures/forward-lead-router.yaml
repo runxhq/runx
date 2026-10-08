@@ -1,9 +1,9 @@
 name: lead-enrichment-forwards-compatible-route
 kind: graph
-target: ../harness/forward-lead-router.yaml
+target: support/forward-lead-router.graph
 caller:
   answers:
-    agent_task.lead-enrichment-synthesize.output:
+    agent.lead-enrichment-synthesize.output:
       enrichment_draft:
         decision: ready_for_review
         lead_profile:
@@ -16,7 +16,7 @@ caller:
         fit_assessment: { fit: strong, confidence: medium, caveats: [] }
         recommended_action: { type: review_outreach, angle: Offer a deliverability review., priority: high }
         risk_flags: []
-    agent_task.lead-route.output:
+    agent.lead-route.output:
       route_draft:
         route: reach_out
         rationale: Strong fit and active evaluation support a reviewed direct follow-up.

@@ -1,6 +1,7 @@
 name: "request-review-before-mutation"
-kind: "agent_task"
-runner: "issue-intake"
+kind: "skill"
+target: "../../../../../skills/issue-intake"
+runner: "intake"
 inputs:
   outbox_entry:
     entry_id: "github_issue_984"
@@ -14,7 +15,7 @@ inputs:
   thread_title: "Clarify the affected repo before we start"
 caller:
   answers:
-    agent_task.issue-intake.output:
+    agent.issue-intake.output:
       change_set:
         action_decision: "request_review"
         category: "other"
@@ -86,14 +87,6 @@ caller:
           recommended_lane: "manual-review"
           severity: "medium"
         updated_at: "2026-05-15T00:00:00Z"
-      decision:
-        schema: "runx.decision.v1"
-        decision_id: "dec_request-review-before-mutation"
-        choice: "defer"
-        summary: "The maintainer needs to confirm the target surface before runx opens a downstream lane."
-        recommended_lane: "manual-review"
-  approvals:
-    {}
 expect:
   status: "sealed"
   receipt:
@@ -103,4 +96,3 @@ expect:
 metadata:
   product_skill: "issue-intake"
   source_case: "request-review-before-mutation"
-  runner_kind: "agent_task"

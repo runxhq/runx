@@ -5,15 +5,14 @@ use std::path::{Path, PathBuf};
 use runx_contracts::{ClosureDisposition, JsonObject, JsonValue, ReceiptSchema};
 use runx_receipts::canonical_receipt_json;
 use runx_runtime::{
-    HarnessExpectedStatus, HarnessFixtureKind, InvocationOutput, RuntimeOptions, SkillAdapter,
+    HarnessExpectedStatus, HarnessFixtureKind, HarnessOptions, InvocationOutput, SkillAdapter,
     SkillInvocation, load_harness_fixture, run_harness_fixture_with_adapter,
 };
 
 const FIXTURE_CREATED_AT: &str = "2026-05-18T00:00:00Z";
 
 #[test]
-fn loads_active_harness_fixtures_without_retired_receipt_fields()
--> Result<(), Box<dyn std::error::Error>> {
+fn loads_active_harness_fixtures() -> Result<(), Box<dyn std::error::Error>> {
     for (path, expected_status, expected_disposition) in [
         (
             "fixtures/harness/echo-skill.yaml",
@@ -52,11 +51,11 @@ fn parses_harness_skill_fixture_contract() -> Result<(), Box<dyn std::error::Err
     assert_eq!(fixture.target, "../skills/echo");
     let receipt = fixture.expect.receipt.ok_or("missing expect.receipt")?;
     assert_eq!(
-        receipt.harness_id.as_deref(),
-        Some("hrn_echo-skill_default")
+        receipt.subject_ref.as_deref(),
+        Some("runx:run:harness-echo-skill")
     );
-    assert_eq!(receipt.reason_code.as_deref(), Some("process_closed"));
-    assert_eq!(receipt.act_ids, vec!["act_default"]);
+    assert_eq!(receipt.reason_code.as_deref(), Some("graph_closed"));
+    assert_eq!(receipt.child_receipt_count, Some(1));
     Ok(())
 }
 
@@ -70,14 +69,14 @@ fn parses_harness_graph_fixture_contract() -> Result<(), Box<dyn std::error::Err
     assert_eq!(fixture.expect.steps, vec!["first", "second"]);
     let receipt = fixture.expect.receipt.ok_or("missing expect.receipt")?;
     assert_eq!(
-        receipt.harness_id.as_deref(),
-        Some("hrn_sequential-echo_graph")
+        receipt.subject_ref.as_deref(),
+        Some("runx:run:harness-graph")
     );
     assert_eq!(
         receipt.child_receipt_refs,
         vec![
-            "runx:receipt:sha256:f887483acb542dd8da0759fe2edaade15c52e2dfef7ea4bf535a19eafad3d1d4",
-            "runx:receipt:sha256:966a3a96a8e07fe46f6426543559cd8880fa700a1b6c18d464ea635b0341d033"
+            "runx:receipt:sha256:bef90d7394c209caa08d18775eeab0a6f7bc856fa4805816d87da6b212b94026",
+            "runx:receipt:sha256:96e710e3d40b9494c18b4c56976034c26c1a7d52d7dac6792a3cf629687b6de9"
         ]
     );
     Ok(())
@@ -90,9 +89,10 @@ fn replays_active_harness_skill_fixture() -> Result<(), Box<dyn std::error::Erro
     assert_eq!(output.status, HarnessExpectedStatus::Sealed);
     assert_eq!(
         output.receipt.subject.reference.uri,
-        "hrn_echo-skill_default"
+        "runx:run:harness-echo-skill"
     );
     assert_eq!(output.receipt.seal.disposition, ClosureDisposition::Closed);
+    assert_eq!(output.step_receipts.len(), 1);
     let skill_output = output.skill_output.ok_or("missing skill_output")?;
     assert_eq!(
         skill_output.value,
@@ -111,7 +111,7 @@ fn replays_active_harness_graph_fixture() -> Result<(), Box<dyn std::error::Erro
     assert_eq!(output.status, HarnessExpectedStatus::Sealed);
     assert_eq!(
         output.receipt.subject.reference.uri,
-        "hrn_sequential-echo_graph"
+        "runx:run:harness-graph"
     );
     assert_eq!(output.receipt.seal.disposition, ClosureDisposition::Closed);
     assert_eq!(output.step_receipts.len(), 2);
@@ -126,6 +126,10 @@ fn replay_receipts_match_checked_in_canonical_oracles() -> Result<(), Box<dyn st
     assert_oracle(
         "fixtures/harness/oracle/echo-skill.receipt.json",
         &canonical_receipt_json(&echo.receipt)?,
+    )?;
+    assert_oracle(
+        "fixtures/harness/oracle/echo-skill.default.json",
+        &canonical_receipt_json(&echo.step_receipts[0])?,
     )?;
 
     let graph = run_fixture_with_test_adapter("fixtures/harness/sequential-graph.yaml")?;
@@ -146,8 +150,8 @@ fn replay_receipts_match_checked_in_canonical_oracles() -> Result<(), Box<dyn st
 }
 
 #[test]
-#[cfg(not(feature = "cli-tool"))]
-fn default_harness_runner_reports_disabled_cli_tool_feature() {
+#[cfg(not(feature = "process-tool"))]
+fn default_harness_runner_reports_disabled_process_tool_feature() {
     let result = runx_runtime::run_harness_fixture(
         fixture_path("fixtures/harness/echo-skill.yaml"),
         std::collections::BTreeMap::new(),
@@ -155,7 +159,7 @@ fn default_harness_runner_reports_disabled_cli_tool_feature() {
 
     assert!(matches!(
         result,
-        Err(runx_runtime::HarnessReplayError::CliToolFeatureDisabled)
+        Err(runx_runtime::HarnessReplayError::ProcessToolFeatureDisabled)
     ));
 }
 
@@ -169,22 +173,15 @@ fn run_fixture_with_test_adapter(
     )
 }
 
-fn fixture_runtime_options() -> RuntimeOptions {
-    RuntimeOptions {
-        current_context: Vec::new(),
-        historical_context: Vec::new(),
-        created_at: FIXTURE_CREATED_AT.to_owned(),
-        ..RuntimeOptions::local_development(std::env::vars().collect())
-    }
+fn fixture_runtime_options() -> HarnessOptions {
+    let mut options = HarnessOptions::local_development(std::env::vars().collect());
+    options.created_at = FIXTURE_CREATED_AT.to_owned();
+    options
 }
 
 struct TestAdapter;
 
 impl SkillAdapter for TestAdapter {
-    fn adapter_type(&self) -> &'static str {
-        "cli-tool"
-    }
-
     fn invoke(
         &self,
         request: SkillInvocation,

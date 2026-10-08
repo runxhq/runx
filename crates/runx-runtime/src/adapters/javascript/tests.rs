@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 use std::fs;
 
-use runx_parser::{SkillSource, SourceKind};
+use runx_parser::WorkerTool;
 
 use super::*;
 use crate::credentials::CredentialDelivery;
@@ -71,7 +71,7 @@ fn wall_limit_failure_records_exact_receipt_metadata() -> Result<(), Box<dyn std
     );
     assert_eq!(
         hit.get("manifest_field"),
-        Some(&JsonValue::String("source.timeout_seconds".to_owned()))
+        Some(&JsonValue::String("tool.timeout_seconds".to_owned()))
     );
     Ok(())
 }
@@ -85,24 +85,14 @@ fn invocation(skill_directory: &std::path::Path) -> SkillInvocation {
         artifacts: None,
         allowed_tools: None,
         requirements: Default::default(),
-        source: SkillSource {
-            source_type: SourceKind::JavaScript,
-            command: None,
-            module: Some("domain.mjs".to_owned()),
-            javascript_export: None,
-            pages: None,
-            args: Vec::new(),
-            cwd: None,
+        executable: crate::adapter::Executable::Worker(WorkerTool {
+            module: "domain.mjs".to_owned(),
+            export: None,
             timeout_seconds: None,
-            input_mode: None,
+            pages: None,
             environment: Default::default(),
-            agent: None,
-            task: None,
-            outputs: None,
-            graph: None,
-            act: None,
-            raw: JsonObject::new(),
-        },
+        }),
+        outputs: None,
         inputs: JsonObject::new(),
         resolved_inputs: JsonObject::new(),
         current_context: Vec::new(),

@@ -1,11 +1,6 @@
 ---
 name: extract
 description: Extract schema-validated JSON from messy HTML or text fixtures with digest-bound provenance.
-runx:
-  tags:
-    - extraction
-    - schema-validation
-    - provenance
 ---
 
 # Extract

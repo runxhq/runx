@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://schemas.runx.ai/runx/receipt_audit/v1.json",
   "x-runx-packet-id": "runx.receipt_audit.v1",
-  "x-runx-generated-from": "skills/audit-receipt/X.yaml#root.runners.audit.graph.steps.1",
+  "x-runx-generated-from": "skills/audit-receipt/run.yaml#root.runners.audit.steps.1",
   "type": "object",
   "required": [
     "receipt_audit"

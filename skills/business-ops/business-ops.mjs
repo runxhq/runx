@@ -34,10 +34,10 @@ export function finalizeDurableRoute(inputs) {
   if (!["committed", "idempotent_replay"].includes(appendStatus)) {
     throw new Error("append_result.status must prove a commit or idempotent replay");
   }
-  if (append.operation !== "append_event") {
+  if (append.operation !== "events.append") {
     throw new Error("append_result.operation must be append_event");
   }
-  if (readback.operation !== "read_projection" || readback.status !== "read") {
+  if (readback.operation !== "projection.read" || readback.status !== "read") {
     throw new Error("projection_result must be a successful read_projection");
   }
   const aggregateId = requiredText(append.aggregate_id, "append_result.aggregate_id");

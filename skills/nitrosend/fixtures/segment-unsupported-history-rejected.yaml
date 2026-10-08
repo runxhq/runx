@@ -9,7 +9,7 @@ inputs:
   filter_catalog_json: '{"contact_last_opened_at":{"type":"date","predicates":["within_days"]},"contact_unique_opens":{"type":"number","predicates":["gteq"]},"contact_last_order_at":{"type":"date","predicates":["not_within_days"]}}'
 caller:
   answers:
-    agent_task.segment-from-prose-plan.output:
+    agent.segment-from-prose-plan.output:
       segment_plan:
         decision: reject
         rationale: The current catalog exposes aggregate open and purchase dates, not per-campaign open and attribution history.

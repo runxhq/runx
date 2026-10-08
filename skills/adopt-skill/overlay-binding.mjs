@@ -30,7 +30,7 @@ export function prepareBinding(inputs) {
         profile_document: profileDocument,
         candidate_files: [
           { path: "SKILL.md", contents: markdown },
-          { path: "X.yaml", contents: profileDocument },
+          { path: "run.yaml", contents: profileDocument },
         ],
         blockers: [],
       },
@@ -76,7 +76,7 @@ export function assembleBinding(inputs) {
       version: evidence.registry.version,
       install_command: `runx add ${skillId}@${evidence.registry.version}`,
       run_command: `runx skill ${skillId}@${evidence.registry.version}`,
-      profile_path: `${bindingPath}/X.yaml`,
+      profile_path: `${bindingPath}/run.yaml`,
       materialized_package_is_registry_artifact: true,
     },
     harness: {
@@ -115,7 +115,7 @@ export function finalizeBinding(inputs) {
         source: documents.source,
         files: [
           fileEntry(`${documents.binding_path}/binding.json`, documents.binding_document, bindingDigest.digest),
-          fileEntry(`${documents.binding_path}/X.yaml`, documents.profile_document, profileDigest.digest),
+          fileEntry(`${documents.binding_path}/run.yaml`, documents.profile_document, profileDigest.digest),
         ],
         validation: {
           status: "pass",

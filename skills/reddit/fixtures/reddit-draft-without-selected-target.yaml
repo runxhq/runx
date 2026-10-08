@@ -3,7 +3,7 @@ kind: graph
 target: support/discovery.graph
 caller:
   answers:
-    agent_task.reddit-research.output:
+    agent.reddit-research.output:
       research:
         status: drafted
         account_id: example_builder
@@ -67,4 +67,3 @@ expect:
       subset:
         research: {status: held, drafts: []}
         target_review: {admitted: false}
-env: {RUNX_DATA_SOURCES: '{"data_sources": {"local://reddit": {"adapter": "data.sqlite", "database_path": ".runx/reddit-fixtures/reddit-draft-without-selected-target.sqlite", "resources": {"reddit_accounts": {"kind": "event_stream", "partition_key": "aggregate_id"}, "reddit_browser": {"kind": "event_stream", "partition_key": "aggregate_id"}, "reddit_attempts": {"kind": "event_stream", "partition_key": "aggregate_id"}}}}}'}

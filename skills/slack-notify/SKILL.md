@@ -1,8 +1,6 @@
 ---
 name: slack-notify
 description: Plan a digest-bound Slack notification, then deliver the exact approved channel post through any compatible Slack binding with provider readback.
-runx:
-  category: ops
 ---
 
 # Slack Notify

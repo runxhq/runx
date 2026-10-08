@@ -49,7 +49,7 @@ describe("Skill Lab authoring ownership", () => {
 
   it("keeps hashes native and uses architect-plan-author-bind-apply", async () => {
     const profile = validateRunnerManifestYaml(
-      await readFile(path.join(root, "skills/skill-lab/X.yaml"), "utf8"),
+      await readFile(path.join(root, "skills/skill-lab/run.yaml"), "utf8"),
     ).raw.document as Record<string, any>;
     expect(stepIds(profile.runners.design)).toEqual(["inspect", "architect", "plan"]);
     for (const runnerName of ["build", "improve", "harness"]) {
@@ -75,9 +75,9 @@ describe("Skill Lab authoring ownership", () => {
     ) as Array<Record<string, any>>;
     for (const fixture of fixtures) {
       const answers = fixture.caller.answers;
-      expect(answers["agent_task.skill-lab-architecture.output"].architecture_decision.schema)
+      expect(answers["agent.skill-lab-architecture.output"].architecture_decision.schema)
         .toBe("runx.skill.architecture_decision.v1");
-      const draft = answers["agent_task.skill-lab-author.output"].change_draft;
+      const draft = answers["agent.skill-lab-author.output"].change_draft;
       expect(draft.schema).toBe("runx.skill.change_draft.v1");
       expect(draft).not.toHaveProperty("base_digest");
       expect(draft).not.toHaveProperty("plan_digest");
@@ -103,11 +103,11 @@ describe("Skill Lab authoring ownership", () => {
 });
 
 function stepIds(runner: Record<string, any>): string[] {
-  return runner.graph.steps.map((value: Record<string, any>) => value.id);
+  return runner.steps.map((value: Record<string, any>) => value.id);
 }
 
 function step(runner: Record<string, any>, id: string): Record<string, any> {
-  return runner.graph.steps.find((value: Record<string, any>) => value.id === id);
+  return runner.steps.find((value: Record<string, any>) => value.id === id);
 }
 
 async function json(file: string): Promise<Record<string, any>> {
@@ -170,7 +170,6 @@ function architectureDecision(): Record<string, any> {
     resource_budget: {
       max_files: 2,
       max_executable_lines: 0,
-      max_fanout: 1,
       max_process_spawns: 0,
       network_allowed: false,
     },

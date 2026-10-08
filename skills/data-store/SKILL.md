@@ -1,67 +1,46 @@
 ---
 name: data-store
-description: Govern provider-agnostic data reads and state transitions through declared data-source operations, not model-authored raw queries.
-runx:
-  category: data
+description: Read and append durable event state through the store connector's declared operations, not model-authored raw queries.
 ---
 
 # Data Store
 
-Operate durable event state through Runx's typed data operations. This skill
-gives an agent enough context to append, read, and project state without
-learning provider secrets, inventing queries, or depending on one storage
-backend.
+Operate durable event state through the store connector's typed operations.
+This skill gives an agent enough context to append, read and project state
+without learning storage credentials, inventing queries, or depending on one
+storage backend.
 
-Runx ships native SQLite and an external Redis adapter today. Other providers
-can implement the same exact operation contract. The boundary is stable: a
-declared data source exposes typed operations; the graph supplies bounded
-parameters; runtime configuration selects storage; and the receipt records the
-resource, authority, idempotency, version, digest, and redaction evidence.
+The store keeps append-only event streams with an expected version per append,
+a rolling projection per stream, and stream heads by latest event. Where the
+streams live is the workspace's store instance: the workspace store (SQLite
+under `.runx/store.sqlite`) unless the operator confirmed another, in SQLite,
+Postgres or Redis. The skill never names the backend, and every backend answers
+with the same digests.
 
-## Adapter selection
+## Runners
 
-The operator chooses a data source at run time. The skill receives
-`data_source_ref` and operation inputs; project or hosted configuration binds
-that ref to the concrete adapter. A local development ref might be
-`local://runx-data-store/dev-board`. A production ref might be
-`tenant://acme/board` bound to `data.postgres`, `data.d1`, `data.redis`, or a
-product-owned HTTP adapter.
+Each runner calls one store operation and returns its result as
+`data_operation_result`:
 
-Do not put provider logic in the domain skill. Messageboard, CRM, support, and
-business-ops skills ask for durable facts to be read or written; the data-source
-binding decides where those facts live. Switching a supported provider is a
-binding change, not a rewrite of the domain skill.
+- `append_event`: `store/events.append`.
+- `read_events`: `store/events.read`.
+- `read_projection`: `store/projection.read`.
+- `list_stream_heads`: `store/heads.list`.
+- `append_and_readback` (the default): append, then read the projection, so a
+  requested durable transition is not reported complete until its projection
+  has been read.
 
-Each runner calls one exact native operation: `data.append_event`,
-`data.read_events`, `data.read_projection`, or `data.list_stream_heads`.
-Direct invocation defaults to `append_and_readback`, so a requested durable
-transition is not reported complete until the resulting projection has been
-read. Graph callers that already know the operation select the narrower named
-runner and reuse its typed result.
-Unbound `local://...` refs default to native durable SQLite under
-`.runx/data/local-sources/`, with one source-scoped database file per logical
-ref. There is no generic router tool, JSON fixture store, or provider selector
-in the public input schema.
-
-Adapter preference is operator configuration, not model choice. To choose Redis,
-SQLite, or a hosted provider, bind the same `data_source_ref` through
-`RUNX_DATA_SOURCES` or `.runx/data-sources.json`; do not add provider branches to
-the domain skill.
+Graph callers that already know the operation select the narrower runner and
+reuse its typed result.
 
 ## What this skill does
 
-- Reads bounded event pages, projections, and stream-head pages through exact
-  typed operations.
+- Reads bounded event pages, projections and stream-head pages.
 - Appends state transitions with idempotency keys and expected versions.
-- Reads projections, event streams, or bounded latest-stream-head pages so
-  loops can resume from explicit state without exporting full history.
-- Produces receipt-bound evidence for data source, resource, operation, params,
-  row/event limits, versions, and output digests.
+- Produces receipt-bound evidence for the source, resource, operation,
+  versions and digests.
 - Keeps product semantics outside the data layer. Messageboards, CRMs, billing
-  ledgers, and support desks define their own events and reducers.
-- Ships native durable SQLite and a Redis provider adapter behind the same
-  operation envelope. SQLite append and projection reads use a constant-size
-  rolling stream head instead of rescanning full history.
+  ledgers and support desks define their own events and reducers.
 
 ## When to use this skill
 
@@ -69,62 +48,41 @@ the domain skill.
   state, sync cursor, review status, or approval inbox state.
 - A skill must read a bounded slice of event state before deciding the next
   action.
-- A workflow needs to append an auditable event or effect transition with
-  optimistic concurrency.
-- An operator wants one provider-agnostic shape that can move between native
-  SQLite and a configured conforming provider without changing domain graphs.
+- A workflow needs to append an auditable transition with optimistic
+  concurrency.
 
 ## When not to use this skill
 
-- To let a model write arbitrary SQL, Redis commands, or database migrations.
-- To export broad data sets, secrets, raw PII, or unrestricted tables.
-- To hide product decisions in storage code. Domain skills still own state
-  machines, acceptance criteria, and business rules.
+- To let a model write SQL, Redis commands or migrations.
+- To export broad data sets, secrets, raw PII or whole tables.
+- To hide product decisions in storage. Domain skills still own state
+  machines, acceptance criteria and business rules.
 - To treat a projection as independent truth when the event stream or receipt
   chain is available and required for review.
-- To bypass payment, send, deploy, moderation, or human approval gates.
+- To bypass payment, send, deploy, moderation or human approval gates.
 
 ## Procedure
 
-1. Identify the domain skill and transition first. The data store is a carrier,
+1. Identify the domain skill and transition first. The store is a carrier,
    not the policy owner.
-2. Select the logical data source. Use `data_source_ref` to name the project or
-   tenant source; let the project binding choose the adapter. Do not put raw
-   database URLs, provider credentials, or SQL in the skill input.
-3. Select one exact operation: append event, read events, read projection, or
-   list stream heads. Direct writes use the default append-and-readback path;
-   composed graphs select the exact named runner. Do not synthesize raw
-   provider commands.
-4. Check authority. Reads need the narrow resource/query scope; writes need the
-   transition scope, idempotency key, and expected version unless the operation
-   is explicitly append-only without concurrency.
-5. Bind typed params. Enforce row/event limits, tenant/partition keys, and
-   redaction rules before the adapter runs.
-6. For writes, use optimistic concurrency and idempotency. A retry with the same
-   idempotency key and same payload returns the existing effect; a different
-   payload under the same key is a conflict.
-7. Return the operation result with resource refs, version movement, digests,
-   redaction notes, and stop conditions. Receipts should link this data effect
-   to the domain transition that caused it.
+2. Name the logical source with `data_source_ref`. Never put database URLs,
+   credentials or queries in the skill input.
+3. Select one runner. Direct writes use `append_and_readback`; composed graphs
+   select the exact runner.
+4. For writes, pass the stream version you read as `expected_version` and a
+   stable `idempotency_key` for the transition. The same call answers as an
+   idempotent replay in any run; a stream at another version answers
+   `conflict`.
+5. Return the result with its versions, digests and stop conditions, so the
+   receipt links the data effect to the transition that caused it.
 
 ## Edge cases and stop conditions
 
-- `needs_source`: the data source, resource, query name, tenant key, or schema
-  summary is missing.
-- `needs_input`: required operation params are incomplete, malformed, or not
-  specific enough to bind a declared data-source operation.
-- `needs_authority`: the caller lacks the declared read/write scope or provider
-  grant.
-- `needs_version`: a mutating operation lacks `expected_version` where the data
-  source requires optimistic concurrency.
-- `conflict`: the current version differs from `expected_version`, or an
-  idempotency key is reused with different content.
-- `too_broad`: the requested read lacks partition filters, exceeds limits, or
-  asks for raw export.
-- `redaction_required`: the operation would return secrets, private PII, or
-  fields outside the declared projection.
-- `provider_unavailable`: the adapter cannot reach the data source, times out,
-  or cannot prove whether a write committed.
+- `conflict`: the stream is not at `expected_version`. Nothing was appended;
+  read the stream again before deciding.
+- A store that cannot be reached fails the step with nothing appended.
+- A write whose commit the store did not confirm is held for reconciliation by
+  the kernel; the step never reports a write it cannot prove.
 
 ## Output schema
 
@@ -134,71 +92,67 @@ All runners return `runx.data.operation_result.v1`:
 {
   "schema": "runx.data.operation_result.v1",
   "data_source_ref": "local://example",
-  "provider": "sqlite-event-store",
-  "operation": "append_event",
+  "provider": "store",
+  "operation": "events.append",
   "resource": "board_events",
   "aggregate_id": "posting-123",
   "status": "committed",
   "before_version": 0,
   "after_version": 1,
-  "idempotency_key": "posting-123:create",
+  "idempotency_key": "runx:sha256:...",
   "event_ref": "board_events:posting-123:1",
+  "event_digest": "sha256:...",
   "result_digest": "sha256:...",
   "projection_digest": "sha256:...",
+  "projection": null,
   "rows": [],
   "events": [],
   "redactions": [],
-  "stop_conditions": []
+  "stop_conditions": [],
+  "provider_evidence": { "backend": "sqlite" }
 }
 ```
 
-Provider adapters may add provider evidence under `provider_evidence`, but they
-must not expose credentials or raw secret material.
+`idempotency_key` is the key the store holds the event under, which the kernel
+derives from the call.
 
-For event streams, adapters derive a readable `event_type` in this order:
-explicit `event.type`, explicit `event.event_type`, then
-`event.effect_family + "." + event.operation`. Domain skills that emit the
-generic `runx.effect.transition.v1` packet should include `effect_family` and
-`operation` on every event so readback projections say `board.accept`,
-`business_ops.route`, or another meaningful transition instead of `data.event`.
+An event's type is, in order: `event.type`, `event.event_type`,
+`event.effect_family + "." + event.operation`, or `event.operation`, else
+`data.event`. Domain skills that emit `runx.effect.transition.v1` packets
+include `effect_family` and `operation` on every event so projections say
+`board.accept` or `business_ops.route` instead of `data.event`.
 
 ## Worked example
 
-A product's board skill decides that `posting.claimed` is allowed. It emits a
-domain transition packet. The graph then calls `data-store.append_event` with
-resource `board_events`, aggregate id `posting-123`, expected version `2`, and
-idempotency key `posting-123:claim:agent-9`. The data adapter appends the event
-only if the stream is still at version `2`. The receipt proves the decision,
-the data operation, and the new version. A later loop turn calls
-`data-store.read_events` or `read_projection` to resume from the explicit board
-state.
+A board skill decides that `posting.claimed` is allowed and emits a transition
+packet. Its graph calls `data-store` with `runner: append_event`, resource
+`board_events`, aggregate `posting-123`, expected version `2` and idempotency
+key `posting-123:claim:agent-9`. The store appends the event only if the stream
+is still at version `2`. The receipt proves the decision, the append and the
+new version. A later turn calls `read_events` or `read_projection` to resume.
 
 ## Inputs
 
-- `data_source_ref` (required): stable logical ref for the data source. The
-  project or hosted binding maps this ref to the concrete adapter and provider
-  profile.
-- `resource` (required): declared resource, stream, table, keyspace, or
-  projection name.
-- Runner name selects the exact operation; `operation` is not an input.
-- `aggregate_id` (required for event operations): stream or partition key.
-- `event` (required for `append_event`): domain event or transition packet.
-- `idempotency_key` (required for writes): stable retry key.
-- `expected_version` (required when the source enforces concurrency): current
-  stream/resource version expected by the caller.
-- `limit` (optional): maximum rows or events to return.
-- `after_version` (optional for `read_events`): return an ascending page whose
-  event versions are strictly greater than this value. Omit it to retain the
-  existing latest-tail read. Compare the last returned event version with
-  `after_version` in the result envelope to know whether another page remains.
+- `data_source_ref` (required): the logical source inside the workspace's
+  store.
+- `resource` (required): the event resource or stream family.
+- `aggregate_id` (required for stream operations): the stream key.
+- `event` (required for appends): the domain event or transition packet.
+- `idempotency_key` (required for appends): a stable key for the transition.
+- `expected_version` (required for appends): the stream version the caller
+  read.
+- `observed_at` (optional for appends): an RFC 3339 commit time; the time of
+  the append when omitted.
+- `limit` (optional): events per page (at most 500) or heads per page (at most
+  100).
+- `after_version` (optional for `read_events`): read the ascending page after
+  this version; omit it to read the latest page.
 - `event_types` (optional for `list_stream_heads`): at most 20 exact latest
-  event types. No pattern or arbitrary field queries are accepted.
-- `cursor` (optional for `list_stream_heads`): opaque cursor returned by the
-  previous page. Limits are capped at 100.
+  event types.
+- `cursor` (optional for `list_stream_heads`): the opaque cursor the previous
+  page returned.
 
-## Invocation examples
-
-Durable local dogfood with the bundled default:
+## Invocation example
 
 ```bash
 runx skill data-store append_event \
@@ -211,71 +165,17 @@ runx skill data-store append_event \
   --json
 ```
 
-Production graph shape is the same at the skill boundary:
+The same command appends to Postgres or Redis once the operator confirms a
+store instance there:
 
 ```bash
-runx skill data-store append_event \
-  -i data_source_ref=tenant://acme/board \
-  -i resource=board_events \
-  -i aggregate_id=posting-123 \
-  --input-json expected_version=2 \
-  -i idempotency_key=posting-123:claim:agent-9 \
-  --input-json event='{"type":"posting.claimed","payload":{"actor":"agent-9"}}' \
-  --json
+runx connector use store --parameter url=redis://cache.internal:6379/0
 ```
 
-The production command only works once `tenant://acme/board` is bound to an
-installed provider adapter. That binding is operator configuration and may name a
-credential profile or hosted grant; it must not carry raw secrets.
+A store that needs a password takes it as the instance's credential:
 
-Project-specific native SQLite uses the same command shape after binding the
-source. `data.sqlite` is a runtime binding identifier, not a second executable
-tool surface:
-
-```json
-{
-  "data_sources": {
-    "tenant://acme/board": {
-      "adapter": "data.sqlite",
-      "database_path": ".runx/data/acme-board.sqlite",
-      "resources": {
-        "board_events": {
-          "kind": "event_stream",
-          "partition_key": "aggregate_id"
-        }
-      }
-    }
-  }
-}
+```bash
+printf '%s' "$BOARD_DB_PASSWORD" |
+  runx credential set store --credential password \
+    --parameter url=postgres://board@db.internal:5432/board --from-stdin
 ```
-
-Pass that document through `RUNX_DATA_SOURCES` or `.runx/data-sources.json`.
-
-Redis uses the same skill and graph inputs. Only the binding changes:
-
-```json
-{
-  "data_sources": {
-    "tenant://acme/board": {
-      "adapter": "data.redis",
-      "endpoint": "redis://127.0.0.1:6379/0",
-      "key_prefix": "runx:{acme-board}",
-      "resources": {
-        "board_events": {
-          "kind": "event_stream",
-          "partition_key": "aggregate_id"
-        }
-      }
-    }
-  }
-}
-```
-
-The Redis endpoint must not embed credentials. Use local unauthenticated Redis
-for OSS dogfood, or put production secrets behind a runx credential profile or
-hosted grant. For Redis Cluster, the binding's `key_prefix` must contain one
-safe hash tag, such as `{acme-board}`, so the stream, idempotency, and head keys
-touched by an append share one slot and update atomically. Stream-head pages use
-stable keyset cursors rather than mutable offsets. Durable events and
-dispositions must not receive TTLs; production Redis should enable persistence
-and use a non-evicting policy.

@@ -11,4 +11,3 @@ metadata:
   public_skill: ledger
   source_case: ledger-needs-question
   source: skills-fixture
-  runner_kind: cli-tool

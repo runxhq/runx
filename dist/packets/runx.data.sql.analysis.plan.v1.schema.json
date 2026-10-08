@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://schemas.runx.ai/runx/data/sql_analysis_plan/v1.json",
   "x-runx-packet-id": "runx.data.sql_analysis_plan.v1",
-  "x-runx-generated-from": "skills/sql-analyst/X.yaml#root.runners.plan.graph.steps.1",
+  "x-runx-generated-from": "skills/sql-analyst/run.yaml#root.runners.plan.steps.1",
   "additionalProperties": false,
   "allOf": [
     {

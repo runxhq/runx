@@ -1,0 +1,300 @@
+skill: lead-enrichment
+version: "0.3.2"
+
+catalog:
+  kind: graph
+  audience: operator
+  visibility: public
+  role: context
+  execution: read
+  completion: runtime_receipt
+  requires_adapter: false
+  approval: none
+  category: growth
+
+harness:
+  files: [fixtures/support/forward-lead-router.graph]
+  cases:
+    - name: lead-enrichment-binds-fresh-signals
+      operator_journeys:
+        - mode: standalone
+          confusors: [lead-router, research]
+          request: Enrich this lead from the supplied fresh account signals and recommend the consent-safe next action.
+          expected_outcome: Return evidence-bound lead context, consent posture, and outreach recommendation without sending.
+        - mode: composed
+          request: Continue lead qualification from these collected account signals.
+          expected_outcome: Reuse the supplied signals and consent evidence without refetching or inventing account facts.
+          prior_evidence:
+            - The fresh account signals and consent evidence supplied in the fixture.
+          must_not_repeat:
+            - Do not re-enrich the account from external sources.
+            - Do not re-evaluate consent evidence already bound to the lead packet.
+      inputs:
+        lead: { account_id: acct_42, company: ExampleCRM, role: Head of Lifecycle }
+        as_of: "2026-07-17T12:00:00Z"
+        max_age_days: 30
+        signals:
+          - { source_ref: signal_pricing, source_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, type: product, claim: Viewed pricing twice., observed_at: "2026-07-16T10:00:00Z" }
+          - { source_ref: signal_guidance, source_digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb, type: crm, claim: Requested deliverability guidance., observed_at: "2026-07-15T09:00:00Z" }
+        constraints: { opted_in: true, do_not_contact: false, channels_allowed: [email] }
+      caller:
+        answers:
+          agent.lead-enrichment-synthesize.output:
+            enrichment_draft:
+              decision: ready_for_review
+              lead_profile:
+                account_id: acct_42
+                company: ExampleCRM
+                likely_need: Deliverability guidance.
+              evidence:
+                - { claim: The account is actively evaluating., source_refs: [signal_pricing], confidence: observed }
+                - { claim: Deliverability is a stated concern., source_refs: [signal_guidance], confidence: observed }
+              fit_assessment: { fit: strong, confidence: medium, caveats: [] }
+              recommended_action: { type: review_outreach, angle: Offer a deliverability review., priority: high }
+              risk_flags: []
+      expect:
+        status: sealed
+        steps: [admit, synthesize, finalize]
+        step_outputs:
+          finalize:
+            subset:
+              lead_enrichment_packet:
+                data:
+                  decision: ready_for_review
+                  delivery_status: not_sent
+                  signal_evidence:
+                    - source_ref: signal_pricing
+                      signal_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+                      provenance: caller_supplied_source_digest
+                  validation: { status: pass }
+        receipt: { schema: runx.receipt.v1 }
+
+    - name: lead-enrichment-honors-opt-out-before-agent
+      inputs:
+        lead: { account_id: acct_42 }
+        as_of: "2026-07-17T12:00:00Z"
+        signals:
+          - { source_ref: signal_pricing, source_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, type: product, claim: Viewed pricing., observed_at: "2026-07-16T10:00:00Z" }
+        constraints: { opted_in: false, do_not_contact: true }
+      expect:
+        status: sealed
+        steps: [admit, reject]
+        step_outputs:
+          reject:
+            subset:
+              lead_enrichment_packet:
+                data:
+                  decision: do_not_contact
+                  recommended_action: { type: hold }
+                  delivery_status: not_sent
+        receipt: { schema: runx.receipt.v1 }
+
+    - name: lead-enrichment-rejects-invented-signal
+      inputs:
+        lead: { account_id: acct_42 }
+        as_of: "2026-07-17T12:00:00Z"
+        signals:
+          - { source_ref: signal_pricing, source_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, type: product, claim: Viewed pricing., observed_at: "2026-07-16T10:00:00Z" }
+        constraints: { opted_in: true, do_not_contact: false }
+      caller:
+        answers:
+          agent.lead-enrichment-synthesize.output:
+            enrichment_draft:
+              decision: ready_for_review
+              lead_profile: { account_id: acct_42 }
+              evidence:
+                - { claim: Invented funding event., source_refs: [signal_funding], confidence: observed }
+              fit_assessment: { fit: strong, confidence: high, caveats: [] }
+              recommended_action: { type: review_outreach }
+              risk_flags: []
+      expect:
+        status: sealed
+        steps: [admit, synthesize, finalize]
+        step_outputs:
+          finalize:
+            subset:
+              lead_enrichment_packet:
+                data:
+                  decision: needs_more_evidence
+                  validation: { status: fail }
+        receipt: { schema: runx.receipt.v1 }
+
+    - name: lead-enrichment-rejects-unprovenanced-signal
+      inputs:
+        lead: { account_id: acct_42 }
+        as_of: "2026-07-17T12:00:00Z"
+        signals:
+          - { source_ref: signal_pricing, type: product, claim: Viewed pricing., observed_at: "2026-07-16T10:00:00Z" }
+        constraints: { opted_in: true, do_not_contact: false }
+      expect:
+        status: sealed
+        steps: [admit, reject]
+        step_outputs:
+          reject:
+            subset:
+              lead_enrichment_packet:
+                data:
+                  decision: needs_more_evidence
+                  validation: { status: fail }
+        receipt: { schema: runx.receipt.v1 }
+
+runners:
+  enrich:
+    default: true
+    inputs:
+      lead:
+        type: json
+        required: true
+        description: Known lead and account fields.
+      signals:
+        type: json
+        required: true
+        description: Bounded supplied signals with stable source refs, source digests, types, and observation timestamps.
+      as_of:
+        type: string
+        required: true
+        description: Explicit ISO-8601 evaluation time.
+      max_age_days:
+        type: number
+        required: false
+        default: 90
+        description: Maximum accepted signal age in days.
+      constraints:
+        type: json
+        required: false
+        description: Consent, suppression, region, and allowed-channel constraints.
+    result_from: [reject, finalize]
+    steps:
+      - id: admit
+        inputs:
+          lead: $input.lead
+          signals: $input.signals
+          as_of: $input.as_of
+          max_age_days: $input.max_age_days
+          constraints: $input.constraints
+        tool: { module: lead-enrichment.mjs, export: admitSignals }
+        outputs:
+          signal_index: object
+        artifacts:
+          named_emits:
+            signal_index: signal_index
+
+      - id: reject
+        when:
+          field: admit.signal_index.data.path
+          equals: stop
+        context:
+          signal_index: admit.signal_index.data
+        tool: { module: lead-enrichment.mjs, export: finalizeEnrichment }
+        outputs:
+          lead_enrichment_packet:
+            type: object
+            schema:
+              required: [decision, lead_profile, evidence, fit_assessment, recommended_action, risk_flags, signal_evidence, consent, delivery_status, validation]
+              additionalProperties: false
+              properties:
+                decision: { type: string, enum: [ready_for_review, do_not_contact, needs_more_evidence] }
+                lead_profile:
+                  type: object
+                  maxProperties: 100
+                  propertyNames: { pattern: '^[A-Za-z_][A-Za-z0-9_]*$' }
+                evidence:
+                  type: array
+                  maxItems: 100
+                  items:
+                    type: object
+                    required: [claim, source_refs, confidence]
+                    additionalProperties: false
+                    properties:
+                      claim: { type: string, minLength: 1, maxLength: 4000 }
+                      source_refs: { type: array, minItems: 1, maxItems: 100, uniqueItems: true, items: { type: string, minLength: 1, maxLength: 1000 } }
+                      confidence: { type: string, enum: [observed, inferred] }
+                fit_assessment:
+                  type: object
+                  additionalProperties: false
+                  properties:
+                    fit: { type: string, enum: [strong, medium, weak, unknown] }
+                    confidence: { type: string, enum: [high, medium, low] }
+                    caveats: { type: array, maxItems: 100, items: { type: string, minLength: 1, maxLength: 2000 } }
+                recommended_action:
+                  type: object
+                  required: [type]
+                  additionalProperties: false
+                  properties:
+                    type: { type: string, enum: [review_outreach, nurture, hold] }
+                    reason: { type: string, maxLength: 2000 }
+                    angle: { type: string, maxLength: 4000 }
+                    priority: { type: string, enum: [high, medium, low] }
+                risk_flags: { type: array, maxItems: 100, items: { type: string, minLength: 1, maxLength: 2000 } }
+                signal_evidence:
+                  type: array
+                  maxItems: 100
+                  items:
+                    type: object
+                    required: [source_ref, signal_digest, type, observed_at, provenance]
+                    additionalProperties: false
+                    properties:
+                      source_ref: { type: string, minLength: 1, maxLength: 1000 }
+                      signal_digest: { type: string, pattern: '^sha256:[0-9a-f]{64}$' }
+                      type: { type: string, minLength: 1, maxLength: 200 }
+                      observed_at: { type: string, format: date-time }
+                      provenance: { const: caller_supplied_source_digest }
+                consent:
+                  type: object
+                  required: [opted_in, do_not_contact, channels_allowed]
+                  additionalProperties: false
+                  properties:
+                    opted_in: { type: boolean }
+                    do_not_contact: { type: boolean }
+                    channels_allowed: { type: array, maxItems: 50, uniqueItems: true, items: { type: string, minLength: 1, maxLength: 100 } }
+                delivery_status: { const: not_sent }
+                validation:
+                  type: object
+                  required: [status, findings]
+                  additionalProperties: false
+                  properties:
+                    status: { type: string, enum: [pass, fail] }
+                    findings:
+                      type: array
+                      maxItems: 250
+                      items:
+                        type: object
+                        required: [code, message]
+                        additionalProperties: false
+                        properties:
+                          code: { type: string, minLength: 1, maxLength: 200 }
+                          message: { type: string, minLength: 1, maxLength: 4000 }
+        artifacts:
+          named_emits:
+            lead_enrichment_packet: lead_enrichment_packet
+          packets:
+            lead_enrichment_packet: runx.growth.lead_enrichment.v1
+
+      - id: synthesize
+        when:
+          field: admit.signal_index.data.path
+          equals: synthesize
+        agent: { role: growth, task: lead-enrichment-synthesize }
+        outputs:
+          enrichment_draft: object
+        context:
+          signal_index: admit.signal_index.data
+        artifacts:
+          named_emits:
+            enrichment_draft: enrichment_draft
+
+      - id: finalize
+        when:
+          field: admit.signal_index.data.path
+          equals: synthesize
+        context:
+          signal_index: admit.signal_index.data
+          enrichment_draft: synthesize.enrichment_draft.data
+        tool: { module: lead-enrichment.mjs, export: finalizeEnrichment }
+        outputs:
+          lead_enrichment_packet: object
+        artifacts:
+          named_emits:
+            lead_enrichment_packet: lead_enrichment_packet
+          packets:
+            lead_enrichment_packet: runx.growth.lead_enrichment.v1

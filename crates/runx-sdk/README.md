@@ -7,9 +7,8 @@ This crate calls an installed `runx` binary and consumes documented
 skill search, skill run, continue, host protocol decoding, and act-assignment
 construction.
 
-SDK v0 does not execute skills natively and does not replace the TypeScript
-runtime. Native runtime support is future work behind a later `native-runtime`
-feature once the Rust runtime cutover is complete.
+The SDK does not execute skills itself; it drives the installed `runx`
+binary.
 
 ```rust
 use runx_sdk::{RunSkillOptions, RunxClient};
@@ -22,5 +21,4 @@ let report = client.run_skill(
 )?;
 ```
 
-SDK v0 depends on `runx-contracts`, not `runx-core`; that keeps the SDK
-shippable before kernel parity is complete.
+The SDK depends on `runx-contracts`, not `runx-core`.

@@ -21,7 +21,7 @@ const packages = [];
 for (const entry of (await readdir(skillsRoot, { withFileTypes: true })).sort((left, right) => left.name.localeCompare(right.name))) {
   if (!entry.isDirectory()) continue;
   const skillDir = path.join(skillsRoot, entry.name);
-  const profilePath = path.join(skillDir, "X.yaml");
+  const profilePath = path.join(skillDir, "run.yaml");
   try {
     await access(path.join(skillDir, "SKILL.md"));
     await access(profilePath);
@@ -64,7 +64,7 @@ function buildOfficialSkillLockRecord(markdown, profileDocument, skill, manifest
     }))
     .digest("hex");
   return {
-    skill_id: `${skill.registryOwner ?? "runx"}/${slugifyOfficialSkillName(skill.name)}`,
+    skill_id: `${manifest.catalog?.owner ?? "runx"}/${slugifyOfficialSkillName(skill.name)}`,
     version: `sha-${versionSeed.slice(0, 12)}`,
     digest,
     catalog_visibility: manifest.catalog?.visibility ?? "internal",

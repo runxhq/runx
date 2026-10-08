@@ -7,7 +7,7 @@ expect:
   status: success
   output:
     subset:
-      harness_id: hrn_sequential-echo_graph
+      subject_ref: runx:run:harness-graph
       status: sealed
       disposition: closed
       step_count: 2

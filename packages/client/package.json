@@ -1,0 +1,39 @@
+{
+  "name": "@runxhq/client",
+  "version": "0.1.0",
+  "description": "Typed Node client for the native Runx runtime",
+  "license": "Apache-2.0",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/src/index.d.ts",
+      "import": "./dist/src/index.js"
+    },
+    "./adapters": {
+      "types": "./dist/src/adapters/index.d.ts",
+      "import": "./dist/src/adapters/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "dependencies": {
+    "@runxhq/contracts": "workspace:^"
+  },
+  "scripts": {
+    "prepack": "pnpm --silent --dir ../.. build:pack"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/runxhq/runx.git",
+    "directory": "packages/client"
+  }
+}

@@ -3,10 +3,8 @@
 // share one typed source of truth.
 use std::collections::BTreeMap;
 
-use runx_contracts::{EnvironmentRequirements, ExecutionSemantics, JsonObject, JsonValue};
+use runx_contracts::{EnvironmentRequirements, JsonObject};
 use serde::{Deserialize, Serialize};
-
-use crate::graph::MintAuthorityDirective;
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -18,39 +16,8 @@ pub struct RawSkillIr {
 
 pub use runx_contracts::{
     ArtifactContract as SkillArtifactContract, IdempotencyPolicy as SkillIdempotencyPolicy,
-    InputDefinition as SkillInput, RetryPolicy as SkillRetryPolicy,
+    InputDefinition as SkillInput,
 };
-
-/// Closed set of built-in skill source kinds. `source.type` is never an open
-/// string: every runner resolves to one of these variants at parse time.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-pub enum SourceKind {
-    CliTool,
-    JavaScript,
-    Agent,
-    #[serde(rename = "agent-task")]
-    AgentStep,
-    Graph,
-}
-
-impl SourceKind {
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            SourceKind::CliTool => "cli-tool",
-            SourceKind::JavaScript => "javascript",
-            SourceKind::Agent => "agent",
-            SourceKind::AgentStep => "agent-task",
-            SourceKind::Graph => "graph",
-        }
-    }
-}
-
-impl std::fmt::Display for SourceKind {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter.write_str(self.as_str())
-    }
-}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -85,52 +52,6 @@ impl InputMode {
             InputMode::None => "none",
         }
     }
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SkillSource {
-    #[serde(rename = "type")]
-    pub source_type: SourceKind,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub command: Option<String>,
-    /// Relative ECMAScript module path for a runtime-owned `javascript`
-    /// invocation. The selected export maps resolved inputs to a JSON-compatible
-    /// result; Runx owns the process protocol.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub module: Option<String>,
-    /// Named function exported by a `javascript` module. Omitted means the
-    /// module's default export.
-    #[serde(rename = "export", skip_serializing_if = "Option::is_none")]
-    pub javascript_export: Option<String>,
-    /// Runtime-owned paging for a contained immutable file. The path fields are
-    /// consumed by the runtime and never enter the deterministic module.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub pages: Option<ArtifactPageSource>,
-    pub args: Vec<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub cwd: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub timeout_seconds: Option<u64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub input_mode: Option<InputMode>,
-    /// Explicit configuration names consumed by this executable source.
-    /// Values are resolved by the runtime and never stored in the manifest IR.
-    #[serde(default, skip_serializing_if = "EnvironmentRequirements::is_empty")]
-    pub environment: EnvironmentRequirements,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub agent: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub task: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub outputs: Option<JsonObject>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub graph: Option<crate::ExecutionGraph>,
-    /// The declared act this source performs, validated at load. `None` when no
-    /// `act:` block is declared (the run then seals a generic observation act).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub act: Option<ActDeclaration>,
-    pub raw: JsonObject,
 }
 
 /// A skill's declared act: how a run describes the act it performs. The form and
@@ -182,23 +103,6 @@ pub struct ActDeclaration {
     pub actor_from: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub authority_from: Option<String>,
-    /// Charter attenuation: the input key carrying the member's own authority term
-    /// (the child grant minted from the charter).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub authority_term_from: Option<String>,
-    /// The input key carrying the parent (charter) authority reference the child
-    /// term attenuates from.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub authority_parent_from: Option<String>,
-    /// The input key carrying the subset proof that the child term is no broader
-    /// than the parent charter.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub authority_subset_proof_from: Option<String>,
-    /// Compute path (mutually exclusive with the explicit `authority_*_from` keys
-    /// above): when present, the runtime mints the child authority term from the
-    /// charter off the model path, from the requested scope this directive names.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub mint_authority: Option<MintAuthorityDirective>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub previous_from: Option<String>,
     /// Graph turns only: the step whose output supplies the reason prose.
@@ -244,87 +148,80 @@ impl ValidateSkillOptions {
     }
 }
 
+/// A validated `SKILL.md`: the operator manual.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ValidatedSkill {
     pub name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub category: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub runx_category: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub registry_owner: Option<String>,
     pub body: String,
-    pub source: SkillSource,
-    pub inputs: BTreeMap<String, SkillInput>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub auth: Option<JsonValue>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub risk: Option<JsonValue>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub runtime: Option<JsonValue>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub retry: Option<SkillRetryPolicy>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub idempotency: Option<SkillIdempotencyPolicy>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub artifacts: Option<SkillArtifactContract>,
-    pub allowed_tools: Option<Vec<String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub execution: Option<ExecutionSemantics>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub runx: Option<JsonObject>,
     pub raw: RawSkillIr,
 }
 
+/// One runner: the steps it runs, its inputs, and the act it performs.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SkillRunnerDefinition {
     pub name: String,
     pub default: bool,
-    pub source: SkillSource,
     pub inputs: BTreeMap<String, SkillInput>,
     /// Complete, parser-validated calls for this runner. These are contract
     /// examples, not fixtures: inspection and generated operator instructions
     /// expose them without reparsing package files.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub examples: Vec<JsonObject>,
-    pub scopes: Vec<String>,
+    /// The act this runner performs. Absent, a run seals a generic
+    /// observation act.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub auth: Option<JsonValue>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub risk: Option<JsonValue>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub runtime: Option<JsonValue>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub retry: Option<SkillRetryPolicy>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub idempotency: Option<SkillIdempotencyPolicy>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub artifacts: Option<SkillArtifactContract>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub allowed_tools: Option<Vec<String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub execution: Option<ExecutionSemantics>,
+    pub act: Option<ActDeclaration>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub runx: Option<JsonObject>,
+    /// The runner's steps, as the graph the engine runs. Its name is the
+    /// runner's.
+    pub graph: crate::ExecutionGraph,
     pub raw: JsonObject,
 }
 
 impl SkillRunnerDefinition {
-    /// Return the complete scope ceiling declared by this runner and its inline
-    /// graph steps. Consumers must use this typed projection rather than scan
-    /// the raw manifest tree independently.
+    /// The complete scope ceiling declared by this runner's steps. Consumers
+    /// must use this typed projection rather than scan the raw manifest tree.
     #[must_use]
     pub fn declared_scopes(&self) -> Vec<String> {
-        let mut scopes = self.scopes.clone();
-        if let Some(graph) = &self.source.graph {
-            for step in &graph.steps {
-                scopes.extend(step.scopes.clone());
+        self.graph
+            .steps
+            .iter()
+            .flat_map(|step| step.scopes.iter().cloned())
+            .collect()
+    }
+
+    /// The artifact contracts of the steps whose outputs form the runner's
+    /// public result.
+    #[must_use]
+    pub fn result_artifacts(&self) -> Vec<&SkillArtifactContract> {
+        self.graph
+            .steps
+            .iter()
+            .filter(|step| self.graph.result_from.contains(&step.id))
+            .filter_map(|step| step.artifacts.as_ref())
+            .collect()
+    }
+
+    /// The environment requirements of the runner's worker and process steps.
+    #[must_use]
+    pub fn environment(&self) -> EnvironmentRequirements {
+        let mut environment = EnvironmentRequirements::default();
+        for step in &self.graph.steps {
+            match &step.kind {
+                crate::StepKind::Tool(crate::ToolTarget::Process(process)) => {
+                    environment.extend(&process.environment);
+                }
+                crate::StepKind::Tool(crate::ToolTarget::Worker(worker)) => {
+                    environment.extend(&worker.environment);
+                }
+                _ => {}
             }
         }
-        scopes
+        environment
     }
 }

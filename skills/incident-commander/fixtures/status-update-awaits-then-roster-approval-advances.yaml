@@ -43,7 +43,7 @@ inputs:
     reason: Approve this exact audience and content digest for send planning.
 caller:
   answers:
-    agent_task.ops-desk-advance.output:
+    agent.ops-desk-advance.output:
       decision: dispatch
       reason: The exact comms_lead approval permits a separate send-as planning run.
       dispatch:

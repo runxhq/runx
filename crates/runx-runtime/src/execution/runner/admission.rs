@@ -1,5 +1,5 @@
-// Admission owns authority, effect replay, approval, and provider-effect
-// preconditions before a step may dispatch.
+// Admission owns authority, approval, and effect preconditions before a step
+// may dispatch.
 use std::collections::BTreeMap;
 use std::path::Path;
 
@@ -10,70 +10,17 @@ use crate::RuntimeError;
 use crate::adapter::InvocationOutput;
 use crate::effects::{
     EffectAdmission, EffectOutputRequest, EffectPreparationOutcome, EffectReceiptRequest,
-    EffectReplay, EffectReplayOutputRequest, EffectReplayReceiptRequest, EffectStepRequest,
-    ResolvedEffectTarget, RuntimeEffectError, RuntimeEffectRegistry,
+    EffectStepRequest, RuntimeEffectError, RuntimeEffectRegistry,
 };
 
-pub(super) fn find_effect_replay(
-    step: &GraphStep,
-    target: ResolvedEffectTarget<'_>,
-    inputs: &JsonObject,
-    env: &BTreeMap<String, String>,
-    graph_dir: &Path,
-    effects: &RuntimeEffectRegistry,
-) -> Result<Option<EffectReplay>, RuntimeError> {
-    effects
-        .find_replay(EffectStepRequest {
-            step,
-            target,
-            inputs,
-            env,
-            graph_dir,
-            run_authority: None,
-        })
-        .map_err(|source| runtime_effect_error(step, source))
-}
-
-pub(super) fn recover_pending_effects(
-    step: &GraphStep,
-    target: ResolvedEffectTarget<'_>,
-    inputs: &JsonObject,
-    env: &BTreeMap<String, String>,
-    graph_dir: &Path,
-    effects: &RuntimeEffectRegistry,
-) -> Result<(), RuntimeError> {
-    effects
-        .recover_pending(EffectStepRequest {
-            step,
-            target,
-            inputs,
-            env,
-            graph_dir,
-            run_authority: None,
-        })
-        .map_err(|source| runtime_effect_error(step, source))
-}
-
 pub(super) fn enforce_step_authority_admission(
-    step: &GraphStep,
-    target: ResolvedEffectTarget<'_>,
-    inputs: &JsonObject,
-    env: &BTreeMap<String, String>,
-    graph_dir: &Path,
-    run_authority: Option<&crate::RunAuthority>,
+    request: EffectStepRequest<'_>,
     effects: &RuntimeEffectRegistry,
 ) -> Result<Option<StepAuthorityContext>, RuntimeError> {
     effects
-        .admit(EffectStepRequest {
-            step,
-            target,
-            inputs,
-            env,
-            graph_dir,
-            run_authority,
-        })
+        .admit(request)
         .map(|admission| admission.map(StepAuthorityContext::new))
-        .map_err(|source| runtime_effect_error(step, source))
+        .map_err(|source| runtime_effect_error(request.step, source))
 }
 
 pub(super) fn prepare_effect_execution(
@@ -90,11 +37,14 @@ pub(super) fn prepare_effect_execution(
         Ok(EffectPreparationOutcome::Ready(admission)) => {
             Ok(Some(StepAuthorityContext::new(*admission)))
         }
-        Ok(EffectPreparationOutcome::Pending { reason }) => Err(RuntimeError::ResolutionPending {
-            step_id: step.id.clone(),
-            reason,
-            checkpoint: None,
-        }),
+        Ok(EffectPreparationOutcome::Pending { reason, request }) => {
+            Err(RuntimeError::ResolutionPending {
+                step_id: step.id.clone(),
+                reason,
+                request,
+                child: None,
+            })
+        }
         Err(source) => Err(runtime_effect_error(step, source)),
     }
 }
@@ -142,40 +92,6 @@ pub(super) fn persist_effect_state_for_step(
     let step = context.step;
     effects
         .persist(effect_receipt_request(context, authority))
-        .map_err(|source| runtime_effect_error(step, source))
-}
-
-pub(super) fn prepare_replay_output(
-    step: &GraphStep,
-    replay: &EffectReplay,
-    output: &mut InvocationOutput,
-    effects: &RuntimeEffectRegistry,
-) -> Result<(), RuntimeError> {
-    effects
-        .prepare_replay_output(EffectReplayOutputRequest {
-            step,
-            replay,
-            output,
-        })
-        .map_err(|source| runtime_effect_error(step, source))
-}
-
-pub(super) fn validate_replayed_effect(
-    step: &GraphStep,
-    replay: &EffectReplay,
-    receipt: &runx_contracts::Receipt,
-    output: &InvocationOutput,
-    claim: &JsonObject,
-    effects: &RuntimeEffectRegistry,
-) -> Result<(), RuntimeError> {
-    effects
-        .validate_replay(EffectReplayReceiptRequest {
-            step,
-            replay,
-            receipt,
-            output,
-            claim,
-        })
         .map_err(|source| runtime_effect_error(step, source))
 }
 

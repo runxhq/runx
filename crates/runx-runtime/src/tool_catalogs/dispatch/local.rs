@@ -11,7 +11,7 @@ use runx_parser::SkillArtifactContract;
 use super::{ToolDispatchRequest, catalog_error, configured_tool_roots, failure, workspace_root};
 use crate::RuntimeError;
 use crate::adapter::{InvocationOutput, SkillAdapter, SkillInvocation};
-use crate::adapters::cli_tool::CliToolAdapter;
+use crate::adapters::process_tool::ProcessToolAdapter;
 #[cfg(feature = "agent")]
 use crate::effects::RuntimeEffectRegistry;
 use crate::tool_catalogs::{ToolCatalogError, ToolInspectOptions, resolve_local_tool};
@@ -54,15 +54,8 @@ pub(super) struct LocalInvocationOutput {
     pub(super) artifacts: Option<SkillArtifactContract>,
 }
 
-#[derive(Clone, Copy)]
-pub(super) enum InvocationContract {
-    DeclaredTool,
-    DataAdapter,
-}
-
 pub(super) fn invoke(
     request: &ToolDispatchRequest<'_>,
-    contract: InvocationContract,
     started: Instant,
 ) -> Result<Option<LocalInvocationOutput>, RuntimeError> {
     let resolution = match resolve_local_tool(&inspect_options(request, request.tool_ref.as_ref()))
@@ -78,7 +71,6 @@ pub(super) fn invoke(
 
     let artifacts = resolution.tool.artifacts.clone();
     let declared_inputs = resolution.tool.inputs.clone();
-    let source_type = resolution.tool.source.source_type;
     let requirements = resolution.tool.execution_requirements();
     if let Err(error) = crate::capability::enforce_required_scopes(
         &resolution.tool.name,
@@ -91,78 +83,38 @@ pub(super) fn invoke(
         }));
     }
     let tool_directory = manifest_directory(&resolution.manifest_path, request.skill_directory);
-    let (inputs, resolved_inputs) = match contract {
-        InvocationContract::DeclaredTool => {
-            let inputs = match crate::input_contract::materialize_tool_inputs(
-                &declared_inputs,
-                request.inputs.as_ref(),
-                request.resolved_inputs.as_ref(),
-            ) {
-                Ok(inputs) => inputs,
-                Err(error) => {
-                    return Ok(Some(LocalInvocationOutput {
-                        output: failure(error.to_string(), started),
-                        artifacts,
-                    }));
-                }
-            };
-            (inputs, JsonObject::new())
+    let inputs = match crate::input_contract::materialize_tool_inputs(
+        &declared_inputs,
+        request.inputs.as_ref(),
+        request.resolved_inputs.as_ref(),
+    ) {
+        Ok(inputs) => inputs,
+        Err(error) => {
+            return Ok(Some(LocalInvocationOutput {
+                output: failure(error.to_string(), started),
+                artifacts,
+            }));
         }
-        InvocationContract::DataAdapter => (request.inputs.as_ref().clone(), JsonObject::new()),
     };
     let invocation = SkillInvocation {
         historical_context: Vec::new(),
         skill_name: resolution.tool.name,
         step_id: None,
-        source: resolution.tool.source,
+        executable: crate::adapter::Executable::Process(resolution.tool.source),
+        outputs: None,
         requirements,
         artifacts: artifacts.clone(),
         allowed_tools: None,
         inputs,
-        resolved_inputs,
+        resolved_inputs: JsonObject::new(),
         current_context: Vec::new(),
         provenance: Vec::new(),
         skill_directory: tool_directory,
         env: request.env.clone(),
         credential_delivery: request.credential_delivery.clone(),
     };
-    let output = match (source_type, contract) {
-        (runx_parser::SourceKind::CliTool, InvocationContract::DataAdapter) => CliToolAdapter
-            .invoke_with_output_limit(
-                invocation,
-                crate::tool_catalogs::native::MAX_DATA_OPERATION_RESULT_BYTES,
-            )?,
-        (runx_parser::SourceKind::CliTool, InvocationContract::DeclaredTool) => {
-            CliToolAdapter.invoke(invocation)?
-        }
-        #[cfg(feature = "cli-tool")]
-        (runx_parser::SourceKind::JavaScript, InvocationContract::DeclaredTool) => {
-            request.javascript.invoke(invocation)?
-        }
-        (other, contract) => {
-            return Ok(Some(LocalInvocationOutput {
-                output: failure(
-                    format!(
-                        "Resolved tool '{}' uses unsupported adapter '{other}' for {}.",
-                        invocation.skill_name,
-                        contract.label(),
-                    ),
-                    started,
-                ),
-                artifacts,
-            }));
-        }
-    };
+    let output = ProcessToolAdapter.invoke(invocation)?;
     Ok(Some(LocalInvocationOutput { output, artifacts }))
-}
-
-impl InvocationContract {
-    fn label(self) -> &'static str {
-        match self {
-            Self::DeclaredTool => "declared tool execution",
-            Self::DataAdapter => "data adapter execution",
-        }
-    }
 }
 
 fn inspect_options(request: &ToolDispatchRequest<'_>, tool_ref: &str) -> ToolInspectOptions {

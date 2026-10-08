@@ -10,7 +10,14 @@ fn custody() -> (tempfile::TempDir, EffectCustody) {
     let store = KernelStore::open(root.path()).expect("store");
     (
         root,
-        EffectCustody::open(store, "run-1", "/skills/slack", "deliver"),
+        EffectCustody::for_named_act(
+            store,
+            "slack",
+            "channel.post",
+            "slack-acme",
+            "slack://T123/C456",
+            "deliver-1",
+        ),
     )
 }
 
@@ -60,6 +67,49 @@ fn an_attempt_stays_pending_until_it_settles() {
         .finalized("receipt-1".to_owned(), None, &[])
         .unwrap();
     assert!(custody.pending().unwrap().is_none());
+}
+
+#[test]
+fn a_sequence_runs_from_its_first_attempt_to_its_settlement() {
+    let (_root, custody) = custody();
+    assert!(!custody.attempted().unwrap());
+    assert_eq!(custody.custody().unwrap().sequence, 0);
+    custody.attempt(&attempt(1), None, &[]).unwrap();
+    custody.unknown("timed out".to_owned()).unwrap();
+    custody.attempt(&attempt(2), None, &[]).unwrap();
+    assert!(custody.attempted().unwrap());
+    assert_eq!(custody.custody().unwrap().sequence, 0);
+    custody
+        .finalized("receipt-1".to_owned(), None, &[])
+        .unwrap();
+    let settled = custody.custody().unwrap();
+    assert!(settled.pending.is_none());
+    assert_eq!(settled.sequence, 4);
+    assert_ne!(
+        custody.use_key(0, "sha256:intent"),
+        custody.use_key(settled.sequence, "sha256:intent")
+    );
+    custody.attempt(&attempt(1), None, &[]).unwrap();
+    assert_eq!(custody.custody().unwrap().sequence, 4);
+}
+
+#[test]
+fn an_act_is_named_by_its_request_key_on_its_target() {
+    let (root, custody) = custody();
+    let store = KernelStore::open(root.path()).unwrap();
+    let named = |target: &str, key: &str| {
+        EffectCustody::for_named_act(
+            Arc::clone(&store),
+            "slack",
+            "channel.post",
+            "slack-acme",
+            target,
+            key,
+        )
+    };
+    assert!(named("slack://T123/C456", "deliver-1") == custody);
+    assert!(named("slack://T123/C789", "deliver-1") != custody);
+    assert!(named("slack://T123/C456", "deliver-2") != custody);
 }
 
 #[test]

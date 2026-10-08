@@ -137,5 +137,4 @@ metadata:
   public_skill: business-ops
   source_case: launch-readiness-stops-before-effects
   source: skills-fixture
-  runner_kind: graph
   graph_shape: ops_fanout

@@ -17,7 +17,6 @@ const fixtureRoot = path.join(workspaceRoot, "fixtures", "contracts");
 const sdkFixtureRoot = path.join(workspaceRoot, "fixtures", "sdk-rust");
 const actAssignmentRoot = path.join(fixtureRoot, "act-assignment");
 const governanceControlRoot = path.join(fixtureRoot, "governance-control");
-const executionRoot = path.join(fixtureRoot, "execution");
 
 interface ContractFixture {
   readonly name: string;
@@ -61,19 +60,11 @@ type HostFixtureKind =
   | "resolution_response"
   | "run_result"
   | "run_state";
-type ExecutionFixtureKind =
-  | "execution_semantics"
-  | "governed_disposition"
-  | "input_context_capture"
-  | "outcome_state"
-  | "receipt_outcome"
-  | "receipt_surface_ref";
 type GovernanceControlFixtureKind = "governance_control_set";
-type ContractFixtureKind = HostFixtureKind | ExecutionFixtureKind | GovernanceControlFixtureKind;
+type ContractFixtureKind = HostFixtureKind | GovernanceControlFixtureKind;
 type ContractScope =
   | "act-assignment"
   | "governance-control"
-  | "execution"
   | "host-protocol"
   | "paid-invocation"
   | "principal-id"
@@ -87,7 +78,6 @@ if (
   selectedScope !== undefined
   && selectedScope !== "act-assignment"
   && selectedScope !== "governance-control"
-  && selectedScope !== "execution"
   && selectedScope !== "host-protocol"
   && selectedScope !== "paid-invocation"
   && selectedScope !== "principal-id"
@@ -102,9 +92,6 @@ if (selectedScope === undefined || selectedScope === "act-assignment") {
 }
 if (selectedScope === undefined || selectedScope === "governance-control") {
   await writeFixtures(buildGovernanceControlFixtures(), governanceControlRoot);
-}
-if (selectedScope === undefined || selectedScope === "execution") {
-  await writeFixtures(buildExecutionFixtures(), executionRoot);
 }
 if (selectedScope === undefined || selectedScope === "host-protocol") {
   const fixtures = buildHostProtocolFixtures();
@@ -570,7 +557,7 @@ function buildGovernanceControlFixtures(): readonly ContractFixture[] {
   const selectionCycleRef = reference("selection_cycle", "runx:selection_cycle:cycle_1");
   const selectionRef = reference("selection", "runx:selection:sel_1");
   const decisionRef = reference("decision", "runx:decision:dec_1");
-  const receiptRef = reference("receipt", "runx:receipt:hrn_1");
+  const receiptRef = reference("receipt", "runx:receipt:rcpt_1");
   const verificationRef = reference("verification", "runx:verification:ver_1");
   const evidenceRef = reference("artifact", "runx:artifact:evidence_1");
   const redactionPolicyRef = reference("redaction_policy", "runx:redaction_policy:public");
@@ -733,81 +720,6 @@ function reference(type: string, uri: string): Readonly<Record<string, string>> 
   return { type, uri };
 }
 
-function buildExecutionFixtures(): readonly ContractFixture[] {
-  const fixtures: ContractFixture[] = [
-    executionFixture("governed-disposition", "GovernedDisposition", "governed_disposition", "needs_agent"),
-    executionFixture("outcome-state", "OutcomeState", "outcome_state", "expired"),
-    executionFixture("receipt-surface-ref", "ReceiptSurfaceRef", "receipt_surface_ref", {
-      type: "thread",
-      uri: "https://github.com/runxhq/runx/issues/1",
-      label: "tracking issue",
-    }),
-    executionFixture("input-context-capture", "InputContextCapture", "input_context_capture", {
-      capture: true,
-      max_bytes: 4096,
-      snapshot: {
-        count: 1,
-        source: "fixture",
-      },
-      source: "declared-inputs",
-    }),
-    executionFixture("receipt-outcome", "ReceiptOutcome", "receipt_outcome", {
-      code: "needs_followup",
-      data: {
-        count: 1,
-        severity: "medium",
-      },
-      observed_at: "2026-05-18T00:00:00.000Z",
-      summary: "Action still requires review.",
-    }),
-    executionFixture("execution-full", "ExecutionSemantics", "execution_semantics", {
-      disposition: "needs_agent",
-      evidence_refs: [
-        {
-          type: "log",
-          uri: "file://receipt/stdout.log",
-        },
-      ],
-      input_context: {
-        capture: true,
-        max_bytes: 2048,
-        source: "project-context",
-      },
-      outcome: {
-        code: "approval_required",
-        data: {
-          gate: "workspace-write",
-        },
-        summary: "Requires workspace-write approval.",
-      },
-      outcome_state: "pending",
-      surface_refs: [
-        {
-          label: "Design doc",
-          type: "doc",
-          uri: "docs/design.md",
-        },
-      ],
-    }),
-  ];
-  return fixtures.sort((left, right) => left.name.localeCompare(right.name));
-}
-
-function executionFixture(
-  name: string,
-  typeName: string,
-  fixtureKind: ExecutionFixtureKind,
-  expected: unknown,
-): ContractFixture {
-  return {
-    name,
-    scope: "execution",
-    description: `${typeName} contract fixture generated from the TypeScript serializable wire subset.`,
-    fixture_kind: fixtureKind,
-    expected,
-  };
-}
-
 function buildHostProtocolFixtures(): readonly ContractFixture[] {
   const fixtures: ContractFixture[] = [
     ...hostResultFixtures(),
@@ -962,9 +874,8 @@ function agentActResolutionRequest(): Readonly<Record<string, unknown>> {
     kind: "agent_act",
     invocation: {
       id: "act_1",
-      source_type: "agent-task",
-      agent: "codex",
-      task: "Summarize receipt",
+      role: "analyst",
+      task: "summarize-receipt",
       envelope: {
         allowed_tools: [],
         current_context: [],

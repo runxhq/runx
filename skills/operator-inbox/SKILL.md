@@ -1,8 +1,6 @@
 ---
 name: operator-inbox
 description: Maintain a provider-neutral local action queue from bounded provider observations and explicit human dispositions.
-runx:
-  category: ops
 ---
 
 # Operator Inbox
@@ -27,10 +25,11 @@ SQLite, Postgres, or another provider directly.
 ## What this skill does
 
 Use `local://runx/operator-inbox/default` unless the operator selects another
-logical source. Unbound local refs resolve to SQLite under
-`.runx/data/local-sources/`. A hosted database is opt-in through the same
-`data_source_ref` binding. Runx Connect may still own OAuth, grants, and provider
-execution; that does not move this queue into the hosted control plane.
+logical source. The queue lives in the workspace's store: the workspace store
+(SQLite under `.runx/store.sqlite`) unless the operator confirmed another store
+instance, such as Postgres. Runx Connect may still own OAuth, grants and
+provider execution; that does not move this queue into the hosted control
+plane.
 
 Observations and resumable checkpoints live in `operator_inbox_scans`, partitioned
 by query digest. Action snapshots live in `operator_inbox_actions`, with one

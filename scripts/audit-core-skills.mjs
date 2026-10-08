@@ -256,7 +256,7 @@ function readNativeCatalog(runx) {
   const topLevel = new Map();
   for (const item of output.items) {
     if (typeof item?.path !== "string" || typeof item?.name !== "string") continue;
-    if (item.path !== `skills/${item.name}/X.yaml`) continue;
+    if (item.path !== `skills/${item.name}/run.yaml`) continue;
     if (topLevel.has(item.name)) throw new Error(`native catalog returned duplicate ${item.name}`);
     topLevel.set(item.name, item);
   }
@@ -275,17 +275,11 @@ function readNativeToolCatalog(runx) {
 }
 
 function validateAgentToolScopes(name, toolCatalog) {
-  const source = readFileSync(path.join(root, "skills", name, "X.yaml"), "utf8");
+  const source = readFileSync(path.join(root, "skills", name, "run.yaml"), "utf8");
   const profile = validateRunnerManifestYaml(source);
   const findings = [];
   for (const [runnerName, runner] of Object.entries(profile.runners ?? {})) {
-    findings.push(...missingAgentToolScopes(
-      `${name}#${runnerName}`,
-      runner.allowedTools,
-      runner.scopes,
-      toolCatalog,
-    ));
-    for (const step of runner.source?.graph?.steps ?? []) {
+    for (const step of runner.graph?.steps ?? []) {
       findings.push(...missingAgentToolScopes(
         `${name}#${runnerName}.${step.id ?? "<unknown-step>"}`,
         step.allowedTools,
@@ -785,7 +779,7 @@ function runSelfTests() {
       components: ["tool:data.read"],
       skill_edges: [],
       direct_external_skill_edges: [],
-      profiles: ["X.yaml#default"],
+      profiles: ["run.yaml#default"],
       agent_acts: 0,
       declared_artifact: false,
     },

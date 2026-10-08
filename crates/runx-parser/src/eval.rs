@@ -8,8 +8,7 @@ use crate::{
     parse_skill_markdown, parse_tool_manifest_json, parse_tool_manifest_yaml,
     runner::resolve_post_run_reflect_policy,
     validate_graph, validate_runner_manifest, validate_skill_artifact_contract,
-    validate_skill_install, validate_skill_source, validate_skill_with_options,
-    validate_tool_manifest,
+    validate_skill_install, validate_skill_with_options, validate_tool_manifest,
 };
 use runx_contracts::{JsonObject, JsonValue, json_string_field};
 use serde::{Deserialize, Serialize};
@@ -101,10 +100,7 @@ fn parser_document_kind(document: &JsonValue) -> Option<&str> {
     let JsonValue::Object(fields) = document else {
         return None;
     };
-    match fields.get("input") {
-        Some(JsonValue::Object(input)) => json_string_field(input, "kind"),
-        _ => json_string_field(fields, "kind"),
-    }
+    json_string_field(fields, "kind")
 }
 
 fn is_supported_parser_kind(kind: &str) -> bool {
@@ -117,7 +113,6 @@ fn is_supported_parser_kind(kind: &str) -> bool {
             | "parser.validateToolManifestJson"
             | "parser.validateHarnessFixtureYaml"
             | "parser.parsePacketSchemaDocument"
-            | "parser.validateSkillSource"
             | "parser.validateSkillArtifactContract"
             | "parser.resolvePostRunReflectPolicy"
             | "parser.validateSkillInstall"
@@ -132,10 +127,7 @@ enum ParserDocument {
         #[serde(default, rename = "returnErrors")]
         return_errors: bool,
     },
-    Envelope {
-        input: ParserInput,
-    },
-    Input(ParserInput),
+    Input(Box<ParserInput>),
 }
 
 #[derive(Debug, Deserialize)]
@@ -159,8 +151,6 @@ enum ParserInput {
     ValidateHarnessFixtureYaml { yaml: String },
     #[serde(rename = "parser.parsePacketSchemaDocument")]
     ParsePacketSchemaDocument { path: String, source: String },
-    #[serde(rename = "parser.validateSkillSource")]
-    ValidateSkillSource { source: JsonObject },
     #[serde(rename = "parser.validateSkillArtifactContract")]
     ValidateSkillArtifactContract {
         #[serde(default)]
@@ -229,9 +219,7 @@ fn evaluate_parser_document(document: ParserDocument) -> Result<JsonValue, Parse
             .map(evaluate_parser_input)
             .collect::<Result<Vec<_>, _>>()
             .map(JsonValue::Array),
-        ParserDocument::Envelope { input } | ParserDocument::Input(input) => {
-            evaluate_parser_input(input)
-        }
+        ParserDocument::Input(input) => evaluate_parser_input(*input),
     }
 }
 
@@ -291,9 +279,6 @@ fn evaluate_parser_input(input: ParserInput) -> Result<JsonValue, ParserEvalErro
                 .map_err(|error| ParserEvalError::Validation(error.to_string()))?;
             to_json_value(parsed)
         }
-        ParserInput::ValidateSkillSource { source } => {
-            to_json_value(validate_skill_source(&source)?)
-        }
         ParserInput::ValidateSkillArtifactContract { artifacts, field } => to_json_value(
             validate_skill_artifact_contract(artifacts.as_ref(), &field)?,
         ),
@@ -330,7 +315,7 @@ mod tests {
         let output = evaluate_parser_document_str(
             r#"{
               "kind": "parser.validateSkillMarkdown",
-              "markdown": "---\nname: parser-demo\n---\n# Parser Demo\n",
+              "markdown": "---\nname: parser-demo\ndescription: Parser demo.\n---\n# Parser Demo\n",
               "mode": "strict"
             }"#,
         )
@@ -364,11 +349,11 @@ mod tests {
               "inputs": [
                 {
                   "kind": "parser.validateSkillMarkdown",
-                  "markdown": "---\nname: first\n---\n# First\n"
+                  "markdown": "---\nname: first\ndescription: First.\n---\n# First\n"
                 },
                 {
                   "kind": "parser.validateSkillMarkdown",
-                  "markdown": "---\nname: second\n---\n# Second\n"
+                  "markdown": "---\nname: second\ndescription: Second.\n---\n# Second\n"
                 }
               ]
             }"#,

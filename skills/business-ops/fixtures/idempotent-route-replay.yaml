@@ -1,8 +1,6 @@
 name: idempotent-route-replay-keeps-one-event
 kind: graph
-target: ../harness/route-replay.yaml
-env:
-  RUNX_DATA_SOURCES: '{"data_sources":{"tenant://business-ops/replay-routes":{"adapter":"data.sqlite","database_path":".runx/data/business-ops-route-replay.sqlite","resources":{"ops_routes":{"kind":"event_stream","partition_key":"aggregate_id"}}}}}'
+target: support/route-replay.graph
 expect:
   status: sealed
   receipt:
@@ -26,9 +24,7 @@ expect:
             before_version: 1
             after_version: 1
             provider_evidence:
-              adapter: data.sqlite
-              provider: sqlite-event-store
-              storage_class: sqlite
+              backend: sqlite
     readback:
       subset:
         data_operation_result:
@@ -42,5 +38,4 @@ metadata:
   public_skill: business-ops
   source_case: idempotent-route-replay-keeps-one-event
   source: skills-fixture
-  runner_kind: graph
   graph_shape: idempotent_route_replay

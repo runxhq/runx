@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://schemas.runx.ai/runx/ops/knowledge_route/v1.json",
   "x-runx-packet-id": "runx.ops.knowledge_route.v1",
-  "x-runx-generated-from": "skills/knowledge-router/X.yaml#root.runners.route.graph.steps.2",
+  "x-runx-generated-from": "skills/knowledge-router/run.yaml#root.runners.route.steps.2",
   "additionalProperties": false,
   "properties": {
     "next_skill": {

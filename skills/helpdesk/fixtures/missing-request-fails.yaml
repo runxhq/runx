@@ -10,7 +10,7 @@ expect:
     schema: runx.receipt.v1
     state: sealed
     disposition: failed
-    reason_code: process_failed
+    reason_code: graph_step_failed
 metadata:
   public_skill: helpdesk
   source_case: missing-request-fails

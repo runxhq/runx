@@ -305,3 +305,109 @@ fn receipt_destination_does_not_split_workspace_state() {
             .join(".runx/kernel.sqlite")
     );
 }
+
+#[test]
+fn blobs_commit_with_their_event_and_are_stored_once() {
+    let (_root, store) = store();
+    let blob = Blob::json(&serde_json::json!({"step": "plan", "output": [1, 2, 3]})).unwrap();
+    let digest = blob.digest().to_owned();
+    store
+        .append(vec![
+            Append::kernel("a", Expected::Absent, &Ledger::Moved { amount: 1 })
+                .unwrap()
+                .with_blobs([blob.clone()]),
+            Append::kernel("b", Expected::Absent, &Ledger::Moved { amount: 2 })
+                .unwrap()
+                .with_blobs([blob]),
+        ])
+        .unwrap();
+    let value: serde_json::Value = store.blob_json(&digest).unwrap();
+    assert_eq!(value["step"], "plan");
+    let count: i64 = store
+        .lock()
+        .query_row("SELECT count(*) FROM kernel_blobs", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(count, 1);
+}
+
+#[test]
+fn a_refused_batch_stores_no_blob() {
+    let (_root, store) = store();
+    store
+        .append(vec![
+            Append::kernel("a", Expected::Absent, &Ledger::Moved { amount: 1 }).unwrap(),
+        ])
+        .unwrap();
+    let blob = Blob::new(b"orphan".to_vec()).unwrap();
+    let digest = blob.digest().to_owned();
+    assert!(matches!(
+        store.append(vec![
+            Append::kernel("a", Expected::Absent, &Ledger::Moved { amount: 2 })
+                .unwrap()
+                .with_blobs([blob]),
+        ]),
+        Err(KernelStoreError::Conflict { .. })
+    ));
+    assert!(matches!(
+        store.blob(&digest),
+        Err(KernelStoreError::BlobIntegrity { .. })
+    ));
+}
+
+#[test]
+fn a_tampered_blob_fails_its_digest() {
+    let (_root, store) = store();
+    let blob = Blob::new(b"original".to_vec()).unwrap();
+    let digest = blob.digest().to_owned();
+    store
+        .append(vec![
+            Append::kernel("a", Expected::Absent, &Ledger::Moved { amount: 1 })
+                .unwrap()
+                .with_blobs([blob]),
+        ])
+        .unwrap();
+    store
+        .lock()
+        .execute(
+            "UPDATE kernel_blobs SET data = ?1 WHERE digest = ?2",
+            params![b"tampered".to_vec(), digest],
+        )
+        .unwrap();
+    assert!(matches!(
+        store.blob(&digest),
+        Err(KernelStoreError::BlobIntegrity { .. })
+    ));
+}
+
+#[test]
+fn recent_heads_page_newest_first() {
+    let (_root, store) = store();
+    for key in ["a", "b", "c"] {
+        store
+            .append(vec![
+                Append::kernel(key, Expected::Absent, &Ledger::Moved { amount: 1 }).unwrap(),
+            ])
+            .unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(2));
+    }
+    store
+        .append(vec![
+            Append::kernel("a", Expected::Version(1), &Ledger::Moved { amount: 2 }).unwrap(),
+        ])
+        .unwrap();
+    let first = store.recent_heads::<Ledger>(None, 2).unwrap();
+    assert_eq!(
+        first
+            .iter()
+            .map(|head| head.key.as_str())
+            .collect::<Vec<_>>(),
+        ["a", "c"]
+    );
+    let rest = store.recent_heads::<Ledger>(first.last(), 2).unwrap();
+    assert_eq!(
+        rest.iter()
+            .map(|head| head.key.as_str())
+            .collect::<Vec<_>>(),
+        ["b"]
+    );
+}

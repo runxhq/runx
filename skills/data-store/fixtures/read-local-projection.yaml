@@ -11,10 +11,10 @@ expect:
   receipt:
     schema: runx.receipt.v1
   steps:
+    - store-read
     - read
 metadata:
   public_skill: data-store
   source_case: read-local-projection
   source: skills-fixture
-  runner_kind: graph
   graph_shape: read_projection

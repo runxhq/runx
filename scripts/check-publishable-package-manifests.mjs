@@ -69,9 +69,33 @@ function rewriteWorkspaceProtocol(dependencyName, spec, versions) {
   if (!version) throw new Error(`Unable to resolve workspace version for ${dependencyName}.`);
   const requested = spec.slice("workspace:".length).trim();
   if (requested === "" || requested === "*" || requested === version) return version;
-  if (requested === "^" || requested.startsWith("^")) return `^${version}`;
-  if (requested === "~" || requested.startsWith("~")) return `~${version}`;
-  return requested;
+  if (requested === "^") return `^${version}`;
+  if (requested === "~") return `~${version}`;
+  const operator = requested[0];
+  if ((operator === "^" || operator === "~") && allowsVersion(requested.slice(1), version, operator)) {
+    return `${operator}${version}`;
+  }
+  throw new Error(`${dependencyName} ${spec} does not allow workspace version ${version}.`);
+}
+
+function allowsVersion(floor, current, operator) {
+  const base = parseStableVersion(floor);
+  const candidate = parseStableVersion(current);
+  if (!base || !candidate) return false;
+  const [major, minor, patch] = base;
+  const [actualMajor, actualMinor, actualPatch] = candidate;
+  if (actualMajor !== major || actualMinor < minor || (actualMinor === minor && actualPatch < patch)) {
+    return false;
+  }
+  if (operator === "~") return actualMinor === minor;
+  if (major > 0) return true;
+  if (minor > 0) return actualMinor === minor;
+  return actualMinor === 0 && actualPatch === patch;
+}
+
+function parseStableVersion(value) {
+  if (!/^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$/u.test(value)) return null;
+  return value.split(".").map(Number);
 }
 
 function isRecord(value) {

@@ -48,7 +48,7 @@
   "target": {
     "allowed_package_imports": [
       "@runxhq/contracts",
-      "@runxhq/host-adapters"
+      "@runxhq/client"
     ],
     "boundary": "runx-runtime-service",
     "forbidden_package_imports": [

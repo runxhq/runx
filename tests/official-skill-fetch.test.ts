@@ -21,7 +21,7 @@ describe("registry skill native fetch", () => {
       publishLocalRegistrySkill({
         registryDir,
         subject: path.resolve("skills/sourcey/SKILL.md"),
-        profile: path.resolve("skills/sourcey/X.yaml"),
+        profile: path.resolve("skills/sourcey/run.yaml"),
         owner: "acme",
         version: sourceyLock.version,
         env,
@@ -40,7 +40,7 @@ describe("registry skill native fetch", () => {
       expect((firstJson as { status?: string }).status).toBe("needs_agent");
       const firstPath = findRegistrySkillCachePath(globalHomeDir, "acme/sourcey");
       expect((await stat(path.join(firstPath, "SKILL.md"))).isFile()).toBe(true);
-      expect((await stat(path.join(firstPath, "X.yaml"))).isFile()).toBe(true);
+      expect((await stat(path.join(firstPath, "run.yaml"))).isFile()).toBe(true);
 
       const second = runNativeSkill(env, [
         skillRef,
@@ -71,7 +71,7 @@ describe("registry skill native fetch", () => {
       publishLocalRegistrySkill({
         registryDir,
         subject: path.resolve("skills/sourcey/SKILL.md"),
-        profile: path.resolve("skills/sourcey/X.yaml"),
+        profile: path.resolve("skills/sourcey/run.yaml"),
         owner: "acme",
         version: sourceyLock.version,
         env,
@@ -113,7 +113,7 @@ describe("registry skill native fetch", () => {
       publishLocalRegistrySkill({
         registryDir,
         subject: path.resolve("skills/agency/SKILL.md"),
-        profile: path.resolve("skills/agency/X.yaml"),
+        profile: path.resolve("skills/agency/run.yaml"),
         owner: "acme",
         version: lockEntry.version,
         env,
@@ -132,7 +132,7 @@ describe("registry skill native fetch", () => {
       for (const stage of ["plan", "reduce"]) {
         expect(
           (await stat(
-            path.join(skillPath, "graph", stage, "X.yaml"),
+            path.join(skillPath, "graph", stage, "run.yaml"),
           )).isFile(),
           stage,
         ).toBe(true);
@@ -155,7 +155,7 @@ describe("registry skill native fetch", () => {
       publishLocalRegistrySkill({
         registryDir,
         subject: path.resolve("skills/data-store/SKILL.md"),
-        profile: path.resolve("skills/data-store/X.yaml"),
+        profile: path.resolve("skills/data-store/run.yaml"),
         owner: "acme",
         version: lockEntry.version,
         env,
@@ -183,9 +183,6 @@ describe("registry skill native fetch", () => {
       const output = parseJsonOutput(result, 0) as { status?: string };
 
       expect(output.status).toBe("sealed");
-      const cachedSkillPath = findRegistrySkillCachePath(globalHomeDir, "acme/data-store");
-      expect(existsSync(path.join(cachedSkillPath, "tools", "data", "local"))).toBe(false);
-      expect(existsSync(path.join(cachedSkillPath, "tools", "data", "sqlite"))).toBe(false);
     } finally {
       await rm(tempDir, { recursive: true, force: true });
     }

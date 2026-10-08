@@ -26,9 +26,9 @@ catalog:
     - runx/demo
 runners:
   default:
-    source:
-      type: cli-tool
-      command: node
+    steps:
+      - id: default
+        tool: { command: node }
 "#,
     )?;
 
@@ -60,11 +60,12 @@ catalog:
   kind: skill
   audience: public
   role: context
+skill: demo
 runners:
   default:
-    source:
-      type: cli-tool
-      command: node
+    steps:
+      - id: default
+        tool: { command: node }
 "#,
     )?;
 
@@ -86,10 +87,12 @@ catalog:
   audience: system
   visibility: internal
   role: canonical
+skill: demo
 runners:
   default:
-    source:
-      type: agent
+    steps:
+      - id: default
+        agent: { role: agent, task: default }
 "#,
     )?;
 
@@ -108,11 +111,12 @@ fn unknown_catalog_kind_fails_closed() -> Result<(), String> {
 catalog:
   kind: not-a-kind
   audience: public
+skill: demo
 runners:
   default:
-    source:
-      type: cli-tool
-      command: node
+    steps:
+      - id: default
+        tool: { command: node }
 "#,
     )
     .map_err(|error| error.to_string())?;

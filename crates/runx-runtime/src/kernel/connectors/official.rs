@@ -2928,6 +2928,123 @@ operations:
 "###,
     ),
     (
+        "store",
+        r###"schema: runx.connector.v1
+id: store
+name: Store
+description: Durable event streams for skills. Append an event when its stream is at the expected version, read a stream's events and projection, and list the newest stream heads. An instance's url chooses SQLite, Postgres or Redis; without one it is the workspace store.
+auth:
+  none: {}
+  credentials:
+    password:
+      kind: password
+      fields:
+        - name: password
+          label: Store password
+      delivery:
+        env: RUNX_STORE_PASSWORD
+parameters:
+  type: object
+  additionalProperties: false
+  properties:
+    url:
+      description: Where the streams live. sqlite:<path> (relative to the workspace), postgres://user@host:port/db (TLS unless ?sslmode=disable), or redis:// and rediss://. Never a password; bind that as the instance's credential.
+      type: string
+      minLength: 1
+      maxLength: 2048
+      pattern: "^(sqlite:.+|(postgres|postgresql|redis|rediss)://([^:@/]+@)?[^@]+)$"
+placements:
+  local:
+    auth: [none, credentials]
+operations:
+  events.append:
+    description: Append one event to a stream when the stream is at the expected version. The event is keyed by the call's idempotency key, so a repeated call answers as a replay; at another version the answer is a conflict and nothing is appended.
+    verb: write
+    scopes: [store.append]
+    credentials: [password]
+    target:
+      template: {"$argument": "/data_source_ref"}
+    guarantees:
+      provider_idempotency: enforced
+      readback: exact
+    input_schema:
+      type: object
+      additionalProperties: false
+      required: [data_source_ref, resource, aggregate_id, expected_version, event]
+      properties:
+        data_source_ref: {type: string, minLength: 1, maxLength: 512}
+        resource: {type: string, minLength: 1, maxLength: 128, pattern: "^[A-Za-z0-9][A-Za-z0-9._:-]*$"}
+        aggregate_id: {type: string, minLength: 1, maxLength: 192, pattern: "^[A-Za-z0-9][A-Za-z0-9._:@/-]*$"}
+        expected_version: {type: integer, minimum: 0, maximum: 9007199254740990}
+        event: {type: object}
+        observed_at: {type: string, minLength: 1, maxLength: 64}
+    result_fields: [schema, data_source_ref, provider, operation, resource, aggregate_id, status, before_version, after_version, idempotency_key, event_ref, event_digest, result_digest, projection_digest, projection, events, rows, redactions, stop_conditions, provider_evidence]
+    implementation:
+      store: {}
+  events.read:
+    description: Read one page of a stream's events in ascending order, the latest page when no after_version is given.
+    verb: read
+    scopes: [store.read]
+    credentials: [password]
+    target:
+      template: {"$argument": "/data_source_ref"}
+    input_schema:
+      type: object
+      additionalProperties: false
+      required: [data_source_ref, resource, aggregate_id]
+      properties:
+        data_source_ref: {type: string, minLength: 1, maxLength: 512}
+        resource: {type: string, minLength: 1, maxLength: 128, pattern: "^[A-Za-z0-9][A-Za-z0-9._:-]*$"}
+        aggregate_id: {type: string, minLength: 1, maxLength: 192, pattern: "^[A-Za-z0-9][A-Za-z0-9._:@/-]*$"}
+        limit: {type: integer, minimum: 1, maximum: 500}
+        after_version: {type: integer, minimum: 0, maximum: 9007199254740991}
+    result_fields: [schema, data_source_ref, provider, operation, resource, aggregate_id, status, before_version, after_version, idempotency_key, event_ref, event_digest, result_digest, projection_digest, projection, limit, next_after_version, has_more, events, rows, redactions, stop_conditions, provider_evidence]
+    implementation:
+      store: {}
+  projection.read:
+    description: Read a stream's projection, its version and last event, with the digest that chains its events.
+    verb: read
+    scopes: [store.read]
+    credentials: [password]
+    target:
+      template: {"$argument": "/data_source_ref"}
+    input_schema:
+      type: object
+      additionalProperties: false
+      required: [data_source_ref, resource, aggregate_id]
+      properties:
+        data_source_ref: {type: string, minLength: 1, maxLength: 512}
+        resource: {type: string, minLength: 1, maxLength: 128, pattern: "^[A-Za-z0-9][A-Za-z0-9._:-]*$"}
+        aggregate_id: {type: string, minLength: 1, maxLength: 192, pattern: "^[A-Za-z0-9][A-Za-z0-9._:@/-]*$"}
+    result_fields: [schema, data_source_ref, provider, operation, resource, aggregate_id, status, before_version, after_version, idempotency_key, event_ref, event_digest, result_digest, projection_digest, projection, events, rows, redactions, stop_conditions, provider_evidence]
+    implementation:
+      store: {}
+  heads.list:
+    description: List one page of a resource's stream heads, newest first, optionally only those whose latest event has one of the given types.
+    verb: read
+    scopes: [store.read]
+    credentials: [password]
+    target:
+      template: {"$argument": "/data_source_ref"}
+    input_schema:
+      type: object
+      additionalProperties: false
+      required: [data_source_ref, resource]
+      properties:
+        data_source_ref: {type: string, minLength: 1, maxLength: 512}
+        resource: {type: string, minLength: 1, maxLength: 128, pattern: "^[A-Za-z0-9][A-Za-z0-9._:-]*$"}
+        event_types:
+          type: array
+          maxItems: 20
+          items: {type: string, minLength: 1, maxLength: 128}
+        limit: {type: integer, minimum: 1, maximum: 100}
+        cursor: {type: string, minLength: 1, maxLength: 1024}
+    result_fields: [schema, data_source_ref, provider, operation, resource, aggregate_id, status, before_version, after_version, idempotency_key, event_ref, event_digest, result_digest, projection_digest, projection, events, rows, redactions, stop_conditions, provider_evidence]
+    implementation:
+      store: {}
+"###,
+    ),
+    (
         "stripe",
         r###"schema: runx.connector.v1
 id: stripe

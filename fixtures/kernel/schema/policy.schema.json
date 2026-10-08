@@ -73,25 +73,6 @@
           "additionalProperties": false,
           "properties": {
             "kind": {
-              "const": "policy.admitLocalSkill"
-            },
-            "options": {
-              "type": "object"
-            },
-            "skill": {
-              "type": "object"
-            }
-          },
-          "required": [
-            "kind",
-            "skill"
-          ],
-          "type": "object"
-        },
-        {
-          "additionalProperties": false,
-          "properties": {
-            "kind": {
               "const": "policy.admitGraphStepScopes"
             },
             "request": {

@@ -1,49 +1,49 @@
 name: reddit-reddit-mixed-case-vote-readback
 owner: runx
 steps:
-- id: configure
-  skill: ../..
-  runner: configure
-  inputs:
-    account_id: example_builder
-    config:
-      expected_username: example_builder
-      browser_app: brave
-      driver: macos_applescript
-      profile_ref: reddit-builder
-      binding_ref: brave:builder-tab
-      credential_profile_ref: ''
-      background_only: true
-      login_method: google_oauth
-      login_credential_profile_ref: ''
-      voice:
-        casing: lowercase
-        principles: [answer the actual question; no closing punchline]
-        examples: []
-    expected_version: 0
-- id: configure-second
-  skill: ../..
-  runner: configure
-  inputs:
-    account_id: managed_builder
-    config:
-      expected_username: managed_builder
-      browser_app: brave
-      driver: macos_applescript
-      profile_ref: reddit-managed
-      binding_ref: brave:managed-tab
-      credential_profile_ref: ''
-      background_only: true
-      login_method: reddit_password
-      login_credential_profile_ref: reddit-password-example
-      voice:
-        casing: lowercase
-        principles: [answer the actual question; no closing punchline]
-        examples: []
-    expected_version: 0
-- id: vote
-  skill: ../..
-  runner: vote
-  inputs:
-    account_id: example_builder
-    action: {kind: upvote, subreddit: learnprogramming, target_url: 'https://www.reddit.com/r/learnprogramming/comments/abc123/example/', title: '', body: inspect the response in the network tab., allow_bare_urls: false, target_author: another_builder}
+  - id: configure
+    skill: ../..
+    runner: configure
+    inputs:
+      account_id: example_builder
+      config:
+        expected_username: example_builder
+        browser_app: brave
+        driver: macos_applescript
+        profile_ref: reddit-builder
+        binding_ref: brave:builder-tab
+        credential_profile_ref: ''
+        background_only: true
+        login_method: google_oauth
+        login_credential_profile_ref: ''
+        voice:
+          casing: lowercase
+          principles: [answer the actual question; no closing punchline]
+          examples: []
+      expected_version: 0
+  - id: configure-second
+    skill: ../..
+    runner: configure
+    inputs:
+      account_id: managed_builder
+      config:
+        expected_username: managed_builder
+        browser_app: brave
+        driver: macos_applescript
+        profile_ref: reddit-managed
+        binding_ref: brave:managed-tab
+        credential_profile_ref: ''
+        background_only: true
+        login_method: reddit_password
+        login_credential_profile_ref: reddit-password-example
+        voice:
+          casing: lowercase
+          principles: [answer the actual question; no closing punchline]
+          examples: []
+      expected_version: 0
+  - id: vote
+    skill: ../..
+    runner: vote
+    inputs:
+      account_id: example_builder
+      action: { kind: upvote, subreddit: learnprogramming, target_url: 'https://www.reddit.com/r/learnprogramming/comments/abc123/example/', title: '', body: inspect the response in the network tab., allow_bare_urls: false, target_author: another_builder }

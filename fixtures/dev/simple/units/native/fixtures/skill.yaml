@@ -8,4 +8,5 @@ inputs:
 expect:
   status: success
   output:
-    exact: hello from dev skill
+    exact:
+      message: hello from dev skill

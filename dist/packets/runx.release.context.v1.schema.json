@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://schemas.runx.ai/runx/release/context/v1.json",
   "x-runx-packet-id": "runx.release.context.v1",
-  "x-runx-generated-from": "skills/release/X.yaml#root.runners.prepare.graph.steps.1",
+  "x-runx-generated-from": "skills/release/run.yaml#root.runners.prepare.steps.1",
   "additionalProperties": false,
   "properties": {
     "channel": {

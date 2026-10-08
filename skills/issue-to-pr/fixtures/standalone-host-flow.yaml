@@ -16,17 +16,19 @@ inputs:
   issue_number: "442"
   objective: Make the issue-to-PR lane operator-first.
 caller:
-  http_responses:
-    "https://api.github.com/user":
-      status: 200
-      headers: { content-type: application/json }
-      body: '{"id": 7, "login": "operator"}'
-    "https://api.github.com/repos/runxhq/runx/issues/442":
-      status: 200
-      headers: { content-type: application/json }
-      body: '{"number": 442, "title": "Make issue-to-PR operator-first", "state": "open", "body": "Use normal host editing and test tools, then govern only publication.", "html_url": "https://github.com/runxhq/runx/issues/442", "labels": [{"name": "operator-experience"}], "assignees": []}'
+  http_exchanges:
+    - request: { method: GET, url: "https://api.github.com/user", body: none }
+      response:
+        status: 200
+        headers: { content-type: application/json }
+        body: '{"id": 7, "login": "operator"}'
+    - request: { method: GET, url: "https://api.github.com/repos/runxhq/runx/issues/442", body: none }
+      response:
+        status: 200
+        headers: { content-type: application/json }
+        body: '{"number": 442, "title": "Make issue-to-PR operator-first", "state": "open", "body": "Use normal host editing and test tools, then govern only publication.", "html_url": "https://github.com/runxhq/runx/issues/442", "labels": [{"name": "operator-experience"}], "assignees": []}'
   answers:
-    agent_task.issue-to-pr-host-work.output:
+    agent.issue-to-pr-host-work.output:
       host_result:
         schema: runx.issue_to_pr.host_result.v1
         status: completed
@@ -35,7 +37,7 @@ caller:
         repo_root: .
         branch: fix/442-operator-first
         commit: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-        files: [oss/skills/issue-to-pr/X.yaml]
+        files: [oss/skills/issue-to-pr/run.yaml]
         tests:
           - command: cargo test -p runx-cli --test integration issue_to_pr_journey
             status: passed

@@ -1,5 +1,5 @@
-#[cfg(feature = "cli-tool")]
-pub mod cli_tool;
+#[cfg(feature = "process-tool")]
+pub mod process_tool;
 
 pub mod javascript;
 

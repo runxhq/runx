@@ -2,8 +2,6 @@ name: execute-stale-progress-refuses
 kind: skill
 target: ..
 runner: execute
-env:
-  RUNX_DATA_SOURCES: '{"data_sources":{"tenant://twitter/sqlite-stale":{"adapter":"data.sqlite","database_path":".runx/data/twitter-stale.sqlite","resources":{"twitter_execution":{"kind":"event_stream","partition_key":"aggregate_id"}}}}}'
 inputs:
   plan_json:
     decision: ready
@@ -48,5 +46,4 @@ metadata:
   public_skill: twitter
   source_case: execute-stale-progress-refuses
   source: skills-fixture
-  runner_kind: graph
   graph_shape: stale_progress_refused_before_provider

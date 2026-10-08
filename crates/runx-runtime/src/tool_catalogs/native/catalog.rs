@@ -69,11 +69,10 @@ fn inspect_report(
             tool_ref: name.to_owned(),
             name: name.to_owned(),
             description: Some(description.to_owned()),
-            execution_source_type: "native".to_owned(),
+            execution: "native".to_owned(),
             inputs,
             scopes: scopes.iter().map(|scope| (*scope).to_owned()).collect(),
             runtime: None,
-            risk: None,
             reference_path: format!("native:{name}"),
             skill_directory: root.to_string_lossy().into_owned(),
             provenance: ToolInspectProvenance {

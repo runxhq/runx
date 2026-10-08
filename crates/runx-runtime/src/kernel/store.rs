@@ -12,6 +12,11 @@
 //! [`HostRecords`], which confines them to a `host.<owner>.` namespace: the
 //! kernel stores them faithfully and never interprets them.
 //!
+//! Values too large or too shared for an event live in content-addressed
+//! blobs. A blob is written in the same transaction as the event that names
+//! it and is verified against its digest on read, so a stream never refers to
+//! bytes that were not committed with it.
+//!
 //! The file carries its own SQLite `application_id`. A data-store binding
 //! cannot open it, and this store refuses any other database.
 
@@ -34,6 +39,7 @@ pub const KERNEL_STORE_FILE: &str = "kernel.sqlite";
 const BUSY_TIMEOUT: Duration = Duration::from_secs(10);
 const MAX_KEY_BYTES: usize = 512;
 const MAX_EVENT_BYTES: usize = 1024 * 1024;
+const MAX_BLOB_BYTES: usize = 64 * 1024 * 1024;
 const MAX_BATCH: usize = 1024;
 
 /// A typed event in one stream kind. The event's tag is stored beside its
@@ -64,6 +70,34 @@ impl Expected {
     }
 }
 
+/// Content-addressed bytes an event refers to by digest.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Blob {
+    digest: String,
+    data: Vec<u8>,
+}
+
+impl Blob {
+    pub fn new(data: Vec<u8>) -> Result<Self, KernelStoreError> {
+        if data.len() > MAX_BLOB_BYTES {
+            return Err(KernelStoreError::BlobTooLarge { bytes: data.len() });
+        }
+        Ok(Self {
+            digest: runx_contracts::sha256_prefixed(&data),
+            data,
+        })
+    }
+
+    pub fn json<T: Serialize + ?Sized>(value: &T) -> Result<Self, KernelStoreError> {
+        Self::new(serde_json::to_vec(value).map_err(KernelStoreError::encode)?)
+    }
+
+    #[must_use]
+    pub fn digest(&self) -> &str {
+        &self.digest
+    }
+}
+
 /// One append in a batch.
 pub struct Append {
     kind: String,
@@ -71,9 +105,17 @@ pub struct Append {
     expected: Expected,
     event_type: &'static str,
     data: Vec<u8>,
+    blobs: Vec<Blob>,
 }
 
 impl Append {
+    /// Commit these blobs with the event that names them.
+    #[must_use]
+    pub fn with_blobs(mut self, blobs: impl IntoIterator<Item = Blob>) -> Self {
+        self.blobs.extend(blobs);
+        self
+    }
+
     /// A kernel append. Crate-private so hosts cannot write kernel streams.
     pub(crate) fn kernel<E: StreamEvent>(
         key: impl Into<String>,
@@ -102,6 +144,7 @@ impl Append {
             expected,
             event_type: event.event_type(),
             data,
+            blobs: Vec::new(),
         })
     }
 }
@@ -136,6 +179,10 @@ pub enum KernelStoreError {
     InvalidKey { kind: String, key: String },
     #[error("kernel store event for {kind}/{key} exceeds the size limit")]
     EventTooLarge { kind: String, key: String },
+    #[error("kernel store blob of {bytes} bytes exceeds the size limit")]
+    BlobTooLarge { bytes: usize },
+    #[error("kernel store blob {digest} is missing or does not match its digest")]
+    BlobIntegrity { digest: String },
     #[error("kernel store batch must hold one to {MAX_BATCH} appends to distinct streams")]
     InvalidBatch,
     #[error("kernel store host namespace {0:?} is invalid")]
@@ -309,6 +356,15 @@ impl KernelStore {
                     ],
                 )
                 .map_err(|source| self.database("advancing a stream head", source))?;
+            for blob in &append.blobs {
+                transaction
+                    .execute(
+                        "INSERT INTO kernel_blobs (digest, data) VALUES (?1, ?2)
+                         ON CONFLICT (digest) DO NOTHING",
+                        params![blob.digest, blob.data],
+                    )
+                    .map_err(|source| self.database("storing a blob", source))?;
+            }
             versions.push(version);
         }
         transaction
@@ -334,6 +390,50 @@ impl KernelStore {
         self.latest_kind(E::KIND, key)
     }
 
+    /// The event that opened a kernel stream, checked against its chain link.
+    pub(crate) fn first<E: StreamEvent>(
+        &self,
+        key: &str,
+    ) -> Result<Option<Recorded<E>>, KernelStoreError> {
+        let row = self
+            .lock()
+            .query_row(
+                "SELECT event_type, data, chain, committed_at FROM kernel_events
+                 WHERE kind = ?1 AND key = ?2 AND version = 1",
+                params![E::KIND, key],
+                |row| {
+                    Ok((
+                        row.get::<_, String>(0)?,
+                        row.get::<_, Vec<u8>>(1)?,
+                        row.get::<_, String>(2)?,
+                        row.get::<_, String>(3)?,
+                    ))
+                },
+            )
+            .optional()
+            .map_err(|source| self.database("reading the first event", source))?;
+        let Some((event_type, data, chain, committed_at)) = row else {
+            return Ok(None);
+        };
+        let invalid = || KernelStoreError::Integrity {
+            kind: E::KIND.to_owned(),
+            key: key.to_owned(),
+            version: 1,
+        };
+        if chain_link("", &event_type, &data) != chain {
+            return Err(invalid());
+        }
+        let event: E = serde_json::from_slice(&data).map_err(KernelStoreError::encode)?;
+        if event.event_type() != event_type {
+            return Err(invalid());
+        }
+        Ok(Some(Recorded {
+            version: 1,
+            committed_at,
+            event,
+        }))
+    }
+
     /// The current version of a kernel stream; zero when it does not exist.
     pub(crate) fn version<E: StreamEvent>(&self, key: &str) -> Result<u64, KernelStoreError> {
         self.version_of(E::KIND, key)
@@ -346,6 +446,70 @@ impl KernelStore {
         limit: usize,
     ) -> Result<Vec<Head>, KernelStoreError> {
         self.heads_of(E::KIND, after, limit)
+    }
+
+    /// Stream heads of one kernel kind, most recently advanced first, strictly
+    /// before the `before` head when one is given.
+    pub(crate) fn recent_heads<E: StreamEvent>(
+        &self,
+        before: Option<&Head>,
+        limit: usize,
+    ) -> Result<Vec<Head>, KernelStoreError> {
+        let connection = self.lock();
+        let mut statement = connection
+            .prepare_cached(
+                "SELECT key, version, event_type, updated_at FROM kernel_streams
+                 WHERE kind = ?1 AND (?2 IS NULL OR (updated_at, key) < (?2, ?3))
+                 ORDER BY updated_at DESC, key DESC LIMIT ?4",
+            )
+            .map_err(|source| self.database("preparing a recent head listing", source))?;
+        let rows = statement
+            .query_map(
+                params![
+                    E::KIND,
+                    before.map(|head| head.updated_at.as_str()),
+                    before.map_or("", |head| head.key.as_str()),
+                    limit.min(1000) as i64
+                ],
+                |row| {
+                    Ok(Head {
+                        key: row.get(0)?,
+                        version: row.get::<_, i64>(1)? as u64,
+                        event_type: row.get(2)?,
+                        updated_at: row.get(3)?,
+                    })
+                },
+            )
+            .map_err(|source| self.database("listing recent stream heads", source))?;
+        rows.collect::<Result<Vec<_>, _>>()
+            .map_err(|source| self.database("listing recent stream heads", source))
+    }
+
+    /// The bytes committed under `digest`, verified against it.
+    pub(crate) fn blob(&self, digest: &str) -> Result<Vec<u8>, KernelStoreError> {
+        let data = self
+            .lock()
+            .query_row(
+                "SELECT data FROM kernel_blobs WHERE digest = ?1",
+                params![digest],
+                |row| row.get::<_, Vec<u8>>(0),
+            )
+            .optional()
+            .map_err(|source| self.database("reading a blob", source))?;
+        match data {
+            Some(data) if runx_contracts::sha256_prefixed(&data) == digest => Ok(data),
+            _ => Err(KernelStoreError::BlobIntegrity {
+                digest: digest.to_owned(),
+            }),
+        }
+    }
+
+    /// A blob decoded as JSON.
+    pub(crate) fn blob_json<T: DeserializeOwned>(
+        &self,
+        digest: &str,
+    ) -> Result<T, KernelStoreError> {
+        serde_json::from_slice(&self.blob(digest)?).map_err(KernelStoreError::encode)
     }
 
     /// The records a host persists, confined to its own namespace.

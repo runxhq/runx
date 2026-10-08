@@ -76,8 +76,8 @@ fn javascript_worker_hostile_symlink_entries_are_rejected_by_the_aggregate_parse
                 b"---\nname: linked-module\ndescription: Reject linked executable sources.\n---\n# Linked module\n".to_vec(),
             ),
             (
-                "X.yaml".to_owned(),
-                b"skill: linked-module\nrunners:\n  run:\n    default: true\n    type: javascript\n    module: main.mjs\n".to_vec(),
+                "run.yaml".to_owned(),
+                b"skill: linked-module\nrunners:\n  run:\n    default: true\n    steps:\n      - id: run\n        tool: { module: main.mjs }\n".to_vec(),
             ),
         ]),
         symlinks: BTreeSet::from(["main.mjs".to_owned()]),

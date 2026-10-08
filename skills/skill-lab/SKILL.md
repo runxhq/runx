@@ -48,7 +48,7 @@ consequential boundaries remain outside this skill and keep their own approval
 rules.
 
 A validated local write is not a published skill. For a shared or public
-package, the validated `X.yaml` identity and the exact `target_dir` and
+package, the validated `run.yaml` identity and the exact `target_dir` and
 `package_digest` in `apply_result` form the publication candidate. When the
 operator's objective includes shipping or registry availability, continue that
 exact candidate through the repository's canonical registry operator: publish
@@ -103,12 +103,12 @@ authoring.
     truthful domain result.
   - A canonical capability or authority skill owns a reusable decision such as
     authorizing a send, spending funds, or preparing a release.
-  - A provider adapter owns the bounded external API effect and independent
+  - A connector owns the bounded external API effect and independent
     readback.
-  Do not collapse these roles into one package, and do not make a provider
-  adapter a required part of a provider-neutral capability. Pin an adapter only
-  when the objective genuinely requires provider-specific behavior; otherwise
-  return a stable handoff that an operator can route to the selected adapter.
+  Do not collapse these roles into one package, and do not make a provider's
+  connector a required part of a provider-neutral capability. Pin a connector
+  only when the objective genuinely requires provider-specific behavior; otherwise
+  return a stable handoff that an operator can route to the selected connector.
   For example, a meeting skill may produce grounded task proposals and a
   follow-up message; communication then goes through `send-as`, while task
   creation goes through the operator's selected task adapter. n8n, Zapier, or
@@ -170,9 +170,9 @@ authoring.
   `approved: true`, `actor: human`, the exact gate id, and the action-specific
   gate type. An agent-authored `answers` value must fail before provider
   execution.
-- `run: approval` is a human gate. Agent provenance is rejected by the runtime;
-  use `agent-task` for model judgment and keep its result distinct from human
-  authority.
+- An `ask` step is a human gate. Agent provenance is rejected by the runtime;
+  use an `agent` step for model judgment and keep its result distinct from
+  human authority.
 - Treat the selected runner's typed execution requirements as the complete
   permission request. Put opaque scope strings, exact non-secret environment
   names, and runtime metadata on their canonical runner or source fields, never
@@ -181,7 +181,7 @@ authoring.
   inventing a scope vocabulary; the native capability or provider that owns a
   scope enforces it.
 - Make every public runner contract recursively complete at the authoring
-  boundary. `X.yaml` owns nested properties, closed objects, enums, bounds,
+  boundary. `run.yaml` owns nested properties, closed objects, enums, bounds,
   and complete parser-validated invocation examples; `runx skill inspect`,
   MCP, agent tools, and generated exports must project that same declaration.
   When an identical input declaration is used by multiple runners, define it
@@ -251,7 +251,7 @@ authoring.
   consumer: native parsing, agent context, runtime validation, packet
   generation, registry packaging, and harness replay all consume the producer's
   declaration.
-- Express orchestration through `X.yaml`; keep all static agent operating
+- Express orchestration through `run.yaml`; keep all static agent operating
   knowledge and task contracts in `SKILL.md`. Never put model instructions in
   manifests, fixtures, or duplicated prompt fragments.
 - Declare every harness-only support file explicitly in `harness.files` using a
@@ -294,10 +294,10 @@ authoring.
   credentials, lifecycle, bounded output, and evidence; it does not turn
   declared scopes into portable filesystem, network, or syscall confinement.
   Use this lane only when the operation is genuinely irreducible to native
-  capabilities, provider adapters, declarative composition, or deterministic
+  capabilities, connector operations, declarative composition, or deterministic
   JavaScript. Never author a sandbox declaration, wrapper, or fallback flag.
-- When that computation is JavaScript, use the native `type: javascript`
-  source. Prefer one cohesive module named for the skill with focused named
+- When that computation is JavaScript, use a worker `tool: { module: ... }`
+  step. Prefer one cohesive module named for the skill with focused named
   exports of the form `(inputs, context) => JSON`; split it only when the
   computations have genuinely separate ownership. Runx owns input delivery,
   output serialization, errors, wall limits, and isolation. Do not add fake
@@ -321,7 +321,7 @@ authoring.
   runner inputs; `runx skill --inputs` is only a bounded transport for one
   complete control object. Large immutable local content belongs behind
   `artifact.admit`/bounded pages. Durable history belongs behind
-  `data.read_events` cursors or a compact projection. A graph must not carry an
+  `data-store` `read_events` cursors or a compact projection. A graph must not carry an
   archive, growing event history, or completed-id array simply because one CLI
   call can parse it.
 - Use deterministic `pages` only for irreducible record transforms over one
@@ -351,7 +351,7 @@ authoring.
   canonical hash only when that hash is an intrinsic field of an established
   domain or wire protocol, not as a substitute for receipt or effect integrity.
   State that exception at the computation boundary.
-- Keep packages concise: normally `SKILL.md`, `X.yaml`, and focused fixtures;
+- Keep packages concise: normally `SKILL.md`, `run.yaml`, and focused fixtures;
   add narrowly scoped references, assets, tools, or domain code only when consumed.
 - Judge the whole capability, not proxy metrics. Native reuse, fewer files,
   shorter code, green harnesses, and low resource ceilings are valuable only
@@ -378,9 +378,8 @@ authoring.
 - Preserve registry identity as part of capability ownership. Inspect the live
   registry before publishing a shared package; update the intended existing
   owner/name rather than creating a first-party neighbor beside an older name.
-  Preserve an accepted contributor's namespace in the `registry_owner`
-  field of `SKILL.md` frontmatter; absence means the Runx-owned `runx`
-  namespace.
+  Preserve an accepted contributor's namespace in `catalog.owner` in
+  `run.yaml`; absence means the Runx-owned `runx` namespace.
   A deliberate rename must migrate or retire the prior identity through the
   registry operator. Never transfer a contributor's community-owned row into
   the first-party namespace unless that ownership transfer is explicit.
@@ -451,7 +450,7 @@ do not compensate with more fixtures, prose padding, or a bespoke wrapper.
 
 - `objective` (required): capability or improvement to deliver.
 - `package_name` (optional, build): explicit identity for a newly requested
-  package; use it for `SKILL.md` and `X.yaml` even when the target directory has
+  package; use it for `SKILL.md` and `run.yaml` even when the target directory has
   a different basename.
 - `repo_root` (optional): workspace root; defaults to the caller workspace.
 - `target_dir` (required for `build`, `improve`, and `harness`): repo-relative package directory.
@@ -469,8 +468,8 @@ Call `runx_final_result` with exactly one root field,
 `no_skill`, or `needs_core`. Explain the operator value and the manual's
 knowledge contract: purpose, required evidence, decision logic, stop conditions,
 and recovery. Assign every required behavior to exactly one real execution lane
-(`manual`, `graph`, `agent_task`, `native_capability`, `domain_module`,
-`cli_tool`, or `provider_adapter`). A native lane names a selected capability;
+(`manual`, `graph`, `agent`, `native_capability`, `domain_module`,
+`process`, or `operation`). A native lane names a selected capability;
 a domain module supplies a specific justification. Record inspected, selected,
 and genuinely missing native capabilities; use `needs_core` only for a runtime
 or security invariant or a primitive with two independent existing consumers.
@@ -521,7 +520,7 @@ native readiness facts true with no semantic diagnostics.
 Declare effects, authority scopes, approval meaning, provider boundary, skill
 routes, resource ceilings, preservation obligations, exact intended deletions,
 and a proof plan. For every skill route, state the domain result being handed
-off, the canonical capability or authority owner, whether a provider adapter is
+off, the canonical capability or authority owner, whether a connector is
 required or operator-selected, the context that must survive the boundary, and
 the truthful effect state before and after that route. Cover every material
 outcome independently. Reject an unnecessary provider pin even when it appears
@@ -568,11 +567,11 @@ by `authoring_context` or the architecture plan; reserve the final round for the
 complete `change_draft`.
 
 When `package_name` is supplied, use it consistently in the `SKILL.md`
-frontmatter and the `X.yaml` `skill` field. The directory is a placement
+frontmatter and the `run.yaml` `skill` field. The directory is a placement
 decision, not a second source of package identity.
 
 Put static operating knowledge and task-specific agent rules in `SKILL.md` and
-execution structure in `X.yaml`. Compose selected native capabilities and
+execution structure in `run.yaml`. Compose selected native capabilities and
 declared skill routes first. Ensure the manual explains what each route is for,
 what context crosses it, and what remains unperformed; do not substitute an
 adapter name for that explanation. Add a domain module only when the architecture

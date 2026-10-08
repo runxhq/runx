@@ -1,15 +1,12 @@
 export default function auditLeastPrivilege(inputs) {
 const subject = stringValue(inputs.subject) || "unknown";
 const grantedScopes = stringArray(inputs.granted_scopes, "granted_scopes");
-const usageSummary = readUsageSummary(inputs.usage_summary);
 const receiptIds = optionalStringArray(inputs.receipt_ids);
 const ledgerEvidence = readLedgerEvidence(inputs.ledger_evidence);
 const matchedReceiptIds = new Set(ledgerEvidence.matched_receipts.map((entry) => stringValue(entry?.receipt_id)).filter(Boolean));
 const missingReceiptIds = receiptIds.filter((receiptId) => !matchedReceiptIds.has(receiptId));
-const nativeObserved = collectNativeObservedUsage(ledgerEvidence.receipt_details);
-const suppliedObserved = collectObservedUsage(usageSummary);
-const observed = nativeObserved.size > 0 ? nativeObserved : suppliedObserved;
-const observationSource = nativeObserved.size > 0 ? "native_receipt_detail" : suppliedObserved.size > 0 ? "supplied_replay" : "none";
+const observed = collectNativeObservedUsage(ledgerEvidence.receipt_details);
+const observationSource = observed.size > 0 ? "native_receipt_detail" : "none";
 const evidenceReady = receiptIds.length > 0 && missingReceiptIds.length === 0 && observed.size > 0;
 const scopeDiff = evidenceReady
   ? grantedScopes.map((scope) => classifyScope(scope, observed))
@@ -36,9 +33,6 @@ if (missingReceiptIds.length > 0) {
 if (observed.size === 0) {
   limitations.push("No exercised scope was present in native receipt detail; the grant cannot be safely narrowed from this evidence window.");
 }
-if (observationSource === "supplied_replay") {
-  limitations.push("Scope observations came from the explicit replay supplement because native receipt detail was unavailable.");
-}
 
 const status = !evidenceReady
   ? "needs_more_evidence"
@@ -55,7 +49,6 @@ const packet = {
     missing_receipt_ids: missingReceiptIds,
     chain_verification: ledgerEvidence.chain_verification,
     observation_source: observationSource,
-    receipt_window: stringValue(usageSummary.receipt_window) || null,
     grant_source: stringValue(inputs.grant_source) || null,
     limitations,
   },
@@ -97,13 +90,6 @@ const result = {
 };
 
   return result;
-}
-
-function readUsageSummary(value) {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return {};
-  }
-  return value;
 }
 
 function readLedgerEvidence(value) {
@@ -153,21 +139,6 @@ function stringArray(value, field) {
 function optionalStringArray(value) {
   if (!Array.isArray(value)) return [];
   return [...new Set(value.filter((entry) => typeof entry === "string" && entry.trim()).map((entry) => entry.trim()))];
-}
-
-function collectObservedUsage(summary) {
-  const observed = new Map();
-  const entries = Array.isArray(summary.observed) ? summary.observed : [];
-  for (const entry of entries) {
-    if (!entry || typeof entry !== "object") continue;
-    const scope = stringValue(entry.scope);
-    if (!scope) continue;
-    const current = observed.get(scope) || { count: 0, refs: [] };
-    current.count += Number.isFinite(entry.count) ? Math.max(0, Math.trunc(entry.count)) : 1;
-    if (Array.isArray(entry.refs)) current.refs.push(...entry.refs.map(String));
-    observed.set(scope, current);
-  }
-  return observed;
 }
 
 function classifyScope(scope, observed) {

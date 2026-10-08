@@ -1,0 +1,59 @@
+skill: web-fetch
+version: "0.4.1"
+
+catalog:
+  kind: graph
+  audience: public
+  visibility: public
+  role: canonical
+  execution: read
+  completion: provider_readback
+  requires_adapter: false
+  approval: none
+  category: research
+
+connectors:
+  web:
+    operations: [page.read]
+
+runners:
+  web-fetch:
+    default: true
+    inputs:
+      url:
+        type: string
+        required: true
+        description: "Single public HTTP(S) URL to fetch."
+        schema:
+          format: uri
+          pattern: '^https?://'
+      allowlist:
+        type: array
+        required: false
+        default: ["*"]
+        description: "Optional host restriction. Omit for any publicly routable host; use exact hosts or leading wildcards such as *.example.com to narrow the fetch and redirects."
+        schema:
+          minItems: 1
+          maxItems: 64
+          uniqueItems: true
+          items:
+            type: string
+            minLength: 1
+            maxLength: 253
+      extract:
+        type: string
+        required: false
+        default: text
+        description: "Extraction mode: text, metadata, links, or json. Defaults to text."
+    examples:
+      - url: https://example.com/
+        extract: text
+    result_from: [fetch]
+    steps:
+      - id: fetch
+        label: fetch one allowlisted web source
+        operation: web/page.read
+        input:
+          url: "$input.url"
+          allowlist: "$input.allowlist"
+          extract: "$input.extract"

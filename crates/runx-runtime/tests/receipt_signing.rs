@@ -51,7 +51,7 @@ fn production_graph_receipt_commits_immutable_children_and_verifies_tree()
 -> Result<(), Box<dyn Error>> {
     let signer = fixture_signer()?;
     let verifier = fixture_verifier(&signer);
-    let mut steps = vec![production_step_run(
+    let steps = vec![production_step_run(
         "prod_graph",
         "plan",
         &signer,
@@ -59,9 +59,8 @@ fn production_graph_receipt_commits_immutable_children_and_verifies_tree()
     )?];
 
     let graph = graph_receipt_with_signature_policy(
-        "prod_graph",
-        &mut steps,
-        Vec::new(),
+        scope("prod_graph"),
+        &steps,
         CREATED_AT,
         RuntimeReceiptSignaturePolicy::production_signing(&signer, &verifier),
     )?;
@@ -98,7 +97,7 @@ fn production_sealing_fails_closed_without_signer_or_verifier() -> Result<(), Bo
     let verifier = fixture_verifier(&signer);
 
     let Err(missing_signer) = step_receipt_with_signature_policy(
-        "prod_missing",
+        scope("prod_missing"),
         "signer",
         1,
         &skill_output(InvocationStatus::Success),
@@ -111,7 +110,7 @@ fn production_sealing_fails_closed_without_signer_or_verifier() -> Result<(), Bo
     assert!(missing_signer.to_string().contains("requires a signer"));
 
     let Err(missing_verifier) = step_receipt_with_signature_policy(
-        "prod_missing",
+        scope("prod_missing"),
         "verifier",
         1,
         &skill_output(InvocationStatus::Success),
@@ -251,7 +250,7 @@ fn production_signing_env_requires_non_local_issuer_type() -> Result<(), Box<dyn
         fixture_signer()?.production_key().public_key_sha256()
     );
     let receipt = step_receipt_with_signature_policy(
-        "prod_env",
+        scope("prod_env"),
         "seal",
         1,
         &skill_output(InvocationStatus::Success),
@@ -268,7 +267,7 @@ fn production_step_receipt(
     verifier: &Ed25519ReceiptVerifier,
 ) -> Result<Receipt, Box<dyn Error>> {
     Ok(step_receipt_with_signature_policy(
-        "prod_step",
+        scope("prod_step"),
         "seal",
         1,
         &skill_output(InvocationStatus::Success),
@@ -286,7 +285,7 @@ fn production_step_run(
 ) -> Result<StepRun, Box<dyn Error>> {
     let output = skill_output(InvocationStatus::Success);
     let receipt = step_receipt_with_signature_policy(
-        graph_name,
+        scope(graph_name),
         step_id,
         1,
         &output,
@@ -299,7 +298,6 @@ fn production_step_run(
         attempt: 1,
         skill: step_id.to_owned(),
         runner: None,
-        fanout_group: None,
         contract: JsonObject::new(),
         ephemeral_contract: EphemeralValue::default(),
         outcome: output.into(),
@@ -369,7 +367,7 @@ fn sign_with_fixed_signer(
     verifier: &Ed25519ReceiptVerifier,
 ) -> Result<Receipt, runx_runtime::RuntimeError> {
     step_receipt_with_signature_policy(
-        "prod_bad_metadata",
+        scope("prod_bad_metadata"),
         "seal",
         1,
         &skill_output(InvocationStatus::Success),
@@ -408,4 +406,11 @@ fn assert_finding(verification: &ReceiptVerification, code: ReceiptFindingCode) 
         "expected finding {code:?}; got {:?}",
         verification.findings
     );
+}
+
+fn scope(graph_name: &str) -> runx_runtime::receipts::RunScope<'_> {
+    runx_runtime::receipts::RunScope {
+        run_id: "run_test",
+        graph_name,
+    }
 }

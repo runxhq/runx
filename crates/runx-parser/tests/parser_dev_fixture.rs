@@ -1,6 +1,6 @@
 use runx_parser::{
     DevExpectedStatus, DevFixtureError, DevFixtureGit, DevFixtureLane, DevFixtureTargetKind,
-    parse_dev_fixture,
+    HarnessCaller, parse_dev_fixture,
 };
 
 fn expected_error<T, E>(
@@ -22,7 +22,7 @@ lane: repo-integration
 target:
   kind: skill
   ref: workspace-read
-repo:
+workspace:
   files:
     README.md: hello
   git:
@@ -34,7 +34,8 @@ inputs:
 env:
   MODE: fixture
 caller:
-  account_id: acct_1
+  approvals:
+    release.publish: true
 expect:
   status: success
   output:
@@ -59,9 +60,10 @@ expect:
     );
     let workspace = fixture
         .workspace
-        .ok_or_else(|| std::io::Error::other("repo alias did not create a workspace"))?;
+        .ok_or_else(|| std::io::Error::other("the workspace was not parsed"))?;
     assert!(workspace.files.contains_key("README.md"));
     assert!(matches!(workspace.git, Some(DevFixtureGit::Config(_))));
+    assert_eq!(fixture.caller.approvals.get("release.publish"), Some(&true));
     Ok(())
 }
 
@@ -80,29 +82,9 @@ target:
     assert_eq!(fixture.lane, DevFixtureLane::Deterministic);
     assert!(fixture.inputs.is_empty());
     assert!(fixture.env.is_empty());
-    assert!(fixture.caller.is_empty());
+    assert_eq!(fixture.caller, HarnessCaller::default());
     assert_eq!(fixture.expect.status, DevExpectedStatus::Success);
     assert!(fixture.expect.output.is_none());
-    Ok(())
-}
-
-#[test]
-fn rejects_parallel_workspace_aliases() -> Result<(), Box<dyn std::error::Error>> {
-    let error = expected_error(
-        parse_dev_fixture(
-            r#"
-name: duplicate-workspace
-target:
-  kind: tool
-  ref: acme.echo
-workspace: {}
-repo: {}
-"#,
-        ),
-        "workspace and repo were both accepted",
-    )?;
-
-    assert_eq!(error, DevFixtureError::ConflictingWorkspace);
     Ok(())
 }
 

@@ -1,4 +1,4 @@
-// Module rationale: router argument parity is centralized for CLI routing tests.
+// Module rationale: router argument handling is centralized for CLI routing tests.
 use std::ffi::{OsStr, OsString};
 use std::path::PathBuf;
 
@@ -8,7 +8,6 @@ use crate::config::ConfigPlan;
 use crate::connect::ConnectPlan;
 use crate::connector::ConnectorPlan;
 use crate::credential::CredentialPlan;
-use crate::data::DataPlan;
 use crate::document_input::DocumentInputSource;
 use crate::export::ExportPlan;
 use crate::kernel::KernelPlan;
@@ -45,7 +44,6 @@ pub enum RouterAction {
     RunConnect(ConnectPlan),
     RunConnector(ConnectorPlan),
     RunCredential(CredentialPlan),
-    RunData(DataPlan),
     RunPolicy(PolicyPlan),
     RunPublish(PublishPlan),
     RunRegistry(RegistryPlan),
@@ -239,14 +237,6 @@ fn route_args_with_optional_workspace(
         );
     }
 
-    if first_arg_is(&args, "data") {
-        return route_parse(
-            &args,
-            crate::data::parse_data_plan(&args),
-            RouterAction::RunData,
-        );
-    }
-
     if first_arg_is(&args, "assistant") {
         return route_parse(
             &args,
@@ -363,12 +353,6 @@ fn route_args_with_optional_workspace(
     }
 
     if first_arg_is(&args, "skill") {
-        if second_arg_is(&args, "add") {
-            return json_or_human_error(
-                &args,
-                "runx skill add has been removed; use runx add <ref>".to_owned(),
-            );
-        }
         let parsed = workspace.map_or_else(
             || crate::skill::parse_skill_plan(&args),
             |workspace| crate::skill::parse_skill_plan_with_workspace(&args, workspace),
@@ -484,10 +468,6 @@ fn single_arg_is(args: &[OsString], expected: &str) -> bool {
     args.len() == 1 && first_arg_is(args, expected)
 }
 
-fn second_arg_is(args: &[OsString], expected: &str) -> bool {
-    args.get(1).is_some_and(|arg| arg == OsStr::new(expected))
-}
-
 fn json_or_human_error(args: &[OsString], message: String) -> RouterAction {
     if json_requested(args) {
         RouterAction::JsonError(JsonErrorPlan {
@@ -552,7 +532,7 @@ fn native_harness_plan(args: &[OsString]) -> RouterAction {
                 }
                 index += 1;
             }
-            "--receipt-dir" | "--receipts" => match inline_value {
+            "--receipt-dir" => match inline_value {
                 Some(value) => {
                     receipt_dir = Some(OsString::from(value));
                     index += 1;
@@ -679,7 +659,7 @@ fn parse_new_flag(
             parsed.directory = Some(PathBuf::from(value));
             Ok(next_index)
         }
-        "--receipt-dir" | "--receipts" | "-R" => {
+        "--receipt-dir" | "-R" => {
             let (value, next_index) = os_flag_value(args, index, flag, inline_value)?;
             parsed.receipt_dir = Some(PathBuf::from(value));
             Ok(next_index)
@@ -897,7 +877,7 @@ fn parse_init_plan(args: &[OsString]) -> Result<InitPlan, String> {
                 global = true;
                 index += 1;
             }
-            "--prefetch" | "--prefetch-official" => {
+            "--prefetch" => {
                 if matches!(inline_value, Some("false") | Some("0")) {
                     prefetch_official = false;
                     index += 1;
@@ -1070,8 +1050,8 @@ fn parse_list_plan(args: &[OsString]) -> Result<ListPlan, String> {
                 index += 1;
                 continue;
             }
-            "--ok-only" | "--okOnly" => FilterMode::OkOnly,
-            "--invalid-only" | "--invalidOnly" => FilterMode::InvalidOnly,
+            "--ok-only" => FilterMode::OkOnly,
+            "--invalid-only" => FilterMode::InvalidOnly,
             _ => return Err(format!("unknown list flag {flag}")),
         };
         if filter != FilterMode::All && filter != requested {

@@ -1,9 +1,9 @@
 name: brand-voice-forwards-to-two-writing-tasks
 kind: graph
-target: ../harness/forward-writing-context.yaml
+target: support/forward-writing-context.graph
 caller:
   answers:
-    agent_task.brand-voice-synthesize.output:
+    agent.brand-voice-synthesize.output:
       brand_voice_draft:
         decision: ready
         brand: runx
@@ -22,7 +22,7 @@ caller:
           - { rule: Runx receipts bind operator actions to authority evidence., source_refs: [source:1] }
         redactions: []
         stop_conditions: [Require new evidence before adding a new factual claim.]
-    agent_task.ghostwrite-draft.output:
+    agent.ghostwrite-draft.output:
       content_draft:
         decision: ready
         content_brief: { objective: Explain the strongest Runx architecture signal., audience: operators, channel: brief }
@@ -36,7 +36,7 @@ caller:
             - { packet_digest: sha256:2ee22691a8e1169cda71fc5ae0eb250541309f8470deb6738521a6c9e936ac74, applied_rules: [Lead with governed action and proof.] }
         review_checklist: []
         distribution_notes: { primary_channel: brief }
-    agent_task.twitter-plan.output:
+    agent.twitter-plan.output:
       twitter_plan:
         decision: ready
         objective: Prepare one exact public update about governed receipts.

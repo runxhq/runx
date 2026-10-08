@@ -19,10 +19,6 @@ struct RecordedInvocation {
 }
 
 impl SkillAdapter for RecordingAdapter {
-    fn adapter_type(&self) -> &'static str {
-        "context-regression"
-    }
-
     fn invoke(&self, request: SkillInvocation) -> Result<InvocationOutput, RuntimeError> {
         self.calls
             .lock()
@@ -47,9 +43,10 @@ impl SkillAdapter for RecordingAdapter {
 fn graph_context_materialization_reaches_the_target_invocation()
 -> Result<(), Box<dyn std::error::Error>> {
     let adapter = RecordingAdapter::default();
+    let (_run, run) = crate::support::scratch_run("run_context_materialization")?;
     let runtime = Runtime::new(
         adapter.clone(),
-        RuntimeOptions::local_development(std::env::vars().collect()),
+        RuntimeOptions::local_development(std::env::vars().collect(), run),
     );
     let graph_path =
         Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/graphs/sequential/graph.yaml");
@@ -68,7 +65,7 @@ fn graph_context_materialization_reaches_the_target_invocation()
         Some(&JsonValue::String("hello from graph".to_owned()))
     );
     assert!(!consumer.skill_name.is_empty());
-    assert_eq!(consumer.step_id.as_deref(), Some("second"));
+    assert_eq!(consumer.step_id.as_deref(), Some("default"));
     assert_eq!(consumer.provenance.len(), 1);
     let edge = &consumer.provenance[0];
     assert_eq!(edge.input.as_ref(), "message");

@@ -9,7 +9,7 @@ use crate::RuntimeError;
 use crate::adapter::InvocationOutput;
 use crate::credentials::CredentialDelivery;
 
-use super::{EffectAdmission, EffectReplay, RuntimeEffectError};
+use super::{EffectAdmission, RuntimeEffectError};
 
 pub struct EffectToolOutput {
     pub value: runx_contracts::JsonValue,
@@ -29,7 +29,11 @@ impl EffectToolOutput {
 #[derive(Clone, Debug)]
 pub enum EffectPreparationOutcome {
     Ready(Box<EffectAdmission>),
-    Pending { reason: String },
+    /// The call waits on this request to its host.
+    Pending {
+        reason: String,
+        request: Box<runx_contracts::ResolutionRequest>,
+    },
 }
 
 pub trait RuntimeEffect: Send + Sync {
@@ -42,9 +46,9 @@ pub trait RuntimeEffect: Send + Sync {
         runx_contracts::ExecutionBoundaryKind::NativeCapability
     }
 
-    /// Return true only when this effect family owns the resolved execution
+    /// Return true only when this effect family owns the step's execution
     /// target. Graph authors never select a family: the runtime supplies the
-    /// loaded skill or registered tool identity after resolution.
+    /// step and its catalog tool identity.
     fn matches_target(&self, request: EffectStepRequest<'_>) -> bool {
         let _ = request;
         false
@@ -56,24 +60,6 @@ pub trait RuntimeEffect: Send + Sync {
     /// managed agents, and operator discovery one typed catalog surface.
     fn capabilities(&self) -> &'static [&'static dyn CapabilityContract] {
         &[]
-    }
-
-    fn can_run_parallel(&self, step: &GraphStep) -> bool {
-        let _ = step;
-        true
-    }
-
-    fn find_replay(
-        &self,
-        request: EffectStepRequest<'_>,
-    ) -> Result<Option<EffectReplay>, RuntimeEffectError> {
-        let _ = request;
-        Ok(None)
-    }
-
-    fn recover_pending(&self, request: EffectStepRequest<'_>) -> Result<(), RuntimeEffectError> {
-        let _ = request;
-        Ok(())
     }
 
     fn admit(
@@ -108,22 +94,6 @@ pub trait RuntimeEffect: Send + Sync {
     }
 
     fn persist(&self, request: EffectReceiptRequest<'_>) -> Result<(), RuntimeEffectError> {
-        let _ = request;
-        Ok(())
-    }
-
-    fn prepare_replay_output(
-        &self,
-        request: EffectReplayOutputRequest<'_>,
-    ) -> Result<(), RuntimeEffectError> {
-        let _ = request;
-        Ok(())
-    }
-
-    fn validate_replay(
-        &self,
-        request: EffectReplayReceiptRequest<'_>,
-    ) -> Result<(), RuntimeEffectError> {
         let _ = request;
         Ok(())
     }
@@ -177,12 +147,13 @@ pub struct EffectStepRequest<'a> {
     pub inputs: &'a JsonObject,
     pub env: &'a BTreeMap<String, String>,
     pub graph_dir: &'a Path,
+    /// The run the step belongs to.
+    pub run_id: &'a str,
     pub run_authority: Option<&'a crate::RunAuthority>,
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct ResolvedEffectTarget<'a> {
-    pub skill_name: Option<&'a str>,
     pub tool_ref: Option<&'a str>,
 }
 
@@ -202,18 +173,4 @@ pub struct EffectReceiptRequest<'a> {
     pub receipt: &'a Receipt,
     pub env: &'a BTreeMap<String, String>,
     pub signature_policy: crate::receipts::RuntimeReceiptSignaturePolicy<'a>,
-}
-
-pub struct EffectReplayOutputRequest<'a> {
-    pub step: &'a GraphStep,
-    pub replay: &'a EffectReplay,
-    pub output: &'a mut InvocationOutput,
-}
-
-pub struct EffectReplayReceiptRequest<'a> {
-    pub step: &'a GraphStep,
-    pub replay: &'a EffectReplay,
-    pub receipt: &'a Receipt,
-    pub output: &'a InvocationOutput,
-    pub claim: &'a JsonObject,
 }

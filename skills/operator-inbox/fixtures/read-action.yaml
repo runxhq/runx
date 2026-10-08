@@ -15,4 +15,3 @@ metadata:
   public_skill: operator-inbox
   source_case: read-action
   source: skills-fixture
-  runner_kind: graph

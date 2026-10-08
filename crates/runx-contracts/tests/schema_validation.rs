@@ -95,18 +95,8 @@ const CONTRACT_FIXTURE_SCHEMA_MAPPINGS: &[FixtureSchemaMapping] = &[
     ),
 ];
 
-const CONTRACT_FIXTURE_EXEMPT_KINDS: &[&str] = &[
-    "event",
-    "execution_semantics",
-    "governed_act_ref",
-    "governed_disposition",
-    "input_context_capture",
-    "outcome_state",
-    "receipt_outcome",
-    "receipt_surface_ref",
-    "run_result",
-    "run_state",
-];
+const CONTRACT_FIXTURE_EXEMPT_KINDS: &[&str] =
+    &["event", "governed_act_ref", "run_result", "run_state"];
 
 #[test]
 fn authority_proof_outputs_validate_against_generated_schema()
@@ -162,7 +152,6 @@ fn contract_fixture_schema_mapping_has_only_declared_exemptions()
         .collect::<BTreeSet<_>>();
     for directory in [
         "fixtures/contracts/act-assignment",
-        "fixtures/contracts/execution",
         "fixtures/contracts/harness-spine",
         "fixtures/contracts/host-protocol",
     ] {
@@ -204,26 +193,6 @@ fn host_approval_gate_is_rejected_inside_authority_proof() -> Result<(), Box<dyn
         &validator,
         authority_proof,
         "host gate must not masquerade as authority proof gate",
-    );
-    Ok(())
-}
-
-#[test]
-fn retired_authority_proof_sandbox_field_is_rejected() -> Result<(), Box<dyn std::error::Error>> {
-    let validator = schema_validator(AUTHORITY_PROOF_SCHEMA)?;
-    let mut fixture: Value = serde_json::from_str(AUTHORITY_PROOF_FIXTURES[0].1)?;
-    let authority_proof = fixture
-        .pointer_mut("/expected/value/authority_proof")
-        .ok_or("authority-proof fixture missing expected.value.authority_proof")?;
-    authority_proof["sandbox"] = json!({
-        "profile": "readonly",
-        "network": false
-    });
-
-    assert_invalid(
-        &validator,
-        authority_proof,
-        "retired sandbox field must not re-enter the current authority proof",
     );
     Ok(())
 }

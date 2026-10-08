@@ -382,7 +382,7 @@ function buildIndexEvidence(indexPath) {
 export default defineTool({
   name: "sourcey.build",
   run({ inputs, env }) {
-    const inputBase = env.RUNX_CWD || env.INIT_CWD || process.cwd();
+    const inputBase = env.RUNX_CWD || process.cwd();
     const project = path.resolve(inputBase, inputs.project);
     const docsInputs = parseDocsInputs(inputs.docs_inputs);
     const sourcey = inputs.sourcey_bin || env.SOURCEY_BIN || "sourcey";

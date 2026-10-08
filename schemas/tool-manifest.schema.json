@@ -81,19 +81,6 @@
     "name": {
       "type": "string"
     },
-    "retry": {
-      "additionalProperties": false,
-      "properties": {
-        "max_attempts": {
-          "type": "integer"
-        }
-      },
-      "required": [
-        "max_attempts"
-      ],
-      "type": "object"
-    },
-    "risk": {},
     "schema": {
       "enum": [
         "runx.tool.manifest.v1"
@@ -139,9 +126,6 @@
           },
           "type": "object"
         },
-        "export": {
-          "type": "string"
-        },
         "input_mode": {
           "enum": [
             "args",
@@ -150,22 +134,12 @@
           ],
           "type": "string"
         },
-        "module": {
-          "type": "string"
-        },
         "timeout_seconds": {
           "type": "integer"
-        },
-        "type": {
-          "enum": [
-            "cli-tool",
-            "javascript"
-          ],
-          "type": "string"
         }
       },
       "required": [
-        "type"
+        "command"
       ],
       "type": "object"
     },

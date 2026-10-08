@@ -1,8 +1,6 @@
 ---
 name: web-fetch
 description: Fetch and extract one public web source, optionally restrict its hosts, and return the content by digest with full provenance.
-runx:
-  category: research
 ---
 
 # Web Fetch

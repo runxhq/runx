@@ -12,7 +12,7 @@ use runx_contracts::{
 
 use crate::RuntimeError;
 
-#[cfg(any(feature = "cli-tool", test))]
+#[cfg(any(feature = "process-tool", test))]
 pub(crate) const RUNX_HOSTED_WORKSPACE_POLICY_JSON_ENV: &str = "RUNX_HOSTED_WORKSPACE_POLICY_JSON";
 
 pub(crate) const PROCESS_BASELINE_ENV: [&str; 25] = [
@@ -88,9 +88,9 @@ pub(crate) fn resolve_environment(
         .collect())
 }
 
-#[cfg(any(feature = "cli-tool", test))]
-pub(crate) fn enforce_cli_tool_execution_policy(
-    command: Option<&str>,
+#[cfg(any(feature = "process-tool", test))]
+pub(crate) fn enforce_process_execution_policy(
+    command: &str,
     args: &[String],
     environment: &BTreeMap<String, String>,
 ) -> Result<(), RuntimeError> {
@@ -103,9 +103,11 @@ pub(crate) fn enforce_cli_tool_execution_policy(
                 message: format!("hosted workspace policy is invalid: {source}"),
             }
         })?;
-    if let Some(message) =
-        runx_core::policy::strict_cli_tool_inline_code_denial(command, args, Some(&policy))
-    {
+    if let Some(message) = runx_core::policy::strict_process_tool_inline_code_denial(
+        Some(command),
+        args,
+        Some(&policy),
+    ) {
         return Err(RuntimeError::InvalidProcessInvocation { message });
     }
     Ok(())
@@ -146,10 +148,10 @@ mod tests {
     fn hosted_workspace_policy_rejects_inline_cli_code() -> Result<(), Box<dyn std::error::Error>> {
         let environment = BTreeMap::from([(
             RUNX_HOSTED_WORKSPACE_POLICY_JSON_ENV.to_owned(),
-            r#"{"strictCliToolInlineCode":true}"#.to_owned(),
+            r#"{"strictProcessToolInlineCode":true}"#.to_owned(),
         )]);
-        let error = enforce_cli_tool_execution_policy(
-            Some("node"),
+        let error = enforce_process_execution_policy(
+            "node",
             &["--eval".to_owned(), "process.stdout.write('no')".to_owned()],
             &environment,
         )
@@ -168,9 +170,9 @@ mod tests {
     {
         let environment = BTreeMap::from([(
             RUNX_HOSTED_WORKSPACE_POLICY_JSON_ENV.to_owned(),
-            r#"{"strictCliToolInlineCode":true,"unknown":true}"#.to_owned(),
+            r#"{"strictProcessToolInlineCode":true,"unknown":true}"#.to_owned(),
         )]);
-        let error = enforce_cli_tool_execution_policy(Some("node"), &[], &environment)
+        let error = enforce_process_execution_policy("node", &[], &environment)
             .err()
             .ok_or("unknown hosted policy fields did not fail closed")?;
         assert!(

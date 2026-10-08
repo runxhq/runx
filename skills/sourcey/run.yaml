@@ -1,0 +1,216 @@
+skill: sourcey
+version: "0.1.8"
+
+catalog:
+  kind: skill
+  audience: public
+  visibility: public
+  role: context
+  execution: execute
+  completion: runtime_receipt
+  requires_adapter: false
+  approval: none
+  category: content
+
+runners:
+  sourcey:
+    default: true
+    inputs:
+      project:
+        type: string
+        required: false
+        default: .
+        description: "Project root containing Sourcey inputs; defaults to the current workspace."
+      repo_root:
+        type: string
+        required: false
+        default: .
+        description: "Filesystem write root; defaults to the current workspace. Chains targeting another project should pass both project and repo_root explicitly."
+      homepage_url:
+        type: string
+        required: false
+        description: "Canonical project homepage URL. If omitted, discover it from project evidence."
+      brand_name:
+        type: string
+        required: false
+        description: "Human-facing brand or project name. If omitted, discover it from project evidence."
+      docs_inputs:
+        type: json
+        required: false
+        description: "Structured docs inputs. If omitted, infer a bounded config or spec path from the project."
+      project_brief:
+        type: json
+        required: false
+        description: "Grounded project, brand, docs-audit, and writing brief to steer authoring toward native project docs."
+      output_dir:
+        type: string
+        required: false
+        description: "Generated site output directory for Sourcey docs; defaults to <project>/.sourcey/runx-docs and should remain separate from authored docs source."
+      sourcey_bin:
+        type: string
+        required: false
+        description: "Explicit Sourcey executable or JS entrypoint; defaults to SOURCEY_BIN or sourcey on PATH."
+    result_from: [package]
+    steps:
+      - id: discover
+        label: inspect repo
+        agent: { role: builder, task: sourcey-discover }
+        outputs:
+          discovery_report: object
+        allowed_tools:
+          - fs.read
+          - git.status
+          - git.current_branch
+          - git.diff_name_only
+          - cli.capture_help
+        scopes:
+          - fs.read
+          - git.read
+          - cli.read
+        artifacts:
+          named_emits:
+            discovery_report: discovery_report
+          packets:
+            discovery_report: runx.sourcey.discovery.v1
+      - id: author
+        label: draft docs
+        agent: { role: builder, task: sourcey-author }
+        outputs:
+          doc_bundle: object
+        allowed_tools:
+          - fs.read
+          - cli.capture_help
+        scopes:
+          - fs.read
+          - cli.read
+        context:
+          discovery_report: discover.discovery_report.data
+        artifacts:
+          named_emits:
+            doc_bundle: doc_bundle
+          packets:
+            doc_bundle: runx.sourcey.doc_bundle.v1
+      - id: write-docs
+        label: write docs
+        tool: fs.apply_bundle
+        scopes:
+          - fs.delete
+          - fs.write
+        inputs:
+          repo_root: $input.repo_root
+        context:
+          writes: author.doc_bundle.data.files
+      - id: build
+        label: build docs site
+        tool: sourcey.build
+        scopes:
+          - sourcey.build
+        inputs:
+          project: $input.project
+          sourcey_bin: $input.sourcey_bin
+          output_dir: $input.output_dir
+        context:
+          homepage_url: discover.discovery_report.data.discovered.homepage_url
+          brand_name: discover.discovery_report.data.discovered.brand_name
+          docs_inputs: discover.discovery_report.data.discovered.docs_inputs
+      - id: critique
+        label: review built site
+        agent: { role: reviewer, task: sourcey-critique }
+        outputs:
+          evaluation_report: object
+        allowed_tools:
+          - fs.read
+        scopes:
+          - fs.read
+        context:
+          discovery_report: discover.discovery_report.data
+          doc_bundle: author.doc_bundle.data
+          build_report: build.sourcey_build_report.data
+        artifacts:
+          named_emits:
+            evaluation_report: evaluation_report
+          packets:
+            evaluation_report: runx.sourcey.evaluation.v1
+      - id: revise
+        label: revise docs
+        agent: { role: builder, task: sourcey-revise }
+        outputs:
+          revision_bundle: object
+        allowed_tools:
+          - fs.read
+        scopes:
+          - fs.read
+        context:
+          discovery_report: discover.discovery_report.data
+          doc_bundle: author.doc_bundle.data
+          build_report: build.sourcey_build_report.data
+          evaluation_report: critique.evaluation_report.data
+        artifacts:
+          named_emits:
+            revision_bundle: revision_bundle
+          packets:
+            revision_bundle: runx.sourcey.revision.v1
+      - id: write-revisions
+        label: write revisions
+        tool: fs.apply_bundle
+        scopes:
+          - fs.delete
+          - fs.write
+        inputs:
+          repo_root: $input.repo_root
+        context:
+          writes: revise.revision_bundle.data.files
+      - id: rebuild
+        label: rebuild docs site
+        tool: sourcey.build
+        scopes:
+          - sourcey.build
+        inputs:
+          project: $input.project
+          sourcey_bin: $input.sourcey_bin
+          output_dir: $input.output_dir
+        context:
+          homepage_url: discover.discovery_report.data.discovered.homepage_url
+          brand_name: discover.discovery_report.data.discovered.brand_name
+          docs_inputs: discover.discovery_report.data.discovered.docs_inputs
+      - id: verify
+        label: verify docs site
+        tool: sourcey.verify
+        scopes:
+          - sourcey.verify
+        context:
+          output_dir: rebuild.sourcey_build_report.data.output_dir
+          index_path: rebuild.sourcey_build_report.data.index_path
+          sourcey_build_report: rebuild.sourcey_build_report.data
+      - id: package
+        label: package sourcey run
+        tool: sourcey.package
+        scopes:
+          - sourcey.verify
+        inputs:
+          project_brief: $input.project_brief
+        context:
+          discovery_report: discover.discovery_report.data
+          doc_bundle: author.doc_bundle.data
+          sourcey_build_report: rebuild.sourcey_build_report.data
+          evaluation_report: critique.evaluation_report.data
+          revision_bundle: revise.revision_bundle.data
+          sourcey_verification_proof: verify.sourcey_verification_proof.data
+    policy:
+      guards:
+        - step: critique
+          field: build.sourcey_build_report.data.generated
+          equals: true
+        - step: revise
+          field: build.sourcey_build_report.data.generated
+          equals: true
+        - step: rebuild
+          field: build.sourcey_build_report.data.generated
+          equals: true
+        - step: verify
+          field: rebuild.sourcey_build_report.data.generated
+          equals: true
+
+harness:
+  files: [fixtures/support/seed_workspace.mjs, fixtures/support/sourcey-lifecycle.graph]
+  cases: []

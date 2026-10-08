@@ -8,7 +8,6 @@ pub const RUNTIME_RECEIPTS_DIR_CONFIG_KEY: &str = "runtime.receipts.dir";
 pub const RUNX_RECEIPT_DIR_ENV: &str = "RUNX_RECEIPT_DIR";
 pub const RUNX_PROJECT_DIR_ENV: &str = "RUNX_PROJECT_DIR";
 pub const RUNX_CWD_ENV: &str = "RUNX_CWD";
-pub const INIT_CWD_ENV: &str = "INIT_CWD";
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct RuntimeReceiptConfig {

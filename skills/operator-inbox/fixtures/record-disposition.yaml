@@ -47,4 +47,3 @@ metadata:
   public_skill: operator-inbox
   source_case: record-disposition
   source: skills-fixture
-  runner_kind: graph

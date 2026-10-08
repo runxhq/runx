@@ -1,6 +1,6 @@
 name: release-blocked-preparation
 kind: graph
-target: ../harness/release-blocked-fixture.graph.yaml
+target: support/release-blocked-fixture.graph
 expect:
   status: sealed
   receipt: { schema: runx.receipt.v1 }

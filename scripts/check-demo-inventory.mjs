@@ -91,7 +91,7 @@ function demoPathExists(itemPath) {
   const skillDir = path.join(root, itemPath);
   return path.basename(itemPath) === itemPath.slice("skills/".length)
     && hasFile(path.join(skillDir, "SKILL.md"))
-    && hasFile(path.join(skillDir, "X.yaml"));
+    && hasFile(path.join(skillDir, "run.yaml"));
 }
 
 function hasFile(filePath) {

@@ -7,7 +7,7 @@ use std::path::Path;
 
 use runx_contracts::{JsonValue, Receipt};
 use runx_parser::harness_fixture::HarnessExpectedStatus;
-use runx_parser::{HarnessCallerFixture, RunnerHarnessCase, SkillRunnerManifest};
+use runx_parser::{HarnessCaller, RunnerHarnessCase, SkillRunnerManifest};
 
 use crate::RuntimeError;
 use crate::effects::RuntimeEffectRegistry;
@@ -18,7 +18,6 @@ use crate::services::{ReceiptServices, WorkspaceEnv};
 
 use super::resolution_answers::ResolutionAnswers;
 use super::runner_manifest::selected_runner;
-use super::state_store::read_graph_state;
 
 mod package;
 
@@ -36,7 +35,7 @@ fn run_loaded_inline_harness_with_effects(
 ) -> Result<PackageHarnessReport, SkillRunError> {
     let manifest = loaded.manifest().cloned().ok_or_else(|| {
         SkillRunError::Invalid(format!(
-            "skill package {} does not declare X.yaml runners",
+            "skill package {} does not declare run.yaml runners",
             loaded.directory.display()
         ))
     })?;
@@ -49,7 +48,6 @@ fn run_loaded_inline_harness_with_effects(
 
     let workspace = WorkspaceEnv::from_admitted(env.clone()).map_err(RuntimeError::from)?;
     let context = InlineHarnessContext {
-        loaded,
         skill_dir: &loaded.directory,
         case_receipt_root,
         output_receipt_dir,
@@ -63,7 +61,6 @@ fn run_loaded_inline_harness_with_effects(
 
 #[derive(Clone, Copy)]
 struct InlineHarnessContext<'a> {
-    loaded: &'a crate::LoadedSkillPackage,
     skill_dir: &'a Path,
     case_receipt_root: Option<&'a Path>,
     output_receipt_dir: Option<&'a Path>,
@@ -80,16 +77,12 @@ fn run_inline_harness_cases(
     let mut assertion_errors = Vec::new();
     let mut case_names = Vec::with_capacity(cases.len());
     let mut receipt_ids = Vec::new();
-    let mut graph_case_count = 0;
     for (index, case) in cases.iter().enumerate() {
         case_names.push(case.name.clone());
         let case_receipt_dir = context
             .case_receipt_root
             .map(|root| root.join(index.to_string()));
         let outcome = run_inline_harness_case(context, case_receipt_dir.as_deref(), case);
-        if outcome.is_graph {
-            graph_case_count += 1;
-        }
         if let Some(receipt_id) = outcome.receipt_id {
             receipt_ids.push(receipt_id);
         }
@@ -110,12 +103,13 @@ fn run_inline_harness_cases(
         assertion_errors,
         case_names,
         receipt_ids,
-        graph_case_count,
+        // Every runner is a graph, so an inline case proves nothing about
+        // composition; only `kind: graph` package fixtures count.
+        graph_case_count: 0,
     }
 }
 
 struct InlineHarnessCaseOutcome {
-    is_graph: bool,
     receipt_id: Option<String>,
     assertion_error: Option<String>,
 }
@@ -129,8 +123,6 @@ fn run_inline_harness_case(
         Ok(runner) => runner,
         Err(error) => return inline_harness_case_error(&case.name, error),
     };
-    let is_graph = runner.source.source_type == runx_parser::SourceKind::Graph;
-
     // The harness executes below the normal preparation front, so admit the
     // fixture through the same complete contract before running any step.
     // Required fields, defaults, nested schemas, and packet bindings therefore
@@ -139,7 +131,6 @@ fn run_inline_harness_case(
         crate::input_contract::materialize_complete_runner_inputs(&runner.inputs, &case.inputs)
     else {
         return InlineHarnessCaseOutcome {
-            is_graph,
             receipt_id: None,
             assertion_error: inline_harness_status_error(case, HarnessExpectedStatus::Failure),
         };
@@ -152,7 +143,19 @@ fn run_inline_harness_case(
         case,
         context.cwd,
     );
+    // Each case runs against a kernel of its own: its runs, effect custody
+    // and instances never reach another case or the operator's workspace.
+    if let Some(receipt_dir) = receipt_dir {
+        request.env.insert(
+            crate::receipts::paths::RUNX_PROJECT_DIR_ENV.to_owned(),
+            receipt_dir.join(".runx").to_string_lossy().into_owned(),
+        );
+    }
     request.inputs = inputs;
+    match crate::execution::harness::provider_env(&case.caller) {
+        Ok(env) => request.env.extend(env),
+        Err(error) => return inline_harness_case_error(&case.name, error),
+    }
     let seeded_answers = match seeded_answers_from_caller(&case.caller) {
         Ok(answers) => answers,
         Err(error) => return inline_harness_case_error(&case.name, error),
@@ -162,7 +165,7 @@ fn run_inline_harness_case(
         seeded_answers,
         ..Default::default()
     };
-    execute_inline_harness_case(context, &request, receipt_dir, case, runner, &overrides)
+    execute_inline_harness_case(context, &request, receipt_dir, case, &overrides)
 }
 
 fn execute_inline_harness_case(
@@ -170,26 +173,18 @@ fn execute_inline_harness_case(
     request: &SkillRunRequest,
     receipt_dir: Option<&Path>,
     case: &RunnerHarnessCase,
-    runner: &runx_parser::SkillRunnerDefinition,
     overrides: &SkillRunOverrides,
 ) -> InlineHarnessCaseOutcome {
-    let is_graph = runner.source.source_type == runx_parser::SourceKind::Graph;
-    let effects = match crate::execution::harness::effects_for_harness(
-        context.effects,
-        &case.caller.http_responses,
-        &case.caller.http_exchanges,
-        None,
-        &case.caller.mcp_calls,
-    ) {
-        Ok(effects) => effects,
-        Err(error) => {
-            return InlineHarnessCaseOutcome {
-                is_graph,
-                receipt_id: None,
-                assertion_error: Some(format!("{}: {error}", case.name)),
-            };
-        }
-    };
+    let effects =
+        match crate::execution::harness::effects_for_harness(context.effects, &case.caller) {
+            Ok(effects) => effects,
+            Err(error) => {
+                return InlineHarnessCaseOutcome {
+                    receipt_id: None,
+                    assertion_error: Some(format!("{}: {error}", case.name)),
+                };
+            }
+        };
     match execute_skill_run_with_overrides(request, overrides, &effects) {
         Ok(result) => {
             let output = result.output;
@@ -201,7 +196,6 @@ fn execute_inline_harness_case(
                     persist_inline_case_receipts(request, receipt_dir, output_receipt_dir)
             {
                 return InlineHarnessCaseOutcome {
-                    is_graph,
                     receipt_id: None,
                     assertion_error: Some(format!(
                         "{}: failed to persist harness receipts: {error}",
@@ -210,20 +204,11 @@ fn execute_inline_harness_case(
                 };
             }
             InlineHarnessCaseOutcome {
-                is_graph,
                 receipt_id,
-                assertion_error: inline_harness_expectation_error(
-                    context.loaded,
-                    request,
-                    case,
-                    is_graph,
-                    &runner.name,
-                    &output,
-                ),
+                assertion_error: inline_harness_expectation_error(request, case, &output),
             }
         }
         Err(error) => InlineHarnessCaseOutcome {
-            is_graph,
             receipt_id: None,
             assertion_error: inline_harness_execution_error(case, &error),
         },
@@ -274,7 +259,6 @@ fn inline_harness_case_error(
     error: impl std::fmt::Display,
 ) -> InlineHarnessCaseOutcome {
     InlineHarnessCaseOutcome {
-        is_graph: false,
         receipt_id: None,
         assertion_error: Some(format!("{case_name}: {error}")),
     }
@@ -289,24 +273,18 @@ fn receipt_id_from_output(output: &JsonValue) -> Option<String> {
 }
 
 fn inline_harness_expectation_error(
-    loaded: &crate::LoadedSkillPackage,
     request: &SkillRunRequest,
     case: &RunnerHarnessCase,
-    is_graph: bool,
-    runner_name: &str,
     output: &JsonValue,
 ) -> Option<String> {
-    assert_inline_harness_expectations(loaded, request, case, is_graph, runner_name, output)
+    assert_inline_harness_expectations(request, case, output)
         .err()
         .map(|error| format!("{}: {error}", case.name))
 }
 
 fn assert_inline_harness_expectations(
-    loaded: &crate::LoadedSkillPackage,
     request: &SkillRunRequest,
     case: &RunnerHarnessCase,
-    is_graph: bool,
-    runner_name: &str,
     output: &JsonValue,
 ) -> Result<(), HarnessReplayError> {
     let actual_status = inline_harness_actual_status(output);
@@ -366,15 +344,9 @@ fn assert_inline_harness_expectations(
     if let Some(expectation) = &case.expect.output {
         assert_json_expectation(expectation, result, "expect.output")?;
     }
-    let graph_state = if case.expect.step_outputs.is_empty() {
+    let record = if case.expect.step_outputs.is_empty() {
         None
     } else {
-        if !is_graph {
-            return Err(HarnessReplayError::InvalidReplayMetadata {
-                field: "expect.step_outputs".to_owned(),
-                message: "step output expectations require a graph runner".to_owned(),
-            });
-        }
         let run_id = output
             .as_object()
             .and_then(|object| object.get("run_id"))
@@ -383,46 +355,33 @@ fn assert_inline_harness_expectations(
                 field: "run_id".to_owned(),
                 message: "skill run output omitted its run id".to_owned(),
             })?;
-        let (receipts, workspace) = harness_receipt_services(request)?;
-        let closure = crate::skill_package::inspect_loaded_execution_closure_binding(
-            loaded.clone().into(),
-            runner_name,
-            &request.env,
-        )
-        .map_err(|error| HarnessReplayError::InvalidReplayMetadata {
-            field: "execution_closure_digest".to_owned(),
-            message: error.to_string(),
-        })?;
-        Some(
-            read_graph_state(
-                request,
-                &workspace,
-                &receipts,
-                run_id,
-                runner_name,
-                &loaded.package.package_digest,
-                &closure.digest,
-            )
+        let workspace = WorkspaceEnv::new(request.env.clone(), request.cwd.clone())
+            .map_err(RuntimeError::from)?;
+        let store =
+            crate::kernel::store::KernelStore::for_workspace(workspace.env(), workspace.cwd())
+                .map_err(crate::execution::run_record::RunRecordError::from)
+                .map_err(RuntimeError::from)?;
+        crate::execution::run_record::RunLog::open(store, run_id)
+            .and_then(|log| log.load())
             .map_err(|error| HarnessReplayError::InvalidReplayMetadata {
-                field: "graph_state".to_owned(),
+                field: "run_record".to_owned(),
                 message: error.to_string(),
-            })?,
-        )
+            })?
     };
     for (step_id, expectation) in &case.expect.step_outputs {
-        let actual = graph_state
+        let actual = record
             .as_ref()
-            .and_then(|state| {
-                state
-                    .checkpoint
-                    .steps
-                    .iter()
-                    .rev()
-                    .find(|step| step.step_id == *step_id)
+            .and_then(|record| {
+                record.facts.iter().rev().find_map(|fact| match fact {
+                    crate::execution::run_record::Replayed::Step(step)
+                        if step.step_id == *step_id =>
+                    {
+                        Some(JsonValue::Object(step.contract.clone()))
+                    }
+                    _ => None,
+                })
             })
-            .map_or(JsonValue::Null, |step| {
-                JsonValue::Object(step.contract.clone())
-            });
+            .unwrap_or(JsonValue::Null);
         assert_json_expectation(
             expectation,
             &actual,
@@ -503,25 +462,16 @@ fn inline_harness_execution_error(
 // request id. Inline execution must exercise the same approval provenance as a
 // live resume file.
 fn seeded_answers_from_caller(
-    caller: &HarnessCallerFixture,
+    caller: &HarnessCaller,
 ) -> Result<Option<ResolutionAnswers>, SkillRunError> {
-    let answers = caller.answers.clone().unwrap_or_default();
+    if caller.answers.is_empty() && caller.approvals.is_empty() {
+        return Ok(None);
+    }
     let approvals = caller
         .approvals
-        .clone()
-        .unwrap_or_default()
-        .into_iter()
-        .map(|(gate, approved)| (gate, JsonValue::Bool(approved)));
-    if answers.is_empty()
-        && caller
-            .approvals
-            .as_ref()
-            .is_none_or(|approvals| approvals.is_empty())
-    {
-        Ok(None)
-    } else {
-        ResolutionAnswers::from_lanes(answers, approvals).map(Some)
-    }
+        .iter()
+        .map(|(gate, approved)| (gate.clone(), JsonValue::Bool(*approved)));
+    ResolutionAnswers::from_lanes(caller.answers.clone(), approvals).map(Some)
 }
 
 // Map an `execute_skill_run` output onto the harness status vocabulary
@@ -555,7 +505,7 @@ mod tests {
     use std::collections::BTreeMap;
 
     use runx_contracts::{JsonObject, JsonValue};
-    use runx_parser::HarnessCallerFixture;
+    use runx_parser::HarnessCaller;
 
     use super::seeded_answers_from_caller;
 
@@ -563,15 +513,13 @@ mod tests {
     fn inline_harness_keeps_approval_provenance_separate_from_agent_answers() -> Result<(), String>
     {
         let approval_id = "provider.write.approval";
-        let caller = HarnessCallerFixture {
-            answers: Some(JsonObject::from([(
+        let caller = HarnessCaller {
+            answers: JsonObject::from([(
                 "agent.plan".to_owned(),
                 JsonValue::String("ready".to_owned()),
-            )])),
-            approvals: Some(BTreeMap::from([(approval_id.to_owned(), true)])),
-            http_responses: BTreeMap::new(),
-            http_exchanges: Vec::new(),
-            mcp_calls: Vec::new(),
+            )]),
+            approvals: BTreeMap::from([(approval_id.to_owned(), true)]),
+            ..HarnessCaller::default()
         };
         let answers = seeded_answers_from_caller(&caller)
             .map_err(|error| error.to_string())?

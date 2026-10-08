@@ -1,35 +1,35 @@
 name: reddit-retry
 owner: runx
 steps:
-- id: configure
-  skill: ../..
-  runner: configure
-  inputs:
-    account_id: example_builder
-    config:
-      expected_username: example_builder
-      browser_app: brave
-      driver: macos_applescript
-      profile_ref: reddit-builder
-      binding_ref: brave:builder-tab
-      credential_profile_ref: ''
-      background_only: true
-      login_method: google_oauth
-      login_credential_profile_ref: ''
-      voice:
-        casing: lowercase
-        principles: [answer the actual question; no closing punchline]
-        examples: []
-    expected_version: 0
-- id: publish
-  skill: ../..
-  runner: publish
-  inputs:
-    account_id: example_builder
-    action: {kind: comment, subreddit: learnprogramming, target_url: 'https://www.reddit.com/r/learnprogramming/comments/abc123/example/', title: '', body: 'does the error happen before the request reaches the server? the network tab should show whether it was sent.', allow_bare_urls: false, target_author: ''}
-- id: retry
-  skill: ../..
-  runner: publish
-  inputs:
-    account_id: example_builder
-    action: {kind: comment, subreddit: learnprogramming, target_url: 'https://www.reddit.com/r/learnprogramming/comments/abc123/example/', title: '', body: 'does the error happen before the request reaches the server? the network tab should show whether it was sent.', allow_bare_urls: false, target_author: ''}
+  - id: configure
+    skill: ../..
+    runner: configure
+    inputs:
+      account_id: example_builder
+      config:
+        expected_username: example_builder
+        browser_app: brave
+        driver: macos_applescript
+        profile_ref: reddit-builder
+        binding_ref: brave:builder-tab
+        credential_profile_ref: ''
+        background_only: true
+        login_method: google_oauth
+        login_credential_profile_ref: ''
+        voice:
+          casing: lowercase
+          principles: [answer the actual question; no closing punchline]
+          examples: []
+      expected_version: 0
+  - id: publish
+    skill: ../..
+    runner: publish
+    inputs:
+      account_id: example_builder
+      action: { kind: comment, subreddit: learnprogramming, target_url: 'https://www.reddit.com/r/learnprogramming/comments/abc123/example/', title: '', body: 'does the error happen before the request reaches the server? the network tab should show whether it was sent.', allow_bare_urls: false, target_author: '' }
+  - id: retry
+    skill: ../..
+    runner: publish
+    inputs:
+      account_id: example_builder
+      action: { kind: comment, subreddit: learnprogramming, target_url: 'https://www.reddit.com/r/learnprogramming/comments/abc123/example/', title: '', body: 'does the error happen before the request reaches the server? the network tab should show whether it was sent.', allow_bare_urls: false, target_author: '' }

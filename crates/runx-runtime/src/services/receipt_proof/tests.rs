@@ -82,7 +82,7 @@ fn local_receipt_proof_never_claims_production_verification() -> Result<(), Stri
 fn valid_local_receipt_remains_explicitly_unverified() -> Result<(), String> {
     const LOCAL_RECEIPT: &str = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../../fixtures/harness/oracle/echo-skill.receipt.json"
+        "/../../fixtures/harness/oracle/echo-skill.default.json"
     ));
     let receipt: Receipt =
         serde_json::from_str(LOCAL_RECEIPT).map_err(|error| error.to_string())?;

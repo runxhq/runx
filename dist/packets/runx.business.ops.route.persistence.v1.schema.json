@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://schemas.runx.ai/runx/business_ops/route_persistence/v1.json",
   "x-runx-packet-id": "runx.business_ops.route_persistence.v1",
-  "x-runx-generated-from": "skills/business-ops/X.yaml#root.runners.route_and_append.graph.steps.3",
+  "x-runx-generated-from": "skills/business-ops/run.yaml#root.runners.route_and_append.steps.3",
   "additionalProperties": false,
   "properties": {
     "after_version": {

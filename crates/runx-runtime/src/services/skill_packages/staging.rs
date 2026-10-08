@@ -85,9 +85,9 @@ fn admit_inline_candidate_files(files: &[JsonValue]) -> Result<Vec<TextFileWrite
             contents: contents.to_owned(),
         });
     }
-    if !seen.contains("SKILL.md") || !seen.contains("X.yaml") {
+    if !seen.contains("SKILL.md") || !seen.contains(runx_parser::PROFILE_FILE) {
         return Err(invalid_skill_change(
-            "candidate must contain SKILL.md and X.yaml",
+            "candidate must contain SKILL.md and run.yaml",
         ));
     }
     Ok(writes)

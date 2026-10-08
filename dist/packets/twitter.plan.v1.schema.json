@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://schemas.runx.ai/runx/twitter/plan/v1.json",
   "x-runx-packet-id": "twitter.plan.v1",
-  "x-runx-generated-from": "skills/twitter/X.yaml#root.runners.plan.graph.steps.0",
+  "x-runx-generated-from": "skills/twitter/run.yaml#root.runners.plan.steps.0",
   "additionalProperties": false,
   "properties": {
     "acts": {

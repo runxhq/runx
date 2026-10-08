@@ -23,8 +23,8 @@ fn catalog_enforcement_keeps_explicit_internal_mock_runners_admissible() {
     let source = package([
         ("SKILL.md", manual("mock-pay")),
         (
-            "X.yaml",
-            "skill: mock-pay\ncatalog:\n  kind: skill\n  audience: system\n  visibility: internal\n  role: harness-fixture\n  part_of: [runx/spend]\n  execution: execute\n  completion: runtime_receipt\n  requires_adapter: false\n  approval: none\nrunners:\n  mock:\n    default: true\n    type: javascript\n    module: main.mjs\n    idempotency: { required: true }\n"
+            "run.yaml",
+            "skill: mock-pay\ncatalog:\n  kind: skill\n  audience: system\n  visibility: internal\n  role: harness-fixture\n  part_of: [runx/spend]\n  execution: execute\n  completion: runtime_receipt\n  requires_adapter: false\n  approval: none\nrunners:\n  mock:\n    default: true\n    steps:\n      - id: mock\n        tool: { module: main.mjs }\n"
                 .to_owned(),
         ),
         (
@@ -42,8 +42,8 @@ fn skill_package_preserves_exact_manual_and_validates_reachable_modules() {
     let source = package([
         ("SKILL.md", manual.clone()),
         (
-            "X.yaml",
-            "skill: demo\nrunners:\n  run:\n    default: true\n    source:\n      type: javascript\n      module: domain/main.mjs\n"
+            "run.yaml",
+            "skill: demo\nrunners:\n  run:\n    default: true\n    steps:\n      - id: run\n        tool: { module: domain/main.mjs }\n"
                 .to_owned(),
         ),
         (
@@ -72,32 +72,25 @@ fn skill_package_preserves_exact_manual_and_validates_reachable_modules() {
 }
 
 #[test]
-fn skill_package_rejects_manifest_owned_fields_in_the_manual() {
+fn skill_package_manual_carries_only_agent_skills_fields() {
     let source = package([(
         "SKILL.md",
         r#"---
-name: legacy-source
-description: execution must not hide in the manual
-source:
-  type: cli-tool
-  command: sh
+name: manual-inputs
+description: inputs belong to run.yaml
 inputs:
   message:
     type: string
     required: true
 ---
 
-# Legacy source
+# Manual inputs
 "#
         .to_owned(),
     )]);
 
-    let error = validate_skill_package(source).expect_err("manual execution path must fail");
-    assert!(
-        error
-            .to_string()
-            .contains("execution metadata belongs in X.yaml")
-    );
+    let error = validate_skill_package(source).expect_err("manual inputs must fail");
+    assert!(error.to_string().contains("inputs"), "{error}");
 }
 
 #[test]
@@ -107,9 +100,6 @@ fn skill_package_allows_a_manual_only_context_artifact() {
         r#"---
 name: operator-context
 description: bounded advisory context
-runx:
-  category: context
-  tags: [operator]
 ---
 
 # Operator context
@@ -128,15 +118,14 @@ fn skill_package_tracks_declared_process_scripts_outside_module_bundle() {
     let source = package([
         ("SKILL.md", manual("process-script")),
         (
-            "X.yaml",
+            "run.yaml",
             r#"skill: process-script
 runners:
   run:
     default: true
-    type: cli-tool
-    command: node
-    args:
-      - ./run.mjs
+    steps:
+      - id: run
+        tool: { command: node, args: [./run.mjs] }
 "#
             .to_owned(),
         ),
@@ -157,15 +146,14 @@ fn skill_package_rejects_missing_declared_process_scripts() {
     let source = package([
         ("SKILL.md", manual("missing-process-script")),
         (
-            "X.yaml",
+            "run.yaml",
             r#"skill: missing-process-script
 runners:
   run:
     default: true
-    type: cli-tool
-    command: node
-    args:
-      - ./missing.mjs
+    steps:
+      - id: run
+        tool: { command: node, args: [./missing.mjs] }
 "#
             .to_owned(),
         ),
@@ -183,13 +171,17 @@ fn skill_package_allows_explicit_selection_from_multiple_non_default_runners() {
     let source = package([
         ("SKILL.md", manual("explicit-selection")),
         (
-            "X.yaml",
+            "run.yaml",
             r#"skill: explicit-selection
 runners:
   inspect:
-    type: agent
+    steps:
+      - id: inspect
+        agent: { role: agent, task: inspect }
   apply:
-    type: agent
+    steps:
+      - id: apply
+        agent: { role: agent, task: apply }
 "#
             .to_owned(),
         ),
@@ -204,43 +196,13 @@ runners:
 }
 
 #[test]
-fn graph_runner_requires_an_intentional_public_result_producer() {
-    let source = package([
-        ("SKILL.md", manual("missing-graph-result")),
-        (
-            "X.yaml",
-            r#"skill: missing-graph-result
-runners:
-  run:
-    default: true
-    type: graph
-    graph:
-      name: missing-graph-result
-      steps:
-        - id: work
-          run:
-            type: agent-task
-"#
-            .to_owned(),
-        ),
-    ]);
-
-    let error = validate_skill_package(source).expect_err("missing result producer must fail");
-    assert!(
-        error
-            .to_string()
-            .contains("must name at least one intentional public result producer")
-    );
-}
-
-#[test]
 fn skill_package_rejects_cross_file_ambiguity_and_unsafe_sources() {
     let cases = [
         package([
             ("SKILL.md", manual("demo")),
             (
-                "X.yaml",
-                "skill: other\nrunners:\n  run:\n    type: agent\n".to_owned(),
+                "run.yaml",
+                "skill: other\nrunners:\n  run:\n    steps:\n      - id: run\n        agent: { role: agent, task: run }\n".to_owned(),
             ),
         ]),
         package([
@@ -250,8 +212,8 @@ fn skill_package_rejects_cross_file_ambiguity_and_unsafe_sources() {
         package([
             ("SKILL.md", manual("demo")),
             (
-                "X.yaml",
-                "runners:\n  run:\n    type: javascript\n    module: main.mjs\n".to_owned(),
+                "run.yaml",
+                "skill: demo\nrunners:\n  run:\n    steps:\n      - id: run\n        tool: { module: main.mjs }\n".to_owned(),
             ),
             (
                 "main.mjs",
@@ -280,29 +242,21 @@ fn skill_package_rejects_static_context_input_collisions() {
     let source = package([
         ("SKILL.md", manual("demo")),
         (
-            "X.yaml",
-            r#"runners:
+            "run.yaml",
+            r#"skill: demo
+runners:
   run:
-    type: graph
-    graph:
-      name: collision
-      steps:
-        - id: first
-          run:
-            type: agent-task
-            agent: operator
-            task: first
-          inputs:
-            objective: static
-        - id: second
-          run:
-            type: agent-task
-            agent: operator
-            task: second
-          inputs:
-            objective: static
-          context:
-            objective: first.objective
+    steps:
+      - id: first
+        agent: { role: operator, task: first }
+        inputs:
+          objective: static
+      - id: second
+        agent: { role: operator, task: second }
+        inputs:
+          objective: static
+        context:
+          objective: first.objective
 "#
             .to_owned(),
         ),
@@ -317,21 +271,16 @@ fn skill_package_validates_local_context_manuals() {
     let source = package([
         ("SKILL.md", manual("demo")),
         (
-            "X.yaml",
-            r#"runners:
+            "run.yaml",
+            r#"skill: demo
+runners:
   run:
-    type: graph
-    graph:
-      name: context
-      result_from: [review]
-      steps:
-        - id: review
-          run:
-            type: agent-task
-            agent: reviewer
-            task: review
-          context_skills:
-            - ./context/rubric
+    result_from: [review]
+    steps:
+      - id: review
+        agent: { role: reviewer, task: review }
+        context_skills:
+          - ./context/rubric
 "#
             .to_owned(),
         ),
@@ -347,12 +296,12 @@ fn skill_package_manual_owns_nested_execution_profiles() {
     let source = package([
         ("SKILL.md", manual("operator")),
         (
-            "X.yaml",
-            "skill: operator\nrunners:\n  inspect:\n    type: agent\n".to_owned(),
+            "run.yaml",
+            "skill: operator\nrunners:\n  inspect:\n    steps:\n      - id: inspect\n        agent: { role: agent, task: inspect }\n".to_owned(),
         ),
         (
-            "graph/plan/X.yaml",
-            "runners:\n  plan:\n    type: javascript\n    module: plan.mjs\n".to_owned(),
+            "graph/plan/run.yaml",
+            "skill: operator-plan\nrunners:\n  plan:\n    steps:\n      - id: plan\n        tool: { module: plan.mjs }\n".to_owned(),
         ),
         (
             "graph/plan/plan.mjs",
@@ -364,7 +313,7 @@ fn skill_package_manual_owns_nested_execution_profiles() {
 
     assert_eq!(
         validated.profiles.keys().cloned().collect::<Vec<_>>(),
-        vec!["X.yaml", "graph/plan/X.yaml"]
+        vec!["graph/plan/run.yaml", "run.yaml"]
     );
     assert!(
         validated
@@ -400,7 +349,8 @@ fn skill_package_qualifies_nested_package_errors() {
         ("SKILL.md", manual("operator")),
         (
             "context/rubric/SKILL.md",
-            "---\nname: rubric\nallowed_tools: [example.echo]\n---\n".to_owned(),
+            "---\nname: rubric\ndescription: rubric fixture.\nallowed_tools: [example.echo]\n---\n"
+                .to_owned(),
         ),
     ]);
 
@@ -417,8 +367,8 @@ fn skill_package_parses_owned_harness_fixtures() {
     let source = package([
         ("SKILL.md", manual("operator")),
         (
-            "X.yaml",
-            "skill: operator\nrunners:\n  inspect:\n    type: agent\n".to_owned(),
+            "run.yaml",
+            "skill: operator\nrunners:\n  inspect:\n    steps:\n      - id: inspect\n        agent: { role: agent, task: inspect }\n".to_owned(),
         ),
         (
             "fixtures/inspect.yaml",
@@ -450,8 +400,8 @@ fn skill_package_consumes_conventional_graph_harness_closure() {
     let source = package([
         ("SKILL.md", manual("operator")),
         (
-            "X.yaml",
-            "skill: operator\nrunners:\n  inspect:\n    type: agent\n".to_owned(),
+            "run.yaml",
+            "skill: operator\nrunners:\n  inspect:\n    steps:\n      - id: inspect\n        agent: { role: agent, task: inspect }\n".to_owned(),
         ),
         (
             "fixtures/inspect.yaml",
@@ -468,10 +418,7 @@ expect:
             r#"name: inspect
 steps:
   - id: setup
-    run:
-      type: cli-tool
-      command: node
-      args: [./setup.mjs]
+    tool: { command: node, args: [./setup.mjs] }
 "#
             .to_owned(),
         ),
@@ -500,11 +447,13 @@ fn skill_package_admits_explicit_profile_relative_harness_files() {
     let source = package([
         ("SKILL.md", manual("operator")),
         (
-            "X.yaml",
+            "run.yaml",
             r#"skill: operator
 runners:
   inspect:
-    type: agent
+    steps:
+      - id: inspect
+        agent: { role: agent, task: inspect }
 harness:
   files:
     - fixtures/root-helper.mjs
@@ -518,10 +467,13 @@ harness:
             .to_owned(),
         ),
         (
-            "graph/plan/X.yaml",
-            r#"runners:
+            "graph/plan/run.yaml",
+            r#"skill: demo-plan
+runners:
   plan:
-    type: agent
+    steps:
+      - id: plan
+        agent: { role: agent, task: plan }
 harness:
   files:
     - fixtures/plan-helper.mjs
@@ -566,9 +518,9 @@ fn skill_package_rejects_missing_or_unsafe_harness_files() {
         let source = package([
             ("SKILL.md", manual("operator")),
             (
-                "X.yaml",
+                "run.yaml",
                 format!(
-                    "skill: operator\nrunners:\n  inspect:\n    type: agent\nharness:\n  files:\n    - {declared}\n  cases:\n    - name: inspect\n      runner: inspect\n      inputs: {{}}\n      expect:\n        status: needs_agent\n"
+                    "skill: operator\nrunners:\n  inspect:\n    steps:\n      - id: inspect\n        agent: {{ role: agent, task: inspect }}\nharness:\n  files:\n    - {declared}\n  cases:\n    - name: inspect\n      runner: inspect\n      inputs: {{}}\n      expect:\n        status: needs_agent\n"
                 ),
             ),
         ]);
@@ -586,18 +538,15 @@ fn skill_package_validates_bundled_tools_and_records_their_source_closure() {
     let source = package([
         ("SKILL.md", manual("bundled-tool")),
         (
-            "X.yaml",
+            "run.yaml",
             r#"skill: bundled-tool
 runners:
   run:
-    type: graph
-    graph:
-      name: bundled-tool
-      result_from: [invoke]
-      steps:
-        - id: invoke
-          tool: example.echo
-          inputs: {}
+    result_from: [invoke]
+    steps:
+      - id: invoke
+        tool: example.echo
+        inputs: {}
 "#
             .to_owned(),
         ),
@@ -607,7 +556,6 @@ runners:
   "schema": "runx.tool.manifest.v1",
   "name": "example.echo",
   "source": {
-    "type": "cli-tool",
     "command": "node",
     "args": ["./run.mjs"]
   }
@@ -665,7 +613,7 @@ fn skill_package_rejects_invalid_or_misplaced_bundled_tool_manifests() {
             r#"{
   "schema": "runx.tool.manifest.v1",
   "name": "example.other",
-  "source": { "type": "cli-tool", "command": "node", "args": ["./run.mjs"] }
+  "source": { "command": "node", "args": ["./run.mjs"] }
 }"#,
             "must match its catalog path",
         ),
@@ -696,7 +644,7 @@ fn skill_package_rejects_unbound_bundled_tool_dependencies() {
             r#"{
   "schema": "runx.tool.manifest.v1",
   "name": "example.echo",
-  "source": { "type": "cli-tool", "command": "node", "args": ["./run.mjs"] }
+  "source": { "command": "node", "args": ["./run.mjs"] }
 }"#
             .to_owned(),
         ),

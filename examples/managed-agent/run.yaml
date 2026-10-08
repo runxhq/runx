@@ -1,0 +1,22 @@
+skill: managed-agent-intake
+
+catalog:
+  kind: skill
+  audience: public
+  visibility: public
+  role: canonical
+
+runners:
+  intake:
+    default: true
+    inputs:
+      issue_title:
+        type: string
+        required: false
+    steps:
+      - id: intake
+        agent: { role: builder, task: triage-intake }
+        inputs:
+          issue_title: $input.issue_title
+        outputs:
+          summary: object

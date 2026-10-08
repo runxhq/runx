@@ -7,7 +7,7 @@ inputs:
   objective: Author a policy from the brief.
 caller:
   answers:
-    agent_task.policy-author-draft.output:
+    agent.policy-author-draft.output:
       policy_proposal:
         decision: needs_input
         policy: null
@@ -45,4 +45,3 @@ metadata:
   public_skill: policy-author
   source_case: vague-brief-needs-input
   source: skills-fixture
-  runner_kind: graph

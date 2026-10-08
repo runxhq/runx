@@ -6,7 +6,7 @@
   "excludeFolders": ["target", "node_modules", "dist", "tests", "fixtures", "release-fixture-project"],
   "excludeFiles": ["CHANGELOG.md"],
   "rules": [
-    "A skill is a SKILL.md contract; an execution profile is an X.yaml; a chain is a runx.yaml.",
+    "A skill is a SKILL.md contract; an execution profile is an run.yaml; a chain is a runx.yaml.",
     "Read a skill before running it: its manifest, the authority it requests, and its trust tier.",
     "Grant the narrowest authority the skill declares it needs, never a broader scope for convenience.",
     "Consequential actions pass through a gate; treat the signed receipt as the record of what ran, not the console output.",

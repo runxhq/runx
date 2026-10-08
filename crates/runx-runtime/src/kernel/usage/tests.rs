@@ -35,25 +35,26 @@ fn a_retry_reuses_its_reservation_and_a_rejection_releases_it() {
 }
 
 #[test]
-fn a_reused_key_cannot_name_another_intent_or_run() {
+fn another_run_recovering_the_sequence_reuses_its_use() {
     let root = tempfile::tempdir().unwrap();
     let store = KernelStore::open(root.path()).unwrap();
     let ledger = UsageLedger::new(Arc::clone(&store));
-    let limit = AuthorityUseLimit::default();
+    let limit = AuthorityUseLimit {
+        total: Some(1),
+        per_day: None,
+    };
     let first = ledger
         .cover("term:one", &limit, "call-1", "intent-1", "run-1", 86_400)
         .unwrap();
     store
         .append(vec![first.reservation().unwrap().unwrap()])
         .unwrap();
-    assert!(matches!(
-        ledger.cover("term:one", &limit, "call-1", "intent-2", "run-1", 86_400),
-        Err(UsageError::KeyConflict)
-    ));
-    assert!(matches!(
-        ledger.cover("term:one", &limit, "call-1", "intent-1", "run-2", 86_400),
-        Err(UsageError::KeyConflict)
-    ));
+    assert!(
+        ledger
+            .cover("term:one", &limit, "call-1", "intent-1", "run-2", 86_400)
+            .unwrap()
+            .recorded()
+    );
 }
 
 #[test]

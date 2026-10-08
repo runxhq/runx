@@ -351,10 +351,6 @@ export const runxSchemaArtifacts = {
                     "$schema": "https://json-schema.org/draft/2020-12/schema",
                     "additionalProperties": false,
                     "properties": {
-                      "agent": {
-                        "minLength": 1,
-                        "type": "string"
-                      },
                       "envelope": {
                         "$id": "https://runx.ai/spec/agent-context-envelope.schema.json",
                         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -949,7 +945,6 @@ export const runxSchemaArtifacts = {
                               "declaration": {
                                 "additionalProperties": false,
                                 "properties": {
-                                  "auth": {},
                                   "environment": {
                                     "additionalProperties": false,
                                     "properties": {
@@ -968,7 +963,6 @@ export const runxSchemaArtifacts = {
                                     },
                                     "type": "object"
                                   },
-                                  "runtime": {},
                                   "scopes": {
                                     "items": {
                                       "type": "string"
@@ -1097,11 +1091,8 @@ export const runxSchemaArtifacts = {
                         "minLength": 1,
                         "type": "string"
                       },
-                      "source_type": {
-                        "enum": [
-                          "agent",
-                          "agent-task"
-                        ],
+                      "role": {
+                        "minLength": 1,
                         "type": "string"
                       },
                       "task": {
@@ -1111,7 +1102,8 @@ export const runxSchemaArtifacts = {
                     },
                     "required": [
                       "id",
-                      "source_type",
+                      "role",
+                      "task",
                       "envelope"
                     ],
                     "type": "object"
@@ -1239,6 +1231,7 @@ export const runxSchemaArtifacts = {
                 "change_request",
                 "repository",
                 "signal",
+                "run",
                 "act",
                 "receipt",
                 "graph_receipt",
@@ -1376,6 +1369,7 @@ export const runxSchemaArtifacts = {
                       "change_request",
                       "repository",
                       "signal",
+                      "run",
                       "act",
                       "receipt",
                       "graph_receipt",
@@ -1481,6 +1475,7 @@ export const runxSchemaArtifacts = {
                       "change_request",
                       "repository",
                       "signal",
+                      "run",
                       "act",
                       "receipt",
                       "graph_receipt",
@@ -1591,6 +1586,7 @@ export const runxSchemaArtifacts = {
                 "change_request",
                 "repository",
                 "signal",
+                "run",
                 "act",
                 "receipt",
                 "graph_receipt",
@@ -1692,6 +1688,7 @@ export const runxSchemaArtifacts = {
                     "change_request",
                     "repository",
                     "signal",
+                    "run",
                     "act",
                     "receipt",
                     "graph_receipt",
@@ -1909,6 +1906,7 @@ export const runxSchemaArtifacts = {
                             "change_request",
                             "repository",
                             "signal",
+                            "run",
                             "act",
                             "receipt",
                             "graph_receipt",
@@ -2014,6 +2012,7 @@ export const runxSchemaArtifacts = {
                     "change_request",
                     "repository",
                     "signal",
+                    "run",
                     "act",
                     "receipt",
                     "graph_receipt",
@@ -2112,6 +2111,7 @@ export const runxSchemaArtifacts = {
                     "change_request",
                     "repository",
                     "signal",
+                    "run",
                     "act",
                     "receipt",
                     "graph_receipt",
@@ -2213,6 +2213,7 @@ export const runxSchemaArtifacts = {
                         "change_request",
                         "repository",
                         "signal",
+                        "run",
                         "act",
                         "receipt",
                         "graph_receipt",
@@ -2324,6 +2325,7 @@ export const runxSchemaArtifacts = {
                               "change_request",
                               "repository",
                               "signal",
+                              "run",
                               "act",
                               "receipt",
                               "graph_receipt",
@@ -2422,6 +2424,7 @@ export const runxSchemaArtifacts = {
                               "change_request",
                               "repository",
                               "signal",
+                              "run",
                               "act",
                               "receipt",
                               "graph_receipt",
@@ -2543,6 +2546,7 @@ export const runxSchemaArtifacts = {
                         "change_request",
                         "repository",
                         "signal",
+                        "run",
                         "act",
                         "receipt",
                         "graph_receipt",
@@ -2681,6 +2685,7 @@ export const runxSchemaArtifacts = {
                 "change_request",
                 "repository",
                 "signal",
+                "run",
                 "act",
                 "receipt",
                 "graph_receipt",
@@ -2776,6 +2781,7 @@ export const runxSchemaArtifacts = {
                 "change_request",
                 "repository",
                 "signal",
+                "run",
                 "act",
                 "receipt",
                 "graph_receipt",
@@ -2867,6 +2873,7 @@ export const runxSchemaArtifacts = {
                 "change_request",
                 "repository",
                 "signal",
+                "run",
                 "act",
                 "receipt",
                 "graph_receipt",
@@ -2967,6 +2974,7 @@ export const runxSchemaArtifacts = {
                   "change_request",
                   "repository",
                   "signal",
+                  "run",
                   "act",
                   "receipt",
                   "graph_receipt",
@@ -3069,6 +3077,7 @@ export const runxSchemaArtifacts = {
                               "change_request",
                               "repository",
                               "signal",
+                              "run",
                               "act",
                               "receipt",
                               "graph_receipt",
@@ -3167,6 +3176,7 @@ export const runxSchemaArtifacts = {
                               "change_request",
                               "repository",
                               "signal",
+                              "run",
                               "act",
                               "receipt",
                               "graph_receipt",
@@ -3288,6 +3298,7 @@ export const runxSchemaArtifacts = {
                         "change_request",
                         "repository",
                         "signal",
+                        "run",
                         "act",
                         "receipt",
                         "graph_receipt",
@@ -3420,6 +3431,7 @@ export const runxSchemaArtifacts = {
                 "change_request",
                 "repository",
                 "signal",
+                "run",
                 "act",
                 "receipt",
                 "graph_receipt",
@@ -3549,6 +3561,7 @@ export const runxSchemaArtifacts = {
                         "change_request",
                         "repository",
                         "signal",
+                        "run",
                         "act",
                         "receipt",
                         "graph_receipt",
@@ -3646,6 +3659,7 @@ export const runxSchemaArtifacts = {
                                   "change_request",
                                   "repository",
                                   "signal",
+                                  "run",
                                   "act",
                                   "receipt",
                                   "graph_receipt",
@@ -3739,6 +3753,7 @@ export const runxSchemaArtifacts = {
                                   "change_request",
                                   "repository",
                                   "signal",
+                                  "run",
                                   "act",
                                   "receipt",
                                   "graph_receipt",
@@ -4100,6 +4115,7 @@ export const runxSchemaArtifacts = {
                                     "change_request",
                                     "repository",
                                     "signal",
+                                    "run",
                                     "act",
                                     "receipt",
                                     "graph_receipt",
@@ -4199,6 +4215,7 @@ export const runxSchemaArtifacts = {
                             "change_request",
                             "repository",
                             "signal",
+                            "run",
                             "act",
                             "receipt",
                             "graph_receipt",
@@ -4292,6 +4309,7 @@ export const runxSchemaArtifacts = {
                             "change_request",
                             "repository",
                             "signal",
+                            "run",
                             "act",
                             "receipt",
                             "graph_receipt",
@@ -4380,6 +4398,7 @@ export const runxSchemaArtifacts = {
                             "change_request",
                             "repository",
                             "signal",
+                            "run",
                             "act",
                             "receipt",
                             "graph_receipt",
@@ -4483,6 +4502,7 @@ export const runxSchemaArtifacts = {
                             "change_request",
                             "repository",
                             "signal",
+                            "run",
                             "act",
                             "receipt",
                             "graph_receipt",
@@ -4675,6 +4695,7 @@ export const runxSchemaArtifacts = {
                         "change_request",
                         "repository",
                         "signal",
+                        "run",
                         "act",
                         "receipt",
                         "graph_receipt",
@@ -4763,6 +4784,7 @@ export const runxSchemaArtifacts = {
                         "change_request",
                         "repository",
                         "signal",
+                        "run",
                         "act",
                         "receipt",
                         "graph_receipt",
@@ -4910,6 +4932,7 @@ export const runxSchemaArtifacts = {
                         "change_request",
                         "repository",
                         "signal",
+                        "run",
                         "act",
                         "receipt",
                         "graph_receipt",
@@ -5003,6 +5026,7 @@ export const runxSchemaArtifacts = {
                         "change_request",
                         "repository",
                         "signal",
+                        "run",
                         "act",
                         "receipt",
                         "graph_receipt",
@@ -5364,6 +5388,7 @@ export const runxSchemaArtifacts = {
                           "change_request",
                           "repository",
                           "signal",
+                          "run",
                           "act",
                           "receipt",
                           "graph_receipt",
@@ -5463,6 +5488,7 @@ export const runxSchemaArtifacts = {
                   "change_request",
                   "repository",
                   "signal",
+                  "run",
                   "act",
                   "receipt",
                   "graph_receipt",
@@ -5556,6 +5582,7 @@ export const runxSchemaArtifacts = {
                   "change_request",
                   "repository",
                   "signal",
+                  "run",
                   "act",
                   "receipt",
                   "graph_receipt",
@@ -5644,6 +5671,7 @@ export const runxSchemaArtifacts = {
                   "change_request",
                   "repository",
                   "signal",
+                  "run",
                   "act",
                   "receipt",
                   "graph_receipt",
@@ -5747,6 +5775,7 @@ export const runxSchemaArtifacts = {
                   "change_request",
                   "repository",
                   "signal",
+                  "run",
                   "act",
                   "receipt",
                   "graph_receipt",
@@ -5987,6 +6016,7 @@ export const runxSchemaArtifacts = {
                       "change_request",
                       "repository",
                       "signal",
+                      "run",
                       "act",
                       "receipt",
                       "graph_receipt",
@@ -6064,10 +6094,6 @@ export const runxSchemaArtifacts = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "additionalProperties": false,
     "properties": {
-      "agent": {
-        "minLength": 1,
-        "type": "string"
-      },
       "envelope": {
         "$id": "https://runx.ai/spec/agent-context-envelope.schema.json",
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -6662,7 +6688,6 @@ export const runxSchemaArtifacts = {
               "declaration": {
                 "additionalProperties": false,
                 "properties": {
-                  "auth": {},
                   "environment": {
                     "additionalProperties": false,
                     "properties": {
@@ -6681,7 +6706,6 @@ export const runxSchemaArtifacts = {
                     },
                     "type": "object"
                   },
-                  "runtime": {},
                   "scopes": {
                     "items": {
                       "type": "string"
@@ -6810,11 +6834,8 @@ export const runxSchemaArtifacts = {
         "minLength": 1,
         "type": "string"
       },
-      "source_type": {
-        "enum": [
-          "agent",
-          "agent-task"
-        ],
+      "role": {
+        "minLength": 1,
         "type": "string"
       },
       "task": {
@@ -6824,7 +6845,8 @@ export const runxSchemaArtifacts = {
     },
     "required": [
       "id",
-      "source_type",
+      "role",
+      "task",
       "envelope"
     ],
     "type": "object"
@@ -7423,7 +7445,6 @@ export const runxSchemaArtifacts = {
           "declaration": {
             "additionalProperties": false,
             "properties": {
-              "auth": {},
               "environment": {
                 "additionalProperties": false,
                 "properties": {
@@ -7442,7 +7463,6 @@ export const runxSchemaArtifacts = {
                 },
                 "type": "object"
               },
-              "runtime": {},
               "scopes": {
                 "items": {
                   "type": "string"
@@ -7703,6 +7723,7 @@ export const runxSchemaArtifacts = {
               "change_request",
               "repository",
               "signal",
+              "run",
               "act",
               "receipt",
               "graph_receipt",
@@ -7796,6 +7817,7 @@ export const runxSchemaArtifacts = {
               "change_request",
               "repository",
               "signal",
+              "run",
               "act",
               "receipt",
               "graph_receipt",
@@ -7927,6 +7949,7 @@ export const runxSchemaArtifacts = {
                       "change_request",
                       "repository",
                       "signal",
+                      "run",
                       "act",
                       "receipt",
                       "graph_receipt",
@@ -8022,6 +8045,7 @@ export const runxSchemaArtifacts = {
                   "change_request",
                   "repository",
                   "signal",
+                  "run",
                   "act",
                   "receipt",
                   "graph_receipt",
@@ -8110,6 +8134,7 @@ export const runxSchemaArtifacts = {
                   "change_request",
                   "repository",
                   "signal",
+                  "run",
                   "act",
                   "receipt",
                   "graph_receipt",
@@ -8198,6 +8223,7 @@ export const runxSchemaArtifacts = {
                   "change_request",
                   "repository",
                   "signal",
+                  "run",
                   "act",
                   "receipt",
                   "graph_receipt",
@@ -8286,6 +8312,7 @@ export const runxSchemaArtifacts = {
                   "change_request",
                   "repository",
                   "signal",
+                  "run",
                   "act",
                   "receipt",
                   "graph_receipt",
@@ -8378,6 +8405,7 @@ export const runxSchemaArtifacts = {
                 "change_request",
                 "repository",
                 "signal",
+                "run",
                 "act",
                 "receipt",
                 "graph_receipt",
@@ -8478,6 +8506,7 @@ export const runxSchemaArtifacts = {
                 "change_request",
                 "repository",
                 "signal",
+                "run",
                 "act",
                 "receipt",
                 "graph_receipt",
@@ -8608,6 +8637,7 @@ export const runxSchemaArtifacts = {
                     "change_request",
                     "repository",
                     "signal",
+                    "run",
                     "act",
                     "receipt",
                     "graph_receipt",
@@ -8705,6 +8735,7 @@ export const runxSchemaArtifacts = {
                               "change_request",
                               "repository",
                               "signal",
+                              "run",
                               "act",
                               "receipt",
                               "graph_receipt",
@@ -8798,6 +8829,7 @@ export const runxSchemaArtifacts = {
                               "change_request",
                               "repository",
                               "signal",
+                              "run",
                               "act",
                               "receipt",
                               "graph_receipt",
@@ -9159,6 +9191,7 @@ export const runxSchemaArtifacts = {
                                 "change_request",
                                 "repository",
                                 "signal",
+                                "run",
                                 "act",
                                 "receipt",
                                 "graph_receipt",
@@ -9258,6 +9291,7 @@ export const runxSchemaArtifacts = {
                         "change_request",
                         "repository",
                         "signal",
+                        "run",
                         "act",
                         "receipt",
                         "graph_receipt",
@@ -9351,6 +9385,7 @@ export const runxSchemaArtifacts = {
                         "change_request",
                         "repository",
                         "signal",
+                        "run",
                         "act",
                         "receipt",
                         "graph_receipt",
@@ -9439,6 +9474,7 @@ export const runxSchemaArtifacts = {
                         "change_request",
                         "repository",
                         "signal",
+                        "run",
                         "act",
                         "receipt",
                         "graph_receipt",
@@ -9542,6 +9578,7 @@ export const runxSchemaArtifacts = {
                         "change_request",
                         "repository",
                         "signal",
+                        "run",
                         "act",
                         "receipt",
                         "graph_receipt",
@@ -9734,6 +9771,7 @@ export const runxSchemaArtifacts = {
                     "change_request",
                     "repository",
                     "signal",
+                    "run",
                     "act",
                     "receipt",
                     "graph_receipt",
@@ -9822,6 +9860,7 @@ export const runxSchemaArtifacts = {
                     "change_request",
                     "repository",
                     "signal",
+                    "run",
                     "act",
                     "receipt",
                     "graph_receipt",
@@ -10307,6 +10346,7 @@ export const runxSchemaArtifacts = {
               "change_request",
               "repository",
               "signal",
+              "run",
               "act",
               "receipt",
               "graph_receipt",
@@ -10395,6 +10435,7 @@ export const runxSchemaArtifacts = {
               "change_request",
               "repository",
               "signal",
+              "run",
               "act",
               "receipt",
               "graph_receipt",
@@ -10513,6 +10554,7 @@ export const runxSchemaArtifacts = {
                     "change_request",
                     "repository",
                     "signal",
+                    "run",
                     "act",
                     "receipt",
                     "graph_receipt",
@@ -10606,6 +10648,7 @@ export const runxSchemaArtifacts = {
                     "change_request",
                     "repository",
                     "signal",
+                    "run",
                     "act",
                     "receipt",
                     "graph_receipt",
@@ -10967,6 +11010,7 @@ export const runxSchemaArtifacts = {
                       "change_request",
                       "repository",
                       "signal",
+                      "run",
                       "act",
                       "receipt",
                       "graph_receipt",
@@ -11066,6 +11110,7 @@ export const runxSchemaArtifacts = {
               "change_request",
               "repository",
               "signal",
+              "run",
               "act",
               "receipt",
               "graph_receipt",
@@ -11159,6 +11204,7 @@ export const runxSchemaArtifacts = {
               "change_request",
               "repository",
               "signal",
+              "run",
               "act",
               "receipt",
               "graph_receipt",
@@ -11247,6 +11293,7 @@ export const runxSchemaArtifacts = {
               "change_request",
               "repository",
               "signal",
+              "run",
               "act",
               "receipt",
               "graph_receipt",
@@ -11350,6 +11397,7 @@ export const runxSchemaArtifacts = {
               "change_request",
               "repository",
               "signal",
+              "run",
               "act",
               "receipt",
               "graph_receipt",
@@ -11491,6 +11539,7 @@ export const runxSchemaArtifacts = {
               "change_request",
               "repository",
               "signal",
+              "run",
               "act",
               "receipt",
               "graph_receipt",
@@ -11584,6 +11633,7 @@ export const runxSchemaArtifacts = {
                       "change_request",
                       "repository",
                       "signal",
+                      "run",
                       "act",
                       "receipt",
                       "graph_receipt",
@@ -11722,6 +11772,7 @@ export const runxSchemaArtifacts = {
                           "change_request",
                           "repository",
                           "signal",
+                          "run",
                           "act",
                           "receipt",
                           "graph_receipt",
@@ -11810,6 +11861,7 @@ export const runxSchemaArtifacts = {
                           "change_request",
                           "repository",
                           "signal",
+                          "run",
                           "act",
                           "receipt",
                           "graph_receipt",
@@ -11932,6 +11984,7 @@ export const runxSchemaArtifacts = {
                 "change_request",
                 "repository",
                 "signal",
+                "run",
                 "act",
                 "receipt",
                 "graph_receipt",
@@ -12023,6 +12076,7 @@ export const runxSchemaArtifacts = {
                 "change_request",
                 "repository",
                 "signal",
+                "run",
                 "act",
                 "receipt",
                 "graph_receipt",
@@ -12113,6 +12167,7 @@ export const runxSchemaArtifacts = {
               "change_request",
               "repository",
               "signal",
+              "run",
               "act",
               "receipt",
               "graph_receipt",
@@ -12202,6 +12257,7 @@ export const runxSchemaArtifacts = {
                 "change_request",
                 "repository",
                 "signal",
+                "run",
                 "act",
                 "receipt",
                 "graph_receipt",
@@ -12299,6 +12355,7 @@ export const runxSchemaArtifacts = {
                 "change_request",
                 "repository",
                 "signal",
+                "run",
                 "act",
                 "receipt",
                 "graph_receipt",
@@ -12399,6 +12456,7 @@ export const runxSchemaArtifacts = {
                           "change_request",
                           "repository",
                           "signal",
+                          "run",
                           "act",
                           "receipt",
                           "graph_receipt",
@@ -12492,6 +12550,7 @@ export const runxSchemaArtifacts = {
                           "change_request",
                           "repository",
                           "signal",
+                          "run",
                           "act",
                           "receipt",
                           "graph_receipt",
@@ -12853,6 +12912,7 @@ export const runxSchemaArtifacts = {
                             "change_request",
                             "repository",
                             "signal",
+                            "run",
                             "act",
                             "receipt",
                             "graph_receipt",
@@ -12952,6 +13012,7 @@ export const runxSchemaArtifacts = {
                     "change_request",
                     "repository",
                     "signal",
+                    "run",
                     "act",
                     "receipt",
                     "graph_receipt",
@@ -13045,6 +13106,7 @@ export const runxSchemaArtifacts = {
                     "change_request",
                     "repository",
                     "signal",
+                    "run",
                     "act",
                     "receipt",
                     "graph_receipt",
@@ -13133,6 +13195,7 @@ export const runxSchemaArtifacts = {
                     "change_request",
                     "repository",
                     "signal",
+                    "run",
                     "act",
                     "receipt",
                     "graph_receipt",
@@ -13236,6 +13299,7 @@ export const runxSchemaArtifacts = {
                     "change_request",
                     "repository",
                     "signal",
+                    "run",
                     "act",
                     "receipt",
                     "graph_receipt",
@@ -13490,6 +13554,7 @@ export const runxSchemaArtifacts = {
                           "change_request",
                           "repository",
                           "signal",
+                          "run",
                           "act",
                           "receipt",
                           "graph_receipt",
@@ -13587,6 +13652,7 @@ export const runxSchemaArtifacts = {
                           "change_request",
                           "repository",
                           "signal",
+                          "run",
                           "act",
                           "receipt",
                           "graph_receipt",
@@ -13693,6 +13759,7 @@ export const runxSchemaArtifacts = {
                           "change_request",
                           "repository",
                           "signal",
+                          "run",
                           "act",
                           "receipt",
                           "graph_receipt",
@@ -13993,6 +14060,7 @@ export const runxSchemaArtifacts = {
                           "change_request",
                           "repository",
                           "signal",
+                          "run",
                           "act",
                           "receipt",
                           "graph_receipt",
@@ -14425,7 +14493,6 @@ export const runxSchemaArtifacts = {
                     "minLength": 1,
                     "type": "string"
                   },
-                  "minItems": 1,
                   "type": "array"
                 },
                 "delivery": {
@@ -14485,8 +14552,7 @@ export const runxSchemaArtifacts = {
               "required": [
                 "kind",
                 "fields",
-                "delivery",
-                "audience"
+                "delivery"
               ],
               "type": "object"
             },
@@ -15831,6 +15897,20 @@ export const runxSchemaArtifacts = {
                     "web"
                   ],
                   "type": "object"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "store": {
+                      "additionalProperties": false,
+                      "properties": {},
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "store"
+                  ],
+                  "type": "object"
                 }
               ]
             },
@@ -15926,6 +16006,10 @@ export const runxSchemaArtifacts = {
         "propertyNames": {
           "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$"
         },
+        "type": "object"
+      },
+      "parameters": {
+        "additionalProperties": {},
         "type": "object"
       },
       "placements": {
@@ -16088,6 +16172,7 @@ export const runxSchemaArtifacts = {
                 "change_request",
                 "repository",
                 "signal",
+                "run",
                 "act",
                 "receipt",
                 "graph_receipt",
@@ -16275,6 +16360,7 @@ export const runxSchemaArtifacts = {
                 "change_request",
                 "repository",
                 "signal",
+                "run",
                 "act",
                 "receipt",
                 "graph_receipt",
@@ -16383,6 +16469,7 @@ export const runxSchemaArtifacts = {
               "change_request",
               "repository",
               "signal",
+              "run",
               "act",
               "receipt",
               "graph_receipt",
@@ -16471,6 +16558,7 @@ export const runxSchemaArtifacts = {
               "change_request",
               "repository",
               "signal",
+              "run",
               "act",
               "receipt",
               "graph_receipt",
@@ -16590,6 +16678,7 @@ export const runxSchemaArtifacts = {
                 "change_request",
                 "repository",
                 "signal",
+                "run",
                 "act",
                 "receipt",
                 "graph_receipt",
@@ -16792,6 +16881,7 @@ export const runxSchemaArtifacts = {
               "change_request",
               "repository",
               "signal",
+              "run",
               "act",
               "receipt",
               "graph_receipt",
@@ -16906,6 +16996,7 @@ export const runxSchemaArtifacts = {
               "change_request",
               "repository",
               "signal",
+              "run",
               "act",
               "receipt",
               "graph_receipt",
@@ -16994,6 +17085,7 @@ export const runxSchemaArtifacts = {
               "change_request",
               "repository",
               "signal",
+              "run",
               "act",
               "receipt",
               "graph_receipt",
@@ -17082,6 +17174,7 @@ export const runxSchemaArtifacts = {
               "change_request",
               "repository",
               "signal",
+              "run",
               "act",
               "receipt",
               "graph_receipt",
@@ -17170,6 +17263,7 @@ export const runxSchemaArtifacts = {
               "change_request",
               "repository",
               "signal",
+              "run",
               "act",
               "receipt",
               "graph_receipt",
@@ -17325,6 +17419,7 @@ export const runxSchemaArtifacts = {
                 "change_request",
                 "repository",
                 "signal",
+                "run",
                 "act",
                 "receipt",
                 "graph_receipt",
@@ -17437,6 +17532,7 @@ export const runxSchemaArtifacts = {
                     "change_request",
                     "repository",
                     "signal",
+                    "run",
                     "act",
                     "receipt",
                     "graph_receipt",
@@ -17743,8 +17839,7 @@ export const runxSchemaArtifacts = {
           "committed",
           "idempotent_replay",
           "read",
-          "conflict",
-          "provider_unavailable"
+          "conflict"
         ],
         "type": "string"
       },
@@ -17937,6 +18032,7 @@ export const runxSchemaArtifacts = {
                 "change_request",
                 "repository",
                 "signal",
+                "run",
                 "act",
                 "receipt",
                 "graph_receipt",
@@ -18093,6 +18189,7 @@ export const runxSchemaArtifacts = {
                     "change_request",
                     "repository",
                     "signal",
+                    "run",
                     "act",
                     "receipt",
                     "graph_receipt",
@@ -18185,6 +18282,7 @@ export const runxSchemaArtifacts = {
                       "change_request",
                       "repository",
                       "signal",
+                      "run",
                       "act",
                       "receipt",
                       "graph_receipt",
@@ -18279,6 +18377,7 @@ export const runxSchemaArtifacts = {
                     "change_request",
                     "repository",
                     "signal",
+                    "run",
                     "act",
                     "receipt",
                     "graph_receipt",
@@ -18371,6 +18470,7 @@ export const runxSchemaArtifacts = {
                       "change_request",
                       "repository",
                       "signal",
+                      "run",
                       "act",
                       "receipt",
                       "graph_receipt",
@@ -18475,6 +18575,7 @@ export const runxSchemaArtifacts = {
                     "change_request",
                     "repository",
                     "signal",
+                    "run",
                     "act",
                     "receipt",
                     "graph_receipt",
@@ -18586,6 +18687,7 @@ export const runxSchemaArtifacts = {
                     "change_request",
                     "repository",
                     "signal",
+                    "run",
                     "act",
                     "receipt",
                     "graph_receipt",
@@ -18733,6 +18835,7 @@ export const runxSchemaArtifacts = {
                   "change_request",
                   "repository",
                   "signal",
+                  "run",
                   "act",
                   "receipt",
                   "graph_receipt",
@@ -19321,6 +19424,7 @@ export const runxSchemaArtifacts = {
                 "change_request",
                 "repository",
                 "signal",
+                "run",
                 "act",
                 "receipt",
                 "graph_receipt",
@@ -19426,6 +19530,7 @@ export const runxSchemaArtifacts = {
               "change_request",
               "repository",
               "signal",
+              "run",
               "act",
               "receipt",
               "graph_receipt",
@@ -19528,6 +19633,7 @@ export const runxSchemaArtifacts = {
               "change_request",
               "repository",
               "signal",
+              "run",
               "act",
               "receipt",
               "graph_receipt",
@@ -19662,6 +19768,7 @@ export const runxSchemaArtifacts = {
               "change_request",
               "repository",
               "signal",
+              "run",
               "act",
               "receipt",
               "graph_receipt",
@@ -19840,6 +19947,7 @@ export const runxSchemaArtifacts = {
                           "change_request",
                           "repository",
                           "signal",
+                          "run",
                           "act",
                           "receipt",
                           "graph_receipt",
@@ -19937,6 +20045,7 @@ export const runxSchemaArtifacts = {
                           "change_request",
                           "repository",
                           "signal",
+                          "run",
                           "act",
                           "receipt",
                           "graph_receipt",
@@ -20043,6 +20152,7 @@ export const runxSchemaArtifacts = {
                           "change_request",
                           "repository",
                           "signal",
+                          "run",
                           "act",
                           "receipt",
                           "graph_receipt",
@@ -20343,6 +20453,7 @@ export const runxSchemaArtifacts = {
                           "change_request",
                           "repository",
                           "signal",
+                          "run",
                           "act",
                           "receipt",
                           "graph_receipt",
@@ -20704,6 +20815,7 @@ export const runxSchemaArtifacts = {
               "change_request",
               "repository",
               "signal",
+              "run",
               "act",
               "receipt",
               "graph_receipt",
@@ -20880,6 +20992,7 @@ export const runxSchemaArtifacts = {
               "change_request",
               "repository",
               "signal",
+              "run",
               "act",
               "receipt",
               "graph_receipt",
@@ -20968,6 +21081,7 @@ export const runxSchemaArtifacts = {
               "change_request",
               "repository",
               "signal",
+              "run",
               "act",
               "receipt",
               "graph_receipt",
@@ -21060,6 +21174,7 @@ export const runxSchemaArtifacts = {
               "change_request",
               "repository",
               "signal",
+              "run",
               "act",
               "receipt",
               "graph_receipt",
@@ -21172,6 +21287,7 @@ export const runxSchemaArtifacts = {
               "change_request",
               "repository",
               "signal",
+              "run",
               "act",
               "receipt",
               "graph_receipt",
@@ -21260,6 +21376,7 @@ export const runxSchemaArtifacts = {
               "change_request",
               "repository",
               "signal",
+              "run",
               "act",
               "receipt",
               "graph_receipt",
@@ -21524,6 +21641,7 @@ export const runxSchemaArtifacts = {
               "change_request",
               "repository",
               "signal",
+              "run",
               "act",
               "receipt",
               "graph_receipt",
@@ -21680,6 +21798,7 @@ export const runxSchemaArtifacts = {
               "change_request",
               "repository",
               "signal",
+              "run",
               "act",
               "receipt",
               "graph_receipt",
@@ -21921,6 +22040,7 @@ export const runxSchemaArtifacts = {
                   "change_request",
                   "repository",
                   "signal",
+                  "run",
                   "act",
                   "receipt",
                   "graph_receipt",
@@ -22097,6 +22217,7 @@ export const runxSchemaArtifacts = {
                   "change_request",
                   "repository",
                   "signal",
+                  "run",
                   "act",
                   "receipt",
                   "graph_receipt",
@@ -22185,6 +22306,7 @@ export const runxSchemaArtifacts = {
                   "change_request",
                   "repository",
                   "signal",
+                  "run",
                   "act",
                   "receipt",
                   "graph_receipt",
@@ -22277,6 +22399,7 @@ export const runxSchemaArtifacts = {
                   "change_request",
                   "repository",
                   "signal",
+                  "run",
                   "act",
                   "receipt",
                   "graph_receipt",
@@ -22389,6 +22512,7 @@ export const runxSchemaArtifacts = {
                   "change_request",
                   "repository",
                   "signal",
+                  "run",
                   "act",
                   "receipt",
                   "graph_receipt",
@@ -22477,6 +22601,7 @@ export const runxSchemaArtifacts = {
                   "change_request",
                   "repository",
                   "signal",
+                  "run",
                   "act",
                   "receipt",
                   "graph_receipt",
@@ -22669,6 +22794,7 @@ export const runxSchemaArtifacts = {
                   "change_request",
                   "repository",
                   "signal",
+                  "run",
                   "act",
                   "receipt",
                   "graph_receipt",
@@ -22782,6 +22908,7 @@ export const runxSchemaArtifacts = {
                   "change_request",
                   "repository",
                   "signal",
+                  "run",
                   "act",
                   "receipt",
                   "graph_receipt",
@@ -22895,6 +23022,7 @@ export const runxSchemaArtifacts = {
                   "change_request",
                   "repository",
                   "signal",
+                  "run",
                   "act",
                   "receipt",
                   "graph_receipt",
@@ -22983,6 +23111,7 @@ export const runxSchemaArtifacts = {
                   "change_request",
                   "repository",
                   "signal",
+                  "run",
                   "act",
                   "receipt",
                   "graph_receipt",
@@ -23071,6 +23200,7 @@ export const runxSchemaArtifacts = {
                   "change_request",
                   "repository",
                   "signal",
+                  "run",
                   "act",
                   "receipt",
                   "graph_receipt",
@@ -23180,6 +23310,7 @@ export const runxSchemaArtifacts = {
                   "change_request",
                   "repository",
                   "signal",
+                  "run",
                   "act",
                   "receipt",
                   "graph_receipt",
@@ -23292,6 +23423,7 @@ export const runxSchemaArtifacts = {
                   "change_request",
                   "repository",
                   "signal",
+                  "run",
                   "act",
                   "receipt",
                   "graph_receipt",
@@ -23618,6 +23750,7 @@ export const runxSchemaArtifacts = {
                           "change_request",
                           "repository",
                           "signal",
+                          "run",
                           "act",
                           "receipt",
                           "graph_receipt",
@@ -23715,6 +23848,7 @@ export const runxSchemaArtifacts = {
                           "change_request",
                           "repository",
                           "signal",
+                          "run",
                           "act",
                           "receipt",
                           "graph_receipt",
@@ -23821,6 +23955,7 @@ export const runxSchemaArtifacts = {
                           "change_request",
                           "repository",
                           "signal",
+                          "run",
                           "act",
                           "receipt",
                           "graph_receipt",
@@ -24121,6 +24256,7 @@ export const runxSchemaArtifacts = {
                           "change_request",
                           "repository",
                           "signal",
+                          "run",
                           "act",
                           "receipt",
                           "graph_receipt",
@@ -24357,6 +24493,7 @@ export const runxSchemaArtifacts = {
                       "change_request",
                       "repository",
                       "signal",
+                      "run",
                       "act",
                       "receipt",
                       "graph_receipt",
@@ -24445,6 +24582,7 @@ export const runxSchemaArtifacts = {
                       "change_request",
                       "repository",
                       "signal",
+                      "run",
                       "act",
                       "receipt",
                       "graph_receipt",
@@ -25767,6 +25905,7 @@ export const runxSchemaArtifacts = {
                 "change_request",
                 "repository",
                 "signal",
+                "run",
                 "act",
                 "receipt",
                 "graph_receipt",
@@ -25909,6 +26048,7 @@ export const runxSchemaArtifacts = {
                 "change_request",
                 "repository",
                 "signal",
+                "run",
                 "act",
                 "receipt",
                 "graph_receipt",
@@ -26015,6 +26155,7 @@ export const runxSchemaArtifacts = {
                     "change_request",
                     "repository",
                     "signal",
+                    "run",
                     "act",
                     "receipt",
                     "graph_receipt",
@@ -26156,6 +26297,7 @@ export const runxSchemaArtifacts = {
               "change_request",
               "repository",
               "signal",
+              "run",
               "act",
               "receipt",
               "graph_receipt",
@@ -26293,6 +26435,7 @@ export const runxSchemaArtifacts = {
                     "change_request",
                     "repository",
                     "signal",
+                    "run",
                     "act",
                     "receipt",
                     "graph_receipt",
@@ -26404,6 +26547,7 @@ export const runxSchemaArtifacts = {
                 "change_request",
                 "repository",
                 "signal",
+                "run",
                 "act",
                 "receipt",
                 "graph_receipt",
@@ -26510,6 +26654,7 @@ export const runxSchemaArtifacts = {
                       "change_request",
                       "repository",
                       "signal",
+                      "run",
                       "act",
                       "receipt",
                       "graph_receipt",
@@ -26625,6 +26770,7 @@ export const runxSchemaArtifacts = {
                     "change_request",
                     "repository",
                     "signal",
+                    "run",
                     "act",
                     "receipt",
                     "graph_receipt",
@@ -26749,6 +26895,7 @@ export const runxSchemaArtifacts = {
               "change_request",
               "repository",
               "signal",
+              "run",
               "act",
               "receipt",
               "graph_receipt",
@@ -26837,6 +26984,7 @@ export const runxSchemaArtifacts = {
               "change_request",
               "repository",
               "signal",
+              "run",
               "act",
               "receipt",
               "graph_receipt",
@@ -26926,6 +27074,7 @@ export const runxSchemaArtifacts = {
                 "change_request",
                 "repository",
                 "signal",
+                "run",
                 "act",
                 "receipt",
                 "graph_receipt",
@@ -27471,6 +27620,7 @@ export const runxSchemaArtifacts = {
               "change_request",
               "repository",
               "signal",
+              "run",
               "act",
               "receipt",
               "graph_receipt",
@@ -27568,6 +27718,7 @@ export const runxSchemaArtifacts = {
               "change_request",
               "repository",
               "signal",
+              "run",
               "act",
               "receipt",
               "graph_receipt",
@@ -27674,6 +27825,7 @@ export const runxSchemaArtifacts = {
               "change_request",
               "repository",
               "signal",
+              "run",
               "act",
               "receipt",
               "graph_receipt",
@@ -27974,6 +28126,7 @@ export const runxSchemaArtifacts = {
               "change_request",
               "repository",
               "signal",
+              "run",
               "act",
               "receipt",
               "graph_receipt",
@@ -28823,6 +28976,44 @@ export const runxSchemaArtifacts = {
     "x-runx-packet": true,
     "x-runx-schema": "runx.payment.parent_invocation_binding.v1"
   } as JsonSchema,
+  "project-artifact-ref.schema.json": {
+    "$id": "https://schemas.runx.ai/runx/project-artifact-ref/v1.json",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "bytes": {
+        "type": "integer"
+      },
+      "digest": {
+        "type": "string"
+      },
+      "media_type": {
+        "type": "string"
+      },
+      "path": {
+        "type": "string"
+      },
+      "ref": {
+        "type": "string"
+      },
+      "schema": {
+        "enum": [
+          "runx.project_artifact_ref.v1"
+        ],
+        "type": "string"
+      }
+    },
+    "required": [
+      "schema",
+      "ref",
+      "digest",
+      "bytes",
+      "media_type",
+      "path"
+    ],
+    "type": "object",
+    "x-runx-schema": "runx.project_artifact_ref.v1"
+  } as JsonSchema,
   "provider-operation.schema.json": {
     "$id": "https://schemas.runx.ai/runx/provider/operation/v1.json",
     "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -29023,6 +29214,7 @@ export const runxSchemaArtifacts = {
               "change_request",
               "repository",
               "signal",
+              "run",
               "act",
               "receipt",
               "graph_receipt",
@@ -29523,6 +29715,7 @@ export const runxSchemaArtifacts = {
                   "change_request",
                   "repository",
                   "signal",
+                  "run",
                   "act",
                   "receipt",
                   "graph_receipt",
@@ -29701,6 +29894,7 @@ export const runxSchemaArtifacts = {
                           "change_request",
                           "repository",
                           "signal",
+                          "run",
                           "act",
                           "receipt",
                           "graph_receipt",
@@ -29798,6 +29992,7 @@ export const runxSchemaArtifacts = {
                           "change_request",
                           "repository",
                           "signal",
+                          "run",
                           "act",
                           "receipt",
                           "graph_receipt",
@@ -29904,6 +30099,7 @@ export const runxSchemaArtifacts = {
                           "change_request",
                           "repository",
                           "signal",
+                          "run",
                           "act",
                           "receipt",
                           "graph_receipt",
@@ -30204,6 +30400,7 @@ export const runxSchemaArtifacts = {
                           "change_request",
                           "repository",
                           "signal",
+                          "run",
                           "act",
                           "receipt",
                           "graph_receipt",
@@ -30551,6 +30748,7 @@ export const runxSchemaArtifacts = {
                       "change_request",
                       "repository",
                       "signal",
+                      "run",
                       "act",
                       "receipt",
                       "graph_receipt",
@@ -30680,6 +30878,7 @@ export const runxSchemaArtifacts = {
                       "change_request",
                       "repository",
                       "signal",
+                      "run",
                       "act",
                       "receipt",
                       "graph_receipt",
@@ -30849,6 +31048,7 @@ export const runxSchemaArtifacts = {
                     "change_request",
                     "repository",
                     "signal",
+                    "run",
                     "act",
                     "receipt",
                     "graph_receipt",
@@ -30946,6 +31146,7 @@ export const runxSchemaArtifacts = {
                             "change_request",
                             "repository",
                             "signal",
+                            "run",
                             "act",
                             "receipt",
                             "graph_receipt",
@@ -31051,6 +31252,7 @@ export const runxSchemaArtifacts = {
                             "change_request",
                             "repository",
                             "signal",
+                            "run",
                             "act",
                             "receipt",
                             "graph_receipt",
@@ -31175,6 +31377,7 @@ export const runxSchemaArtifacts = {
                           "change_request",
                           "repository",
                           "signal",
+                          "run",
                           "act",
                           "receipt",
                           "graph_receipt",
@@ -31387,6 +31590,7 @@ export const runxSchemaArtifacts = {
                                   "change_request",
                                   "repository",
                                   "signal",
+                                  "run",
                                   "act",
                                   "receipt",
                                   "graph_receipt",
@@ -31492,6 +31696,7 @@ export const runxSchemaArtifacts = {
                           "change_request",
                           "repository",
                           "signal",
+                          "run",
                           "act",
                           "receipt",
                           "graph_receipt",
@@ -31590,6 +31795,7 @@ export const runxSchemaArtifacts = {
                           "change_request",
                           "repository",
                           "signal",
+                          "run",
                           "act",
                           "receipt",
                           "graph_receipt",
@@ -31691,6 +31897,7 @@ export const runxSchemaArtifacts = {
                               "change_request",
                               "repository",
                               "signal",
+                              "run",
                               "act",
                               "receipt",
                               "graph_receipt",
@@ -31802,6 +32009,7 @@ export const runxSchemaArtifacts = {
                                     "change_request",
                                     "repository",
                                     "signal",
+                                    "run",
                                     "act",
                                     "receipt",
                                     "graph_receipt",
@@ -31900,6 +32108,7 @@ export const runxSchemaArtifacts = {
                                     "change_request",
                                     "repository",
                                     "signal",
+                                    "run",
                                     "act",
                                     "receipt",
                                     "graph_receipt",
@@ -32021,6 +32230,7 @@ export const runxSchemaArtifacts = {
                               "change_request",
                               "repository",
                               "signal",
+                              "run",
                               "act",
                               "receipt",
                               "graph_receipt",
@@ -32153,6 +32363,7 @@ export const runxSchemaArtifacts = {
                       "change_request",
                       "repository",
                       "signal",
+                      "run",
                       "act",
                       "receipt",
                       "graph_receipt",
@@ -32248,6 +32459,7 @@ export const runxSchemaArtifacts = {
                       "change_request",
                       "repository",
                       "signal",
+                      "run",
                       "act",
                       "receipt",
                       "graph_receipt",
@@ -32348,6 +32560,7 @@ export const runxSchemaArtifacts = {
                         "change_request",
                         "repository",
                         "signal",
+                        "run",
                         "act",
                         "receipt",
                         "graph_receipt",
@@ -32450,6 +32663,7 @@ export const runxSchemaArtifacts = {
                                     "change_request",
                                     "repository",
                                     "signal",
+                                    "run",
                                     "act",
                                     "receipt",
                                     "graph_receipt",
@@ -32548,6 +32762,7 @@ export const runxSchemaArtifacts = {
                                     "change_request",
                                     "repository",
                                     "signal",
+                                    "run",
                                     "act",
                                     "receipt",
                                     "graph_receipt",
@@ -32669,6 +32884,7 @@ export const runxSchemaArtifacts = {
                               "change_request",
                               "repository",
                               "signal",
+                              "run",
                               "act",
                               "receipt",
                               "graph_receipt",
@@ -32815,6 +33031,7 @@ export const runxSchemaArtifacts = {
                   "change_request",
                   "repository",
                   "signal",
+                  "run",
                   "act",
                   "receipt",
                   "graph_receipt",
@@ -32908,6 +33125,7 @@ export const runxSchemaArtifacts = {
                           "change_request",
                           "repository",
                           "signal",
+                          "run",
                           "act",
                           "receipt",
                           "graph_receipt",
@@ -33046,6 +33264,7 @@ export const runxSchemaArtifacts = {
                               "change_request",
                               "repository",
                               "signal",
+                              "run",
                               "act",
                               "receipt",
                               "graph_receipt",
@@ -33134,6 +33353,7 @@ export const runxSchemaArtifacts = {
                               "change_request",
                               "repository",
                               "signal",
+                              "run",
                               "act",
                               "receipt",
                               "graph_receipt",
@@ -33256,6 +33476,7 @@ export const runxSchemaArtifacts = {
                     "change_request",
                     "repository",
                     "signal",
+                    "run",
                     "act",
                     "receipt",
                     "graph_receipt",
@@ -33369,6 +33590,7 @@ export const runxSchemaArtifacts = {
                               "change_request",
                               "repository",
                               "signal",
+                              "run",
                               "act",
                               "receipt",
                               "graph_receipt",
@@ -33466,6 +33688,7 @@ export const runxSchemaArtifacts = {
                                         "change_request",
                                         "repository",
                                         "signal",
+                                        "run",
                                         "act",
                                         "receipt",
                                         "graph_receipt",
@@ -33559,6 +33782,7 @@ export const runxSchemaArtifacts = {
                                         "change_request",
                                         "repository",
                                         "signal",
+                                        "run",
                                         "act",
                                         "receipt",
                                         "graph_receipt",
@@ -33920,6 +34144,7 @@ export const runxSchemaArtifacts = {
                                           "change_request",
                                           "repository",
                                           "signal",
+                                          "run",
                                           "act",
                                           "receipt",
                                           "graph_receipt",
@@ -34019,6 +34244,7 @@ export const runxSchemaArtifacts = {
                                   "change_request",
                                   "repository",
                                   "signal",
+                                  "run",
                                   "act",
                                   "receipt",
                                   "graph_receipt",
@@ -34112,6 +34338,7 @@ export const runxSchemaArtifacts = {
                                   "change_request",
                                   "repository",
                                   "signal",
+                                  "run",
                                   "act",
                                   "receipt",
                                   "graph_receipt",
@@ -34200,6 +34427,7 @@ export const runxSchemaArtifacts = {
                                   "change_request",
                                   "repository",
                                   "signal",
+                                  "run",
                                   "act",
                                   "receipt",
                                   "graph_receipt",
@@ -34303,6 +34531,7 @@ export const runxSchemaArtifacts = {
                                   "change_request",
                                   "repository",
                                   "signal",
+                                  "run",
                                   "act",
                                   "receipt",
                                   "graph_receipt",
@@ -34495,6 +34724,7 @@ export const runxSchemaArtifacts = {
                               "change_request",
                               "repository",
                               "signal",
+                              "run",
                               "act",
                               "receipt",
                               "graph_receipt",
@@ -34583,6 +34813,7 @@ export const runxSchemaArtifacts = {
                               "change_request",
                               "repository",
                               "signal",
+                              "run",
                               "act",
                               "receipt",
                               "graph_receipt",
@@ -34741,6 +34972,7 @@ export const runxSchemaArtifacts = {
                         "change_request",
                         "repository",
                         "signal",
+                        "run",
                         "act",
                         "receipt",
                         "graph_receipt",
@@ -34832,6 +35064,7 @@ export const runxSchemaArtifacts = {
                         "change_request",
                         "repository",
                         "signal",
+                        "run",
                         "act",
                         "receipt",
                         "graph_receipt",
@@ -34923,6 +35156,7 @@ export const runxSchemaArtifacts = {
                         "change_request",
                         "repository",
                         "signal",
+                        "run",
                         "act",
                         "receipt",
                         "graph_receipt",
@@ -35020,6 +35254,7 @@ export const runxSchemaArtifacts = {
                     "change_request",
                     "repository",
                     "signal",
+                    "run",
                     "act",
                     "receipt",
                     "graph_receipt",
@@ -35110,6 +35345,7 @@ export const runxSchemaArtifacts = {
                   "change_request",
                   "repository",
                   "signal",
+                  "run",
                   "act",
                   "receipt",
                   "graph_receipt",
@@ -35199,6 +35435,7 @@ export const runxSchemaArtifacts = {
                     "change_request",
                     "repository",
                     "signal",
+                    "run",
                     "act",
                     "receipt",
                     "graph_receipt",
@@ -35299,6 +35536,7 @@ export const runxSchemaArtifacts = {
                               "change_request",
                               "repository",
                               "signal",
+                              "run",
                               "act",
                               "receipt",
                               "graph_receipt",
@@ -35392,6 +35630,7 @@ export const runxSchemaArtifacts = {
                               "change_request",
                               "repository",
                               "signal",
+                              "run",
                               "act",
                               "receipt",
                               "graph_receipt",
@@ -35753,6 +35992,7 @@ export const runxSchemaArtifacts = {
                                 "change_request",
                                 "repository",
                                 "signal",
+                                "run",
                                 "act",
                                 "receipt",
                                 "graph_receipt",
@@ -35852,6 +36092,7 @@ export const runxSchemaArtifacts = {
                         "change_request",
                         "repository",
                         "signal",
+                        "run",
                         "act",
                         "receipt",
                         "graph_receipt",
@@ -35945,6 +36186,7 @@ export const runxSchemaArtifacts = {
                         "change_request",
                         "repository",
                         "signal",
+                        "run",
                         "act",
                         "receipt",
                         "graph_receipt",
@@ -36033,6 +36275,7 @@ export const runxSchemaArtifacts = {
                         "change_request",
                         "repository",
                         "signal",
+                        "run",
                         "act",
                         "receipt",
                         "graph_receipt",
@@ -36136,6 +36379,7 @@ export const runxSchemaArtifacts = {
                         "change_request",
                         "repository",
                         "signal",
+                        "run",
                         "act",
                         "receipt",
                         "graph_receipt",
@@ -36304,6 +36548,7 @@ export const runxSchemaArtifacts = {
                       "change_request",
                       "repository",
                       "signal",
+                      "run",
                       "act",
                       "receipt",
                       "graph_receipt",
@@ -36460,6 +36705,7 @@ export const runxSchemaArtifacts = {
                           "change_request",
                           "repository",
                           "signal",
+                          "run",
                           "act",
                           "receipt",
                           "graph_receipt",
@@ -36552,6 +36798,7 @@ export const runxSchemaArtifacts = {
                             "change_request",
                             "repository",
                             "signal",
+                            "run",
                             "act",
                             "receipt",
                             "graph_receipt",
@@ -36646,6 +36893,7 @@ export const runxSchemaArtifacts = {
                           "change_request",
                           "repository",
                           "signal",
+                          "run",
                           "act",
                           "receipt",
                           "graph_receipt",
@@ -36738,6 +36986,7 @@ export const runxSchemaArtifacts = {
                             "change_request",
                             "repository",
                             "signal",
+                            "run",
                             "act",
                             "receipt",
                             "graph_receipt",
@@ -36842,6 +37091,7 @@ export const runxSchemaArtifacts = {
                           "change_request",
                           "repository",
                           "signal",
+                          "run",
                           "act",
                           "receipt",
                           "graph_receipt",
@@ -36953,6 +37203,7 @@ export const runxSchemaArtifacts = {
                           "change_request",
                           "repository",
                           "signal",
+                          "run",
                           "act",
                           "receipt",
                           "graph_receipt",
@@ -37100,6 +37351,7 @@ export const runxSchemaArtifacts = {
                         "change_request",
                         "repository",
                         "signal",
+                        "run",
                         "act",
                         "receipt",
                         "graph_receipt",
@@ -37468,6 +37720,7 @@ export const runxSchemaArtifacts = {
                         "change_request",
                         "repository",
                         "signal",
+                        "run",
                         "act",
                         "receipt",
                         "graph_receipt",
@@ -37631,6 +37884,7 @@ export const runxSchemaArtifacts = {
                     "change_request",
                     "repository",
                     "signal",
+                    "run",
                     "act",
                     "receipt",
                     "graph_receipt",
@@ -37721,6 +37975,7 @@ export const runxSchemaArtifacts = {
                   "change_request",
                   "repository",
                   "signal",
+                  "run",
                   "act",
                   "receipt",
                   "graph_receipt",
@@ -37809,6 +38064,7 @@ export const runxSchemaArtifacts = {
                   "change_request",
                   "repository",
                   "signal",
+                  "run",
                   "act",
                   "receipt",
                   "graph_receipt",
@@ -37897,6 +38153,7 @@ export const runxSchemaArtifacts = {
                   "change_request",
                   "repository",
                   "signal",
+                  "run",
                   "act",
                   "receipt",
                   "graph_receipt",
@@ -37941,78 +38198,6 @@ export const runxSchemaArtifacts = {
             ],
             "type": "object",
             "x-runx-schema": "runx.reference.v1"
-          },
-          "sync": {
-            "items": {
-              "additionalProperties": false,
-              "properties": {
-                "branch_count": {
-                  "type": "integer"
-                },
-                "branch_receipts": {
-                  "items": {
-                    "minLength": 1,
-                    "type": "string"
-                  },
-                  "type": "array"
-                },
-                "decision": {
-                  "enum": [
-                    "proceed",
-                    "halt",
-                    "pause",
-                    "escalate"
-                  ],
-                  "type": "string"
-                },
-                "failure_count": {
-                  "type": "integer"
-                },
-                "gate": {
-                  "additionalProperties": {},
-                  "type": "object"
-                },
-                "group_id": {
-                  "minLength": 1,
-                  "type": "string"
-                },
-                "reason": {
-                  "minLength": 1,
-                  "type": "string"
-                },
-                "required_successes": {
-                  "type": "integer"
-                },
-                "rule_fired": {
-                  "minLength": 1,
-                  "type": "string"
-                },
-                "strategy": {
-                  "enum": [
-                    "all",
-                    "any",
-                    "quorum"
-                  ],
-                  "type": "string"
-                },
-                "success_count": {
-                  "type": "integer"
-                }
-              },
-              "required": [
-                "group_id",
-                "strategy",
-                "decision",
-                "rule_fired",
-                "reason",
-                "branch_count",
-                "success_count",
-                "failure_count",
-                "required_successes"
-              ],
-              "type": "object"
-            },
-            "type": "array"
           }
         },
         "type": "object"
@@ -38087,6 +38272,7 @@ export const runxSchemaArtifacts = {
                           "change_request",
                           "repository",
                           "signal",
+                          "run",
                           "act",
                           "receipt",
                           "graph_receipt",
@@ -38192,6 +38378,7 @@ export const runxSchemaArtifacts = {
                           "change_request",
                           "repository",
                           "signal",
+                          "run",
                           "act",
                           "receipt",
                           "graph_receipt",
@@ -38328,6 +38515,7 @@ export const runxSchemaArtifacts = {
                 "change_request",
                 "repository",
                 "signal",
+                "run",
                 "act",
                 "receipt",
                 "graph_receipt",
@@ -38755,6 +38943,7 @@ export const runxSchemaArtifacts = {
                   "change_request",
                   "repository",
                   "signal",
+                  "run",
                   "act",
                   "receipt",
                   "graph_receipt",
@@ -38911,6 +39100,7 @@ export const runxSchemaArtifacts = {
               "change_request",
               "repository",
               "signal",
+              "run",
               "act",
               "receipt",
               "graph_receipt",
@@ -38999,6 +39189,7 @@ export const runxSchemaArtifacts = {
               "change_request",
               "repository",
               "signal",
+              "run",
               "act",
               "receipt",
               "graph_receipt",
@@ -39121,6 +39312,7 @@ export const runxSchemaArtifacts = {
               "change_request",
               "repository",
               "signal",
+              "run",
               "act",
               "receipt",
               "graph_receipt",
@@ -39225,6 +39417,7 @@ export const runxSchemaArtifacts = {
           "change_request",
           "repository",
           "signal",
+          "run",
           "act",
           "receipt",
           "graph_receipt",
@@ -39557,10 +39750,6 @@ export const runxSchemaArtifacts = {
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "additionalProperties": false,
             "properties": {
-              "agent": {
-                "minLength": 1,
-                "type": "string"
-              },
               "envelope": {
                 "$id": "https://runx.ai/spec/agent-context-envelope.schema.json",
                 "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -40155,7 +40344,6 @@ export const runxSchemaArtifacts = {
                       "declaration": {
                         "additionalProperties": false,
                         "properties": {
-                          "auth": {},
                           "environment": {
                             "additionalProperties": false,
                             "properties": {
@@ -40174,7 +40362,6 @@ export const runxSchemaArtifacts = {
                             },
                             "type": "object"
                           },
-                          "runtime": {},
                           "scopes": {
                             "items": {
                               "type": "string"
@@ -40303,11 +40490,8 @@ export const runxSchemaArtifacts = {
                 "minLength": 1,
                 "type": "string"
               },
-              "source_type": {
-                "enum": [
-                  "agent",
-                  "agent-task"
-                ],
+              "role": {
+                "minLength": 1,
                 "type": "string"
               },
               "task": {
@@ -40317,7 +40501,8 @@ export const runxSchemaArtifacts = {
             },
             "required": [
               "id",
-              "source_type",
+              "role",
+              "task",
               "envelope"
             ],
             "type": "object"
@@ -40715,6 +40900,7 @@ export const runxSchemaArtifacts = {
                   "change_request",
                   "repository",
                   "signal",
+                  "run",
                   "act",
                   "receipt",
                   "graph_receipt",
@@ -40876,6 +41062,7 @@ export const runxSchemaArtifacts = {
                     "change_request",
                     "repository",
                     "signal",
+                    "run",
                     "act",
                     "receipt",
                     "graph_receipt",
@@ -40966,6 +41153,7 @@ export const runxSchemaArtifacts = {
                   "change_request",
                   "repository",
                   "signal",
+                  "run",
                   "act",
                   "receipt",
                   "graph_receipt",
@@ -41054,6 +41242,7 @@ export const runxSchemaArtifacts = {
                   "change_request",
                   "repository",
                   "signal",
+                  "run",
                   "act",
                   "receipt",
                   "graph_receipt",
@@ -41143,6 +41332,7 @@ export const runxSchemaArtifacts = {
                     "change_request",
                     "repository",
                     "signal",
+                    "run",
                     "act",
                     "receipt",
                     "graph_receipt",
@@ -41248,6 +41438,7 @@ export const runxSchemaArtifacts = {
                   "change_request",
                   "repository",
                   "signal",
+                  "run",
                   "act",
                   "receipt",
                   "graph_receipt",
@@ -41348,6 +41539,7 @@ export const runxSchemaArtifacts = {
                 "change_request",
                 "repository",
                 "signal",
+                "run",
                 "act",
                 "receipt",
                 "graph_receipt",
@@ -41456,6 +41648,7 @@ export const runxSchemaArtifacts = {
                     "change_request",
                     "repository",
                     "signal",
+                    "run",
                     "act",
                     "receipt",
                     "graph_receipt",
@@ -41566,6 +41759,7 @@ export const runxSchemaArtifacts = {
                         "change_request",
                         "repository",
                         "signal",
+                        "run",
                         "act",
                         "receipt",
                         "graph_receipt",
@@ -41658,6 +41852,7 @@ export const runxSchemaArtifacts = {
                           "change_request",
                           "repository",
                           "signal",
+                          "run",
                           "act",
                           "receipt",
                           "graph_receipt",
@@ -41754,6 +41949,7 @@ export const runxSchemaArtifacts = {
                           "change_request",
                           "repository",
                           "signal",
+                          "run",
                           "act",
                           "receipt",
                           "graph_receipt",
@@ -41854,6 +42050,7 @@ export const runxSchemaArtifacts = {
                   "change_request",
                   "repository",
                   "signal",
+                  "run",
                   "act",
                   "receipt",
                   "graph_receipt",
@@ -41943,6 +42140,7 @@ export const runxSchemaArtifacts = {
                     "change_request",
                     "repository",
                     "signal",
+                    "run",
                     "act",
                     "receipt",
                     "graph_receipt",
@@ -42034,6 +42232,7 @@ export const runxSchemaArtifacts = {
                     "change_request",
                     "repository",
                     "signal",
+                    "run",
                     "act",
                     "receipt",
                     "graph_receipt",
@@ -42125,6 +42324,7 @@ export const runxSchemaArtifacts = {
                     "change_request",
                     "repository",
                     "signal",
+                    "run",
                     "act",
                     "receipt",
                     "graph_receipt",
@@ -42237,6 +42437,7 @@ export const runxSchemaArtifacts = {
               "change_request",
               "repository",
               "signal",
+              "run",
               "act",
               "receipt",
               "graph_receipt",
@@ -42916,11 +43117,11 @@ export const runxSchemaArtifacts = {
               "enum": [
                 "manual",
                 "graph",
-                "agent_task",
+                "agent",
                 "native_capability",
                 "domain_module",
-                "cli_tool",
-                "provider_adapter"
+                "process",
+                "operation"
               ],
               "type": "string"
             },
@@ -42948,9 +43149,6 @@ export const runxSchemaArtifacts = {
           "max_executable_lines": {
             "type": "integer"
           },
-          "max_fanout": {
-            "type": "integer"
-          },
           "max_files": {
             "type": "integer"
           },
@@ -42964,7 +43162,6 @@ export const runxSchemaArtifacts = {
         "required": [
           "max_files",
           "max_executable_lines",
-          "max_fanout",
           "max_process_spawns",
           "network_allowed"
         ],
@@ -43372,11 +43569,11 @@ export const runxSchemaArtifacts = {
                   "enum": [
                     "manual",
                     "graph",
-                    "agent_task",
+                    "agent",
                     "native_capability",
                     "domain_module",
-                    "cli_tool",
-                    "provider_adapter"
+                    "process",
+                    "operation"
                   ],
                   "type": "string"
                 },
@@ -43404,9 +43601,6 @@ export const runxSchemaArtifacts = {
               "max_executable_lines": {
                 "type": "integer"
               },
-              "max_fanout": {
-                "type": "integer"
-              },
               "max_files": {
                 "type": "integer"
               },
@@ -43420,7 +43614,6 @@ export const runxSchemaArtifacts = {
             "required": [
               "max_files",
               "max_executable_lines",
-              "max_fanout",
               "max_process_spawns",
               "network_allowed"
             ],
@@ -43853,11 +44046,11 @@ export const runxSchemaArtifacts = {
                   "enum": [
                     "manual",
                     "graph",
-                    "agent_task",
+                    "agent",
                     "native_capability",
                     "domain_module",
-                    "cli_tool",
-                    "provider_adapter"
+                    "process",
+                    "operation"
                   ],
                   "type": "string"
                 },
@@ -43885,9 +44078,6 @@ export const runxSchemaArtifacts = {
               "max_executable_lines": {
                 "type": "integer"
               },
-              "max_fanout": {
-                "type": "integer"
-              },
               "max_files": {
                 "type": "integer"
               },
@@ -43901,7 +44091,6 @@ export const runxSchemaArtifacts = {
             "required": [
               "max_files",
               "max_executable_lines",
-              "max_fanout",
               "max_process_spawns",
               "network_allowed"
             ],
@@ -44155,6 +44344,172 @@ export const runxSchemaArtifacts = {
     "type": "object",
     "x-runx-schema": "runx.skill.change_draft.v1"
   } as JsonSchema,
+  "skill-output.schema.json": {
+    "$id": "https://schemas.runx.ai/runx/skill-run/v1.json",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": true,
+    "properties": {
+      "artifact_refs": {
+        "items": {
+          "$id": "https://schemas.runx.ai/runx/project-artifact-ref/v1.json",
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "bytes": {
+              "type": "integer"
+            },
+            "digest": {
+              "type": "string"
+            },
+            "media_type": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            },
+            "ref": {
+              "type": "string"
+            },
+            "schema": {
+              "enum": [
+                "runx.project_artifact_ref.v1"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "schema",
+            "ref",
+            "digest",
+            "bytes",
+            "media_type",
+            "path"
+          ],
+          "type": "object",
+          "x-runx-schema": "runx.project_artifact_ref.v1"
+        },
+        "type": "array"
+      },
+      "diagnostics_ref": {
+        "$id": "https://schemas.runx.ai/runx/project-artifact-ref/v1.json",
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "bytes": {
+            "type": "integer"
+          },
+          "digest": {
+            "type": "string"
+          },
+          "media_type": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "ref": {
+            "type": "string"
+          },
+          "schema": {
+            "enum": [
+              "runx.project_artifact_ref.v1"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "schema",
+          "ref",
+          "digest",
+          "bytes",
+          "media_type",
+          "path"
+        ],
+        "type": "object",
+        "x-runx-schema": "runx.project_artifact_ref.v1"
+      },
+      "outcome": {
+        "enum": [
+          "completed",
+          "deferred",
+          "blocked",
+          "failed"
+        ],
+        "type": "string"
+      },
+      "receipt_id": {
+        "type": "string"
+      },
+      "request_set_ref": {
+        "$id": "https://schemas.runx.ai/runx/project-artifact-ref/v1.json",
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "bytes": {
+            "type": "integer"
+          },
+          "digest": {
+            "type": "string"
+          },
+          "media_type": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "ref": {
+            "type": "string"
+          },
+          "schema": {
+            "enum": [
+              "runx.project_artifact_ref.v1"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "schema",
+          "ref",
+          "digest",
+          "bytes",
+          "media_type",
+          "path"
+        ],
+        "type": "object",
+        "x-runx-schema": "runx.project_artifact_ref.v1"
+      },
+      "requests": {
+        "items": {},
+        "type": "array"
+      },
+      "result": {},
+      "run_id": {
+        "type": "string"
+      },
+      "schema": {
+        "enum": [
+          "runx.skill_run.v1"
+        ],
+        "type": "string"
+      },
+      "status": {
+        "enum": [
+          "sealed",
+          "needs_agent",
+          "needs_approval",
+          "payment_required",
+          "policy_denied",
+          "failure"
+        ],
+        "type": "string"
+      }
+    },
+    "required": [
+      "status"
+    ],
+    "type": "object",
+    "x-runx-schema": "runx.skill_run.v1"
+  } as JsonSchema,
   "skill-validation-result.schema.json": {
     "$id": "https://schemas.runx.ai/runx/skill/validation-result/v1.json",
     "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -44399,6 +44754,7 @@ export const runxSchemaArtifacts = {
                     "change_request",
                     "repository",
                     "signal",
+                    "run",
                     "act",
                     "receipt",
                     "graph_receipt",
@@ -44489,6 +44845,7 @@ export const runxSchemaArtifacts = {
                   "change_request",
                   "repository",
                   "signal",
+                  "run",
                   "act",
                   "receipt",
                   "graph_receipt",
@@ -44577,6 +44934,7 @@ export const runxSchemaArtifacts = {
                   "change_request",
                   "repository",
                   "signal",
+                  "run",
                   "act",
                   "receipt",
                   "graph_receipt",
@@ -44666,6 +45024,7 @@ export const runxSchemaArtifacts = {
                     "change_request",
                     "repository",
                     "signal",
+                    "run",
                     "act",
                     "receipt",
                     "graph_receipt",
@@ -44771,6 +45130,7 @@ export const runxSchemaArtifacts = {
                   "change_request",
                   "repository",
                   "signal",
+                  "run",
                   "act",
                   "receipt",
                   "graph_receipt",
@@ -44888,6 +45248,7 @@ export const runxSchemaArtifacts = {
                     "change_request",
                     "repository",
                     "signal",
+                    "run",
                     "act",
                     "receipt",
                     "graph_receipt",
@@ -45010,6 +45371,7 @@ export const runxSchemaArtifacts = {
                 "change_request",
                 "repository",
                 "signal",
+                "run",
                 "act",
                 "receipt",
                 "graph_receipt",
@@ -45110,6 +45472,7 @@ export const runxSchemaArtifacts = {
               "change_request",
               "repository",
               "signal",
+              "run",
               "act",
               "receipt",
               "graph_receipt",
@@ -45326,19 +45689,6 @@ export const runxSchemaArtifacts = {
       "name": {
         "type": "string"
       },
-      "retry": {
-        "additionalProperties": false,
-        "properties": {
-          "max_attempts": {
-            "type": "integer"
-          }
-        },
-        "required": [
-          "max_attempts"
-        ],
-        "type": "object"
-      },
-      "risk": {},
       "schema": {
         "enum": [
           "runx.tool.manifest.v1"
@@ -45384,9 +45734,6 @@ export const runxSchemaArtifacts = {
             },
             "type": "object"
           },
-          "export": {
-            "type": "string"
-          },
           "input_mode": {
             "enum": [
               "args",
@@ -45395,22 +45742,12 @@ export const runxSchemaArtifacts = {
             ],
             "type": "string"
           },
-          "module": {
-            "type": "string"
-          },
           "timeout_seconds": {
             "type": "integer"
-          },
-          "type": {
-            "enum": [
-              "cli-tool",
-              "javascript"
-            ],
-            "type": "string"
           }
         },
         "required": [
-          "type"
+          "command"
         ],
         "type": "object"
       },
@@ -45483,6 +45820,7 @@ export const runxSchemaArtifacts = {
                       "change_request",
                       "repository",
                       "signal",
+                      "run",
                       "act",
                       "receipt",
                       "graph_receipt",
@@ -45581,6 +45919,7 @@ export const runxSchemaArtifacts = {
                       "change_request",
                       "repository",
                       "signal",
+                      "run",
                       "act",
                       "receipt",
                       "graph_receipt",
@@ -45702,6 +46041,7 @@ export const runxSchemaArtifacts = {
                 "change_request",
                 "repository",
                 "signal",
+                "run",
                 "act",
                 "receipt",
                 "graph_receipt",

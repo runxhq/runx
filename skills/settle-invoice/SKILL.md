@@ -1,8 +1,6 @@
 ---
 name: settle-invoice
 description: Validate and settle one invoice through Runx Hosted with approval and provider readback.
-runx:
-  category: payments
 ---
 
 # Settle Invoice

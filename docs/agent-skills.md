@@ -58,7 +58,7 @@ this for the `spend` skill:
 ---
 name: spend
 description: Execute one governed outbound payment, with quote, reservation, approval, rail evidence, and receipt-before-success.
-allowed-tools: Bash(/path/to/runx skill *), Bash(/path/to/runx resume *)
+allowed-tools: Bash(/path/to/runx skill *) Bash(/path/to/runx resume *)
 ---
 # spend - governed by runx
 

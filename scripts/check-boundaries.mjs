@@ -56,9 +56,8 @@ const hostedCredentialContractScanRoots = [
 const literalName = (...parts) => parts.join("");
 const literalPattern = (...parts) => new RegExp(literalName(...parts));
 const privateProviderGatewayUpstreamPattern = new RegExp("nan" + "go", "i");
-const legacyRunxConnectPrivateUpstreamEnvPattern = new RegExp(`RUNX_CONNECT_${"NAN"}${"GO"}`);
 const hostedOAuthAuthModePattern = /["']?auth_mode["']?\s*[:=]\s*["']oauth(?:_bearer)?["']/;
-const legacyProviderReferenceValuePattern = new RegExp("\\bco" + "nn_[A-Za-z0-9_:-]+");
+const gatewayConnectionIdPattern = new RegExp("\\bco" + "nn_[A-Za-z0-9_:-]+");
 const forbiddenHostedConnectBrokerageTerms = [
   { name: "private provider gateway upstream", pattern: privateProviderGatewayUpstreamPattern },
   { name: literalName("oauth", "_required"), pattern: literalPattern("oauth", "_required") },
@@ -67,7 +66,6 @@ const forbiddenHostedConnectBrokerageTerms = [
   { name: literalName("Hosted", "Provider", "Reference"), pattern: literalPattern("Hosted", "Provider", "Reference") },
   { name: literalName("connect", "-http"), pattern: literalPattern("connect", "-http") },
   { name: literalName("create", "Http", "Connect", "Service"), pattern: literalPattern("create", "Http", "Connect", "Service") },
-  { name: "legacy private provider gateway env", pattern: legacyRunxConnectPrivateUpstreamEnvPattern },
   {
     name: literalName("RUNX_CONNECT_PROVIDER", "_GATEWAY"),
     pattern: literalPattern("RUNX_CONNECT_PROVIDER", "_GATEWAY"),
@@ -75,7 +73,7 @@ const forbiddenHostedConnectBrokerageTerms = [
 ];
 const forbiddenHostedCredentialContractTerms = [
   { name: "hosted OAuth auth_mode", pattern: hostedOAuthAuthModePattern },
-  { name: "legacy conn_ provider reference value", pattern: legacyProviderReferenceValuePattern },
+  { name: "provider gateway connection id", pattern: gatewayConnectionIdPattern },
   { name: literalName("opaque", "_connection"), pattern: literalPattern("opaque", "_connection") },
   { name: literalName("redact", "_connect", "_text"), pattern: literalPattern("redact", "_connect", "_text") },
   { name: literalName("credential_delivery", ".broker", "_response"), pattern: literalPattern("credential_delivery", "\\.broker", "_response") },
@@ -83,109 +81,23 @@ const forbiddenHostedCredentialContractTerms = [
   { name: literalName("credential-delivery", "-broker", "-response"), pattern: literalPattern("credential-delivery", "-broker", "-response") },
   { name: literalName("CredentialDelivery", "Broker", "Response"), pattern: literalPattern("CredentialDelivery", "Broker", "Response") },
 ];
-const retiredCorePackageName = ["@runxhq", "core"].join("/");
-const forbiddenPureNodeImports = new Set([
-  "fs",
-  "fs/promises",
-  "node:fs",
-  "node:fs/promises",
-  "path",
-  "node:path",
-  "child_process",
-  "node:child_process",
-  "http",
-  "node:http",
-  "https",
-  "node:https",
-  "net",
-  "node:net",
-  "tls",
-  "node:tls",
-  "dgram",
-  "node:dgram",
-  "dns",
-  "node:dns",
-  "worker_threads",
-  "node:worker_threads",
-]);
-const sunsetTsPackageNames = new Set(["runtime-local", "adapters"]);
-const sunsetTsPackageImportPrefixes = ["@runxhq/runtime-local", "@runxhq/adapters"];
-const forbiddenCompatibilityPackageNames = new Set([
-  "@runxhq/runtime-local-v2",
-  "@runxhq/adapters-v2",
-  "@runxhq/runtime-local-shim",
-  "@runxhq/adapters-shim",
-  "@runxhq/runtime-local-compat",
-  "@runxhq/adapters-compat",
-  "@runxhq/runtime-local-compatibility",
-  "@runxhq/adapters-compatibility",
-  "runtime-local-v2",
-  "adapters-v2",
-  "runtime-local-shim",
-  "adapters-shim",
-  "runtime-local-compat",
-  "adapters-compat",
-  "runtime-local-compatibility",
-  "adapters-compatibility",
-]);
-const forbiddenCompatibilityPackageDirectoryNames = new Set([
-  "runtime-local-v2",
-  "adapters-v2",
-  "runtime-local-shim",
-  "adapters-shim",
-  "runtime-local-compat",
-  "adapters-compat",
-  "runtime-local-compatibility",
-  "adapters-compatibility",
-]);
 const packageDependencyFields = ["dependencies", "devDependencies", "peerDependencies", "optionalDependencies"];
-const aliasConfigFiles = ["tsconfig.base.json", "vitest.workspace-aliases.ts"];
 const forbiddenPackageImports = {
-  "runtime-local": {
-    prefixes: [
-      "@runxhq/adapters",
-      "@runxhq/cli",
-      "@runxhq/host-adapters",
-      "@runxhq/langchain",
-    ],
-    reason: "@runxhq/runtime-local must not depend on downstream adapters, CLI, or host packages.",
-  },
-  adapters: {
-    prefixes: [
-      "@runxhq/cli",
-      "@runxhq/host-adapters",
-      "@runxhq/langchain",
-    ],
-    reason: "@runxhq/adapters must stay below host, CLI, and framework packages.",
-  },
-  "host-adapters": {
-    prefixes: [
-      "@runxhq/adapters",
-      "@runxhq/cli",
-      "@runxhq/langchain",
-    ],
-    reason: "@runxhq/host-adapters must not depend on adapters, CLI, or framework packages.",
+  "client": {
+    prefixes: ["@runxhq/cli", "@runxhq/langchain", "@langchain", "@anthropic-ai", "@ai-sdk", "ai"],
+    reason: "@runxhq/client must not depend on CLI or framework packages.",
   },
   langchain: {
-    prefixes: [
-      "@runxhq/adapters",
-      "@runxhq/cli",
-      "@runxhq/host-adapters",
-    ],
-    reason: "@runxhq/langchain must not depend on adapters, CLI, or host packages.",
+    prefixes: ["@runxhq/cli"],
+    reason: "@runxhq/langchain must not depend on CLI or host packages.",
   },
 };
-const pureCoreDomains = ["parser", "policy", "state-machine"];
-const relativeRuntimeDomainPattern = /(^|\/)(runner-local|harness|sdk|mcp)(\/|$)/;
 const staticSpecifierPattern =
   /\b(?:import|export)\s+(?:type\s+)?(?:[^'";]*?\s+from\s+)?["']([^"']+)["']|import\s*\(\s*["']([^"']+)["']\s*\)/g;
 const findings = [];
 const packageManifestCache = new Map();
 const workspacePackageNames = await readWorkspacePackageNames();
 
-await checkRetiredCorePackageDeleted();
-await checkForbiddenCompatibilityPackages();
-await checkForbiddenCompatibilityAliases();
 await checkForbiddenHostedConnectBrokerage();
 await checkForbiddenHostedCredentialContracts();
 for (const filePath of await findSourceFiles(workspaceRoot)) {
@@ -201,119 +113,6 @@ if (findings.length > 0) {
 }
 
 console.log("Boundary check passed.");
-
-async function checkRetiredCorePackageDeleted() {
-  const corePackagePath = path.join(workspaceRoot, "packages", "core");
-  if (await statIfExists(corePackagePath)) {
-    findings.push(`packages/core still exists; ${retiredCorePackageName} is retired and must not be restored.`);
-  }
-  for (const sunsetPath of ["packages/runtime-local/package.json", "packages/adapters/package.json"]) {
-    if (await readJsonIfExists(path.join(workspaceRoot, sunsetPath))) {
-      findings.push(`${sunsetPath} still exists; local execution is Rust-owned.`);
-    }
-  }
-}
-
-async function checkForbiddenCompatibilityPackages() {
-  const packagesDir = path.join(workspaceRoot, "packages");
-  const manifestPaths = [path.join(workspaceRoot, "package.json")];
-
-  for (const entry of await readdir(packagesDir, { withFileTypes: true })) {
-    if (!entry.isDirectory()) {
-      continue;
-    }
-
-    if (forbiddenCompatibilityPackageDirectoryNames.has(entry.name)) {
-      findings.push(`packages/${entry.name} uses a compatibility package directory; runtime-local/adapters shims are not allowed.`);
-    }
-    if (sunsetTsPackageNames.has(entry.name)) {
-      findings.push(`packages/${entry.name} is a sunset TypeScript executor package and must be deleted.`);
-    }
-
-    manifestPaths.push(path.join(packagesDir, entry.name, "package.json"));
-  }
-
-  for (const manifestPath of manifestPaths) {
-    const manifest = await readJsonIfExists(manifestPath);
-    if (!manifest) {
-      continue;
-    }
-
-    const rel = toPosix(path.relative(workspaceRoot, manifestPath));
-    if (isForbiddenCompatibilityPackageName(manifest.name)) {
-      findings.push(`${rel} names ${manifest.name}; runtime-local/adapters compatibility packages are not allowed.`);
-    }
-    if (manifest.name === "@runxhq/runtime-local" || manifest.name === "@runxhq/adapters") {
-      findings.push(`${rel} names sunset TypeScript executor package ${manifest.name}.`);
-    }
-
-    for (const field of packageDependencyFields) {
-      const dependencies = manifest[field];
-      if (!dependencies || typeof dependencies !== "object" || Array.isArray(dependencies)) {
-        continue;
-      }
-
-      for (const dependencyName of Object.keys(dependencies)) {
-        if (isForbiddenCompatibilityPackageName(dependencyName)) {
-          findings.push(`${rel} declares ${dependencyName} in ${field}; runtime-local/adapters compatibility packages are not allowed.`);
-        }
-      }
-    }
-  }
-}
-
-async function checkForbiddenCompatibilityAliases() {
-  for (const relativePath of aliasConfigFiles) {
-    const absolutePath = path.join(workspaceRoot, relativePath);
-    const source = await readFile(absolutePath, "utf8");
-
-    if (relativePath.endsWith(".json")) {
-      checkJsonAliasConfig(relativePath, JSON.parse(source));
-      continue;
-    }
-
-    checkTextAliasConfig(relativePath, source);
-  }
-}
-
-function checkJsonAliasConfig(rel, config) {
-  const paths = config?.compilerOptions?.paths;
-  if (!paths || typeof paths !== "object" || Array.isArray(paths)) {
-    return;
-  }
-
-  for (const [alias, targets] of Object.entries(paths)) {
-    checkAliasToken(rel, alias);
-    const targetList = Array.isArray(targets) ? targets : [targets];
-    for (const target of targetList) {
-      if (typeof target === "string") {
-        checkAliasToken(rel, target);
-      }
-    }
-  }
-}
-
-function checkTextAliasConfig(rel, source) {
-  for (const token of extractStringLiterals(source)) {
-    checkAliasToken(rel, token);
-  }
-}
-
-function checkAliasToken(rel, token) {
-  const normalized = toPosix(token);
-  const packageName = packageSpecifierName(normalized.replace(/\/\*$/, ""));
-  if (isForbiddenCompatibilityPackageName(packageName)) {
-    findings.push(`${rel} aliases ${token}; runtime-local/adapters compatibility aliases are not allowed.`);
-    return;
-  }
-
-  for (const segment of normalized.split(/[\/\\]/)) {
-    if (forbiddenCompatibilityPackageDirectoryNames.has(segment)) {
-      findings.push(`${rel} aliases ${token}; runtime-local/adapters compatibility aliases are not allowed.`);
-      return;
-    }
-  }
-}
 
 async function checkForbiddenHostedConnectBrokerage() {
   for (const rootName of hostedConnectBrokerageScanRoots) {
@@ -377,21 +176,14 @@ async function checkSourceFile(filePath) {
   const packageSource = getPackageSource(rel);
 
   for (const specifier of specifiers) {
-    if (specifierMatchesPackageName(specifier, retiredCorePackageName)) {
-      findings.push(`${rel} imports ${specifier}; ${retiredCorePackageName} is retired and must not be restored.`);
-    }
-
-    if (packageSource) {
-      if (!checkSurvivingTsPackageImport(rel, packageSource.packageName, specifier)) {
-        checkForbiddenPackageImport(rel, packageSource.packageName, specifier);
+    if (rel.startsWith("packages/client/src/adapters/") && !rel.endsWith(".test.ts")) {
+      if (specifier.startsWith("node:") || specifier === "@runxhq/client" || specifier.startsWith("../") || (specifier.startsWith("@runxhq/client/") && specifier !== "@runxhq/client/adapters")) {
+        findings.push(`${rel} imports ${specifier}; portable client adapters cannot import Node or the native client root.`);
       }
-      await checkDeclaredWorkspaceImport(rel, packageSource.packageName, specifier);
     }
-
-    checkForbiddenCompatibilityImport(rel, specifier);
-
-    if (packageSource?.packageName === "core") {
-      checkCoreImport(rel, packageSource.domain, specifier);
+    if (packageSource) {
+      checkForbiddenPackageImport(rel, packageSource.packageName, specifier);
+      await checkDeclaredWorkspaceImport(rel, packageSource.packageName, specifier);
     }
 
     if (rel.startsWith("packages/") && isCloudSpecifier(specifier)) {
@@ -401,44 +193,6 @@ async function checkSourceFile(filePath) {
 
 }
 
-function checkCoreImport(rel, domain, specifier) {
-  if (specifier.startsWith(".") && relativeRuntimeDomainPattern.test(toPosix(path.normalize(path.join(path.dirname(rel), specifier))))) {
-    findings.push(`${rel} imports ${specifier}; core cannot reach removed runtime-local domains by relative path.`);
-  }
-
-  if (pureCoreDomains.includes(domain)) {
-    if (forbiddenPureNodeImports.has(specifier)) {
-      findings.push(`${rel} imports ${specifier}; ${domain} must remain pure and deterministic.`);
-    }
-    if (specifierTargetsDomain(rel, specifier, "executor") || specifierTargetsDomain(rel, specifier, "tool-catalogs")) {
-      findings.push(`${rel} imports ${specifier}; ${domain} cannot depend on execution or catalog boundaries.`);
-    }
-  }
-
-  if (domain === "executor") {
-    if (specifierTargetsDomain(rel, specifier, "adapters")) {
-      findings.push(`${rel} imports ${specifier}; executor must stay protocol-agnostic and avoid concrete adapters.`);
-    }
-  }
-
-  if (domain === "parser" && specifierTargetsDomain(rel, specifier, "adapters")) {
-    findings.push(`${rel} imports ${specifier}; parser cannot depend on concrete adapters.`);
-  }
-}
-
-function checkSurvivingTsPackageImport(rel, packageName, specifier) {
-  if (sunsetTsPackageNames.has(packageName)) {
-    return false;
-  }
-
-  if (sunsetTsPackageImportPrefixes.some((prefix) => specifierMatchesPackageName(specifier, prefix))) {
-    findings.push(`${rel} imports ${specifier}; surviving TypeScript packages must not depend on sunset @runxhq/runtime-local or @runxhq/adapters packages.`);
-    return true;
-  }
-
-  return false;
-}
-
 function checkForbiddenPackageImport(rel, packageName, specifier) {
   const rule = forbiddenPackageImports[packageName];
   if (!rule) {
@@ -446,13 +200,6 @@ function checkForbiddenPackageImport(rel, packageName, specifier) {
   }
   if (rule.prefixes.some((prefix) => specifierMatchesPackageName(specifier, prefix))) {
     findings.push(`${rel} imports ${specifier}; ${rule.reason}`);
-  }
-}
-
-function checkForbiddenCompatibilityImport(rel, specifier) {
-  const packageName = packageSpecifierName(specifier);
-  if (isForbiddenCompatibilityPackageName(packageName)) {
-    findings.push(`${rel} imports ${specifier}; runtime-local/adapters compatibility packages are not allowed.`);
   }
 }
 
@@ -503,16 +250,6 @@ function extractSpecifiers(source) {
   return specifiers;
 }
 
-function extractStringLiterals(source) {
-  const literals = [];
-  const stringLiteralPattern = /["']([^"']+)["']/g;
-  let match;
-  while ((match = stringLiteralPattern.exec(source)) !== null) {
-    literals.push(match[1]);
-  }
-  return literals;
-}
-
 function getPackageSource(rel) {
   const parts = rel.split("/");
   if (parts[0] !== "packages" || parts[2] !== "src") {
@@ -529,25 +266,8 @@ function workspaceDependencyName(specifier) {
   return match?.[1];
 }
 
-function packageSpecifierName(specifier) {
-  if (specifier.startsWith(".")) {
-    return undefined;
-  }
-
-  const parts = specifier.split("/");
-  if (specifier.startsWith("@")) {
-    return parts.length >= 2 ? `${parts[0]}/${parts[1]}` : specifier;
-  }
-
-  return parts[0];
-}
-
 function specifierMatchesPackageName(specifier, packageName) {
   return specifier === packageName || specifier.startsWith(`${packageName}/`);
-}
-
-function isForbiddenCompatibilityPackageName(packageName) {
-  return typeof packageName === "string" && forbiddenCompatibilityPackageNames.has(packageName);
 }
 
 async function readWorkspacePackageNames() {
@@ -573,17 +293,6 @@ async function readPackageManifest(packageName) {
   const manifest = await readJsonIfExists(manifestPath);
   packageManifestCache.set(packageName, manifest);
   return manifest;
-}
-
-function specifierTargetsDomain(rel, specifier, domain) {
-  if (specifier === `@runxhq/${domain}` || specifier.startsWith(`@runxhq/${domain}/`)) {
-    return true;
-  }
-  if (!specifier.startsWith(".")) {
-    return false;
-  }
-  const target = toPosix(path.normalize(path.join(path.dirname(rel), specifier)));
-  return target.split("/").includes(domain);
 }
 
 function isCloudSpecifier(specifier) {

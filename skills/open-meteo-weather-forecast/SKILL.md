@@ -1,8 +1,6 @@
 ---
 name: open-meteo-weather-forecast
 description: Resolve a place and fetch global forecast and air-quality evidence through governed, keyless Open-Meteo HTTP calls.
-runx:
-  category: data
 ---
 
 # Open-Meteo Weather Forecast

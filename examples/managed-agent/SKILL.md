@@ -1,6 +1,6 @@
 ---
 name: managed-agent-intake
-description: Managed-agent front example; a governed agent-task that drafts a triage summary.
+description: Managed-agent front example; a governed agent step that drafts a triage summary.
 ---
 # Triage intake
 

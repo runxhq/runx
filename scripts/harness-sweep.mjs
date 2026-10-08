@@ -262,8 +262,8 @@ async function runSkillHarness(skill, runxBin, tempRoot, workspaceDir, allowed, 
   if (!existsSync(path.join(skillDir, "SKILL.md"))) {
     return failedSkill(skill.name, started, "missing SKILL.md");
   }
-  if (!existsSync(path.join(skillDir, "X.yaml"))) {
-    return failedSkill(skill.name, started, "missing X.yaml");
+  if (!existsSync(path.join(skillDir, "run.yaml"))) {
+    return failedSkill(skill.name, started, "missing run.yaml");
   }
   const result = await spawnBounded(
     runxBin,

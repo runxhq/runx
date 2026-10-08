@@ -1,8 +1,6 @@
 ---
 name: sign-receipt
 description: Bind an off-runtime action claim to opaque evidence references in a signed Runx receipt without pretending Runx verified the external action.
-runx:
-  category: security
 ---
 
 # Sign Receipt

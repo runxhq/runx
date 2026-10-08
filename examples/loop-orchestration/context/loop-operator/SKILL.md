@@ -1,8 +1,6 @@
 ---
 name: loop-operator-context
 description: Advisory operating context for the loop-orchestration example.
-runx:
-  category: context
 ---
 
 # Loop Operator Context

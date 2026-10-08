@@ -9,7 +9,7 @@ inputs:
   operator_context: Reject anything that is a one-off broadcast rather than an automation.
 caller:
   answers:
-    agent_task.build-flow-plan.output:
+    agent.build-flow-plan.output:
       flow_plan:
         decision: reject
         flow_type: none

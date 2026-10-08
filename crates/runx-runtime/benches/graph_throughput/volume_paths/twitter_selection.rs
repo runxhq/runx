@@ -6,9 +6,9 @@ use std::path::Path;
 
 use criterion::Criterion;
 use runx_contracts::{JsonNumber, JsonObject, JsonValue};
-use runx_parser::{ArtifactPageFraming, ArtifactPageSource, SkillSource, SourceKind};
+use runx_parser::{ArtifactPageFraming, ArtifactPageSource, WorkerTool};
 use runx_runtime::adapters::javascript::JavaScriptAdapter;
-use runx_runtime::{CredentialDelivery, SkillAdapter, SkillInvocation};
+use runx_runtime::{CredentialDelivery, Executable, SkillAdapter, SkillInvocation};
 use tempfile::TempDir;
 
 use super::{output_object, u64_field};
@@ -66,14 +66,10 @@ impl TwitterFixture {
             historical_context: Vec::new(),
             skill_name: "twitter".to_owned(),
             step_id: None,
-            requirements: Default::default(),
-            artifacts: None,
-            allowed_tools: None,
-            source: SkillSource {
-                source_type: SourceKind::JavaScript,
-                command: None,
-                module: Some("twitter-selection.mjs".to_owned()),
-                javascript_export: Some("selectArchivePage".to_owned()),
+            executable: Executable::Worker(WorkerTool {
+                module: "twitter-selection.mjs".to_owned(),
+                export: Some("selectArchivePage".to_owned()),
+                timeout_seconds: None,
                 pages: Some(ArtifactPageSource {
                     path_from: "archive_file".to_owned(),
                     path_scope_from: Some("archive_base".to_owned()),
@@ -81,18 +77,12 @@ impl TwitterFixture {
                     framing: ArtifactPageFraming::JsonArray,
                     page_bytes: 512 * 1024,
                 }),
-                args: Vec::new(),
-                cwd: None,
-                timeout_seconds: None,
-                input_mode: None,
                 environment: Default::default(),
-                agent: None,
-                task: None,
-                outputs: None,
-                graph: None,
-                act: None,
-                raw: JsonObject::new(),
-            },
+            }),
+            outputs: None,
+            requirements: Default::default(),
+            artifacts: None,
+            allowed_tools: None,
             inputs: selection_inputs(),
             resolved_inputs: JsonObject::new(),
             current_context: Vec::new(),

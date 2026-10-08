@@ -5,7 +5,7 @@ inputs:
   action: {kind: comment, subreddit: learnprogramming, target_url: 'https://www.reddit.com/r/learnprogramming/comments/abc123/example/', title: '', body: 'does the error happen before the request reaches the server? the network tab should show whether it was sent.', allow_bare_urls: false, target_author: ''}
 caller:
   answers:
-    agent_task.reddit-research.output:
+    agent.reddit-research.output:
       research:
         status: drafted
         account_id: example_builder
@@ -34,4 +34,3 @@ caller:
         effect_status: not_submitted
   approvals: {reddit.publish: false, reddit.vote: false, reddit.reconcile: true}
 expect: {status: policy_denied}
-env: {RUNX_DATA_SOURCES: '{"data_sources": {"local://reddit": {"adapter": "data.sqlite", "database_path": ".runx/reddit-fixtures/reddit-approval-denied.sqlite", "resources": {"reddit_accounts": {"kind": "event_stream", "partition_key": "aggregate_id"}, "reddit_browser": {"kind": "event_stream", "partition_key": "aggregate_id"}, "reddit_attempts": {"kind": "event_stream", "partition_key": "aggregate_id"}}}}}'}

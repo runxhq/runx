@@ -1,45 +1,10 @@
 use std::collections::BTreeMap;
 
 use runx_contracts::{JsonObject, JsonValue};
-use runx_core::policy::admit_agent_tool_ref;
 
 use crate::ValidationError;
 
-use super::{
-    FIELDS, RawSkillIr, SkillArtifactContract, SkillGovernance, SkillIdempotencyPolicy, SkillInput,
-    SkillRetryPolicy, field_value, first_value, validate_execution_semantics,
-};
-
-pub(super) fn validate_skill_governance(
-    raw: &RawSkillIr,
-    runx: Option<&JsonObject>,
-) -> Result<SkillGovernance, ValidationError> {
-    Ok(SkillGovernance {
-        retry: validate_retry(
-            first_value(raw.frontmatter.get("retry"), field_value(runx, "retry")),
-            "retry",
-        )?,
-        idempotency: validate_idempotency(
-            first_value(
-                raw.frontmatter.get("idempotency"),
-                field_value(runx, "idempotency"),
-            ),
-            "idempotency",
-        )?,
-        artifacts: validate_artifact_contract(field_value(runx, "artifacts"), "runx.artifacts")?,
-        allowed_tools: validate_allowed_tools(
-            field_value(runx, "allowed_tools"),
-            "runx.allowed_tools",
-        )?,
-        execution: validate_execution_semantics(
-            first_value(
-                raw.frontmatter.get("execution"),
-                field_value(runx, "execution"),
-            ),
-            "execution",
-        )?,
-    })
-}
+use super::{FIELDS, SkillArtifactContract, SkillInput};
 
 pub fn validate_skill_artifact_contract(
     value: Option<&JsonValue>,
@@ -59,10 +24,8 @@ pub(super) fn validate_artifact_contract(
         Some(JsonValue::String(value)) => Some(vec![value.clone()]),
         value => FIELDS.optional_string_array(value, &format!("{field}.emits"))?,
     };
-    let named_emits = validate_named_emits(
-        first_value(record.get("named_emits"), record.get("namedEmits")),
-        &format!("{field}.named_emits"),
-    )?;
+    let named_emits =
+        validate_named_emits(record.get("named_emits"), &format!("{field}.named_emits"))?;
     let packets = validate_named_emits(record.get("packets"), &format!("{field}.packets"))?;
     if let Some(packet_outputs) = &packets {
         let Some(named_outputs) = &named_emits else {
@@ -79,10 +42,8 @@ pub(super) fn validate_artifact_contract(
             )));
         }
     }
-    let wrap_as = FIELDS.optional_non_empty_string(
-        first_value(record.get("wrap_as"), record.get("wrapAs")),
-        &format!("{field}.wrap_as"),
-    )?;
+    let wrap_as =
+        FIELDS.optional_non_empty_string(record.get("wrap_as"), &format!("{field}.wrap_as"))?;
     let packet =
         FIELDS.optional_non_empty_string(record.get("packet"), &format!("{field}.packet"))?;
     if packet.is_some() && wrap_as.is_none() {
@@ -321,46 +282,6 @@ fn validate_explicit_object_contracts(
     Ok(())
 }
 
-pub(super) fn validate_retry(
-    value: Option<&JsonValue>,
-    field: &str,
-) -> Result<Option<SkillRetryPolicy>, ValidationError> {
-    let Some(retry) = FIELDS.optional_object(value, field)? else {
-        return Ok(None);
-    };
-    let max_attempts = FIELDS
-        .optional_u64(retry.get("max_attempts"), &format!("{field}.max_attempts"))?
-        .unwrap_or(1);
-    if max_attempts == 0 {
-        return Err(
-            FIELDS.validation_error(format!("{field}.max_attempts must be a positive integer."))
-        );
-    }
-    Ok(Some(SkillRetryPolicy { max_attempts }))
-}
-
-pub(super) fn validate_idempotency(
-    value: Option<&JsonValue>,
-    field: &str,
-) -> Result<Option<SkillIdempotencyPolicy>, ValidationError> {
-    match value {
-        None | Some(JsonValue::Null) => Ok(None),
-        Some(JsonValue::String(value)) if value.trim().is_empty() => {
-            Err(FIELDS.validation_error(format!("{field} must not be empty.")))
-        }
-        Some(JsonValue::String(value)) => Ok(Some(SkillIdempotencyPolicy {
-            key: Some(value.clone()),
-        })),
-        Some(value) => {
-            let record = FIELDS.required_object(Some(value), field)?;
-            Ok(Some(SkillIdempotencyPolicy {
-                key: FIELDS
-                    .optional_non_empty_string(record.get("key"), &format!("{field}.key"))?,
-            }))
-        }
-    }
-}
-
 fn validate_named_emits(
     value: Option<&JsonValue>,
     field: &str,
@@ -385,25 +306,6 @@ fn validate_named_emits(
         })
         .collect::<Result<BTreeMap<_, _>, _>>()
         .map(Some)
-}
-
-pub(super) fn validate_allowed_tools(
-    value: Option<&JsonValue>,
-    field: &str,
-) -> Result<Option<Vec<String>>, ValidationError> {
-    let Some(values) = FIELDS.optional_string_array(value, field)? else {
-        return Ok(None);
-    };
-    for value in &values {
-        let admission = admit_agent_tool_ref(value);
-        if !admission.allowed {
-            return Err(FIELDS.validation_error(format!(
-                "{field} entry {value:?} is not an admissible agent tool ref: {}.",
-                admission.reason
-            )));
-        }
-    }
-    Ok(Some(values))
 }
 
 #[cfg(test)]

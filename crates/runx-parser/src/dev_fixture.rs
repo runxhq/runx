@@ -6,6 +6,7 @@ use runx_contracts::{JsonObject, JsonValue};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+use crate::harness_fixture::HarnessCaller;
 use crate::{ParseError, parse_yaml_document};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -155,7 +156,7 @@ pub struct DevFixture {
     pub target: DevFixtureTarget,
     pub inputs: JsonObject,
     pub env: JsonObject,
-    pub caller: JsonObject,
+    pub caller: HarnessCaller,
     pub workspace: Option<DevFixtureWorkspace>,
     pub expect: DevFixtureExpectation,
 }
@@ -172,9 +173,8 @@ struct RawDevFixture {
     #[serde(default)]
     env: JsonObject,
     #[serde(default)]
-    caller: JsonObject,
+    caller: HarnessCaller,
     workspace: Option<DevFixtureWorkspace>,
-    repo: Option<DevFixtureWorkspace>,
     #[serde(default)]
     expect: DevFixtureExpectation,
 }
@@ -185,8 +185,6 @@ pub enum DevFixtureError {
     Parse(#[from] ParseError),
     #[error("dev fixture {field} must not be empty")]
     Empty { field: &'static str },
-    #[error("dev fixture may declare workspace or repo, but not both")]
-    ConflictingWorkspace,
     #[error("invalid dev fixture {field}: {message}")]
     Invalid { field: String, message: String },
 }
@@ -198,11 +196,7 @@ pub fn parse_dev_fixture(contents: &str) -> Result<DevFixture, DevFixtureError> 
 fn validate_fixture(fixture: RawDevFixture) -> Result<DevFixture, DevFixtureError> {
     require_non_empty(&fixture.name, "name")?;
     require_non_empty(&fixture.target.reference, "target.ref")?;
-    if fixture.workspace.is_some() && fixture.repo.is_some() {
-        return Err(DevFixtureError::ConflictingWorkspace);
-    }
-    let workspace = fixture.workspace.or(fixture.repo);
-    if let Some(workspace) = &workspace {
+    if let Some(workspace) = &fixture.workspace {
         validate_workspace(workspace)?;
     }
     if let Some(output) = &fixture.expect.output
@@ -217,7 +211,7 @@ fn validate_fixture(fixture: RawDevFixture) -> Result<DevFixture, DevFixtureErro
         inputs: fixture.inputs,
         env: fixture.env,
         caller: fixture.caller,
-        workspace,
+        workspace: fixture.workspace,
         expect: fixture.expect,
     })
 }

@@ -37,4 +37,3 @@ metadata:
   public_skill: least-privilege
   source_case: already-minimal-grant-needs-no-change
   source: skills-fixture
-  runner_kind: graph

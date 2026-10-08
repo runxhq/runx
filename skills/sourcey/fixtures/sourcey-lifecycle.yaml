@@ -1,6 +1,6 @@
 name: sourcey-lifecycle-builds-verifies-and-packages
 kind: graph
-target: ../harness/sourcey-lifecycle.yaml
+target: support/sourcey-lifecycle.graph
 operator_journeys:
   - mode: standalone
     exercises_runner: sourcey
@@ -17,7 +17,7 @@ operator_journeys:
       - Do not rewrite sources already accepted by the bounded plan.
 caller:
   answers:
-    agent_task.sourcey-discover.output:
+    agent.sourcey-discover.output:
       discovery_report:
         discovered:
           brand_name: Runx Sourcey Journey
@@ -27,18 +27,18 @@ caller:
             config: sourcey.config.ts
         plan:
           disposition: preserve_existing_sources
-    agent_task.sourcey-author.output:
+    agent.sourcey-author.output:
       doc_bundle:
         files: []
         summary: Existing fixture sources already satisfy the bounded plan.
-    agent_task.sourcey-critique.output:
+    agent.sourcey-critique.output:
       evaluation_report:
         quality:
           verdict: pass
           grounding: fixture-backed
         findings: []
         recommendations: []
-    agent_task.sourcey-revise.output:
+    agent.sourcey-revise.output:
       revision_bundle:
         files: []
         summary: No revision is required after the passing build review.
@@ -81,5 +81,4 @@ metadata:
   public_skill: sourcey
   source_case: sourcey-lifecycle-builds-verifies-and-packages
   source: skills-fixture
-  runner_kind: graph
   graph_shape: sourcey_operator_journey

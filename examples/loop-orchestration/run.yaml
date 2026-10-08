@@ -1,0 +1,145 @@
+skill: loop-orchestration
+version: "0.1.0"
+
+catalog:
+  kind: skill
+  audience: public
+  visibility: public
+  role: canonical
+
+harness:
+  cases:
+    - name: loop-turn-continues
+      runner: turn
+      inputs:
+        loop_id: loop-harness-success
+        turn_index: 1
+        max_turns: 3
+        objective: Draft the smallest safe patch.
+        previous_summary: No prior turn.
+        requested_tool: fs.read
+        scenario: success
+      expect:
+        status: sealed
+        receipt:
+          schema: runx.receipt.v1
+          state: sealed
+          disposition: closed
+
+    - name: loop-turn-refuses-disallowed-tool
+      runner: turn
+      inputs:
+        loop_id: loop-harness-refusal
+        turn_index: 1
+        max_turns: 3
+        objective: Attempt a write outside policy.
+        previous_summary: No prior turn.
+        requested_tool: fs.write
+        scenario: refusal
+      expect:
+        status: sealed
+        receipt:
+          schema: runx.receipt.v1
+          state: sealed
+          disposition: closed
+
+    - name: loop-context-gate-seals-with-host-answer
+      runner: context-gate
+      inputs:
+        objective: Review the next turn plan with loop operator guidance.
+      caller:
+        answers:
+          agent.review-loop-plan.output:
+            decision: continue
+            summary: The plan is bounded, uses only fs.read, and may continue.
+            requested_tool: fs.read
+            stop_condition: max_turns_not_exhausted
+      expect:
+        status: sealed
+        receipt:
+          schema: runx.receipt.v1
+          state: sealed
+          disposition: closed
+
+runners:
+  turn:
+    default: true
+    inputs:
+      loop_id:
+        type: string
+        required: true
+        description: Stable id for the outer loop.
+      turn_index:
+        type: number
+        required: true
+        description: One-based turn number inside the loop.
+      max_turns:
+        type: number
+        required: true
+        description: Maximum turns allowed by loop policy.
+      objective:
+        type: string
+        required: true
+        description: Bounded objective for this turn.
+      previous_summary:
+        type: string
+        required: false
+        description: Projection summary from previous sealed turns.
+      requested_tool:
+        type: string
+        required: false
+        description: Tool the model or upstream planner wants to use this turn.
+      scenario:
+        type: string
+        required: false
+        default: success
+        description: "Fixture scenario: success, refusal, or pause."
+    steps:
+      - id: turn
+        tool: { command: node, args: [loop/turn.mjs], timeout_seconds: 15 }
+        inputs:
+          loop_id: $input.loop_id
+          turn_index: $input.turn_index
+          max_turns: $input.max_turns
+          objective: $input.objective
+          previous_summary: $input.previous_summary
+          requested_tool: $input.requested_tool
+          scenario: $input.scenario
+        outputs:
+          schema: string
+          loop_id: string
+          turn_id: string
+          turn_index: number
+          max_turns: number
+          objective: string
+          previous_summary: string
+          requested_tool: string
+          allowed_tools: array
+          decision: string
+          reason_code: string
+          next_turn_allowed: boolean
+          next_turn_reason: string
+          projection_update: object
+          handoff: { description: "Next-turn handoff, or null once the loop stops." }
+          receipt_notes: object
+
+  context-gate:
+    inputs:
+      objective:
+        type: string
+        required: true
+        description: Objective for the paused/reviewed agent turn.
+    steps:
+      - id: review
+        agent: { role: reviewer, task: review-loop-plan }
+        outputs:
+          decision: string
+          summary: string
+          requested_tool: string
+          stop_condition: string
+        context_skills:
+          - ./context/loop-operator
+        allowed_tools:
+          - fs.read
+        inputs:
+          objective: "$input.objective"

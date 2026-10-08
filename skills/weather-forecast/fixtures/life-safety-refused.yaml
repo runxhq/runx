@@ -17,7 +17,7 @@ inputs:
         shortForecast: Thunderstorms
 caller:
   answers:
-    agent_task.weather-forecast-interpret.output:
+    agent.weather-forecast-interpret.output:
       forecast_draft:
         decision: refused
         location: Washington Monument

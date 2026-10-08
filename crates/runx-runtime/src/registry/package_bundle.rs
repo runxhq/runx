@@ -1,6 +1,6 @@
 //! Signed registry package bundles keep local skill composition portable.
 //!
-//! A published root package keeps its source `X.yaml` unchanged. Local
+//! A published root package keeps its source `run.yaml` unchanged. Local
 //! dependencies are stored below `dependencies/`, and this descriptor binds
 //! only the root package edges that would otherwise escape the installed
 //! package directory. The descriptor is part of `package_files`, so the
@@ -31,7 +31,7 @@ struct PackageBundleDescriptor {
     dependencies: Vec<PackageBundleDependency>,
 }
 
-#[cfg(any(feature = "cli-tool", test))]
+#[cfg(any(feature = "process-tool", test))]
 pub(crate) fn encode_package_bundle(
     dependencies: BTreeSet<PackageBundleDependency>,
 ) -> Result<String, String> {

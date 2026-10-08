@@ -39,25 +39,22 @@ connectors:
     operations: [workflow.invoke]
 runners:
   run:
-    type: graph
-    graph:
-      name: operation-test
-      result_from: [post]
-      steps:
-        - id: post
-          operation: slack/channel.post
-        - id: read
-          operation: slack/channel.post.read
-        - id: transcribe
-          operation: aws/aws.transcribe.start
-        - id: advisories
-          operation: osv/vulnerabilities.read
-        - id: update
-          operation: github/issues.update
-        - id: issues
-          operation: github/issues.read
-        - id: deliver
-          operation: n8n/workflow.invoke
+    result_from: [post]
+    steps:
+      - id: post
+        operation: slack/channel.post
+      - id: read
+        operation: slack/channel.post.read
+      - id: transcribe
+        operation: aws/aws.transcribe.start
+      - id: advisories
+        operation: osv/vulnerabilities.read
+      - id: update
+        operation: github/issues.update
+      - id: issues
+        operation: github/issues.read
+      - id: deliver
+        operation: n8n/workflow.invoke
 "#;
 
 /// How the fake provider answers a call.
@@ -223,6 +220,7 @@ struct Fixture {
     root: tempfile::TempDir,
     steps: BTreeMap<String, GraphStep>,
     env: BTreeMap<String, String>,
+    run_id: &'static str,
     provider: Provider,
     effect: OperationEffect,
 }
@@ -235,10 +233,7 @@ impl Fixture {
         )
         .unwrap();
         let steps = manifest.runners["run"]
-            .source
             .graph
-            .as_ref()
-            .unwrap()
             .steps
             .iter()
             .map(|step| (step.id.clone(), step.clone()))
@@ -272,10 +267,6 @@ impl Fixture {
                 crate::INJECTED_PRINCIPAL_REF_ENV.to_owned(),
                 PRINCIPAL_REF.to_owned(),
             ),
-            (
-                crate::execution::runner::RUNX_RUN_ID_ENV.to_owned(),
-                "run-1".to_owned(),
-            ),
         ]);
         let provider = Provider::new(Answer::Succeed);
         let effect = OperationEffect::with_http_transport(provider.clone());
@@ -283,6 +274,7 @@ impl Fixture {
             root,
             steps,
             env,
+            run_id: "run-1",
             provider,
             effect,
         }
@@ -310,6 +302,7 @@ impl Fixture {
                 inputs,
                 env: &self.env,
                 graph_dir: self.root.path(),
+                run_id: self.run_id,
                 run_authority,
             })
             .map(|admission| admission.expect("an operation step is owned by the effect"))
@@ -555,10 +548,7 @@ fn acting_for_another_principal_requires_a_bounded_delegation() {
         "an unsettled attempt cannot change its mandate evidence"
     );
     authority.mandate_ref = Some(Reference::runx(ReferenceType::Mandate, "test-mandate"));
-    fixture.env.insert(
-        crate::execution::runner::RUNX_RUN_ID_ENV.to_owned(),
-        "run-2".to_owned(),
-    );
+    fixture.run_id = "run-2";
     let error = fixture
         .admit_as("read", &read, Some(&authority))
         .expect_err("another run exceeds the delegation's use cap");
@@ -714,10 +704,7 @@ fn a_standing_approval_covers_only_the_pinned_post() {
         "idempotency_key".to_owned(),
         JsonValue::String("post-2".to_owned()),
     );
-    fixture.env.insert(
-        crate::execution::runner::RUNX_RUN_ID_ENV.to_owned(),
-        "run-2".to_owned(),
-    );
+    fixture.run_id = "run-2";
     let error = fixture
         .run("post", &elsewhere, None)
         .expect_err("another target");
@@ -839,13 +826,15 @@ fn a_later_refusal_does_not_settle_an_earlier_unknown_attempt() {
         .run("transcribe", &call, None)
         .expect_err("the earlier outcome stays unknown");
     assert!(error.contains("prior attempt may have executed"), "{error}");
-    let custody = EffectCustody::open(
-        KernelStore::for_workspace(&fixture.env, fixture.root.path()).unwrap(),
-        "run-1",
-        &fixture.root.path().to_string_lossy(),
-        "transcribe",
+    let admission = fixture.admit("transcribe", &call).unwrap();
+    assert!(
+        admission
+            .context::<OperationAdmission>()
+            .unwrap()
+            .admitted
+            .pending
+            .is_some()
     );
-    assert!(custody.pending().unwrap().is_some());
 }
 
 #[test]
@@ -1072,19 +1061,16 @@ connectors:
     operations: [env.read]
 runners:
   run:
-    type: graph
-    graph:
-      name: probe
-      result_from: [read]
-      steps:
-        - id: read
-          operation: probe-mcp/env.read
+    result_from: [read]
+    steps:
+      - id: read
+        operation: probe-mcp/env.read
 "#,
         )
         .unwrap(),
     )
     .unwrap();
-    let step = manifest.runners["run"].source.graph.as_ref().unwrap().steps[0].clone();
+    let step = manifest.runners["run"].graph.steps[0].clone();
     let env = BTreeMap::from([
         ("PATH".to_owned(), std::env::var("PATH").unwrap_or_default()),
         ("HOME".to_owned(), "/operator/home".to_owned()),
@@ -1120,6 +1106,7 @@ runners:
         &runx_contracts::connector::CredentialName::new("key").unwrap(),
         "probe-secret",
         &[],
+        runx_contracts::JsonObject::new(),
         &crate::services::WorkspaceEnv::new(env.clone(), root.path().to_path_buf()).unwrap(),
     )
     .unwrap();
@@ -1134,6 +1121,7 @@ runners:
                 inputs: &inputs,
                 env: &env,
                 graph_dir: &skill_dir,
+                run_id: "run-1",
                 run_authority: None,
             })
             .unwrap()

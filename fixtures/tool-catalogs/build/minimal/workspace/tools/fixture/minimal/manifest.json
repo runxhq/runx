@@ -4,7 +4,6 @@
   "version": "0.0.1",
   "description": "Minimal fixture tool.",
   "source": {
-    "type": "cli-tool",
     "command": "node",
     "args": [
       "./run.mjs"

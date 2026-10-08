@@ -13,18 +13,24 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use runx_contracts::{
-    EXECUTION_BOUNDARY_METADATA, EnvironmentRequirements, ExecutionBoundaryKind,
-    ExecutionBoundaryObservation, JsonObject,
+    EXECUTION_BOUNDARY_METADATA, ExecutionBoundaryKind, ExecutionBoundaryObservation, JsonObject,
 };
-use runx_parser::SkillSource;
+use runx_parser::ProcessTool;
 
 use crate::RuntimeError;
 
-use self::environment::{child_base_env, child_env};
+#[cfg(any(
+    feature = "async-http",
+    feature = "mcp",
+    feature = "process-tool",
+    test
+))]
+use self::environment::child_base_env;
+use self::environment::child_env;
 use self::paths::{execution_workspace_root, resolve_cwd, resolved_skill_directory, workspace_cwd};
 use self::template::resolve_template;
 
-#[cfg(feature = "cli-tool")]
+#[cfg(feature = "process-tool")]
 pub(crate) const NATIVE_COMMAND_EXECUTION_BOUNDARY: ExecutionBoundaryKind =
     ExecutionBoundaryKind::TrustedHostProcess;
 
@@ -61,7 +67,7 @@ pub(crate) struct ProcessExecutionPlan {
     pub(crate) cleanup_paths: Vec<PathBuf>,
 }
 
-#[cfg(feature = "cli-tool")]
+#[cfg(feature = "process-tool")]
 pub(crate) struct NativeCommandInvocationRequest<'a> {
     pub(crate) command: String,
     pub(crate) args: Vec<String>,
@@ -113,25 +119,28 @@ pub(crate) fn process_workspace(
 }
 
 pub fn prepare_process_invocation(
-    source: &SkillSource,
-    environment: &EnvironmentRequirements,
+    tool: &ProcessTool,
     skill_directory: &Path,
     inputs: &JsonObject,
     base_env: &BTreeMap<String, String>,
 ) -> Result<PreparedProcessInvocation, RuntimeError> {
-    let command = source.command.clone().ok_or(RuntimeError::MissingCommand)?;
+    let command = tool.command.clone();
     let workspace_cwd = workspace_cwd(base_env)?;
     let skill_directory = resolved_skill_directory(skill_directory, workspace_cwd.as_deref())?;
     let workspace_root = execution_workspace_root(workspace_cwd.as_deref(), &skill_directory);
-    let cwd = resolve_cwd(source, &skill_directory, workspace_cwd.as_deref())?;
+    let cwd = resolve_cwd(
+        tool.cwd.as_deref(),
+        &skill_directory,
+        workspace_cwd.as_deref(),
+    )?;
     let mut invocation_env = base_env.clone();
     invocation_env.insert(
         crate::receipts::paths::RUNX_CWD_ENV.to_owned(),
         workspace_root.to_string_lossy().into_owned(),
     );
     let declared_environment =
-        crate::execution_environment::resolve_environment(environment, &invocation_env)?;
-    let args = source
+        crate::execution_environment::resolve_environment(&tool.environment, &invocation_env)?;
+    let args = tool
         .args
         .iter()
         .map(|arg| resolve_template(arg, inputs, &declared_environment))
@@ -159,7 +168,7 @@ pub fn prepare_process_invocation(
     )
 }
 
-#[cfg(feature = "cli-tool")]
+#[cfg(feature = "process-tool")]
 pub(crate) fn prepare_native_command_invocation(
     request: NativeCommandInvocationRequest<'_>,
 ) -> Result<PreparedProcessInvocation, RuntimeError> {
@@ -246,9 +255,8 @@ mod tests {
     fn trusted_host_plan_preserves_declared_environment_and_exact_argv()
     -> Result<(), Box<dyn std::error::Error>> {
         let workspace = tempfile::tempdir()?;
-        let source = runx_parser::SkillSource {
-            source_type: runx_parser::SourceKind::CliTool,
-            command: Some("/usr/bin/printf".to_owned()),
+        let tool = runx_parser::ProcessTool {
+            command: "/usr/bin/printf".to_owned(),
             args: vec!["{{message}}".to_owned()],
             cwd: None,
             timeout_seconds: Some(5),
@@ -257,15 +265,6 @@ mod tests {
                 required: vec!["REGION".to_owned()],
                 optional: Vec::new(),
             },
-            module: None,
-            javascript_export: None,
-            pages: None,
-            agent: None,
-            task: None,
-            outputs: None,
-            graph: None,
-            act: None,
-            raw: JsonObject::new(),
         };
         let inputs =
             JsonObject::from([("message".to_owned(), JsonValue::String("hello".to_owned()))]);
@@ -278,13 +277,7 @@ mod tests {
             ("UNDECLARED".to_owned(), "blocked".to_owned()),
         ]);
 
-        let plan = prepare_process_invocation(
-            &source,
-            &source.environment,
-            workspace.path(),
-            &inputs,
-            &base_env,
-        )?;
+        let plan = prepare_process_invocation(&tool, workspace.path(), &inputs, &base_env)?;
 
         assert_eq!(plan.command, "/usr/bin/printf");
         assert_eq!(plan.args, ["hello"]);

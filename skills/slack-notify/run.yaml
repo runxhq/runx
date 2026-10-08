@@ -1,0 +1,356 @@
+skill: slack-notify
+version: "0.4.4"
+catalog:
+  kind: graph
+  audience: public
+  visibility: public
+  role: branded
+  canonical_skill: runx/send-as
+  provider: slack
+  runtime_path: slack
+  execution: execute
+  completion: provider_readback
+  requires_adapter: true
+  approval: required
+  category: ops
+input_definitions:
+  content:
+    type: object
+    required: true
+    description: Either one inline Slack message or one existing content reference with its SHA-256 digest.
+    schema:
+      additionalProperties: false
+      properties:
+        message: { type: string, minLength: 1, maxLength: 4000 }
+        content_ref: { type: string, minLength: 1, maxLength: 2048 }
+        digest: { type: string, pattern: '^sha256:[0-9a-f]{64}$' }
+      oneOf:
+        - required: [message]
+        - required: [content_ref, digest]
+connectors:
+  slack:
+    operations: [channel.post, channel.post.read]
+runners:
+  notify:
+    default: true
+    inputs:
+      channel_locator:
+        type: string
+        required: true
+        description: Exact slack://workspace/channel destination.
+      text:
+        type: string
+        required: true
+        description: Exact Slack message to bind, approve, post, and read back.
+      principal:
+        type: string
+        required: true
+        description: Principal the notification is posted as.
+      provider_context:
+        type: json
+        required: false
+      idempotency_key:
+        type: string
+        required: true
+        description: Stable retry key for this exact notification.
+    result_from: [deliver]
+    steps:
+      - id: plan
+        skill: .
+        runner: plan
+        inputs:
+          channel: $input.channel_locator
+          content:
+            message: $input.text
+          principal: $input.principal
+          provider_context: $input.provider_context
+      - id: deliver
+        skill: .
+        runner: deliver
+        inputs:
+          channel_locator: $input.channel_locator
+          text: $input.text
+          idempotency_key: $input.idempotency_key
+        context:
+          notification_plan: plan.notify_plan.data
+
+  plan_exact:
+    inputs:
+      channel:
+        type: string
+        required: true
+        description: Exact slack://workspace/channel destination for a message already selected by the caller.
+        schema: { pattern: '^slack://[A-Z][A-Z0-9]+/[CGD][A-Z0-9]+$', maxLength: 300 }
+      content:
+        definition: content
+      principal:
+        type: string
+        required: true
+        description: Exact principal bound to the later provider permission grant.
+    examples:
+      - channel: slack://T123/C456
+        content: { message: A new personal update needs attention. }
+        principal: runx:principal:operator
+    result_from: [finalize]
+    steps:
+      - id: prepare
+        inputs:
+          channel: $input.channel
+          content: $input.content
+          principal: $input.principal
+        tool: { module: slack-notify.mjs, export: prepareNotification }
+        outputs:
+          notification_admission: object
+          digest_input: string
+      - id: digest-content
+        tool: data.digest
+        inputs:
+          encoding: utf8_text
+        context:
+          value: prepare.digest_input
+      - id: bind-content
+        context:
+          notification_admission: prepare.notification_admission
+          digest_result: digest-content.digest_result.data
+        tool: { module: slack-notify.mjs, export: bindNotification }
+        outputs:
+          slack_context: object
+        artifacts:
+          named_emits:
+            slack_context: slack_context
+      - id: finalize
+        context:
+          slack_context: bind-content.slack_context.data
+        tool: { module: slack-notify.mjs, export: finalizeExactNotification }
+        outputs:
+          notify_plan: object
+        artifacts:
+          named_emits:
+            notify_plan: notify_plan
+          packets:
+            notify_plan: runx.notify.v1
+
+  plan:
+    inputs:
+      channel:
+        type: string
+        required: true
+        description: "Slack #name, channel id, or exact slack://workspace/channel locator."
+      content:
+        definition: content
+      principal:
+        type: string
+        required: true
+        description: Principal the notification would be posted as.
+      provider_context:
+        type: json
+        required: false
+        description: Connector and workspace readiness supplied to send-as.
+    examples:
+      - channel: slack://T123/C456
+        content: { message: Release 0.8.2 is live. }
+        principal: runx:principal:kam
+        provider_context: { provider: slack, connector_status: ready }
+    result_from: [finalize, reject]
+    steps:
+      - id: prepare
+        inputs:
+          channel: $input.channel
+          content: $input.content
+          principal: $input.principal
+        tool: { module: slack-notify.mjs, export: prepareNotification }
+        outputs:
+          notification_admission: object
+          digest_input: string
+      - id: digest-content
+        tool: data.digest
+        inputs:
+          encoding: utf8_text
+        context:
+          value: prepare.digest_input
+      - id: bind-content
+        context:
+          notification_admission: prepare.notification_admission
+          digest_result: digest-content.digest_result.data
+        tool: { module: slack-notify.mjs, export: bindNotification }
+        outputs:
+          slack_context: object
+        artifacts:
+          named_emits:
+            slack_context: slack_context
+      - id: authorize
+        when:
+          field: bind-content.slack_context.data.decision
+          equals: ready
+        skill: ../send-as
+        runner: plan
+        inputs:
+          objective: Authorize one digest-bound Slack notification for later provider delivery.
+          principal: $input.principal
+          audience: $input.channel
+          provider_context: $input.provider_context
+        context:
+          slack_context: bind-content.slack_context.data
+      - id: finalize
+        when:
+          field: bind-content.slack_context.data.decision
+          equals: ready
+        context:
+          slack_context: bind-content.slack_context.data
+          send_plan: authorize.send_plan.data
+        tool: { module: slack-notify.mjs, export: finalizeNotification }
+        outputs:
+          notify_plan: object
+        artifacts:
+          named_emits:
+            notify_plan: notify_plan
+          packets:
+            notify_plan: runx.notify.v1
+      - id: reject
+        when:
+          field: bind-content.slack_context.data.decision
+          equals: blocked
+        context:
+          slack_context: bind-content.slack_context.data
+        tool: { module: slack-notify.mjs, export: finalizeNotification }
+        outputs:
+          notify_plan: object
+        artifacts:
+          named_emits:
+            notify_plan: notify_plan
+          packets:
+            notify_plan: runx.notify.v1
+  deliver:
+    inputs:
+      notification_plan:
+        type: json
+        packet: runx.notify.v1
+        required: true
+        description: Exact notify_plan emitted by the plan runner.
+      channel_locator:
+        type: string
+        required: true
+        description: Exact slack://workspace/channel locator bound by the plan and connector grant.
+      text:
+        type: string
+        required: true
+        description: Exact message text whose digest must match notification_plan.
+      idempotency_key:
+        type: string
+        required: true
+        description: Stable UUID for this exact Slack delivery.
+    examples:
+      - notification_plan:
+          schema: runx.notify.v1
+          decision: ready_for_provider
+          provider: slack
+          principal: runx:principal:kam
+          channel: slack://T123/C456
+          content_ref: inline:sha256:2497ff7c585df614f84f034872869ceff21afbaaab7230fb9b1fa0d271a122fb
+          content_digest: sha256:2497ff7c585df614f84f034872869ceff21afbaaab7230fb9b1fa0d271a122fb
+          send_plan: { decision: ready }
+          provider_status: not_called
+          delivery_status: not_sent
+          downstream_handoff: { skill: slack-notify, runner: deliver, state: ready_for_approval }
+          validation: { status: pass, findings: [] }
+        channel_locator: slack://T123/C456
+        text: Release 0.8.2 is live.
+        idempotency_key: 00000000-0000-4000-8000-000000000001
+    result_from: [readback]
+    steps:
+      - id: digest
+        tool: data.digest
+        inputs:
+          value: $input.text
+          encoding: utf8_text
+      - id: bind-plan
+        tool: data.compare
+        inputs:
+          actual:
+            decision: $input.notification_plan.decision
+            provider: $input.notification_plan.provider
+            channel: $input.notification_plan.channel
+            provider_status: $input.notification_plan.provider_status
+            delivery_status: $input.notification_plan.delivery_status
+          expected:
+            decision: ready_for_provider
+            provider: slack
+            channel: $input.channel_locator
+            provider_status: not_called
+            delivery_status: not_sent
+      - id: bind-content
+        tool: data.compare
+        when:
+          field: bind-plan.comparison.data.equal
+          equals: true
+        inputs:
+          expected: $input.notification_plan.content_digest
+        context:
+          actual: digest.digest_result.data.digest
+      - id: deliver
+        operation: slack/channel.post
+        idempotency_key: $input.idempotency_key
+        when:
+          field: bind-content.comparison.data.equal
+          equals: true
+        approval:
+          reason: Approve posting this exact digest-bound Slack notification.
+          type: slack_message
+        expected_result:
+          conversation_locator: $input.channel_locator
+          content_digest: $input.notification_plan.content_digest
+        result_fields: [message_locator, conversation_locator, content_digest, occurred_at]
+        input:
+          channel_locator: $input.channel_locator
+          text: $input.text
+
+      - id: prepare-readback
+        when:
+          field: bind-content.comparison.data.equal
+          equals: true
+        inputs: { text: $input.text }
+        context: { delivery: deliver.provider_operation.data }
+        tool: { module: slack-notify.mjs, export: prepareNotificationReadback }
+        outputs: { read_request: object }
+      - id: readback
+        when:
+          field: bind-content.comparison.data.equal
+          equals: true
+        operation: slack/channel.post.read
+        result_fields: [message_locator, conversation_locator, content_digest, occurred_at]
+        context:
+          expected_result: deliver.provider_operation.data.result
+          input: prepare-readback.read_request
+  reconcile_exact:
+    inputs:
+      notification_plan: { type: json, packet: runx.notify.v1, required: true }
+      channel_locator: { type: string, required: true }
+      text: { type: string, required: true }
+      message_locator: { type: string, required: true }
+      failed_at: { type: string, required: true }
+    result_from: [finish]
+    steps:
+      - id: read
+        skill: ../slack
+        runner: read_thread
+        inputs:
+          thread_locator: $input.message_locator
+          limit: 1
+      - id: digest
+        tool: data.digest
+        inputs: { value: $input.text, encoding: utf8_text }
+      - id: finish
+        inputs:
+          notification_plan: $input.notification_plan
+          channel_locator: $input.channel_locator
+          text: $input.text
+          message_locator: $input.message_locator
+          failed_at: $input.failed_at
+        context:
+          provider_operation: read.provider_operation.data
+          digest_result: digest.digest_result.data
+        tool: { module: slack-notify.mjs, export: reconcileExactNotification }
+        outputs: { provider_operation: object }
+        artifacts:
+          named_emits: { provider_operation: provider_operation }
+          packets: { provider_operation: runx.provider.operation.v1 }

@@ -3,9 +3,10 @@ use runx_core::kernel_eval::{KernelEvalError, KernelEvalOutput, evaluate_kernel_
 
 #[test]
 fn evaluates_state_machine_fixture_document() -> Result<(), Box<dyn std::error::Error>> {
-    let output = evaluate_kernel_document_str(include_str!(
+    let fixture: serde_json::Value = serde_json::from_str(include_str!(
         "../../../fixtures/kernel/state-machine/sequential-plan-first-step.json"
     ))?;
+    let output = evaluate_kernel_document_str(&fixture["input"].to_string())?;
 
     let KernelEvalOutput::Output { value } = output;
     assert_eq!(
@@ -39,18 +40,6 @@ fn evaluates_raw_input_document() -> Result<(), Box<dyn std::error::Error>> {
         )?
     );
     Ok(())
-}
-
-#[test]
-fn rejects_retired_operator_policy_kinds() {
-    for kind in [
-        "policy.evaluatePublicPullRequestCandidate",
-        "policy.evaluatePublicCommentOpportunity",
-        "policy.normalizePublicWorkPolicy",
-    ] {
-        let source = format!(r#"{{"kind":"{kind}","request":{{}},"policy":{{}}}}"#);
-        assert_invalid_input_contains(&source, "unsupported kernel input kind");
-    }
 }
 
 #[test]

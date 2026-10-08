@@ -16,7 +16,7 @@ use runx_receipts::{
 };
 use runx_runtime::harness::{HarnessFixtureCase, list_cases};
 use runx_runtime::{
-    HarnessReplayOutput, InvocationOutput, RuntimeOptions, SkillAdapter, SkillInvocation,
+    HarnessOptions, HarnessReplayOutput, InvocationOutput, SkillAdapter, SkillInvocation,
     run_harness_fixture_with_adapter,
 };
 
@@ -415,22 +415,15 @@ impl Display for MessageError {
 
 impl Error for MessageError {}
 
-fn fixture_runtime_options() -> RuntimeOptions {
-    RuntimeOptions {
-        current_context: Vec::new(),
-        historical_context: Vec::new(),
-        created_at: "2026-05-18T00:00:00Z".to_owned(),
-        ..RuntimeOptions::local_development(std::env::vars().collect())
-    }
+fn fixture_runtime_options() -> HarnessOptions {
+    let mut options = HarnessOptions::local_development(std::env::vars().collect());
+    options.created_at = "2026-05-18T00:00:00Z".to_owned();
+    options
 }
 
 struct FixtureOracleAdapter;
 
 impl SkillAdapter for FixtureOracleAdapter {
-    fn adapter_type(&self) -> &'static str {
-        "cli-tool"
-    }
-
     fn invoke(
         &self,
         request: SkillInvocation,

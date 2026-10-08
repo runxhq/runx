@@ -344,7 +344,7 @@ impl RunxSchema for PaidSkillOffers {
 
 /// Immutable marketplace identity and commercial terms for paid runners in one
 /// published skill version. Seller identity is resolved by the authenticated
-/// registry boundary and is never accepted from `X.yaml`.
+/// registry boundary and is never accepted from `run.yaml`.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 #[runx_schema(id = "runx.marketplace.paid_skill_listing.v1")]

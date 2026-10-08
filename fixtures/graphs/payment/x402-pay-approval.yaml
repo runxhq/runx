@@ -1,16 +1,10 @@
 name: x402-pay-approval
 steps:
   - id: approve-spend
-    run:
-      type: approval
+    ask: { gate: spend-approval, reason: Approve x402 payment before fulfillment., type: payment }
     inputs:
-      gate_id: spend-approval
-      gate_type: payment
-      reason: Approve x402 payment before fulfillment.
       amount_minor: 125
       currency: USD
-    artifacts:
-      wrap_as: payment_approval
   - id: fulfill
     skill: ../../skills/payment-fulfill
     scopes:
@@ -152,5 +146,5 @@ steps:
 policy:
   guards:
     - step: fulfill
-      field: approve-spend.payment_approval.data.approved
+      field: approve-spend.approval_decision.data.approved
       equals: true

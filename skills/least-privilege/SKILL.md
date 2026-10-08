@@ -1,8 +1,6 @@
 ---
 name: least-privilege
-description: Verify the receipt ids behind a normalized authority-usage summary, compare that evidence with granted scopes, and propose the narrowest grant the evidence supports.
-runx:
-  category: security
+description: Verify the receipts behind a grant, compare the scopes they exercised with the granted scopes, and propose the narrowest grant the evidence supports.
 ---
 
 # Least Privilege Auditor
@@ -12,9 +10,8 @@ attenuation proposal.
 
 This skill resolves every supporting receipt id through the native `ledger`
 runner before comparing exercised scopes from Runx's redacted receipt detail
-with the current grant. Native detail is authoritative for scope use. A supplied
-usage summary exists only for deterministic replay of older evidence that lacks
-that projection. Missing receipt proof defers every scope. The output is a
+with the current grant. Native detail is authoritative for scope use. Missing
+receipt proof defers every scope. The output is a
 reviewable attenuation proposal, not an automatic change.
 
 ## Composes
@@ -74,7 +71,7 @@ reviewable attenuation proposal, not an automatic change.
 3. Build the usage model from attributable evidence.
    - Resolve each supporting receipt id through `ledger read`.
    - Read exercised scopes and receipt references from native redacted receipt
-     detail. Use the supplied usage summary only when replaying older evidence.
+     detail.
    - Count successful use separately from denied or dry-run checks.
    - Do not infer scope usage from a successful high-level task alone; cite the
      receipt step or policy check that exercised the authority.
@@ -135,7 +132,6 @@ status: attenuation_proposed | no_change | needs_more_evidence
 subject: string
 evidence:
   receipt_ids: [string]
-  receipt_window: string | null
   grant_source: string | null
   limitations: [string]
 scope_diff:
@@ -178,15 +174,10 @@ granted_scopes:
   - drive.files.write:/reports/*
   - drive.files.delete:/reports/*
 receipt_ids: [rx_101, rx_102]
-usage_summary:
-  observed:
-    - scope: drive.files.read:/reports/*
-      count: 8
-      refs: [rx_101:step_3, rx_102:step_2]
-    - scope: drive.files.write:/reports/*
-      count: 2
-      refs: [rx_101:step_6, rx_102:step_5]
 ```
+
+The two receipts' native detail shows `drive.files.read:/reports/*` exercised
+eight times and `drive.files.write:/reports/*` twice.
 
 Output:
 
@@ -217,8 +208,6 @@ authority. The read and write scopes stay because each was used at least once.
 - `granted_scopes` (required): the current scopes granted to the subject,
   preferably in canonical policy syntax.
 - `receipt_ids` (required): exact receipt ids supporting the audit.
-- `usage_summary` (optional): legacy replay supplement with an `observed` array
-  of scope, count, and receipt refs; live runs use native receipt detail.
 - `receipt_rows` (optional): native-projection rows for deterministic replay;
   live runs resolve `receipt_ids` from the configured receipt store.
 - `receipt_details` (optional): native redacted detail projections for

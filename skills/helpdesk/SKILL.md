@@ -1,10 +1,6 @@
 ---
 name: helpdesk
 description: Classify a bounded support request, choose the safe next path, and draft a customer-ready reply only when a human-gated send is appropriate.
-links:
-  source: https://github.com/runxhq/runx/tree/main/skills/helpdesk
-runx:
-  category: ops
 ---
 
 # Helpdesk

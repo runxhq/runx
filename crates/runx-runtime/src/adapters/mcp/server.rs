@@ -610,10 +610,13 @@ mod tests {
         let root = tempfile::tempdir()?;
         let skill = root.path().join("echo");
         std::fs::create_dir_all(&skill)?;
-        std::fs::write(skill.join("SKILL.md"), "---\nname: echo\n---\n# Echo\n")?;
         std::fs::write(
-            skill.join("X.yaml"),
-            "skill: echo\nrunners:\n  main:\n    default: true\n    type: javascript\n    module: echo.mjs\n    inputs:\n      value: {type: integer, required: true}\n    outputs: {value: integer, prior: integer}\n",
+            skill.join("SKILL.md"),
+            "---\nname: echo\ndescription: echo fixture.\n---\n# Echo\n",
+        )?;
+        std::fs::write(
+            skill.join("run.yaml"),
+            "skill: echo\nrunners:\n  main:\n    default: true\n    inputs:\n      value: { type: integer, required: true }\n    steps:\n      - id: main\n        tool: { module: echo.mjs }\n        inputs:\n          value: $input.value\n        outputs: { value: integer, prior: integer }\n",
         )?;
         std::fs::write(
             skill.join("echo.mjs"),

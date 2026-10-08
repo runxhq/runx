@@ -38,10 +38,7 @@ fn native_cli_smoke_runs_without_node_or_typescript_env() -> Result<(), Box<dyn 
         .output()?;
     assert_success(&history)?;
     let history_json = serde_json::from_slice::<serde_json::Value>(&history.stdout)?;
-    assert_eq!(
-        history_json["projector_id"],
-        "runx-runtime.local-history.v1"
-    );
+    assert_eq!(history_json["projector_id"], "runx-runtime.run-record.v1");
 
     let skill_dir = crate::support::write_agent_task_skill(&temp)?;
     let skill = native_command()?

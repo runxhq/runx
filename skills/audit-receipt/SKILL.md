@@ -1,8 +1,6 @@
 ---
 name: audit-receipt
 description: Audit a sealed runx receipt for governance, comparing exercised authority and any declared approval requirement with signed evidence, and flag over-reach, approval inconsistency, unrecorded refusals, or exposed secret material.
-runx:
-  category: security
 ---
 
 # Receipt Auditor

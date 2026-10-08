@@ -114,10 +114,6 @@
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "additionalProperties": false,
           "properties": {
-            "agent": {
-              "minLength": 1,
-              "type": "string"
-            },
             "envelope": {
               "$id": "https://runx.ai/spec/agent-context-envelope.schema.json",
               "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -712,7 +708,6 @@
                     "declaration": {
                       "additionalProperties": false,
                       "properties": {
-                        "auth": {},
                         "environment": {
                           "additionalProperties": false,
                           "properties": {
@@ -731,7 +726,6 @@
                           },
                           "type": "object"
                         },
-                        "runtime": {},
                         "scopes": {
                           "items": {
                             "type": "string"
@@ -860,11 +854,8 @@
               "minLength": 1,
               "type": "string"
             },
-            "source_type": {
-              "enum": [
-                "agent",
-                "agent-task"
-              ],
+            "role": {
+              "minLength": 1,
               "type": "string"
             },
             "task": {
@@ -874,7 +865,8 @@
           },
           "required": [
             "id",
-            "source_type",
+            "role",
+            "task",
             "envelope"
           ],
           "type": "object"

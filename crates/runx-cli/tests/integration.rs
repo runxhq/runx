@@ -12,7 +12,6 @@
 mod connect;
 mod connector;
 mod credential;
-mod data;
 mod doctor;
 mod export;
 mod harness;

@@ -1,0 +1,17 @@
+skill: pay-reserve
+version: "0.1.0"
+runners:
+  default:
+    default: true
+    inputs:
+      payment_quote_packet:
+        type: object
+        required: true
+    steps:
+      - id: default
+        tool: { command: sh, args: [./run.sh], timeout_seconds: 10 }
+        inputs:
+          payment_quote_packet: $input.payment_quote_packet
+        artifacts:
+          named_emits:
+            payment_reservation_packet: runx.payment.payment_reservation_packet.v1

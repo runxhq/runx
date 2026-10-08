@@ -1,8 +1,6 @@
 ---
 name: n8n-handoff
 description: Validate a runx execution context and deliver a governed payload to an n8n Cloud workflow webhook once, with exact approval and the workflow's acknowledgement receipted.
-runx:
-  category: ops
 ---
 
 # n8n Handoff

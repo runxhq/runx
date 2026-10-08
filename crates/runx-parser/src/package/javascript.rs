@@ -116,7 +116,7 @@ fn effectful_module_error(path: &str, boundary: &str) -> SkillPackageError {
     SkillPackageError::invalid(
         path,
         format!(
-            "deterministic JavaScript modules cannot own {boundary}; compose a native tool or declare a cli-tool boundary"
+            "worker modules cannot own {boundary}; reach it through an operation step or declare a process tool"
         ),
     )
 }

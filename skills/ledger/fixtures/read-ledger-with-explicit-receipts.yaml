@@ -21,4 +21,3 @@ metadata:
   public_skill: ledger
   source_case: read-ledger-with-explicit-receipts
   source: skills-fixture
-  runner_kind: cli-tool

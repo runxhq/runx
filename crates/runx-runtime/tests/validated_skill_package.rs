@@ -13,9 +13,9 @@ fn write_packet_input_package(
         "---\nname: packet-input\ndescription: canonical packet input\n---\n\n# Packet input\n",
     )?;
     fs::write(
-        root.join("X.yaml"),
+        root.join("run.yaml"),
         format!(
-            "skill: packet-input\nrunners:\n  inspect:\n    type: agent\n    inputs:\n      plan:\n        type: json\n        required: true\n        packet: runx.test.plan.v1\n    examples:\n      - plan: {example}\n"
+            "skill: packet-input\nrunners:\n  inspect:\n    inputs:\n      plan:\n        type: json\n        required: true\n        packet: runx.test.plan.v1\n    examples:\n      - plan: {example}\n    steps:\n      - id: inspect\n        agent: {{ role: agent, task: inspect }}\n        inputs:\n          plan: $input.plan\n"
         ),
     )?;
     if let Some(packet_schema) = packet_schema {
@@ -34,8 +34,8 @@ fn validated_skill_package_loads_one_digest_bound_aggregate()
         "---\nname: aggregate\ndescription: one package truth\n---\n\n# Aggregate\n",
     )?;
     fs::write(
-        temp.path().join("X.yaml"),
-        "skill: aggregate\nrunners:\n  inspect:\n    type: agent\n",
+        temp.path().join("run.yaml"),
+        "skill: aggregate\nrunners:\n  inspect:\n    steps:\n      - id: inspect\n        agent: { role: agent, task: inspect }\n",
     )?;
 
     let loaded = load_validated_skill_package(temp.path())?;
@@ -55,7 +55,7 @@ fn validated_skill_package_rejects_symlinked_sources() -> Result<(), Box<dyn std
     let temp = tempfile::tempdir()?;
     fs::write(
         temp.path().join("SKILL.md"),
-        "---\nname: aggregate\n---\n\n# Aggregate\n",
+        "---\nname: aggregate\ndescription: aggregate fixture.\n---\n\n# Aggregate\n",
     )?;
     let outside = tempfile::NamedTempFile::new()?;
     symlink(outside.path(), temp.path().join("module.mjs"))?;
@@ -77,8 +77,8 @@ fn validated_skill_package_resolves_internal_profile_to_owning_manual()
     let manual = "---\nname: operator\ndescription: full operator context\n---\n\n# Operator\n\nPreserve this complete manual.\n";
     fs::write(temp.path().join("SKILL.md"), manual)?;
     fs::write(
-        profile_dir.join("X.yaml"),
-        "runners:\n  plan:\n    type: javascript\n    module: plan.mjs\n",
+        profile_dir.join("run.yaml"),
+        "skill: operator-plan\nrunners:\n  plan:\n    steps:\n      - id: plan\n        tool: { module: plan.mjs }\n",
     )?;
     fs::write(
         profile_dir.join("plan.mjs"),
@@ -89,7 +89,7 @@ fn validated_skill_package_resolves_internal_profile_to_owning_manual()
 
     // Package roots are canonical; macOS tempdirs resolve through /private.
     assert_eq!(loaded.package_root, temp.path().canonicalize()?);
-    assert_eq!(loaded.profile_path.as_deref(), Some("graph/plan/X.yaml"));
+    assert_eq!(loaded.profile_path.as_deref(), Some("graph/plan/run.yaml"));
     assert!(loaded.manifest().is_some());
     assert_eq!(loaded.package.manual_markdown, manual);
     Ok(())

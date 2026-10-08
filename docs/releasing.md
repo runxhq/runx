@@ -6,14 +6,15 @@ Maintainer doc. Most contributors do not need it.
 
 The CLI ships from `github.com/runxhq/runx`. Release tags are `cli-vX.Y.Z`
 (prefixed so they do not collide with the repo's other release trains). In the
-workspace, `release/status.json` is the operator source of truth for package
-release status, the CLI package allowlist, and the cloud pin. The git tag is the
+workspace, `release/status.json` records verified release status and Cloud
+adoption. The OSS platform topology owns the CLI package set. The git tag is the
 immutable OSS release event that the public workflow builds.
 
 Release policy lives at the workspace root (`AGENTS.md` plus
 `release/status.json`). This doc is the OSS maintainer runbook. If a release doc,
-package manifest, cloud pin, or channel table disagrees with `release/status.json`,
-fix the drift there and run the root checks; do not invent a second release flow.
+package manifest, cloud pin, or channel table disagrees with the verified
+release identity, fix the owning fact and run the root checks; do not invent a
+second release flow.
 
 The same product version is used on every active channel. The governed release
 is verified only after independent readback from its required synchronous
@@ -40,10 +41,11 @@ the binary was installed.
 
 ## Versioning model
 
-The source tree carries the reviewed CLI candidate version. The release profile
-requires that committed version to match the requested release before approval;
-the tag workflow then re-stamps and verifies the same value in each ephemeral
-checkout. `cli-vX.Y.Z` is the CLI distribution version, not a workspace-wide
+`packages/cli/package.json` owns the reviewed CLI candidate version. The
+version-setting command projects it into the Rust CLI package and lockfile and
+the execution-runtime release identity. The release profile and tag workflow
+check those committed values without changing the release checkout; a mismatched
+tag fails before a build. `cli-vX.Y.Z` is the CLI distribution version, not a workspace-wide
 library-crate release. One command updates only the CLI package surfaces: npm
 `package.json` + its `optionalDependencies`, `runx-cli`, the execution-runtime
 release identity, and the `runx-cli` lockfile entry.
@@ -90,19 +92,30 @@ channel that downloads its archives):
    same smoke runs in dry-runs.
 4. **github-release** — assemble `checksums.txt`, generate a CycloneDX SBOM, emit
    build-provenance attestations for the binaries, stage the install scripts, and
-   publish the Release with all archives. This is the hub.
+   publish the Release with all archives. This is the hub. The tagged workflow
+   refuses an existing Release before compiling, so published archive bytes are
+   never replaced by a whole-workflow retry.
 5. **publish-npm** — verify + publish the selector and native packages with npm
-   provenance (`skip-existing`).
+   provenance. Each package is packed once; a version already in npm must have
+   the same tarball integrity, and publication is read back from the registry.
 6. **package-managers** — build the channel input from the published checksums
-   (`build-channel-input.mjs`), render Homebrew / Scoop / winget / AUR manifests
+   (`build-channel-input.mjs`), verify the archive and contained CLI and worker
+   digests and sizes, render Homebrew / Scoop / winget / AUR manifests
    (`gen-channel-manifests.ts`), verify them against the actual release archive
    contents (`check-channel-manifests.mjs`), and attach them to the Release.
 7. **publish-{homebrew,scoop}** — update the required package-manager channels.
    **publish-winget** submits the validated `channels/winget/` manifest set
    asynchronously; it must not use a generator that guesses archive nesting.
    The AUR manifest remains a handoff artifact until Runx owns `runx-bin`.
-8. **publish-docker** — multi-arch GHCR image (pulls the musl archive from the
-   Release; no Rust toolchain in the image build).
+8. **publish-docker** — multi-arch GHCR image (pulls the exact musl archives
+   selected by the verified channel input, checks their SHA-256, and installs
+   `runx` beside `runx-js-worker`; no Rust toolchain in the image build).
+   The versioned tag must be absent before building; a retry cannot silently
+   replace an image already published under that version.
+   **smoke-docker** pulls the pushed versioned image by digest on native amd64
+   and arm64 runners and runs a JavaScript-backed skill. **promote-docker** moves
+   `latest` to that tested digest and independently reads it back; an untested
+   build never replaces `latest`.
 
 GitHub Actions is deliberately disabled on the `winget-pkgs` fork. The fork only
 hosts the PR head branch; the checks that gate a winget submission run on

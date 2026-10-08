@@ -1,0 +1,58 @@
+skill: extract
+version: "0.1.4"
+
+catalog:
+  kind: skill
+  audience: public
+  visibility: public
+  role: canonical
+  runtime_path: local
+  execution: read
+  completion: runtime_receipt
+  requires_adapter: false
+  approval: none
+  tags: [extraction, schema-validation, provenance]
+
+emits:
+  - name: structured_extraction_result
+    packet: runx.structured_extraction.result.v1
+
+runners:
+  extract:
+    default: true
+    inputs:
+      input_path:
+        type: string
+        required: true
+        description: "Package-relative messy HTML or text fixture."
+      schema_path:
+        type: string
+        required: true
+        description: "Package-relative JSON Schema used to validate output."
+      source_url:
+        type: string
+        required: true
+        description: "Canonical source URL for the fixture bytes."
+      content_type:
+        type: string
+        required: false
+        default: "text/html"
+        description: "Input content type: text/html or text/plain."
+      max_items:
+        type: number
+        required: false
+        default: 20
+        description: "Maximum extracted items to include in output."
+    result_from: [extract_structured_json]
+    steps:
+      - id: extract_structured_json
+        tool: structured.extract
+        scopes:
+          - runx:fixture:read
+          - runx:schema:read
+        inputs:
+          input_path: "$input.input_path"
+          schema_path: "$input.schema_path"
+          source_url: "$input.source_url"
+          content_type: "$input.content_type"
+          max_items: "$input.max_items"

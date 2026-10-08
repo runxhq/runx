@@ -3,7 +3,6 @@ use std::fs;
 use std::path::Path;
 
 use runx_contracts::{JsonObject, JsonValue};
-use serde::{Deserialize, Serialize};
 
 use super::{SkillRunError, invalid};
 use crate::RuntimeError;
@@ -11,12 +10,11 @@ use crate::RuntimeError;
 /// Resolution values retain their authority lane instead of flattening every
 /// caller-supplied value into an agent answer. Approval provenance is needed
 /// both by live resume files and by inline harness cases.
-#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+#[derive(Clone, Debug, Default)]
 pub(crate) struct ResolutionAnswers {
     values: JsonObject,
     human_approvals: BTreeSet<String>,
     request_digests: BTreeMap<String, String>,
-    #[serde(default)]
     digest_bound_requests: BTreeSet<String>,
 }
 
@@ -67,49 +65,8 @@ impl ResolutionAnswers {
         self.digest_bound_requests.contains(request_id)
     }
 
-    /// Carry validated resolutions across graph pauses. Nested graphs restart
-    /// from their owning outer step, so later continuations must retain the
-    /// earlier answers without asking the operator to repeat completed gates.
-    /// Conflicts fail closed, including attempts to change an answer's actor
-    /// lane or its request-digest binding.
-    pub(super) fn merge(&mut self, incoming: Self) -> Result<(), SkillRunError> {
-        for (request_id, value) in incoming.values {
-            let had_existing = self.values.contains_key(&request_id);
-            if let Some(existing) = self.values.get(&request_id) {
-                if existing != &value {
-                    return Err(invalid(format!(
-                        "continuation changed the recorded resolution for {request_id}"
-                    )));
-                }
-            } else {
-                self.values.insert(request_id.clone(), value);
-            }
-
-            let existing_is_human = self.human_approvals.contains(&request_id);
-            let incoming_is_human = incoming.human_approvals.contains(&request_id);
-            if had_existing && existing_is_human != incoming_is_human {
-                return Err(invalid(format!(
-                    "continuation changed the recorded authority lane for {request_id}"
-                )));
-            }
-            if incoming_is_human {
-                self.human_approvals.insert(request_id);
-            }
-        }
-        for (request_id, digest) in incoming.request_digests {
-            if let Some(existing) = self.request_digests.get(&request_id) {
-                if existing != &digest {
-                    return Err(invalid(format!(
-                        "continuation changed the request digest binding for {request_id}"
-                    )));
-                }
-            } else {
-                self.request_digests.insert(request_id, digest);
-            }
-        }
-        self.digest_bound_requests
-            .extend(incoming.digest_bound_requests);
-        Ok(())
+    pub(super) fn is_empty(&self) -> bool {
+        self.values.is_empty()
     }
 }
 
@@ -196,7 +153,7 @@ fn is_human_approval_payload(value: &JsonValue) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{ResolutionAnswers, normalize_answers};
+    use super::normalize_answers;
     use runx_contracts::{JsonObject, JsonValue};
 
     #[test]
@@ -244,46 +201,6 @@ mod tests {
         .map_err(|error| error.to_string())?;
 
         assert!(!answers.is_human_approval("send.approval"));
-        Ok(())
-    }
-
-    #[test]
-    fn continuation_merge_retains_completed_approval_and_new_agent_answer() -> Result<(), String> {
-        let mut accumulated = ResolutionAnswers::from_lanes(
-            JsonObject::new(),
-            [("action.approval".to_owned(), JsonValue::Bool(true))],
-        )
-        .map_err(|error| error.to_string())?;
-        accumulated
-            .merge(ResolutionAnswers::agent(JsonObject::from([(
-                "delegate.result".to_owned(),
-                JsonValue::String("completed".to_owned()),
-            )])))
-            .map_err(|error| error.to_string())?;
-
-        assert!(accumulated.is_human_approval("action.approval"));
-        assert_eq!(
-            accumulated.get("delegate.result"),
-            Some(&JsonValue::String("completed".to_owned()))
-        );
-        Ok(())
-    }
-
-    #[test]
-    fn continuation_merge_rejects_authority_lane_changes() -> Result<(), String> {
-        let mut accumulated = ResolutionAnswers::from_lanes(
-            JsonObject::new(),
-            [("action.approval".to_owned(), JsonValue::Bool(true))],
-        )
-        .map_err(|error| error.to_string())?;
-        let Err(error) = accumulated.merge(ResolutionAnswers::agent(JsonObject::from([(
-            "action.approval".to_owned(),
-            JsonValue::Bool(true),
-        )]))) else {
-            return Err("an agent answer replaced a human approval".to_owned());
-        };
-
-        assert!(error.to_string().contains("authority lane"));
         Ok(())
     }
 }

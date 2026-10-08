@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://schemas.runx.ai/runx/ledger_answer/v1.json",
   "x-runx-packet-id": "runx.ledger_answer.v1",
-  "x-runx-generated-from": "skills/ledger/X.yaml#root.runners.read.graph.steps.2",
+  "x-runx-generated-from": "skills/ledger/run.yaml#root.runners.read.steps.2",
   "type": "object",
   "required": [
     "chain_verification",

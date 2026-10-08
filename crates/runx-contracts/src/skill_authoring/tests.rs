@@ -23,8 +23,8 @@ fn skill_authoring_contract_binds_closed_bundle_and_plan() {
         "summary": "Create the bounded package.",
         "non_goals": ["Do not add a provider adapter."],
         "writes": [
-            { "path": "SKILL.md", "contents": "---\nname: demo\n---\n" },
-            { "path": "X.yaml", "contents": "skill: demo\n" }
+            { "path": "SKILL.md", "contents": "---\nname: demo\ndescription: demo fixture.\n---\n" },
+            { "path": "run.yaml", "contents": "skill: demo\n" }
         ],
         "deletes": [],
         "expected_outputs": [
@@ -86,7 +86,7 @@ fn architecture_fixture() -> Value {
         "required_behaviors": [{
             "id": "decide",
             "outcome": "Produce the decision packet.",
-            "lane": "agent_task"
+            "lane": "agent"
         }],
         "native_reuse": {
             "inspected_capabilities": ["runx.skill.inspect"],
@@ -103,7 +103,6 @@ fn architecture_fixture() -> Value {
         "resource_budget": {
             "max_files": 4,
             "max_executable_lines": 0,
-            "max_fanout": 1,
             "max_process_spawns": 0,
             "network_allowed": false
         },

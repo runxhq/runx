@@ -1,8 +1,6 @@
 ---
 name: vuln-triage
 description: Turn verified exact-version vulnerability evidence into bounded remediation and advisory packets without inventing exposure or claiming publication.
-runx:
-  category: security
 ---
 
 # Vulnerability Triage

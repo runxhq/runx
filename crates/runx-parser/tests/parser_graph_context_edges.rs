@@ -6,10 +6,7 @@ fn graph_with_edge(edge: &str) -> String {
 name: ctx-edge
 steps:
   - id: first
-    run:
-      type: cli-tool
-      command: node
-      args: ["-e", "process.stdout.write('{{}}')"]
+    tool: {{ command: node, args: ["-e", "process.stdout.write('{{}}')"] }}
   - id: second
     skill: ../../skills/echo
     context:
@@ -48,15 +45,14 @@ fn graph_does_not_reserve_process_diagnostic_names() -> Result<(), String> {
 }
 
 #[test]
-fn inline_graph_source_preserves_exact_environment_requirements() -> Result<(), String> {
+fn a_worker_step_preserves_exact_environment_requirements() -> Result<(), String> {
     let graph = validate_graph(
         parse_graph_yaml(
             r#"
-name: inline-environment
+name: worker-environment
 steps:
   - id: compute
-    run:
-      type: javascript
+    tool:
       module: compute.mjs
       environment:
         required: [REGION, TENANT_LABEL]
@@ -67,12 +63,11 @@ steps:
     )
     .map_err(|error| error.to_string())?;
 
-    let source = graph.steps[0]
-        .run
-        .as_ref()
-        .and_then(|run| run.source())
-        .ok_or_else(|| "inline source was not preserved".to_owned())?;
-    assert_eq!(source.environment.required, ["REGION", "TENANT_LABEL"]);
-    assert_eq!(source.environment.optional, ["TRACE_LABEL"]);
+    let runx_parser::StepKind::Tool(runx_parser::ToolTarget::Worker(worker)) = &graph.steps[0].kind
+    else {
+        return Err("the worker step was not preserved".to_owned());
+    };
+    assert_eq!(worker.environment.required, ["REGION", "TENANT_LABEL"]);
+    assert_eq!(worker.environment.optional, ["TRACE_LABEL"]);
     Ok(())
 }

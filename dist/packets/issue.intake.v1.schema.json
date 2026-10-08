@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://schemas.runx.ai/runx/issue/intake/v1.json",
   "x-runx-packet-id": "runx.issue.intake.v1",
-  "x-runx-generated-from": "skills/issue-intake/X.yaml#root.runners.intake",
+  "x-runx-generated-from": "skills/issue-intake/run.yaml#root.runners.intake.steps.0",
   "type": "object",
   "required": [
     "change_set",

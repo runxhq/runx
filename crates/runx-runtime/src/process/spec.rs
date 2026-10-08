@@ -64,7 +64,7 @@ impl ProcessSpec {
         self
     }
 
-    #[cfg(feature = "cli-tool")]
+    #[cfg(feature = "process-tool")]
     pub(crate) fn cleanup_paths(mut self, cleanup_paths: Vec<PathBuf>) -> Self {
         self.cleanup_paths = cleanup_paths;
         self

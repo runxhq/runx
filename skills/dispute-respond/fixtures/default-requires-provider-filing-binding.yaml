@@ -25,7 +25,7 @@ inputs:
   original_receipt_id: sha256:fc1bb8c2027c1b0a76d8095a1d6c112e37a4f4d144991be4d505ec21314ccd39
 caller:
   answers:
-    agent_task.dispute-response-draft.output:
+    agent.dispute-response-draft.output:
       response_draft:
         posture: contest
         response_summary: Contest only when the original charge receipt verifies.

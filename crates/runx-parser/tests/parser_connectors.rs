@@ -8,12 +8,8 @@ fn profile(connectors: &str, step: &str) -> String {
 runners:
   default:
     default: true
-    type: graph
-    graph:
-      name: notify
-      result_from: [deliver]
-      steps:
-        - id: deliver
+    steps:
+      - id: deliver
 {step}
 {connectors}
 "#
@@ -31,7 +27,7 @@ fn validate(source: &str) -> Result<runx_parser::SkillRunnerManifest, String> {
 fn concrete_requirements_validate_with_their_operation_steps() -> Result<(), String> {
     let manifest = validate(&profile(
         SLACK,
-        "          operation: slack/channel.post\n          inputs:\n            target: slack://acme/C1",
+        "        operation: slack/channel.post\n        input: {}",
     ))?;
     let requirement = manifest
         .connectors
@@ -47,7 +43,7 @@ fn a_run_time_choice_needs_a_source_and_a_closed_list() -> Result<(), String> {
     let chosen = "connectors:\n  delivery:\n    operations: [message.send]\n    connector_from: $input.connector.provider\n    allowed_connectors: [slack]";
     let manifest = validate(&profile(
         chosen,
-        "          operation: delivery/message.send\n          inputs:\n            target: x",
+        "        operation: delivery/message.send\n        input: {}",
     ))?;
     let requirement = manifest
         .connectors
@@ -55,7 +51,7 @@ fn a_run_time_choice_needs_a_source_and_a_closed_list() -> Result<(), String> {
         .ok_or("missing requirement")?;
     assert_eq!(requirement.allowed_connectors.len(), 1);
     let open = "connectors:\n  delivery:\n    operations: [message.send]\n    connector_from: $input.connector.provider";
-    let error = validate(&profile(open, "          operation: delivery/message.send"))
+    let error = validate(&profile(open, "        operation: delivery/message.send"))
         .err()
         .ok_or("a run-time choice without a list must fail")?;
     assert!(error.contains("allowed_connectors"), "{error}");
@@ -64,11 +60,11 @@ fn a_run_time_choice_needs_a_source_and_a_closed_list() -> Result<(), String> {
 
 #[test]
 fn operation_steps_must_name_a_declared_requirement_and_listed_operation() -> Result<(), String> {
-    let undeclared = validate(&profile(SLACK, "          operation: github/issue.read"))
+    let undeclared = validate(&profile(SLACK, "        operation: github/issue.read"))
         .err()
         .ok_or("undeclared requirement must fail")?;
     assert!(undeclared.contains("does not declare"), "{undeclared}");
-    let unlisted = validate(&profile(SLACK, "          operation: slack/thread.reply"))
+    let unlisted = validate(&profile(SLACK, "        operation: slack/thread.reply"))
         .err()
         .ok_or("unlisted operation must fail")?;
     assert!(unlisted.contains("is not listed"), "{unlisted}");

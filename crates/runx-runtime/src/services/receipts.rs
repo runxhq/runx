@@ -94,7 +94,7 @@ impl ReceiptServices {
         &self.signature_config
     }
 
-    #[cfg(any(feature = "cli-tool", test))]
+    #[cfg(any(feature = "process-tool", test))]
     pub(crate) fn from_signature_config(signature_config: RuntimeReceiptSignatureConfig) -> Self {
         Self { signature_config }
     }
@@ -123,7 +123,7 @@ impl ReceiptServices {
             .write_receipt_with_policy(receipt, self.signature_config.signature_policy())
     }
 
-    #[cfg(feature = "cli-tool")]
+    #[cfg(feature = "process-tool")]
     pub(crate) fn write_local_receipts<'a>(
         &self,
         receipts: impl IntoIterator<Item = &'a Receipt>,
@@ -133,7 +133,7 @@ impl ReceiptServices {
             .write_receipts_with_policy(receipts, self.signature_config.signature_policy())
     }
 
-    #[cfg(any(feature = "cli-tool", test))]
+    #[cfg(any(feature = "process-tool", test))]
     pub(crate) fn list_local_receipts(
         &self,
         receipt_dir: &Path,

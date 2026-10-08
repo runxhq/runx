@@ -1,4 +1,4 @@
-#![cfg(feature = "cli-tool")]
+#![cfg(feature = "process-tool")]
 // Test oracle: the RUNX_REGEN_FIXTURES branch prints regenerated digests to
 // stderr for a human to paste back into fixtures, so the print ban is lifted.
 #![allow(clippy::print_stderr)]

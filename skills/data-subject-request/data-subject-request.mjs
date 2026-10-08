@@ -82,7 +82,7 @@ export function judgeRequest(inputs) {
 export function finalizeVerdict(inputs) {
   const draft = record(record(inputs.verdict_draft).verdict);
   const appended = record(inputs.append_result);
-  if (appended.operation !== "append_event" || typeof appended.after_version !== "number") {
+  if (appended.operation !== "events.append" || typeof appended.after_version !== "number") {
     throw new Error("durable verdict append evidence is missing");
   }
   return {
@@ -115,7 +115,7 @@ function buildHandoff(requestType, subjectId, dataClasses, requestedScopes) {
     return {
       ...base,
       path: "downstream.read_projection.redact-pii.send-as",
-      scopes: { ...base.scopes, read_operation: "read_projection", redaction_skill: "redact-pii", delivery_skill: "send-as" },
+      scopes: { ...base.scopes, read_operation: "projection.read", redaction_skill: "redact-pii", delivery_skill: "send-as" },
     };
   }
   return {

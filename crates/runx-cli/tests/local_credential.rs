@@ -64,7 +64,7 @@ fn malformed_workspace_env_fails_json_safe_without_secret_exposure()
 }
 
 #[test]
-fn cli_tool_receives_allowlisted_workspace_env_without_wrapper()
+fn process_tool_receives_allowlisted_workspace_env_without_wrapper()
 -> Result<(), Box<dyn std::error::Error>> {
     let temp = crate::support::temp_root("runx-cli-workspace-env");
     fs::create_dir_all(&temp)?;
@@ -238,7 +238,7 @@ fn resume_loads_workspace_env_from_discovered_project_root()
         &answers_path,
         serde_json::json!({
             "answers": {
-                "agent_task.approve-workspace-env.output": {
+                "agent.approve-workspace-env.output": {
                     "approved": true
                 }
             }
@@ -269,7 +269,7 @@ fn resume_loads_workspace_env_from_discovered_project_root()
 }
 
 #[test]
-fn inline_graph_cli_tool_preserves_timeout_policy() -> Result<(), Box<dyn std::error::Error>> {
+fn inline_graph_process_tool_preserves_timeout_policy() -> Result<(), Box<dyn std::error::Error>> {
     let temp = crate::support::temp_root("runx-cli-inline-graph-timeout");
     fs::create_dir_all(&temp)?;
     let skill_dir = write_inline_graph_timeout_skill(&temp)?;
@@ -403,25 +403,20 @@ fn write_env_probe_skill(root: &Path) -> Result<PathBuf, Box<dyn std::error::Err
     fs::create_dir_all(&skill_dir)?;
     fs::write(
         skill_dir.join("SKILL.md"),
-        "---\nname: env-probe\n---\n# Environment Probe\n",
+        "---\nname: env-probe\ndescription: env-probe fixture.\n---\n# Environment Probe\n",
     )?;
     fs::write(
-        skill_dir.join("X.yaml"),
+        skill_dir.join("run.yaml"),
         r#"
 skill: env-probe
 runners:
   probe:
     default: true
-    type: cli-tool
-    command: sh
-    args:
-      - "-c"
-      - 'test -n "$PROBE_TOKEN" && { test -z "$EXPECTED_TOKEN" || test "$PROBE_TOKEN" = "$EXPECTED_TOKEN"; } && printf ''{"configured":true}'''
-    environment:
-      required:
-        - PROBE_TOKEN
-      optional:
-        - EXPECTED_TOKEN
+    steps:
+      - id: probe
+        tool: { command: sh, args: ["-c", 'test -n "$PROBE_TOKEN" && { test -z "$EXPECTED_TOKEN" || test "$PROBE_TOKEN" = "$EXPECTED_TOKEN"; } && printf ''{"configured":true}'''], environment: { required: [PROBE_TOKEN], optional: [EXPECTED_TOKEN] } }
+        outputs:
+          configured: boolean
 "#,
     )?;
     Ok(skill_dir)
@@ -432,20 +427,20 @@ fn write_env_denial_skill(root: &Path) -> Result<PathBuf, Box<dyn std::error::Er
     fs::create_dir_all(&skill_dir)?;
     fs::write(
         skill_dir.join("SKILL.md"),
-        "---\nname: env-denial\n---\n# Environment Denial\n",
+        "---\nname: env-denial\ndescription: env-denial fixture.\n---\n# Environment Denial\n",
     )?;
     fs::write(
-        skill_dir.join("X.yaml"),
+        skill_dir.join("run.yaml"),
         r#"
 skill: env-denial
 runners:
   probe:
     default: true
-    type: cli-tool
-    command: sh
-    args:
-      - "-c"
-      - 'test -z "$PROBE_TOKEN" && printf ''{"blocked":true}'''
+    steps:
+      - id: probe
+        tool: { command: sh, args: ["-c", 'test -z "$PROBE_TOKEN" && printf ''{"blocked":true}'''] }
+        outputs:
+          blocked: boolean
 "#,
     )?;
     Ok(skill_dir)
@@ -456,39 +451,23 @@ fn write_resume_env_skill(root: &Path) -> Result<PathBuf, Box<dyn std::error::Er
     fs::create_dir_all(&skill_dir)?;
     fs::write(
         skill_dir.join("SKILL.md"),
-        "---\nname: resume-env\n---\n# Resume Environment\n",
+        "---\nname: resume-env\ndescription: resume-env fixture.\n---\n# Resume Environment\n",
     )?;
     fs::write(
-        skill_dir.join("X.yaml"),
+        skill_dir.join("run.yaml"),
         r#"
 skill: resume-env
 runners:
   resume-env:
     default: true
-    type: graph
-    graph:
-      name: resume-env
-      result_from: [approve]
-      steps:
-        - id: approve
-          run:
-            type: agent-task
-            agent: reviewer
-            task: approve-workspace-env
-            outputs:
-              approved: boolean
-        - id: probe
-          run:
-            type: cli-tool
-            command: sh
-            args:
-              - "-c"
-              - 'payload="$(cat)"; if test -z "$payload"; then echo missing-stdin >&2; exit 9; elif test -z "$RESUME_PROBE_TOKEN"; then echo missing-probe >&2; exit 10; elif test "$RESUME_PROBE_TOKEN" != "after-resume"; then echo stale-probe >&2; exit 11; fi'
-            timeout_seconds: 5
-            input_mode: stdin
-            environment:
-              required:
-                - RESUME_PROBE_TOKEN
+    result_from: [approve]
+    steps:
+      - id: approve
+        agent: { role: reviewer, task: approve-workspace-env }
+        outputs:
+          approved: boolean
+      - id: probe
+        tool: { command: sh, args: ["-c", 'payload="$(cat)"; if test -z "$payload"; then echo missing-stdin >&2; exit 9; elif test -z "$RESUME_PROBE_TOKEN"; then echo missing-probe >&2; exit 10; elif test "$RESUME_PROBE_TOKEN" != "after-resume"; then echo stale-probe >&2; exit 11; fi'], timeout_seconds: 5, input_mode: stdin, environment: { required: [RESUME_PROBE_TOKEN] } }
 "#,
     )?;
     Ok(skill_dir)
@@ -499,27 +478,20 @@ fn write_inline_graph_timeout_skill(root: &Path) -> Result<PathBuf, Box<dyn std:
     fs::create_dir_all(&skill_dir)?;
     fs::write(
         skill_dir.join("SKILL.md"),
-        "---\nname: inline-graph-timeout\n---\n# Inline Graph Timeout\n",
+        "---\nname: inline-graph-timeout\ndescription: inline-graph-timeout fixture.\n---\n# Inline Graph Timeout\n",
     )?;
     fs::write(
-        skill_dir.join("X.yaml"),
+        skill_dir.join("run.yaml"),
         r#"
 skill: inline-graph-timeout
 runners:
   timeout:
     default: true
-    type: graph
-    graph:
-      name: inline-graph-timeout
-      steps:
-        - id: timeout
-          run:
-            type: cli-tool
-            command: sh
-            args:
-              - "-c"
-              - "sleep 5"
-            timeout_seconds: 1
+    steps:
+      - id: timeout
+        tool: { command: sh, args: ["-c", "sleep 5"], timeout_seconds: 1 }
+        outputs:
+          slept: boolean
 "#,
     )?;
     Ok(skill_dir)

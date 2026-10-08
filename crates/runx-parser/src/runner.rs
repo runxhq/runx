@@ -21,7 +21,6 @@ const MANIFEST_FIELDS: &[&str] = &[
     "skill",
     "version",
     "runx",
-    "policy",
     "emits",
     "catalog",
     "connectors",
@@ -39,14 +38,13 @@ pub struct RawRunnerManifestIr {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct SkillRunnerManifest {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub skill: Option<String>,
+    /// The skill's name; it must match SKILL.md and names every runner's
+    /// graph.
+    pub skill: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub version: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub runx: Option<runx_contracts::JsonObject>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub policy: Option<runx_contracts::JsonValue>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub emits: Option<runx_contracts::JsonValue>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -83,10 +81,8 @@ impl SkillRunnerManifest {
     #[must_use]
     pub fn execution_requirements(&self, runner: &SkillRunnerDefinition) -> ExecutionRequirements {
         ExecutionRequirements {
-            auth: runner.auth.clone(),
             scopes: runner.declared_scopes(),
-            environment: runner.source.environment.clone(),
-            runtime: runner.runtime.clone(),
+            environment: runner.environment(),
         }
     }
 }
@@ -120,6 +116,7 @@ pub fn validate_runner_manifest(
             .unwrap_or_default(),
         "input_definitions",
     )?;
+    let skill = FIELDS.required_string(raw.document.get("skill"), "skill")?;
     let runners_record = FIELDS.required_object(raw.document.get("runners"), "runners")?;
     let mut runners = BTreeMap::new();
     for (name, value) in runners_record {
@@ -127,7 +124,10 @@ pub fn validate_runner_manifest(
             return Err(FIELDS.validation_error(format!("runners.{name} must be an object.")));
         };
         let runner = expand_input_definitions(name, runner, &input_definitions)?;
-        runners.insert(name.clone(), validate_runner_definition(name, runner)?);
+        runners.insert(
+            name.clone(),
+            validate_runner_definition(&skill, name, runner)?,
+        );
     }
 
     let connectors = validate_connector_requirements(raw.document.get("connectors"))?;
@@ -145,10 +145,9 @@ pub fn validate_runner_manifest(
         "catalog",
     )?;
     Ok(SkillRunnerManifest {
-        skill: FIELDS.optional_string(raw.document.get("skill"), "skill")?,
+        skill,
         version: FIELDS.optional_string(raw.document.get("version"), "version")?,
         runx: FIELDS.optional_object(raw.document.get("runx"), "runx")?,
-        policy: raw.document.get("policy").cloned(),
         emits: raw.document.get("emits").cloned(),
         catalog,
         connectors,

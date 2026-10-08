@@ -1792,7 +1792,7 @@ pub(super) fn status(loaded: &LoadedProfile, workspace: &WorkspaceEnv) -> Result
         "confirmed_memory_count":record.state.confirmed_memory.len(),
         "pending_work_count":record.state.work.iter().filter(|item| item.status == "pending").count(),
         "awaiting_resolution_count":record.state.work.iter().filter(|item| work_is_open(item)).filter_map(|item| item.native_run.as_ref())
-            .map(|bound| runx_runtime::skill_front::inspect_paused_skill_request(&super::receipt_root(workspace), &bound.run_id))
+            .map(|bound| runx_runtime::run_record::paused_request(workspace.env(), workspace.cwd(), &bound.run_id))
             .collect::<Result<Vec<_>, _>>().map_err(|error| error.to_string())?.iter().filter(|request| request.is_some()).count(),
         "pending_private_work_updates":record.state.work.iter()
             .map(|item| item.private_updates.iter().filter(|update| update.status.is_none()).count()).sum::<usize>(),
@@ -1864,11 +1864,11 @@ pub(super) fn discard_notification(
         .as_str()
         .ok_or("pending notification lacks idempotency key")?;
     if super::standing_approvals(workspace)?
-        .was_used(&notification.authority_id, key)
+        .attempted(&notification.authority_id, key)
         .map_err(|error| error.to_string())?
     {
         return Err(
-            "notification has a native reservation; reconcile its provider outcome before discarding"
+            "notification was attempted; reconcile its provider outcome before discarding"
                 .to_owned(),
         );
     }
@@ -1921,8 +1921,9 @@ pub(super) fn work(
                     .count()
             );
             if let Some(pending) = item.native_run.as_ref() {
-                let native = runx_runtime::skill_front::inspect_paused_skill_request(
-                    &super::receipt_root(workspace),
+                let native = runx_runtime::run_record::paused_request(
+                    workspace.env(),
+                    workspace.cwd(),
                     &pending.run_id,
                 )
                 .map_err(|error| format!("inspecting native pending request: {error}"))?;
@@ -2618,12 +2619,9 @@ fn record_suspended_work(
     run_id: &str,
     requests: &[Value],
 ) -> Result<Value, String> {
-    let native = runx_runtime::skill_front::inspect_paused_skill_request(
-        &super::receipt_root(workspace),
-        run_id,
-    )
-    .map_err(|error| format!("inspecting native pending request: {error}"))?
-    .ok_or("native run has no paused request")?;
+    let native = runx_runtime::run_record::paused_request(workspace.env(), workspace.cwd(), run_id)
+        .map_err(|error| format!("inspecting native pending request: {error}"))?
+        .ok_or("native run has no paused request")?;
     if requests.len() != 1 || requests[0]["id"] != native.id {
         return Err("native suspended request differs from its run checkpoint".to_owned());
     }
@@ -3670,19 +3668,14 @@ fn dispatch_pending_work(
     let mut retry_answer_path = None;
     if let Some(bound) = item.native_run.as_ref() {
         let native =
-            runx_runtime::journal::find_paused_run(&super::receipt_root(workspace), &bound.run_id)
+            runx_runtime::run_record::paused_run(workspace.env(), workspace.cwd(), &bound.run_id)
                 .map_err(|error| format!("inspecting native run: {error}"))?;
         if let Some(native) = native {
             let path = pinned_skill_path_by_digest(workspace, &bound.skill, &bound.package_digest)?;
-            if native.resume_skill_ref.as_deref() != path.to_str() {
+            if Some(native.skill_ref.as_str()) != path.to_str() {
                 return Err("native run differs from its admitted binding".into());
             }
-            let request = runx_runtime::skill_front::inspect_paused_skill_request(
-                &super::receipt_root(workspace),
-                &bound.run_id,
-            )
-            .map_err(|error| error.to_string())?
-            .ok_or("native run lost its pending request")?;
+            let request = native.request;
             let native_request: ResolutionRequest = serde_json::from_value(
                 serde_json::to_value(&request.value).map_err(|error| error.to_string())?,
             )
@@ -4856,9 +4849,10 @@ pub(super) fn reconcile_notification(
         "run_assistant_deliver_{}",
         sha256_prefixed(pending.logical_run_id.as_bytes()).trim_start_matches("sha256:")
     );
-    let sealed = runx_runtime::skill_front::inspect_sealed_graph_run(workspace, &delivery_run_id)
-        .map_err(|error| error.to_string())?
-        .ok_or("native delivery run has no sealed outcome")?;
+    let sealed =
+        runx_runtime::run_record::sealed_run(workspace.env(), workspace.cwd(), &delivery_run_id)
+            .map_err(|error| error.to_string())?
+            .ok_or("native delivery run has no sealed outcome")?;
     let retained = pinned_skill_path_by_digest(
         workspace,
         &pending.delivery_skill,

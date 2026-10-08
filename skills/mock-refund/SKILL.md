@@ -1,8 +1,6 @@
 ---
 name: mock-refund
 description: Simulate a refund locally for deterministic Runx harness tests.
-runx:
-  category: payments
 ---
 
 # Mock Refund

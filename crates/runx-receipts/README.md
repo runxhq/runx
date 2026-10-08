@@ -2,7 +2,7 @@
 
 Pure Rust receipt verification for runx.
 
-The post-cutover receipt model treats a receipt as the sealed proof of a
+The receipt model treats a receipt as the sealed proof of a
 harness node. This crate validates that shape against the shared
 `runx-contracts` types, provides deterministic canonical JSON and digest
 helpers, and keeps verification pure. It does not write receipt files or invoke

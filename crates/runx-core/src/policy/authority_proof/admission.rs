@@ -1,8 +1,8 @@
 use runx_contracts::JsonValue;
+use runx_contracts::policy_proof::{ScopeAdmission, ScopeAdmissionStatus};
 
 use crate::policy::{
-    LocalAdmissionGrant, LocalScopeAdmissionOptions, ScopeAdmission, ScopeAdmissionStatus,
-    ScopeGrantPolicy,
+    LocalAdmissionGrant, LocalScopeAdmissionOptions, ScopeGrantPolicy,
     credential_grant::{credential_grant_requirement, find_matching_grant},
     scope::unique_strings,
 };

@@ -44,6 +44,8 @@ pub struct SchemaArtifact {
 pub fn generated_schema_artifacts() -> Vec<SchemaArtifact> {
     vec![
         schema_artifact::<Output>("output.schema.json"),
+        schema_artifact::<crate::SkillOutput>("skill-output.schema.json"),
+        schema_artifact::<crate::ProjectArtifactRef>("project-artifact-ref.schema.json"),
         public_packet_artifact::<WorkOutcome>("work-outcome.schema.json"),
         public_packet_artifact::<DecisionObservation>("decision-observation.schema.json"),
         schema_artifact::<ConnectorManifest>("connector.schema.json"),
@@ -176,7 +178,7 @@ pub fn schema_artifact<T: RunxSchema>(file_name: &'static str) -> SchemaArtifact
 
 /// Mark a reusable, named boundary contract for packet distribution even when
 /// its immediate producer is native rather than a skill manifest. Runner-local
-/// input and output shapes must stay in `X.yaml` and use [`schema_artifact`]
+/// input and output shapes must stay in `run.yaml` and use [`schema_artifact`]
 /// instead.
 pub fn public_packet_artifact<T: RunxSchema>(file_name: &'static str) -> SchemaArtifact {
     let mut artifact = schema_artifact::<T>(file_name);

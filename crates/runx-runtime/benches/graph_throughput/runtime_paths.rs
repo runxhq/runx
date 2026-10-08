@@ -11,14 +11,14 @@ use runx_contracts::{
     ClosureDisposition, ExecutionEvent, JsonObject, JsonValue, ProofKind, ResolutionRequest,
     ResolutionResponse, ResolutionResponseActor,
 };
-use runx_parser::{ExecutionGraph, SkillSource, SourceKind, parse_graph_yaml, validate_graph};
+use runx_parser::{ExecutionGraph, PROFILE_FILE, WorkerTool, parse_graph_yaml, validate_graph};
 use runx_runtime::adapters::agent_loop::ToolExecutor;
 use runx_runtime::adapters::agent_tools::RuntimeToolExecutor;
 use runx_runtime::adapters::javascript::JavaScriptAdapter;
 use runx_runtime::{
-    CredentialDelivery, HOSTED_API_BASE_URL_ENV, HOSTED_API_TOKEN_ENV, Host, HttpMethod,
-    INJECTED_GRANT_ID_ENV, INJECTED_GRANTED_SCOPES_ENV, INJECTED_PRINCIPAL_REF_ENV, NoopHost,
-    OperationEffect, RUNX_MAX_FANOUT_CONCURRENCY_ENV, RUNX_RECEIPT_DIR_ENV, Runtime,
+    CredentialDelivery, Executable, HOSTED_API_BASE_URL_ENV, HOSTED_API_TOKEN_ENV, Host,
+    HttpMethod, INJECTED_GRANT_ID_ENV, INJECTED_GRANTED_SCOPES_ENV, INJECTED_PRINCIPAL_REF_ENV,
+    KernelStore, NoopHost, OperationEffect, RUNX_RECEIPT_DIR_ENV, RunLog, Runtime,
     RuntimeEffectRegistry, RuntimeHttpError, RuntimeHttpRequest, RuntimeHttpResponse,
     RuntimeHttpTransport, RuntimeOptions, SkillAdapter, SkillInvocation, encode_injected_scopes,
 };
@@ -49,7 +49,13 @@ pub(super) fn register(c: &mut Criterion) {
     c.bench_function("graph_context_to_module", |b| {
         b.iter_batched(
             || fixtures.context_graph.clone(),
-            |graph| run_graph(&fixtures.context_runtime, fixtures.root(), graph),
+            |graph| {
+                run_graph(
+                    &fixtures.next_run(&fixtures.context_runtime),
+                    fixtures.root(),
+                    graph,
+                )
+            },
             BatchSize::SmallInput,
         )
     });
@@ -83,20 +89,12 @@ pub(super) fn register(c: &mut Criterion) {
         )
     });
 
-    c.bench_function("bounded_parallel_fanout", |b| {
-        b.iter_batched(
-            || fixtures.fanout_graph.clone(),
-            |graph| run_graph(&fixtures.fanout_runtime, fixtures.root(), graph),
-            BatchSize::SmallInput,
-        )
-    });
-
     c.bench_function("provider_effect_finality", |b| {
         b.iter_batched(
             || fixtures.provider_graph.clone(),
             |graph| {
                 run_provider_graph(
-                    &fixtures.provider_runtime,
+                    &fixtures.next_run(&fixtures.provider_runtime),
                     &fixtures.provider_transport,
                     fixtures.root(),
                     graph,
@@ -110,6 +108,8 @@ pub(super) fn register(c: &mut Criterion) {
 
 struct RuntimePathFixtures {
     directory: TempDir,
+    store: Arc<KernelStore>,
+    runs: AtomicU64,
     native_executor: RuntimeToolExecutor,
     native_input: JsonValue,
     context_runtime: Runtime<JavaScriptAdapter>,
@@ -117,8 +117,6 @@ struct RuntimePathFixtures {
     module_invocation: SkillInvocation,
     large_module_invocation: SkillInvocation,
     module_adapter: JavaScriptAdapter,
-    fanout_runtime: Runtime<JavaScriptAdapter>,
-    fanout_graph: ExecutionGraph,
     provider_runtime: Runtime<JavaScriptAdapter>,
     provider_graph: ExecutionGraph,
     provider_transport: ProviderBenchmarkTransport,
@@ -128,6 +126,16 @@ impl RuntimePathFixtures {
     fn new() -> Result<Self, Box<dyn Error>> {
         let directory = TempDir::new()?;
         write_modules(directory.path())?;
+        let store = KernelStore::open(&directory.path().join(".runx"))?;
+        let evaluation = |name: &str| {
+            RunLog::evaluation(
+                Arc::clone(&store),
+                name,
+                "graph-throughput",
+                name,
+                CREATED_AT,
+            )
+        };
 
         let native_executor = RuntimeToolExecutor::new(
             BTreeMap::new(),
@@ -144,7 +152,10 @@ impl RuntimePathFixtures {
                 JsonValue::String("native-dispatch".to_owned()),
             )])),
         )]));
-        let context_runtime = Runtime::new(JavaScriptAdapter::default(), runtime_options());
+        let context_runtime = Runtime::new(
+            JavaScriptAdapter::default(),
+            runtime_options(evaluation("run_context_smoke")?),
+        );
         let context_graph = graph(CONTEXT_GRAPH)?;
         let module_invocation = javascript_invocation(
             directory.path(),
@@ -159,18 +170,11 @@ impl RuntimePathFixtures {
         );
         let module_adapter = JavaScriptAdapter::new_session();
 
-        let mut fanout_options = runtime_options();
-        fanout_options
-            .env
-            .insert(RUNX_MAX_FANOUT_CONCURRENCY_ENV.to_owned(), "4".to_owned());
-        let fanout_runtime = Runtime::new(JavaScriptAdapter::default(), fanout_options);
-        let fanout_graph = graph(&fanout_graph_yaml(8))?;
-
         let provider_transport = ProviderBenchmarkTransport::default();
         let effects = RuntimeEffectRegistry::with_effect(OperationEffect::with_http_transport(
             provider_transport.clone(),
         ))?;
-        let mut provider_options = runtime_options();
+        let mut provider_options = runtime_options(evaluation("run_provider_smoke")?);
         provider_options.effects = effects.clone();
         provider_options.env.insert(
             INJECTED_GRANT_ID_ENV.to_owned(),
@@ -205,11 +209,13 @@ impl RuntimePathFixtures {
         )?
         .runners
         .remove("run")
-        .and_then(|runner| runner.source.graph)
+        .map(|runner| runner.graph)
         .ok_or("the provider benchmark skill has no graph")?;
 
         Ok(Self {
             directory,
+            store,
+            runs: AtomicU64::new(0),
             native_executor,
             native_input,
             context_runtime,
@@ -217,8 +223,6 @@ impl RuntimePathFixtures {
             module_invocation,
             large_module_invocation,
             module_adapter,
-            fanout_runtime,
-            fanout_graph,
             provider_runtime,
             provider_graph,
             provider_transport,
@@ -227,6 +231,22 @@ impl RuntimePathFixtures {
 
     fn root(&self) -> &Path {
         self.directory.path()
+    }
+
+    /// Each sample is a run of its own on the shared warm runtime services.
+    #[allow(clippy::expect_used)]
+    fn next_run(&self, runtime: &Runtime<JavaScriptAdapter>) -> Runtime<JavaScriptAdapter> {
+        let run_id = format!("run_sample_{}", self.runs.fetch_add(1, Ordering::Relaxed));
+        runtime.for_run(
+            RunLog::evaluation(
+                Arc::clone(&self.store),
+                &run_id,
+                "graph-throughput",
+                &run_id,
+                CREATED_AT,
+            )
+            .expect("benchmark sample run must start"),
+        )
     }
 
     fn smoke(&self) -> Result<JsonObject, Box<dyn Error>> {
@@ -246,7 +266,6 @@ impl RuntimePathFixtures {
             self.root(),
             self.context_graph.clone(),
         )?;
-        run_graph(&self.fanout_runtime, self.root(), self.fanout_graph.clone())?;
         run_provider_graph(
             &self.provider_runtime,
             &self.provider_transport,
@@ -254,10 +273,6 @@ impl RuntimePathFixtures {
             self.provider_graph.clone(),
         )?;
         Ok(JsonObject::from([
-            (
-                "native_capability_dispatch".to_owned(),
-                session_metric(self.native_executor.javascript_session_stats()),
-            ),
             (
                 "graph_context_to_module".to_owned(),
                 session_metric(self.context_runtime.javascript_session_stats()),
@@ -275,10 +290,6 @@ impl RuntimePathFixtures {
                 session_metric(self.module_adapter.session_stats()),
             ),
             (
-                "bounded_parallel_fanout".to_owned(),
-                session_metric(self.fanout_runtime.javascript_session_stats()),
-            ),
-            (
                 "provider_effect_finality".to_owned(),
                 session_metric(self.provider_runtime.javascript_session_stats()),
             ),
@@ -286,13 +297,10 @@ impl RuntimePathFixtures {
     }
 }
 
-fn runtime_options() -> RuntimeOptions {
-    RuntimeOptions {
-        current_context: Vec::new(),
-        historical_context: Vec::new(),
-        created_at: CREATED_AT.to_owned(),
-        ..RuntimeOptions::local_development(std::env::vars().collect())
-    }
+fn runtime_options(run: RunLog) -> RuntimeOptions {
+    let mut options = RuntimeOptions::local_development(std::env::vars().collect(), run);
+    options.created_at = CREATED_AT.to_owned();
+    options
 }
 
 fn graph(source: &str) -> Result<ExecutionGraph, Box<dyn Error>> {
@@ -505,27 +513,13 @@ fn write_modules(root: &Path) -> Result<(), std::io::Error> {
         "---\nname: runtime-throughput\ndescription: Exercise production runtime paths for release performance budgets.\n---\n# Runtime throughput\n\nThis synthetic package binds the modules used by the release performance harness.\n",
     )?;
     fs::write(
-        root.join("X.yaml"),
-        "skill: runtime-throughput\nrunners:\n  main:\n    default: true\n    type: javascript\n    module: domain.mjs\n    inputs:\n      payload:\n        type: string\n        required: true\n    outputs:\n      result: object\n",
+        root.join(PROFILE_FILE),
+        "skill: runtime-throughput\nrunners:\n  main:\n    default: true\n    inputs:\n      payload:\n        type: string\n        required: true\n    steps:\n      - id: measure\n        tool: { module: domain.mjs }\n        inputs:\n          payload: $input.payload\n        outputs:\n          result: object\n",
     )?;
     fs::write(
         root.join("domain.mjs"),
         "export default ({ payload }) => ({ result: { bytes: payload.length } });\n\
          export const project = ({ marker, digest_result }) => ({ projection: { marker, digest: digest_result.digest } });\n",
-    )?;
-    let worker = root.join("fanout-worker");
-    fs::create_dir_all(&worker)?;
-    fs::write(
-        worker.join("SKILL.md"),
-        "---\nname: fanout-worker\ndescription: Deterministic runtime fanout benchmark worker.\n---\n# Fanout worker\n",
-    )?;
-    fs::write(
-        worker.join("X.yaml"),
-        "skill: fanout-worker\nrunners:\n  main:\n    default: true\n    type: javascript\n    module: domain.mjs\n    inputs:\n      value:\n        type: string\n        required: true\n    outputs:\n      branch_result: object\n",
-    )?;
-    fs::write(
-        worker.join("domain.mjs"),
-        "export default ({ value }) => ({ branch_result: { value } });\n",
     )
 }
 
@@ -534,14 +528,17 @@ fn javascript_invocation(root: &Path, inputs: JsonObject) -> SkillInvocation {
         historical_context: Vec::new(),
         skill_name: "runtime-perf-module".to_owned(),
         step_id: None,
+        executable: Executable::Worker(WorkerTool {
+            module: "domain.mjs".to_owned(),
+            export: None,
+            timeout_seconds: None,
+            pages: None,
+            environment: Default::default(),
+        }),
+        outputs: None,
         requirements: Default::default(),
         artifacts: None,
         allowed_tools: None,
-        source: SkillSource {
-            source_type: SourceKind::JavaScript,
-            module: Some("domain.mjs".to_owned()),
-            ..empty_source()
-        },
         inputs,
         resolved_inputs: JsonObject::new(),
         current_context: Vec::new(),
@@ -550,40 +547,6 @@ fn javascript_invocation(root: &Path, inputs: JsonObject) -> SkillInvocation {
         env: std::env::vars().collect(),
         credential_delivery: CredentialDelivery::none(),
     }
-}
-
-fn empty_source() -> SkillSource {
-    SkillSource {
-        source_type: SourceKind::JavaScript,
-        command: None,
-        module: None,
-        javascript_export: None,
-        pages: None,
-        args: Vec::new(),
-        cwd: None,
-        timeout_seconds: None,
-        input_mode: None,
-        environment: Default::default(),
-        agent: None,
-        task: None,
-        outputs: None,
-        graph: None,
-        act: None,
-        raw: JsonObject::new(),
-    }
-}
-
-fn fanout_graph_yaml(branches: usize) -> String {
-    let steps = (0..branches)
-        .map(|index| {
-            format!(
-                "  - id: branch_{index}\n    mode: fanout\n    fanout_group: workers\n    skill: ./fanout-worker\n    inputs:\n      value: branch-{index}\n"
-            )
-        })
-        .collect::<String>();
-    format!(
-        "name: runtime-bounded-parallel-fanout\nfanout:\n  groups:\n    workers:\n      strategy: all\n      on_branch_failure: halt\nsteps:\n{steps}"
-    )
 }
 
 const CONTEXT_GRAPH: &str = r#"
@@ -595,16 +558,13 @@ steps:
       value:
         subject: graph-context
   - id: project
+    tool: { module: domain.mjs, export: project }
     inputs:
       marker: baseline
     context:
       digest_result: digest.digest_result.data
-    run:
-      type: javascript
-      module: domain.mjs
-      export: project
-      outputs:
-        projection: object
+    outputs:
+      projection: object
 "#;
 
 const PROVIDER_EFFECT_SKILL: &str = r#"
@@ -614,19 +574,15 @@ connectors:
     operations: [thread.reply]
 runners:
   run:
-    type: graph
-    graph:
-      name: runtime-provider-effect-transition
-      result_from: [provider-effect]
-      steps:
-        - id: provider-effect
-          operation: slack/thread.reply
-          inputs:
-            idempotency_key: benchmark-request
-            expected_result:
-              state: delivered
-            result_fields: [state]
-            input:
-              thread_locator: slack://T1/C1/1.0
-              text: provider-effect-transition
+    result_from: [provider-effect]
+    steps:
+      - id: provider-effect
+        operation: slack/thread.reply
+        idempotency_key: benchmark-request
+        expected_result:
+          state: delivered
+        result_fields: [state]
+        input:
+          thread_locator: slack://T1/C1/1.0
+          text: provider-effect-transition
 "#;

@@ -6,6 +6,7 @@
 //! else the project's `.runx/receipts`). Confirming and selecting one is
 //! setup, done once; a run never chooses an identity.
 
+use std::collections::BTreeMap;
 use std::ffi::OsString;
 use std::process::ExitCode;
 use std::sync::Arc;
@@ -14,7 +15,7 @@ use runx_contracts::connector::{
     ConnectorId, ConnectorManifest, Digest, Implementation, InstanceId, OperationName,
 };
 use runx_contracts::schema::NonEmptyString;
-use runx_contracts::{ConnectorInstance, Readiness};
+use runx_contracts::{ConnectorInstance, JsonObject, JsonValue, Readiness};
 use runx_runtime::kernel::{admission, setup};
 use runx_runtime::{
     ConnectorScope, InstanceRecord, Instances, KernelStore, LoadedConnector, WorkspaceEnv,
@@ -69,7 +70,15 @@ pub enum UseChoice {
     /// The connector's local session, as signed in now.
     Session,
     /// An existing local credential profile.
-    Profile { name: String, scopes: Vec<String> },
+    Profile {
+        name: String,
+        scopes: Vec<String>,
+        parameters: BTreeMap<String, String>,
+    },
+    /// No authority, at the location its parameters name.
+    Public {
+        parameters: BTreeMap<String, String>,
+    },
     /// An active runx Connect grant.
     Grant(String),
 }
@@ -88,6 +97,7 @@ pub fn parse_connector_plan(args: &[OsString]) -> Result<ConnectorPlan, String> 
     let mut grant = None;
     let mut profile = None;
     let mut scopes = Vec::new();
+    let mut parameters = BTreeMap::new();
     let mut json = false;
     let mut stdio = None;
     let mut index = 2;
@@ -116,6 +126,15 @@ pub fn parse_connector_plan(args: &[OsString]) -> Result<ConnectorPlan, String> 
             "--profile" => {
                 let (value, next) = flag_value(args, index, flag, inline, "connector")?;
                 profile = Some(value);
+                index = next;
+                continue;
+            }
+            "--parameter" => {
+                let (value, next) = flag_value(args, index, flag, inline, "connector")?;
+                let (name, value) = parameter(&value)?;
+                if parameters.insert(name.clone(), value).is_some() {
+                    return Err(format!("runx connector use sets parameter {name} once"));
+                }
                 index = next;
                 continue;
             }
@@ -189,17 +208,27 @@ pub fn parse_connector_plan(args: &[OsString]) -> Result<ConnectorPlan, String> 
             ),
         },
         "use" => {
+            let plain = scopes.is_empty() && parameters.is_empty();
             let choice = match (positionals.as_slice(), session, grant, profile) {
                 _ if bearer_stdin => {
                     return Err("runx connector use takes no --bearer-stdin".to_owned());
                 }
-                ([_, instance], false, None, None) if scopes.is_empty() => UseChoice::Instance(instance.clone()),
-                ([_], true, None, None) if scopes.is_empty() => UseChoice::Session,
-                ([_], false, Some(grant), None) if scopes.is_empty() => UseChoice::Grant(grant),
-                ([_], false, None, Some(name)) => UseChoice::Profile { name, scopes },
+                ([_, instance], false, None, None) if plain => {
+                    UseChoice::Instance(instance.clone())
+                }
+                ([_], true, None, None) if plain => UseChoice::Session,
+                ([_], false, Some(grant), None) if plain => UseChoice::Grant(grant),
+                ([_], false, None, Some(name)) => UseChoice::Profile {
+                    name,
+                    scopes,
+                    parameters,
+                },
+                ([_], false, None, None) if scopes.is_empty() && !parameters.is_empty() => {
+                    UseChoice::Public { parameters }
+                }
                 _ => {
                     return Err(
-                        "runx connector use requires <connector> and one of <instance>, --session, --profile <name>, or --grant <grant-id>"
+                        "runx connector use requires <connector> and one of <instance>, --session, --profile <name>, --grant <grant-id>, or --parameter <name>=<value>"
                             .to_owned(),
                     );
                 }
@@ -326,9 +355,21 @@ fn execute(plan: &ConnectorPlan, workspace: &WorkspaceEnv) -> Result<String, Str
             let (env, cwd) = (workspace.env(), workspace.cwd());
             let instance = match choice {
                 UseChoice::Session => setup::confirm_session(&instances, &connector, env, cwd)?,
-                UseChoice::Profile { name, scopes } => setup::confirm_credential_profile(
-                    &instances, &connector, name, scopes, workspace,
+                UseChoice::Profile {
+                    name,
+                    scopes,
+                    parameters,
+                } => setup::confirm_credential_profile(
+                    &instances,
+                    &connector,
+                    name,
+                    scopes,
+                    instance_parameters(parameters),
+                    workspace,
                 )?,
+                UseChoice::Public { parameters } => {
+                    setup::confirm_public(&instances, &connector, instance_parameters(parameters))?
+                }
                 UseChoice::Grant(grant_id) => {
                     setup::confirm_grant(&instances, &connector, grant_id, env, cwd)?
                 }
@@ -601,6 +642,24 @@ fn render_json(output: &Output<'_>) -> Result<String, String> {
     })
     .map(|value| format!("{value}\n"))
     .map_err(|error| error.to_string())
+}
+
+/// The parameters an instance pins, from `--parameter` flags.
+pub(crate) fn instance_parameters(parameters: &BTreeMap<String, String>) -> JsonObject {
+    parameters
+        .iter()
+        .map(|(name, value)| (name.clone(), JsonValue::String(value.clone())))
+        .collect()
+}
+
+/// `<name>=<value>` from a `--parameter` flag.
+pub(crate) fn parameter(value: &str) -> Result<(String, String), String> {
+    match value.split_once('=') {
+        Some((name, value)) if !name.is_empty() && !value.is_empty() => {
+            Ok((name.to_owned(), value.to_owned()))
+        }
+        _ => Err(format!("--parameter takes <name>=<value>, not {value}")),
+    }
 }
 
 #[cfg(test)]

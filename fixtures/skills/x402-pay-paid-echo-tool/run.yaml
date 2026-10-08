@@ -1,0 +1,24 @@
+skill: paid-echo
+version: "0.1.0"
+runners:
+  default:
+    default: true
+    inputs:
+      message:
+        type: string
+        required: true
+      payment_capability_ref:
+        type: string
+        required: true
+      payment_proof_ref:
+        type: string
+        required: true
+    steps:
+      - id: default
+        tool: { command: sh, args: [./run.sh], timeout_seconds: 10 }
+        inputs:
+          message: $input.message
+          payment_capability_ref: $input.payment_capability_ref
+          payment_proof_ref: $input.payment_proof_ref
+        outputs:
+          paid_echo_result: object

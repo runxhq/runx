@@ -10,34 +10,35 @@ parser, core, contract, receipt, and domain crates remain upstream.
 
 Current slice:
 
-- parses a local graph with `runx-parser`
-- plans sequential/fanout transitions with `runx-core`
-- runs runtime-owned `javascript` modules through the dedicated
-  `runx-js-worker`; lower-level external processes remain behind the
-  `cli-tool` feature
+- parses a skill's runners, each a graph of agent, tool, operation, ask and
+  skill steps, with `runx-parser`
+- plans sequential transitions with `runx-core`
+- runs worker tools through the dedicated `runx-js-worker`; trusted host
+  processes remain behind the `process-tool` feature
 - emits receipts and validates the parent receipt tree with
   `runx-receipts`
 - exposes native skill, doctor, list, history, MCP, registry, config, policy,
   tool, and dev command support through `runx-cli`
 
-The deterministic `javascript` lane is part of the core runtime. It has no Node
-or CLI fallback and exposes no host authority. Adapter families that can cross
+The worker lane is part of the core runtime. It has no Node or CLI fallback and
+exposes no host authority. Adapter families that can cross
 host or provider boundaries remain feature gated:
 
-- `cli-tool`
+- `process-tool`
 - `mcp`
 - `mcp-http-server`
 - `agent`
 - `catalog`
+- `store`
 - `async-http`
 
-The CLI enables `cli-tool`, `catalog`, `mcp`, `mcp-http-server`, and `agent`.
-`cli-tool` enables `async-http` transitively.
+The CLI enables `process-tool`, `catalog`, `mcp`, `mcp-http-server`, `agent`,
+and `store`. `process-tool` enables `async-http` transitively.
 
 The generated catalog-profile capability snapshot lives at
 `fixtures/tool-catalogs/native-capabilities.snapshot.json`. It pins the
 runtime-owned roster, scopes, effect and approval posture, packet binding, and
-execution boundary for the explicit `catalog`/`cli-tool`/`async-http` feature
+execution boundary for the explicit `catalog`/`process-tool`/`async-http` feature
 set. Run `pnpm capabilities:snapshot:generate` only for an intentional contract
 change; `pnpm catalog:check` is the freshness wall.
 
@@ -49,7 +50,6 @@ local behavior.
 
 This crate currently ports the read-only fixture-backed diagnostics:
 
-- `runx.tool.manifest.removed_format`
 - `runx.tool.fixture.missing`
 - `runx.skill.fixture.missing`
 - `runx.structure.file_budget.exceeded`

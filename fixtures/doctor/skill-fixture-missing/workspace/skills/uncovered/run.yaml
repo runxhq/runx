@@ -1,0 +1,9 @@
+skill: uncovered
+runners:
+  default:
+    default: true
+    steps:
+      - id: default
+        tool: { command: node, args: [-e, "process.stdout.write(JSON.stringify({ ok: true }))"] }
+        outputs:
+          ok: boolean

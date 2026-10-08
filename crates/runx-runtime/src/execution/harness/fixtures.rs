@@ -28,7 +28,10 @@ const HARNESS_FIXTURE_CASES: &[HarnessFixtureCase] = &[
         name: "echo-skill",
         fixture_path: "fixtures/harness/echo-skill.yaml",
         root_oracle_path: "fixtures/harness/oracle/echo-skill.receipt.json",
-        step_oracles: &[],
+        step_oracles: &[HarnessFixtureStepOracle {
+            step_id: "default",
+            oracle_path: "fixtures/harness/oracle/echo-skill.default.json",
+        }],
     },
     HarnessFixtureCase {
         name: "sequential-graph",

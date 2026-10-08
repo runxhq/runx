@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://schemas.runx.ai/runx/agency/turn/v1.json",
   "x-runx-packet-id": "runx.agency.turn.v1",
-  "x-runx-generated-from": "skills/agency/graph/plan/X.yaml#root.runners.default",
+  "x-runx-generated-from": "skills/agency/graph/plan/run.yaml#root.runners.default.steps.0",
   "type": "object",
   "required": [
     "agency_turn",

@@ -9,7 +9,7 @@ fn package_mode_runs_inline_and_conventional_fixture_cases() -> TestResult {
     let skill_dir = root.join("skill");
     let receipt_dir = root.join("receipts");
     fs::create_dir_all(skill_dir.join("fixtures"))?;
-    write_cli_tool_skill(&skill_dir)?;
+    write_process_tool_skill(&skill_dir)?;
     fs::write(
         skill_dir.join("fixtures/conventional.yaml"),
         r#"
@@ -59,8 +59,9 @@ expect:
                 .is_some_and(|name| name.starts_with("sha256-") && name.ends_with(".json"))
         })
         .count();
+    // Each case seals its graph receipt and its one step receipt.
     assert_eq!(
-        stored_receipts, 2,
+        stored_receipts, 4,
         "inline and conventional receipts persist"
     );
     Ok(())
@@ -72,7 +73,7 @@ fn package_mode_keeps_default_receipts_after_isolated_replay() -> TestResult {
     let skill_dir = root.join("skill");
     let receipt_dir = root.join(".runx/harness-receipts");
     fs::create_dir_all(&skill_dir)?;
-    write_cli_tool_skill(&skill_dir)?;
+    write_process_tool_skill(&skill_dir)?;
 
     let output = unsigned_runx_command()?
         .env("RUNX_CWD", &root)
@@ -118,7 +119,7 @@ fn package_mode_persists_complete_nested_receipt_lineage() -> TestResult {
     fs::create_dir_all(skill_dir.join("fixtures"))?;
     fs::create_dir_all(&child_dir)?;
     write_nested_harness_parent(&skill_dir)?;
-    write_cli_tool_skill(&child_dir)?;
+    write_process_tool_skill(&child_dir)?;
     fs::write(
         skill_dir.join("fixtures/conventional.yaml"),
         r#"
@@ -209,7 +210,7 @@ fn package_harness_partial_signer_config_prints_actionable_hint() -> TestResult 
     let skill_dir = root.join("skill");
     let receipt_dir = root.join("receipts");
     fs::create_dir_all(&skill_dir)?;
-    write_cli_tool_skill(&skill_dir)?;
+    write_process_tool_skill(&skill_dir)?;
 
     let mut command = unsigned_runx_command()?;
     command.env("RUNX_RECEIPT_SIGN_KID", "partial-explicit-key");
@@ -239,7 +240,7 @@ fn standalone_fixture_uses_local_signing_and_persists_to_requested_store() -> Te
     let skill_dir = root.join("skill");
     let receipt_dir = root.join(".runx/receipts");
     fs::create_dir_all(skill_dir.join("fixtures"))?;
-    write_cli_tool_skill(&skill_dir)?;
+    write_process_tool_skill(&skill_dir)?;
     let fixture_path = skill_dir.join("fixtures/standalone.yaml");
     fs::write(
         &fixture_path,
@@ -294,16 +295,17 @@ fn unsigned_runx_command() -> TestResult<Command> {
     }
     command.env("NO_COLOR", "1");
     command.current_dir(crate::support::repo_root()?);
+    crate::support::isolate_project(&mut command);
     Ok(command)
 }
 
-fn write_cli_tool_skill(skill_dir: &std::path::Path) -> TestResult {
+fn write_process_tool_skill(skill_dir: &std::path::Path) -> TestResult {
     fs::write(
         skill_dir.join("SKILL.md"),
-        "---\nname: harness-hint\n---\n# Harness Hint\n",
+        "---\nname: harness-hint\ndescription: harness-hint fixture.\n---\n# Harness Hint\n",
     )?;
     fs::write(
-        skill_dir.join("X.yaml"),
+        skill_dir.join("run.yaml"),
         r#"
 skill: harness-hint
 version: "0.1.0"
@@ -318,12 +320,11 @@ harness:
 runners:
   default:
     default: true
-    type: cli-tool
-    command: sh
-    args:
-      - -c
-      - 'printf "{\"ok\":true}"'
-    timeout_seconds: 5
+    steps:
+      - id: default
+        tool: { command: sh, args: [-c, 'printf "{\"ok\":true}"'], timeout_seconds: 5 }
+        outputs:
+          ok: boolean
 "#,
     )?;
     Ok(())
@@ -332,10 +333,10 @@ runners:
 fn write_nested_harness_parent(skill_dir: &std::path::Path) -> TestResult {
     fs::write(
         skill_dir.join("SKILL.md"),
-        "---\nname: harness-parent\n---\n# Harness Parent\n",
+        "---\nname: harness-parent\ndescription: harness-parent fixture.\n---\n# Harness Parent\n",
     )?;
     fs::write(
-        skill_dir.join("X.yaml"),
+        skill_dir.join("run.yaml"),
         r#"
 skill: harness-parent
 version: "0.1.0"
@@ -343,14 +344,11 @@ version: "0.1.0"
 runners:
   default:
     default: true
-    type: graph
-    graph:
-      name: harness-parent
-      result_from: [nested]
-      steps:
-        - id: nested
-          skill: ../child
-          runner: default
+    result_from: [nested]
+    steps:
+      - id: nested
+        skill: ../child
+        runner: default
 "#,
     )?;
     Ok(())
@@ -362,7 +360,7 @@ fn assert_inline_expectation_fails(expectation: &str, expected_field: &str) -> T
     fs::create_dir_all(&skill_dir)?;
     fs::write(
         skill_dir.join("SKILL.md"),
-        "---\nname: harness-negative\n---\n# Harness Negative\n",
+        "---\nname: harness-negative\ndescription: harness-negative fixture.\n---\n# Harness Negative\n",
     )?;
     let manifest = r#"
 skill: harness-negative
@@ -375,24 +373,15 @@ harness:
 runners:
   default:
     default: true
-    type: graph
-    graph:
-      name: harness-negative
-      result_from: [run]
-      steps:
-        - id: run
-          run:
-            type: cli-tool
-            command: sh
-            args:
-              - -c
-              - 'printf "{\"ok\":true}"'
-            timeout_seconds: 5
-            outputs:
-              ok: boolean
+    result_from: [run]
+    steps:
+      - id: run
+        tool: { command: sh, args: [-c, 'printf "{\"ok\":true}"'], timeout_seconds: 5 }
+        outputs:
+          ok: boolean
 "#
     .replace("__EXPECTATION__", expectation);
-    fs::write(skill_dir.join("X.yaml"), manifest)?;
+    fs::write(skill_dir.join("run.yaml"), manifest)?;
 
     let output = unsigned_runx_command()?
         .args([

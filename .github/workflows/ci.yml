@@ -252,7 +252,7 @@ jobs:
           workspaces: crates
       - name: Prove Windows process-tree ownership
         working-directory: crates
-        run: cargo test -p runx-runtime --features cli-tool windows_ -- --test-threads=1 --nocapture
+        run: cargo test -p runx-runtime --features process-tool windows_ -- --test-threads=1 --nocapture
       - name: Prove watchdog timeout semantics
         run: node scripts/harness-sweep.mjs --self-test
 

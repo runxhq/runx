@@ -1,8 +1,6 @@
 ---
 name: slack
 description: Read bounded Slack search and thread evidence, plan an exact reply, and deliver an approved reply through any compatible Slack binding with stable-message readback.
-runx:
-  category: ops
 ---
 
 # Slack

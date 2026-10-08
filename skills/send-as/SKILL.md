@@ -1,8 +1,6 @@
 ---
 name: send-as
 description: Send one digest-bound provider-neutral message or campaign action through a compatible connector, with an explicit plan runner and approval plus readback at the live-delivery boundary.
-runx:
-  category: ops
 ---
 
 # Send As

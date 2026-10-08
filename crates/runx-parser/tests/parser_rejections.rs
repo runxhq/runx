@@ -32,24 +32,6 @@ fn parse_rejections_cover_every_error_kind() -> Result<(), String> {
 }
 
 #[test]
-fn tool_manifests_reject_retired_http_and_catalog_sources() -> Result<(), String> {
-    for (source_type, replacement) in [
-        ("http", "connector operation"),
-        ("catalog", "graph tool step"),
-    ] {
-        let raw = parse_tool_manifest_yaml(&format!(
-            "schema: runx.tool.manifest.v1\nname: retired-{source_type}\nsource:\n  type: {source_type}\n"
-        ))
-        .map_err(|error| error.to_string())?;
-        let error = validate_tool_manifest(raw)
-            .err()
-            .ok_or_else(|| format!("retired {source_type} tool source unexpectedly validated"))?;
-        assert!(error.to_string().contains(replacement), "{error}");
-    }
-    Ok(())
-}
-
-#[test]
 fn tool_manifests_reject_unknown_input_types_and_invalid_defaults() -> Result<(), String> {
     for (input, expected) in [
         ("type: mystery", "must be one of"),
@@ -59,7 +41,7 @@ fn tool_manifests_reject_unknown_input_types_and_invalid_defaults() -> Result<()
         ),
     ] {
         let raw = parse_tool_manifest_yaml(&format!(
-            "schema: runx.tool.manifest.v1\nname: invalid-input\nsource:\n  type: cli-tool\n  command: /bin/true\ninputs:\n  value:\n    {input}\n"
+            "schema: runx.tool.manifest.v1\nname: invalid-input\nsource:\n  command: /bin/true\ninputs:\n  value:\n    {input}\n"
         ))
         .map_err(|error| error.to_string())?;
         let error = validate_tool_manifest(raw)
@@ -73,7 +55,7 @@ fn tool_manifests_reject_unknown_input_types_and_invalid_defaults() -> Result<()
 #[test]
 fn tool_manifests_reject_blank_scopes_without_rewriting_opaque_values() -> Result<(), String> {
     let raw = parse_tool_manifest_yaml(
-        "schema: runx.tool.manifest.v1\nname: invalid-scope\nsource:\n  type: cli-tool\n  command: /bin/true\nscopes:\n  - '   '\n",
+        "schema: runx.tool.manifest.v1\nname: invalid-scope\nsource:\n  command: /bin/true\nscopes:\n  - '   '\n",
     )
     .map_err(|error| error.to_string())?;
     let error = validate_tool_manifest(raw)
@@ -87,7 +69,7 @@ fn tool_manifests_reject_blank_scopes_without_rewriting_opaque_values() -> Resul
     );
 
     let raw = parse_tool_manifest_yaml(
-        "schema: runx.tool.manifest.v1\nname: opaque-scope\nsource:\n  type: cli-tool\n  command: /bin/true\nscopes:\n  - 'https://provider.example/auth/custom.scope?mode=read,write'\n  - 'opaque capability with spaces'\n  - 'opaque capability with spaces'\n",
+        "schema: runx.tool.manifest.v1\nname: opaque-scope\nsource:\n  command: /bin/true\nscopes:\n  - 'https://provider.example/auth/custom.scope?mode=read,write'\n  - 'opaque capability with spaces'\n  - 'opaque capability with spaces'\n",
     )
     .map_err(|error| error.to_string())?;
     let tool = validate_tool_manifest(raw).map_err(|error| error.to_string())?;
@@ -113,7 +95,7 @@ fn tool_manifests_reject_generated_parallel_contract_fields() -> Result<(), Stri
         "toolkit_version",
     ] {
         let raw = parse_tool_manifest_yaml(&format!(
-            "schema: runx.tool.manifest.v1\nname: canonical-only\nsource:\n  type: cli-tool\n  command: /bin/true\n{field}: {{}}\n"
+            "schema: runx.tool.manifest.v1\nname: canonical-only\nsource:\n  command: /bin/true\n{field}: {{}}\n"
         ))
         .map_err(|error| error.to_string())?;
         let error = validate_tool_manifest(raw)
@@ -130,25 +112,9 @@ fn tool_manifests_reject_generated_parallel_contract_fields() -> Result<(), Stri
 }
 
 #[test]
-fn tool_manifests_reject_runtime_effect_claims_inside_risk_metadata() -> Result<(), String> {
-    let raw = parse_tool_manifest_yaml(
-        "schema: runx.tool.manifest.v1\nname: effect-claim\nsource:\n  type: cli-tool\n  command: /bin/true\nrisk:\n  mutating: true\n",
-    )
-    .map_err(|error| error.to_string())?;
-    let error = validate_tool_manifest(raw)
-        .err()
-        .ok_or_else(|| "tool risk.mutating unexpectedly validated".to_owned())?;
-
-    assert!(error.to_string().contains("risk.mutating is not supported"));
-    Ok(())
-}
-
-#[test]
 fn tool_manifests_require_the_canonical_schema_marker() -> Result<(), String> {
-    let raw = parse_tool_manifest_yaml(
-        "name: missing-schema\nsource:\n  type: cli-tool\n  command: /bin/true\n",
-    )
-    .map_err(|error| error.to_string())?;
+    let raw = parse_tool_manifest_yaml("name: missing-schema\nsource:\n  command: /bin/true\n")
+        .map_err(|error| error.to_string())?;
     let error = validate_tool_manifest(raw)
         .err()
         .ok_or_else(|| "schema-less tool manifest unexpectedly validated".to_owned())?;
@@ -171,27 +137,17 @@ steps:
     .map_err(|error| error.to_string())?;
     kinds.insert(validation_error_kind(validate_graph(missing_step_id))?);
 
-    let invalid_fanout_gate = parse_graph_yaml(
+    let unknown_field = parse_graph_yaml(
         r#"
-name: fanout
-fanout:
-  groups:
-    advisors:
-      threshold_gates:
-        - step: risk
-          field: risk_score
-          above: 0.8
-          action: pause
-          sentiment: negative
+name: bad
+schedule: daily
 steps:
-  - id: risk
-    mode: fanout
-    fanout_group: advisors
+  - id: echo
     skill: ../../skills/echo
 "#,
     )
     .map_err(|error| error.to_string())?;
-    kinds.insert(validation_error_kind(validate_graph(invalid_fanout_gate))?);
+    kinds.insert(validation_error_kind(validate_graph(unknown_field))?);
 
     assert_eq!(
         kinds,
@@ -211,10 +167,7 @@ fn graph_agent_task_accepts_context_skills() -> Result<(), String> {
 name: context-skills
 steps:
   - id: apply_taste
-    run:
-      type: agent-task
-      agent: builder
-      task: apply taste
+    agent: { role: builder, task: apply taste }
     context_skills:
       - registry:runx/taste-profile@1.0.0
 "#,
@@ -227,78 +180,6 @@ steps:
         graph.steps[0].context_skills,
         vec!["registry:runx/taste-profile@1.0.0"]
     );
-    Ok(())
-}
-
-#[test]
-fn graph_rejects_agent_instructions_outside_skill_markdown() -> Result<(), String> {
-    let error = validate_graph(
-        parse_graph_yaml(
-            r#"
-name: misplaced-instructions
-steps:
-  - id: decide
-    run:
-      type: agent-task
-      agent: builder
-      task: decide
-    instructions: Put this in SKILL.md.
-"#,
-        )
-        .map_err(|error| error.to_string())?,
-    )
-    .err()
-    .ok_or_else(|| "expected graph instructions to be rejected".to_owned())?;
-
-    assert!(error.to_string().contains("owning SKILL.md"), "{error}");
-    Ok(())
-}
-
-#[test]
-fn effect_family_is_runtime_owned_and_rejected_from_graph_steps() -> Result<(), String> {
-    let error = validate_graph(
-        parse_graph_yaml(
-            r#"
-name: forged-effect-owner
-steps:
-  - id: fulfill
-    skill: ../pay-fulfill-rail
-    effect_family: harmless
-"#,
-        )
-        .map_err(|error| error.to_string())?,
-    )
-    .err()
-    .ok_or_else(|| "expected author-selected effect_family to be rejected".to_owned())?;
-
-    assert!(
-        error
-            .to_string()
-            .contains("effect ownership belongs to the invoked capability"),
-        "{error}"
-    );
-    Ok(())
-}
-
-#[test]
-fn runner_rejects_agent_instructions_outside_skill_markdown() -> Result<(), String> {
-    let raw = parse_runner_manifest_yaml(
-        r#"
-skill: misplaced-instructions
-runners:
-  decide:
-    type: agent-task
-    agent: builder
-    task: decide
-    instructions: Put this in SKILL.md.
-"#,
-    )
-    .map_err(|error| error.to_string())?;
-    let error = runx_parser::validate_runner_manifest(raw)
-        .err()
-        .ok_or_else(|| "expected runner instructions to be rejected".to_owned())?;
-
-    assert!(error.to_string().contains("owning SKILL.md"), "{error}");
     Ok(())
 }
 
@@ -326,13 +207,15 @@ input_definitions:
 runners:
   inspect:
     default: true
-    type: agent-task
-    agent: operator
-    task: inspect
     inputs:
       resources: { definition: selector }
     examples:
       - resources: { kind: issues, filters: { limit: 25 } }
+    steps:
+      - id: inspect
+        agent: { role: operator, task: inspect }
+        inputs:
+          resources: $input.resources
 "#,
     )
     .map_err(|error| error.to_string())?;
@@ -384,13 +267,15 @@ input_definitions:
             limit: {{ type: integer, maximum: 25 }}
 runners:
   inspect:
-    type: agent-task
-    agent: operator
-    task: inspect
     inputs:
       resources: {declaration}
     examples:
       - resources: {{ filters: {{ limit: {example_limit} }} }}
+    steps:
+      - id: inspect
+        agent: {{ role: operator, task: inspect }}
+        inputs:
+          resources: $input.resources
 "#
         ))
         .map_err(|error| error.to_string())?;
@@ -405,47 +290,13 @@ runners:
 }
 
 #[test]
-fn graph_runner_rejects_ambiguous_runner_artifacts() -> Result<(), String> {
-    let raw = parse_runner_manifest_yaml(
-        r#"
-skill: graph-artifacts
-runners:
-  execute:
-    type: graph
-    graph:
-      name: graph-artifacts
-      steps:
-        - id: package
-          run:
-            type: javascript
-            module: package.mjs
-    artifacts:
-      wrap_as: result_packet
-      packet: runx.test.result.v1
-"#,
-    )
-    .map_err(|error| error.to_string())?;
-    let error = runx_parser::validate_runner_manifest(raw)
-        .err()
-        .ok_or_else(|| "expected graph runner artifacts to be rejected".to_owned())?;
-
-    assert!(
-        error.to_string().contains("terminal output-producing step"),
-        "{error}"
-    );
-    Ok(())
-}
-
-#[test]
 fn graph_step_rejects_malformed_artifact_contract() -> Result<(), String> {
     let raw = parse_graph_yaml(
         r#"
 name: malformed-step-artifacts
 steps:
   - id: package
-    run:
-      type: javascript
-      module: package.mjs
+    tool: { module: package.mjs }
     artifacts:
       packets:
         result: runx.test.result.v1
@@ -466,89 +317,6 @@ steps:
 }
 
 #[test]
-fn graph_runner_rejects_ambiguous_runner_outputs() -> Result<(), String> {
-    let raw = parse_runner_manifest_yaml(
-        r#"
-skill: graph-outputs
-runners:
-  execute:
-    type: graph
-    outputs:
-      result: object
-    graph:
-      name: graph-outputs
-      steps:
-        - id: package
-          run:
-            type: javascript
-            module: package.mjs
-"#,
-    )
-    .map_err(|error| error.to_string())?;
-    let error = runx_parser::validate_runner_manifest(raw)
-        .err()
-        .ok_or_else(|| "expected graph runner outputs to be rejected".to_owned())?;
-
-    assert!(
-        error.to_string().contains("terminal output-producing step"),
-        "{error}"
-    );
-    Ok(())
-}
-
-#[test]
-fn graph_rejects_stage_steps() -> Result<(), String> {
-    // `stage` is no longer a step kind; nested graph components are referenced as
-    // ordinary skills (e.g. `skill: graph/pay-quote`).
-    let error = validate_graph(
-        parse_graph_yaml(
-            r#"
-name: stage-graph
-steps:
-  - id: quote
-    stage: pay-quote
-    skill: graph/pay-quote
-"#,
-        )
-        .map_err(|error| error.to_string())?,
-    )
-    .err()
-    .ok_or_else(|| "expected stage step to be rejected".to_owned())?;
-
-    assert!(
-        error.to_string().contains("stage is not supported"),
-        "{error}"
-    );
-    Ok(())
-}
-
-#[test]
-fn graph_rejects_caller_authored_mutation_claims() -> Result<(), String> {
-    let error = validate_graph(
-        parse_graph_yaml(
-            r#"
-name: claimed-mutation
-steps:
-  - id: publish
-    tool: provider.mutate
-    mutation: true
-"#,
-        )
-        .map_err(|error| error.to_string())?,
-    )
-    .err()
-    .ok_or_else(|| "expected mutation claim to be rejected".to_owned())?;
-
-    assert!(
-        error
-            .to_string()
-            .contains("approval and authority are owned by the invoked capability"),
-        "{error}"
-    );
-    Ok(())
-}
-
-#[test]
 fn graph_rejects_context_skills_on_non_agent_run_steps() -> Result<(), String> {
     let error = validate_graph(
         parse_graph_yaml(
@@ -556,9 +324,7 @@ fn graph_rejects_context_skills_on_non_agent_run_steps() -> Result<(), String> {
 name: bad-context-skills
 steps:
   - id: shell
-    run:
-      type: cli-tool
-      command: echo
+    tool: { command: echo }
     context_skills:
       - ../taste-profile
 "#,
@@ -569,17 +335,20 @@ steps:
     .ok_or_else(|| "expected context_skills validation rejection".to_owned())?;
 
     assert!(
-        error.to_string().contains("context_skills is only valid"),
+        error
+            .to_string()
+            .contains("context_skills does not apply to this tool step"),
         "{error}"
     );
     Ok(())
 }
 
 #[test]
-fn strict_skill_validation_matches_runx_object_error() -> Result<(), String> {
+fn strict_skill_validation_rejects_runx_frontmatter() -> Result<(), String> {
     let raw = parse_skill_markdown(
         r#"---
 name: bad-runx
+description: Catalog metadata belongs in run.yaml.
 runx: invalid
 ---
 Body
@@ -588,9 +357,12 @@ Body
     .map_err(|error| error.to_string())?;
 
     match validate_skill(raw) {
-        Ok(_) => Err("expected strict runx validation rejection".to_owned()),
+        Ok(_) => Err("expected strict frontmatter rejection".to_owned()),
         Err(error) => {
-            assert_eq!(error.to_string(), "runx must be an object when present.");
+            assert_eq!(
+                error.to_string(),
+                "SKILL.md.runx is not supported; allowed fields: name, description, license, compatibility, metadata, allowed-tools."
+            );
             Ok(())
         }
     }
@@ -602,11 +374,12 @@ fn yaml_parity_rejects_embedded_colon_mapping_key() -> Result<(), String> {
         r#"
 skill: bad
 email:send:
-  type: cli-tool
+  value: x
 runners:
   default:
-    type: cli-tool
-    command: echo
+    steps:
+      - id: default
+        tool: { command: echo }
 "#,
     )
     .err()
@@ -627,7 +400,6 @@ fn yaml_parity_rejects_colon_space_in_plain_scalar() -> Result<(), String> {
 name: bad-tool
 description: needs quote (granted: repo.read)
 source:
-  type: cli-tool
   command: echo
 "#,
     )
@@ -649,7 +421,6 @@ fn yaml_parity_allows_quoted_colon_space() -> Result<(), String> {
 name: ok-tool
 description: "quoted value (granted: repo.read)"
 source:
-  type: cli-tool
   command: echo
 "#,
     )

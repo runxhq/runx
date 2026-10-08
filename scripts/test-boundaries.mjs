@@ -45,6 +45,22 @@ try {
     throw new Error(`boundary finding cited ignored build output:\n${combinedOutput}`);
   }
 
+  writeFileSync(path.join(fixtureRoot, "packages/source-test/src/index.ts"), "export {};\n");
+  const clientRoot = path.join(fixtureRoot, "packages/client");
+  const adaptersRoot = path.join(clientRoot, "src/adapters");
+  mkdirSync(adaptersRoot, { recursive: true });
+  writeJson(path.join(clientRoot, "package.json"), { name: "@runxhq/client", dependencies: {} });
+  const adapterFile = path.join(adaptersRoot, "index.ts");
+  for (const specifier of ["node:fs", "@runxhq/client", "../process.js", "../../../../cloud/private.js", "@langchain/core"]) {
+    writeFileSync(adapterFile, `export * from ${JSON.stringify(specifier)};\n`);
+    const rejected = runBoundary(fixtureRoot, false, `portable adapters must reject ${specifier}`);
+    if (!rejected.stderr.includes("packages/client/src/adapters/index.ts")) {
+      throw new Error(`portable boundary did not identify the importing file:\n${rejected.stderr}`);
+    }
+  }
+  writeFileSync(adapterFile, "export const portable = true;\n");
+  runBoundary(fixtureRoot, true, "portable adapters should pass without forbidden imports");
+
   console.log("Boundary regression checks passed.");
 } finally {
   rmSync(fixtureRoot, { recursive: true, force: true });

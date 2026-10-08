@@ -16,12 +16,14 @@ skill: transcribe
 {marketplace}
 runners:
   preview:
-    type: cli-tool
-    command: preview
+    steps:
+      - id: preview
+        tool: {{command: preview}}
   transcribe:
     default: true
-    type: cli-tool
-    command: transcribe
+    steps:
+      - id: transcribe
+        tool: {{command: transcribe}}
 "#
     )
 }

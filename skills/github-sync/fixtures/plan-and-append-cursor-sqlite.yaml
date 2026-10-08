@@ -11,8 +11,6 @@ operator_journeys:
     must_not_repeat:
       - Do not repeat provider discovery already covered by the cursor.
       - Do not reapply completed synchronization mutations.
-env:
-  RUNX_DATA_SOURCES: '{"data_sources":{"tenant://github-sync/sqlite-cursors":{"adapter":"data.sqlite","database_path":".runx/data/github-sync-cursors.sqlite","resources":{"github_sync_events":{"kind":"event_stream","partition_key":"aggregate_id"}}}}}'
 inputs:
   data_source_ref: tenant://github-sync/sqlite-cursors
   resource: github_sync_events
@@ -39,15 +37,15 @@ expect:
       subset:
         data_operation_result:
           data:
-            operation: append_event
+            operation: events.append
             provider_evidence:
-              adapter: data.sqlite
+              backend: sqlite
     readback:
       subset:
         data_operation_result:
           data:
-            operation: read_projection
+            operation: projection.read
             provider_evidence:
-              adapter: data.sqlite
+              backend: sqlite
   receipt: { schema: runx.receipt.v1 }
 metadata: { public_skill: github-sync, source_case: cursor-operation-proof, source: skills-fixture }

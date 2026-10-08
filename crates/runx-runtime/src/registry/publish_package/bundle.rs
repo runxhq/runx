@@ -121,7 +121,12 @@ fn collect_materialized_bundle_files(
         if let Some(profile_path) = dependency.profile_path.as_deref()
             && let Some(profile_document) = dependency.package.file_text(profile_path)
         {
-            insert_prefixed(&mut files, &prefix, "X.yaml", profile_document.as_bytes())?;
+            insert_prefixed(
+                &mut files,
+                &prefix,
+                runx_parser::PROFILE_FILE,
+                profile_document.as_bytes(),
+            )?;
         }
         for file in super::files::collect_publish_package_files(&dependency, env, cwd, packet_ids)?
         {
@@ -195,7 +200,12 @@ fn append_dependency_package(
     if let Some(profile_path) = dependency.profile_path.as_deref()
         && let Some(profile_document) = dependency.package.file_text(profile_path)
     {
-        insert_prefixed(files, &prefix, "X.yaml", profile_document.as_bytes())?;
+        insert_prefixed(
+            files,
+            &prefix,
+            runx_parser::PROFILE_FILE,
+            profile_document.as_bytes(),
+        )?;
     }
     for file in super::files::collect_publish_package_files(&dependency, env, cwd, packet_ids)? {
         insert_prefixed(files, &prefix, &file.path, file.content.as_bytes())?;

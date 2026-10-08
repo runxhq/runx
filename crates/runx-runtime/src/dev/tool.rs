@@ -117,7 +117,6 @@ fn run_tool_fixture_inner(
         unreachable!("fixture inputs are always an object")
     };
     let credential_delivery = crate::credentials::CredentialDelivery::none();
-    let javascript = crate::adapters::javascript::JavaScriptAdapter::default();
     let local_artifacts = crate::services::LocalArtifactService::default();
     let mut output = crate::tool_catalogs::dispatch::dispatch_tool(
         crate::tool_catalogs::dispatch::ToolDispatchRequest {
@@ -129,7 +128,6 @@ fn run_tool_fixture_inner(
             skill_directory: &tool_dir,
             credential_delivery: &credential_delivery,
             local_artifacts: &local_artifacts,
-            javascript: &javascript,
             skill_name: "runx-dev",
             allow_explicit_manifest_path: false,
             effect_admission: None,

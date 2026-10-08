@@ -153,6 +153,33 @@ describe("Runx CLI release evidence", () => {
     expect(failedIds(evidence)).toEqual(["release_workflow", "npm", "ghcr"]);
   });
 
+  it("binds a repaired image tag to its exact public digest", async () => {
+    const digest = `sha256:${"f".repeat(64)}`;
+    const providerFetch = releaseFetch();
+    const fetchImpl: typeof fetch = (input, init) => String(input).includes(`/manifests/${version}-r1`)
+      ? Promise.resolve(new Response(JSON.stringify({ schemaVersion: 2 }), {
+        headers: { "docker-content-digest": digest },
+      }))
+      : providerFetch(input, init);
+    const verified = await observeRunxCliRelease({
+      version,
+      ghcrTag: `${version}-r1`,
+      ghcrDigest: digest,
+      fetchImpl,
+      githubToken: "",
+    });
+    expect(verified.ready).toBe(true);
+
+    const drifted = await observeRunxCliRelease({
+      version,
+      ghcrTag: `${version}-r1`,
+      ghcrDigest: `sha256:${"e".repeat(64)}`,
+      fetchImpl,
+      githubToken: "",
+    });
+    expect(failedIds(drifted)).toEqual(["ghcr"]);
+  });
+
   it("binds a successful workflow to the exact prepared commit", async () => {
     const evidence = await observeRunxCliRelease({
       version,

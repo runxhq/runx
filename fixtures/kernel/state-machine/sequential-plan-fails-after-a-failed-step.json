@@ -1,0 +1,39 @@
+{
+  "$schema": "../schema/state-machine.schema.json",
+  "expected": {
+    "kind": "output",
+    "value": {
+      "reason": "step failed",
+      "stepId": "first",
+      "type": "failed"
+    }
+  },
+  "input": {
+    "kind": "state-machine.planSequentialGraphTransition",
+    "state": {
+      "graphId": "gx_fixture",
+      "status": "running",
+      "steps": [
+        {
+          "attempts": 1,
+          "completedAt": "2026-04-10T00:00:01.000Z",
+          "error": "boom",
+          "startedAt": "2026-04-10T00:00:00.000Z",
+          "status": "failed",
+          "stepId": "first"
+        },
+        {
+          "attempts": 0,
+          "status": "pending",
+          "stepId": "second"
+        }
+      ]
+    },
+    "steps": [
+      {
+        "id": "first"
+      }
+    ]
+  },
+  "name": "sequential-plan-fails-after-a-failed-step"
+}

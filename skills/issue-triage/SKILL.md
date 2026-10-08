@@ -1,8 +1,6 @@
 ---
 name: issue-triage
 description: Read, analyze, and draft high-signal GitHub issue responses from bounded provider evidence without silently mutating the repository.
-runx:
-  category: ops
 ---
 
 # Issue Triage

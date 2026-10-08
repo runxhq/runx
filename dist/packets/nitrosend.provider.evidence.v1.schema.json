@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://schemas.runx.ai/runx/nitrosend/provider_evidence/v1.json",
   "x-runx-packet-id": "nitrosend.provider_evidence.v1",
-  "x-runx-generated-from": "skills/nitrosend/graph/provider-operation/X.yaml#root.runners.act.graph.steps.3",
+  "x-runx-generated-from": "skills/nitrosend/graph/provider-operation/run.yaml#root.runners.act.steps.3",
   "additionalProperties": false,
   "properties": {
     "blockers": {

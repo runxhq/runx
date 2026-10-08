@@ -1,30 +1,20 @@
 # @runxhq/langchain
 
-Optional LangChain bridge for `runx`.
+Wrap a finite governed Runx skill invocation as a LangChain tool. The host
+supplies an `@runxhq/client` instance and `runOptions`, including the skill path,
+receipt directory and optional execution binding.
 
-`runx` remains the kernel for policy, receipts, and execution. This package is an ecosystem bridge, not a second runtime.
+```ts
+import { createRunxLangChainTool } from "@runxhq/langchain";
+const tool = createRunxLangChainTool({
+  name: "research", description: "Run bounded research.", schema,
+  client: runx,
+  runOptions: { skillPath: "/skills/research", receiptDir: "/work/receipts" },
+});
+```
 
-## Boundary
-
-`@runxhq/langchain` remains an optional bridge after the Rust takeover. It
-continues to invoke governed runx workflows through the `runx` CLI boundary
-rather than becoming a runtime.
-
-Publish reusable operations as Runx tool manifests and inspect or search them
-through `runx tool ... --json`. This bridge only wraps governed skills; it does
-not register arbitrary JavaScript tool instances inside the runtime.
-
-See the [TypeScript interop boundary](../../docs/ts-interop-boundary.md) for
-the package disposition and ownership rules.
-
-## APIs
-
-- `createRunxCliSkillRunner(...)`
-  Build a small runner over `runx skill <skill> --json`. It uses `RUNX_BIN` or
-  `runx` by default, returns the bounded `runx.skill_run.v1` envelope, and
-  accepts CLI-scoped `env`, `cwd`, and `command` options.
-- `createRunxLangChainTool(...)`
-  Wrap a governed runx workflow as a LangChain tool without moving execution,
-  approvals, or receipts into LangChain. The default tool value is the
-  envelope's single `result`; supply `formatOutput` when a framework-specific
-  projection is needed.
+`mapInput` maps the tool input to the skill input object. `formatOutput` can
+project a successful native result. Pending resolutions, payment, denied runs
+and sealed failures reject the finite tool call; the owning host handles them.
+This package never spawns a process, implements an agent loop or resumes an
+approval on the host's behalf. Native invocation belongs to `@runxhq/client`.

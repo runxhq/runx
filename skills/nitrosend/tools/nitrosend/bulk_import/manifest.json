@@ -4,7 +4,6 @@
   "version": "0.1.1",
   "description": "Reserve, stream, and finalize one consented Nitrosend CSV import without exposing transient signed upload material.",
   "source": {
-    "type": "cli-tool",
     "command": "node",
     "args": [
       "./run.mjs"
@@ -62,9 +61,6 @@
     "net:http",
     "fs:read"
   ],
-  "retry": {
-    "max_attempts": 1
-  },
   "artifacts": {
     "wrap_as": "provider_evidence"
   }

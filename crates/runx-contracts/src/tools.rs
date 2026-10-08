@@ -1,15 +1,12 @@
 //! Contract types for tool manifests and tool catalog JSON surfaces.
-// Module rationale: tool catalog contracts keep serde parity shapes together.
+// Module rationale: tool catalog contracts keep their serde shapes together.
 
 use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 
 use crate::schema::RunxSchema;
-use crate::{
-    ArtifactContract, EnvironmentRequirements, IdempotencyPolicy, InputDefinition, JsonValue,
-    RetryPolicy,
-};
+use crate::{ArtifactContract, EnvironmentRequirements, IdempotencyPolicy, InputDefinition};
 
 pub const TOOL_MANIFEST_SCHEMA: &str = "runx.tool.manifest.v1";
 pub const TOOL_BUILD_REPORT_SCHEMA: &str = "runx.tool.build.v1";
@@ -32,23 +29,6 @@ pub enum ToolCommandInputMode {
     Args,
     Stdin,
     None,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
-#[serde(rename_all = "kebab-case")]
-pub enum ToolSourceType {
-    CliTool,
-    Javascript,
-}
-
-impl ToolSourceType {
-    #[must_use]
-    pub const fn as_str(&self) -> &'static str {
-        match self {
-            Self::CliTool => "cli-tool",
-            Self::Javascript => "javascript",
-        }
-    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
@@ -81,30 +61,20 @@ pub struct ToolManifest {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub scopes: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub risk: Option<JsonValue>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub artifacts: Option<ArtifactContract>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub retry: Option<ToolRetryPolicy>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub idempotency: Option<ToolIdempotencyPolicy>,
 }
 
 pub type ToolInput = InputDefinition;
-pub type ToolRetryPolicy = RetryPolicy;
 pub type ToolIdempotencyPolicy = IdempotencyPolicy;
 
+/// A tool's executable: a trusted host process. runx controls its argv, cwd,
+/// environment and lifetime, but does not confine it.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ToolSource {
-    #[serde(rename = "type")]
-    pub source_type: ToolSourceType,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub command: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub module: Option<String>,
-    #[serde(rename = "export", skip_serializing_if = "Option::is_none")]
-    pub javascript_export: Option<String>,
+    pub command: String,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub args: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -188,13 +158,12 @@ pub struct ToolInspectResult {
     pub name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
-    pub execution_source_type: String,
+    /// How the tool executes: `native` (runx's own code) or `process`.
+    pub execution: String,
     pub inputs: BTreeMap<String, ToolInput>,
     pub scopes: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub runtime: Option<RuntimeCommand>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub risk: Option<JsonValue>,
     pub reference_path: String,
     pub skill_directory: String,
     pub provenance: ToolInspectProvenance,
@@ -245,7 +214,7 @@ mod tests {
     use super::{
         ToolBuildReport, ToolBuildReportSchema, ToolBuildStatus, ToolCatalogSearchResult,
         ToolCommandInputMode, ToolInput, ToolInspectOrigin, ToolInspectProvenance,
-        ToolInspectResult, ToolManifest, ToolManifestSchema, ToolSource, ToolSourceType,
+        ToolInspectResult, ToolManifest, ToolManifestSchema, ToolSource,
     };
     use crate::EnvironmentRequirements;
 
@@ -256,7 +225,6 @@ mod tests {
           "name": "fs.read",
           "description": "Read a UTF-8 text file.",
           "source": {
-            "type": "cli-tool",
             "command": "node",
             "args": ["./run.mjs"],
             "timeout_seconds": 30,
@@ -279,7 +247,7 @@ mod tests {
         let manifest: ToolManifest = serde_json::from_str(json)?;
 
         assert_eq!(manifest.schema, ToolManifestSchema::V1);
-        assert_eq!(manifest.source.source_type, ToolSourceType::CliTool);
+        assert_eq!(manifest.source.command, "node");
         assert_eq!(
             manifest.source.input_mode,
             Some(ToolCommandInputMode::Stdin)
@@ -297,7 +265,6 @@ mod tests {
         assert!(encoded.get("runtime").is_none());
         assert!(encoded.get("output").is_none());
         assert!(encoded.get("source_hash").is_none());
-        assert!(encoded.get("risk").is_none());
         Ok(())
     }
 
@@ -333,19 +300,14 @@ mod tests {
             .into_iter()
             .collect(),
             scopes: Vec::new(),
-            risk: None,
             artifacts: None,
-            retry: None,
             idempotency: None,
         }
     }
 
     fn tool_source_fixture() -> ToolSource {
         ToolSource {
-            source_type: ToolSourceType::CliTool,
-            command: Some("node".to_owned()),
-            module: None,
-            javascript_export: None,
+            command: "node".to_owned(),
             args: Vec::new(),
             cwd: None,
             timeout_seconds: None,
@@ -405,7 +367,7 @@ mod tests {
             r#"{
               "ref": "fs.read",
               "name": "fs.read",
-              "execution_source_type": "native",
+              "execution": "native",
               "inputs": {},
               "scopes": ["fs.read"],
               "reference_path": "native:runx-runtime/filesystem:fs.read",

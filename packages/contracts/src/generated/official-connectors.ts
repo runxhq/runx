@@ -8113,6 +8113,389 @@ export const officialConnectors: readonly OfficialConnector[] = [
   },
   {
     "digests": {
+      "events.append": {
+        "implementation": "sha256:8cec63da8d52309f196c5bb814b1bc7ab21286306300efbfb0a096975c816527",
+        "operation": "sha256:119b64461ed02a4777e88755633b219563cc63c8bccc054b78f5418ce1c99e31"
+      },
+      "events.read": {
+        "implementation": "sha256:8cec63da8d52309f196c5bb814b1bc7ab21286306300efbfb0a096975c816527",
+        "operation": "sha256:c86e2d6ccacbb20ab1c7c473867efd7cc1096c0032c01ef188241dac4353ce22"
+      },
+      "heads.list": {
+        "implementation": "sha256:8cec63da8d52309f196c5bb814b1bc7ab21286306300efbfb0a096975c816527",
+        "operation": "sha256:826923a8e3ba8b3a8fd9d4e2ad2285f5f34f1c3610d86901526b7bad998a1627"
+      },
+      "projection.read": {
+        "implementation": "sha256:8cec63da8d52309f196c5bb814b1bc7ab21286306300efbfb0a096975c816527",
+        "operation": "sha256:edcf9534ef86f18ee18c012e09e1e61e3ac52ae293a2130b0eef48679905aa02"
+      }
+    },
+    "manifest": {
+      "auth": {
+        "credentials": {
+          "password": {
+            "delivery": {
+              "env": "RUNX_STORE_PASSWORD"
+            },
+            "fields": [
+              {
+                "label": "Store password",
+                "name": "password"
+              }
+            ],
+            "kind": "password"
+          }
+        },
+        "none": {}
+      },
+      "description": "Durable event streams for skills. Append an event when its stream is at the expected version, read a stream's events and projection, and list the newest stream heads. An instance's url chooses SQLite, Postgres or Redis; without one it is the workspace store.",
+      "id": "store",
+      "name": "Store",
+      "operations": {
+        "events.append": {
+          "credentials": [
+            "password"
+          ],
+          "description": "Append one event to a stream when the stream is at the expected version. The event is keyed by the call's idempotency key, so a repeated call answers as a replay; at another version the answer is a conflict and nothing is appended.",
+          "guarantees": {
+            "provider_idempotency": "enforced",
+            "readback": "exact"
+          },
+          "implementation": {
+            "store": {}
+          },
+          "input_schema": {
+            "additionalProperties": false,
+            "properties": {
+              "aggregate_id": {
+                "maxLength": 192,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]*$",
+                "type": "string"
+              },
+              "data_source_ref": {
+                "maxLength": 512,
+                "minLength": 1,
+                "type": "string"
+              },
+              "event": {
+                "type": "object"
+              },
+              "expected_version": {
+                "maximum": 9007199254740990,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "observed_at": {
+                "maxLength": 64,
+                "minLength": 1,
+                "type": "string"
+              },
+              "resource": {
+                "maxLength": 128,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "data_source_ref",
+              "resource",
+              "aggregate_id",
+              "expected_version",
+              "event"
+            ],
+            "type": "object"
+          },
+          "result_fields": [
+            "schema",
+            "data_source_ref",
+            "provider",
+            "operation",
+            "resource",
+            "aggregate_id",
+            "status",
+            "before_version",
+            "after_version",
+            "idempotency_key",
+            "event_ref",
+            "event_digest",
+            "result_digest",
+            "projection_digest",
+            "projection",
+            "events",
+            "rows",
+            "redactions",
+            "stop_conditions",
+            "provider_evidence"
+          ],
+          "scopes": [
+            "store.append"
+          ],
+          "target": {
+            "template": {
+              "$argument": "/data_source_ref"
+            }
+          },
+          "verb": "write"
+        },
+        "events.read": {
+          "credentials": [
+            "password"
+          ],
+          "description": "Read one page of a stream's events in ascending order, the latest page when no after_version is given.",
+          "implementation": {
+            "store": {}
+          },
+          "input_schema": {
+            "additionalProperties": false,
+            "properties": {
+              "after_version": {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "aggregate_id": {
+                "maxLength": 192,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]*$",
+                "type": "string"
+              },
+              "data_source_ref": {
+                "maxLength": 512,
+                "minLength": 1,
+                "type": "string"
+              },
+              "limit": {
+                "maximum": 500,
+                "minimum": 1,
+                "type": "integer"
+              },
+              "resource": {
+                "maxLength": 128,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "data_source_ref",
+              "resource",
+              "aggregate_id"
+            ],
+            "type": "object"
+          },
+          "result_fields": [
+            "schema",
+            "data_source_ref",
+            "provider",
+            "operation",
+            "resource",
+            "aggregate_id",
+            "status",
+            "before_version",
+            "after_version",
+            "idempotency_key",
+            "event_ref",
+            "event_digest",
+            "result_digest",
+            "projection_digest",
+            "projection",
+            "limit",
+            "next_after_version",
+            "has_more",
+            "events",
+            "rows",
+            "redactions",
+            "stop_conditions",
+            "provider_evidence"
+          ],
+          "scopes": [
+            "store.read"
+          ],
+          "target": {
+            "template": {
+              "$argument": "/data_source_ref"
+            }
+          },
+          "verb": "read"
+        },
+        "heads.list": {
+          "credentials": [
+            "password"
+          ],
+          "description": "List one page of a resource's stream heads, newest first, optionally only those whose latest event has one of the given types.",
+          "implementation": {
+            "store": {}
+          },
+          "input_schema": {
+            "additionalProperties": false,
+            "properties": {
+              "cursor": {
+                "maxLength": 1024,
+                "minLength": 1,
+                "type": "string"
+              },
+              "data_source_ref": {
+                "maxLength": 512,
+                "minLength": 1,
+                "type": "string"
+              },
+              "event_types": {
+                "items": {
+                  "maxLength": 128,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "maxItems": 20,
+                "type": "array"
+              },
+              "limit": {
+                "maximum": 100,
+                "minimum": 1,
+                "type": "integer"
+              },
+              "resource": {
+                "maxLength": 128,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "data_source_ref",
+              "resource"
+            ],
+            "type": "object"
+          },
+          "result_fields": [
+            "schema",
+            "data_source_ref",
+            "provider",
+            "operation",
+            "resource",
+            "aggregate_id",
+            "status",
+            "before_version",
+            "after_version",
+            "idempotency_key",
+            "event_ref",
+            "event_digest",
+            "result_digest",
+            "projection_digest",
+            "projection",
+            "events",
+            "rows",
+            "redactions",
+            "stop_conditions",
+            "provider_evidence"
+          ],
+          "scopes": [
+            "store.read"
+          ],
+          "target": {
+            "template": {
+              "$argument": "/data_source_ref"
+            }
+          },
+          "verb": "read"
+        },
+        "projection.read": {
+          "credentials": [
+            "password"
+          ],
+          "description": "Read a stream's projection, its version and last event, with the digest that chains its events.",
+          "implementation": {
+            "store": {}
+          },
+          "input_schema": {
+            "additionalProperties": false,
+            "properties": {
+              "aggregate_id": {
+                "maxLength": 192,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]*$",
+                "type": "string"
+              },
+              "data_source_ref": {
+                "maxLength": 512,
+                "minLength": 1,
+                "type": "string"
+              },
+              "resource": {
+                "maxLength": 128,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "data_source_ref",
+              "resource",
+              "aggregate_id"
+            ],
+            "type": "object"
+          },
+          "result_fields": [
+            "schema",
+            "data_source_ref",
+            "provider",
+            "operation",
+            "resource",
+            "aggregate_id",
+            "status",
+            "before_version",
+            "after_version",
+            "idempotency_key",
+            "event_ref",
+            "event_digest",
+            "result_digest",
+            "projection_digest",
+            "projection",
+            "events",
+            "rows",
+            "redactions",
+            "stop_conditions",
+            "provider_evidence"
+          ],
+          "scopes": [
+            "store.read"
+          ],
+          "target": {
+            "template": {
+              "$argument": "/data_source_ref"
+            }
+          },
+          "verb": "read"
+        }
+      },
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "url": {
+            "description": "Where the streams live. sqlite:<path> (relative to the workspace), postgres://user@host:port/db (TLS unless ?sslmode=disable), or redis:// and rediss://. Never a password; bind that as the instance's credential.",
+            "maxLength": 2048,
+            "minLength": 1,
+            "pattern": "^(sqlite:.+|(postgres|postgresql|redis|rediss)://([^:@/]+@)?[^@]+)$",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "placements": {
+        "local": {
+          "auth": [
+            "none",
+            "credentials"
+          ]
+        }
+      },
+      "schema": "runx.connector.v1"
+    },
+    "manifest_digest": "sha256:1c07258ccbc68ad358b9c9a0a906906cfeb3ab3a13aa29eed14ca2d933760436"
+  },
+  {
+    "digests": {
       "dispute.file": {
         "operation": "sha256:3a8c79f7154e46d6a9e1903ea9ecd179bf13cd90c594a2267fe0a76844e4ec45"
       },

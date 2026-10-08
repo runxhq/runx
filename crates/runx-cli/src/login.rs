@@ -142,7 +142,7 @@ pub fn parse_login_plan(args: &[OsString]) -> Result<LoginPlan, String> {
                 provider = Some(value);
                 index = next_index;
             }
-            "--for" | "--purpose" => {
+            "--for" => {
                 let (value, next_index) = flag_value(args, index, flag, inline_value, "login")?;
                 purpose = Some(match value.as_str() {
                     "default" => HostedApiCredentialPurpose::Default,

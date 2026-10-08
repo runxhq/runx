@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://schemas.runx.ai/runx/payment/dispute_response/v1.json",
   "x-runx-packet-id": "runx.payment.dispute_response.v1",
-  "x-runx-generated-from": "skills/dispute-respond/X.yaml#root.runners.respond.graph.steps.3",
+  "x-runx-generated-from": "skills/dispute-respond/run.yaml#root.runners.respond.steps.3",
   "additionalProperties": false,
   "properties": {
     "decision": {

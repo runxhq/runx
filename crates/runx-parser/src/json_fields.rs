@@ -131,27 +131,6 @@ impl JsonFieldReader {
         }
     }
 
-    pub(crate) fn optional_u64(
-        &self,
-        value: Option<&JsonValue>,
-        field: &str,
-    ) -> Result<Option<u64>, ValidationError> {
-        match value {
-            None | Some(JsonValue::Null) => Ok(None),
-            Some(JsonValue::Number(number)) => {
-                let Some(value) = number.as_f64() else {
-                    return Err(self.validation_error(format!("{field} must be a finite number.")));
-                };
-                if value.fract() == 0.0 && value >= 0.0 && value <= u64::MAX as f64 {
-                    Ok(Some(value as u64))
-                } else {
-                    Err(self.validation_error(format!("{field} must be a positive integer.")))
-                }
-            }
-            Some(_) => Err(self.validation_error(format!("{field} must be a finite number."))),
-        }
-    }
-
     pub(crate) fn reject_unknown_fields(
         &self,
         object: &JsonObject,
@@ -167,16 +146,6 @@ impl JsonFieldReader {
             }
         }
         Ok(())
-    }
-}
-
-pub(crate) fn first_value<'a>(
-    left: Option<&'a JsonValue>,
-    right: Option<&'a JsonValue>,
-) -> Option<&'a JsonValue> {
-    match left {
-        None | Some(JsonValue::Null) => right,
-        Some(value) => Some(value),
     }
 }
 

@@ -1,0 +1,311 @@
+skill: release
+version: "0.4.5"
+
+catalog:
+  kind: graph
+  audience: public
+  visibility: public
+  role: canonical
+  execution: execute
+  completion: provider_readback
+  requires_adapter: false
+  approval: required
+  category: code
+
+runners:
+  prepare:
+    inputs:
+      project_root: { type: string, required: true, description: Existing project directory relative to the Runx workspace. }
+      profile_ref: { type: string, required: true, description: JSON release profile inside project_root. }
+      channel: { type: string, required: true, description: Release channel declared by the profile. }
+      version: { type: string, required: true, description: Exact SemVer release version. }
+      last_tag: { type: string, required: false, description: Previous release anchor for notes. }
+      operator_context: { type: string, required: false, description: "Bounded release context, never authority." }
+    result_from: [finalize-ready-brief, finalize-blocked-brief]
+    steps:
+      - id: read-profile
+        tool: fs.read
+        scopes: [fs.read]
+        inputs:
+          repo_root: $input.project_root
+          path: $input.profile_ref
+          max_bytes: 65536
+      - id: inspect-profile
+        inputs:
+          project_root: $input.project_root
+          channel: $input.channel
+          version: $input.version
+          last_tag: $input.last_tag
+          operator_context: $input.operator_context
+        context:
+          profile_file: read-profile.file_read.data
+        tool: { module: release.mjs, export: inspectProfile }
+        outputs:
+          release_context:
+            type: object
+            schema:
+              required: [schema, profile_id, profile_ref, profile_digest, project_root, channel, version, last_tag, operator_context, commands]
+              additionalProperties: false
+              properties:
+                schema: { const: runx.release.context.v1 }
+                profile_id: { type: string, minLength: 1, maxLength: 256 }
+                profile_ref: { type: string, minLength: 1, maxLength: 2000 }
+                profile_digest: { type: string, pattern: '^sha256:[0-9a-f]{64}$' }
+                project_root: { type: string, minLength: 1, maxLength: 4000 }
+                channel: { type: string, pattern: '^[a-z0-9][a-z0-9._-]*$', maxLength: 128 }
+                version: { type: string, minLength: 1, maxLength: 128 }
+                last_tag: { type: string, maxLength: 256 }
+                operator_context: { type: string, maxLength: 2000 }
+                commands:
+                  type: object
+                  required: [prepare, publish, verify]
+                  additionalProperties: false
+                  propertyNames: { enum: [prepare, publish, verify] }
+                  patternProperties:
+                    '^(prepare|publish|verify)$':
+                      type: object
+                      required: [command, args, cwd, timeout_ms, env]
+                      additionalProperties: false
+                      properties:
+                        command: { type: string, minLength: 1, maxLength: 2000 }
+                        args: { type: array, maxItems: 63, items: { type: string, minLength: 1, maxLength: 2000 } }
+                        cwd: { type: string, minLength: 1, maxLength: 512 }
+                        timeout_ms: { type: integer, minimum: 1000, maximum: 3600000 }
+                        env:
+                          type: object
+                          required: [RUNX_RELEASE_PHASE, RUNX_RELEASE_VERSION, RUNX_RELEASE_CHANNEL, RUNX_RELEASE_PROFILE_ID]
+                          additionalProperties: false
+                          properties:
+                            RUNX_RELEASE_PHASE: { type: string, enum: [prepare, publish, verify] }
+                            RUNX_RELEASE_VERSION: { type: string, minLength: 1, maxLength: 128 }
+                            RUNX_RELEASE_CHANNEL: { type: string, minLength: 1, maxLength: 128 }
+                            RUNX_RELEASE_PROFILE_ID: { type: string, minLength: 1, maxLength: 256 }
+                        command_digest: { type: string, pattern: '^sha256:[0-9a-f]{64}$' }
+        artifacts:
+          named_emits: { release_context: release_context }
+          packets: { release_context: runx.release.context.v1 }
+      - id: plan-prepare
+        tool: command.plan
+        inputs:
+          output_mode: json
+        context:
+          repo_root: inspect-profile.release_context.data.project_root
+          command: inspect-profile.release_context.data.commands.prepare.command
+          args: inspect-profile.release_context.data.commands.prepare.args
+          cwd: inspect-profile.release_context.data.commands.prepare.cwd
+          env: inspect-profile.release_context.data.commands.prepare.env
+          timeout_ms: inspect-profile.release_context.data.commands.prepare.timeout_ms
+      - id: plan-publish
+        tool: command.plan
+        inputs:
+          output_mode: json
+        context:
+          repo_root: inspect-profile.release_context.data.project_root
+          command: inspect-profile.release_context.data.commands.publish.command
+          args: inspect-profile.release_context.data.commands.publish.args
+          cwd: inspect-profile.release_context.data.commands.publish.cwd
+          env: inspect-profile.release_context.data.commands.publish.env
+          timeout_ms: inspect-profile.release_context.data.commands.publish.timeout_ms
+      - id: plan-verify
+        tool: command.plan
+        inputs:
+          output_mode: json
+        context:
+          repo_root: inspect-profile.release_context.data.project_root
+          command: inspect-profile.release_context.data.commands.verify.command
+          args: inspect-profile.release_context.data.commands.verify.args
+          cwd: inspect-profile.release_context.data.commands.verify.cwd
+          env: inspect-profile.release_context.data.commands.verify.env
+          timeout_ms: inspect-profile.release_context.data.commands.verify.timeout_ms
+      - id: execute-prepare
+        tool: command.execute
+        scopes: [process.exec, runx:release:prepare]
+        inputs:
+          output_mode: json
+        context:
+          repo_root: inspect-profile.release_context.data.project_root
+          command: inspect-profile.release_context.data.commands.prepare.command
+          args: inspect-profile.release_context.data.commands.prepare.args
+          cwd: inspect-profile.release_context.data.commands.prepare.cwd
+          env: inspect-profile.release_context.data.commands.prepare.env
+          timeout_ms: inspect-profile.release_context.data.commands.prepare.timeout_ms
+          expected_command_digest: plan-prepare.command_plan.data.command_digest
+      - id: interpret-prepare
+        inputs: { phase: prepare }
+        context:
+          release_context: inspect-profile.release_context.data
+          command_execution: execute-prepare.command_execution.data
+          command_plan: plan-prepare.command_plan.data
+        tool: { module: release.mjs, export: interpretPhase }
+        outputs:
+          preparation:
+            type: object
+            schema:
+              required: [schema, phase, status, profile_id, profile_digest, command_digest, channel, version, observed, evidence, errors]
+              additionalProperties: false
+              properties:
+                schema: { const: runx.release.phase_result.v1 }
+                phase: { type: string, enum: [prepare, publish, verify] }
+                status: { type: string, enum: [ready, command_completed, verified, failed] }
+                profile_id: { type: string, minLength: 1, maxLength: 256 }
+                profile_digest: { type: string, pattern: '^sha256:[0-9a-f]{64}$' }
+                command_digest: { type: string, pattern: '^sha256:[0-9a-f]{64}$' }
+                channel: { type: string, minLength: 1, maxLength: 128 }
+                version: { type: string, minLength: 1, maxLength: 128 }
+                observed:
+                  type: object
+                  required: [status, version, channel, release_id, commit_ref, locators, checks]
+                  additionalProperties: false
+                  properties:
+                    status: { type: string, maxLength: 64 }
+                    version: { type: string, maxLength: 128 }
+                    channel: { type: string, maxLength: 128 }
+                    release_id: { type: string, maxLength: 512 }
+                    commit_ref: { type: string, maxLength: 512 }
+                    locators: { type: array, maxItems: 50, uniqueItems: true, items: { type: string, minLength: 1, maxLength: 2000 } }
+                    checks:
+                      type: object
+                      maxProperties: 100
+                      propertyNames: { minLength: 1, maxLength: 128 }
+                      additionalProperties: { type: [string, boolean], maxLength: 500 }
+                evidence:
+                  type: object
+                  required: [stdout_digest, stderr_digest, exit_code, timed_out, duration_ms, stdout_truncated, stderr_truncated]
+                  additionalProperties: false
+                  properties:
+                    stdout_digest: { type: string, pattern: '^sha256:[0-9a-f]{64}$' }
+                    stderr_digest: { type: string, pattern: '^sha256:[0-9a-f]{64}$' }
+                    exit_code: { type: integer }
+                    timed_out: { type: boolean }
+                    duration_ms: { type: integer, minimum: 0 }
+                    stdout_truncated: { type: boolean }
+                    stderr_truncated: { type: boolean }
+                errors: { type: array, maxItems: 20, items: { type: object, maxProperties: 20 } }
+        artifacts:
+          named_emits: { preparation: preparation }
+          packets: { preparation: runx.release.phase_result.v1 }
+      - id: draft-notes
+        when:
+          field: interpret-prepare.preparation.data.status
+          equals: ready
+        agent: { role: builder, task: release-notes }
+        outputs: { release_notes: object }
+        context:
+          release_context: inspect-profile.release_context.data
+          preparation: interpret-prepare.preparation.data
+        artifacts:
+          named_emits: { release_notes: release_notes }
+      - id: finalize-ready-brief
+        when:
+          field: interpret-prepare.preparation.data.status
+          equals: ready
+        context:
+          release_context: inspect-profile.release_context.data
+          preparation: interpret-prepare.preparation.data
+          release_notes: draft-notes.release_notes.data
+          prepare_plan: plan-prepare.command_plan.data
+          publish_plan: plan-publish.command_plan.data
+          verify_plan: plan-verify.command_plan.data
+        tool: { module: release.mjs, export: finalizeBrief }
+        outputs: { release_context: object, release_brief: object }
+        artifacts:
+          named_emits: { release_context: release_context, release_brief: release_brief }
+          packets: { release_context: runx.release.context.v1, release_brief: runx.release.brief.v1 }
+      - id: finalize-blocked-brief
+        when:
+          field: interpret-prepare.preparation.data.status
+          equals: failed
+        context:
+          release_context: inspect-profile.release_context.data
+          preparation: interpret-prepare.preparation.data
+          prepare_plan: plan-prepare.command_plan.data
+          publish_plan: plan-publish.command_plan.data
+          verify_plan: plan-verify.command_plan.data
+        tool: { module: release.mjs, export: finalizeBrief }
+        outputs: { release_context: object, release_brief: object }
+        artifacts:
+          named_emits: { release_context: release_context, release_brief: release_brief }
+          packets: { release_context: runx.release.context.v1, release_brief: runx.release.brief.v1 }
+  release:
+    default: true
+    inputs:
+      project_root: { type: string, required: true, description: Existing project directory relative to the Runx workspace. }
+      profile_ref: { type: string, required: true, description: JSON release profile inside project_root. }
+      channel: { type: string, required: true, description: Release channel declared by the profile. }
+      version: { type: string, required: true, description: Exact SemVer release version. }
+      last_tag: { type: string, required: false, description: Previous release anchor for notes. }
+      operator_context: { type: string, required: false, description: "Bounded release context, never authority." }
+    result_from: [interpret-verify]
+    steps:
+      - id: prepare
+        skill: .
+        runner: prepare
+        inputs:
+          project_root: $input.project_root
+          profile_ref: $input.profile_ref
+          channel: $input.channel
+          version: $input.version
+          last_tag: $input.last_tag
+          operator_context: $input.operator_context
+      - id: approve-publish
+        ask: { gate: release.publish.approval, reason: "Approve this exact version, channel, profile digest, and native command-plan digest." }
+        context: { release_brief: prepare.release_brief.data }
+      - id: execute-publish
+        tool: command.execute
+        scopes: [process.exec, runx:release:publish]
+        inputs:
+          output_mode: json
+        context:
+          repo_root: prepare.release_context.data.project_root
+          command: prepare.release_context.data.commands.publish.command
+          args: prepare.release_context.data.commands.publish.args
+          cwd: prepare.release_context.data.commands.publish.cwd
+          env: prepare.release_context.data.commands.publish.env
+          timeout_ms: prepare.release_context.data.commands.publish.timeout_ms
+          expected_command_digest: prepare.release_context.data.commands.publish.command_digest
+      - id: interpret-publish
+        inputs: { phase: publish }
+        context:
+          release_context: prepare.release_context.data
+          command_execution: execute-publish.command_execution.data
+        tool: { module: release.mjs, export: interpretPhase }
+        outputs: { publication: object }
+        artifacts:
+          named_emits: { publication: publication }
+          packets: { publication: runx.release.phase_result.v1 }
+      - id: execute-verify
+        tool: command.execute
+        scopes: [process.exec, runx:release:verify]
+        inputs:
+          output_mode: json
+        context:
+          repo_root: prepare.release_context.data.project_root
+          command: prepare.release_context.data.commands.verify.command
+          args: prepare.release_context.data.commands.verify.args
+          cwd: prepare.release_context.data.commands.verify.cwd
+          env: prepare.release_context.data.commands.verify.env
+          timeout_ms: prepare.release_context.data.commands.verify.timeout_ms
+          expected_command_digest: prepare.release_context.data.commands.verify.command_digest
+      - id: interpret-verify
+        inputs: { phase: verify }
+        context:
+          release_context: prepare.release_context.data
+          command_execution: execute-verify.command_execution.data
+        tool: { module: release.mjs, export: interpretPhase }
+        outputs: { verification: object }
+        artifacts:
+          named_emits: { verification: verification }
+          packets: { verification: runx.release.phase_result.v1 }
+    policy:
+      guards:
+        - { step: approve-publish, field: prepare.release_brief.data.decision, equals: ready_for_approval }
+        - { step: execute-publish, field: prepare.release_brief.data.decision, equals: ready_for_approval }
+        - { step: execute-publish, field: approve-publish.approval_decision.data.approved, equals: true }
+        - { step: interpret-publish, field: approve-publish.approval_decision.data.approved, equals: true }
+        - { step: execute-verify, field: interpret-publish.publication.data.status, equals: command_completed }
+        - { step: execute-verify, field: approve-publish.approval_decision.data.approved, equals: true }
+        - { step: interpret-verify, field: interpret-publish.publication.data.status, equals: command_completed }
+
+harness:
+  files: [fixtures/support/release-blocked-fixture.graph, fixtures/support/release-fixture.graph, fixtures/support/setup_release_fixture.mjs]
+  cases: []

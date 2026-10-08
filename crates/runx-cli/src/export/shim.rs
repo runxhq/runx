@@ -50,7 +50,7 @@ fn render_shim(
     output.push_str(&indent_block(&skill.description));
     if target == Target::Claude {
         output.push_str(&format!(
-            "allowed-tools: Bash({} skill *), Bash({} resume *)\n",
+            "allowed-tools: Bash({} skill *) Bash({} resume *)\n",
             shell_quote(&runx_bin),
             shell_quote(&runx_bin),
         ));

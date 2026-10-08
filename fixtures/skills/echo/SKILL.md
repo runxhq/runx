@@ -1,6 +1,6 @@
 ---
 name: echo
-description: Echo a message through the cli-tool adapter.
+description: Echo a message through a process tool.
 ---
 
 Echo the provided message.

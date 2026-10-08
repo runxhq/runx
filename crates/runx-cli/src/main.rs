@@ -110,7 +110,6 @@ fn dispatch_command(action: RouterAction, workspace: &runx_runtime::WorkspaceEnv
         RouterAction::RunCredential(plan) => {
             runx_cli::credential::run_native_credential_with_workspace(plan, workspace)
         }
-        RouterAction::RunData(plan) => runx_cli::data::run_native_data(plan, workspace),
         RouterAction::RunAssistant(plan) => {
             runx_cli::assistant::run_native_assistant(plan, workspace)
         }
@@ -353,11 +352,11 @@ fn contains_skill_package(paths: &[OsString]) -> bool {
 
 // A harness target is a skill package when it
 // is a SKILL.md file, or a directory that actually holds a skill package
-// (a SKILL.md or X.yaml). A plain directory of fixture `.yaml` files is NOT a
+// (a SKILL.md or run.yaml). A plain directory of fixture `.yaml` files is NOT a
 // skill package and falls through to standalone fixture replay.
 fn is_skill_package(path: &Path) -> bool {
     if path.is_dir() {
-        return path.join("SKILL.md").exists() || path.join("X.yaml").exists();
+        return path.join("SKILL.md").exists() || path.join(runx_parser::PROFILE_FILE).exists();
     }
     path.file_name()
         .and_then(|name| name.to_str())

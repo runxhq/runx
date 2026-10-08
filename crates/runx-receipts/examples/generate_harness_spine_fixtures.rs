@@ -62,8 +62,6 @@ fn main() {
     });
     write_canonical_json(&canonical.join("runx-receipt-c14n-v1.oracles.json"), oracle);
 
-    // Remove the retired old-shape oracle.
-
     println!("regenerated harness-spine fixtures + receipt c14n oracle");
 }
 
@@ -130,7 +128,7 @@ fn base(id: &str, kind: NonEmptyString, subject_id: &str) -> Receipt {
         class: runx_contracts::ReceiptClass::Executed,
         subject: Subject {
             kind,
-            reference: Reference::runx(ReferenceType::Harness, subject_id),
+            reference: Reference::runx(ReferenceType::Run, subject_id),
             input_context: Some(ReceiptInputContext {
                 source: format!("runx:signal:{subject_id}").into(),
                 preview: format!("Run {subject_id}"),
@@ -207,7 +205,7 @@ fn observation_act(
     ReceiptAct {
         id: id.into(),
         form: ActForm::Observation,
-        intent: observation_intent("process_exit", "cli-tool exits successfully"),
+        intent: observation_intent("process_exit", "process exits successfully"),
         summary: summary.into(),
         criterion_bindings: vec![CriterionBinding {
             criterion_id: "process_exit".into(),
@@ -260,7 +258,7 @@ fn open_decision(act_id: &str) -> Decision {
 
 fn success_receipt() -> Receipt {
     let mut receipt = base(
-        "hrn_rcpt_echo_success",
+        "rcpt_echo_success",
         receipt_subject_kind::SKILL.into(),
         "echo_success",
     );
@@ -269,16 +267,16 @@ fn success_receipt() -> Receipt {
         "Executed graph step echo",
         CriterionStatus::Verified,
         ClosureDisposition::Closed,
-        "cli-tool exited successfully",
+        "process exited successfully",
     )];
     receipt.decisions = vec![open_decision("act_echo")];
-    receipt.seal.summary = "cli-tool exited successfully".into();
+    receipt.seal.summary = "process exited successfully".into();
     receipt.seal.criteria = vec![CriterionBinding {
         criterion_id: "process_exit".into(),
         status: CriterionStatus::Verified,
         evidence_refs: Vec::new(),
         verification_refs: Vec::new(),
-        summary: Some("cli-tool exited successfully".into()),
+        summary: Some("process exited successfully".into()),
     }];
     receipt.signals = vec![Reference::runx(ReferenceType::Signal, "echo_success")];
     receipt
@@ -286,7 +284,7 @@ fn success_receipt() -> Receipt {
 
 fn abnormal_receipt() -> Receipt {
     let mut receipt = base(
-        "hrn_rcpt_echo_abnormal",
+        "rcpt_echo_abnormal",
         receipt_subject_kind::SKILL.into(),
         "echo_abnormal",
     );
@@ -295,18 +293,18 @@ fn abnormal_receipt() -> Receipt {
         "Executed graph step echo",
         CriterionStatus::Failed,
         ClosureDisposition::Failed,
-        "cli-tool failed",
+        "process failed",
     )];
     receipt.decisions = vec![open_decision("act_echo")];
     receipt.seal.disposition = ClosureDisposition::Failed;
     receipt.seal.reason_code = "process_failed".into();
-    receipt.seal.summary = "cli-tool failed".into();
+    receipt.seal.summary = "process failed".into();
     receipt.seal.criteria = vec![CriterionBinding {
         criterion_id: "process_exit".into(),
         status: CriterionStatus::Failed,
         evidence_refs: Vec::new(),
         verification_refs: Vec::new(),
-        summary: Some("cli-tool failed".into()),
+        summary: Some("process failed".into()),
     }];
     receipt
 }

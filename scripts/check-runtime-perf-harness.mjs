@@ -65,10 +65,7 @@ try {
     throw new Error("runtime perf harness accepted a growth gate without measured scale evidence");
   }
 
-  writeQualityFixture(qualityPassingPath, {
-    fanoutSpawnCount: 3,
-    fanoutPeakInFlight: 3,
-  });
+  writeQualityFixture(qualityPassingPath, {});
   const qualityPass = runQualityVerification(qualityPassingPath);
   if (qualityPass.status !== 0) {
     process.stderr.write(qualityPass.stderr || qualityPass.stdout);
@@ -76,15 +73,14 @@ try {
   }
 
   writeQualityFixture(qualityFailingPath, {
-    fanoutSpawnCount: 5,
-    fanoutPeakInFlight: 5,
+    sessionSpawnCount: 2,
     worktreeDirty: true,
   });
   const qualityFail = runQualityVerification(qualityFailingPath);
   if (qualityFail.status === 0) {
     throw new Error("runtime perf harness accepted invalid release-quality evidence");
   }
-  for (const expectedDiagnostic of ["worktree_clean", "fanout_spawn_count", "fanout_peak_in_flight"]) {
+  for (const expectedDiagnostic of ["worktree_clean", "session_spawn_count"]) {
     if (!qualityFail.stdout.includes(expectedDiagnostic)) {
       throw new Error(`runtime quality failure did not name ${expectedDiagnostic}`);
     }
@@ -185,8 +181,7 @@ function writeFixture(filePath, metric) {
 function writeQualityFixture(
   filePath,
   {
-    fanoutSpawnCount,
-    fanoutPeakInFlight,
+    sessionSpawnCount = 1,
     worktreeDirty = false,
   },
 ) {
@@ -199,18 +194,11 @@ function writeQualityFixture(
       workloads: {
         native_capability_dispatch: {
           sample_count: 10,
-          spawn_count: 0,
-          peak_in_flight: 0,
         },
         pure_module_session_reuse: {
           sample_count: 10,
-          spawn_count: 1,
+          spawn_count: sessionSpawnCount,
           peak_in_flight: 1,
-        },
-        bounded_parallel_fanout: {
-          sample_count: 10,
-          spawn_count: fanoutSpawnCount,
-          peak_in_flight: fanoutPeakInFlight,
         },
       },
     }, null, 2)}\n`,
@@ -251,11 +239,9 @@ function assertArchitectureWorkloads() {
     "pure_module_cold_start",
     "pure_module_session_reuse",
     "pure_module_large_input",
-    "bounded_parallel_fanout",
     "provider_effect_finality",
     "artifact_admission",
     "artifact_page_continuation",
-    "event_page_continuation",
     "twitter_archive_selection",
   ];
   const processExpected = ["cli_file_input"];
@@ -286,7 +272,6 @@ function assertArchitectureWorkloads() {
   const benchmarkSource = [
     "crates/runx-runtime/benches/graph_throughput/runtime_paths.rs",
     "crates/runx-runtime/benches/graph_throughput/volume_paths/artifact_io.rs",
-    "crates/runx-runtime/benches/graph_throughput/volume_paths/event_paging.rs",
     "crates/runx-runtime/benches/graph_throughput/volume_paths/twitter_selection.rs",
   ]
     .map((relative) => readFileSync(path.join(workspaceRoot, relative), "utf8"))
@@ -296,23 +281,6 @@ function assertArchitectureWorkloads() {
     const registered = benchmarkSource.includes(`c, "${workload}"`);
     if (!direct && !registered) {
       throw new Error(`runtime benchmark implementation is missing ${workload}`);
-    }
-  }
-
-  const graphBenchmarkSource = readFileSync(
-    path.join(workspaceRoot, "crates/runx-runtime/benches/graph_throughput.rs"),
-    "utf8",
-  );
-  for (const retiredReimplementation of [
-    "context_projection",
-    "output_projection",
-    "fn project_context(",
-    "fn project_output(",
-  ]) {
-    if (graphBenchmarkSource.includes(retiredReimplementation)) {
-      throw new Error(
-        `runtime benchmark must not restore benchmark-only projection path ${retiredReimplementation}`,
-      );
     }
   }
 

@@ -17,8 +17,7 @@ pub(super) fn invoke(
     mut request: SkillInvocation,
     artifacts: &LocalArtifactService,
 ) -> Result<InvocationOutput, RuntimeError> {
-    let page_source = request
-        .source
+    let page_source = super::worker(&request)?
         .pages
         .clone()
         .ok_or_else(|| page_error("missing page source"))?;

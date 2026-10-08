@@ -1,8 +1,6 @@
-# Kernel Parity Fixtures
+# Kernel Fixtures
 
-These fixtures are regression evidence for the Rust trusted-kernel port. The
-old TypeScript state-machine and policy implementations are retired; the active
-owner is `runx-core`.
+These fixtures are regression evidence for `runx-core`, the trusted kernel.
 
 Each fixture has:
 
@@ -36,12 +34,11 @@ relative refs under `fixtures/kernel/schema/` that the in-tree validator
 recognizes.
 
 All fixture JSON is sorted lexicographically at every object boundary. The
-Rust port must use deterministic serde boundary types such as `BTreeMap` for
-object-keyed maps so fixture comparison is stable across languages.
+kernel uses deterministic serde boundary types such as `BTreeMap` for
+object-keyed maps so fixture comparison is stable.
 
-Deduplicated arrays preserve first-seen insertion order from the TypeScript
-oracle. Rust ports must use insertion-preserving deduplication for arrays such
-as `requestedScopes`, `grantedScopes`, `stepIds`, and `contextFrom`; do not use
+Deduplicated arrays preserve first-seen insertion order. The kernel uses
+insertion-preserving deduplication for arrays such as `requestedScopes`, `grantedScopes`, `stepIds`, and `contextFrom`; do not use
 `HashSet` or `BTreeSet` at serialized array boundaries.
 
 Optional fields whose TypeScript value is `undefined` are omitted from the
@@ -57,7 +54,7 @@ deterministic `BTreeMap`-backed objects rather than public
 `serde_json::Value`.
 
 The Rust policy fixture runner lives in
-`crates/runx-core/tests/policy_fixtures.rs`. Rust policy fixtures are policy parity evidence for `runx-core::policy`; they do not make Rust policy runtime-authoritative.
+`crates/runx-core/tests/policy_fixtures.rs`.
 Current policy fixtures cover authority proof, credential binding, scope
 admission, public work, local admission, grant attenuation, retry
 admission, and graph-scope admission. Domain-specific authority comparators

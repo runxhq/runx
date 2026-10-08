@@ -124,7 +124,7 @@ function runRegistryResolverDogfood() {
     mkdirSync(skillDir, { recursive: true });
     writeFileSync(skillDirPath(skillDir, "SKILL.md"), "---\nname: echo\n---\n# Echo\n", "utf8");
     writeFileSync(
-      skillDirPath(skillDir, "X.yaml"),
+      skillDirPath(skillDir, "run.yaml"),
       [
         "skill: echo",
         "harness:",

@@ -4,12 +4,6 @@ Python SDK for [runx](https://runx.ai) — the governed runtime for agent skills
 
 `runx-py` is a thin Python client over the `runx` CLI JSON output. Install the CLI separately (`@runxhq/cli` on npm), then use this package from Python to search and run skills, continue runs awaiting agent input, and format host protocol results for popular agent frameworks.
 
-## Rust takeover boundary
-
-`runx-py` remains a thin client over the `runx` CLI JSON contract after the
-Rust takeover. CLI JSON output preservation keeps this package working through
-the cutover.
-
 See the [TypeScript interop boundary](../../docs/ts-interop-boundary.md) for
 the package disposition and ownership rules.
 

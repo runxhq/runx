@@ -1,30 +1,16 @@
-use std::collections::{BTreeMap, BTreeSet};
-
 use super::super::types::{
-    FanoutGroupPolicy, GraphStepStatus, SequentialGraphPlan, SequentialGraphState,
-    SequentialGraphStepDefinition,
-};
-use super::fanout_group::{
-    FanoutGroupPlan, contiguous_fanout_group, fanout_group_id, plan_fanout_group,
+    GraphStepStatus, SequentialGraphPlan, SequentialGraphState, SequentialGraphStepDefinition,
 };
 use super::index::SequentialGraphStepIndex;
-use super::step_readiness::{missing_context_at, retry_budget_exhausted};
+use super::step_readiness::{missing_context_at, step_failed};
 
 #[must_use]
 pub fn plan_sequential_graph_transition(
     state: &SequentialGraphState,
     steps: &[SequentialGraphStepDefinition],
-    fanout_policies: &BTreeMap<String, FanoutGroupPolicy>,
-    resolved_fanout_gate_keys: Option<&BTreeSet<String>>,
 ) -> SequentialGraphPlan {
     let step_index = SequentialGraphStepIndex::new(steps);
-    plan_sequential_graph_transition_indexed(
-        state,
-        steps,
-        &step_index,
-        fanout_policies,
-        resolved_fanout_gate_keys,
-    )
+    plan_sequential_graph_transition_indexed(state, steps, &step_index)
 }
 
 #[must_use]
@@ -32,8 +18,6 @@ pub fn plan_sequential_graph_transition_indexed(
     state: &SequentialGraphState,
     steps: &[SequentialGraphStepDefinition],
     step_index: &SequentialGraphStepIndex,
-    fanout_policies: &BTreeMap<String, FanoutGroupPolicy>,
-    resolved_fanout_gate_keys: Option<&BTreeSet<String>>,
 ) -> SequentialGraphPlan {
     if let Some(running_step) = state
         .steps
@@ -43,18 +27,10 @@ pub fn plan_sequential_graph_transition_indexed(
         return SequentialGraphPlan::Blocked {
             step_id: running_step.step_id.clone(),
             reason: "step is already running".to_owned(),
-            sync_decision: None,
         };
     }
 
-    plan_sequential_graph_transition_indexed_from(
-        state,
-        steps,
-        step_index,
-        fanout_policies,
-        resolved_fanout_gate_keys,
-        0,
-    )
+    plan_sequential_graph_transition_indexed_from(state, steps, step_index, 0)
 }
 
 /// Plan from a cursor whose preceding steps are known to be terminal.
@@ -67,8 +43,6 @@ pub fn plan_sequential_graph_transition_indexed_from(
     state: &SequentialGraphState,
     steps: &[SequentialGraphStepDefinition],
     step_index: &SequentialGraphStepIndex,
-    fanout_policies: &BTreeMap<String, FanoutGroupPolicy>,
-    resolved_fanout_gate_keys: Option<&BTreeSet<String>>,
     start_index: usize,
 ) -> SequentialGraphPlan {
     debug_assert!(state.steps.iter().take(start_index).all(|step| matches!(
@@ -76,34 +50,11 @@ pub fn plan_sequential_graph_transition_indexed_from(
         GraphStepStatus::Succeeded | GraphStepStatus::Skipped
     )));
 
-    let mut index = start_index.min(steps.len());
-    while index < steps.len() {
-        let step_definition = &steps[index];
-        if let Some(group_id) = fanout_group_id(step_definition) {
-            let group_steps = contiguous_fanout_group(steps, index, group_id);
-            match plan_fanout_group(
-                state,
-                step_index,
-                index,
-                steps,
-                group_steps,
-                fanout_policies.get(group_id),
-                resolved_fanout_gate_keys,
-            ) {
-                FanoutGroupPlan::Proceed => {
-                    index += group_steps.len();
-                    continue;
-                }
-                FanoutGroupPlan::Plan(plan) => return *plan,
-            }
-        }
-
+    for (index, step_definition) in steps.iter().enumerate().skip(start_index) {
         if let Some(plan) = plan_step(state, step_index, index, step_definition) {
             return plan;
         }
-        index += 1;
     }
-
     SequentialGraphPlan::Complete
 }
 
@@ -117,7 +68,6 @@ fn plan_step(
         return Some(SequentialGraphPlan::Failed {
             step_id: step_definition.id.clone(),
             reason: "step state is missing".to_owned(),
-            sync_decision: None,
         });
     };
 
@@ -125,7 +75,6 @@ fn plan_step(
         return Some(SequentialGraphPlan::Blocked {
             step_id: step_definition.id.clone(),
             reason: "step is already running".to_owned(),
-            sync_decision: None,
         });
     }
 
@@ -137,11 +86,10 @@ fn plan_step(
     ) {
         return None;
     }
-    if retry_budget_exhausted(step_state, step_definition) {
+    if step_failed(step_state) {
         return Some(SequentialGraphPlan::Failed {
             step_id: step_definition.id.clone(),
-            reason: "step failed and retry budget is exhausted".to_owned(),
-            sync_decision: None,
+            reason: "step failed".to_owned(),
         });
     }
     if let Some(missing_context) =
@@ -150,7 +98,6 @@ fn plan_step(
         return Some(SequentialGraphPlan::Blocked {
             step_id: step_definition.id.clone(),
             reason: format!("waiting for context from {missing_context}"),
-            sync_decision: None,
         });
     }
 
@@ -163,8 +110,6 @@ fn plan_step(
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeMap;
-
     use super::{
         plan_sequential_graph_transition_indexed, plan_sequential_graph_transition_indexed_from,
     };
@@ -179,29 +124,15 @@ mod tests {
             .map(|index| SequentialGraphStepDefinition {
                 id: format!("step_{index}"),
                 context_from: None,
-                retry: None,
-                fanout_group: None,
             })
             .collect::<Vec<_>>();
         let index = create_sequential_graph_step_index(&definitions);
         let mut state = create_sequential_graph_state("graph", &definitions);
         state.steps[0].status = GraphStepStatus::Succeeded;
 
-        let canonical = plan_sequential_graph_transition_indexed(
-            &state,
-            &definitions,
-            &index,
-            &BTreeMap::new(),
-            None,
-        );
-        let from_cursor = plan_sequential_graph_transition_indexed_from(
-            &state,
-            &definitions,
-            &index,
-            &BTreeMap::new(),
-            None,
-            1,
-        );
+        let canonical = plan_sequential_graph_transition_indexed(&state, &definitions, &index);
+        let from_cursor =
+            plan_sequential_graph_transition_indexed_from(&state, &definitions, &index, 1);
 
         assert_eq!(from_cursor, canonical);
     }

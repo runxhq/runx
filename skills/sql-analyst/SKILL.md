@@ -1,8 +1,6 @@
 ---
 name: sql-analyst
 description: Answer a bounded data question from one declared governed read; use the explicit plan runner when only a schema-validated analysis plan is wanted.
-runx:
-  category: data
 ---
 
 # SQL Analyst

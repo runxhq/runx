@@ -16,16 +16,10 @@ steps:
     context:
       payment_quote_packet: quote.payment_quote_packet.data
   - id: approve-spend
-    run:
-      type: approval
+    ask: { gate: spend-approval, reason: Approve proofless rail fixture., type: payment }
     inputs:
-      gate_id: spend-approval
-      gate_type: payment
-      reason: Approve proofless rail fixture.
       amount_minor: 125
       currency: USD
-    artifacts:
-      wrap_as: payment_approval
   - id: fulfill
     skill: ../../skills/x402-pay-negative-proofless-fulfill
     scopes:
@@ -45,5 +39,5 @@ steps:
 policy:
   guards:
     - step: fulfill
-      field: approve-spend.payment_approval.data.approved
+      field: approve-spend.approval_decision.data.approved
       equals: true

@@ -46,7 +46,6 @@ struct ReceiptQueryPacket {
     filter: JsonObject,
     receipt_ids: Vec<String>,
     receipts: Vec<JsonValue>,
-    pending_runs: Vec<JsonValue>,
     receipt_details: Vec<JsonValue>,
     verification: ReceiptVerification,
 }
@@ -90,11 +89,11 @@ struct ReceiptStore {
 const QUERY_FIELDS: &[CapabilityField] = &[
     field(
         "query",
-        "Case-insensitive subject, id, source, actor, or artifact search.",
+        "Case-insensitive subject, id, issuer, actor, or artifact search.",
     ),
     field("skill", "Skill or subject filter."),
     field("status", "Exact terminal status filter."),
-    field("source", "Exact source-type filter."),
+    field("issuer", "Exact receipt issuer filter: local or hosted."),
     field("actor", "Exact signed actor filter."),
     field("artifact_type", "Exact artifact-type filter."),
     field("since", "RFC3339 inclusive lower time bound."),

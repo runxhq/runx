@@ -76,9 +76,8 @@ pub(super) fn child_base_env(
 fn workspace_root(base_env: &BTreeMap<String, String>) -> Result<PathBuf, RuntimeError> {
     workspace_cwd(base_env)?.ok_or_else(|| {
         invocation_error(format!(
-            "process environment requires {} or {}",
-            crate::receipts::paths::RUNX_CWD_ENV,
-            crate::receipts::paths::INIT_CWD_ENV
+            "process environment requires {}",
+            crate::receipts::paths::RUNX_CWD_ENV
         ))
     })
 }

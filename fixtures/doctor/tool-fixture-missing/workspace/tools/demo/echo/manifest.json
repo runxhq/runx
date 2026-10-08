@@ -3,7 +3,6 @@
   "name": "demo.echo",
   "description": "Echo fixture.",
   "source": {
-    "type": "cli-tool",
     "command": "node",
     "args": [
       "./run.mjs"

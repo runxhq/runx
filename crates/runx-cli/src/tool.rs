@@ -1,4 +1,4 @@
-// Module rationale: command wiring keeps tool build/search/inspect output parity together.
+// Module rationale: command wiring keeps tool build/search/inspect output together.
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
@@ -198,7 +198,7 @@ fn inspect_header_lines(result: &runx_contracts::tools::ToolInspectResult) -> Ve
     vec![
         String::new(),
         format!("  {}  {origin}", result.name),
-        format!("  exec      {}", result.execution_source_type),
+        format!("  exec      {}", result.execution),
         format!("  path      {}", result.reference_path),
         format!("  root      {}", result.skill_directory),
     ]

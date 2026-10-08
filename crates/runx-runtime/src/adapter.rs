@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 use runx_contracts::CredentialDeliveryObservation;
 use runx_contracts::{ContextEntry, ExecutionRequirements, JsonObject, JsonValue, ProvenanceEntry};
-use runx_parser::{SkillArtifactContract, SkillSource};
+use runx_parser::{AgentTask, ProcessTool, SkillArtifactContract, WorkerTool};
 use serde::{Deserialize, Serialize};
 
 use crate::RuntimeError;
@@ -27,17 +27,63 @@ pub enum InvocationStatus {
     Failure,
 }
 
+/// What an invocation runs: a deterministic worker module, a trusted host
+/// process, or an agent act.
+#[derive(Clone, Debug, PartialEq)]
+pub enum Executable {
+    Worker(WorkerTool),
+    Process(ProcessTool),
+    Agent(AgentTask),
+}
+
+impl Executable {
+    /// The executable's kind, as receipts and diagnostics name it.
+    #[must_use]
+    pub const fn kind(&self) -> &'static str {
+        match self {
+            Self::Worker(_) => "worker",
+            Self::Process(_) => "process",
+            Self::Agent(_) => "agent",
+        }
+    }
+
+    #[must_use]
+    pub const fn worker(&self) -> Option<&WorkerTool> {
+        match self {
+            Self::Worker(worker) => Some(worker),
+            _ => None,
+        }
+    }
+
+    #[must_use]
+    pub const fn process(&self) -> Option<&ProcessTool> {
+        match self {
+            Self::Process(process) => Some(process),
+            _ => None,
+        }
+    }
+
+    #[must_use]
+    pub const fn agent(&self) -> Option<&AgentTask> {
+        match self {
+            Self::Agent(agent) => Some(agent),
+            _ => None,
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct SkillInvocation {
     pub historical_context: Vec<ContextEntry>,
     pub skill_name: String,
     /// Graph step identity when the invocation is owned by a graph act.
     pub step_id: Option<String>,
-    pub source: SkillSource,
+    pub executable: Executable,
+    /// Complete output declarations the invocation's result must satisfy.
+    pub outputs: Option<JsonObject>,
     /// Exact non-secret manifest requirements for this executable act.
     pub requirements: ExecutionRequirements,
-    /// Parser-validated artifact contract for this invocation. Adapters must not
-    /// reconstruct it from `source.raw`.
+    /// Parser-validated artifact contract for this invocation.
     pub artifacts: Option<SkillArtifactContract>,
     /// Parser-validated tools available to an agent invocation.
     pub allowed_tools: Option<Vec<String>>,
@@ -366,21 +412,7 @@ impl InvocationOutput {
 }
 
 pub trait SkillAdapter {
-    fn adapter_type(&self) -> &'static str;
     fn invoke(&self, request: SkillInvocation) -> Result<InvocationOutput, RuntimeError>;
-
-    /// Materialize an isolated executor for one parallel fanout branch.
-    ///
-    /// Returning `None` is the complete serial-only answer. This single factory
-    /// replaces separate "parallel safe" and "cloneable" claims that could
-    /// disagree during planning and dispatch.
-    fn isolated_fanout_adapter(
-        &self,
-        source: &SkillSource,
-    ) -> Option<Box<dyn SkillAdapter + Send + Sync>> {
-        let _ = source;
-        None
-    }
 }
 
 pub(crate) struct BorrowedSkillAdapter<'a, A>
@@ -403,19 +435,8 @@ impl<A> SkillAdapter for BorrowedSkillAdapter<'_, A>
 where
     A: SkillAdapter + ?Sized,
 {
-    fn adapter_type(&self) -> &'static str {
-        self.adapter.adapter_type()
-    }
-
     fn invoke(&self, request: SkillInvocation) -> Result<InvocationOutput, RuntimeError> {
         self.adapter.invoke(request)
-    }
-
-    fn isolated_fanout_adapter(
-        &self,
-        source: &SkillSource,
-    ) -> Option<Box<dyn SkillAdapter + Send + Sync>> {
-        self.adapter.isolated_fanout_adapter(source)
     }
 }
 
@@ -423,19 +444,8 @@ impl<A> SkillAdapter for Box<A>
 where
     A: SkillAdapter + ?Sized,
 {
-    fn adapter_type(&self) -> &'static str {
-        self.as_ref().adapter_type()
-    }
-
     fn invoke(&self, request: SkillInvocation) -> Result<InvocationOutput, RuntimeError> {
         self.as_ref().invoke(request)
-    }
-
-    fn isolated_fanout_adapter(
-        &self,
-        source: &SkillSource,
-    ) -> Option<Box<dyn SkillAdapter + Send + Sync>> {
-        self.as_ref().isolated_fanout_adapter(source)
     }
 }
 

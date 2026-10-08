@@ -39,7 +39,7 @@ inputs:
     repo_root: .
     branch: fix/442-operator-first
     commit: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-    files: [oss/skills/issue-to-pr/X.yaml]
+    files: [oss/skills/issue-to-pr/run.yaml]
     tests:
       - command: cargo test -p runx-cli --test integration issue_to_pr_journey
         status: passed

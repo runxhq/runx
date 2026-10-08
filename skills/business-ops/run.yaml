@@ -1,0 +1,200 @@
+skill: business-ops
+version: "0.2.2"
+
+catalog:
+  kind: graph
+  audience: public
+  visibility: public
+  role: canonical
+  execution: plan
+  completion: plan
+  requires_adapter: false
+  approval: none
+  category: ops
+
+input_definitions:
+  lane:
+    type: string
+    required: false
+    default: classify
+    description: One bounded lane to route; unrelated branches are not run.
+    schema: { enum: [classify, sourcey, release.prepare, issue-to-pr, outreach.plan, spend.quote, receipt-audit] }
+  signal:
+    type: string
+    required: true
+    description: Business signal to triage.
+  operator_context:
+    type: string
+    required: false
+    description: Optional product policy, topology, audience constraints, or provider state. Context only, not authority.
+
+runners:
+  route:
+    default: true
+    inputs:
+      lane: { definition: lane }
+      signal: { definition: signal }
+      operator_context: { definition: operator_context }
+    examples:
+      - signal: Launch readiness for API v2.
+        operator_context: Live sends and spend require their owning governed lanes.
+    result_from: [route]
+    steps:
+      - id: route
+        skill: ./graph/ops-lane
+        inputs:
+          lane: "$input.lane"
+          signal: "$input.signal"
+          operator_context: "$input.operator_context"
+
+  main:
+    inputs:
+      signal: { definition: signal }
+      operator_context: { definition: operator_context }
+    result_from: [package-route]
+    steps:
+      - id: classify
+        skill: ./graph/ops-lane
+        inputs:
+          lane: classify
+          signal: "$input.signal"
+          operator_context: "$input.operator_context"
+      - id: docs
+        skill: ./graph/ops-lane
+        inputs:
+          lane: sourcey
+          signal: "$input.signal"
+          operator_context: "$input.operator_context"
+      - id: release
+        skill: ./graph/ops-lane
+        inputs:
+          lane: release.prepare
+          signal: "$input.signal"
+          operator_context: "$input.operator_context"
+      - id: issue
+        skill: ./graph/ops-lane
+        inputs:
+          lane: issue-to-pr
+          signal: "$input.signal"
+          operator_context: "$input.operator_context"
+      - id: send
+        skill: ./graph/ops-lane
+        inputs:
+          lane: outreach.plan
+          signal: "$input.signal"
+          operator_context: "$input.operator_context"
+      - id: spend
+        skill: ./graph/ops-lane
+        inputs:
+          lane: spend.quote
+          signal: "$input.signal"
+          operator_context: "$input.operator_context"
+      - id: audit
+        skill: ./graph/ops-lane
+        inputs:
+          lane: receipt-audit
+          signal: "$input.signal"
+          operator_context: "$input.operator_context"
+      - id: package-route
+        inputs:
+          signal: "$input.signal"
+        context:
+          classify: classify.lane_packet.data
+          docs: docs.lane_packet.data
+          release: release.lane_packet.data
+          issue: issue.lane_packet.data
+          send: send.lane_packet.data
+          spend: spend.lane_packet.data
+          audit: audit.lane_packet.data
+        tool: { module: business-ops.mjs, export: packageRoute }
+        outputs:
+          lane_packets: object
+        artifacts:
+          named_emits:
+            lane_packets: lane_packets
+          packets:
+            lane_packets: runx.business_ops_route.v1
+
+  route_and_append:
+    inputs:
+      lane: { definition: lane }
+      data_source_ref:
+        type: string
+        required: true
+        description: Logical data source used to persist the routed signal packet.
+      resource:
+        type: string
+        required: true
+        description: Declared event resource for business operations route events.
+      aggregate_id:
+        type: string
+        required: true
+        description: Business operation stream key.
+      expected_version:
+        type: number
+        required: true
+        description: Current stream version required before append.
+      idempotency_key:
+        type: string
+        required: true
+        description: Stable retry key for this routed signal.
+      signal: { definition: signal }
+      operator_context: { definition: operator_context }
+    result_from: [finalize-route]
+    steps:
+      - id: classify
+        skill: ./graph/ops-lane
+        inputs:
+          lane: "$input.lane"
+          signal: "$input.signal"
+          operator_context: "$input.operator_context"
+      - id: persist-route
+        skill: ../data-store
+        runner: append_event
+        inputs:
+          data_source_ref: "$input.data_source_ref"
+          resource: "$input.resource"
+          aggregate_id: "$input.aggregate_id"
+          expected_version: "$input.expected_version"
+          idempotency_key: "$input.idempotency_key"
+        context:
+          event: classify.lane_packet.data
+      - id: readback
+        skill: ../data-store
+        runner: read_projection
+        inputs:
+          data_source_ref: "$input.data_source_ref"
+          resource: "$input.resource"
+          aggregate_id: "$input.aggregate_id"
+      - id: finalize-route
+        context:
+          lane_packet: classify.lane_packet.data
+          append_result: persist-route.data_operation_result.data
+          projection_result: readback.data_operation_result.data
+        tool: { module: business-ops.mjs, export: finalizeDurableRoute }
+        outputs:
+          lane_packet: object
+          route_persistence:
+            type: object
+            schema:
+              required: [schema, aggregate_id, append_status, before_version, after_version, idempotency_key, projection, provider_evidence]
+              additionalProperties: false
+              properties:
+                schema: { const: runx.business_ops.route_persistence.v1 }
+                aggregate_id: { type: string, minLength: 1 }
+                append_status: { type: string, enum: [committed, idempotent_replay] }
+                before_version: { type: integer, minimum: 0 }
+                after_version: { type: integer, minimum: 0 }
+                idempotency_key: { type: string, minLength: 1 }
+                projection: { type: object, additionalProperties: true }
+                provider_evidence: { type: object, additionalProperties: true }
+        artifacts:
+          named_emits:
+            lane_packet: lane_packet
+            route_persistence: route_persistence
+          packets:
+            route_persistence: runx.business_ops.route_persistence.v1
+
+harness:
+  files: [fixtures/support/route-replay.graph]
+  cases: []

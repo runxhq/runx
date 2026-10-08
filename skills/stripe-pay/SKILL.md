@@ -1,8 +1,6 @@
 ---
 name: stripe-pay
 description: Execute a Stripe SPT payment through the canonical hosted spend contract.
-runx:
-  category: payments
 ---
 
 # Stripe Pay

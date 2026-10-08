@@ -157,7 +157,7 @@ mod tests {
     }
 
     fn arbitrary_json_value(depth: u32) -> BoxedStrategy<JsonValue> {
-        // Floating-point parity is covered by the byte-pinned oracle; this
+        // Floating-point encoding is covered by the byte-pinned oracle; this
         // round-trip property deliberately uses integers and ASCII strings.
         let leaf = prop_oneof![
             Just(JsonValue::Null),

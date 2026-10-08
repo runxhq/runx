@@ -10,7 +10,7 @@ use runx_runtime::adapters::agent_loop::ToolExecutor;
 use runx_runtime::adapters::agent_tools::RuntimeToolExecutor;
 use tempfile::TempDir;
 
-use super::{bool_field, record_native_metric, u64_field, wrapped_data};
+use super::{bool_field, u64_field, wrapped_data};
 
 const SMALL_BYTES: usize = 256 * 1024;
 const LARGE_BYTES: usize = 8 * 1024 * 1024;
@@ -27,8 +27,6 @@ pub(super) fn register(c: &mut Criterion) {
 fn register_admission(c: &mut Criterion, name: &'static str, bytes: usize) {
     c.bench_function(name, move |b| {
         let fixture = ArtifactFixture::new(bytes).expect("artifact benchmark fixture must load");
-        record_native_metric(name, &fixture.executor)
-            .expect("artifact benchmark resource metric must persist");
         b.iter(|| {
             black_box(
                 fixture
@@ -46,8 +44,6 @@ fn register_continuation(c: &mut Criterion, name: &'static str, bytes: usize) {
         fixture
             .read_all()
             .expect("artifact benchmark smoke read must succeed");
-        record_native_metric(name, &fixture.executor)
-            .expect("artifact benchmark resource metric must persist");
         b.iter(|| {
             black_box(
                 fixture

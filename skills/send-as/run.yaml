@@ -1,0 +1,245 @@
+skill: send-as
+version: "0.3.3"
+
+catalog:
+  kind: graph
+  audience: public
+  visibility: public
+  role: canonical
+  execution: execute
+  completion: provider_readback
+  requires_adapter: true
+  approval: required
+  category: ops
+
+input_definitions:
+  connector:
+    type: object
+    required: true
+    description: Operator-selected provider and account, workspace, channel, campaign, or other bounded target; the runtime owns credentials and provider translation.
+    schema:
+      required: [provider, target]
+      additionalProperties: false
+      properties:
+        provider: { type: string, minLength: 1, maxLength: 100 }
+        target: { type: string, minLength: 1, maxLength: 2048 }
+
+connectors:
+  delivery:
+    operations: [message.send, message.read]
+    connector_from: $input.connector.provider
+    allowed_connectors: [slack]
+runners:
+  send:
+    default: true
+    inputs:
+      objective:
+        type: string
+        required: true
+        description: Bounded live-send objective.
+      principal:
+        type: string
+        required: true
+        description: Principal the message is sent as.
+      provider_context:
+        type: json
+        required: false
+        description: Provider/account readiness, connector, or MCP status.
+      audience:
+        type: json
+        required: false
+        description: Recipient, list, segment, thread, channel, or audience brief.
+      content_ref:
+        type: json
+        required: false
+        description: Digest, draft id, template id, campaign id, or stable content reference.
+      consent_basis:
+        type: string
+        required: false
+        description: Why the recipient or audience may receive this message.
+      operator_context:
+        type: string
+        required: false
+        description: Approval posture, legal constraints, or extra guardrails.
+      connector:
+        definition: connector
+    result_from: [finalize, plan]
+    steps:
+      - id: plan
+        skill: .
+        runner: plan
+        inputs:
+          objective: $input.objective
+          principal: $input.principal
+          provider_context: $input.provider_context
+          audience: $input.audience
+          content_ref: $input.content_ref
+          consent_basis: $input.consent_basis
+          operator_context: $input.operator_context
+          connector: $input.connector
+
+      - id: apply
+        when:
+          field: plan.send_plan.data.decision
+          equals: ready
+        skill: .
+        runner: apply
+        inputs:
+          connector: $input.connector
+        context:
+          send_plan: plan.send_plan.data
+
+      - id: finalize
+        when:
+          field: plan.send_plan.data.decision
+          equals: ready
+        skill: .
+        runner: verify
+        inputs:
+          connector: $input.connector
+        context:
+          send_plan: plan.send_plan.data
+          apply_result: apply.provider_operation.data
+
+  plan:
+    inputs:
+      objective:
+        type: string
+        required: true
+        description: Bounded send-planning or authorization objective; this explicit runner does not deliver.
+      principal:
+        type: string
+        required: true
+        description: Principal the message is sent as.
+      provider_context:
+        type: json
+        required: false
+        description: Provider/account readiness, connector, or MCP status.
+      audience:
+        type: json
+        required: false
+        description: Recipient, list, segment, thread, channel, or audience brief.
+      content_ref:
+        type: json
+        required: false
+        description: Digest, draft id, template id, campaign id, or stable content reference.
+      consent_basis:
+        type: string
+        required: false
+        description: Why the recipient or audience may receive this message.
+      operator_context:
+        type: string
+        required: false
+        description: Approval posture, legal constraints, or extra guardrails.
+      connector:
+        type: json
+        required: false
+        description: Provider and target identity available to the direct send; planning never receives credentials.
+    steps:
+      - id: plan
+        agent: { role: reviewer, task: send-as }
+        inputs:
+          objective: $input.objective
+          principal: $input.principal
+          provider_context: $input.provider_context
+          audience: $input.audience
+          content_ref: $input.content_ref
+          consent_basis: $input.consent_basis
+          operator_context: $input.operator_context
+          connector: $input.connector
+        outputs:
+          send_plan: object
+        artifacts:
+          named_emits:
+            send_plan: send_plan
+          packets:
+            send_plan: runx.send_as.plan.v1
+
+  apply:
+    inputs:
+      send_plan:
+        type: json
+        packet: runx.send_as.plan.v1
+        required: true
+        description: Exact digest-bound plan emitted by send-as:plan.
+      connector:
+        definition: connector
+    result_from: [deliver, bind]
+    steps:
+      - id: prepare
+        inputs:
+          send_plan: $input.send_plan
+          connector: $input.connector
+        tool: { module: send-as.mjs, export: prepareDelivery }
+        outputs:
+          delivery_draft: object
+          digest_subject: object
+
+      - id: digest
+        tool: data.digest
+        context:
+          value: prepare.digest_subject
+
+      - id: bind
+        context:
+          delivery_draft: prepare.delivery_draft
+          digest_result: digest.digest_result.data
+        tool: { module: send-as.mjs, export: bindDelivery }
+        outputs:
+          delivery_request: object
+
+      - id: deliver
+        operation: delivery/message.send
+        approval:
+          reason: Approve delivering this exact digest-bound message.
+          type: message_delivery
+        result_fields: [message_id, principal_ref, audience_ref, content_digest, status, sent_at, idempotency_key]
+        context:
+          idempotency_key: bind.delivery_request.idempotency_key
+          input: bind.delivery_request.input
+          expected_result: bind.delivery_request.expected_result
+
+  verify:
+    inputs:
+      send_plan:
+        type: json
+        packet: runx.send_as.plan.v1
+        required: true
+        description: Exact digest-bound plan consumed by apply.
+      apply_result:
+        type: json
+        packet: runx.provider.operation.v1
+        required: true
+        description: Provider mutation result emitted by apply; the producer is not repeated.
+      connector:
+        definition: connector
+    result_from: [finalize]
+    steps:
+      - id: readback
+        operation: delivery/message.read
+        result_fields: [message_id, principal_ref, audience_ref, content_digest, status, sent_at, idempotency_key]
+        input:
+          target: $input.connector.target
+          message_id: $input.apply_result.result.message_id
+        expected_result:
+          message_id: $input.apply_result.result.message_id
+          principal_ref: $input.apply_result.result.principal_ref
+          audience_ref: $input.apply_result.result.audience_ref
+          content_digest: $input.apply_result.result.content_digest
+          idempotency_key: $input.apply_result.idempotency_key
+
+      - id: finalize
+        inputs:
+          send_plan: $input.send_plan
+          apply_result: $input.apply_result
+          connector: $input.connector
+        context:
+          readback_result: readback.provider_operation.data
+        tool: { module: send-as.mjs, export: finalizeSend }
+        outputs:
+          send_result: object
+        artifacts:
+          named_emits:
+            send_result: send_result
+          packets:
+            send_result: runx.send_as.result.v1

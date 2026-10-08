@@ -136,7 +136,7 @@ fn resolve_profile_path(
             } else {
                 subject_path.parent()?
             };
-            let candidate = package_dir.join("X.yaml");
+            let candidate = package_dir.join(runx_parser::PROFILE_FILE);
             candidate.exists().then_some(candidate)
         })
 }
@@ -207,7 +207,7 @@ mod tests {
             "---\nname: publish-shape\ndescription: Publish shape fixture.\n---\n# Publish shape\n",
         )?;
         fs::write(
-            root.join("X.yaml"),
+            root.join("run.yaml"),
             r#"skill: publish-shape
 harness:
   files:
@@ -222,14 +222,14 @@ harness:
 runners:
   main:
     default: true
-    type: cli-tool
-    command: node
-    args: [run.mjs]
-    outputs:
-      plan: object
-    artifacts:
-      wrap_as: packet
-      packet: runx.test.publish-shape.v1
+    steps:
+      - id: main
+        tool: { command: node, args: [run.mjs] }
+        outputs:
+          plan: object
+        artifacts:
+          wrap_as: packet
+          packet: runx.test.publish-shape.v1
 "#,
         )?;
         fs::write(
@@ -242,7 +242,7 @@ runners:
             r#"{
   "schema": "runx.tool.manifest.v1",
   "name": "example.echo",
-  "source": { "type": "cli-tool", "command": "node", "args": ["./src/run.mjs"] }
+  "source": { "command": "node", "args": ["./src/run.mjs"] }
 }
 "#,
         )?;
@@ -267,8 +267,8 @@ runners:
             "---\nname: review-context\ndescription: Review context.\n---\n# Review\n",
         )?;
         fs::write(
-            root.join("context/review/X.yaml"),
-            "skill: review-context\nrunners:\n  context:\n    default: true\n    type: agent\n",
+            root.join("context/review/run.yaml"),
+            "skill: review-context\nrunners:\n  context:\n    default: true\n    steps:\n      - id: context\n        agent: { role: agent, task: context }\n",
         )?;
         fs::create_dir_all(root.join("packets"))?;
         fs::write(
@@ -290,7 +290,7 @@ runners:
         assert!(paths.contains(&"run.mjs"));
         assert!(paths.contains(&"references/operator.md"));
         assert!(paths.contains(&"context/review/SKILL.md"));
-        assert!(paths.contains(&"context/review/X.yaml"));
+        assert!(paths.contains(&"context/review/run.yaml"));
         assert!(paths.contains(&"packets/publish-shape.schema.json"));
         assert!(!paths.contains(&"notes.txt"));
         assert!(!paths.contains(&".env"));
@@ -326,7 +326,7 @@ runners:
             "---\nname: root\ndescription: Root fixture.\n---\n# Root\n",
         )?;
         fs::write(
-            root.join("X.yaml"),
+            root.join("run.yaml"),
             r#"skill: root
 harness:
   cases:
@@ -338,16 +338,13 @@ harness:
 runners:
   main:
     default: true
-    type: graph
-    graph:
-      name: root
-      result_from: [sibling]
-      steps:
-        - id: sibling
-          skill: ../sibling
-          artifacts:
-            wrap_as: sibling_packet
-            packet: runx.test.sibling.v1
+    result_from: [sibling]
+    steps:
+      - id: sibling
+        skill: ../sibling
+        artifacts:
+          wrap_as: sibling_packet
+          packet: runx.test.sibling.v1
 "#,
         )?;
         fs::write(
@@ -355,34 +352,35 @@ runners:
             "---\nname: sibling\ndescription: Sibling fixture.\n---\n# Sibling\n",
         )?;
         fs::write(
-            sibling.join("X.yaml"),
+            sibling.join("run.yaml"),
             r#"skill: sibling
 runners:
   default:
     default: true
-    type: graph
-    graph:
-      name: sibling
-      result_from: [digest]
-      steps:
-        - id: digest
-          tool: data.digest
-          inputs:
-            value: sibling
+    result_from: [digest]
+    steps:
+      - id: digest
+        tool: data.digest
+        inputs:
+          value: sibling
   verify:
-    type: agent
     inputs:
       provider_operation:
         type: json
         required: true
         packet: runx.test.provider-operation.v1
-    outputs:
-      verification: object
-    artifacts:
-      named_emits:
-        verification: verification
-      packets:
-        verification: runx.test.verification.v1
+    steps:
+      - id: verify
+        agent: { role: agent, task: verify }
+        inputs:
+          provider_operation: $input.provider_operation
+        outputs:
+          verification: object
+        artifacts:
+          named_emits:
+            verification: verification
+          packets:
+            verification: runx.test.verification.v1
 "#,
         )?;
         fs::create_dir_all(temp.path().join("dist/packets"))?;
@@ -420,7 +418,7 @@ runners:
             .collect::<Vec<_>>();
         assert!(package_paths.contains(&"runx.package.json"));
         assert!(package_paths.contains(&"dependencies/sibling/SKILL.md"));
-        assert!(package_paths.contains(&"dependencies/sibling/X.yaml"));
+        assert!(package_paths.contains(&"dependencies/sibling/run.yaml"));
         for schema in ["provider-operation", "verification"] {
             assert!(
                 package_paths.contains(
@@ -434,7 +432,7 @@ runners:
             .ok_or("staged harness missing")?
             .path();
         assert!(harness_path.join("dependencies/sibling/SKILL.md").is_file());
-        assert!(harness_path.join("dependencies/sibling/X.yaml").is_file());
+        assert!(harness_path.join("dependencies/sibling/run.yaml").is_file());
         assert!(harness_path.join("packets/sibling.schema.json").is_file());
         let report = package.run_harness(&crate::LocalOrchestrator::default(), &BTreeMap::new())?;
         assert_eq!(report.status, "passed");
@@ -456,7 +454,7 @@ runners:
             "---\nname: root\ndescription: Root fixture.\n---\n# Root\n",
         )?;
         fs::write(
-            root.join("X.yaml"),
+            root.join("run.yaml"),
             r#"skill: root
 harness:
   cases:
@@ -467,13 +465,10 @@ harness:
 runners:
   main:
     default: true
-    type: graph
-    graph:
-      name: root
-      result_from: [sibling]
-      steps:
-        - id: sibling
-          skill: ../sibling
+    result_from: [sibling]
+    steps:
+      - id: sibling
+        skill: ../sibling
 "#,
         )?;
         fs::write(
@@ -481,19 +476,16 @@ runners:
             "---\nname: sibling\ndescription: Sibling fixture.\n---\n# Sibling\n",
         )?;
         fs::write(
-            sibling.join("X.yaml"),
+            sibling.join("run.yaml"),
             r#"skill: sibling
 runners:
   default:
     default: true
-    type: graph
-    graph:
-      name: sibling
-      result_from: [digest]
-      steps:
-        - id: digest
-          tool: data.digest
-          inputs: { value: sibling }
+    result_from: [digest]
+    steps:
+      - id: digest
+        tool: data.digest
+        inputs: { value: sibling }
 "#,
         )?;
 
@@ -508,7 +500,7 @@ runners:
         fs::create_dir_all(&staged)?;
         fs::write(staged.join("SKILL.md"), &first.markdown)?;
         fs::write(
-            staged.join("X.yaml"),
+            staged.join("run.yaml"),
             first
                 .profile_document
                 .as_deref()
@@ -546,12 +538,11 @@ runners:
             "---\nname: packet-consumer\ndescription: Packet consumer fixture.\n---\n# Consumer\n",
         )?;
         fs::write(
-            root.join("X.yaml"),
+            root.join("run.yaml"),
             r#"skill: packet-consumer
 runners:
   inspect:
     default: true
-    type: agent
     inputs:
       plan:
         type: json
@@ -559,6 +550,11 @@ runners:
         packet: runx.test.input-plan.v1
     examples:
       - plan: { operation: inspect }
+    steps:
+      - id: inspect
+        agent: { role: agent, task: inspect }
+        inputs:
+          plan: $input.plan
 "#,
         )?;
         fs::create_dir_all(temp.path().join("dist/packets"))?;
@@ -591,19 +587,19 @@ runners:
             "---\nname: missing-packet\ndescription: Missing packet fixture.\n---\n# Missing\n",
         )?;
         fs::write(
-            root.join("X.yaml"),
+            root.join("run.yaml"),
             r#"skill: missing-packet
 runners:
   main:
     default: true
-    type: cli-tool
-    command: node
-    args: [run.mjs]
-    outputs:
-      plan: object
-    artifacts:
-      wrap_as: packet
-      packet: runx.test.missing.v1
+    steps:
+      - id: main
+        tool: { command: node, args: [run.mjs] }
+        outputs:
+          plan: object
+        artifacts:
+          wrap_as: packet
+          packet: runx.test.missing.v1
 "#,
         )?;
         fs::write(

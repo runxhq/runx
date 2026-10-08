@@ -1,8 +1,6 @@
 ---
 name: lead-enrichment
 description: Enrich a lead from supplied account signals and produce a consent-aware, evidence-bound outreach recommendation.
-runx:
-  category: growth
 ---
 
 # Lead Enrichment

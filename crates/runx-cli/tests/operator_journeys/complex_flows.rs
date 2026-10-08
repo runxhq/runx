@@ -321,12 +321,9 @@ fn slack_reply_journey_gates_once_and_closes_on_provider_readback() -> TestResul
     );
     let receipt_id = json_string(&sent, "receipt_id")?;
     assert_receipt_verifies(&root, &receipt_dir, receipt_id)?;
-    let history = assert_history_contains_local_receipt(&root, &receipt_dir, receipt_id)?;
-    assert!(
-        history["pendingRuns"]
-            .as_array()
-            .is_some_and(|runs| runs.iter().all(|run| run["id"] != run_id.as_str()))
-    );
+    let history =
+        super::assert_history_contains_local_receipt(&root, &receipt_dir, &run_id, receipt_id)?;
+    assert!(!super::run_is_paused(&history, &run_id));
     Ok(())
 }
 
@@ -394,26 +391,10 @@ fn business_ops_durable_route_replays_once_and_returns_reusable_state() -> TestR
     let root = crate::support::temp_root("runx-business-ops-durable-journey");
     let repo_root = crate::support::repo_root()?;
     let receipt_dir = root.join(".runx/receipts");
-    fs::create_dir_all(root.join(".runx/data"))?;
-    let data_sources = serde_json::json!({
-        "data_sources": {
-            "tenant://journey/business-ops": {
-                "adapter": "data.sqlite",
-                "database_path": ".runx/data/business-ops.sqlite",
-                "resources": {
-                    "ops_routes": {
-                        "kind": "event_stream",
-                        "partition_key": "aggregate_id"
-                    }
-                }
-            }
-        }
-    })
-    .to_string();
+    fs::create_dir_all(&root)?;
 
     let run = || -> TestResult<Value> {
         let output = command(&root)
-            .env("RUNX_DATA_SOURCES", &data_sources)
             .arg("skill")
             .arg(repo_root.join("skills/business-ops"))
             .arg("route_and_append")
@@ -585,11 +566,8 @@ fn incident_turn_reuses_case_approval_across_agent_resume_without_claiming_deliv
     assert_eq!(turn["validation"]["status"], "pass");
     let receipt_id = json_string(&resumed, "receipt_id")?;
     assert_receipt_verifies(&root, &receipt_dir, receipt_id)?;
-    let history = assert_history_contains_local_receipt(&root, &receipt_dir, receipt_id)?;
-    assert!(
-        history["pendingRuns"]
-            .as_array()
-            .is_some_and(|runs| runs.iter().all(|run| run["id"] != run_id))
-    );
+    let history =
+        super::assert_history_contains_local_receipt(&root, &receipt_dir, run_id, receipt_id)?;
+    assert!(!super::run_is_paused(&history, run_id));
     Ok(())
 }

@@ -15,8 +15,8 @@ Deliver exact scrubbed outbound content in this order:
    idempotency key, requests exact approval for the consequential send,
    performs it once, and requires independent provider readback.
 
-The provider adapter remains separately configured and tenant-agnostic. Missing
-adapter authority blocks before delivery; a plan or accepted request is never
+The provider's connector remains separately configured and tenant-agnostic. A
+missing connector instance blocks before delivery; a plan or accepted request is never
 reported as sent. Select the explicit `plan` runner when a provider-neutral
 handoff is the requested outcome.
 

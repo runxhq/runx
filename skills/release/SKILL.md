@@ -1,8 +1,6 @@
 ---
 name: release
 description: Prepare, approve, execute, and independently verify a versioned release through a project-owned exact-command profile.
-runx:
-  category: code
 ---
 
 # Release

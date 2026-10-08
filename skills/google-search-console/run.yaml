@@ -1,0 +1,803 @@
+skill: google-search-console
+version: "0.1.8"
+
+catalog:
+  kind: graph
+  audience: public
+  visibility: public
+  role: branded
+  canonical_skill: runx/organic-growth
+  provider: google-search-console
+  runtime_path: provider
+  execution: execute
+  completion: provider_readback
+  requires_adapter: true
+  approval: none
+
+input_definitions:
+  property:
+    type: string
+    required: true
+    description: Exact Search Console HTTP(S) URL-prefix or sc-domain property.
+    schema: { pattern: '^(?:https?://|sc-domain:).+' }
+  date:
+    type: string
+    required: true
+    description: Calendar date in YYYY-MM-DD form.
+    schema: { pattern: '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' }
+  dimensions:
+    type: array
+    required: false
+    default: [page]
+    description: Ordered, unique Search Console dimensions; hourly data must include hour.
+    schema:
+      minItems: 1
+      maxItems: 7
+      uniqueItems: true
+      items: { type: string, enum: [query, page, country, device, date, hour, searchAppearance] }
+  search_type:
+    type: string
+    required: false
+    default: web
+    description: Search result surface queried from Search Console.
+    schema: { enum: [web, image, video, news, googleNews, discover] }
+  data_state:
+    type: string
+    required: false
+    default: final
+    description: Data finality requested from Search Console; hourly_all requires the hour dimension.
+    schema: { enum: [final, all, hourly_all] }
+  performance_request:
+    type: object
+    required: false
+    description: Expected request identity used to bind a supplied Search Console result.
+    schema:
+      required: [property, start_date, end_date]
+      additionalProperties: false
+      properties:
+        property: { type: string, pattern: '^(?:https?://|sc-domain:).+' }
+        start_date: { type: string, pattern: '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' }
+        end_date: { type: string, pattern: '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' }
+        dimensions:
+          type: array
+          minItems: 1
+          maxItems: 7
+          uniqueItems: true
+          items: { type: string, enum: [query, page, country, device, date, hour, searchAppearance] }
+        search_type: { type: string, enum: [web, image, video, news, googleNews, discover] }
+        data_state: { type: string, enum: [final, all, hourly_all] }
+        row_limit: { type: integer, minimum: 1, maximum: 25000 }
+        start_row: { type: integer, minimum: 0 }
+  performance_result:
+    type: object
+    required: true
+    description: Search Console result with request identity, bounded rows, pagination, and freshness metadata.
+    schema:
+      required: [rows]
+      properties:
+        property: { type: string, pattern: '^(?:https?://|sc-domain:).+' }
+        start_date: { type: string, pattern: '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' }
+        end_date: { type: string, pattern: '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' }
+        dimensions: { type: array, minItems: 1, maxItems: 7, uniqueItems: true, items: { type: string } }
+        search_type: { type: string }
+        data_state: { type: string }
+        rows: { type: array, maxItems: 25000, items: { type: object, additionalProperties: true } }
+        row_count: { type: integer, minimum: 0 }
+        aggregation_type: { type: string }
+        pagination: { type: object, additionalProperties: true }
+        metadata: { type: object, additionalProperties: true }
+        fetched_at: { type: string, format: date-time }
+  sitemap_plan:
+    type: object
+    required: true
+    description: Exact digest-bound sitemap plan emitted by plan-sitemap.
+    schema:
+      required: [schema, decision, provider, operation, property, sitemap_url, provider_status, external_status, validation, plan_digest]
+      additionalProperties: false
+      properties:
+        schema: { const: runx.search.sitemap_plan.v1 }
+        decision: { const: ready_for_execution }
+        provider: { const: google-search-console }
+        operation: { const: sitemaps.submit }
+        property: { type: string, pattern: '^(?:https?://|sc-domain:).+' }
+        sitemap_url: { type: string, format: uri, pattern: '^https?://' }
+        provider_status: { const: not_called }
+        external_status: { const: not_submitted }
+        validation:
+          type: object
+          required: [status, findings]
+          additionalProperties: false
+          properties:
+            status: { const: pass }
+            findings: { type: array, maxItems: 0 }
+        plan_digest: { type: string, pattern: '^sha256:[0-9a-f]{64}$' }
+
+harness:
+  cases:
+    - name: normalizes-bounded-page-performance
+      operator_journeys:
+        - mode: standalone
+          request: Show page-level Google Search performance for this verified site and date range.
+          expected_outcome: Return normalized clicks, impressions, CTR, position, dimensions, and data-state caveats with site identity preserved.
+        - mode: composed
+          request: Normalize this connector-returned Search Console performance evidence for the growth brief.
+          expected_outcome: Reuse provider evidence without querying Google again or losing property, dimension, and completeness semantics.
+          prior_evidence:
+            - The compatible connector response, site binding, query dimensions, and date range supplied in the fixture.
+          must_not_repeat:
+            - Do not call Search Console again.
+            - Do not recompute provider metrics or erase incomplete-data caveats.
+      runner: normalize-performance
+      inputs:
+        request:
+          property: https://example.com/
+          start_date: "2026-06-01"
+          end_date: "2026-06-30"
+          dimensions: [page]
+          search_type: web
+          data_state: final
+        provider_result:
+          property: https://example.com/
+          start_date: "2026-06-01"
+          end_date: "2026-06-30"
+          dimensions: [page]
+          search_type: web
+          data_state: final
+          aggregation_type: byPage
+          rows:
+            - keys: [https://example.com/guides/runx]
+              clicks: 42
+              impressions: 600
+              ctr: 0.07
+              position: 4.2
+          row_count: 1
+          pagination: { complete: true, returned_rows: 1 }
+          fetched_at: "2026-07-01T02:00:00Z"
+      expect:
+        status: sealed
+        steps: [normalize, digest, finalize]
+        step_outputs:
+          finalize:
+            subset:
+              performance_evidence:
+                data:
+                  schema: runx.search.performance.evidence.v1
+                  decision: ready
+                  provider: google-search-console
+                  provider_status: not_called
+                  source_status: supplied_result
+                  property: https://example.com/
+                  row_count: 1
+                  pagination: { complete: true, returned_rows: 1 }
+                  rows:
+                    - dimensions: { page: https://example.com/guides/runx }
+                      metrics: { clicks: 42, impressions: 600, ctr: 0.07, position: 4.2 }
+                  freshness: { complete: true, data_state: final }
+                  validation: { status: pass }
+        receipt: { schema: runx.receipt.v1 }
+
+    - name: defaults-omitted-dimensions-to-page
+      runner: normalize-performance
+      inputs:
+        request:
+          property: https://example.com/
+          start_date: "2026-06-01"
+          end_date: "2026-06-30"
+          search_type: web
+          data_state: final
+        provider_result:
+          property: https://example.com/
+          start_date: "2026-06-01"
+          end_date: "2026-06-30"
+          dimensions: [page]
+          search_type: web
+          data_state: final
+          aggregation_type: byPage
+          rows:
+            - keys: [https://example.com/default-page]
+              clicks: 2
+              impressions: 20
+              ctr: 0.1
+              position: 3.5
+          row_count: 1
+          pagination: { complete: true, returned_rows: 1 }
+      expect:
+        status: sealed
+        steps: [normalize, digest, finalize]
+        step_outputs:
+          finalize:
+            subset:
+              performance_evidence:
+                data:
+                  decision: ready
+                  request:
+                    dimensions: [page]
+                  rows:
+                    - dimensions: { page: https://example.com/default-page }
+                  validation: { status: pass }
+        receipt: { schema: runx.receipt.v1 }
+
+    - name: preserves-hourly-data-on-http-prefix-property
+      runner: normalize-performance
+      inputs:
+        request:
+          property: http://example.com/
+          start_date: "2026-07-19"
+          end_date: "2026-07-20"
+          dimensions: [hour]
+          search_type: web
+          data_state: hourly_all
+        provider_result:
+          property: http://example.com/
+          start_date: "2026-07-19"
+          end_date: "2026-07-20"
+          dimensions: [hour]
+          search_type: web
+          data_state: hourly_all
+          rows:
+            - keys: ["2026-07-19T23:00:00-07:00"]
+              clicks: 1
+              impressions: 10
+              ctr: 0.1
+              position: 2
+          row_count: 1
+          pagination: { complete: true, returned_rows: 1 }
+          metadata:
+            first_incomplete_hour: "2026-07-19T23:00:00-07:00"
+      expect:
+        status: sealed
+        steps: [normalize, digest, finalize]
+        step_outputs:
+          finalize:
+            subset:
+              performance_evidence:
+                data:
+                  decision: usable_with_caveats
+                  property: http://example.com/
+                  request:
+                    dimensions: [hour]
+                    data_state: hourly_all
+                  rows:
+                    - dimensions: { hour: "2026-07-19T23:00:00-07:00" }
+                  freshness:
+                    complete: false
+                    first_incomplete_hour: "2026-07-19T23:00:00-07:00"
+                  validation: { status: pass }
+        receipt: { schema: runx.receipt.v1 }
+
+    - name: blocks-hourly-data-without-hour-dimension
+      runner: normalize-performance
+      inputs:
+        request:
+          property: https://example.com/
+          start_date: "2026-07-19"
+          end_date: "2026-07-20"
+          dimensions: [page]
+          search_type: web
+          data_state: hourly_all
+        provider_result:
+          property: https://example.com/
+          start_date: "2026-07-19"
+          end_date: "2026-07-20"
+          dimensions: [page]
+          search_type: web
+          data_state: hourly_all
+          rows: []
+          row_count: 0
+          pagination: { complete: true, returned_rows: 0 }
+      expect:
+        status: sealed
+        steps: [normalize, digest, finalize]
+        step_outputs:
+          finalize:
+            subset:
+              performance_evidence:
+                data:
+                  decision: blocked
+                  validation:
+                    status: fail
+                    findings:
+                      - code: gsc.hourly_all.hour_dimension_missing
+        receipt: { schema: runx.receipt.v1 }
+
+    - name: plans-http-prefix-sitemap-without-submitting
+      runner: plan-sitemap
+      inputs:
+        property: http://example.com/
+        sitemap_url: http://example.com/sitemap.xml
+      expect:
+        status: sealed
+        steps: [prepare, digest, bind]
+        step_outputs:
+          bind:
+            subset:
+              sitemap_plan:
+                data:
+                  decision: ready_for_execution
+                  property: http://example.com/
+                  sitemap_url: http://example.com/sitemap.xml
+                  provider_status: not_called
+                  external_status: not_submitted
+                  validation: { status: pass }
+        receipt: { schema: runx.receipt.v1 }
+
+    - name: preserves-incomplete-data-caveat
+      runner: normalize-performance
+      inputs:
+        request:
+          property: sc-domain:example.com
+          start_date: "2026-07-01"
+          end_date: "2026-07-19"
+          dimensions: [query]
+          search_type: web
+          data_state: all
+        provider_result:
+          property: sc-domain:example.com
+          start_date: "2026-07-01"
+          end_date: "2026-07-19"
+          dimensions: [query]
+          search_type: web
+          data_state: all
+          aggregation_type: auto
+          rows:
+            - keys: [runx operator]
+              clicks: 3
+              impressions: 50
+              ctr: 0.06
+              position: 8.5
+          row_count: 1
+          pagination: { complete: true, returned_rows: 1 }
+          metadata: { first_incomplete_date: "2026-07-18" }
+      expect:
+        status: sealed
+        steps: [normalize, digest, finalize]
+        step_outputs:
+          finalize:
+            subset:
+              performance_evidence:
+                data:
+                  decision: usable_with_caveats
+                  provider_status: not_called
+                  freshness:
+                    complete: false
+                    data_state: all
+                    first_incomplete_date: "2026-07-18"
+                  validation: { status: pass }
+        receipt: { schema: runx.receipt.v1 }
+
+    - name: refuses-general-indexing-request
+      runner: plan-indexing
+      inputs:
+        url: https://example.com/blog/new-post
+        resource_type: article
+        reason: Ask Google to index a newly published article.
+      expect:
+        status: sealed
+        steps: [classify]
+        step_outputs:
+          classify:
+            subset:
+              indexing_admission:
+                data:
+                  schema: runx.search.indexing_admission.v1
+                  decision: refused
+                  reason_code: unsupported_resource_type
+                  provider_status: not_called
+                  external_status: not_requested
+        receipt: { schema: runx.receipt.v1 }
+
+    - name: plans-exact-sitemap-without-submitting
+      runner: plan-sitemap
+      inputs:
+        property: sc-domain:example.com
+        sitemap_url: https://www.example.com/sitemap.xml
+      expect:
+        status: sealed
+        steps: [prepare, digest, bind]
+        step_outputs:
+          bind:
+            subset:
+              sitemap_plan:
+                data:
+                  schema: runx.search.sitemap_plan.v1
+                  decision: ready_for_execution
+                  provider: google-search-console
+                  operation: sitemaps.submit
+                  property: sc-domain:example.com
+                  sitemap_url: https://www.example.com/sitemap.xml
+                  provider_status: not_called
+                  external_status: not_submitted
+                  validation: { status: pass }
+        receipt: { schema: runx.receipt.v1 }
+
+    - name: refuses-a-sitemap-plan-whose-digest-does-not-bind
+      runner: submit-sitemap
+      inputs:
+        sitemap_plan:
+          schema: runx.search.sitemap_plan.v1
+          decision: ready_for_execution
+          provider: google-search-console
+          operation: sitemaps.submit
+          property: sc-domain:example.com
+          sitemap_url: https://www.example.com/sitemap.xml
+          provider_status: not_called
+          external_status: not_submitted
+          validation: { status: pass, findings: [] }
+          plan_digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+        idempotency_key: 00000000-0000-4000-8000-000000000001
+      expect:
+        status: sealed
+        steps: [digest, admit, refuse]
+        step_outputs:
+          refuse:
+            subset:
+              sitemap_submission:
+                data:
+                  decision: blocked
+                  provider_status: not_called
+                  external_status: not_submitted
+                  validation: { status: fail }
+        receipt: { schema: runx.receipt.v1 }
+connectors:
+  google-search-console:
+    operations: [search.analytics.query, sites.list, url.inspect, sitemaps.list, sitemaps.submit, sitemaps.get]
+runners:
+  performance:
+    default: true
+    inputs:
+      property:
+        definition: property
+      start_date:
+        definition: date
+      end_date:
+        definition: date
+      dimensions:
+        definition: dimensions
+      search_type:
+        definition: search_type
+      data_state:
+        definition: data_state
+      row_limit:
+        type: integer
+        required: false
+        default: 1000
+        description: Bounded result row limit, at most 25000.
+        schema: { minimum: 1, maximum: 25000 }
+      start_row:
+        type: integer
+        required: false
+        default: 0
+        description: Zero-based pagination offset.
+        schema: { minimum: 0 }
+    examples:
+      - property: sc-domain:example.com
+        start_date: "2026-07-01"
+        end_date: "2026-07-31"
+        dimensions: [query, page]
+        search_type: web
+        data_state: final
+    result_from: [finalize]
+    steps:
+      - id: read
+        operation: google-search-console/search.analytics.query
+        result_fields: [property, start_date, end_date, dimensions, search_type, data_state, rows, row_count, aggregation_type, metadata, pagination, fetched_at]
+        input:
+          property: $input.property
+          start_date: $input.start_date
+          end_date: $input.end_date
+          dimensions: $input.dimensions
+          search_type: $input.search_type
+          data_state: $input.data_state
+          row_limit: $input.row_limit
+          start_row: $input.start_row
+      - id: normalize
+        inputs:
+          source_status: provider_readback
+          request:
+            property: $input.property
+            start_date: $input.start_date
+            end_date: $input.end_date
+            dimensions: $input.dimensions
+            search_type: $input.search_type
+            data_state: $input.data_state
+            row_limit: $input.row_limit
+            start_row: $input.start_row
+        context:
+          provider_result: read.provider_operation.data.result
+        tool: { module: gsc/performance.mjs, export: normalizePerformance }
+        outputs:
+          performance_draft: object
+      - id: digest
+        tool: data.digest
+        context:
+          value: normalize.performance_draft
+      - id: finalize
+        context:
+          performance_draft: normalize.performance_draft
+          digest_result: digest.digest_result.data
+        tool: { module: gsc/performance.mjs, export: finalizePerformance }
+        outputs:
+          performance_evidence: object
+        artifacts:
+          named_emits: { performance_evidence: performance_evidence }
+
+  normalize-performance:
+    inputs:
+      provider_result:
+        definition: performance_result
+      request:
+        definition: performance_request
+    examples:
+      - request:
+          property: https://example.com/
+          start_date: "2026-06-01"
+          end_date: "2026-06-30"
+          dimensions: [page]
+          search_type: web
+          data_state: final
+        provider_result:
+          property: https://example.com/
+          start_date: "2026-06-01"
+          end_date: "2026-06-30"
+          dimensions: [page]
+          search_type: web
+          data_state: final
+          rows:
+            - keys: [https://example.com/guides/runx]
+              clicks: 42
+              impressions: 600
+              ctr: 0.07
+              position: 4.2
+    result_from: [finalize]
+    steps:
+      - id: normalize
+        inputs:
+          provider_result: $input.provider_result
+          request: $input.request
+          source_status: supplied_result
+        tool: { module: gsc/performance.mjs, export: normalizePerformance }
+        outputs:
+          performance_draft: object
+      - id: digest
+        tool: data.digest
+        context:
+          value: normalize.performance_draft
+      - id: finalize
+        context:
+          performance_draft: normalize.performance_draft
+          digest_result: digest.digest_result.data
+        tool: { module: gsc/performance.mjs, export: finalizePerformance }
+        outputs:
+          performance_evidence: object
+        artifacts:
+          named_emits: { performance_evidence: performance_evidence }
+
+  sites:
+    inputs: {}
+    result_from: [read]
+    steps:
+      - id: read
+        operation: google-search-console/sites.list
+        result_fields: [sites]
+        input: {}
+
+  inspect-url:
+    inputs:
+      property:
+        definition: property
+      inspection_url:
+        type: string
+        required: true
+        description: Canonical URL within the property.
+      language_code:
+        type: string
+        required: false
+        default: en-US
+        description: Requested issue-message language.
+    examples:
+      - property: sc-domain:example.com
+        inspection_url: https://www.example.com/guides/runx
+        language_code: en-US
+    result_from: [finalize]
+    steps:
+      - id: read
+        operation: google-search-console/url.inspect
+        result_fields: [property, inspection_url, verdict, coverage_state, robots_txt_state, indexing_state, page_fetch_state, crawled_as, last_crawl_time, referring_urls, sitemap, amp, mobile_usability, rich_results, inspection_link, fetched_at]
+        input:
+          property: $input.property
+          inspection_url: $input.inspection_url
+          language_code: $input.language_code
+      - id: normalize
+        inputs:
+          request:
+            property: $input.property
+            inspection_url: $input.inspection_url
+            language_code: $input.language_code
+        context:
+          provider_result: read.provider_operation.data.result
+        tool: { module: gsc/inspection.mjs, export: normalizeInspection }
+        outputs:
+          inspection_draft: object
+      - id: digest
+        tool: data.digest
+        context:
+          value: normalize.inspection_draft
+      - id: finalize
+        context:
+          inspection_draft: normalize.inspection_draft
+          digest_result: digest.digest_result.data
+        tool: { module: gsc/inspection.mjs, export: finalizeInspection }
+        outputs:
+          inspection_evidence: object
+        artifacts:
+          named_emits: { inspection_evidence: inspection_evidence }
+
+  sitemaps:
+    inputs:
+      property:
+        definition: property
+    examples:
+      - property: sc-domain:example.com
+    result_from: [read]
+    steps:
+      - id: read
+        operation: google-search-console/sitemaps.list
+        result_fields: [property, sitemaps]
+        input: { property: $input.property }
+
+  plan-sitemap:
+    inputs:
+      property:
+        definition: property
+      sitemap_url:
+        type: string
+        required: true
+        description: Absolute HTTP(S) sitemap URL covered by the property.
+    examples:
+      - property: sc-domain:example.com
+        sitemap_url: https://www.example.com/sitemap.xml
+    result_from: [bind]
+    steps:
+      - id: prepare
+        inputs:
+          property: $input.property
+          sitemap_url: $input.sitemap_url
+        tool: { module: gsc/sitemap.mjs, export: prepareSitemapPlan }
+        outputs:
+          sitemap_plan_draft: object
+          digest_subject: object
+      - id: digest
+        tool: data.digest
+        context:
+          value: prepare.digest_subject
+      - id: bind
+        context:
+          sitemap_plan_draft: prepare.sitemap_plan_draft
+          digest_result: digest.digest_result.data
+        tool: { module: gsc/sitemap.mjs, export: bindSitemapPlan }
+        outputs:
+          sitemap_plan: object
+        artifacts:
+          named_emits: { sitemap_plan: sitemap_plan }
+
+  submit-sitemap:
+    inputs:
+      sitemap_plan:
+        definition: sitemap_plan
+      idempotency_key:
+        type: string
+        required: true
+        description: Stable UUID for this unchanged sitemap submission.
+    examples:
+      - sitemap_plan:
+          schema: runx.search.sitemap_plan.v1
+          decision: ready_for_execution
+          provider: google-search-console
+          operation: sitemaps.submit
+          property: sc-domain:example.com
+          sitemap_url: https://www.example.com/sitemap.xml
+          provider_status: not_called
+          external_status: not_submitted
+          validation: { status: pass, findings: [] }
+          plan_digest: sha256:b4fd8d22720f9a14c8143c467909f424bbe26fab7ace4594eeabf554382226fc
+        idempotency_key: 00000000-0000-4000-8000-000000000001
+    result_from: [refuse, finalize]
+    steps:
+      - id: digest
+        tool: data.digest
+        inputs:
+          value:
+            provider: $input.sitemap_plan.provider
+            operation: $input.sitemap_plan.operation
+            property: $input.sitemap_plan.property
+            sitemap_url: $input.sitemap_plan.sitemap_url
+      - id: admit
+        inputs:
+          sitemap_plan: $input.sitemap_plan
+        context:
+          digest_result: digest.digest_result.data
+        tool: { module: gsc/sitemap.mjs, export: admitSitemapSubmission }
+        outputs:
+          submission_admission: object
+      - id: submit
+        when:
+          field: admit.submission_admission.decision
+          equals: ready
+        operation: google-search-console/sitemaps.submit
+        idempotency_key: $input.idempotency_key
+        expected_result:
+          property: $input.sitemap_plan.property
+          sitemap_url: $input.sitemap_plan.sitemap_url
+        result_fields: [property, sitemap_url, accepted_at, idempotency_key]
+        input:
+          property: $input.sitemap_plan.property
+          sitemap_url: $input.sitemap_plan.sitemap_url
+      - id: refuse
+        when:
+          field: admit.submission_admission.decision
+          equals: blocked
+        inputs:
+          idempotency_key: $input.idempotency_key
+        context:
+          submission_admission: admit.submission_admission
+        tool: { module: gsc/sitemap.mjs, export: refuseSitemapSubmission }
+        outputs:
+          sitemap_submission: object
+        artifacts:
+          named_emits: { sitemap_submission: sitemap_submission }
+      - id: readback
+        when:
+          field: admit.submission_admission.decision
+          equals: ready
+        operation: google-search-console/sitemaps.get
+        result_fields: [property, sitemap_url, status, last_submitted, last_downloaded, error_count, warning_count]
+        input:
+          property: $input.sitemap_plan.property
+          sitemap_url: $input.sitemap_plan.sitemap_url
+        context:
+          expected_result: submit.provider_operation.data.result
+      - id: finalize
+        when:
+          field: admit.submission_admission.decision
+          equals: ready
+        inputs:
+          idempotency_key: $input.idempotency_key
+          sitemap_plan: $input.sitemap_plan
+        context:
+          mutation_result: submit.provider_operation.data.result
+          readback_result: readback.provider_operation.data.result
+        tool: { module: gsc/sitemap.mjs, export: finalizeSitemapSubmission }
+        outputs:
+          sitemap_submission: object
+        artifacts:
+          named_emits: { sitemap_submission: sitemap_submission }
+  plan-indexing:
+    inputs:
+      url:
+        type: string
+        required: true
+        description: Exact URL proposed for Google's restricted Indexing API.
+      resource_type:
+        type: string
+        required: true
+        description: Domain resource type, for example article, job_posting, or broadcast_event.
+      reason:
+        type: string
+        required: false
+        description: Operator rationale for the request.
+    examples:
+      - url: https://example.com/blog/new-post
+        resource_type: article
+        reason: Check whether this resource is eligible before attempting any provider action.
+    result_from: [classify]
+    steps:
+      - id: classify
+        inputs:
+          url: $input.url
+          resource_type: $input.resource_type
+          reason: $input.reason
+        tool: { module: gsc/indexing.mjs, export: classifyIndexingRequest }
+        outputs:
+          indexing_admission: object
+        artifacts:
+          named_emits: { indexing_admission: indexing_admission }

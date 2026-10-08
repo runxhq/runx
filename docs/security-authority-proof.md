@@ -58,27 +58,22 @@ The local runner applies authority in this order:
 5. The signed receipt records the observed boundary, public observations, and
    output hashes without raw material.
 
-## Provider-Permission Grants
+## Hosted Grants
 
-`provider_permission` graph policy may declare required scopes, an expected
-grant id, and the authority verb. It must not declare `granted_scopes`; granted
-scopes come only from operator-carried runtime grant evidence.
+Connector `operation` steps on the hosted placement authenticate the operator,
+read active grant metadata from Connect, and select the unique grant whose
+connector and authoritative scopes cover the operation. The selection is
+cached for the run. No provider token or credential body crosses into the
+skill, and granted scopes come only from grant evidence, never from the skill.
 
-Legacy provider-permission steps fail closed unless the operator supplies:
+A host that has already resolved the grant injects it as one complete tuple:
 
 - `RUNX_PROVIDER_PERMISSION_GRANT_ID`
 - `RUNX_PROVIDER_PERMISSION_GRANTED_SCOPES`, encoded as a JSON array of exact
   capability strings (for example `["repo.read","issues.write"]`)
+- `RUNX_PROVIDER_PERMISSION_PRINCIPAL_REF`
 
-Connector `operation` steps on the hosted placement use the same evidence
-model without requiring that setup in the common Connect path. They
-authenticate the operator, read active grant metadata from Connect, and select
-the unique grant whose connector and authoritative scopes cover the
-operation. The selection
-is cached for the run. No provider token or credential body crosses into the
-skill. A host-injected native grant is a complete evidence tuple: the two
-variables above plus `RUNX_PROVIDER_PERMISSION_PRINCIPAL_REF`. Partial tuples
-never report ready.
+Partial tuples never report ready.
 
 An operation step can also require exact `expected_result` identity fields
 and project only declared `result_fields` before the result enters a receipt.
@@ -95,8 +90,7 @@ scope.
 
 When more than one active grant matches, resolution fails as ambiguous. Set
 `RUNX_PROVIDER_PERMISSION_GRANT_ID` to select one; Runx then reads that grant's
-current scopes from Connect. A host may inject the complete three-variable
-tuple to carry already-resolved native grant evidence without a discovery call.
+current scopes from Connect.
 
 When a provider-permission effect is admitted, the sealed step receipt records
 the operator grant as a typed `runx:grant:*` reference under

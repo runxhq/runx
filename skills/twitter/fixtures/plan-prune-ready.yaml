@@ -22,7 +22,7 @@ inputs:
   operator_policy: Keep anything with likes or reposts. Unfollow user id 555001 (confirmed inactive).
 caller:
   answers:
-    agent_task.twitter-plan.output:
+    agent.twitter-plan.output:
       twitter_plan:
         decision: ready
         objective: Delete my zero-engagement posts from before 2019 and unfollow one inactive account.

@@ -31,6 +31,13 @@ CREATE TABLE kernel_events (
   committed_at TEXT NOT NULL,
   PRIMARY KEY (kind, key, version)
 ) WITHOUT ROWID;
+
+CREATE INDEX kernel_streams_recent ON kernel_streams (kind, updated_at, key);
+
+CREATE TABLE kernel_blobs (
+  digest TEXT NOT NULL PRIMARY KEY,
+  data BLOB NOT NULL
+);
 ";
 
 pub(super) fn open(path: &Path) -> Result<Connection, KernelStoreError> {

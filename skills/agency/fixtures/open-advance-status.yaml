@@ -1,17 +1,15 @@
 name: agency-open-advance-status-journey
 kind: graph
-target: ../harness/open-advance-status.yaml
+target: support/open-advance-status.graph
 operator_journeys:
   - mode: standalone
     exercises_runner: advance
     confusors: [ops-desk, chief-of-staff]
     request: Advance this open governed agency case by one bounded turn.
     expected_outcome: Read the existing case once, dispatch the next scoped action, append one turn, and return the new durable case state.
-env:
-  RUNX_DATA_SOURCES: '{"data_sources":{"tenant://agency/journey-cases":{"adapter":"data.sqlite","database_path":".runx/data/agency-journey.sqlite","resources":{"agency_cases":{"kind":"event_stream","partition_key":"aggregate_id"}}}}}'
 caller:
   answers:
-    agent_task.ops-desk-advance.output:
+    agent.ops-desk-advance.output:
       decision: dispatch
       reason: The case is open; the smallest useful next move is to draft the doc update within scope.
       dispatch:
@@ -41,18 +39,16 @@ expect:
       subset:
         data_operation_result:
           data:
-            operation: append_event
+            operation: events.append
             aggregate_id: case-journey-1
             after_version: 1
             provider_evidence:
-              adapter: data.sqlite
-              provider: sqlite-event-store
-              storage_class: sqlite
+              backend: sqlite
     advance:
       subset:
         data_operation_result:
           data:
-            operation: append_event
+            operation: events.append
             aggregate_id: case-journey-1
             after_version: 2
     status:
@@ -70,5 +66,4 @@ metadata:
   public_skill: agency
   source_case: agency-open-advance-status-journey
   source: skills-fixture
-  runner_kind: graph
   graph_shape: durable_open_advance_status

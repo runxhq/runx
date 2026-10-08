@@ -1,19 +1,20 @@
-#![cfg(feature = "cli-tool")]
+#![cfg(feature = "process-tool")]
 
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 use runx_contracts::CredentialEnvelopeKind;
+use runx_contracts::policy_proof::CredentialEnvelope;
 use runx_contracts::{CredentialDeliveryMode, CredentialDeliveryPurpose, CredentialMaterialRole};
 use runx_contracts::{
     CredentialDeliveryObservation, CredentialDeliveryObservationSchema,
     CredentialDeliveryObservationStatus, Reference, ReferenceType,
 };
-use runx_core::policy::{CredentialBindingDecision, CredentialEnvelope};
-use runx_parser::SkillSource;
-use runx_runtime::adapters::cli_tool::CliToolAdapter;
+use runx_core::policy::CredentialBindingDecision;
+use runx_parser::ProcessTool;
+use runx_runtime::adapters::process_tool::ProcessToolAdapter;
 use runx_runtime::{
-    CredentialDelivery, CredentialDeliveryError, CredentialDeliveryProfile,
+    CredentialDelivery, CredentialDeliveryError, CredentialDeliveryProfile, Executable,
     InMemoryMaterialResolver, InvocationStatus, ResolvedCredentialMaterial, SkillAdapter,
     SkillInvocation,
 };
@@ -287,15 +288,17 @@ fn delivery_profile_rejects_empty_material() -> Result<(), Box<dyn std::error::E
 }
 
 #[test]
-fn cli_tool_delivers_and_redacts_declared_credential() -> Result<(), Box<dyn std::error::Error>> {
+fn process_tool_delivers_and_redacts_declared_credential() -> Result<(), Box<dyn std::error::Error>>
+{
     let delivery = allowed_delivery()?;
-    let output = CliToolAdapter.invoke(SkillInvocation {
+    let output = ProcessToolAdapter.invoke(SkillInvocation {
         historical_context: Vec::new(),
         skill_name: "credential.echo".to_owned(),
         step_id: None,
         artifacts: None,
         allowed_tools: None,
-        source: cli_source(),
+        executable: Executable::Process(process_tool()),
+        outputs: None,
         inputs: Default::default(),
         resolved_inputs: Default::default(),
         current_context: Vec::new(),
@@ -316,14 +319,16 @@ fn cli_tool_delivers_and_redacts_declared_credential() -> Result<(), Box<dyn std
 }
 
 #[test]
-fn cli_tool_omits_truncated_output_before_redaction() -> Result<(), Box<dyn std::error::Error>> {
-    let output = CliToolAdapter.invoke(SkillInvocation {
+fn process_tool_omits_truncated_output_before_redaction() -> Result<(), Box<dyn std::error::Error>>
+{
+    let output = ProcessToolAdapter.invoke(SkillInvocation {
         historical_context: Vec::new(),
         skill_name: "credential.large-output".to_owned(),
         step_id: None,
         artifacts: None,
         allowed_tools: None,
-        source: large_output_cli_source(),
+        executable: Executable::Process(large_output_process_tool()),
+        outputs: None,
         inputs: Default::default(),
         resolved_inputs: Default::default(),
         current_context: Vec::new(),
@@ -476,14 +481,9 @@ fn contract_profile(
     }
 }
 
-fn cli_source() -> SkillSource {
-    SkillSource {
-        act: None,
-        source_type: runx_parser::SourceKind::CliTool,
-        command: Some("sh".to_owned()),
-        module: None,
-        javascript_export: None,
-        pages: None,
+fn process_tool() -> ProcessTool {
+    ProcessTool {
+        command: "sh".to_owned(),
         args: vec![
             "-c".to_owned(),
             "printf '%s\\n' \"$GITHUB_TOKEN\"".to_owned(),
@@ -491,23 +491,19 @@ fn cli_source() -> SkillSource {
         cwd: None,
         timeout_seconds: Some(5),
         input_mode: None,
-        agent: None,
-        task: None,
-        outputs: None,
-        graph: None,
         environment: Default::default(),
-        raw: Default::default(),
     }
 }
 
-fn large_output_cli_source() -> SkillSource {
-    let mut source = cli_source();
-    source.command = Some("node".to_owned());
-    source.args = vec![
-        "-e".to_owned(),
-        "process.stdout.write('x'.repeat(8 * 1024 * 1024 + 1));".to_owned(),
-    ];
-    source
+fn large_output_process_tool() -> ProcessTool {
+    ProcessTool {
+        command: "node".to_owned(),
+        args: vec![
+            "-e".to_owned(),
+            "process.stdout.write('x'.repeat(8 * 1024 * 1024 + 1));".to_owned(),
+        ],
+        ..process_tool()
+    }
 }
 
 fn process_env() -> BTreeMap<String, String> {

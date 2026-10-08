@@ -18,13 +18,14 @@ use runx_contracts::{AuthorityUseLimit, sha256_prefixed};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+use super::custody::EffectCustody;
 use super::store::{Append, Expected, KernelStore, KernelStoreError, Recorded, StreamEvent};
 use super::usage::{UsageError, UsageLedger, UseCover};
 
 /// The standing approval a run may use, named by its host.
-pub const STANDING_APPROVAL_ID_ENV: &str = "RUNX_NOTIFICATION_AUTHORITY_ID";
+pub const STANDING_APPROVAL_ID_ENV: &str = "RUNX_STANDING_APPROVAL_ID";
 /// The digest of the delegate allowed to use it (the assistant's source set).
-pub const STANDING_DELEGATE_DIGEST_ENV: &str = "RUNX_NOTIFICATION_SOURCE_SET_DIGEST";
+pub const STANDING_DELEGATE_DIGEST_ENV: &str = "RUNX_STANDING_DELEGATE_DIGEST";
 
 const MAX_LIFETIME_SECONDS: u64 = 30 * 24 * 60 * 60;
 
@@ -108,7 +109,8 @@ pub(crate) struct StandingCall<'a> {
     pub delegate_digest: &'a str,
     pub text: &'a str,
     pub intent_digest: &'a str,
-    pub idempotency_key: &'a str,
+    /// The use the act's attempt sequence takes.
+    pub use_key: &'a str,
     pub run_id: &'a str,
 }
 
@@ -222,19 +224,27 @@ impl StandingApprovals {
         Ok(Some(status))
     }
 
-    /// Whether a call with this idempotency key ever reached dispatch under
-    /// the approval. An unknown approval is not proof of absence.
-    pub fn was_used(
+    /// Whether the approval's act named by `idempotency_key` was ever
+    /// attempted. An attempt is recorded, with its use, before anything is
+    /// sent; an unknown approval is not proof of absence.
+    pub fn attempted(
         &self,
         approval_id: &str,
         idempotency_key: &str,
     ) -> Result<bool, StandingError> {
-        fold(&self.store.read::<StandingEvent>(approval_id)?)?
+        let status = self
+            .status(approval_id)?
             .ok_or(StandingError::Denied("the approval id is unknown"))?;
-        Ok(UsageLedger::new(Arc::clone(&self.store))
-            .status(&format!("standing:{approval_id}"))
-            .map_err(standing_usage_error)?
-            .has(&use_key(idempotency_key)))
+        let approval = &status.approval;
+        Ok(EffectCustody::for_named_act(
+            Arc::clone(&self.store),
+            approval.connector.as_str(),
+            approval.operation.as_str(),
+            approval.instance_id.as_str(),
+            &approval.target,
+            idempotency_key,
+        )
+        .attempted()?)
     }
 
     /// Check that the approval covers this exact call and that usage remains.
@@ -259,8 +269,7 @@ impl StandingApprovals {
             ));
         }
         check_text(approval, call.text)?;
-        let key = use_key(call.idempotency_key);
-        let approval_key = sha256_prefixed(format!("{approval_id}\0{key}").as_bytes());
+        let approval_key = sha256_prefixed(format!("{approval_id}\0{}", call.use_key).as_bytes());
         let now = now_unix_seconds();
         let usage = UsageLedger::new(Arc::clone(&self.store))
             .cover(
@@ -269,7 +278,7 @@ impl StandingApprovals {
                     total: Some(u64::from(approval.max_total)),
                     per_day: Some(u64::from(approval.max_per_day)),
                 },
-                &key,
+                call.use_key,
                 call.intent_digest,
                 call.run_id,
                 now,
@@ -422,15 +431,8 @@ fn validate(approval: &StandingApproval, now: u64) -> Result<(), StandingError> 
     Ok(())
 }
 
-fn use_key(idempotency_key: &str) -> String {
-    sha256_prefixed(idempotency_key.as_bytes())
-}
-
 fn standing_usage_error(error: UsageError) -> StandingError {
     match error {
-        UsageError::KeyConflict => {
-            StandingError::Denied("the idempotency key belongs to another call")
-        }
         UsageError::TotalExhausted => StandingError::Denied("the total quota is exhausted"),
         UsageError::DailyExhausted => StandingError::Denied("the daily quota is exhausted"),
         UsageError::InvalidHistory => StandingError::Invalid("the usage history is invalid"),

@@ -8,7 +8,7 @@ use runx_contracts::sha256_prefixed;
 use runx_contracts::tools::{
     BuiltToolItem, ToolBuildReport, ToolBuildReportSchema, ToolBuildStatus, ToolInput,
 };
-use runx_parser::{SkillArtifactContract, SkillSource};
+use runx_parser::{ProcessTool, SkillArtifactContract};
 use serde::Serialize;
 
 use super::error::ToolCatalogError;
@@ -91,7 +91,7 @@ fn schema_hash(
 
 pub(crate) fn hash_tool_source(
     tool_dir: &Path,
-    source: &SkillSource,
+    source: &ProcessTool,
 ) -> Result<String, ToolCatalogError> {
     let roots = source_entrypoints(tool_dir, source);
     let files = tool_source_closure(&roots)?;
@@ -114,12 +114,10 @@ pub(crate) fn hash_tool_source(
 }
 
 fn reject_uncompiled_node_sources(
-    source: &SkillSource,
+    source: &ProcessTool,
     files: &[PathBuf],
 ) -> Result<(), ToolCatalogError> {
-    let Some(command) = source.command.as_deref() else {
-        return Ok(());
-    };
+    let command = source.command.as_str();
     let command_name = Path::new(command)
         .file_stem()
         .and_then(|name| name.to_str())
@@ -144,13 +142,9 @@ fn reject_uncompiled_node_sources(
     })
 }
 
-fn source_entrypoints(tool_dir: &Path, source: &SkillSource) -> Vec<PathBuf> {
-    let mut candidates = Vec::new();
-    candidates.extend(source.command.iter());
-    candidates.extend(&source.args);
-    candidates.extend(source.module.iter());
-    candidates
-        .into_iter()
+fn source_entrypoints(tool_dir: &Path, source: &ProcessTool) -> Vec<PathBuf> {
+    std::iter::once(&source.command)
+        .chain(&source.args)
         .filter_map(|candidate| local_source_path(tool_dir, candidate))
         .collect()
 }

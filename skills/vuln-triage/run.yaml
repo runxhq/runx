@@ -1,0 +1,184 @@
+skill: vuln-triage
+version: "0.3.1"
+
+catalog:
+  kind: skill
+  audience: public
+  visibility: public
+  role: canonical
+  execution: read
+  completion: runtime_receipt
+  requires_adapter: false
+  approval: none
+  category: security
+
+runners:
+  scan:
+    default: true
+    inputs:
+      target:
+        type: string
+        required: true
+        description: Repository, package set, or ecosystem slice being assessed.
+      cve_evidence:
+        type: json
+        required: true
+        description: Exact cve-audit result, verification, and sealed receipt reference.
+      objective:
+        type: string
+        required: false
+        description: Decision the operator needs from the verified findings.
+      scan_context:
+        type: json
+        required: false
+        description: Bounded deployment or exposure context.
+    result_from: [finalize, finalize-clean, stop]
+    steps:
+      - id: digest-evidence
+        tool: data.digest
+        inputs:
+          value: $input.cve_evidence
+
+      - id: admit
+        inputs:
+          target: $input.target
+          cve_evidence: $input.cve_evidence
+          scan_context: $input.scan_context
+        context:
+          evidence_digest: digest-evidence.digest_result.data.digest
+        tool: { module: vuln-triage.mjs, export: admitScan }
+        outputs:
+          triage_context: object
+        artifacts:
+          named_emits:
+            triage_context: triage_context
+
+      - id: assess
+        when:
+          field: admit.triage_context.data.path
+          equals: assess
+        agent: { role: reviewer, task: vuln-triage-assess }
+        outputs:
+          risk_assessment_draft: object
+        inputs:
+          objective: $input.objective
+        context:
+          triage_context: admit.triage_context.data
+        artifacts:
+          named_emits:
+            risk_assessment_draft: risk_assessment_draft
+
+      - id: finalize
+        when:
+          field: admit.triage_context.data.path
+          equals: assess
+        context:
+          triage_context: admit.triage_context.data
+          risk_assessment_draft: assess.risk_assessment_draft.data
+        tool: { module: vuln-triage.mjs, export: finalizeScan }
+        outputs:
+          vulnerability_scan_packet: object
+        artifacts:
+          named_emits:
+            vulnerability_scan_packet: vulnerability_scan_packet
+          packets:
+            vulnerability_scan_packet: runx.security.vulnerability_scan.v1
+
+      - id: finalize-clean
+        when:
+          field: admit.triage_context.data.path
+          equals: complete
+        context:
+          triage_context: admit.triage_context.data
+        tool: { module: vuln-triage.mjs, export: finalizeScan }
+        outputs:
+          vulnerability_scan_packet: object
+        artifacts:
+          named_emits:
+            vulnerability_scan_packet: vulnerability_scan_packet
+          packets:
+            vulnerability_scan_packet: runx.security.vulnerability_scan.v1
+
+      - id: stop
+        when:
+          field: admit.triage_context.data.path
+          equals: stop
+        context:
+          triage_context: admit.triage_context.data
+        tool: { module: vuln-triage.mjs, export: finalizeScan }
+        outputs:
+          vulnerability_scan_packet: object
+        artifacts:
+          named_emits:
+            vulnerability_scan_packet: vulnerability_scan_packet
+          packets:
+            vulnerability_scan_packet: runx.security.vulnerability_scan.v1
+
+  advisory:
+    inputs:
+      triage_packet:
+        type: json
+        required: true
+        packet: runx.security.vulnerability_scan.v1
+        description: Validated runx.security.vulnerability_scan.v1 packet.
+      audience:
+        type: string
+        required: false
+        default: affected_users
+        description: Intended advisory audience.
+    result_from: [finalize, stop]
+    steps:
+      - id: admit
+        inputs:
+          triage_packet: $input.triage_packet
+          audience: $input.audience
+        tool: { module: vuln-triage.mjs, export: admitAdvisory }
+        outputs:
+          advisory_context: object
+        artifacts:
+          named_emits:
+            advisory_context: advisory_context
+
+      - id: draft
+        when:
+          field: admit.advisory_context.data.path
+          equals: draft
+        agent: { role: builder, task: vuln-triage-advisory }
+        outputs:
+          advisory_draft: object
+        context:
+          advisory_context: admit.advisory_context.data
+        artifacts:
+          named_emits:
+            advisory_draft: advisory_draft
+
+      - id: finalize
+        when:
+          field: admit.advisory_context.data.path
+          equals: draft
+        context:
+          advisory_context: admit.advisory_context.data
+          advisory_draft: draft.advisory_draft.data
+        tool: { module: vuln-triage.mjs, export: finalizeAdvisory }
+        outputs:
+          vulnerability_advisory_packet: object
+        artifacts:
+          named_emits:
+            vulnerability_advisory_packet: vulnerability_advisory_packet
+          packets:
+            vulnerability_advisory_packet: runx.security.vulnerability_advisory.v1
+
+      - id: stop
+        when:
+          field: admit.advisory_context.data.path
+          equals: stop
+        context:
+          advisory_context: admit.advisory_context.data
+        tool: { module: vuln-triage.mjs, export: finalizeAdvisory }
+        outputs:
+          vulnerability_advisory_packet: object
+        artifacts:
+          named_emits:
+            vulnerability_advisory_packet: vulnerability_advisory_packet
+          packets:
+            vulnerability_advisory_packet: runx.security.vulnerability_advisory.v1

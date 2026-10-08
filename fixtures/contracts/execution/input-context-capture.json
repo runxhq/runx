@@ -1,1 +1,0 @@
-{"description":"InputContextCapture contract fixture generated from the TypeScript serializable wire subset.","expected":{"capture":true,"max_bytes":4096,"snapshot":{"count":1,"source":"fixture"},"source":"declared-inputs"},"fixture_kind":"input_context_capture","name":"input-context-capture","scope":"execution"}

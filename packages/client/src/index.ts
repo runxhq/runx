@@ -1,0 +1,110 @@
+import { randomBytes } from "node:crypto";
+import { writeFile, rm } from "node:fs/promises";
+import path from "node:path";
+import { decodeSkill, parseJson, record } from "./decode.js";
+import { invoke, RunxClientError } from "./process.js";
+import type { ExecutionBinding, InvocationOptions, NativeHarnessOutput, NativePackageOutput, ReceiptVerifyOutput, RunxClient, RunxClientConfig, SkillInspection } from "./types.js";
+
+export { hostEnvironmentFrom } from "./environment.js";
+export { RunxClientError } from "./process.js";
+export { executionBindingFromInspection, executionClosureFromInspection, assertInspectionMatchesBinding } from "./inspection.js";
+export type * from "./types.js";
+export type { ExecutionPackageBinding, ExecutionClosureInspection } from "./inspection.js";
+
+export function createRunxClient(configuration: RunxClientConfig): RunxClient {
+  const config = { ...configuration, environment: { ...configuration.environment } };
+  for (const name of ["command", "cwd", "projectDir", "home"] as const) {
+    if (!config[name]?.trim()) throw new TypeError(`Runx client requires ${name}.`);
+  }
+  for (const name of ["cwd", "projectDir", "home"] as const) {
+    if (!path.isAbsolute(config[name])) throw new TypeError(`Runx ${name} must be absolute.`);
+  }
+  const timeoutMs = positive(config.timeoutMs ?? 15 * 60 * 1000, "timeoutMs");
+  const terminationGraceMs = positive(config.terminationGraceMs ?? 1000, "terminationGraceMs");
+  if (timeoutMs > 2147483647 || terminationGraceMs > 2147483647) throw new TypeError("Runx timer limits exceed the platform timer range.");
+  const maxOutputBytes = positive(config.maxOutputBytes ?? 64 * 1024 * 1024, "maxOutputBytes");
+  const maxInputBytes = positive(config.maxInputBytes ?? 8 * 1024 * 1024, "maxInputBytes");
+  const maxArtifactBytes = positive(config.maxArtifactBytes ?? 64 * 1024 * 1024, "maxArtifactBytes");
+  const trustedEnv = { ...config.environment, NO_COLOR: "1", RUNX_RUST_CLI: "1", RUNX_CWD: config.cwd, RUNX_PROJECT_DIR: config.projectDir, HOME: config.home, RUNX_HOME: config.home };
+  const execute = (args: readonly string[], options: InvocationOptions, input?: string) => invoke({
+    command: config.command, args, cwd: config.cwd, env: { ...skillEnvironment(options.environment), ...trustedEnv },
+    timeoutMs, terminationGraceMs, maxOutputBytes, maxInputBytes, input, signal: options.signal,
+  });
+  const payload = async <T>(value: unknown, action: (file: string) => Promise<T>): Promise<T> => {
+    const text = JSON.stringify(value);
+    if (text === undefined || Buffer.byteLength(text) > maxInputBytes) throw new RunxClientError("input_limit", `Runx input exceeds ${maxInputBytes} bytes or is not JSON.`);
+    const file = path.join(config.cwd, `.runx-client-${randomBytes(16).toString("hex")}.json`);
+    await writeFile(file, text, { mode: 0o600, flag: "wx" });
+    try { return await action(file); } finally { await rm(file, { force: true }); }
+  };
+  return {
+    skills: {
+      inspect: async (options) => {
+        const output = parseJson(await execute(["skill", "inspect", argument(options.skillPath), ...runnerArgs(options.runner), "--json"], options), [0]);
+        if (output.schema !== "runx.skill.inspect.v1" || output.status !== "ok" || typeof output.name !== "string" || !output.name.trim() || typeof output.package_digest !== "string" || !output.package_digest.trim() || (output.runner !== undefined && !record(output.runner))) throw new RunxClientError("contract", "Invalid native skill inspection.");
+        return output as SkillInspection;
+      },
+      run: async (options) => await payload(options.inputs ?? {}, async (file) => {
+        const receiptDir = absolute(options.receiptDir);
+        if (options.binding && options.runner && options.runner !== options.binding.runner) throw new TypeError("Selected runner differs from the execution binding.");
+        const result = await execute(["skill", argument(options.skillPath), ...runnerArgs(options.binding?.runner ?? options.runner), ...bindingArgs(options.binding), "--inputs", file, "--receipt-dir", receiptDir, "--json"], options);
+        return await decodeSkill(result, { projectDir: config.projectDir, receiptDir, maxArtifactBytes });
+      }),
+    },
+    runs: {
+      resume: async (options) => await payload(options.resolutions, async (file) => {
+        const receiptDir = absolute(options.receiptDir);
+        const result = await execute(["resume", argument(options.runId), file, ...bindingArgs(options.binding), "--receipt-dir", receiptDir, "--json"], options);
+        return await decodeSkill(result, { projectDir: config.projectDir, receiptDir, maxArtifactBytes });
+      }),
+    },
+    packages: {
+      materialize: async (options) => {
+        const output = parseJson(await execute(["registry", "package", argument(options.skillPath), "--json"], options), [0]);
+        if (output.status !== "success" || !record(output.registry) || output.registry.action !== "package" || !record(output.registry.package) || typeof output.registry.package.markdown !== "string") throw new RunxClientError("contract", "Invalid native package material.");
+        return output as NativePackageOutput;
+      },
+    },
+    harness: {
+      run: async (options) => {
+        const output = parseJson(await execute(["harness", argument(options.skillPath), "--json", "--receipt-dir", absolute(options.receiptDir)], options), [0, 1]);
+        if (!["passed", "failed", "not_declared"].includes(String(output.status)) || ![output.case_count, output.assertion_error_count, output.graph_case_count].every((value) => typeof value === "number" && Number.isSafeInteger(value) && value >= 0) || ![output.assertion_errors, output.case_names, output.receipt_ids].every((value) => Array.isArray(value) && value.every((item) => typeof item === "string"))) throw new RunxClientError("contract", "Invalid native harness summary.");
+        return output as unknown as NativeHarnessOutput;
+      },
+    },
+    receipts: {
+      verify: async (options) => {
+        const output = parseJson(await execute(["verify", "--receipt", "-", ...(options.allowLocalDevelopmentSignatures ? ["--allow-local-development-signatures"] : []), "--json"], options, options.receipt), [0, 3]);
+        if (output.schema !== "runx.verify_verdict.v1" || typeof output.valid !== "boolean" || (output.receipt_id !== null && typeof output.receipt_id !== "string")) throw new RunxClientError("contract", "Invalid native receipt verification verdict.");
+        return output as ReceiptVerifyOutput;
+      },
+    },
+  };
+}
+
+function positive(value: number, name: string): number {
+  if (!Number.isSafeInteger(value) || value <= 0) throw new TypeError(`Runx ${name} must be a positive safe integer.`);
+  return value;
+}
+function argument(value: string): string {
+  if (!value.trim() || value.startsWith("-") || value.includes("\0")) throw new TypeError("Invalid native positional argument.");
+  return value;
+}
+function absolute(value: string): string {
+  if (!path.isAbsolute(value)) throw new TypeError("Runx receiptDir must be absolute.");
+  return argument(value);
+}
+function runnerArgs(value?: string): string[] { return value ? [argument(value)] : []; }
+function bindingArgs(binding?: ExecutionBinding): string[] {
+  if (!binding) return [];
+  argument(binding.runner);
+  if (![binding.packageDigest, binding.executionClosureDigest].every((value) => /^sha256:[0-9a-f]{64}$/u.test(value))) throw new TypeError("Invalid native execution binding digests.");
+  return ["--package-digest", binding.packageDigest, "--execution-closure-digest", binding.executionClosureDigest];
+}
+function skillEnvironment(environment?: Readonly<Record<string, string>>): NodeJS.ProcessEnv {
+  for (const [name, value] of Object.entries(environment ?? {})) {
+    if (!/^[_A-Za-z][_A-Za-z0-9]*$/u.test(name) || typeof value !== "string" || value.includes("\0")) throw new TypeError(`Invalid skill environment variable '${name}'.`);
+    if (/^(RUNX_|NODE_|LD_|DYLD_)/u.test(name.toUpperCase()) || ["PATH", "HOME", "NO_COLOR", "BASH_ENV", "ENV", "COMSPEC", "PATHEXT"].includes(name.toUpperCase())) throw new TypeError(`Skill environment cannot override runtime-owned variable '${name}'.`);
+  }
+  return { ...environment };
+}

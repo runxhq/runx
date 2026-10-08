@@ -257,9 +257,9 @@ fn missing_inner_receipt_fails_closed() -> Result<(), serde_json::Error> {
 #[test]
 fn slice_adapter_accepts_only_typed_receipt_uri() -> Result<(), serde_json::Error> {
     let mut root = fixture(SUCCESS_RECEIPT)?;
-    let child = child("hrn_rcpt_child_1")?;
+    let child = child("rcpt_child_1")?;
 
-    child_refs_mut(&mut root)[0].uri = "hrn_rcpt_child_1".to_owned().into();
+    child_refs_mut(&mut root)[0].uri = "rcpt_child_1".to_owned().into();
     let verification = verify_receipt_tree(&root, std::slice::from_ref(&child));
     assert_finding(
         &verification,
@@ -267,7 +267,7 @@ fn slice_adapter_accepts_only_typed_receipt_uri() -> Result<(), serde_json::Erro
         "lineage.children[0]",
     );
 
-    child_refs_mut(&mut root)[0].uri = "runx:receipt:hrn_rcpt_child_1".to_owned().into();
+    child_refs_mut(&mut root)[0].uri = "runx:receipt:rcpt_child_1".to_owned().into();
     assert!(verify_receipt_tree(&root, &[child]).valid);
     Ok(())
 }
@@ -275,9 +275,9 @@ fn slice_adapter_accepts_only_typed_receipt_uri() -> Result<(), serde_json::Erro
 #[test]
 fn malformed_and_wrong_namespace_refs_are_stable_findings() -> Result<(), serde_json::Error> {
     let mut root = fixture(SUCCESS_RECEIPT)?;
-    let child = child("hrn_rcpt_child_1")?;
+    let child = child("rcpt_child_1")?;
 
-    child_refs_mut(&mut root)[0].uri = "runx:graph_receipt:hrn_rcpt_child_1".to_owned().into();
+    child_refs_mut(&mut root)[0].uri = "runx:graph_receipt:rcpt_child_1".to_owned().into();
     let verification = verify_receipt_tree(&root, std::slice::from_ref(&child));
     assert_finding(
         &verification,
@@ -285,7 +285,7 @@ fn malformed_and_wrong_namespace_refs_are_stable_findings() -> Result<(), serde_
         "lineage.children[0]",
     );
 
-    child_refs_mut(&mut root)[0].uri = ":hrn_rcpt_child_1".to_owned().into();
+    child_refs_mut(&mut root)[0].uri = ":rcpt_child_1".to_owned().into();
     let verification = verify_receipt_tree(&root, &[child]);
     assert_finding(
         &verification,
@@ -299,7 +299,7 @@ fn malformed_and_wrong_namespace_refs_are_stable_findings() -> Result<(), serde_
 fn suffix_only_refs_are_malformed_not_aliases() -> Result<(), serde_json::Error> {
     let mut root = fixture(SUCCESS_RECEIPT)?;
     child_refs_mut(&mut root)[0].uri = "child_1".to_owned().into();
-    let child = child("hrn_rcpt_child_1")?;
+    let child = child("rcpt_child_1")?;
 
     let verification = verify_receipt_tree(&root, &[child]);
 
@@ -314,8 +314,8 @@ fn suffix_only_refs_are_malformed_not_aliases() -> Result<(), serde_json::Error>
 #[test]
 fn duplicate_ids_make_slice_resolution_ambiguous() -> Result<(), serde_json::Error> {
     let root = fixture(SUCCESS_RECEIPT)?;
-    let first = child("hrn_rcpt_child_1")?;
-    let second = child("hrn_rcpt_child_1")?;
+    let first = child("rcpt_child_1")?;
+    let second = child("rcpt_child_1")?;
 
     let verification = verify_receipt_tree(&root, &[first, second]);
 
@@ -368,7 +368,7 @@ fn resolver_error_result_is_a_stable_finding() -> Result<(), serde_json::Error> 
 #[test]
 fn strict_mode_rejects_mismatched_parent_link() -> Result<(), serde_json::Error> {
     let root = fixture(SUCCESS_RECEIPT)?;
-    let mut child = child("hrn_rcpt_child_1")?;
+    let mut child = child("rcpt_child_1")?;
     child.lineage.get_or_insert_with(Default::default).parent =
         Some(reference(ReferenceType::Receipt, "other"));
 
@@ -394,7 +394,7 @@ fn strict_mode_rejects_mismatched_parent_link() -> Result<(), serde_json::Error>
 #[test]
 fn strict_mode_requires_present_parent_link() -> Result<(), serde_json::Error> {
     let root = fixture(SUCCESS_RECEIPT)?;
-    let child = child("hrn_rcpt_child_1")?;
+    let child = child("rcpt_child_1")?;
 
     let verification = verify_receipt_tree_with_resolver(
         &root,
@@ -418,7 +418,7 @@ fn strict_mode_requires_present_parent_link() -> Result<(), serde_json::Error> {
 #[test]
 fn depth_limit_blocks_hostile_nested_tree() -> Result<(), serde_json::Error> {
     let root = fixture(SUCCESS_RECEIPT)?;
-    let mut child_receipt = child("hrn_rcpt_child_1")?;
+    let mut child_receipt = child("rcpt_child_1")?;
     child_refs_mut(&mut child_receipt).push(reference(ReferenceType::Receipt, "grandchild"));
     let grandchild = child("grandchild")?;
 
@@ -445,7 +445,7 @@ fn depth_limit_blocks_hostile_nested_tree() -> Result<(), serde_json::Error> {
 fn breadth_limit_blocks_hostile_fanout() -> Result<(), serde_json::Error> {
     let mut root = fixture(SUCCESS_RECEIPT)?;
     child_refs_mut(&mut root).push(reference(ReferenceType::Receipt, "second"));
-    let first = child("hrn_rcpt_child_1")?;
+    let first = child("rcpt_child_1")?;
     let second = child("second")?;
 
     let verification = verify_receipt_tree_with_resolver(
@@ -470,7 +470,7 @@ fn breadth_limit_blocks_hostile_fanout() -> Result<(), serde_json::Error> {
 #[test]
 fn positive_nested_tree_verifies() -> Result<(), serde_json::Error> {
     let root = fixture(SUCCESS_RECEIPT)?;
-    let mut child_receipt = child("hrn_rcpt_child_1")?;
+    let mut child_receipt = child("rcpt_child_1")?;
     child_refs_mut(&mut child_receipt).push(reference(ReferenceType::Receipt, "grandchild"));
     let grandchild = child("grandchild")?;
 
@@ -482,7 +482,7 @@ fn positive_nested_tree_verifies() -> Result<(), serde_json::Error> {
 fn positive_fanout_tree_verifies() -> Result<(), serde_json::Error> {
     let mut root = fixture(SUCCESS_RECEIPT)?;
     child_refs_mut(&mut root).push(reference(ReferenceType::Receipt, "second"));
-    let first = child("hrn_rcpt_child_1")?;
+    let first = child("rcpt_child_1")?;
     let second = child("second")?;
 
     assert!(verify_receipt_tree(&root, &[first, second]).valid);
@@ -492,7 +492,7 @@ fn positive_fanout_tree_verifies() -> Result<(), serde_json::Error> {
 #[test]
 fn strict_parent_links_can_verify_cleanly() -> Result<(), serde_json::Error> {
     let root = fixture(SUCCESS_RECEIPT)?;
-    let mut child = child("hrn_rcpt_child_1")?;
+    let mut child = child("rcpt_child_1")?;
     child.lineage.get_or_insert_with(Default::default).parent =
         Some(Reference::runx(ReferenceType::Receipt, &root.id));
 

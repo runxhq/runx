@@ -31,7 +31,7 @@ inputs:
   idempotency_key: vuln-disclosure-example-001
 caller:
   answers:
-    agent_task.vuln-disclosure-review.output:
+    agent.vuln-disclosure-review.output:
       disclosure_review_draft:
         decision: ready_for_approval
         rationale: The source packet is verified, the target is exact, and a remediation is available.

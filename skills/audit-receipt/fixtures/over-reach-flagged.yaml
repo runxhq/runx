@@ -67,7 +67,7 @@ inputs:
   objective: Audit whether the run exceeded its grant.
 caller:
   answers:
-    agent_task.audit-receipt.output:
+    agent.audit-receipt.output:
       receipt_audit:
         decision: ready
         run_ref: rcpt_doc_bot_5582

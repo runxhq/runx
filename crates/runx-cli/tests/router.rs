@@ -159,7 +159,11 @@ fn nested_skill_history_verify_and_publish_help_are_native() {
     );
     assert_help_line(
         &history_help_text(),
-        "runx history [query] [--detail] [--skill s] [--status s] [--source s] [--actor a] [--artifact-type t] [--since iso] [--until iso] [--limit n] [--include-harness] [--include-internal] [--receipt-dir dir] [--json]",
+        "runx history [query] [--skill s] [--status s] [--since iso] [--until iso] [--limit n] [--json]",
+    );
+    assert_help_line(
+        &history_help_text(),
+        "runx history <receipt-id> --detail [--receipt-dir dir] [--json]",
     );
     assert_help_line(
         &verify_help_text(),
@@ -375,18 +379,6 @@ fn routes_doctor_registry_to_native_plan() {
 }
 
 #[test]
-fn removed_router_shim_flags_fail_closed() {
-    assert_eq!(
-        plan(&["--shim-help"]),
-        RouterAction::Error("unknown command --shim-help".to_owned())
-    );
-    assert_eq!(
-        plan(&["--shim-version"]),
-        RouterAction::Error("unknown command --shim-version".to_owned())
-    );
-}
-
-#[test]
 fn routes_mcp_serve_to_native_plan() {
     assert_eq!(
         plan(&[
@@ -542,36 +534,6 @@ fn routes_canonical_skill_run_to_native_plan() {
 }
 
 #[test]
-fn skill_rejects_legacy_runner_and_continuation_flags() {
-    assert_eq!(
-        plan(&["skill", "skills/issue-intake", "--runner", "intake"]),
-        RouterAction::Error(
-            "runx skill --runner is no longer supported; use `runx skill <skill> <runner>`"
-                .to_owned()
-        )
-    );
-    assert_eq!(
-            plan(&["skill", "skills/issue-intake", "--run-id", "run_123"]),
-            RouterAction::Error(
-                "runx skill continuation flags are no longer supported; use `runx resume <run-id> <answers.json|->`"
-                    .to_owned()
-            )
-        );
-    assert_eq!(
-        plan(&[
-            "skill",
-            "skills/issue-intake",
-            "--answers",
-            "/tmp/answers.json",
-        ]),
-            RouterAction::Error(
-                "runx skill continuation flags are no longer supported; use `runx resume <run-id> <answers.json|->`"
-                    .to_owned()
-            )
-        );
-}
-
-#[test]
 fn skill_rejects_resolver_flags_for_management_actions() {
     for action in ["publish", "search", "validate"] {
         assert_eq!(
@@ -591,22 +553,6 @@ fn skill_rejects_resolver_flags_for_management_actions() {
             "{action}"
         );
     }
-}
-
-#[test]
-fn rejects_legacy_skill_add_shape() {
-    assert_eq!(
-        plan(&["skill", "add", "acme/sourcey@1.0.0"]),
-        RouterAction::Error("runx skill add has been removed; use runx add <ref>".to_owned())
-    );
-    assert_eq!(
-        plan(&["skill", "add", "acme/sourcey@1.0.0", "--json"]),
-        RouterAction::JsonError(JsonErrorPlan {
-            message: "runx skill add has been removed; use runx add <ref>".to_owned(),
-            code: "invalid_args".to_owned(),
-            exit_code: 64,
-        })
-    );
 }
 
 #[test]
@@ -934,7 +880,7 @@ fn routes_registry_to_native_plan() {
             "package",
             "skills/example",
             "--profile",
-            "profiles/X.yaml",
+            "profiles/run.yaml",
             "--json",
         ]),
         RouterAction::RunRegistry(RegistryPlan {
@@ -946,7 +892,7 @@ fn routes_registry_to_native_plan() {
             expected_digest: None,
             destination: None,
             owner: None,
-            profile: Some(PathBuf::from("profiles/X.yaml")),
+            profile: Some(PathBuf::from("profiles/run.yaml")),
             trust_tier: None,
             limit: None,
             upsert: false,

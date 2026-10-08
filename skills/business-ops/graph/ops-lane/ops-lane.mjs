@@ -130,7 +130,7 @@ const laneDetails = {
     kind: "outreach",
     consequence: "public_send",
     summary: "Plan outbound, customer, or operator communication, then stop before live delivery.",
-    why: "Real outreach needs principal, audience, content digest, consent, provider readiness, and human approval. The core graph stays provider-neutral; vendor details belong in the selected provider adapter skill.",
+    why: "Real outreach needs principal, audience, content digest, consent, provider readiness, and human approval. The core graph stays provider-neutral; vendor details belong in the selected provider skill and its connector.",
     authority: authority(["comms.draft"]),
     gate: gate(true, "approval.send", "live send, campaign schedule, broad audience, or public post requires a send gate"),
     handoff: handoff({

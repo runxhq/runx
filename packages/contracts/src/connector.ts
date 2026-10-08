@@ -101,6 +101,7 @@ export interface ConnectorOperation {
     readonly mcp?: JsonObject;
     readonly process?: JsonObject;
     readonly web?: JsonObject;
+    readonly store?: JsonObject;
   };
 }
 
@@ -110,6 +111,8 @@ export interface ConnectorManifest {
   readonly name: string;
   readonly description: string;
   readonly auth: JsonObject;
+  /** The JSON Schema of the parameters an instance pins. */
+  readonly parameters?: JsonObject;
   readonly placements: {
     readonly hosted?: {
       readonly auth: "delegated" | "credential";

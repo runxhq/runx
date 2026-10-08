@@ -14,7 +14,7 @@ operator_journeys:
     expected_outcome: A validated declarative skill package is applied with a useful manual and semantic harness.
 caller:
   answers:
-    agent_task.skill-lab-architecture.output:
+    agent.skill-lab-architecture.output:
       architecture_decision:
         schema: runx.skill.architecture_decision.v1
         disposition: build
@@ -62,7 +62,7 @@ caller:
             lane: manual
           - id: decide
             outcome: Return one bounded decision note.
-            lane: agent_task
+            lane: agent
         native_reuse:
           inspected_capabilities:
             - runx.skill.inspect
@@ -82,7 +82,6 @@ caller:
         resource_budget:
           max_files: 4
           max_executable_lines: 0
-          max_fanout: 1
           max_process_spawns: 0
           network_allowed: false
         preservation_obligations:
@@ -98,11 +97,11 @@ caller:
           - name: decision-note-composed
             kind: composed_operator_journey
             expected: A prior objective artifact is reused without reacquisition.
-    agent_task.skill-lab-author.output:
+    agent.skill-lab-author.output:
       change_draft:
         schema: runx.skill.change_draft.v1
         decision: write
-        summary: Create one thin agent-task skill with a supplied-answer harness.
+        summary: Create one thin agent skill with a supplied-answer harness.
         non_goals:
           - Do not add package-local JavaScript or a provider boundary.
         writes:
@@ -130,7 +129,7 @@ caller:
 
               Return `decision_note` with the objective preserved exactly and
               one concise recommendation. Do not claim external effects.
-          - path: X.yaml
+          - path: run.yaml
             contents: |
               skill: fixture-decision-note
               version: "0.1.0"
@@ -153,7 +152,7 @@ caller:
                       objective: Choose the bounded next action.
                     caller:
                       answers:
-                        agent_task.fixture-decision-note.output:
+                        agent.fixture-decision-note.output:
                           decision_note:
                             objective: Choose the bounded next action.
                             recommendation: Inspect the supplied evidence first.
@@ -165,16 +164,18 @@ caller:
               runners:
                 note:
                   default: true
-                  type: agent-task
-                  agent: analyst
-                  task: fixture-decision-note
                   inputs:
                     objective:
                       type: string
                       required: true
                       description: Bounded decision objective.
-                  outputs:
-                    decision_note: object
+                  steps:
+                    - id: note
+                      agent: { role: analyst, task: fixture-decision-note }
+                      inputs:
+                        objective: $input.objective
+                      outputs:
+                        decision_note: object
         deletes: []
         expected_outputs:
           - name: decision_note

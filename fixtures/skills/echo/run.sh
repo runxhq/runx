@@ -1,2 +1,6 @@
 #!/bin/sh
-printf '%s' "${RUNX_INPUT_MESSAGE:-}"
+if [ "${RUNX_INPUTS_JSON+x}" = "x" ]; then
+  printf '%s' "$RUNX_INPUTS_JSON"
+else
+  printf '%s' '{}'
+fi

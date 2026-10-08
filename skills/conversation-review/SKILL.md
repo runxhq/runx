@@ -1,8 +1,6 @@
 ---
 name: conversation-review
 description: Review one grounded provider-neutral conversation, prepare an unsent reply or follow-up, and identify genuine coding requests for a separate engineering intake.
-runx:
-  category: ops
 ---
 
 # Conversation Review

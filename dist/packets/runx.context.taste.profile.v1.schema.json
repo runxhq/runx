@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://schemas.runx.ai/runx/context/taste_profile/v1.json",
   "x-runx-packet-id": "runx.context.taste_profile.v1",
-  "x-runx-generated-from": "skills/taste-profile/X.yaml#root.runners.profile.graph.steps.2",
+  "x-runx-generated-from": "skills/taste-profile/run.yaml#root.runners.profile.steps.2",
   "additionalProperties": false,
   "properties": {
     "applicability": {

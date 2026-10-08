@@ -1,13 +1,14 @@
 name: "reply-only-question"
-kind: "agent_task"
-runner: "issue-intake"
+kind: "skill"
+target: "../../../../../skills/issue-intake"
+runner: "intake"
 inputs:
   thread_body: "I only need the operator instructions for rotating an API key safely."
   thread_locator: "support://request/983"
   thread_title: "How do I rotate my API key?"
 caller:
   answers:
-    agent_task.issue-intake.output:
+    agent.issue-intake.output:
       change_set:
         action_decision: "stop"
         category: "question"
@@ -75,14 +76,6 @@ caller:
           recommended_lane: "reply-only"
           severity: "low"
         updated_at: "2026-05-15T00:00:00Z"
-      decision:
-        schema: "runx.decision.v1"
-        decision_id: "dec_reply-only-question"
-        choice: "decline"
-        summary: "No code or planning lane is required to answer this request."
-        recommended_lane: "reply-only"
-  approvals:
-    {}
 expect:
   status: "sealed"
   receipt:
@@ -92,4 +85,3 @@ expect:
 metadata:
   product_skill: "issue-intake"
   source_case: "reply-only-question"
-  runner_kind: "agent_task"

@@ -37,6 +37,6 @@ policy basis, provider readiness, and approval. Drafting is not sending.
 - Missing consent, unsubscribe, suppression, preflight, or verified sender.
 - Request to send from a provider preview or draft without approval.
 
-Route provider-specific execution to the selected provider adapter skill; keep
-the authority model in `send-as`. Branded providers belong in their own adapter
-skills, not in this ops desk spine.
+Route provider-specific execution to the selected provider's connector; keep
+the authority model in `send-as`. Branded providers belong in their own skills
+and connectors, not in this ops desk spine.

@@ -1,11 +1,11 @@
-#![cfg(feature = "cli-tool")]
+#![cfg(feature = "process-tool")]
 
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::Path;
 
 use runx_contracts::{EnvironmentRequirements, JsonObject, JsonValue};
-use runx_parser::{SkillSource, SourceKind};
+use runx_parser::ProcessTool;
 use runx_runtime::process_invocation::prepare_process_invocation;
 use runx_runtime::{RUNX_CWD_ENV, RuntimeError};
 
@@ -15,7 +15,7 @@ fn trusted_host_process_receives_exact_argv_cwd_and_declared_environment()
     let workspace = tempfile::tempdir()?;
     let skill = workspace.path().join("skill");
     fs::create_dir_all(&skill)?;
-    let source = source(
+    let mut tool = tool(
         Some("."),
         vec![
             "{{message}}".to_owned(),
@@ -23,7 +23,7 @@ fn trusted_host_process_receives_exact_argv_cwd_and_declared_environment()
             "{{env.UNDECLARED_SECRET}}".to_owned(),
         ],
     );
-    let requirements = EnvironmentRequirements {
+    tool.environment = EnvironmentRequirements {
         required: vec!["REGION".to_owned()],
         optional: Vec::new(),
     };
@@ -37,7 +37,7 @@ fn trusted_host_process_receives_exact_argv_cwd_and_declared_environment()
         ],
     );
 
-    let process = prepare_process_invocation(&source, &requirements, &skill, &inputs, &env)?;
+    let process = prepare_process_invocation(&tool, &skill, &inputs, &env)?;
 
     assert_eq!(process.command, "/usr/bin/printf");
     assert_eq!(
@@ -70,16 +70,10 @@ fn trusted_host_process_honors_explicit_relative_cwd_without_claiming_confinemen
     let sibling = workspace.path().join("sibling");
     fs::create_dir_all(&skill)?;
     fs::create_dir_all(&sibling)?;
-    let source = source(Some("../sibling"), Vec::new());
+    let tool = tool(Some("../sibling"), Vec::new());
     let env = environment(workspace.path(), []);
 
-    let process = prepare_process_invocation(
-        &source,
-        &EnvironmentRequirements::default(),
-        &skill,
-        &JsonObject::new(),
-        &env,
-    )?;
+    let process = prepare_process_invocation(&tool, &skill, &JsonObject::new(), &env)?;
 
     assert_eq!(process.cwd, fs::canonicalize(sibling)?);
     Ok(())
@@ -91,17 +85,11 @@ fn large_inputs_use_owned_files_and_cleanup_with_the_invocation()
     let workspace = tempfile::tempdir()?;
     let skill = workspace.path().join("skill");
     fs::create_dir_all(&skill)?;
-    let source = source(None, Vec::new());
+    let tool = tool(None, Vec::new());
     let inputs = JsonObject::from([("large".to_owned(), JsonValue::String("x".repeat(80 * 1024)))]);
     let env = environment(workspace.path(), []);
 
-    let process = prepare_process_invocation(
-        &source,
-        &EnvironmentRequirements::default(),
-        &skill,
-        &inputs,
-        &env,
-    )?;
+    let process = prepare_process_invocation(&tool, &skill, &inputs, &env)?;
     let cleanup_path = process
         .cleanup_paths
         .first()
@@ -146,8 +134,7 @@ fn colliding_author_input_environment_names_fail_before_spawn()
     ]);
 
     let Err(error) = prepare_process_invocation(
-        &source(None, Vec::new()),
-        &EnvironmentRequirements::default(),
+        &tool(None, Vec::new()),
         &skill,
         &inputs,
         &environment(workspace.path(), []),
@@ -163,24 +150,14 @@ fn colliding_author_input_environment_names_fail_before_spawn()
     Ok(())
 }
 
-fn source(cwd: Option<&str>, args: Vec<String>) -> SkillSource {
-    SkillSource {
-        source_type: SourceKind::CliTool,
-        command: Some("/usr/bin/printf".to_owned()),
+fn tool(cwd: Option<&str>, args: Vec<String>) -> ProcessTool {
+    ProcessTool {
+        command: "/usr/bin/printf".to_owned(),
         args,
         cwd: cwd.map(str::to_owned),
         timeout_seconds: Some(5),
         input_mode: None,
         environment: EnvironmentRequirements::default(),
-        module: None,
-        javascript_export: None,
-        pages: None,
-        agent: None,
-        task: None,
-        outputs: None,
-        graph: None,
-        act: None,
-        raw: JsonObject::new(),
     }
 }
 

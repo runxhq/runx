@@ -2,8 +2,6 @@ name: route-persists-with-provider-evidence
 kind: skill
 target: ..
 runner: route_and_append
-env:
-  RUNX_DATA_SOURCES: '{"data_sources":{"tenant://business-ops/sqlite-routes":{"adapter":"data.sqlite","database_path":".runx/data/business-ops-routes.sqlite","resources":{"ops_routes":{"kind":"event_stream","partition_key":"aggregate_id"}}}}}'
 inputs:
   data_source_ref: tenant://business-ops/sqlite-routes
   resource: ops_routes
@@ -31,28 +29,24 @@ expect:
         data_operation_result:
           data:
             schema: runx.data.operation_result.v1
-            operation: append_event
+            operation: events.append
             aggregate_id: launch-readiness
             after_version: 1
             provider_evidence:
-              adapter: data.sqlite
-              provider: sqlite-event-store
-              storage_class: sqlite
+              backend: sqlite
     readback:
       subset:
         data_operation_result:
           data:
             schema: runx.data.operation_result.v1
-            operation: read_projection
+            operation: projection.read
             status: read
             projection:
               aggregate_id: launch-readiness
               event_count: 1
               version: 1
             provider_evidence:
-              adapter: data.sqlite
-              provider: sqlite-event-store
-              storage_class: sqlite
+              backend: sqlite
     finalize-route:
       subset:
         route_persistence:
@@ -65,5 +59,4 @@ metadata:
   public_skill: business-ops
   source_case: route-persists-with-provider-evidence
   source: skills-fixture
-  runner_kind: graph
   graph_shape: route_and_append

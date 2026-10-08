@@ -12,6 +12,7 @@ function workspacePath(relativePath: string): string {
 }
 
 export const workspaceAliases: readonly WorkspaceAlias[] = [
+  { find: /^@runxhq\/client\/adapters$/, replacement: workspacePath("packages/client/src/adapters/index.ts") },
   {
     find: /^@runxhq\/extension-sdk$/,
     replacement: workspacePath("packages/extension-sdk/src/index.ts"),
@@ -21,7 +22,7 @@ export const workspaceAliases: readonly WorkspaceAlias[] = [
     replacement: workspacePath("packages/contracts/src/index.ts"),
   },
   {
-    find: /^@runxhq\/host-adapters$/,
-    replacement: workspacePath("packages/host-adapters/src/index.ts"),
+    find: /^@runxhq\/client$/,
+    replacement: workspacePath("packages/client/src/index.ts"),
   },
 ];

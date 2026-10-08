@@ -1,12 +1,12 @@
 # Skill Author Runtime Contract
 
 This document defines the lower-level author-visible v1 subprocess ABI for
-`cli-tool` skills. Use it only when a capability genuinely needs an executable
-or protocol that cannot use Runx's JavaScript module boundary. Ordinary package
-domain logic should declare `type: javascript`, export a function from a local
-module, accept the resolved input object plus its frozen execution context, and
-return a JSON-compatible value; Runx then owns every process detail described
-below.
+process tools, `tool: { command: ... }`. Use one only when a capability
+genuinely needs an executable or protocol that cannot use Runx's JavaScript
+worker boundary. Ordinary package domain logic should declare a worker step,
+`tool: { module: ... }`, export a function from a local module, accept the
+resolved input object plus its frozen execution context, and return a
+JSON-compatible value; Runx then owns every process detail described below.
 
 Internal receipt IDs, artifact IDs, execution-boundary metadata internals, and
 temporary paths are not part of this contract unless named here.
@@ -17,12 +17,11 @@ A pure package module needs no manifest, wrapper, environment parsing, stdout
 serialization, or package dependency:
 
 ```yaml
-run:
-  type: javascript
-  module: risk-model.mjs
-  export: assessRisk
-  outputs:
-    assessment: object
+steps:
+  - id: assess
+    tool: { module: risk-model.mjs, export: assessRisk }
+    outputs:
+      assessment: object
 ```
 
 ```js
@@ -35,14 +34,16 @@ Omit `export` to select the default export. Module paths are portable relative
 `.mjs` or `.js` paths contained by the owning skill. The selected export may be
 sync or async. Runx owns the dedicated no-host worker, input and output framing,
 wall enforcement, and failure semantics. The second export argument is a
-frozen `{ environment }` object containing only names declared by the selected
-runner:
+frozen `{ environment }` object containing only names the worker declares:
 
 ```yaml
-  environment:
-    required: [REGION]
-    optional: [TRACE_LABEL]
-  timeout_seconds: 10
+    tool:
+      module: risk-model.mjs
+      export: assessRisk
+      environment:
+        required: [REGION]
+        optional: [TRACE_LABEL]
+      timeout_seconds: 10
 ```
 
 Required values fail before the worker starts when unavailable; absent optional
@@ -59,11 +60,10 @@ it does not widen graph, deterministic-worker, output, credential, or approval
 limits. Do not pass an archive, history, or growing completed-id list through
 that object merely because the CLI can read it.
 
-For one large immutable JSON-array export, declare a paged deterministic source:
+For one large immutable JSON-array export, declare a paged worker:
 
 ```yaml
-run:
-  type: javascript
+tool:
   module: archive-selection.mjs
   export: selectPage
   pages:
@@ -97,20 +97,20 @@ still apply to each call, so the runtime may frame fewer source bytes when JSON
 encoding and page metadata would otherwise exceed the worker input boundary. A
 single record that cannot fit safely is rejected. These are runtime ceilings,
 not manifest profiles. Package code must keep continuation proportional to the
-bounded result it is building; durable progress belongs in
-`data.append_event` and is resumed through `after_version` or a projection
-rather than an ever-growing array.
+bounded result it is building; durable progress belongs in the store, appended
+through `data-store` and resumed through `after_version` or a projection rather
+than an ever-growing array.
 
 Use `artifact.admit`/`artifact.read` directly when a graph or tool needs exact
 byte pages instead of a domain transform. Use `fs.read` and `fs.read_bundle`
 only for bounded text. If a format cannot be framed safely or needs genuine
-streaming protocol behavior, use one declared trusted-host `cli-tool`; never
+streaming protocol behavior, use one declared trusted-host process tool; never
 add ambient filesystem access to a deterministic module or duplicate the
 runtime's hashing and page loop in package JavaScript.
 
 ## Managed-agent tools
 
-An `agent-task` may call only the tools named in its `allowed_tools`. Before the
+An `agent` step may call only the tools named in its `allowed_tools`. Before the
 model runs, Runx resolves every name through the same native-and-local catalog
 used for execution. The model receives the catalog description and exact input
 schema, including required fields, typed defaults, and
@@ -142,8 +142,8 @@ withheld-scope or withheld-grant case. There is no harness-only permission
 evaluator or scope vocabulary.
 
 This is positive enforcement evidence for native capabilities and provider
-boundaries. It is not negative syscall evidence for a `cli-tool`, process MCP
-server, or process adapter. Those sources are trusted host code: Runx can prove
+boundaries. It is not negative syscall evidence for a process tool or a process
+MCP server. Those are trusted host code: Runx can prove
 the exact invocation and authority it delivered, but not that the process
 avoided other host filesystem or network access.
 
@@ -159,7 +159,7 @@ contracts fail closed when their retained body is truncated.
 
 ## Environment
 
-The child environment is deny-by-default. The selected runner's
+The child environment is deny-by-default. The process tool's
 `environment.required` and `environment.optional` declaration admits exact
 non-secret host variables. Values are resolved at execution time; a missing
 required name stops before spawn and an absent optional name is omitted.
@@ -185,7 +185,7 @@ admissible.
 
 Guaranteed variables:
 
-- `RUNX_CWD`: the workspace root, resolved as `RUNX_CWD ?? INIT_CWD ?? current_dir`.
+- `RUNX_CWD`: the workspace root, resolved as `RUNX_CWD`, else the nearest workspace root, else the current directory.
 - `RUNX_INPUTS_PATH`: path to the complete UTF-8 JSON input object on every invocation.
 - `RUNX_INPUTS_JSON`: convenience mirror when the full payload is at most 48 KiB.
 - `RUNX_INPUT_<NAME>_PATH`: path to each complete serialized input value on every invocation.
@@ -200,7 +200,7 @@ conveniences only; payload size never removes the complete path transport.
 
 ## Stdin
 
-When `inputMode` is `stdin`, stdin receives the full input object as JSON and
+When `input_mode` is `stdin`, stdin receives the full input object as JSON and
 then closes. Otherwise stdin closes without input.
 
 ## Working directory
@@ -225,20 +225,21 @@ Job Object and terminates that job on timeout or cancellation.
 
 A zero exit code without timeout or abort maps to a sealed/success status.
 Timeout, abort, spawn failure, or non-zero exit maps to failure. Structured JSON
-stdout remains author output; graph runners may parse object stdout into step
+stdout remains author output; the step parses object stdout into its declared
 outputs, but raw stdout and stderr remain visible.
 
-Output ownership is exact. Deterministic and agent runners declare their typed
-outputs and packets at the producer. A graph runner declares neither
-runner-level `outputs` nor runner-level `artifacts`: the graph receipt proves
-the composition, while the terminal output-producing step owns the result and
-its packet schema. If a graph needs one reusable result, add an explicit
-package/finalize step instead of wrapping the graph trace in a second contract.
+Output ownership is exact. Every result-producing step declares its typed
+outputs and packets. A runner declares neither runner-level `outputs` nor
+runner-level `artifacts`: the graph receipt proves the composition, while the
+runner's result steps (its last step unless `result_from` names others) own the
+result and its packet schema. If a runner needs one reusable result, add an
+explicit package/finalize step instead of wrapping the graph trace in a second
+contract.
 
 ## Fixture Gate
 
-`pnpm fixtures:skill-author-runtime:check` runs the same fixture entrypoint
-through the TypeScript adapter and Rust runtime. The gate compares only
+`pnpm fixtures:skill-author-runtime:check` runs the shared fixture entrypoint
+through the Rust runtime's process tool. The gate compares only
 author-visible behavior: status, stdout/stderr, exit code where relevant,
 parsed stdout JSON, cwd relation, input delivery mode, output truncation, and
 descendant timeout cleanup.

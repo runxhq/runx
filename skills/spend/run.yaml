@@ -1,0 +1,34 @@
+skill: spend
+version: "0.5.2"
+catalog: { kind: graph, audience: operator, visibility: public, role: canonical, runtime_path: hosted, execution: execute, completion: provider_readback, requires_adapter: true, approval: required, category: payments }
+connectors:
+  payment:
+    operations: [payment.spend, payment.spend.read]
+    connector_from: $input.rail
+    allowed_connectors: [mpp, stripe-spt]
+runners:
+  spend:
+    default: true
+    inputs:
+      payment_signal: { type: json, required: true, description: Exact payment requirement or challenge. }
+      parent_payment_authority: { type: json, required: true, description: Full parent spend authority term. }
+      rail: { type: string, required: true, description: Hosted settlement rail. }
+      rail_profile_ref: { type: string, required: true, description: Opaque hosted rail profile reference. }
+      payment_admission: { type: object, required: false, description: Opaque hosted admission material. }
+      realm: { type: string, required: false, description: Authority realm. }
+      idempotency_seed: { type: string, required: true, description: Stable purchase idempotency material. }
+    result_from: [readback]
+    steps:
+      - id: spend
+        operation: payment/payment.spend
+        idempotency_key: $input.idempotency_seed
+        approval:
+          reason: Approve this exact outbound payment.
+          type: payment_spend
+        amount: { units: $input.payment_signal.amount_minor, unit: $input.payment_signal.currency }
+        result_fields: [payment_ref, rail, amount_minor, currency, status]
+        input: { payment_signal: $input.payment_signal, parent_payment_authority: $input.parent_payment_authority, rail_profile_ref: $input.rail_profile_ref, payment_admission: $input.payment_admission, realm: $input.realm }
+      - id: readback
+        operation: payment/payment.spend.read
+        result_fields: [payment_ref, rail, amount_minor, currency, status]
+        context: { input: spend.provider_operation.data.result, expected_result: spend.provider_operation.data.result }

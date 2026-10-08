@@ -1,7 +1,6 @@
 ---
 name: meeting-followup
 description: Turn one bounded meeting transcript into evidence-bound decisions, action items, a reviewable follow-up message, and provider-neutral task proposals without inventing owners, dates, approval, or live effects.
-registry_owner: zhtwangk
 ---
 
 # Meeting Followup

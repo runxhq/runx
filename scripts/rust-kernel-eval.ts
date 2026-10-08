@@ -12,12 +12,9 @@ const defaultRunxBinary = path.join(
   process.platform === "win32" ? "runx.exe" : "runx",
 );
 
-export type GraphStatus = "pending" | "running" | "succeeded" | "failed" | "paused" | "escalated";
+export type GraphStatus = "pending" | "running" | "succeeded" | "failed";
 export type GraphStepStatus = "pending" | "running" | "succeeded" | "failed";
 export type StepStatus = "pending" | "admitted" | "running" | "succeeded" | "failed";
-export type FanoutSyncStrategy = "all" | "any" | "quorum";
-export type FanoutBranchFailurePolicy = "halt" | "continue";
-export type FanoutGateAction = "pause" | "escalate";
 
 export interface SingleStepState {
   readonly stepId: string;
@@ -42,10 +39,6 @@ export type SingleStepEvent =
 export interface SequentialGraphStepDefinition {
   readonly id: string;
   readonly contextFrom?: readonly string[];
-  readonly retry?: {
-    readonly maxAttempts: number;
-  };
-  readonly fanoutGroup?: string;
 }
 
 export interface SequentialGraphStepState {
@@ -65,55 +58,6 @@ export interface SequentialGraphState {
   readonly steps: readonly SequentialGraphStepState[];
 }
 
-export interface FanoutThresholdGate {
-  readonly step: string;
-  readonly field: string;
-  readonly above: number;
-  readonly action: FanoutGateAction;
-}
-
-export interface FanoutConflictGate {
-  readonly field: string;
-  readonly steps: readonly string[];
-  readonly action: FanoutGateAction;
-}
-
-export interface FanoutGroupPolicy {
-  readonly groupId: string;
-  readonly strategy: FanoutSyncStrategy;
-  readonly minSuccess?: number;
-  readonly onBranchFailure: FanoutBranchFailurePolicy;
-  readonly thresholdGates?: readonly FanoutThresholdGate[];
-  readonly conflictGates?: readonly FanoutConflictGate[];
-}
-
-export interface FanoutBranchResult {
-  readonly stepId: string;
-  readonly status: GraphStepStatus;
-  readonly outputs?: Readonly<Record<string, unknown>>;
-}
-
-export interface FanoutSyncDecision {
-  readonly groupId: string;
-  readonly decision: "proceed" | "halt" | "pause" | "escalate";
-  readonly strategy: FanoutSyncStrategy;
-  readonly ruleFired: string;
-  readonly reason: string;
-  readonly branchCount: number;
-  readonly successCount: number;
-  readonly failureCount: number;
-  readonly requiredSuccesses: number;
-  readonly gate?: {
-    readonly type: "threshold" | "conflict";
-    readonly stepId?: string;
-    readonly field: string;
-    readonly value?: unknown;
-    readonly comparedTo?: number;
-    readonly values?: Readonly<Record<string, unknown>>;
-    readonly action: FanoutGateAction;
-  };
-}
-
 export type SequentialGraphEvent =
   | { readonly type: "start_step"; readonly stepId: string; readonly at: string }
   | {
@@ -126,8 +70,6 @@ export type SequentialGraphEvent =
     }
   | { readonly type: "step_failed"; readonly stepId: string; readonly at: string; readonly error: string }
   | { readonly type: "complete" }
-  | { readonly type: "pause_graph"; readonly reason: string }
-  | { readonly type: "escalate_graph"; readonly reason: string }
   | { readonly type: "fail_graph"; readonly error: string };
 
 export interface RustKernelEvalOptions {

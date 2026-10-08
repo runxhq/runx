@@ -2,7 +2,8 @@
 //!
 //! A cover is checked before execution; its reservation is committed in the
 //! same batch as the effect attempt. The stream version makes concurrent
-//! admissions race safely, and a retry of the same call never uses it twice.
+//! admissions race safely. A use is keyed by the act's attempt sequence, so
+//! recovering an attempt, from any run, never uses the evidence twice.
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -46,8 +47,6 @@ impl StreamEvent for UsageEvent {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct Use {
-    intent_digest: String,
-    run_id: String,
     day: u64,
     consumed: bool,
 }
@@ -58,12 +57,6 @@ pub(crate) struct UsageStatus {
     pub open_total: usize,
     uses: BTreeMap<String, Use>,
     pub version: u64,
-}
-
-impl UsageStatus {
-    pub(crate) fn has(&self, use_key: &str) -> bool {
-        self.uses.contains_key(use_key)
-    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -79,8 +72,6 @@ pub(crate) struct UseCover {
 
 #[derive(Debug, Error)]
 pub(crate) enum UsageError {
-    #[error("the evidence use key belongs to another intent")]
-    KeyConflict,
     #[error("the total evidence use limit is exhausted")]
     TotalExhausted,
     #[error("the daily evidence use limit is exhausted")]
@@ -105,19 +96,12 @@ impl UsageLedger {
         let mut status = UsageStatus::default();
         for recorded in self.store.read::<UsageEvent>(evidence_key)? {
             match recorded.event {
-                UsageEvent::Reserved {
-                    use_key,
-                    intent_digest,
-                    run_id,
-                    day,
-                } => {
+                UsageEvent::Reserved { use_key, day, .. } => {
                     if status
                         .uses
                         .insert(
                             use_key,
                             Use {
-                                intent_digest,
-                                run_id,
                                 day,
                                 consumed: false,
                             },
@@ -160,9 +144,6 @@ impl UsageLedger {
         let status = self.status(evidence_key)?;
         let day = now_unix_seconds / 86_400;
         if let Some(used) = status.uses.get(use_key) {
-            if used.intent_digest != intent_digest || used.run_id != run_id {
-                return Err(UsageError::KeyConflict);
-            }
             return Ok(UseCover {
                 evidence_key: evidence_key.to_owned(),
                 use_key: use_key.to_owned(),

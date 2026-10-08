@@ -164,7 +164,7 @@ describe("operator-inbox skill", () => {
     })).toThrow("operator-authored messages");
   });
 
-  it("composes graph writes through the default local SQLite data source", () => {
+  it("composes graph writes through the case's own local SQLite data source", () => {
     const workspace = mkdtempSync(path.join(os.tmpdir(), "runx-operator-inbox-"));
     try {
       const journey = path.join(SKILL_PATH, "fixtures", "action-lifecycle.yaml");
@@ -184,8 +184,9 @@ describe("operator-inbox skill", () => {
         schema: "runx.receipt.v1",
         seal: { disposition: "closed" },
       });
-      const dataDir = path.join(workspace, ".runx", "data");
-      expect(readdirSync(dataDir)).toContain("operator-inbox-action-lifecycle.sqlite");
+      // The case writes to a store of its own; the operator's workspace store
+      // is never touched.
+      expect(readdirSync(path.join(workspace, ".runx"))).not.toContain("store.sqlite");
     } finally {
       rmSync(workspace, { recursive: true, force: true });
     }

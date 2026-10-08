@@ -1,7 +1,6 @@
 ---
 name: incident-commander
 description: Advance one declared incident through a fixed roster, approval-bound communications planning, and receipt-backed resolution while canonical agency owns durable state.
-registry_owner: mossony
 ---
 
 # Incident Commander

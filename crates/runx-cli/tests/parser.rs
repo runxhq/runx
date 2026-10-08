@@ -1,10 +1,9 @@
 use std::io::Write;
-use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 
 #[test]
 fn parser_eval_accepts_stdin_json() -> Result<(), Box<dyn std::error::Error>> {
-    let mut child = runx_command()
+    let mut child = crate::support::repo_runx_command()
         .args(["parser", "eval", "--input", "-", "--json"])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -13,7 +12,7 @@ fn parser_eval_accepts_stdin_json() -> Result<(), Box<dyn std::error::Error>> {
 
     if let Some(mut stdin) = child.stdin.take() {
         stdin.write_all(
-            br#"{"kind":"parser.validateSkillMarkdown","markdown":"---\nname: portable-agent\ndescription: Portable agent skill\ninputs:\n  prompt:\n    type: string\n    required: true\n---\n# Portable agent\n"}"#,
+            br#"{"kind":"parser.validateSkillMarkdown","markdown":"---\nname: portable-agent\ndescription: Portable agent skill\n---\n# Portable agent\n"}"#,
         )?;
     }
 
@@ -24,13 +23,12 @@ fn parser_eval_accepts_stdin_json() -> Result<(), Box<dyn std::error::Error>> {
     assert_eq!(value["status"], "success");
     assert_eq!(value["result"]["kind"], "output");
     assert_eq!(value["result"]["value"]["name"], "portable-agent");
-    assert_eq!(value["result"]["value"]["source"]["type"], "agent");
     Ok(())
 }
 
 #[test]
 fn parser_eval_validates_graph_yaml() -> Result<(), Box<dyn std::error::Error>> {
-    let mut child = runx_command()
+    let mut child = crate::support::repo_runx_command()
         .args(["parser", "eval", "--input", "-", "--json"])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -39,7 +37,7 @@ fn parser_eval_validates_graph_yaml() -> Result<(), Box<dyn std::error::Error>> 
 
     if let Some(mut stdin) = child.stdin.take() {
         stdin.write_all(
-            br#"{"kind":"parser.validateGraphYaml","yaml":"name: gx\nsteps:\n  - id: one\n    run:\n      type: cli-tool\n      command: node\n      args: [\"-e\", \"process.stdout.write('{}')\"]\n"}"#,
+            br#"{"kind":"parser.validateGraphYaml","yaml":"name: gx\nsteps:\n  - id: one\n    tool:\n      command: node\n      args: [\"-e\", \"process.stdout.write('{}')\"]\n"}"#,
         )?;
     }
 
@@ -55,7 +53,7 @@ fn parser_eval_validates_graph_yaml() -> Result<(), Box<dyn std::error::Error>> 
 
 #[test]
 fn parser_eval_usage_errors_exit_64() -> Result<(), Box<dyn std::error::Error>> {
-    let output = runx_command()
+    let output = crate::support::repo_runx_command()
         .args(["parser", "eval", "--input", "-"])
         .output()?;
 
@@ -66,7 +64,7 @@ fn parser_eval_usage_errors_exit_64() -> Result<(), Box<dyn std::error::Error>> 
 
 #[test]
 fn parser_eval_unknown_kind_returns_structured_error() -> Result<(), Box<dyn std::error::Error>> {
-    let mut child = runx_command()
+    let mut child = crate::support::repo_runx_command()
         .args(["parser", "eval", "--input", "-", "--json"])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -94,7 +92,7 @@ fn parser_eval_unknown_kind_returns_structured_error() -> Result<(), Box<dyn std
 #[test]
 fn parser_eval_batches_documents_and_returns_independent_errors()
 -> Result<(), Box<dyn std::error::Error>> {
-    let mut child = runx_command()
+    let mut child = crate::support::repo_runx_command()
         .args(["parser", "eval", "--input", "-", "--json"])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -131,19 +129,4 @@ fn parser_eval_batches_documents_and_returns_independent_errors()
         "validation_error"
     );
     Ok(())
-}
-
-fn runx_command() -> Command {
-    let mut command = Command::new(env!("CARGO_BIN_EXE_runx"));
-    command.env("NO_COLOR", "1");
-    if let Ok(root) = repo_root() {
-        command.env("RUNX_CWD", root);
-    }
-    command
-}
-
-fn repo_root() -> Result<PathBuf, Box<dyn std::error::Error>> {
-    Ok(Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../..")
-        .canonicalize()?)
 }

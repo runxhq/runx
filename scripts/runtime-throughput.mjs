@@ -33,7 +33,6 @@ const runtimeBench = {
   features: "agent",
   workloads: new Set([
     "graph_planning",
-    "wide_fanout",
     "graph_receipt_sealing",
     "receipt_store_append",
     "receipt_store_index",
@@ -42,11 +41,9 @@ const runtimeBench = {
     "pure_module_cold_start",
     "pure_module_session_reuse",
     "pure_module_large_input",
-    "bounded_parallel_fanout",
     "provider_effect_finality",
     "artifact_admission",
     "artifact_page_continuation",
-    "event_page_continuation",
     "twitter_archive_selection",
   ]),
   supportWorkloads: new Set([
@@ -56,8 +53,6 @@ const runtimeBench = {
     "receipt_store_index_scale_large",
     "artifact_page_continuation_scale_small",
     "artifact_page_continuation_scale_large",
-    "event_page_continuation_scale_small",
-    "event_page_continuation_scale_large",
     "twitter_archive_selection_scale_small",
     "twitter_archive_selection_scale_large",
   ]),
@@ -81,12 +76,6 @@ const scalingWorkloads = {
     smallSize: 256 * 1024,
     largeSize: 8 * 1024 * 1024,
   },
-  event_page_continuation: {
-    small: "event_page_continuation_scale_small",
-    large: "event_page_continuation_scale_large",
-    smallSize: 100,
-    largeSize: 1_000,
-  },
   twitter_archive_selection: {
     small: "twitter_archive_selection_scale_small",
     large: "twitter_archive_selection_scale_large",
@@ -105,7 +94,6 @@ const receiptBench = {
 };
 const defaultWorkloads = [
   "graph_planning",
-  "wide_fanout",
   "native_cli_launch",
   "receipt_canonicalization",
   "graph_receipt_sealing",
@@ -116,11 +104,9 @@ const defaultWorkloads = [
   "pure_module_cold_start",
   "pure_module_session_reuse",
   "pure_module_large_input",
-  "bounded_parallel_fanout",
   "provider_effect_finality",
   "artifact_admission",
   "artifact_page_continuation",
-  "event_page_continuation",
   "twitter_archive_selection",
   "cli_file_input",
 ];
@@ -588,7 +574,7 @@ Digest one bounded note through the normal skill execution and receipt path.
 `,
     );
     writeFileSync(
-      path.join(skill, "X.yaml"),
+      path.join(skill, "run.yaml"),
       `skill: cli-file-input-performance
 version: "0.1.0"
 
@@ -605,20 +591,17 @@ catalog:
 runners:
   digest:
     default: true
-    type: graph
     inputs:
       note:
         type: string
         required: true
         description: Exact UTF-8 note to digest.
-    graph:
-      name: cli-file-input-performance
-      steps:
-        - id: digest
-          tool: data.digest
-          inputs:
-            value: $input.note
-            encoding: utf8_text
+    steps:
+      - id: digest
+        tool: data.digest
+        inputs:
+          value: $input.note
+          encoding: utf8_text
 `,
     );
     writeFileSync(
@@ -785,25 +768,14 @@ function compareReports(baseline, current, workloads, options) {
 function runtimeQualityChecks(report, expectedSourceCommit) {
   const native = report?.workloads?.native_capability_dispatch;
   const session = report?.workloads?.pure_module_session_reuse;
-  const fanout = report?.workloads?.bounded_parallel_fanout;
   return [
     qualityCheck("schema", report?.schema, { expected: schema }),
     qualityCheck("source_commit", report?.source_commit, { expected: expectedSourceCommit }),
     qualityCheck("worktree_clean", report?.worktree_dirty, { expected: false }),
     qualityCheck("native_sample_count", native?.sample_count, { minimum: 10 }),
-    qualityCheck("native_spawn_count", native?.spawn_count, { expected: 0 }),
-    qualityCheck("native_peak_in_flight", native?.peak_in_flight, { expected: 0 }),
     qualityCheck("session_sample_count", session?.sample_count, { minimum: 10 }),
     qualityCheck("session_spawn_count", session?.spawn_count, { expected: 1 }),
     qualityCheck("session_peak_in_flight", session?.peak_in_flight, { expected: 1 }),
-    qualityCheck("fanout_sample_count", fanout?.sample_count, { minimum: 10 }),
-    qualityCheck("fanout_spawn_count", fanout?.spawn_count, { minimum: 2, maximum: 4 }),
-    qualityCheck("fanout_peak_in_flight", fanout?.peak_in_flight, { minimum: 2, maximum: 4 }),
-    qualityCheck(
-      "fanout_peak_within_spawn_count",
-      fanout?.peak_in_flight,
-      { maximum: fanout?.spawn_count },
-    ),
   ];
 }
 

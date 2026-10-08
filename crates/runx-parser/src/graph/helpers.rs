@@ -145,20 +145,6 @@ pub fn optional_number(
     }
 }
 
-pub fn required_number(value: Option<&JsonValue>, field: &str) -> Result<f64, ValidationError> {
-    optional_number(value, field)?.ok_or_else(|| validation_error(format!("{field} is required.")))
-}
-
-pub fn number_to_positive_integer(value: f64, field: &str) -> Result<u64, ValidationError> {
-    if value.fract() == 0.0 && value >= 1.0 && value <= u64::MAX as f64 {
-        Ok(value as u64)
-    } else {
-        Err(validation_error(format!(
-            "{field} must be a positive integer."
-        )))
-    }
-}
-
 pub fn number_to_non_negative_integer(value: f64, field: &str) -> Result<u64, ValidationError> {
     if value.fract() == 0.0 && value >= 0.0 && value <= u64::MAX as f64 {
         Ok(value as u64)

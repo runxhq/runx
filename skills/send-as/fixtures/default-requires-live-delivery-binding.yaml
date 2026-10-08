@@ -32,7 +32,7 @@ inputs:
     target: account:acct_release/channel:release-subscribers
 caller:
   answers:
-    agent_task.send-as.output:
+    agent.send-as.output:
       send_plan:
         decision: ready
         action_family: send-as

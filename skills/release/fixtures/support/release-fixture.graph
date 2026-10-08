@@ -1,0 +1,19 @@
+name: release-fixture-end-to-end
+steps:
+  - id: setup
+    inputs: { prepare_status: ready }
+    tool: { command: node, args: [./setup_release_fixture.mjs] }
+    outputs:
+      project_root: string
+      profile_ref: string
+  - id: release
+    skill: ../..
+    runner: release
+    inputs:
+      channel: fixture
+      version: 1.2.3
+      last_tag: v1.2.2
+      operator_context: Fixture release proves exact-command publication and separate readback.
+    context:
+      project_root: setup.project_root
+      profile_ref: setup.profile_ref

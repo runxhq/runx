@@ -1,24 +1,19 @@
-use std::collections::BTreeSet;
-
 use runx_contracts::JsonValue;
 
 use super::KernelEvalError;
-use super::input::{KernelDocument, KernelInput};
+use super::input::KernelInput;
 use crate::policy::{
-    admit_graph_step_scopes, admit_local_skill, build_authority_proof_metadata,
-    build_local_scope_admission, scope_grant_allows, validate_credential_binding,
+    admit_graph_step_scopes, build_authority_proof_metadata, build_local_scope_admission,
+    scope_grant_allows, validate_credential_binding,
 };
 use crate::state_machine::{
-    create_sequential_graph_state, create_single_step_state, evaluate_fanout_sync,
-    fanout_sync_decision_key, plan_sequential_graph_transition, transition_sequential_graph,
-    transition_single_step,
+    create_sequential_graph_state, create_single_step_state, plan_sequential_graph_transition,
+    transition_sequential_graph, transition_single_step,
 };
 
-pub(super) fn evaluate_kernel_input(input: KernelDocument) -> Result<JsonValue, KernelEvalError> {
-    let input = KernelInput::from(input);
+pub(super) fn evaluate_kernel_input(input: KernelInput) -> Result<JsonValue, KernelEvalError> {
     match input {
-        KernelInput::AdmitLocalSkill { .. }
-        | KernelInput::AdmitGraphStepScopes { .. }
+        KernelInput::AdmitGraphStepScopes { .. }
         | KernelInput::BuildLocalScopeAdmission { .. }
         | KernelInput::BuildAuthorityProofMetadata { .. }
         | KernelInput::ValidateCredentialBinding { .. }
@@ -27,17 +22,12 @@ pub(super) fn evaluate_kernel_input(input: KernelDocument) -> Result<JsonValue, 
         | KernelInput::TransitionSingleStep { .. }
         | KernelInput::CreateSequentialGraphState { .. }
         | KernelInput::PlanSequentialGraphTransition { .. }
-        | KernelInput::TransitionSequentialGraph { .. }
-        | KernelInput::EvaluateFanoutSync { .. }
-        | KernelInput::FanoutSyncDecisionKey { .. } => evaluate_state_machine_input(input),
+        | KernelInput::TransitionSequentialGraph { .. } => evaluate_state_machine_input(input),
     }
 }
 
 fn evaluate_policy_input(input: KernelInput) -> Result<JsonValue, KernelEvalError> {
     match input {
-        KernelInput::AdmitLocalSkill { skill, options } => {
-            to_value(admit_local_skill(&skill, &options))
-        }
         KernelInput::AdmitGraphStepScopes { request } => {
             to_value(admit_graph_step_scopes(&request))
         }
@@ -76,34 +66,12 @@ fn evaluate_state_machine_input(input: KernelInput) -> Result<JsonValue, KernelE
         KernelInput::CreateSequentialGraphState { graph_id, steps } => {
             to_value(create_sequential_graph_state(graph_id, &steps))
         }
-        KernelInput::PlanSequentialGraphTransition {
-            state,
-            steps,
-            fanout_policies,
-            resolved_fanout_gate_keys,
-        } => {
-            let resolved = resolved_fanout_gate_keys.map(vec_to_set);
-            to_value(plan_sequential_graph_transition(
-                &state,
-                &steps,
-                &fanout_policies,
-                resolved.as_ref(),
-            ))
+        KernelInput::PlanSequentialGraphTransition { state, steps } => {
+            to_value(plan_sequential_graph_transition(&state, &steps))
         }
         KernelInput::TransitionSequentialGraph { state, event } => {
             to_value(transition_sequential_graph(&state, &event))
         }
-        KernelInput::EvaluateFanoutSync {
-            policy,
-            results,
-            resolved_gate_keys,
-        } => {
-            let resolved = resolved_gate_keys.map(vec_to_set);
-            to_value(evaluate_fanout_sync(&policy, &results, resolved.as_ref()))
-        }
-        KernelInput::FanoutSyncDecisionKey { decision } => Ok(JsonValue::String(
-            fanout_sync_decision_key(&decision.group_id, &decision.rule_fired),
-        )),
         _ => unreachable!("state-machine dispatch only receives state-machine inputs"),
     }
 }
@@ -113,8 +81,4 @@ fn to_value(value: impl serde::Serialize) -> Result<JsonValue, KernelEvalError> 
         .map_err(|error| KernelEvalError::SerializeOutput(error.to_string()))?;
     serde_json::from_str(&source)
         .map_err(|error| KernelEvalError::SerializeOutput(error.to_string()))
-}
-
-fn vec_to_set(values: Vec<String>) -> BTreeSet<String> {
-    values.into_iter().collect()
 }

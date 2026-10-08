@@ -20,11 +20,12 @@ expect:
   receipt:
     schema: runx.receipt.v1
   steps:
+    - store-append
     - append
+    - store-readback
     - readback
 metadata:
   public_skill: data-store
   source_case: append-read-local-event
   source: skills-fixture
-  runner_kind: graph
   graph_shape: append_and_readback

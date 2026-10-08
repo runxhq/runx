@@ -72,29 +72,6 @@ fn inline_expectations_use_the_conventional_contract() -> Result<(), HarnessFixt
 }
 
 #[test]
-fn rejects_retired_receipt_fields() {
-    for field in [
-        "kind",
-        "skill_execution",
-        "graph_execution",
-        "skill_name",
-        "source_type",
-        "graph_name",
-        "owner",
-    ] {
-        let error = parse_harness_fixture(&format!(
-            "name: old\nkind: skill\ntarget: ..\nexpect:\n  receipt:\n    {field}: value\n"
-        ))
-        .expect_err("retired receipt field must fail");
-        assert!(matches!(
-            error,
-            HarnessFixtureError::RetiredReceiptField { field_path }
-                if field_path == format!("expect.receipt.{field}")
-        ));
-    }
-}
-
-#[test]
 fn validates_package_relative_receipt_setup() -> Result<(), HarnessFixtureError> {
     let fixture = parse_harness_fixture(
         "name: receipt-proof\nkind: skill\ntarget: ..\nsetup:\n  receipts:\n    - fixtures/receipt-store/sha256-demo.json\n",
@@ -117,34 +94,6 @@ fn rejects_receipt_setup_path_escape() {
     assert!(
         matches!(error, HarnessFixtureError::Invalid { field, .. } if field == "setup.receipts[0]")
     );
-}
-
-#[test]
-fn admits_bounded_exact_harness_http_responses() -> Result<(), HarnessFixtureError> {
-    let fixture = parse_harness_fixture(
-        r#"
-name: deterministic-web
-kind: skill
-target: ..
-caller:
-  http_responses:
-    "https://fixture.runx.invalid/source":
-      status: 200
-      headers: { content-type: text/plain }
-      body: hello world
-"#,
-    )?;
-
-    let responses = parse_harness_http_responses(
-        fixture.caller.get("http_responses"),
-        "caller.http_responses",
-    )?;
-    let response = responses
-        .get("https://fixture.runx.invalid/source")
-        .expect("validated response must remain addressable by exact URL");
-    assert_eq!(response.status, 200);
-    assert_eq!(response.body, "hello world");
-    Ok(())
 }
 
 #[test]
@@ -178,10 +127,7 @@ caller:
 "#,
     )?;
 
-    let exchanges = parse_harness_http_exchanges(
-        fixture.caller.get("http_exchanges"),
-        "caller.http_exchanges",
-    )?;
+    let exchanges = &fixture.caller.http_exchanges;
     assert_eq!(exchanges.len(), 3);
     assert_eq!(exchanges[0].request.method, "POST");
     assert_eq!(exchanges[0].request.url, "https://fixture.runx.invalid/mcp");
@@ -215,7 +161,7 @@ fn harness_http_exchanges_reject_malformed_urls_and_bound_characters() {
 }
 
 #[test]
-fn harness_http_exchanges_and_legacy_responses_reject_credentials_and_fragments() {
+fn harness_http_exchanges_reject_credentials_and_fragments() {
     for url in [
         "https://user:pass@fixture.runx.invalid/source",
         "https://fixture.runx.invalid/source#fragment",
@@ -226,13 +172,14 @@ name: unreachable-url
 kind: skill
 target: ..
 caller:
-  http_responses:
-    "{url}": {{ status: 200, body: unreachable }}
+  http_exchanges:
+    - request: {{ method: GET, url: "{url}", body: none }}
+      response: {{ status: 200, body: unreachable }}
 "#,
         );
         assert!(
             parse_harness_fixture(&fixture).is_err(),
-            "legacy URL must fail: {url:?}",
+            "URL must fail: {url:?}",
         );
     }
 }
@@ -270,14 +217,6 @@ caller:
 
 #[test]
 fn harness_http_exchanges_enforce_count_and_body_bounds() {
-    let empty = parse_harness_fixture(
-        "name: empty-exchanges\nkind: skill\ntarget: ..\ncaller:\n  http_exchanges: []\n",
-    )
-    .expect_err("an explicitly empty exchange list must fail");
-    assert!(
-        matches!(empty, HarnessFixtureError::Invalid { field, .. } if field == "caller.http_exchanges")
-    );
-
     let entries = (0..33)
         .map(|index| {
             format!(
@@ -358,10 +297,7 @@ caller:
       response: { status: 200, body: delete }
 "#,
     )?;
-    let exchanges = parse_harness_http_exchanges(
-        fixture.caller.get("http_exchanges"),
-        "caller.http_exchanges",
-    )?;
+    let exchanges = &fixture.caller.http_exchanges;
     assert_eq!(exchanges.len(), 2);
     assert_eq!(exchanges[0].request.method, "GET");
     assert_eq!(exchanges[1].request.method, "DELETE");
@@ -395,55 +331,30 @@ caller:
 }
 
 #[test]
-fn rejects_non_http_harness_response_keys() {
+fn rejects_non_http_harness_exchange_urls() {
     let error = parse_harness_fixture(
         r#"
 name: deterministic-web
 kind: skill
 target: ..
 caller:
-  http_responses:
-    "file:///private/source":
-      status: 200
-      body: hidden
+  http_exchanges:
+    - request: { method: GET, url: "file:///private/source", body: none }
+      response: { status: 200, body: hidden }
 "#,
     )
-    .expect_err("non-HTTP fixture response must fail");
+    .expect_err("a non-HTTP exchange must fail");
 
     assert!(
-        matches!(error, HarnessFixtureError::Invalid { field, .. } if field.contains("file:///private/source"))
+        matches!(error, HarnessFixtureError::Invalid { field, .. } if field == "caller.http_exchanges[0].request.url")
     );
 }
 
 #[test]
-fn rejects_empty_declared_harness_response_map() {
+fn rejects_unknown_caller_fields() {
     let error = parse_harness_fixture(
-        "name: deterministic-web\nkind: skill\ntarget: ..\ncaller:\n  http_responses: {}\n",
+        "name: deterministic-web\nkind: skill\ntarget: ..\ncaller:\n  network: true\n",
     )
-    .expect_err("declared response map must fail closed when empty");
-
-    assert!(
-        matches!(error, HarnessFixtureError::Invalid { field, .. } if field == "caller.http_responses")
-    );
-}
-
-#[test]
-fn rejects_retired_web_response_field_without_network_fallback() {
-    let error = parse_harness_fixture(
-        r#"
-name: deterministic-web
-kind: skill
-target: ..
-caller:
-  web_responses:
-    "https://fixture.runx.invalid/source":
-      status: 200
-      body: hello world
-"#,
-    )
-    .expect_err("retired response field must fail instead of reaching the network");
-
-    assert!(
-        matches!(error, HarnessFixtureError::Invalid { field, .. } if field == "caller.web_responses")
-    );
+    .expect_err("an unknown caller field must fail");
+    assert!(matches!(error, HarnessFixtureError::Invalid { field, .. } if field == "caller"));
 }

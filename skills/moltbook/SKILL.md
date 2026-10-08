@@ -1,8 +1,6 @@
 ---
 name: moltbook
 description: Scan Moltbook for credible opportunities, prepare evidence-bound posts, and publish an exact approved post, confirmed by reading it back.
-runx:
-  category: content
 ---
 
 # Moltbook

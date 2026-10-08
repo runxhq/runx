@@ -2,7 +2,6 @@ use std::collections::BTreeSet;
 
 use runx_contracts::JsonObject;
 
-use super::fanout::{validate_fanout_groups, validate_fanout_step_bindings};
 use super::helpers::{
     optional_string, optional_string_array, required_array, required_object, required_string,
     validation_error,
@@ -10,10 +9,10 @@ use super::helpers::{
 use super::policy::validate_graph_policy;
 use super::step::validate_step;
 use super::types::{ExecutionGraph, RawGraphIr};
-use crate::{ParseError, ValidationError, assert_yaml_parity_subset};
+use crate::{ParseError, ValidationError, assert_yaml_supported_subset};
 
 pub fn parse_graph_yaml(source: &str) -> Result<RawGraphIr, ParseError> {
-    assert_yaml_parity_subset("graph", source)?;
+    assert_yaml_supported_subset("graph", source)?;
     let document: JsonObject =
         serde_norway::from_str(source).map_err(|error| ParseError::InvalidYaml {
             field: "graph".to_owned(),
@@ -36,9 +35,7 @@ pub fn validate_graph_document(
     let owner = optional_string(document.get("owner"), "owner")?;
     let result_from =
         optional_string_array(document.get("result_from"), "result_from")?.unwrap_or_default();
-    let charter_from = optional_string(document.get("charter_from"), "charter_from")?;
     let raw_steps = required_array(document.get("steps"), "steps")?;
-    let fanout_groups = validate_fanout_groups(document.get("fanout"), "fanout")?;
     let policy = validate_graph_policy(document.get("policy"), "policy")?;
     let mut seen_step_ids = BTreeSet::new();
     let mut steps = Vec::new();
@@ -51,7 +48,6 @@ pub fn validate_graph_document(
         steps.push(step);
     }
 
-    validate_fanout_step_bindings(&steps, &fanout_groups)?;
     validate_result_producers(&result_from, &seen_step_ids)?;
     validate_gated_context(&steps)?;
 
@@ -59,9 +55,7 @@ pub fn validate_graph_document(
         name,
         owner,
         result_from,
-        charter_from,
         steps,
-        fanout_groups,
         policy,
         raw: raw.unwrap_or(RawGraphIr { document }),
     })
@@ -119,15 +113,17 @@ fn validate_gated_context(steps: &[crate::GraphStep]) -> Result<(), ValidationEr
     Ok(())
 }
 
+/// The fields of a standalone graph document.
+const GRAPH_FIELDS: &[&str] = &["name", "owner", "result_from", "steps", "policy"];
+
 fn reject_unsupported_top_level(document: &JsonObject) -> Result<(), ValidationError> {
-    for field in ["sync", "schedule", "schedules"] {
-        if document.contains_key(field) {
-            return Err(validation_error(format!(
-                "{field} is not supported by the local sequential graph runner."
-            )));
-        }
+    match document
+        .keys()
+        .find(|key| !GRAPH_FIELDS.contains(&key.as_str()))
+    {
+        Some(key) => Err(validation_error(format!("{key} is not a graph field."))),
+        None => Ok(()),
     }
-    Ok(())
 }
 
 #[cfg(test)]
@@ -141,11 +137,9 @@ mod tests {
 name: bad-input-ref
 steps:
   - id: select
-    run:
-      type: agent-task
+    agent: {role: reviewer, task: review}
   - id: review
-    run:
-      type: agent-task
+    agent: {role: reviewer, task: review}
     inputs:
       bounty: select.result
 "#,
@@ -167,8 +161,7 @@ steps:
 name: literal-input
 steps:
   - id: review
-    run:
-      type: agent-task
+    agent: {role: reviewer, task: review}
     inputs:
       literal: select.result
       variable: $input.claim
@@ -187,8 +180,7 @@ steps:
 name: typed-step-outputs
 steps:
   - id: analyze
-    run:
-      type: agent-task
+    agent: {role: reviewer, task: review}
     outputs:
       verdict:
         type: string
@@ -221,25 +213,6 @@ steps:
     }
 
     #[test]
-    fn inputs_reject_retired_double_brace_bindings() -> Result<(), String> {
-        let error = validate_err(
-            r#"
-name: retired-input-binding
-steps:
-  - id: review
-    run:
-      type: agent-task
-    inputs:
-      claim: "{{ claim }}"
-"#,
-        )?;
-        assert!(error.contains("steps.0.inputs.claim"));
-        assert!(error.contains("retired graph input binding"));
-        assert!(error.contains("$input.claim"));
-        Ok(())
-    }
-
-    #[test]
     fn result_from_rejects_unknown_steps() -> Result<(), String> {
         let error = validate_err(
             r#"
@@ -248,8 +221,7 @@ result_from:
   - missing
 steps:
   - id: present
-    run:
-      type: agent-task
+    agent: {role: reviewer, task: review}
 "#,
         )?;
         assert!(error.contains("result_from.0 references unknown step 'missing'"));
@@ -264,17 +236,14 @@ steps:
 name: gated
 steps:
   - id: admit
-    run:
-      type: agent-task
+    agent: {{role: reviewer, task: review}}
   - id: draft
     when: {{field: admit.result.decision, equals: ready}}
-    run:
-      type: agent-task
+    agent: {{role: reviewer, task: review}}
   - id: finalize{consumer_when}
     context:
       draft: draft.result
-    run:
-      type: agent-task
+    agent: {{role: reviewer, task: review}}
 "#
             )
         };
@@ -299,8 +268,7 @@ result_from:
   - result
 steps:
   - id: result
-    run:
-      type: agent-task
+    agent: {role: reviewer, task: review}
 "#,
         )?;
         assert!(error.contains("result_from contains duplicate step 'result'"));
@@ -330,16 +298,14 @@ steps:
     operation: slack/channel.post
     on_uncertain: expire_after 2h
     duplicates: forbidden
-    inputs:
-      target: slack://acme/C1
-      idempotency_key: notify-1
-      input:
-        channel_locator: slack://acme/C1
-        text: hello
+    idempotency_key: notify-1
+    input:
+      channel_locator: slack://acme/C1
+      text: hello
 "#,
         )?;
         let step = &graph.steps[0];
-        let operation = step.operation.as_ref().ok_or("expected an operation")?;
+        let operation = step.operation().ok_or("expected an operation")?;
         assert_eq!(operation.requirement, "slack");
         assert_eq!(
             operation.operation.as_ref().map(|name| name.as_str()),
@@ -369,8 +335,7 @@ steps:
         )?;
         assert_eq!(
             graph.steps[1]
-                .operation
-                .as_ref()
+                .operation()
                 .map(|target| target.operation.is_none()),
             Some(true)
         );
@@ -382,7 +347,7 @@ steps:
     operation: github
 "#,
         )?;
-        assert!(message.contains("bind the operation name"));
+        assert!(message.contains("wire the operation name"));
         Ok(())
     }
 
@@ -391,20 +356,19 @@ steps:
         for (fragment, expected) in [
             (
                 "    scopes: [channel.post]\n",
-                "does not apply to an operation step",
+                "does not apply to this operation step",
             ),
             (
-                "    policy: {provider_permission: {verb: write}}\n",
-                "does not apply to an operation step",
+                "    inputs: {input: {}}\n",
+                "does not apply to this operation step",
             ),
-            ("    inputs: {expected_provider: slack}\n", "is retired"),
             (
-                "    inputs: {operation: channel.post}\n",
-                "also binds an operation input",
+                "    context: {operation: plan.digest}\n",
+                "also wires an operation name",
             ),
         ] {
             let source = format!(
-                "name: deliver\nsteps:\n  - id: post\n    operation: slack/channel.post\n{fragment}"
+                "name: deliver\nsteps:\n  - id: plan\n    tool: data.digest\n  - id: post\n    operation: slack/channel.post\n{fragment}"
             );
             let message = validate_err(&source)?;
             assert!(message.contains(expected), "{fragment}: {message}");
@@ -423,7 +387,7 @@ steps:
     on_uncertain: hold
 "#,
         )?;
-        assert!(message.contains("apply only to operation steps"));
+        assert!(message.contains("does not apply to this tool step"));
         Ok(())
     }
 
@@ -439,7 +403,7 @@ steps:
       value: input.x
 "#,
         )?;
-        assert!(message.contains("contxt is not a graph step field"));
+        assert!(message.contains("contxt does not apply to this tool step"));
         Ok(())
     }
 }

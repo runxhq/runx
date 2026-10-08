@@ -287,7 +287,7 @@ mod tests {
             "required_behaviors": [{
                 "id": "operate",
                 "outcome": "Return one bounded result.",
-                "lane": if domain_module { "domain_module" } else { "agent_task" },
+                "lane": if domain_module { "domain_module" } else { "agent" },
                 "domain_module_justification": if domain_module {
                     Some("The transformation cannot be expressed by a native tool.")
                 } else {
@@ -309,7 +309,6 @@ mod tests {
             "resource_budget": {
                 "max_files": 8,
                 "max_executable_lines": if domain_module { 100 } else { 0 },
-                "max_fanout": 2,
                 "max_process_spawns": if domain_module { 1 } else { 0 },
                 "network_allowed": false
             },
@@ -340,35 +339,25 @@ mod tests {
     fn skill_authoring_architecture_resource_validation_enforces_every_runtime_budget() {
         let declarative = architecture(false);
 
-        let fanout = CandidateResourceUsage {
-            max_fanout: 3,
-            ..CandidateResourceUsage::default()
-        };
-        assert!(validate_architecture_resources(&declarative, &fanout).is_err());
-
         let process = CandidateResourceUsage {
-            max_fanout: 1,
             process_spawns: 1,
             ..CandidateResourceUsage::default()
         };
         assert!(validate_architecture_resources(&declarative, &process).is_err());
 
         let network = CandidateResourceUsage {
-            max_fanout: 1,
             network: true,
             ..CandidateResourceUsage::default()
         };
         assert!(validate_architecture_resources(&declarative, &network).is_err());
 
         let unplanned_domain_module = CandidateResourceUsage {
-            max_fanout: 1,
             domain_modules: true,
             ..CandidateResourceUsage::default()
         };
         assert!(validate_architecture_resources(&declarative, &unplanned_domain_module).is_err());
 
         let planned_domain_module = CandidateResourceUsage {
-            max_fanout: 1,
             process_spawns: 1,
             domain_modules: true,
             ..CandidateResourceUsage::default()

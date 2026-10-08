@@ -5,7 +5,7 @@ inputs:
   action: {kind: comment, subreddit: learnprogramming, target_url: 'https://www.reddit.com/r/learnprogramming/comments/abc123/example/', title: '', body: 'does the error happen before the request reaches the server? the network tab should show whether it was sent.', allow_bare_urls: false, target_author: ''}
 caller:
   answers:
-    agent_task.reddit-research.output:
+    agent.reddit-research.output:
       research:
         status: drafted
         account_id: example_builder
@@ -32,7 +32,7 @@ caller:
         unknowns: [No live Reddit page was accessed in this offline fixture.]
         next_step: Review the draft before any publication.
         effect_status: not_submitted
-    agent_task.reddit-submit.output:
+    agent.reddit-submit.output:
       observation:
         status: published
         username: example_builder
@@ -57,4 +57,3 @@ expect:
     publish:
       subset:
         result: {status: held, evidence_level: host_observed}
-env: {RUNX_DATA_SOURCES: '{"data_sources": {"local://reddit": {"adapter": "data.sqlite", "database_path": ".runx/reddit-fixtures/reddit-edited-content-holds.sqlite", "resources": {"reddit_accounts": {"kind": "event_stream", "partition_key": "aggregate_id"}, "reddit_browser": {"kind": "event_stream", "partition_key": "aggregate_id"}, "reddit_attempts": {"kind": "event_stream", "partition_key": "aggregate_id"}}}}}'}

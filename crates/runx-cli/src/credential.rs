@@ -25,6 +25,7 @@ pub enum CredentialAction {
         credential: String,
         profile: String,
         scopes: Vec<String>,
+        parameters: std::collections::BTreeMap<String, String>,
         from_stdin: bool,
     },
     List,
@@ -50,6 +51,7 @@ fn execute(plan: &CredentialPlan, workspace: &WorkspaceEnv) -> Result<String, St
             credential,
             profile,
             scopes,
+            parameters,
             from_stdin,
         } => {
             if !from_stdin {
@@ -72,6 +74,7 @@ fn execute(plan: &CredentialPlan, workspace: &WorkspaceEnv) -> Result<String, St
                 &credential,
                 &secret,
                 scopes,
+                crate::connector::instance_parameters(parameters),
                 workspace,
             )?;
             CredentialResult::Set {
@@ -187,6 +190,7 @@ mod tests {
                     credential: "api_key".to_owned(),
                     profile: "account-one".to_owned(),
                     scopes: vec!["content.review".to_owned()],
+                    parameters: std::collections::BTreeMap::new(),
                     from_stdin: true,
                 },
                 json: true,

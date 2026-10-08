@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::harness_fixture::{HarnessFixture, HarnessFixtureKind};
-use crate::{ExecutionGraph, SkillRunnerManifest, SkillSource, SourceKind};
+use crate::{ExecutionGraph, SkillRunnerManifest, StepKind, ToolTarget};
 
 use super::super::path::{normalize_context_ref, validate_package_path};
 use super::super::{SkillPackageError, SkillPackageSource};
@@ -9,17 +9,15 @@ use super::contract::{text_file, validate_manual};
 
 pub(super) fn collect_package_references(
     profiles: &BTreeMap<String, SkillRunnerManifest>,
-    package: &SkillPackageSource,
 ) -> Result<PackageReferences, SkillPackageError> {
     let mut references = PackageReferences::default();
     for (profile_path, manifest) in profiles {
         let profile_dir = profile_directory(profile_path);
         for (name, runner) in &manifest.runners {
-            collect_source_references(
-                &format!("{profile_path}.runners.{name}.source"),
+            collect_graph_references(
+                &format!("{profile_path}.runners.{name}"),
                 profile_dir,
-                &runner.source,
-                package,
+                &runner.graph,
                 &mut references,
             )?;
         }
@@ -87,37 +85,11 @@ pub(super) fn collect_harness_fixture_references(
             &format!("{fixture_path}.target"),
             package_directory(&target),
             &graph,
-            package,
             references,
         )?;
         files.insert(target);
     }
     Ok(files)
-}
-
-fn collect_source_references(
-    field: &str,
-    profile_dir: &str,
-    source: &SkillSource,
-    package: &SkillPackageSource,
-    references: &mut PackageReferences,
-) -> Result<(), SkillPackageError> {
-    if let Some(module) = &source.module {
-        references
-            .module_roots
-            .insert(package_relative(profile_dir, module));
-    }
-    if source.source_type == SourceKind::CliTool {
-        collect_process_execution_files(
-            profile_dir,
-            source.command.iter().chain(&source.args),
-            &mut references.execution_files,
-        );
-    }
-    if let Some(graph) = &source.graph {
-        collect_graph_references(field, profile_dir, graph, package, references)?;
-    }
-    Ok(())
 }
 
 fn collect_process_execution_files<'a>(
@@ -150,30 +122,29 @@ fn collect_graph_references(
     field: &str,
     profile_dir: &str,
     graph: &ExecutionGraph,
-    package: &SkillPackageSource,
     references: &mut PackageReferences,
 ) -> Result<(), SkillPackageError> {
     for (index, step) in graph.steps.iter().enumerate() {
-        let step_field = format!("{field}.graph.steps[{index}]");
+        let step_field = format!("{field}.steps[{index}]");
         collect_step_context_refs(
             &step_field,
             profile_dir,
             &step.context_skills,
             &mut references.context_refs,
         )?;
-        let Some(run) = &step.run else {
-            continue;
-        };
-        let Some(nested) = run.source() else {
-            continue;
-        };
-        collect_source_references(
-            &format!("{step_field}.run"),
-            profile_dir,
-            nested,
-            package,
-            references,
-        )?;
+        match &step.kind {
+            StepKind::Tool(ToolTarget::Worker(worker)) => {
+                references
+                    .module_roots
+                    .insert(package_relative(profile_dir, &worker.module));
+            }
+            StepKind::Tool(ToolTarget::Process(process)) => collect_process_execution_files(
+                profile_dir,
+                std::iter::once(&process.command).chain(&process.args),
+                &mut references.execution_files,
+            ),
+            _ => {}
+        }
     }
     Ok(())
 }
@@ -231,7 +202,7 @@ pub(super) fn validate_context_skill_sources(
 }
 
 fn profile_directory(path: &str) -> &str {
-    path.strip_suffix("/X.yaml").unwrap_or("")
+    crate::package::profile_directory(path).unwrap_or("")
 }
 
 fn package_directory(path: &str) -> &str {

@@ -3,10 +3,9 @@ use std::collections::BTreeMap;
 use runx_contracts::schema::NonEmptyString;
 use runx_contracts::{JsonObject, JsonValue, ProvenanceEntry};
 use runx_core::state_machine::{
-    FanoutGroupPolicy, FanoutSyncDecision, SequentialGraphEvent, SequentialGraphPlan,
-    SequentialGraphState, SequentialGraphStepDefinition, SequentialGraphStepIndex,
-    apply_sequential_graph_event_owned_indexed, create_sequential_graph_step_index,
-    evaluate_sequential_fanout_sync, plan_sequential_graph_transition_indexed_from,
+    SequentialGraphEvent, SequentialGraphPlan, SequentialGraphState, SequentialGraphStepDefinition,
+    SequentialGraphStepIndex, apply_sequential_graph_event_owned_indexed,
+    create_sequential_graph_step_index, plan_sequential_graph_transition_indexed_from,
     start_sequential_graph_step_indexed, succeed_sequential_graph_step_indexed,
 };
 use runx_parser::{ExecutionGraph, GraphStep};
@@ -60,15 +59,12 @@ impl ExecutionGraphIndex {
     pub(crate) fn plan_transition(
         &self,
         state: &SequentialGraphState,
-        fanout_policies: &BTreeMap<String, FanoutGroupPolicy>,
         start_index: usize,
     ) -> SequentialGraphPlan {
         plan_sequential_graph_transition_indexed_from(
             state,
             &self.definitions,
             &self.planner_index,
-            fanout_policies,
-            None,
             start_index,
         )
     }
@@ -118,35 +114,6 @@ impl ExecutionGraphIndex {
                 step_id: step_id.to_owned(),
             })
     }
-
-    pub(crate) fn fanout_decision(
-        &self,
-        state: &SequentialGraphState,
-        policy: &FanoutGroupPolicy,
-    ) -> FanoutSyncDecision {
-        evaluate_sequential_fanout_sync(state, &self.definitions, &self.planner_index, policy, None)
-    }
-
-    pub(crate) fn fanout_receipt_ids(
-        &self,
-        graph: &ExecutionGraph,
-        runs: &[StepRun],
-        run_positions: &BTreeMap<String, usize>,
-        group_id: &str,
-    ) -> Vec<String> {
-        self.planner_index
-            .fanout_positions(group_id)
-            .into_iter()
-            .flatten()
-            .filter_map(|position| {
-                let step = graph.steps.get(*position)?;
-                let run = run_positions
-                    .get(&step.id)
-                    .and_then(|index| runs.get(*index))?;
-                (run.step_id == step.id).then(|| run.receipt.id.to_string())
-            })
-            .collect()
-    }
 }
 
 pub(crate) struct PriorRunIndex<'a> {
@@ -154,15 +121,6 @@ pub(crate) struct PriorRunIndex<'a> {
 }
 
 impl<'a> PriorRunIndex<'a> {
-    #[must_use]
-    pub(crate) fn new(prior_runs: &'a [StepRun]) -> Self {
-        let mut runs = BTreeMap::new();
-        for run in prior_runs {
-            runs.insert(run.step_id.as_str(), run);
-        }
-        Self { runs }
-    }
-
     #[must_use]
     pub(crate) fn from_positions(
         prior_runs: &'a [StepRun],

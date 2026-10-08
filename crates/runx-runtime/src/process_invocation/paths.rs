@@ -2,20 +2,10 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use runx_parser::SkillSource;
-
 use crate::RuntimeError;
-use crate::receipts::paths::{INIT_CWD_ENV, RUNX_CWD_ENV};
+use crate::receipts::paths::RUNX_CWD_ENV;
 
 pub(super) fn resolve_cwd(
-    source: &SkillSource,
-    skill_directory: &Path,
-    workspace_cwd: Option<&Path>,
-) -> Result<PathBuf, RuntimeError> {
-    resolve_cwd_value(source.cwd.as_deref(), skill_directory, workspace_cwd)
-}
-
-fn resolve_cwd_value(
     source_cwd: Option<&str>,
     skill_directory: &Path,
     workspace_cwd: Option<&Path>,
@@ -23,7 +13,7 @@ fn resolve_cwd_value(
     let cwd = match source_cwd {
         Some("{{env.RUNX_CWD}}") => workspace_cwd.map(Path::to_path_buf).ok_or_else(|| {
             invocation_error(format!(
-                "process cwd requests {{env.RUNX_CWD}} but {RUNX_CWD_ENV} or {INIT_CWD_ENV} is not available"
+                "process cwd requests {{env.RUNX_CWD}} but {RUNX_CWD_ENV} is not available"
             ))
         })?,
         Some(cwd) => resolve_path(skill_directory, cwd),
@@ -35,13 +25,10 @@ fn resolve_cwd_value(
 pub(super) fn workspace_cwd(
     env: &BTreeMap<String, String>,
 ) -> Result<Option<PathBuf>, RuntimeError> {
-    let Some((name, value)) = env
-        .get(RUNX_CWD_ENV)
-        .map(|value| (RUNX_CWD_ENV, value))
-        .or_else(|| env.get(INIT_CWD_ENV).map(|value| (INIT_CWD_ENV, value)))
-    else {
+    let Some(value) = env.get(RUNX_CWD_ENV) else {
         return Ok(None);
     };
+    let name = RUNX_CWD_ENV;
     let path = PathBuf::from(value);
     if !path.is_absolute() {
         return Err(invocation_error(format!(
@@ -63,7 +50,7 @@ pub(super) fn resolved_skill_directory(
             .map(|workspace| workspace.join(skill_directory))
             .ok_or_else(|| {
                 invocation_error(format!(
-                    "relative skill directory '{}' requires {RUNX_CWD_ENV} or {INIT_CWD_ENV}",
+                    "relative skill directory '{}' requires {RUNX_CWD_ENV}",
                     skill_directory.display()
                 ))
             })?
@@ -134,7 +121,7 @@ pub(super) fn invocation_error(message: impl Into<String>) -> RuntimeError {
 mod tests {
     use std::path::{Path, PathBuf};
 
-    use super::{normalize_path, resolve_cwd_value};
+    use super::{normalize_path, resolve_cwd};
 
     #[test]
     fn normalize_path_preserves_current_directory() {
@@ -148,16 +135,16 @@ mod tests {
         let skill = Path::new("/package/skill");
         let workspace = Path::new("/operator/workspace");
 
-        assert_eq!(resolve_cwd_value(None, skill, Some(workspace))?, skill);
+        assert_eq!(resolve_cwd(None, skill, Some(workspace))?, skill);
         assert_eq!(
-            resolve_cwd_value(Some("tools"), skill, Some(workspace))?,
+            resolve_cwd(Some("tools"), skill, Some(workspace))?,
             skill.join("tools")
         );
         assert_eq!(
-            resolve_cwd_value(Some("{{env.RUNX_CWD}}"), skill, Some(workspace))?,
+            resolve_cwd(Some("{{env.RUNX_CWD}}"), skill, Some(workspace))?,
             workspace
         );
-        assert!(resolve_cwd_value(Some("{{env.RUNX_CWD}}"), skill, None).is_err());
+        assert!(resolve_cwd(Some("{{env.RUNX_CWD}}"), skill, None).is_err());
         Ok(())
     }
 }

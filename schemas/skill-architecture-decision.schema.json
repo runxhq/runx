@@ -346,11 +346,11 @@
             "enum": [
               "manual",
               "graph",
-              "agent_task",
+              "agent",
               "native_capability",
               "domain_module",
-              "cli_tool",
-              "provider_adapter"
+              "process",
+              "operation"
             ],
             "type": "string"
           },
@@ -378,9 +378,6 @@
         "max_executable_lines": {
           "type": "integer"
         },
-        "max_fanout": {
-          "type": "integer"
-        },
         "max_files": {
           "type": "integer"
         },
@@ -394,7 +391,6 @@
       "required": [
         "max_files",
         "max_executable_lines",
-        "max_fanout",
         "max_process_spawns",
         "network_allowed"
       ],

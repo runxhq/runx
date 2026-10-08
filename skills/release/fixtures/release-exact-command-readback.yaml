@@ -1,6 +1,6 @@
 name: release-exact-command-readback
 kind: graph
-target: ../harness/release-fixture.graph.yaml
+target: support/release-fixture.graph
 operator_journeys:
   - mode: standalone
     exercises_runner: release
@@ -17,7 +17,7 @@ operator_journeys:
       - Do not execute the publish command after readback proves the version exists.
 caller:
   answers:
-    agent_task.release-notes.output:
+    agent.release-notes.output:
       release_notes:
         headline: Fixture 1.2.3
         summary: Publishes the fixture through the project-owned command profile.

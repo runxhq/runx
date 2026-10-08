@@ -1,4 +1,4 @@
-#![cfg(feature = "cli-tool")]
+#![cfg(feature = "process-tool")]
 #![allow(clippy::expect_used, clippy::unwrap_used)]
 //! Conformance for the uniform-governance seal invariant.
 //!
@@ -13,7 +13,7 @@ use std::path::Path;
 
 use runx_contracts::AuthorityVerb;
 use runx_core::state_machine::AuthorityAdmissionWitness;
-use runx_runtime::adapters::cli_tool::CliToolAdapter;
+use runx_runtime::adapters::process_tool::ProcessToolAdapter;
 use runx_runtime::{
     EffectAdmission, EffectStepRequest, Runtime, RuntimeEffect, RuntimeEffectError,
     RuntimeEffectRegistry, RuntimeOptions,
@@ -58,10 +58,11 @@ impl RuntimeEffect for AdmitEveryStep {
     }
 }
 
-fn options_with_effects(effects: RuntimeEffectRegistry) -> RuntimeOptions {
-    let mut options = crate::support::signed_runtime_options().expect("signed runtime options");
+fn options_with_effects(effects: RuntimeEffectRegistry) -> (tempfile::TempDir, RuntimeOptions) {
+    let (root, run) = crate::support::scratch_run("run_governance_witness").expect("scratch run");
+    let mut options = crate::support::signed_runtime_options(run).expect("signed runtime options");
     options.effects = effects;
-    options
+    (root, options)
 }
 
 #[test]
@@ -71,10 +72,8 @@ fn admitted_step_records_authority_in_sealed_witness() {
         effects.is_ok(),
         "effect fixture metadata must be valid: {effects:?}"
     );
-    let runtime = Runtime::new(
-        CliToolAdapter,
-        options_with_effects(effects.unwrap_or_default()),
-    );
+    let (_run, options) = options_with_effects(effects.unwrap_or_default());
+    let runtime = Runtime::new(ProcessToolAdapter, options);
     let run = runtime
         .run_graph_file(&hello_graph_path())
         .expect("graph runs to completion");
@@ -89,10 +88,8 @@ fn admitted_step_records_authority_in_sealed_witness() {
 
 #[test]
 fn unadmitted_step_records_local_runtime_witness() {
-    let runtime = Runtime::new(
-        CliToolAdapter,
-        options_with_effects(RuntimeEffectRegistry::empty()),
-    );
+    let (_run, options) = options_with_effects(RuntimeEffectRegistry::empty());
+    let runtime = Runtime::new(ProcessToolAdapter, options);
     let run = runtime
         .run_graph_file(&hello_graph_path())
         .expect("graph runs to completion");

@@ -1,8 +1,6 @@
 ---
 name: lead-router
 description: Route a validated lead to direct outreach planning, nurture planning, or a recorded hold, preserving why that path was chosen.
-runx:
-  category: growth
 ---
 
 # Lead Router
@@ -27,7 +25,7 @@ already decided and no lead-level routing remains.
 
 Never use it to bypass consent, contact a suppressed lead, or draft bespoke copy
 from raw signals. Enrichment owns evidence synthesis; content skills own copy;
-provider adapters own delivery.
+provider connectors own delivery.
 
 ## How it works
 

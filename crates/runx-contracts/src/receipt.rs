@@ -2,7 +2,7 @@
 // lineage, and effect-finality schemas together for cross-language schema
 // generation.
 //! Governance receipt contracts: the flat `runx.receipt.v1` shape, seals,
-//! fanout sync, lineage, and signatures.
+//! lineage, and signatures.
 //!
 //! One flat artifact, each top-level key answering one question: integrity
 //! (envelope), dedup (idempotency), what ran (subject), what allowed it
@@ -80,41 +80,6 @@ pub struct EffectFinalityReceipt {
     pub confirmation_depth: Option<u64>,
     #[serde(default, skip_serializing_if = "JsonObject::is_empty")]
     pub payload: JsonObject,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum FanoutReceiptStrategy {
-    All,
-    Any,
-    Quorum,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum FanoutReceiptDecision {
-    Proceed,
-    Halt,
-    Pause,
-    Escalate,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
-#[serde(deny_unknown_fields)]
-pub struct FanoutReceiptSyncPoint {
-    pub group_id: NonEmptyString,
-    pub strategy: FanoutReceiptStrategy,
-    pub decision: FanoutReceiptDecision,
-    pub rule_fired: NonEmptyString,
-    pub reason: NonEmptyString,
-    pub branch_count: usize,
-    pub success_count: usize,
-    pub failure_count: usize,
-    pub required_successes: usize,
-    #[serde(default)]
-    pub branch_receipts: Vec<NonEmptyString>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub gate: Option<JsonObject>,
 }
 
 /// Scoped byte commitment; unifies the old hash_commitments + enforcement.std*_hash.
@@ -325,8 +290,6 @@ pub struct Lineage {
     pub previous: Option<Reference>,
     #[serde(default)]
     pub children: Vec<Reference>,
-    #[serde(default)]
-    pub sync: Vec<FanoutReceiptSyncPoint>,
     // Open resolution request when seal.disposition == "deferred".
     #[serde(skip_serializing_if = "Option::is_none")]
     pub resume_ref: Option<Reference>,

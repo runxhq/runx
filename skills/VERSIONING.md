@@ -1,7 +1,7 @@
 # Skill Versioning
 
 Every skill in this directory declares a `version:` field at the top
-level of its `X.yaml`. The field is semver.
+level of its `run.yaml`. The field is semver.
 
 ## When to bump
 

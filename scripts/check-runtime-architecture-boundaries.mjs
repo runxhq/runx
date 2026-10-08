@@ -6,7 +6,6 @@ import {
 } from "./runtime-architecture/delivery.mjs";
 import {
   checkAuthoringOwnership,
-  checkAdapterOwnership,
   checkContractBindingOwnership,
   checkGeneratedMirrorOwnership,
 } from "./runtime-architecture/extensions.mjs";
@@ -17,12 +16,10 @@ import {
   checkServiceBoundary,
   checkSessionPooling,
 } from "./runtime-architecture/phases.mjs";
-import { checkRetiredRuntimeSurfaces } from "./runtime-architecture/retired.mjs";
 import {
   checkCanonicalToolManifestOwnership,
   checkCloudOwnershipBoundary,
   checkCrateDependencyDirection,
-  checkDataOperationOwnership,
   checkDeterministicWorkerOwnership,
   checkManagedAgentDefault,
   checkNoRuntimeCompatModules,
@@ -40,18 +37,15 @@ for (const check of [
   checkManagedAgentDefault,
   checkTypedCapabilityPlane,
   checkDeterministicWorkerOwnership,
-  checkDataOperationOwnership,
   checkNoRuntimeCompatModules,
   checkCanonicalParserOwnership,
   checkCliCommandOwnership,
   checkRegistryOwnership,
   checkHttpTransportOwnership,
-  checkAdapterOwnership,
   checkAuthoringOwnership,
   checkContractBindingOwnership,
   checkGeneratedMirrorOwnership,
   checkCanonicalToolManifestOwnership,
-  checkRetiredRuntimeSurfaces,
 ]) {
   check(findings);
 }

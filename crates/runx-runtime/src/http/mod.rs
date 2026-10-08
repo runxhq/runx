@@ -3,7 +3,7 @@
 // in one review unit.
 mod types;
 
-#[cfg(feature = "async-http")]
+#[cfg(all(feature = "async-http", feature = "mcp"))]
 use std::collections::BTreeMap;
 #[cfg(feature = "async-http")]
 use std::error::Error as StdError;
@@ -21,12 +21,14 @@ use std::time::Duration;
 
 use url::Url;
 
+pub(crate) use self::types::RuntimeHarnessHttpExchange;
+#[cfg(any(feature = "async-http", test))]
+pub(crate) use self::types::RuntimeHarnessHttpRequestBody;
 #[cfg(feature = "async-http")]
 pub use self::types::{
     ExactLoopbackHttpTransport, HttpMethod, ReqwestHttpTransport, RuntimeHttpHeader,
     RuntimeHttpRequest, RuntimeHttpResponse, RuntimeHttpTransport,
 };
-pub(crate) use self::types::{RuntimeHarnessHttpExchange, RuntimeHarnessHttpRequestBody};
 
 #[cfg(feature = "async-http")]
 const DEFAULT_HTTP_REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
@@ -301,46 +303,37 @@ impl ReqwestHttpTransport {
 }
 
 /// Runtime-owned transport selection for native HTTP capabilities. Exact
-/// fixture responses can enter only through the private harness registry;
+/// harness exchanges can enter only through the private harness registry;
 /// ordinary executions always construct the live guarded transport.
 #[cfg(feature = "async-http")]
 pub(crate) enum NativeHttpTransport<'a> {
     Live(ReqwestHttpTransport),
-    Harness {
-        responses: Option<&'a BTreeMap<String, RuntimeHttpResponse>>,
-        exchanges: Option<&'a [RuntimeHarnessHttpExchange]>,
-    },
+    Harness(&'a [RuntimeHarnessHttpExchange]),
 }
 
 #[cfg(feature = "async-http")]
 impl<'a> NativeHttpTransport<'a> {
+    #[cfg(test)]
     pub(crate) fn new(
-        harness_responses: Option<&'a BTreeMap<String, RuntimeHttpResponse>>,
-        harness_exchanges: Option<&'a [RuntimeHarnessHttpExchange]>,
+        harness: Option<&'a [RuntimeHarnessHttpExchange]>,
     ) -> Result<Self, RuntimeHttpError> {
-        match (harness_responses, harness_exchanges) {
-            (None, None) => Ok(Self::Live(ReqwestHttpTransport::new()?)),
-            (responses, exchanges) => Ok(Self::Harness {
-                responses,
-                exchanges,
-            }),
+        match harness {
+            Some(exchanges) => Ok(Self::Harness(exchanges)),
+            None => Ok(Self::Live(ReqwestHttpTransport::new()?)),
         }
     }
 
     #[cfg(feature = "catalog")]
     pub(crate) fn for_hosted_api(
-        harness_responses: Option<&'a BTreeMap<String, RuntimeHttpResponse>>,
+        harness: Option<&'a [RuntimeHarnessHttpExchange]>,
         allow_private_network: bool,
     ) -> Result<Self, RuntimeHttpError> {
-        match harness_responses {
-            Some(responses) => Ok(Self::Harness {
-                responses: Some(responses),
-                exchanges: None,
-            }),
+        match harness {
+            Some(exchanges) => Ok(Self::Harness(exchanges)),
             None if allow_private_network => Ok(Self::Live(
                 ReqwestHttpTransport::with_private_network_access()?,
             )),
-            None => Self::new(None, None),
+            None => Ok(Self::Live(ReqwestHttpTransport::new()?)),
         }
     }
 }
@@ -350,10 +343,7 @@ impl RuntimeHttpTransport for NativeHttpTransport<'_> {
     fn send(&self, request: RuntimeHttpRequest) -> Result<RuntimeHttpResponse, RuntimeHttpError> {
         match self {
             Self::Live(transport) => transport.send(request),
-            Self::Harness {
-                responses,
-                exchanges,
-            } => exact_harness_response(*responses, *exchanges, &request, false),
+            Self::Harness(exchanges) => exact_harness_response(exchanges, &request),
         }
     }
 
@@ -364,11 +354,8 @@ impl RuntimeHttpTransport for NativeHttpTransport<'_> {
     ) -> Result<RuntimeHttpResponse, RuntimeHttpError> {
         match self {
             Self::Live(transport) => transport.send_limited(request, response_limit),
-            Self::Harness {
-                responses,
-                exchanges,
-            } => enforce_harness_response_limit(
-                exact_harness_response(*responses, *exchanges, &request, false)?,
+            Self::Harness(exchanges) => enforce_harness_response_limit(
+                exact_harness_response(exchanges, &request)?,
                 response_limit,
             ),
         }
@@ -380,10 +367,7 @@ impl RuntimeHttpTransport for NativeHttpTransport<'_> {
     ) -> Result<RuntimeHttpResponse, RuntimeHttpError> {
         match self {
             Self::Live(transport) => transport.send_idempotent(request),
-            Self::Harness {
-                responses,
-                exchanges,
-            } => exact_harness_response(*responses, *exchanges, &request, true),
+            Self::Harness(exchanges) => exact_harness_response(exchanges, &request),
         }
     }
 
@@ -394,53 +378,33 @@ impl RuntimeHttpTransport for NativeHttpTransport<'_> {
     ) -> Result<RuntimeHttpResponse, RuntimeHttpError> {
         match self {
             Self::Live(transport) => transport.send_idempotent_limited(request, response_limit),
-            Self::Harness {
-                responses,
-                exchanges,
-            } => enforce_harness_response_limit(
-                exact_harness_response(*responses, *exchanges, &request, true)?,
+            Self::Harness(exchanges) => enforce_harness_response_limit(
+                exact_harness_response(exchanges, &request)?,
                 response_limit,
             ),
         }
     }
 }
 
+/// The harness's answer to `request`: the one exchange whose method, URL and
+/// body match it exactly. Anything else is refused, never sent.
 #[cfg(feature = "async-http")]
 pub(crate) fn exact_harness_response(
-    responses: Option<&BTreeMap<String, RuntimeHttpResponse>>,
-    exchanges: Option<&[RuntimeHarnessHttpExchange]>,
+    exchanges: &[RuntimeHarnessHttpExchange],
     request: &RuntimeHttpRequest,
-    admit_idempotent_query: bool,
 ) -> Result<RuntimeHttpResponse, RuntimeHttpError> {
-    if let Some(response) = exchanges.and_then(|exchanges| {
-        exchanges
-            .iter()
-            .find(|exchange| {
-                exchange.method == request.method
-                    && exchange.url == request.url
-                    && harness_request_body_matches(&exchange.body, request.body.as_deref())
-            })
-            .map(|exchange| exchange.response.clone())
-    }) {
-        return Ok(response);
-    }
-    if request.method != HttpMethod::Get
-        && !(admit_idempotent_query && request.method == HttpMethod::Post)
-    {
-        return Err(RuntimeHttpError::Transport {
-            message: format!(
-                "deterministic harness HTTP responses admit GET reads, runtime-declared idempotent POST requests, and exact request-sensitive exchanges only; no exact exchange matched {} {}",
-                request.method.as_str(),
-                request.url,
-            ),
-        });
-    }
-    responses
-        .and_then(|responses| responses.get(&request.url))
-        .cloned()
+    exchanges
+        .iter()
+        .find(|exchange| {
+            exchange.method == request.method
+                && exchange.url == request.url
+                && harness_request_body_matches(&exchange.body, request.body.as_deref())
+        })
+        .map(|exchange| exchange.response.clone())
         .ok_or_else(|| RuntimeHttpError::Transport {
             message: format!(
-                "the harness declared deterministic HTTP responses but none matched {}",
+                "the harness declares no exchange for {} {}",
+                request.method.as_str(),
                 request.url
             ),
         })
@@ -1126,7 +1090,6 @@ fn is_header_token_byte(byte: u8) -> bool {
 #[cfg(test)]
 mod tests {
     #[cfg(feature = "async-http")]
-    use std::collections::BTreeMap;
     use std::io;
     #[cfg(feature = "async-http")]
     use std::io::{Read, Write};
@@ -1182,9 +1145,13 @@ mod tests {
     fn harness_http_transport_is_exact_limited_and_never_falls_through()
     -> Result<(), RuntimeHttpTestError> {
         let url = "https://fixture.runx.invalid/source";
-        let responses =
-            BTreeMap::from([(url.to_owned(), RuntimeHttpResponse::new(200, "hello world"))]);
-        let transport = NativeHttpTransport::new(Some(&responses), None)?;
+        let exchanges = [RuntimeHarnessHttpExchange {
+            method: HttpMethod::Get,
+            url: url.to_owned(),
+            body: RuntimeHarnessHttpRequestBody::None,
+            response: RuntimeHttpResponse::new(200, "hello world"),
+        }];
+        let transport = NativeHttpTransport::new(Some(&exchanges))?;
         let read = || RuntimeHttpRequest {
             method: HttpMethod::Get,
             url: url.to_owned(),
@@ -1219,8 +1186,8 @@ mod tests {
             url: url.to_owned(),
             headers: Vec::new(),
             body: Some("{}".to_owned()),
-        })?;
-        assert_eq!(query.body, "hello world");
+        });
+        assert!(matches!(query, Err(RuntimeHttpError::Transport { .. })));
 
         Ok(())
     }
@@ -1254,7 +1221,7 @@ mod tests {
                 response: RuntimeHttpResponse::new(200, "json null"),
             },
         ];
-        let exact_transport = NativeHttpTransport::new(None, Some(&exchanges))?;
+        let exact_transport = NativeHttpTransport::new(Some(&exchanges))?;
         let exact_mutation = exact_transport.send(RuntimeHttpRequest {
             method: HttpMethod::Post,
             url: url.to_owned(),

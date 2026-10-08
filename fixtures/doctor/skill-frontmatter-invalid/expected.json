@@ -1,0 +1,63 @@
+{
+  "schema": "runx.doctor.v1",
+  "status": "failure",
+  "summary": {
+    "errors": 2,
+    "warnings": 0,
+    "infos": 0
+  },
+  "diagnostics": [
+    {
+      "id": "runx.skill.frontmatter.invalid",
+      "instance_id": "sha256:db0ab32f1fba3c67958b6948d428f687820401e80ccd9eb624f37f39144decc4",
+      "severity": "error",
+      "title": "Skill frontmatter breaks the Agent Skills rules",
+      "message": "Skill catalog-in-manual has invalid SKILL.md frontmatter: SKILL.md.runx is not supported; allowed fields: name, description, license, compatibility, metadata, allowed-tools.",
+      "target": {
+        "kind": "skill",
+        "ref": "catalog-in-manual"
+      },
+      "location": {
+        "path": "skills/catalog-in-manual/SKILL.md"
+      },
+      "evidence": {
+        "error": "SKILL.md.runx is not supported; allowed fields: name, description, license, compatibility, metadata, allowed-tools."
+      },
+      "repairs": [
+        {
+          "id": "fix_skill_frontmatter",
+          "kind": "manual",
+          "confidence": "high",
+          "risk": "low",
+          "requires_human_review": true
+        }
+      ]
+    },
+    {
+      "id": "runx.skill.frontmatter.invalid",
+      "instance_id": "sha256:1c1d75bd900305262e4ac2c1b3b17ac063f04326f3f4f76128180a8737f225b3",
+      "severity": "error",
+      "title": "Skill frontmatter breaks the Agent Skills rules",
+      "message": "Skill renamed-directory has invalid SKILL.md frontmatter: name 'original-name' must match its directory 'renamed-directory'.",
+      "target": {
+        "kind": "skill",
+        "ref": "renamed-directory"
+      },
+      "location": {
+        "path": "skills/renamed-directory/SKILL.md"
+      },
+      "evidence": {
+        "error": "name 'original-name' must match its directory 'renamed-directory'."
+      },
+      "repairs": [
+        {
+          "id": "fix_skill_frontmatter",
+          "kind": "manual",
+          "confidence": "high",
+          "risk": "low",
+          "requires_human_review": true
+        }
+      ]
+    }
+  ]
+}

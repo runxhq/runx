@@ -180,7 +180,7 @@ describe("paid-invocation V1 contract facade", () => {
       .toBe(result.value.challenge);
     expect(() => validatePaymentIdempotencyBindingContract({
       ...(request.idempotency as object),
-      legacy_key: "not-accepted",
+      unknown_key: "not-accepted",
     })).toThrow();
   });
 
@@ -201,15 +201,15 @@ describe("paid-invocation V1 contract facade", () => {
       .toBe(request.parent);
     expect(() => validatePaidInvocationContract({
       ...(result.value.invocation as object),
-      legacy_state: "not-accepted",
+      unknown_state: "not-accepted",
     })).toThrow();
     expect(() => validateOfferRevisionRefContract({
       ...(request.offer_revision as object),
-      legacy_revision: "not-accepted",
+      unknown_revision: "not-accepted",
     })).toThrow();
     expect(() => validateParentInvocationBindingContract({
       ...(request.parent as object),
-      legacy_invocation_id: "not-accepted",
+      unknown_invocation_id: "not-accepted",
     })).toThrow();
   });
 
