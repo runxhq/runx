@@ -1,0 +1,161 @@
+name: repair OCI image
+
+on:
+  push:
+    branches:
+      - fix/oci-worker-091
+
+concurrency:
+  group: repair-oci-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.resolve.outputs.version }}
+      cli_commit: ${{ steps.resolve.outputs.cli_commit }}
+      amd64: ${{ steps.resolve.outputs.amd64 }}
+      arm64: ${{ steps.resolve.outputs.arm64 }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Resolve the published CLI archives
+        id: resolve
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          node --input-type=module <<'NODE'
+          import { appendFileSync, readFileSync } from 'node:fs';
+          import { execFileSync } from 'node:child_process';
+
+          const version = JSON.parse(readFileSync('packages/cli/package.json', 'utf8')).version;
+          const topology = JSON.parse(readFileSync('packages/cli/native/supported-platforms.json', 'utf8'));
+          const tag = `cli-v${version}`;
+          const cliCommit = execFileSync('git', ['rev-parse', `${tag}^{commit}`], { encoding: 'utf8' }).trim();
+          const response = await fetch(`https://api.github.com/repos/runxhq/runx/releases/tags/${tag}`, {
+            headers: { authorization: `Bearer ${process.env.GH_TOKEN}`, accept: 'application/vnd.github+json' },
+          });
+          if (!response.ok) throw new Error(`Release lookup returned HTTP ${response.status}`);
+          const release = await response.json();
+          if (release.tag_name !== tag || !Array.isArray(release.assets)) throw new Error('Release metadata is incomplete');
+          const values = { version, cli_commit: cliCommit };
+          for (const [cpu, arch] of [['x64', 'amd64'], ['arm64', 'arm64']]) {
+            const platform = Object.values(topology.nativePackages).find((entry) =>
+              entry.os === 'linux' && entry.cpu === cpu && entry.rustTarget.endsWith('-musl'));
+            if (!platform) throw new Error(`Missing Linux ${cpu} platform`);
+            const filename = `runx-${version}-${platform.rustTarget}.${platform.archiveExtension}`;
+            const asset = release.assets.find((entry) => entry.name === filename);
+            if (!/^sha256:[0-9a-f]{64}$/.test(asset?.digest ?? '')) throw new Error(`Missing digest for ${filename}`);
+            values[arch] = asset.digest.slice('sha256:'.length);
+          }
+          appendFileSync(process.env.GITHUB_OUTPUT, Object.entries(values).map(([key, value]) => `${key}=${value}\n`).join(''));
+          NODE
+      - name: Refuse an existing repair tag
+        env:
+          RUNX_VERSION: ${{ steps.resolve.outputs.version }}
+        run: |
+          node --input-type=module <<'NODE'
+          const tokenUrl = new URL('https://ghcr.io/token');
+          tokenUrl.searchParams.set('service', 'ghcr.io');
+          tokenUrl.searchParams.set('scope', 'repository:runxhq/runx:pull');
+          const tokenResponse = await fetch(tokenUrl);
+          if (!tokenResponse.ok) throw new Error(`GHCR token returned HTTP ${tokenResponse.status}`);
+          const token = (await tokenResponse.json()).token;
+          if (!token) throw new Error('GHCR pull token is missing');
+          const response = await fetch(`https://ghcr.io/v2/runxhq/runx/manifests/${process.env.RUNX_VERSION}-r1`, {
+            headers: {
+              authorization: `Bearer ${token}`,
+              accept: 'application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.list.v2+json',
+            },
+          });
+          if (response.status !== 404) throw new Error(`Repair tag must be absent; GHCR returned HTTP ${response.status}`);
+          NODE
+
+  build:
+    needs: prepare
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    outputs:
+      digest: ${{ steps.image.outputs.digest }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build the repair by digest
+        id: image
+        env:
+          RUNX_VERSION: ${{ needs.prepare.outputs.version }}
+          RUNX_CLI_COMMIT: ${{ needs.prepare.outputs.cli_commit }}
+          RUNX_SHA_AMD64: ${{ needs.prepare.outputs.amd64 }}
+          RUNX_SHA_ARM64: ${{ needs.prepare.outputs.arm64 }}
+        run: |
+          docker buildx build \
+            --platform linux/amd64,linux/arm64 \
+            --file packaging/docker/Dockerfile \
+            --build-arg "VERSION=${RUNX_VERSION}" \
+            --build-arg "SHA256_AMD64=${RUNX_SHA_AMD64}" \
+            --build-arg "SHA256_ARM64=${RUNX_SHA_ARM64}" \
+            --build-arg "CLI_COMMIT=${RUNX_CLI_COMMIT}" \
+            --build-arg "PACKAGING_COMMIT=${GITHUB_SHA}" \
+            --provenance=mode=max \
+            --metadata-file image-metadata.json \
+            --output 'type=image,name=ghcr.io/runxhq/runx,push-by-digest=true,push=true' \
+            packaging/docker
+          node --input-type=module <<'NODE'
+          import { appendFileSync, readFileSync } from 'node:fs';
+          const digest = JSON.parse(readFileSync('image-metadata.json', 'utf8'))['containerimage.digest'];
+          if (!/^sha256:[0-9a-f]{64}$/.test(digest ?? '')) throw new Error('Missing pushed image digest');
+          appendFileSync(process.env.GITHUB_OUTPUT, `digest=${digest}\n`);
+          NODE
+
+  smoke:
+    needs: [prepare, build]
+    strategy:
+      fail-fast: true
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Run a JavaScript skill from the pushed digest
+        run: node scripts/smoke-runx-image.mjs --image "ghcr.io/runxhq/runx@${{ needs.build.outputs.digest }}" --expected-version "${{ needs.prepare.outputs.version }}"
+
+  promote:
+    needs: [prepare, build, smoke]
+    runs-on: ubuntu-24.04
+    permissions:
+      packages: write
+    steps:
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Promote and read back the tested digest
+        env:
+          RUNX_VERSION: ${{ needs.prepare.outputs.version }}
+          RUNX_DIGEST: ${{ needs.build.outputs.digest }}
+        run: |
+          docker buildx imagetools create \
+            --tag "ghcr.io/runxhq/runx:${RUNX_VERSION}-r1" \
+            --tag ghcr.io/runxhq/runx:latest \
+            "ghcr.io/runxhq/runx@${RUNX_DIGEST}"
+          for tag in "${RUNX_VERSION}-r1" latest; do
+            docker buildx imagetools inspect "ghcr.io/runxhq/runx:${tag}" \
+              --format '{{json .Manifest}}' > observed-manifest.json
+            node --input-type=module <<'NODE'
+          import { readFileSync } from 'node:fs';
+          const observed = JSON.parse(readFileSync('observed-manifest.json', 'utf8')).digest;
+          if (observed !== process.env.RUNX_DIGEST) throw new Error(`Tag readback ${observed} does not match ${process.env.RUNX_DIGEST}`);
+          NODE
+          done
