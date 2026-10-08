@@ -6,7 +6,7 @@
 //! delivery, and artifact projection as graph tool steps.
 
 use std::borrow::Cow;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::time::Instant;
 
@@ -24,15 +24,15 @@ const MANAGED_AGENT_SKILL: &str = "managed-agent";
 
 /// Executes the agent's chosen tools through the governed runtime, carrying the
 /// run context (env, skill directory) the resolver captured from the agent
-/// invocation. An agent's tools receive no credential; a connector operation
-/// is where credentials are delivered.
+/// invocation. Each allowed tool runs under the scopes it declares. An
+/// agent's tools receive no credential; a connector operation is where
+/// credentials are delivered.
 pub struct RuntimeToolExecutor {
     env: BTreeMap<String, String>,
     skill_directory: PathBuf,
     effects: RuntimeEffectRegistry,
     observed_at: String,
-    allowed_tools: BTreeSet<String>,
-    scopes: Vec<String>,
+    tools: BTreeMap<String, Vec<String>>,
     local_artifacts: crate::services::LocalArtifactService,
 }
 
@@ -43,16 +43,14 @@ impl RuntimeToolExecutor {
         skill_directory: PathBuf,
         effects: RuntimeEffectRegistry,
         observed_at: impl Into<String>,
-        allowed_tools: impl IntoIterator<Item = String>,
-        scopes: Vec<String>,
+        tools: BTreeMap<String, Vec<String>>,
     ) -> Self {
         Self {
             env,
             skill_directory,
             effects,
             observed_at: observed_at.into(),
-            allowed_tools: allowed_tools.into_iter().collect(),
-            scopes,
+            tools,
             local_artifacts: crate::services::LocalArtifactService::default(),
         }
     }
@@ -60,7 +58,7 @@ impl RuntimeToolExecutor {
 
 impl ToolExecutor for RuntimeToolExecutor {
     fn admitted_tool_name(&self, tool: &str) -> Option<String> {
-        (admit_agent_tool_ref(tool).allowed && self.allowed_tools.contains(tool))
+        (admit_agent_tool_ref(tool).allowed && self.tools.contains_key(tool))
             .then(|| tool.to_owned())
     }
 
@@ -75,12 +73,12 @@ impl ToolExecutor for RuntimeToolExecutor {
                 ),
             });
         }
-        if !self.allowed_tools.contains(tool) {
+        let Some(scopes) = self.tools.get(tool) else {
             return Err(RuntimeError::SkillFailed {
                 skill_name: MANAGED_AGENT_SKILL.to_owned(),
-                message: format!("managed agent tool '{tool}' is not in the run's allowed_tools"),
+                message: format!("managed agent tool '{tool}' is not in the skill's tools"),
             });
-        }
+        };
         // The model supplies the tool arguments already resolved, so pass them as
         // both inputs and resolved_inputs.
         let inputs = input.as_object().cloned().unwrap_or_default();
@@ -88,7 +86,7 @@ impl ToolExecutor for RuntimeToolExecutor {
             tool_ref: Cow::Borrowed(tool),
             inputs: Cow::Owned(inputs.clone()),
             resolved_inputs: Cow::Owned(inputs),
-            scopes: &self.scopes,
+            scopes,
             env: &self.env,
             skill_directory: &self.skill_directory,
             credential_delivery: &CredentialDelivery::none(),
@@ -126,8 +124,7 @@ mod tests {
             workspace.path().to_path_buf(),
             RuntimeEffectRegistry::default(),
             "2026-01-01T00:00:00Z",
-            ["git.status".to_owned()],
-            vec!["git.read".to_owned()],
+            BTreeMap::from([("git.status".to_owned(), vec!["git.read".to_owned()])]),
         );
 
         let output = executor.execute("git.status", &JsonValue::Object(Default::default()))?;
@@ -148,8 +145,7 @@ mod tests {
             PathBuf::from("."),
             RuntimeEffectRegistry::default(),
             "2026-01-01T00:00:00Z",
-            ["definitely-not-a-real-tool".to_owned()],
-            Vec::new(),
+            BTreeMap::from([("definitely-not-a-real-tool".to_owned(), Vec::new())]),
         );
         let result = executor.execute("definitely-not-a-real-tool", &JsonValue::Null);
         assert!(
@@ -170,8 +166,7 @@ mod tests {
             workspace.path().to_path_buf(),
             RuntimeEffectRegistry::default(),
             "2026-01-01T00:00:00Z",
-            ["fs.write".to_owned()],
-            vec!["fs.write".to_owned()],
+            BTreeMap::from([("fs.write".to_owned(), vec!["fs.write".to_owned()])]),
         );
         let input = JsonValue::Object(BTreeMap::from([
             (
@@ -199,19 +194,18 @@ mod tests {
     }
 
     #[test]
-    fn tool_outside_allowed_tools_is_rejected_before_resolution() {
+    fn tool_outside_the_skills_tools_is_rejected_before_resolution() {
         let executor = RuntimeToolExecutor::new(
             BTreeMap::new(),
             PathBuf::from("."),
             RuntimeEffectRegistry::default(),
             "2026-01-01T00:00:00Z",
-            ["fs.read".to_owned()],
-            Vec::new(),
+            BTreeMap::from([("fs.read".to_owned(), Vec::new())]),
         );
         let result = executor.execute("git.status", &JsonValue::Null);
         assert!(
-            matches!(&result, Err(RuntimeError::SkillFailed { message, .. }) if message.contains("not in the run's allowed_tools")),
-            "a model-selected tool outside allowed_tools must fail before local resolution; got: {result:?}"
+            matches!(&result, Err(RuntimeError::SkillFailed { message, .. }) if message.contains("not in the skill's tools")),
+            "a model-selected tool outside the skill's tools must fail before local resolution; got: {result:?}"
         );
     }
 
@@ -222,8 +216,7 @@ mod tests {
             PathBuf::from("."),
             RuntimeEffectRegistry::default(),
             "2026-01-01T00:00:00Z",
-            ["/tmp/manifest.json".to_owned()],
-            Vec::new(),
+            BTreeMap::from([("/tmp/manifest.json".to_owned(), Vec::new())]),
         );
         let result = executor.execute("/tmp/manifest.json", &JsonValue::Null);
         assert!(

@@ -1,8 +1,8 @@
 [
   {
     "skill_id": "runx/adopt-skill",
-    "version": "sha-a3cf1fc4b5a2",
-    "digest": "ac31d23886351de9ece1422d301682e221878965bdec6cd73c18ac5f09430c39",
+    "version": "sha-57c9cff95f93",
+    "digest": "bf96bd9059ddd35d79208d1b897c657b637d6193dc7d80bc7a91678d9cff13bd",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
   },
@@ -71,7 +71,7 @@
   },
   {
     "skill_id": "runx/contract-drafter",
-    "version": "sha-f6fcc70cbd47",
+    "version": "sha-b00573313c82",
     "digest": "63d51951256ec45a7962b4a7bc03dc2e39404925510938ce7839234aa118f529",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
@@ -92,7 +92,7 @@
   },
   {
     "skill_id": "runx/crm-cleanup",
-    "version": "sha-07c2997e9b9a",
+    "version": "sha-eab9228f19b9",
     "digest": "709841e7bc7848204fba9ce2be4603d0746e716651f9a90a2be5976ebcc8e9be",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
@@ -127,7 +127,7 @@
   },
   {
     "skill_id": "runx/diagnose-skill-run",
-    "version": "sha-448855baf4e4",
+    "version": "sha-2b4e5755345a",
     "digest": "65a652ad038996f8aff81c97677876e5b833194b45906b302257b9630bacb19d",
     "catalog_visibility": "public",
     "catalog_role": "context"
@@ -379,14 +379,14 @@
   },
   {
     "skill_id": "runx/postmortem-maker",
-    "version": "sha-2eeb03ac4888",
+    "version": "sha-c4a7ad5eb13a",
     "digest": "95fbf25f826a020401bc4e1dc19f5fe577ad981eb2d0854a782a08891a0304cb",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
   },
   {
     "skill_id": "runx/prior-art",
-    "version": "sha-00f7727afc40",
+    "version": "sha-45a7d86b2bb0",
     "digest": "bbb454fc017ecb66b6ff96913ee049c480267873948212ae30ff38e4e69fb8eb",
     "catalog_visibility": "public",
     "catalog_role": "context"
@@ -414,7 +414,7 @@
   },
   {
     "skill_id": "runx/reflect-digest",
-    "version": "sha-5eec482a8f66",
+    "version": "sha-2900df0c539c",
     "digest": "e55a3ae35d24570b49b917c57c055cf8ca64e2c8a357384d192c042ea7993c5d",
     "catalog_visibility": "internal",
     "catalog_role": "context"
@@ -491,7 +491,7 @@
   },
   {
     "skill_id": "runx/skill-lab",
-    "version": "sha-0ea8a1bd49f8",
+    "version": "sha-7b8420ea8cca",
     "digest": "30dcfaca9b53c0625a68b5f67d7ef911353544491deab11a663167da71730674",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
@@ -512,7 +512,7 @@
   },
   {
     "skill_id": "runx/sourcey",
-    "version": "sha-380c8ef0a792",
+    "version": "sha-b4756b7eb877",
     "digest": "b54471869a7a7641ae272a0855b75f7090d2a3345f84dfaa28162f16051c8d54",
     "catalog_visibility": "public",
     "catalog_role": "context"

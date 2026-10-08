@@ -12,6 +12,13 @@ catalog:
   approval: none
   category: content
 
+tools:
+  - fs.read
+  - git.status
+  - git.current_branch
+  - git.diff_name_only
+  - cli.capture_help
+
 runners:
   sourcey:
     default: true
@@ -57,16 +64,6 @@ runners:
         agent: { role: builder, task: sourcey-discover }
         outputs:
           discovery_report: object
-        allowed_tools:
-          - fs.read
-          - git.status
-          - git.current_branch
-          - git.diff_name_only
-          - cli.capture_help
-        scopes:
-          - fs.read
-          - git.read
-          - cli.read
         artifacts:
           named_emits:
             discovery_report: discovery_report
@@ -77,12 +74,6 @@ runners:
         agent: { role: builder, task: sourcey-author }
         outputs:
           doc_bundle: object
-        allowed_tools:
-          - fs.read
-          - cli.capture_help
-        scopes:
-          - fs.read
-          - cli.read
         context:
           discovery_report: discover.discovery_report.data
         artifacts:
@@ -118,10 +109,6 @@ runners:
         agent: { role: reviewer, task: sourcey-critique }
         outputs:
           evaluation_report: object
-        allowed_tools:
-          - fs.read
-        scopes:
-          - fs.read
         context:
           discovery_report: discover.discovery_report.data
           doc_bundle: author.doc_bundle.data
@@ -136,10 +123,6 @@ runners:
         agent: { role: builder, task: sourcey-revise }
         outputs:
           revision_bundle: object
-        allowed_tools:
-          - fs.read
-        scopes:
-          - fs.read
         context:
           discovery_report: discover.discovery_report.data
           doc_bundle: author.doc_bundle.data

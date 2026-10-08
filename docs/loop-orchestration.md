@@ -12,7 +12,7 @@ runx should make those loops safe and verifiable without becoming the loop host.
 - A **loop** lives outside the trusted kernel. It owns scheduling, durable loop
   state, wakeups, projections, and stop policy.
 - A **turn** is one governed runx skill or graph run. It has explicit inputs,
-  authority, `allowed_tools`, optional `context_skills`, bounded model/tool
+  authority, the skill's declared `tools:`, optional `context_skills`, bounded model/tool
   rounds, approval gates, and one sealed receipt.
 - A **handoff** is a receipt-backed artifact or tool-shaped result asking
   another agent, loop, or system to continue.
@@ -35,7 +35,7 @@ loop host
 runx turn
   parses skill/graph
   loads digest-bound context_skills
-  admits scopes and allowed_tools
+  admits each call against the skill's limits
   executes bounded model/tool graph
   routes approvals for risky effects
   seals receipt before success
@@ -79,7 +79,7 @@ Required gates:
   the next prompt cannot mint fresh authority.
 - **Context budget:** `context_skills` and prior receipt summaries are capped,
   digest-bound, and marked untrusted.
-- **Tool admission:** every model-selected tool must appear in `allowed_tools`
+- **Tool admission:** every model-selected tool must appear in the skill's `tools:`
   and pass normal runx tool-ref admission.
 - **Side-effect review:** side-effecting tools may pause for human or policy
   review before execution.

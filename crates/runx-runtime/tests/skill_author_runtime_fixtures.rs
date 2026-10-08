@@ -56,7 +56,6 @@ fn rust_matches_skill_author_runtime_fixtures() -> Result<(), Box<dyn std::error
             skill_name: format!("skill-author-runtime.{}", fixture.id),
             step_id: None,
             artifacts: None,
-            allowed_tools: None,
             executable: Executable::Process(fixture_tool(&fixture, &probe_path)?),
             outputs: None,
             inputs: fixture_inputs(&fixture),

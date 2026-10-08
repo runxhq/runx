@@ -83,7 +83,6 @@ fn invocation(skill_directory: &std::path::Path) -> SkillInvocation {
         skill_name: "javascript-test".to_owned(),
         step_id: None,
         artifacts: None,
-        allowed_tools: None,
         requirements: Default::default(),
         executable: crate::adapter::Executable::Worker(WorkerTool {
             module: "domain.mjs".to_owned(),

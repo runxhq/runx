@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use runx_contracts::connector::OperationName;
-use runx_contracts::{JsonObject, JsonValue};
+use runx_contracts::{JsonObject, JsonValue, TurnAllowance};
 use serde::{Deserialize, Serialize};
 
 use runx_contracts::EnvironmentRequirements;
@@ -90,6 +90,10 @@ impl StepKind {
 pub struct AgentTask {
     pub role: String,
     pub task: String,
+    /// What the turn may call: the enclosing skill's limits, bound when the
+    /// skill is parsed. A graph outside a skill allows nothing.
+    #[serde(default, skip_serializing_if = "TurnAllowance::is_empty")]
+    pub allowance: TurnAllowance,
 }
 
 /// A tool step's target.
@@ -191,8 +195,6 @@ pub struct GraphStep {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub context_skills: Vec<String>,
     pub scopes: Vec<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub allowed_tools: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub when: Option<GraphWhen>,
     /// A tool or skill step's request key. An operation step's key is one of

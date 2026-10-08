@@ -142,8 +142,7 @@ impl RuntimePathFixtures {
             directory.path().to_path_buf(),
             RuntimeEffectRegistry::default(),
             CREATED_AT,
-            ["data.digest".to_owned()],
-            Vec::new(),
+            BTreeMap::from([("data.digest".to_owned(), Vec::new())]),
         );
         let native_input = JsonValue::Object(JsonObject::from([(
             "value".to_owned(),
@@ -538,7 +537,6 @@ fn javascript_invocation(root: &Path, inputs: JsonObject) -> SkillInvocation {
         outputs: None,
         requirements: Default::default(),
         artifacts: None,
-        allowed_tools: None,
         inputs,
         resolved_inputs: JsonObject::new(),
         current_context: Vec::new(),

@@ -275,7 +275,6 @@ runners:
           template: $input.template
           parties: $input.parties
           terms: $input.terms
-        allowed_tools: []
         artifacts:
           named_emits:
             draft_doc: draft_doc

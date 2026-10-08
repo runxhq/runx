@@ -116,9 +116,12 @@ impl ManagedAgentResolver {
     }
 }
 
-/// The skill's allowed tools plus the final-result tool the model calls to finish.
-/// Every allowed tool is inspected through the same catalog roots used at call
-/// time, so the model receives the real description and argument contract.
+/// The skill's tools plus the final-result tool the model calls to finish.
+/// Every tool is inspected through the same catalog roots used at call time,
+/// so the model receives the real description and argument contract, and
+/// each runs under the scopes it declares.
+// One inspection pass yields both the definitions and the scopes.
+#[allow(clippy::type_complexity)]
 fn tool_definitions<'a>(
     tool_names: impl Iterator<Item = &'a str>,
     output: Option<&BTreeMap<String, OutputField>>,
@@ -126,7 +129,8 @@ fn tool_definitions<'a>(
     env: &BTreeMap<String, String>,
     skill_directory: &std::path::Path,
     effects: &RuntimeEffectRegistry,
-) -> Result<Vec<AgentToolDefinition>, AgentResolverError> {
+) -> Result<(Vec<AgentToolDefinition>, BTreeMap<String, Vec<String>>), AgentResolverError> {
+    let mut scopes = BTreeMap::new();
     let mut tools = tool_names
         .map(|name| {
             let inspected = crate::tool_catalogs::dispatch::inspect_catalog_tool(
@@ -137,9 +141,10 @@ fn tool_definitions<'a>(
             )
             .map_err(|error| {
                 AgentResolverError::sanitized(format!(
-                    "managed agent allowed tool '{name}' could not be inspected: {error}"
+                    "managed agent tool '{name}' could not be inspected: {error}"
                 ))
             })?;
+            scopes.insert(name.to_owned(), inspected.scopes);
             Ok(AgentToolDefinition {
                 name: name.to_owned(),
                 description: inspected
@@ -156,7 +161,7 @@ fn tool_definitions<'a>(
             .cloned()
             .unwrap_or_else(|| output_value_schema(output)),
     });
-    Ok(tools)
+    Ok((tools, scopes))
 }
 
 fn tool_input_schema(inputs: &BTreeMap<String, runx_contracts::tools::ToolInput>) -> JsonValue {
@@ -184,7 +189,6 @@ struct AgentPromptContext<'a> {
     skill: &'a runx_contracts::schema::NonEmptyString,
     instructions_sha256: &'a runx_contracts::schema::NonEmptyString,
     inputs: &'a JsonObject,
-    allowed_tools: &'a [runx_contracts::schema::NonEmptyString],
     requirements: &'a runx_contracts::AgentExecutionRequirements,
     current_context: &'a [runx_contracts::ContextEntry],
     historical_context: &'a [runx_contracts::ContextEntry],
@@ -205,7 +209,6 @@ impl<'a> From<&'a AgentContextEnvelope> for AgentPromptContext<'a> {
             skill: &envelope.skill,
             instructions_sha256: &envelope.instructions_sha256,
             inputs: &envelope.inputs,
-            allowed_tools: &envelope.allowed_tools,
             requirements: &envelope.requirements,
             current_context: &envelope.current_context,
             historical_context: &envelope.historical_context,
@@ -227,7 +230,11 @@ impl AgentResolver for ManagedAgentResolver {
                 "managed agent resolver handles agent acts only",
             ));
         };
-        let envelope = invocation.envelope;
+        let runx_contracts::AgentActInvocation {
+            envelope,
+            allowance,
+            ..
+        } = *invocation;
         let local_endpoint = url::Url::parse(&self.config.endpoint_url)
             .ok()
             .and_then(|endpoint| endpoint.host_str().map(str::to_owned))
@@ -257,8 +264,8 @@ impl AgentResolver for ManagedAgentResolver {
             ));
         }
 
-        let tools = tool_definitions(
-            envelope.allowed_tools.iter().map(|name| name.as_str()),
+        let (tools, scopes) = tool_definitions(
+            allowance.tools.iter().map(|name| name.as_str()),
             envelope.output.as_ref(),
             envelope.output_schema.as_ref(),
             &self.env,
@@ -273,11 +280,7 @@ impl AgentResolver for ManagedAgentResolver {
             self.skill_directory.clone(),
             self.effects.clone(),
             self.observed_at.clone(),
-            envelope
-                .allowed_tools
-                .iter()
-                .map(|tool| tool.as_str().to_owned()),
-            envelope.requirements.declaration.scopes.clone(),
+            scopes,
         );
         let config = AgentLoopConfig {
             max_rounds: self.max_rounds,
@@ -307,7 +310,7 @@ mod tests {
 
     #[test]
     fn tool_definitions_include_allowed_and_final_result() -> Result<(), AgentResolverError> {
-        let tools = tool_definitions(
+        let (tools, _) = tool_definitions(
             ["fs.read", "git.status"].into_iter(),
             None,
             None,
@@ -347,7 +350,7 @@ mod tests {
             ("decision".to_owned(), OutputField::Type(OutputType::String)),
             ("quality".to_owned(), OutputField::Type(OutputType::Object)),
         ]);
-        let tools = tool_definitions(
+        let (tools, _) = tool_definitions(
             [].into_iter(),
             Some(&outputs),
             None,
@@ -462,7 +465,6 @@ mod tests {
             instructions_sha256: non_empty("sha256:instructions"),
             instructions: non_empty(instructions),
             inputs,
-            allowed_tools: vec![non_empty("fs.read")],
             requirements: runx_contracts::AgentExecutionRequirements {
                 declaration: runx_contracts::ExecutionRequirements::default(),
                 environment: Vec::new(),

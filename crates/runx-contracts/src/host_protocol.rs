@@ -136,6 +136,39 @@ pub struct AgentActInvocation {
     /// The act it performs.
     pub task: NonEmptyString,
     pub envelope: AgentContextEnvelope,
+    /// What the agent may call while its turn is open.
+    pub allowance: TurnAllowance,
+}
+
+/// The calls an open turn admits: the skill's declared limits. Asking the
+/// human a question needs no allowance.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
+#[serde(deny_unknown_fields)]
+pub struct TurnAllowance {
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub operations: Vec<AllowedOperation>,
+    /// Catalog tool refs.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tools: Vec<NonEmptyString>,
+    /// Child skill refs.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub skills: Vec<NonEmptyString>,
+}
+
+impl TurnAllowance {
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.operations.is_empty() && self.tools.is_empty() && self.skills.is_empty()
+    }
+}
+
+/// One connector operation a turn may call, named by the requirement that
+/// binds its instance.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, RunxSchema)]
+#[serde(deny_unknown_fields)]
+pub struct AllowedOperation {
+    pub requirement: NonEmptyString,
+    pub operation: NonEmptyString,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]

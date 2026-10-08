@@ -149,6 +149,9 @@ harness:
         receipt:
           schema: runx.receipt.v1
 
+tools:
+  - fs.read
+
 runners:
   review:
     default: true
@@ -199,10 +202,6 @@ runners:
           failure_summary: string
           improvement_proposals: array
           next_harness_checks: array
-        allowed_tools:
-          - fs.read
-        scopes:
-          - fs.read
         context:
           receipt_evidence: evidence.ledger_answer_packet.data
         artifacts:

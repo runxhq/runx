@@ -1136,7 +1136,6 @@ pub(super) fn agent_context_envelope_corpus() -> Vec<(&'static str, Value)> {
         "skill": "demo",
         "instructions": "do the thing",
         "inputs": {},
-        "allowed_tools": ["fs.read"],
         "current_context": [],
         "historical_context": [],
         "provenance": [],
@@ -1183,10 +1182,6 @@ pub(super) fn agent_context_envelope_corpus() -> Vec<(&'static str, Value)> {
         (
             "empty instructions",
             set_field(valid.clone(), "instructions", json!("")),
-        ),
-        (
-            "allowed_tools empty item",
-            set_field(valid.clone(), "allowed_tools", json!([""])),
         ),
         (
             "context entry bad version const",
@@ -2364,9 +2359,35 @@ pub(super) fn agent_act_invocation_corpus() -> Vec<(&'static str, Value)> {
         "agent": "assistant",
         "task": "draft",
         "envelope": agent_context_envelope(),
+        "allowance": {},
     });
     vec![
         ("valid agent-task invocation", valid.clone()),
+        (
+            "valid turn allowance",
+            set_field(
+                valid.clone(),
+                "allowance",
+                json!({
+                    "operations": [{"requirement": "github", "operation": "issue.read"}],
+                    "tools": ["fs.read"],
+                    "skills": ["./triage"],
+                }),
+            ),
+        ),
+        ("missing allowance", drop_field(valid.clone(), "allowance")),
+        (
+            "allowance empty tool",
+            set_field(valid.clone(), "allowance", json!({"tools": [""]})),
+        ),
+        (
+            "allowance operation without requirement",
+            set_field(
+                valid.clone(),
+                "allowance",
+                json!({"operations": [{"operation": "issue.read"}]}),
+            ),
+        ),
         (
             "valid agent invocation",
             set_field(valid.clone(), "source_type", json!("agent")),
@@ -2403,7 +2424,6 @@ fn agent_context_envelope() -> Value {
         "skill": "demo",
         "instructions": "do the thing",
         "inputs": {},
-        "allowed_tools": ["fs.read"],
         "current_context": [],
         "historical_context": [],
         "provenance": [],
@@ -2429,6 +2449,7 @@ pub(super) fn resolution_request_corpus() -> Vec<(&'static str, Value)> {
             "id": "inv_1",
             "source_type": "agent",
             "envelope": agent_context_envelope(),
+            "allowance": {},
         },
     });
     vec![

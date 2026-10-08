@@ -712,16 +712,15 @@ fn referenced_tools(graph: &ExecutionGraph) -> BTreeSet<String> {
 }
 
 fn step_tool_refs(step: &GraphStep) -> Vec<String> {
-    let mut names = step
-        .allowed_tools
-        .clone()
-        .unwrap_or_default()
-        .into_iter()
-        .collect::<BTreeSet<_>>();
-    if let Some(tool) = step.catalog_tool() {
-        names.insert(tool.to_owned());
+    match &step.kind {
+        runx_parser::StepKind::Agent(agent) => agent
+            .allowance
+            .tools
+            .iter()
+            .map(|tool| tool.as_str().to_owned())
+            .collect(),
+        _ => step.catalog_tool().map(str::to_owned).into_iter().collect(),
     }
-    names.into_iter().collect()
 }
 
 struct ResolvedOperatorContextTool {

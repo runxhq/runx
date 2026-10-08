@@ -385,7 +385,6 @@ mod tests {
             context_edges: Vec::new(),
             context_skills: Vec::new(),
             scopes: Vec::new(),
-            allowed_tools: None,
             when: None,
             idempotency_key: None,
             on_uncertain: None,

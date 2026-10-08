@@ -53,6 +53,7 @@ pub(crate) fn build_agent_act_invocation(
         role: non_empty(&agent.role, "role")?,
         task: non_empty(&agent.task, "task")?,
         envelope: envelope(request)?,
+        allowance: agent.allowance.clone(),
     })
 }
 
@@ -87,7 +88,6 @@ fn envelope(request: &SkillInvocation) -> Result<AgentContextEnvelope, RuntimeEr
         instructions_sha256: manual.digest.into(),
         instructions: envelope_instructions(request, &manual.markdown)?.into(),
         inputs: request.inputs.clone(),
-        allowed_tools: envelope_allowed_tools(request)?,
         requirements: AgentExecutionRequirements {
             declaration: request.requirements.clone(),
             environment: crate::execution_environment::environment_requirement_statuses(
@@ -136,23 +136,6 @@ fn load_skill_instructions(
         markdown: loaded.package.manual_markdown,
         digest: loaded.package.manual_digest,
     })
-}
-
-fn envelope_allowed_tools(request: &SkillInvocation) -> Result<Vec<NonEmptyString>, RuntimeError> {
-    let Some(tools) = request.allowed_tools.as_ref() else {
-        return Ok(Vec::new());
-    };
-    let mut allowed_tools = Vec::new();
-    for (index, value) in tools.iter().enumerate() {
-        let Some(tool) = NonEmptyString::new(value.clone()) else {
-            return Err(invalid_agent_invocation(
-                request,
-                format!("allowed_tools[{index}] must be a non-empty string"),
-            ));
-        };
-        allowed_tools.push(tool);
-    }
-    Ok(allowed_tools)
 }
 
 fn invalid_agent_invocation(request: &SkillInvocation, message: impl Into<String>) -> RuntimeError {

@@ -119,6 +119,11 @@ harness:
       expect:
         status: failure
 
+tools:
+  - fs.read_bundle
+  - git.status
+  - runx.skill.plan
+
 runners:
   design:
     inputs:
@@ -159,13 +164,6 @@ runners:
         agent: { role: builder, task: skill-lab-architecture }
         outputs:
           architecture_decision: object
-        allowed_tools:
-          - fs.read_bundle
-          - git.status
-          - runx.skill.plan
-        scopes:
-          - fs.read
-          - git.read
         context:
           authoring_context: inspect.authoring_context.data
         inputs:
@@ -228,13 +226,6 @@ runners:
         agent: { role: builder, task: skill-lab-architecture }
         outputs:
           architecture_decision: object
-        allowed_tools:
-          - fs.read_bundle
-          - git.status
-          - runx.skill.plan
-        scopes:
-          - fs.read
-          - git.read
         context:
           authoring_context: inspect.authoring_context.data
         inputs:
@@ -258,13 +249,6 @@ runners:
         agent: { role: builder, task: skill-lab-author }
         outputs:
           change_draft: object
-        allowed_tools:
-          - fs.read_bundle
-          - git.status
-          - runx.skill.plan
-        scopes:
-          - fs.read
-          - git.read
         context:
           authoring_context: inspect.authoring_context.data
           architecture_plan: plan.architecture_plan.data
@@ -353,13 +337,6 @@ runners:
         agent: { role: builder, task: skill-lab-architecture }
         outputs:
           architecture_decision: object
-        allowed_tools:
-          - fs.read_bundle
-          - runx.skill.plan
-          - git.status
-        scopes:
-          - fs.read
-          - git.read
         context:
           authoring_context: inspect.authoring_context.data
         inputs:
@@ -386,12 +363,6 @@ runners:
         agent: { role: builder, task: skill-lab-author }
         outputs:
           change_draft: object
-        allowed_tools:
-          - fs.read_bundle
-          - git.status
-        scopes:
-          - fs.read
-          - git.read
         context:
           authoring_context: inspect.authoring_context.data
           architecture_plan: plan.architecture_plan.data
@@ -470,10 +441,6 @@ runners:
         agent: { role: builder, task: skill-lab-architecture }
         outputs:
           architecture_decision: object
-        allowed_tools:
-          - fs.read_bundle
-        scopes:
-          - fs.read
         context:
           authoring_context: inspect.authoring_context.data
         inputs:
@@ -497,10 +464,6 @@ runners:
         agent: { role: builder, task: skill-lab-author }
         outputs:
           change_draft: object
-        allowed_tools:
-          - fs.read_bundle
-        scopes:
-          - fs.read
         context:
           authoring_context: inspect.authoring_context.data
           architecture_plan: plan.architecture_plan.data

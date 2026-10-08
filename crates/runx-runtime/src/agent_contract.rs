@@ -94,7 +94,6 @@ mod tests {
             "instructions": "Plan a notification",
             "instructions_sha256": "sha256:d264e5fb6c699b5793b06863a0c2d1e77beb6f01e8a7263da65a3986c3836c26",
             "inputs": {},
-            "allowed_tools": [],
             "requirements": {
                 "declaration": {},
                 "execution_boundary": { "kind": "remote_provider" }
@@ -112,6 +111,7 @@ mod tests {
                 role: "planner".into(),
                 task: "notify".into(),
                 envelope,
+                allowance: Default::default(),
             }),
         })
     }

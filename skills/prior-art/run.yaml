@@ -141,6 +141,9 @@ harness:
                     path: docs/does-not-exist.md
         receipt:
           schema: runx.receipt.v1
+tools:
+  - fs.read
+
 runners:
   prior-art-agent:
     default: true
@@ -232,10 +235,6 @@ runners:
           artifact_contract: $input.artifact_contract
         context:
           evidence_index: index.evidence_index.data
-        allowed_tools:
-          - fs.read
-        scopes:
-          - fs.read
         artifacts:
           named_emits:
             prior_art_draft: prior_art_draft

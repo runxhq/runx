@@ -189,7 +189,6 @@ runners:
           transcript: $input.transcript
           crm_records: $input.crm_records
           crm_schema: $input.crm_schema
-        allowed_tools: []
         artifacts:
           named_emits:
             update_draft: update_draft

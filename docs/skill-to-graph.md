@@ -109,9 +109,10 @@ steps `first`, then `second`.
 
 ## When To Use A Graph
 
-Every runner is a list of steps. A runner whose one step is an `agent` step is
-one bounded agent act: the skill's manual is its instructions, the step names
-its `allowed_tools`, and it normally yields `needs_agent` to the calling agent. `--managed-agent` explicitly delegates that act to the configured
+A runner is a list of steps; a runner without steps is one agent turn. In an
+agent turn the skill's manual is the instructions, the skill's `tools:`,
+`skills:` and connector operations are what the agent may call, and the turn
+normally yields `needs_agent` to the calling agent. `--managed-agent` explicitly delegates that act to the configured
 in-process provider for the current run; credentials alone never enable it. The
 round cap is shown in prepared context and defaults to four. Not everything
 needs a graph. Reach for one when a single judgment step produces the result.
@@ -125,7 +126,7 @@ guaranteed**. The model is for judgment and authoring, never for guaranteeing a
 side effect: an agent handed a write-capable tool may narrate the action ("done,
 claimed it") instead of calling it. So an action that *must* happen, a mutation,
 an API call, or a payment belongs in a deterministic `tool:` or `skill:` step,
-not in an agent's `allowed_tools` where the call is optional. The
+not among an agent turn's tools, where the call is optional. The
 governed shape is a graph where an agent step authors or decides and the next
 deterministic step performs the act; one receipt seals both. Agent steps yield
 `needs_agent` unless the current invocation explicitly supplies

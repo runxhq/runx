@@ -29,10 +29,10 @@ fn invocation(skill_directory: PathBuf, outputs: Option<JsonObject>) -> SkillInv
         skill_name: "contract-test".to_owned(),
         step_id: None,
         artifacts: None,
-        allowed_tools: None,
         executable: Executable::Agent(AgentTask {
             role: "planner".to_owned(),
             task: "plan".to_owned(),
+            allowance: Default::default(),
         }),
         outputs,
         requirements: ExecutionRequirements::default(),

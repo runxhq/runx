@@ -9,12 +9,33 @@ import {
 } from "../internal.js";
 import { agentContextEnvelopeSchema } from "./context.js";
 
+const allowedOperationSchema = Type.Object(
+  {
+    requirement: Type.String({ minLength: 1 }),
+    operation: Type.String({ minLength: 1 }),
+  },
+  { additionalProperties: false },
+);
+
+/** The calls an open turn admits: the skill's declared limits. */
+export const turnAllowanceSchema = Type.Object(
+  {
+    operations: Type.Optional(Type.Array(allowedOperationSchema)),
+    tools: Type.Optional(Type.Array(Type.String({ minLength: 1 }))),
+    skills: Type.Optional(Type.Array(Type.String({ minLength: 1 }))),
+  },
+  { additionalProperties: false },
+);
+
+export type TurnAllowanceContract = DeepReadonly<Static<typeof turnAllowanceSchema>>;
+
 const agentActInvocationTypeSchema = Type.Object(
   {
     id: Type.String({ minLength: 1 }),
     role: Type.String({ minLength: 1 }),
     task: Type.String({ minLength: 1 }),
     envelope: agentContextEnvelopeSchema,
+    allowance: turnAllowanceSchema,
   },
   {
     $schema: JSON_SCHEMA_DRAFT_2020_12,

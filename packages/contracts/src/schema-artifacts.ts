@@ -351,18 +351,52 @@ export const runxSchemaArtifacts = {
                     "$schema": "https://json-schema.org/draft/2020-12/schema",
                     "additionalProperties": false,
                     "properties": {
-                      "envelope": {
-                        "$id": "https://runx.ai/spec/agent-context-envelope.schema.json",
-                        "$schema": "https://json-schema.org/draft/2020-12/schema",
+                      "allowance": {
                         "additionalProperties": false,
                         "properties": {
-                          "allowed_tools": {
+                          "operations": {
+                            "items": {
+                              "additionalProperties": false,
+                              "properties": {
+                                "operation": {
+                                  "minLength": 1,
+                                  "type": "string"
+                                },
+                                "requirement": {
+                                  "minLength": 1,
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "requirement",
+                                "operation"
+                              ],
+                              "type": "object"
+                            },
+                            "type": "array"
+                          },
+                          "skills": {
                             "items": {
                               "minLength": 1,
                               "type": "string"
                             },
                             "type": "array"
                           },
+                          "tools": {
+                            "items": {
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "type": "array"
+                          }
+                        },
+                        "type": "object"
+                      },
+                      "envelope": {
+                        "$id": "https://runx.ai/spec/agent-context-envelope.schema.json",
+                        "$schema": "https://json-schema.org/draft/2020-12/schema",
+                        "additionalProperties": false,
+                        "properties": {
                           "context": {
                             "additionalProperties": false,
                             "properties": {
@@ -1078,7 +1112,6 @@ export const runxSchemaArtifacts = {
                           "instructions_sha256",
                           "instructions",
                           "inputs",
-                          "allowed_tools",
                           "requirements",
                           "current_context",
                           "historical_context",
@@ -1104,7 +1137,8 @@ export const runxSchemaArtifacts = {
                       "id",
                       "role",
                       "task",
-                      "envelope"
+                      "envelope",
+                      "allowance"
                     ],
                     "type": "object"
                   },
@@ -6094,18 +6128,52 @@ export const runxSchemaArtifacts = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "additionalProperties": false,
     "properties": {
-      "envelope": {
-        "$id": "https://runx.ai/spec/agent-context-envelope.schema.json",
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "allowance": {
         "additionalProperties": false,
         "properties": {
-          "allowed_tools": {
+          "operations": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "operation": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "requirement": {
+                  "minLength": 1,
+                  "type": "string"
+                }
+              },
+              "required": [
+                "requirement",
+                "operation"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "skills": {
             "items": {
               "minLength": 1,
               "type": "string"
             },
             "type": "array"
           },
+          "tools": {
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "envelope": {
+        "$id": "https://runx.ai/spec/agent-context-envelope.schema.json",
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
           "context": {
             "additionalProperties": false,
             "properties": {
@@ -6821,7 +6889,6 @@ export const runxSchemaArtifacts = {
           "instructions_sha256",
           "instructions",
           "inputs",
-          "allowed_tools",
           "requirements",
           "current_context",
           "historical_context",
@@ -6847,7 +6914,8 @@ export const runxSchemaArtifacts = {
       "id",
       "role",
       "task",
-      "envelope"
+      "envelope",
+      "allowance"
     ],
     "type": "object"
   } as JsonSchema,
@@ -6856,13 +6924,6 @@ export const runxSchemaArtifacts = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "additionalProperties": false,
     "properties": {
-      "allowed_tools": {
-        "items": {
-          "minLength": 1,
-          "type": "string"
-        },
-        "type": "array"
-      },
       "context": {
         "additionalProperties": false,
         "properties": {
@@ -7578,7 +7639,6 @@ export const runxSchemaArtifacts = {
       "instructions_sha256",
       "instructions",
       "inputs",
-      "allowed_tools",
       "requirements",
       "current_context",
       "historical_context",
@@ -39750,18 +39810,52 @@ export const runxSchemaArtifacts = {
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "additionalProperties": false,
             "properties": {
-              "envelope": {
-                "$id": "https://runx.ai/spec/agent-context-envelope.schema.json",
-                "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "allowance": {
                 "additionalProperties": false,
                 "properties": {
-                  "allowed_tools": {
+                  "operations": {
+                    "items": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "operation": {
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "requirement": {
+                          "minLength": 1,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "requirement",
+                        "operation"
+                      ],
+                      "type": "object"
+                    },
+                    "type": "array"
+                  },
+                  "skills": {
                     "items": {
                       "minLength": 1,
                       "type": "string"
                     },
                     "type": "array"
                   },
+                  "tools": {
+                    "items": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "type": "array"
+                  }
+                },
+                "type": "object"
+              },
+              "envelope": {
+                "$id": "https://runx.ai/spec/agent-context-envelope.schema.json",
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "additionalProperties": false,
+                "properties": {
                   "context": {
                     "additionalProperties": false,
                     "properties": {
@@ -40477,7 +40571,6 @@ export const runxSchemaArtifacts = {
                   "instructions_sha256",
                   "instructions",
                   "inputs",
-                  "allowed_tools",
                   "requirements",
                   "current_context",
                   "historical_context",
@@ -40503,7 +40596,8 @@ export const runxSchemaArtifacts = {
               "id",
               "role",
               "task",
-              "envelope"
+              "envelope",
+              "allowance"
             ],
             "type": "object"
           },

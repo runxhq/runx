@@ -3,13 +3,6 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "properties": {
-    "allowed_tools": {
-      "items": {
-        "minLength": 1,
-        "type": "string"
-      },
-      "type": "array"
-    },
     "context": {
       "additionalProperties": false,
       "properties": {
@@ -725,7 +718,6 @@
     "instructions_sha256",
     "instructions",
     "inputs",
-    "allowed_tools",
     "requirements",
     "current_context",
     "historical_context",

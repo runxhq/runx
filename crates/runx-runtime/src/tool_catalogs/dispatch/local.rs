@@ -104,7 +104,6 @@ pub(super) fn invoke(
         outputs: None,
         requirements,
         artifacts: artifacts.clone(),
-        allowed_tools: None,
         inputs,
         resolved_inputs: JsonObject::new(),
         current_context: Vec::new(),

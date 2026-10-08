@@ -168,7 +168,6 @@ impl JavaScriptPackage {
             skill_name: "deterministic-module".to_owned(),
             step_id: None,
             artifacts: None,
-            allowed_tools: None,
             executable: Executable::Worker(worker),
             outputs: None,
             requirements,

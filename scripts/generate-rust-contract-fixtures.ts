@@ -877,7 +877,6 @@ function agentActResolutionRequest(): Readonly<Record<string, unknown>> {
       role: "analyst",
       task: "summarize-receipt",
       envelope: {
-        allowed_tools: [],
         current_context: [],
         historical_context: [],
         inputs: {},
@@ -892,6 +891,10 @@ function agentActResolutionRequest(): Readonly<Record<string, unknown>> {
         skill: "diagnose-skill-run",
         step_id: "step_1",
         trust_boundary: "test",
+      },
+      allowance: {
+        operations: [{ operation: "issue.read", requirement: "github" }],
+        tools: ["fs.read"],
       },
     },
   };

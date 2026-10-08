@@ -100,7 +100,6 @@ const agentContextEnvelopeTypeSchema = Type.Object(
     instructions_sha256: Type.String({ minLength: 1 }),
     instructions: Type.String({ minLength: 1 }),
     inputs: unknownRecordSchema(),
-    allowed_tools: Type.Array(Type.String({ minLength: 1 })),
     requirements: agentExecutionRequirementsSchema,
     current_context: Type.Array(artifactEnvelopeSchema),
     historical_context: Type.Array(artifactEnvelopeSchema),

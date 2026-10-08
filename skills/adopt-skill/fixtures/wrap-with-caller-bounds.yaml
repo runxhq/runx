@@ -55,8 +55,6 @@ caller:
                   outputs:
                     summary: string
                     caveats: array
-                  scopes:
-                    - runx:content:read
           harness:
             cases:
               - name: summarize-ready

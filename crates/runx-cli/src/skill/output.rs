@@ -340,32 +340,32 @@ fn compact_request(request: &JsonValue, artifact_ref: JsonValue) -> JsonValue {
     {
         summary.insert("kind".to_owned(), JsonValue::String(kind.to_owned()));
     }
-    if let Some(envelope) = request
+    let invocation = request
         .as_object()
         .and_then(|request| request.get("invocation"))
-        .and_then(JsonValue::as_object)
+        .and_then(JsonValue::as_object);
+    if let Some(allowance) = invocation.and_then(|invocation| invocation.get("allowance")) {
+        summary.insert("allowance".to_owned(), allowance.clone());
+    }
+    if let Some(output) = invocation
         .and_then(|invocation| invocation.get("envelope"))
         .and_then(JsonValue::as_object)
+        .and_then(|envelope| envelope.get("output"))
     {
-        if let Some(output) = envelope.get("output") {
-            if let Ok(bytes) = serde_json::to_vec(output) {
-                summary.insert(
-                    "output_digest".to_owned(),
-                    JsonValue::String(sha256_prefixed(&bytes)),
-                );
-            }
-            if let Some(schema) = output
-                .as_object()
-                .and_then(|output| object_string(output, "schema"))
-            {
-                summary.insert(
-                    "output_schema".to_owned(),
-                    JsonValue::String(schema.to_owned()),
-                );
-            }
+        if let Ok(bytes) = serde_json::to_vec(output) {
+            summary.insert(
+                "output_digest".to_owned(),
+                JsonValue::String(sha256_prefixed(&bytes)),
+            );
         }
-        if let Some(allowed_tools) = envelope.get("allowed_tools") {
-            summary.insert("allowed_tools".to_owned(), allowed_tools.clone());
+        if let Some(schema) = output
+            .as_object()
+            .and_then(|output| object_string(output, "schema"))
+        {
+            summary.insert(
+                "output_schema".to_owned(),
+                JsonValue::String(schema.to_owned()),
+            );
         }
     }
     summary.insert("artifact_ref".to_owned(), artifact_ref);

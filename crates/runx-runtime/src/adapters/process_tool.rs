@@ -194,7 +194,6 @@ mod tests {
             skill_name: "default-timeout".to_owned(),
             step_id: None,
             artifacts: None,
-            allowed_tools: None,
             requirements: Default::default(),
             executable: crate::adapter::Executable::Process(ProcessTool {
                 command: "/bin/sh".to_owned(),

@@ -85,8 +85,6 @@ pub struct SkillInvocation {
     pub requirements: ExecutionRequirements,
     /// Parser-validated artifact contract for this invocation.
     pub artifacts: Option<SkillArtifactContract>,
-    /// Parser-validated tools available to an agent invocation.
-    pub allowed_tools: Option<Vec<String>>,
     pub inputs: JsonObject,
     pub resolved_inputs: JsonObject,
     pub current_context: Vec<ContextEntry>,

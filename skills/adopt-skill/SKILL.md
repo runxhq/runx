@@ -71,9 +71,9 @@ the package honors them: keep write scopes inside `allowed_output_prefix` and
 carry `max_acts` as a capped runner input where the wrapped skill takes
 repeated acts. Never invent bounds the caller did not supply.
 `profile_document` is the complete exact `run.yaml`
-text. It must define one runner with one agent step, exact inputs and outputs, least
-scopes, declared environment and credentials, an explicit `allowed_tools` array,
-category, tags, and
+text. It must define one runner with one agent step, exact inputs and outputs,
+declared environment and credentials, an explicit top-level `tools:` list naming
+only the catalog tools the agent may call, category, tags, and
 at least two mocked harness cases. The cases must exercise the useful path and
 a missing-input, refusal, or boundary path. Do not add shell, provider, network,
 or filesystem execution stages. Do not author binding provenance or

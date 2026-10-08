@@ -237,7 +237,7 @@ fn managed_agent_step_executes_governed_tool_round_trip() -> Result<(), Box<dyn 
     )?;
     fs::write(
         skill_dir.join("run.yaml"),
-        "skill: fixture-agent\nrunners:\n  proof:\n    default: true\n    steps:\n      - id: verify\n        agent: { role: fixture, task: proof }\n        outputs:\n          status: string\n        allowed_tools: [data.digest]\n",
+        "skill: fixture-agent\ntools: [data.digest]\nrunners:\n  proof:\n    default: true\n    steps:\n      - id: verify\n        agent: { role: fixture, task: proof }\n        outputs:\n          status: string\n",
     )?;
 
     let listener = TcpListener::bind("127.0.0.1:0")?;

@@ -1,8 +1,8 @@
 use std::collections::BTreeMap;
 
 use runx_contracts::{
-    ExecutionRequirements, JsonObject, JsonValue, PaidSkillFixedOfferTerms, PaidSkillOfferTerms,
-    PaidSkillPreparedOfferTerms,
+    AllowedOperation, ExecutionRequirements, JsonObject, JsonValue, PaidSkillFixedOfferTerms,
+    PaidSkillOfferTerms, PaidSkillPreparedOfferTerms, TurnAllowance,
 };
 use serde::{Deserialize, Serialize};
 
@@ -24,6 +24,8 @@ const MANIFEST_FIELDS: &[&str] = &[
     "emits",
     "catalog",
     "connectors",
+    "tools",
+    "skills",
     "input_definitions",
     "marketplace",
     "runners",
@@ -52,6 +54,12 @@ pub struct SkillRunnerManifest {
     /// The connector operations this skill needs, by requirement key.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub connectors: BTreeMap<String, ConnectorRequirement>,
+    /// The catalog tools an agent turn may call.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tools: Vec<String>,
+    /// The child skills an agent turn may run.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub skills: Vec<String>,
     /// Manifest-local reusable input declarations. Runner references are
     /// expanded during parsing, so runtime consumers never resolve them again.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
@@ -132,6 +140,12 @@ pub fn validate_runner_manifest(
 
     let connectors = validate_connector_requirements(raw.document.get("connectors"))?;
     bind_operation_steps(&mut runners, &connectors)?;
+    let tools = validate_limit_refs(raw.document.get("tools"), "tools", |tool| {
+        let admission = runx_core::policy::admit_agent_tool_ref(tool);
+        (!admission.allowed).then(|| admission.reason.to_owned())
+    })?;
+    let skills = validate_limit_refs(raw.document.get("skills"), "skills", |_| None)?;
+    bind_turn_allowance(&mut runners, &turn_allowance(&connectors, &tools, &skills));
     let marketplace = validate_marketplace(raw.document.get("marketplace"), &runners)?;
 
     let harness = validate_harness_manifest(
@@ -151,12 +165,80 @@ pub fn validate_runner_manifest(
         emits: raw.document.get("emits").cloned(),
         catalog,
         connectors,
+        tools,
+        skills,
         input_definitions,
         marketplace,
         runners,
         harness,
         raw,
     })
+}
+
+/// A list of distinct, non-empty refs; `refuse` names why a ref is not one.
+fn validate_limit_refs(
+    value: Option<&JsonValue>,
+    field: &str,
+    refuse: impl Fn(&str) -> Option<String>,
+) -> Result<Vec<String>, ValidationError> {
+    let Some(value) = value else {
+        return Ok(Vec::new());
+    };
+    let refs = FIELDS.required_plain_array(Some(value), field)?;
+    let mut seen = std::collections::BTreeSet::new();
+    refs.iter()
+        .enumerate()
+        .map(|(index, value)| {
+            let entry = format!("{field}[{index}]");
+            let reference = FIELDS.required_string(Some(value), &entry)?;
+            if let Some(reason) = refuse(&reference) {
+                return Err(FIELDS.validation_error(format!("{entry} {reference:?}: {reason}.")));
+            }
+            if !seen.insert(reference.clone()) {
+                return Err(FIELDS.validation_error(format!("{entry} repeats {reference:?}.")));
+            }
+            Ok(reference)
+        })
+        .collect()
+}
+
+/// The skill's limits as one turn's allowance.
+fn turn_allowance(
+    connectors: &BTreeMap<String, ConnectorRequirement>,
+    tools: &[String],
+    skills: &[String],
+) -> TurnAllowance {
+    TurnAllowance {
+        operations: connectors
+            .iter()
+            .flat_map(|(requirement, declared)| {
+                declared
+                    .operations
+                    .iter()
+                    .map(|operation| AllowedOperation {
+                        requirement: requirement.as_str().into(),
+                        operation: operation.as_str().into(),
+                    })
+            })
+            .collect(),
+        tools: tools.iter().map(|tool| tool.as_str().into()).collect(),
+        skills: skills.iter().map(|skill| skill.as_str().into()).collect(),
+    }
+}
+
+/// Every agent step of every runner may call the whole of the skill's limits.
+fn bind_turn_allowance(
+    runners: &mut BTreeMap<String, SkillRunnerDefinition>,
+    allowance: &TurnAllowance,
+) {
+    for step in runners
+        .values_mut()
+        .flat_map(|runner| runner.graph.steps.iter_mut())
+    {
+        if let crate::StepKind::Agent(agent) = &mut step.kind {
+            agent.allowance = allowance.clone();
+        }
+    }
 }
 
 fn validate_marketplace(

@@ -74,8 +74,10 @@ impl ArtifactFixture {
             directory.path().to_path_buf(),
             RuntimeEffectRegistry::default(),
             "2026-07-20T00:00:00Z",
-            ["artifact.admit".to_owned(), "artifact.read".to_owned()],
-            Vec::new(),
+            BTreeMap::from([
+                ("artifact.admit".to_owned(), Vec::new()),
+                ("artifact.read".to_owned(), Vec::new()),
+            ]),
         );
         let admit_input = JsonValue::Object(JsonObject::from([
             (

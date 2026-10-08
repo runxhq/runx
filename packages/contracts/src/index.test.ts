@@ -404,7 +404,6 @@ describe("@runxhq/contracts", () => {
       instructions_sha256: `sha256:${"a".repeat(64)}`,
       instructions: "Do the work.",
       inputs: {},
-      allowed_tools: ["fs.read"],
       requirements: {
         declaration: {},
         execution_boundary: { kind: "remote_provider" },
@@ -429,7 +428,6 @@ describe("@runxhq/contracts", () => {
       instructions_sha256: `sha256:${"a".repeat(64)}`,
       instructions: "Do the work.",
       inputs: {},
-      allowed_tools: [],
       requirements: {
         declaration: {},
         execution_boundary: { kind: "remote_provider" },
@@ -450,7 +448,6 @@ describe("@runxhq/contracts", () => {
       instructions_sha256: `sha256:${"a".repeat(64)}`,
       instructions: "Do the work.",
       inputs: {},
-      allowed_tools: ["fs.read"],
       requirements: {
         declaration: {},
         execution_boundary: { kind: "remote_provider" },

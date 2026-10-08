@@ -110,12 +110,12 @@ runtime's hashing and page loop in package JavaScript.
 
 ## Managed-agent tools
 
-An `agent` step may call only the tools named in its `allowed_tools`. Before the
-model runs, Runx resolves every name through the same native-and-local catalog
-used for execution. The model receives the catalog description and exact input
-schema, including required fields, typed defaults, and
-`additionalProperties: false`; Runx does not substitute a permissive guessed
-schema. An unresolved allowed tool fails before a provider call.
+An `agent` step may call only the tools its skill lists in `tools:`; each runs
+under the scopes it declares. Before the model runs, Runx resolves every name
+through the same native-and-local catalog used for execution. The model receives
+the catalog description and exact input schema, including required fields, typed
+defaults, and `additionalProperties: false`; Runx does not substitute a
+permissive guessed schema. An unresolved tool fails before a provider call.
 
 Invocation then returns through that same catalog path, so a tool cannot be
 described from one implementation and executed by another. Native tools retain

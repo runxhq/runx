@@ -10,6 +10,7 @@ const RUNNER_FIELDS: &[&str] = &[
     "default",
     "examples",
     "inputs",
+    "outputs",
     "policy",
     "result_from",
     "runx",
@@ -56,7 +57,8 @@ pub(crate) fn validate_runner_definition(
 
 /// The runner's steps as the graph the engine runs, named for its skill so
 /// receipts carry the skill's identity. `result_from` defaults to the last
-/// step.
+/// step. A runner without steps is one agent turn: its id and task are the
+/// runner's name, its role the skill's, and its outputs the runner's.
 fn runner_graph(
     skill: &str,
     name: &str,
@@ -67,9 +69,41 @@ fn runner_graph(
         .filter(|(key, _)| GRAPH_FIELDS.contains(&key.as_str()))
         .map(|(key, value)| (key.clone(), value.clone()))
         .collect::<JsonObject>();
+    match (runner.contains_key("steps"), runner.get("outputs")) {
+        (true, Some(_)) => {
+            return Err(FIELDS.validation_error(format!(
+                "runners.{name}.outputs belong to a runner without steps; a composed runner returns its result_from steps."
+            )));
+        }
+        (true, None) => {}
+        (false, None) => {
+            return Err(FIELDS.validation_error(format!(
+                "runners.{name} has no steps, so it is one agent turn and declares its outputs."
+            )));
+        }
+        (false, outputs) => {
+            let mut turn = JsonObject::from([
+                ("id".to_owned(), JsonValue::String(name.to_owned())),
+                (
+                    "agent".to_owned(),
+                    JsonValue::Object(JsonObject::from([
+                        ("role".to_owned(), JsonValue::String(skill.to_owned())),
+                        ("task".to_owned(), JsonValue::String(name.to_owned())),
+                    ])),
+                ),
+            ]);
+            if let Some(outputs) = outputs {
+                turn.insert("outputs".to_owned(), outputs.clone());
+            }
+            document.insert(
+                "steps".to_owned(),
+                JsonValue::Array(vec![JsonValue::Object(turn)]),
+            );
+        }
+    }
     document.insert("name".to_owned(), JsonValue::String(skill.to_owned()));
     if !document.contains_key("result_from")
-        && let Some(last) = runner
+        && let Some(last) = document
             .get("steps")
             .and_then(JsonValue::as_array)
             .and_then(|steps| steps.last())

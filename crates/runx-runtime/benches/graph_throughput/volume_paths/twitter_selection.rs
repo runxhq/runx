@@ -82,7 +82,6 @@ impl TwitterFixture {
             outputs: None,
             requirements: Default::default(),
             artifacts: None,
-            allowed_tools: None,
             inputs: selection_inputs(),
             resolved_inputs: JsonObject::new(),
             current_context: Vec::new(),

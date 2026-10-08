@@ -619,7 +619,6 @@ where
         outputs: step.outputs.clone(),
         requirements,
         artifacts: step.artifacts.clone(),
-        allowed_tools: step.allowed_tools.clone(),
         inputs,
         resolved_inputs: JsonObject::new(),
         current_context: Vec::new(),
@@ -754,7 +753,6 @@ where
         outputs: step.outputs.clone(),
         requirements,
         artifacts: step.artifacts.clone(),
-        allowed_tools: step.allowed_tools.clone(),
         inputs,
         resolved_inputs: JsonObject::new(),
         current_context: load_context_skills(

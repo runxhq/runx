@@ -212,11 +212,6 @@ fn append_step(out: &mut String, step: &SkillOperatorContextStep) -> Result<(), 
             .map(|observation| observation.kind.as_str())
             .unwrap_or("none"),
     ));
-    append_string_list(
-        out,
-        "allowed_tools",
-        definition.allowed_tools.as_deref().unwrap_or_default(),
-    );
     append_string_list(out, "tool_refs", &step.tool_refs);
     append_json_block(
         out,

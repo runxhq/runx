@@ -152,10 +152,11 @@ pub use handoff::{
     SuppressionReason,
 };
 pub use host_protocol::{
-    AgentActInvocation, ApprovalDecision, ApprovalGate, ExecutionEvent, HostNeedsAgentState,
-    HostRunApproval, HostRunApprovalDecision, HostRunKind, HostRunLineage, HostRunLineageKind,
-    HostRunResult, HostRunState, HostRunVerification, HostRunVerificationStatus, HostTerminalState,
-    Question, ResolutionRequest, ResolutionResponse, ResolutionResponseActor,
+    AgentActInvocation, AllowedOperation, ApprovalDecision, ApprovalGate, ExecutionEvent,
+    HostNeedsAgentState, HostRunApproval, HostRunApprovalDecision, HostRunKind, HostRunLineage,
+    HostRunLineageKind, HostRunResult, HostRunState, HostRunVerification,
+    HostRunVerificationStatus, HostTerminalState, Question, ResolutionRequest, ResolutionResponse,
+    ResolutionResponseActor, TurnAllowance,
 };
 pub use json::{
     JsonNumber, JsonObject, JsonValue, MAX_PORTABLE_INTEGER, json_bool_field, json_object,

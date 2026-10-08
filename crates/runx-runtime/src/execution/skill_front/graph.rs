@@ -912,11 +912,11 @@ mod tests {
             skill_name: "fixture".to_owned(),
             step_id: None,
             artifacts: None,
-            allowed_tools: None,
             requirements: Default::default(),
             executable: crate::adapter::Executable::Agent(runx_parser::AgentTask {
                 role: "reviewer".to_owned(),
                 task: "review".to_owned(),
+                allowance: Default::default(),
             }),
             outputs: None,
             inputs: JsonObject::new(),
@@ -1133,7 +1133,6 @@ steps:
             skill_name: "credential-observation".to_owned(),
             step_id: None,
             artifacts: None,
-            allowed_tools: None,
             requirements: Default::default(),
             executable: crate::adapter::Executable::Process(runx_parser::ProcessTool {
                 command: "/bin/sh".to_owned(),

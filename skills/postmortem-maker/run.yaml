@@ -193,7 +193,6 @@ runners:
         inputs:
           incident_ref: $input.incident_ref
           incident_fragments: $input.incident_fragments
-        allowed_tools: []
         artifacts:
           named_emits:
             postmortem_draft: postmortem_draft

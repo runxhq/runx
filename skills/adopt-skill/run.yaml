@@ -203,7 +203,6 @@ runners:
         context:
           source_evidence: inspect-source.source_evidence.data
           upstream_skill: read-source.file_read.data.contents
-        allowed_tools: []
         artifacts:
           named_emits:
             profile_draft: profile_draft

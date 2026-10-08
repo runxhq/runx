@@ -2,8 +2,7 @@
 // field-level diagnostics stay consistent across the five step kinds.
 use std::collections::{BTreeMap, BTreeSet};
 
-use runx_contracts::{JsonObject, JsonValue};
-use runx_core::policy::admit_agent_tool_ref;
+use runx_contracts::{JsonObject, JsonValue, TurnAllowance};
 
 use super::helpers::{
     optional_non_empty_string, optional_object, optional_string, optional_string_array,
@@ -46,8 +45,6 @@ fn kind_fields(kind: &str) -> &'static [&'static str] {
             "inputs",
             "outputs",
             "artifacts",
-            "scopes",
-            "allowed_tools",
             "context_skills",
             "idempotency_key",
         ],
@@ -156,7 +153,6 @@ pub fn validate_step(
         )?
         .unwrap_or_default(),
         scopes,
-        allowed_tools: validate_allowed_tools(raw_step.get("allowed_tools"), field)?,
         when: validate_when(raw_step.get("when"), &format!("{field}.when"))?,
         idempotency_key,
         on_uncertain,
@@ -216,6 +212,7 @@ fn validate_kind(
             Ok(StepKind::Agent(AgentTask {
                 role: non_empty(agent.get("role"), &format!("{qualified}.role"))?,
                 task: non_empty(agent.get("task"), &format!("{qualified}.task"))?,
+                allowance: TurnAllowance::default(),
             }))
         }
         "tool" => validate_tool_target(
@@ -456,26 +453,6 @@ fn validate_when(
         equals,
         not_equals,
     }))
-}
-
-fn validate_allowed_tools(
-    value: Option<&JsonValue>,
-    field: &str,
-) -> Result<Option<Vec<String>>, ValidationError> {
-    let Some(allowed_tools) = optional_string_array(value, &format!("{field}.allowed_tools"))?
-    else {
-        return Ok(None);
-    };
-    for tool in &allowed_tools {
-        let admission = admit_agent_tool_ref(tool);
-        if !admission.allowed {
-            return Err(validation_error(format!(
-                "{field}.allowed_tools entry {tool:?} is not an admissible agent tool ref: {}.",
-                admission.reason
-            )));
-        }
-    }
-    Ok(Some(allowed_tools))
 }
 
 fn validate_step_id(

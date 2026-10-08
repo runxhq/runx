@@ -151,7 +151,6 @@ pub struct AgentContextEnvelope {
     pub instructions_sha256: NonEmptyString,
     pub instructions: NonEmptyString,
     pub inputs: JsonObject,
-    pub allowed_tools: Vec<NonEmptyString>,
     /// Exact non-secret execution requirements selected from the owning
     /// manifest, plus environment-name availability. Secret values never enter
     /// the agent context.

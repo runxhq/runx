@@ -126,6 +126,9 @@ harness:
         receipt:
           schema: runx.receipt.v1
 
+tools:
+  - fs.read
+
 runners:
   digest:
     default: true
@@ -209,10 +212,6 @@ runners:
         agent: { role: builder, task: reflect-digest }
         outputs:
           proposals: array
-        allowed_tools:
-          - fs.read
-        scopes:
-          - fs.read
         context:
           grouped_reflections: group-reflect-projections.grouped_reflections_packet.data.items
         artifacts:
