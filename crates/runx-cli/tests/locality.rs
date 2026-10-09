@@ -4,18 +4,10 @@
 //! but execution and its receipts stay on the machine that runs them. A run
 //! reaches runx only when a principal publishes a receipt or runs on hosted
 //! infra. Nothing here proves the absence of every possible egress, but it
-//! fences the two boundaries that would let it regress silently:
-//!
-//!   1. `runx-receipts` — the crate that owns the signed proof — must never
-//!      gain a network client. Receipts are a local artifact; the type that
-//!      models them must not be able to transmit them.
-//!   2. `runx-runtime` network access stays opt-in (behind a feature, off by
-//!      default), so the bounded HTTP a *skill* performs can never become an
-//!      always-on channel.
-//!
-//! A skill making its own HTTP calls to skill-defined hosts is bounded work,
-//! not telemetry, so HTTP clients are not banned outright — only walled off
-//! from the receipt crate and kept out of the runtime's default features.
+//! fences the boundary that would let it regress silently: only `runx-runtime`
+//! holds a network client, and its kernel sends only the operations a run
+//! admits. No other crate can grow a seam where a usage ping gets bolted on,
+//! and the crate that owns the signed proof cannot transmit it.
 
 use std::fs;
 use std::io;
@@ -90,65 +82,22 @@ fn read_manifest(crate_dir: &str) -> io::Result<String> {
 }
 
 #[test]
-fn receipts_crate_has_no_network_client() -> Result<(), Box<dyn std::error::Error>> {
-    let manifest = read_manifest("runx-receipts")?;
-    for dep in dependency_names(&manifest) {
-        let lower = dep.to_lowercase();
-        assert!(
-            !HTTP_CLIENTS.contains(&lower.as_str()),
-            "runx-receipts must not depend on an HTTP client (found `{dep}`). \
-             Receipts are a local artifact; the crate that owns the signed proof \
-             must not be able to transmit it. See the 'runs stay local' doctrine.",
-        );
-    }
-    Ok(())
-}
-
-#[test]
-fn runtime_network_is_opt_in() -> Result<(), Box<dyn std::error::Error>> {
-    let manifest = read_manifest("runx-runtime")?;
-
-    let reqwest = manifest
-        .lines()
-        .map(str::trim_start)
-        .find(|line| line.starts_with("reqwest"))
-        .ok_or_else(|| io::Error::other("runx-runtime is expected to declare reqwest"))?;
-    assert!(
-        reqwest.contains("optional = true"),
-        "runx-runtime's reqwest must be `optional = true` so network access is \
-         behind a feature, never linked unconditionally. Got: {reqwest}",
-    );
-
-    let default = manifest
-        .lines()
-        .map(str::trim_start)
-        .find(|line| line.starts_with("default ="))
-        .ok_or_else(|| {
-            io::Error::other("runx-runtime [features] is expected to declare `default`")
-        })?;
-    assert!(
-        !default.contains("async-http")
-            && !default.contains("process-tool")
-            && !default.contains("catalog"),
-        "runx-runtime default features must not enable network (async-http). \
-         Network stays opt-in. Got: {default}",
-    );
-    Ok(())
-}
-
-#[test]
-fn cli_declares_no_direct_network_client() -> Result<(), Box<dyn std::error::Error>> {
-    // The CLI may reach the registry transitively (install/acquire is the one
-    // public signal), but it should not declare its own HTTP client — that
-    // would be the seam where a usage ping gets bolted on.
-    let manifest = read_manifest("runx-cli")?;
-    for dep in dependency_names(&manifest) {
-        let lower = dep.to_lowercase();
-        assert!(
-            !HTTP_CLIENTS.contains(&lower.as_str()),
-            "runx-cli must not declare a direct HTTP client (found `{dep}`). \
-             See the 'runs stay local' doctrine.",
-        );
+fn only_the_runtime_holds_a_network_client() -> Result<(), Box<dyn std::error::Error>> {
+    for entry in fs::read_dir(sibling(""))? {
+        let entry = entry?;
+        let crate_dir = entry.file_name().to_string_lossy().into_owned();
+        if crate_dir == "runx-runtime" || !entry.path().join("Cargo.toml").is_file() {
+            continue;
+        }
+        let manifest = read_manifest(&crate_dir)?;
+        for dep in dependency_names(&manifest) {
+            let lower = dep.to_lowercase();
+            assert!(
+                !HTTP_CLIENTS.contains(&lower.as_str()),
+                "{crate_dir} must not depend on an HTTP client (found `{dep}`); only \
+                 runx-runtime reaches the network. See the 'runs stay local' doctrine.",
+            );
+        }
     }
     Ok(())
 }

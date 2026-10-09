@@ -19,18 +19,11 @@ use runx_parser::ProcessTool;
 
 use crate::RuntimeError;
 
-#[cfg(any(
-    feature = "async-http",
-    feature = "mcp",
-    feature = "process-tool",
-    test
-))]
 use self::environment::child_base_env;
 use self::environment::child_env;
 use self::paths::{execution_workspace_root, resolve_cwd, resolved_skill_directory, workspace_cwd};
 use self::template::resolve_template;
 
-#[cfg(feature = "process-tool")]
 pub(crate) const NATIVE_COMMAND_EXECUTION_BOUNDARY: ExecutionBoundaryKind =
     ExecutionBoundaryKind::TrustedHostProcess;
 
@@ -67,7 +60,6 @@ pub(crate) struct ProcessExecutionPlan {
     pub(crate) cleanup_paths: Vec<PathBuf>,
 }
 
-#[cfg(feature = "process-tool")]
 pub(crate) struct NativeCommandInvocationRequest<'a> {
     pub(crate) command: String,
     pub(crate) args: Vec<String>,
@@ -96,7 +88,6 @@ impl Drop for PreparedProcessInvocation {
     }
 }
 
-#[cfg(any(feature = "async-http", feature = "mcp", test))]
 pub(crate) fn process_base_environment(
     base_env: &BTreeMap<String, String>,
 ) -> Result<BTreeMap<String, String>, RuntimeError> {
@@ -168,7 +159,6 @@ pub fn prepare_process_invocation(
     )
 }
 
-#[cfg(feature = "process-tool")]
 pub(crate) fn prepare_native_command_invocation(
     request: NativeCommandInvocationRequest<'_>,
 ) -> Result<PreparedProcessInvocation, RuntimeError> {

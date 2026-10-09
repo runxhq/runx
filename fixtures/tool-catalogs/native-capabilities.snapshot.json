@@ -1,13 +1,5 @@
 {
   "schema": "runx.native_capability_snapshot.v1",
-  "profile": {
-    "name": "runx-runtime/catalog",
-    "features": [
-      "async-http",
-      "catalog",
-      "process-tool"
-    ]
-  },
   "capability_count": 31,
   "capabilities": [
     {

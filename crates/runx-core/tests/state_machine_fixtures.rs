@@ -1,7 +1,6 @@
 use runx_core::state_machine::{
-    SequentialGraphEvent, SequentialGraphState, SequentialGraphStepDefinition, SingleStepEvent,
-    SingleStepState, create_sequential_graph_state, create_single_step_state,
-    plan_sequential_graph_transition, transition_sequential_graph, transition_single_step,
+    SequentialGraphEvent, SequentialGraphState, SequentialGraphStepDefinition,
+    create_sequential_graph_state, plan_sequential_graph_transition, transition_sequential_graph,
 };
 use serde::Deserialize;
 use serde_json::Value;
@@ -34,13 +33,6 @@ enum Expected {
 #[derive(Deserialize)]
 #[serde(tag = "kind", rename_all_fields = "camelCase")]
 enum StateMachineInput {
-    #[serde(rename = "state-machine.createSingleStepState")]
-    CreateSingleStepState { step_id: String },
-    #[serde(rename = "state-machine.transitionSingleStep")]
-    TransitionSingleStep {
-        state: SingleStepState,
-        event: SingleStepEvent,
-    },
     #[serde(rename = "state-machine.createSequentialGraphState")]
     CreateSequentialGraphState {
         graph_id: String,
@@ -56,27 +48,6 @@ enum StateMachineInput {
         state: SequentialGraphState,
         event: SequentialGraphEvent,
     },
-}
-
-#[test]
-fn fixture_single_step_create_pending() -> TestResult {
-    assert_fixture(include_str!(
-        "../../../fixtures/kernel/state-machine/single-step-create-pending.json"
-    ))
-}
-
-#[test]
-fn fixture_single_step_transition_succeed() -> TestResult {
-    assert_fixture(include_str!(
-        "../../../fixtures/kernel/state-machine/single-step-transition-succeed.json"
-    ))
-}
-
-#[test]
-fn fixture_single_step_transition_ignores_invalid_event() -> TestResult {
-    assert_fixture(include_str!(
-        "../../../fixtures/kernel/state-machine/single-step-transition-ignores-invalid-event.json"
-    ))
 }
 
 #[test]
@@ -124,12 +95,6 @@ fn assert_fixture(json: &str) -> TestResult {
 
 fn evaluate_input(input: StateMachineInput) -> Result<Value, String> {
     match input {
-        StateMachineInput::CreateSingleStepState { step_id } => {
-            to_value(create_single_step_state(step_id))
-        }
-        StateMachineInput::TransitionSingleStep { state, event } => {
-            to_value(transition_single_step(&state, &event))
-        }
         StateMachineInput::CreateSequentialGraphState { graph_id, steps } => {
             to_value(create_sequential_graph_state(graph_id, &steps))
         }

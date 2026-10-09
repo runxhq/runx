@@ -35,7 +35,6 @@ pub(super) struct RawNativeInvocation<'a> {
     pub(super) skill_directory: &'a std::path::Path,
     pub(super) credential_delivery: &'a crate::CredentialDelivery,
     pub(super) local_artifacts: &'a crate::services::LocalArtifactService,
-    #[cfg(feature = "catalog")]
     pub(super) effects: &'a crate::RuntimeEffectRegistry,
 }
 
@@ -132,7 +131,6 @@ where
             skill_directory: invocation.skill_directory,
             credential_delivery: invocation.credential_delivery,
             local_artifacts: invocation.local_artifacts,
-            #[cfg(feature = "catalog")]
             effects: invocation.effects,
         };
         let output = (self.handler)(&invocation)?;

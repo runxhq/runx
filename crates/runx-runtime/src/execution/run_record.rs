@@ -487,6 +487,19 @@ impl RunLog {
         &self.0.store
     }
 
+    /// How many child runs deep this run is below its root: one per step
+    /// on its path, a call's index belonging to the step that made it.
+    pub(crate) fn depth(&self) -> u32 {
+        let depth = self
+            .0
+            .run_id
+            .split('/')
+            .skip(1)
+            .filter(|segment| segment.starts_with(|first: char| first.is_ascii_alphabetic()))
+            .count();
+        u32::try_from(depth).unwrap_or(u32::MAX)
+    }
+
     /// The id of the child run a nested skill step runs as.
     pub(crate) fn child_id(&self, step_id: &str) -> String {
         format!("{}/{step_id}", self.0.run_id)

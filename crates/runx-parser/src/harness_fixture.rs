@@ -144,15 +144,43 @@ pub struct HarnessProviderResponsesFixture {
     pub operations: Vec<HarnessProviderOperationFixture>,
 }
 
+/// An agent turn the caller works: the calls it makes in order, then the
+/// output it ends the turn with.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct HarnessTurnScript {
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub calls: Vec<HarnessTurnCall>,
+    pub output: JsonObject,
+}
+
+/// One call a scripted turn makes.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct HarnessTurnCall {
+    /// The tool the turn offers for the call, by the name its status lists.
+    pub tool: String,
+    #[serde(default, skip_serializing_if = "JsonObject::is_empty")]
+    pub input: JsonObject,
+    /// What the call must return: its result, matched exactly or as a subset.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub expect: Option<HarnessJsonExpectation>,
+}
+
 /// What the caller stands in for during a harness run: the agent acts it
-/// answers, the approval gates it decides, and the world the run reaches.
-/// Fixture files, inline runner cases and dev fixtures share this one shape.
+/// answers or works, the approval gates it decides, and the world the run
+/// reaches. Fixture files, inline runner cases and dev fixtures share this
+/// one shape.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct HarnessCaller {
     /// Agent act outputs, by request id.
     #[serde(default, skip_serializing_if = "JsonObject::is_empty")]
     pub answers: JsonObject,
+    /// Agent turns the caller works call by call, by request id. An act is
+    /// answered or worked, not both.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub turns: BTreeMap<String, HarnessTurnScript>,
     /// Approval decisions, by gate id.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub approvals: BTreeMap<String, bool>,
@@ -355,6 +383,22 @@ pub fn parse_harness_caller(value: JsonObject) -> Result<HarnessCaller, HarnessF
 }
 
 fn validate_caller(caller: HarnessCaller) -> Result<HarnessCaller, HarnessFixtureError> {
+    for (id, script) in &caller.turns {
+        if caller.answers.contains_key(id) {
+            return Err(HarnessFixtureError::Invalid {
+                field: format!("caller.turns.{id}"),
+                message: "an act is answered or worked, not both".to_owned(),
+            });
+        }
+        for (index, call) in script.calls.iter().enumerate() {
+            if call.tool.trim().is_empty() {
+                return Err(HarnessFixtureError::Invalid {
+                    field: format!("caller.turns.{id}.calls[{index}].tool"),
+                    message: "must name a tool the turn offers".to_owned(),
+                });
+            }
+        }
+    }
     Ok(HarnessCaller {
         http_exchanges: validate_http_exchanges(caller.http_exchanges, "caller.http_exchanges")?,
         mcp_calls: validate_mcp_calls(caller.mcp_calls, "caller.mcp_calls")?,

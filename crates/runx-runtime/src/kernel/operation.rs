@@ -245,10 +245,10 @@ pub(crate) trait ToolRunner {
 }
 
 /// The runner of a runtime built without tool packages: it runs none.
-#[cfg(any(test, not(feature = "catalog")))]
+#[cfg(test)]
 pub(crate) struct NoTools;
 
-#[cfg(any(test, not(feature = "catalog")))]
+#[cfg(test)]
 impl ToolRunner for NoTools {
     fn run(
         &self,
@@ -1205,12 +1205,11 @@ fn process_delivery(
             "the credential is incomplete".to_owned(),
         )
     })?;
-    crate::credentials::CredentialDelivery::from_local_descriptor(
+    crate::credentials::CredentialDelivery::process_env(
         manifest.id.as_str(),
         declaration.kind.as_str(),
         declaration.delivery.env.as_str(),
         instance.instance_id.as_str(),
-        Vec::new(),
         value,
     )
     .map_err(|error| rejected("binding_unavailable", error.to_string()))

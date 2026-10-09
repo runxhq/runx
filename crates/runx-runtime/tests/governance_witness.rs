@@ -1,4 +1,3 @@
-#![cfg(feature = "process-tool")]
 #![allow(clippy::expect_used, clippy::unwrap_used)]
 //! Conformance for the uniform-governance seal invariant.
 //!

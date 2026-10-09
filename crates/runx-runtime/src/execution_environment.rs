@@ -12,7 +12,6 @@ use runx_contracts::{
 
 use crate::RuntimeError;
 
-#[cfg(any(feature = "process-tool", test))]
 pub(crate) const RUNX_HOSTED_WORKSPACE_POLICY_JSON_ENV: &str = "RUNX_HOSTED_WORKSPACE_POLICY_JSON";
 
 pub(crate) const PROCESS_BASELINE_ENV: [&str; 25] = [
@@ -88,7 +87,6 @@ pub(crate) fn resolve_environment(
         .collect())
 }
 
-#[cfg(any(feature = "process-tool", test))]
 pub(crate) fn enforce_process_execution_policy(
     command: &str,
     args: &[String],

@@ -1196,7 +1196,6 @@ runners:
     }
 
     #[test]
-    #[cfg(feature = "catalog")]
     fn operator_context_surfaces_native_tool_contract() -> Result<(), Box<dyn Error>> {
         let temp = tempdir()?;
         let entry = temp.path().join("entry");

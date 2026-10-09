@@ -21,9 +21,7 @@ workspace = true
 
 [features]
 default = []
-async-http = ["dep:reqwest", "dep:tokio", "dep:rustls", "dep:webpki-root-certs", "tokio/rt-multi-thread", "rmcp?/transport-streamable-http-client-reqwest"]
-process-tool = ["async-http"]
-mcp = ["async-http", "dep:rmcp", "dep:tokio", "tokio/process", "tokio/io-util", "tokio/sync", "tokio/rt-multi-thread"]
+mcp = ["dep:rmcp", "rmcp/transport-streamable-http-client-reqwest", "tokio/process", "tokio/io-util", "tokio/sync"]
 # Expose the governed MCP server over streamable HTTP/SSE (rmcp's tower service
 # driven by hyper). Inbound HTTP server surface; gated behind its own feature.
 mcp-http-server = [
@@ -36,10 +34,9 @@ mcp-http-server = [
     "dep:hyper-util",
     "dep:tower-service",
 ]
-agent = ["async-http", "catalog"]
+agent = []
 # The store connector's Postgres and Redis backends; SQLite is always present.
-store = ["async-http", "dep:postgres", "dep:tokio-postgres-rustls", "dep:redis"]
-catalog = ["process-tool"]
+store = ["dep:postgres", "dep:tokio-postgres-rustls", "dep:redis"]
 
 [dependencies]
 aes-gcm = "0.11.0"
@@ -58,7 +55,7 @@ runx-receipts.workspace = true
 # decodes like a real browser; a no-compression, http1-only client is a bot tell to
 # Cloudflare and friends. The response cap measures DECODED bytes (streaming guard in
 # read_response_body) when a caller sets one, so a decompression bomb stays bounded.
-reqwest = { version = "=0.13.5", default-features = false, features = ["rustls-no-provider", "json", "gzip", "brotli", "deflate", "zstd", "http2"], optional = true }
+reqwest = { version = "=0.13.5", default-features = false, features = ["rustls-no-provider", "json", "gzip", "brotli", "deflate", "zstd", "http2"] }
 ring = "0.17.14"
 regex.workspace = true
 rusqlite = { version = "0.40.1", default-features = false, features = ["backup", "bundled", "cache"] }
@@ -69,8 +66,8 @@ jsonschema = { version = "0.56.0", default-features = false }
 # Drive rustls with the ring provider (already linked via `ring`) instead of
 # reqwest's default aws-lc-rs, so the vendored aws-lc-sys C crypto blob is not
 # compiled in. ring is then the single, unambiguous process-default provider.
-rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"], optional = true }
-webpki-root-certs = { version = "1.0.9", optional = true }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+webpki-root-certs = "1.0.9"
 rustix = { version = "1.1.4", features = ["process"] }
 rmcp = { version = "=3.3.0", default-features = false, features = ["client", "server"], optional = true }
 # Drive rmcp's StreamableHttpService (a tower service) over a TCP listener for the
@@ -86,7 +83,7 @@ sha2.workspace = true
 subtle.workspace = true
 thiserror.workspace = true
 tempfile = "3.23.0"
-tokio = { version = "=1.53.1", default-features = false, features = ["rt", "net", "time"], optional = true }
+tokio = { version = "=1.53.1", default-features = false, features = ["rt", "rt-multi-thread", "net", "time"] }
 tower-service = { version = "0.3.3", optional = true }
 url.workspace = true
 wait-timeout = "0.2.1"
@@ -116,7 +113,6 @@ bench = false
 [[bin]]
 name = "runx-native-capability-snapshot"
 path = "src/bin/runx-native-capability-snapshot.rs"
-required-features = ["catalog"]
 test = false
 bench = false
 

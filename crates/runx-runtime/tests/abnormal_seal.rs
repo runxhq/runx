@@ -1,5 +1,3 @@
-#![cfg(feature = "process-tool")]
-
 use std::fs;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};

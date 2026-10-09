@@ -1,5 +1,3 @@
-#![cfg(feature = "process-tool")]
-
 use runx_parser::{parse_graph_yaml, validate_graph};
 
 // The full hello-graph run (names, statuses, stdout, receipt digests and ids)

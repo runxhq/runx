@@ -1,5 +1,4 @@
 mod sequential_graph;
-mod single_step;
 mod types;
 
 pub use sequential_graph::{
@@ -10,9 +9,8 @@ pub use sequential_graph::{
     start_sequential_graph_step_indexed, succeed_sequential_graph_step_indexed,
     transition_sequential_graph,
 };
-pub use single_step::{create_single_step_state, transition_single_step};
 pub use types::{
     AuthorityAdmissionWitness, GraphStatus, GraphStepStatus, SequentialGraphEvent,
     SequentialGraphPlan, SequentialGraphState, SequentialGraphStepDefinition,
-    SequentialGraphStepState, SingleStepEvent, SingleStepState, StepAdmissionWitness, StepStatus,
+    SequentialGraphStepState, StepAdmissionWitness,
 };

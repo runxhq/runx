@@ -11,10 +11,8 @@ use runx_runtime::{
     DevWatchTrigger, discover_fixture_paths, render_dev_result, should_ignore_dev_watch_path,
 };
 
-#[cfg(any(feature = "catalog", feature = "process-tool"))]
 use runx_runtime::{DevLoopOptions, run_dev_once};
 
-#[cfg(feature = "process-tool")]
 use runx_runtime::DevFixtureLane;
 
 #[test]
@@ -30,7 +28,6 @@ fn dev_discovers_direct_unit_fixtures_before_workspace_tool_fixtures()
 }
 
 #[test]
-#[cfg(feature = "catalog")]
 fn dev_runs_deterministic_tool_fixtures_and_skips_excluded_lanes()
 -> Result<(), Box<dyn std::error::Error>> {
     let root = fixture_root()?;
@@ -59,7 +56,6 @@ fn dev_runs_deterministic_tool_fixtures_and_skips_excluded_lanes()
 }
 
 #[test]
-#[cfg(feature = "process-tool")]
 fn dev_runs_native_skill_and_graph_fixtures() -> Result<(), Box<dyn std::error::Error>> {
     let root = fixture_root()?;
     let mut options = DevLoopOptions::new(root.path());
@@ -92,7 +88,6 @@ fn dev_runs_native_skill_and_graph_fixtures() -> Result<(), Box<dyn std::error::
 }
 
 #[test]
-#[cfg(feature = "process-tool")]
 fn dev_runs_native_repo_integration_skill_with_fixture_cwd()
 -> Result<(), Box<dyn std::error::Error>> {
     let root = fixture_root()?;
@@ -127,7 +122,6 @@ fn dev_runs_native_repo_integration_skill_with_fixture_cwd()
 }
 
 #[test]
-#[cfg(feature = "catalog")]
 fn dev_marks_workspace_executable_files_executable() -> Result<(), Box<dyn std::error::Error>> {
     let root = fixture_root()?;
     let mut options = DevLoopOptions::new(root.path());
@@ -285,7 +279,6 @@ fn copy_dir_all(source: &Path, target: &Path) -> Result<(), Box<dyn std::error::
     Ok(())
 }
 
-#[cfg(any(feature = "catalog", feature = "process-tool"))]
 fn nested_string<'a>(value: Option<&'a JsonValue>, path: &[&str]) -> Option<&'a str> {
     let mut current = value?;
     for segment in path {

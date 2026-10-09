@@ -149,20 +149,6 @@ fn replay_receipts_match_checked_in_canonical_oracles() -> Result<(), Box<dyn st
     Ok(())
 }
 
-#[test]
-#[cfg(not(feature = "process-tool"))]
-fn default_harness_runner_reports_disabled_process_tool_feature() {
-    let result = runx_runtime::run_harness_fixture(
-        fixture_path("fixtures/harness/echo-skill.yaml"),
-        std::collections::BTreeMap::new(),
-    );
-
-    assert!(matches!(
-        result,
-        Err(runx_runtime::HarnessReplayError::ProcessToolFeatureDisabled)
-    ));
-}
-
 fn run_fixture_with_test_adapter(
     relative_path: &str,
 ) -> Result<runx_runtime::HarnessReplayOutput, runx_runtime::HarnessReplayError> {

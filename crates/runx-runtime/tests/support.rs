@@ -3,7 +3,6 @@ use std::fs;
 use std::path::Path;
 
 use runx_contracts::Receipt;
-#[cfg(feature = "process-tool")]
 use runx_runtime::{HarnessOptions, RuntimeOptions};
 use runx_runtime::{
     KernelStore, LocalReceiptStore, RUNX_RECEIPT_SIGN_ED25519_SEED_BASE64_ENV,
@@ -11,7 +10,6 @@ use runx_runtime::{
     RuntimeReceiptSignatureConfig,
 };
 
-#[cfg(feature = "process-tool")]
 pub(crate) const TEST_CREATED_AT: &str = "2026-05-18T00:00:00Z";
 pub(crate) const TEST_SIGNING_KID: &str = "runx-runtime-prod-fixture-key";
 pub(crate) const TEST_SIGNING_SEED_BASE64: &str = "QkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkI=";
@@ -59,6 +57,7 @@ pub(crate) fn test_signature_config()
 
 /// A project directory of this test's own under the target's test scratch
 /// space, so runs and custody never land in the repository's `.runx`.
+#[cfg(feature = "mcp")]
 pub(crate) fn test_project_dir(label: &str) -> Result<std::path::PathBuf, std::io::Error> {
     use std::sync::atomic::{AtomicU64, Ordering};
     static NEXT: AtomicU64 = AtomicU64::new(0);
@@ -98,7 +97,6 @@ pub(crate) fn scratch_run(
     Ok((root, log))
 }
 
-#[cfg(feature = "process-tool")]
 pub(crate) fn signed_runtime_options(
     run: RunLog,
 ) -> Result<RuntimeOptions, runx_runtime::RuntimeError> {
@@ -107,7 +105,6 @@ pub(crate) fn signed_runtime_options(
     RuntimeOptions::from_env(env, run)
 }
 
-#[cfg(feature = "process-tool")]
 pub(crate) fn local_harness_options() -> HarnessOptions {
     let mut options = HarnessOptions::local_development(std::env::vars().collect());
     options.created_at = TEST_CREATED_AT.to_owned();

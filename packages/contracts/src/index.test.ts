@@ -10,11 +10,7 @@ import {
   approvalGateSchema,
   actResultEnvelopeSchema,
   actAssignmentV1Schema,
-  authorityProofSchema,
-  credentialDeliveryResponseV1Schema,
   credentialDeliveryObservationV1Schema,
-  credentialDeliveryProfileV1Schema,
-  credentialDeliveryRequestV1Schema,
   dataOperationResultV1Schema,
   devV1Schema,
   doctorV1Schema,
@@ -26,7 +22,6 @@ import {
   listV1Schema,
   outputSchema,
   packetIndexV1Schema,
-  credentialEnvelopeSchema,
   questionSchema,
   registryBindingSchema,
   reviewReceiptOutputSchema,
@@ -44,17 +39,14 @@ import {
   runxContractSchemas,
   runxAuxiliarySchemas,
   runxGeneratedSchemaArtifacts,
-  scopeAdmissionSchema,
   suppressionRecordV1Schema,
   toolManifestV1Schema,
   contractSchemaMatches,
   validateActResultEnvelopeContract,
   validateActContract,
   validateAgentContextEnvelopeContract,
-  validateAuthorityProofContract,
   validateOutputContract,
   validateResolutionRequestContract,
-  validateCredentialEnvelopeContract,
   validateDataOperationResultContract,
   validateActAssignmentContract,
   validateDevReportContract,
@@ -66,7 +58,6 @@ import {
   validateRegistryBindingContract,
   validateRunxListReportContract,
   validateReviewReceiptOutputContract,
-  validateScopeAdmissionContract,
   validateSuppressionRecordContract,
   validateOperationalPolicyContract,
   validateOperationalPolicySemantics,
@@ -125,12 +116,6 @@ describe("@runxhq/contracts", () => {
     expect(resolutionRequestSchema).toBe(runxContractSchemas.resolutionRequest);
     expect(resolutionResponseSchema).toBe(runxContractSchemas.resolutionResponse);
     expect(actResultEnvelopeSchema).toBe(runxContractSchemas.actResultEnvelope);
-    expect(credentialEnvelopeSchema).toBe(runxContractSchemas.credentialEnvelope);
-    expect(scopeAdmissionSchema).toBe(runxContractSchemas.scopeAdmission);
-    expect(authorityProofSchema).toBe(runxContractSchemas.authorityProof);
-    expect(credentialDeliveryProfileV1Schema).toBe(runxContractSchemas.credentialDeliveryProfile);
-    expect(credentialDeliveryRequestV1Schema).toBe(runxContractSchemas.credentialDeliveryRequest);
-    expect(credentialDeliveryResponseV1Schema).toBe(runxContractSchemas.credentialDeliveryResponse);
     expect(credentialDeliveryObservationV1Schema).toBe(runxContractSchemas.credentialDeliveryObservation);
     expect(dataOperationResultV1Schema).toBe(runxContractSchemas.dataOperationResult);
     expect(receiptV1Schema).toBe(runxContractSchemas.receipt);
@@ -297,86 +282,6 @@ describe("@runxhq/contracts", () => {
       family: "payment",
       phase: "sealed",
     })).toThrow(/effect finality receipt/);
-  });
-
-  it("owns credential envelope schema and runtime validation", () => {
-    expect(credentialEnvelopeSchema.$id).toBe(RUNX_CONTROL_SCHEMA_REFS.credential_envelope);
-    expect(validateCredentialEnvelopeContract({
-      kind: "runx.credential-envelope.v1",
-      grant_id: "grant_1",
-      provider: "github",
-      auth_mode: "api_key",
-      material_kind: "api_key",
-      provider_reference: "local_per_run",
-      scopes: ["repo:read"],
-      material_ref: "local:github:grant_1",
-    })).toMatchObject({
-      provider: "github",
-      scopes: ["repo:read"],
-    });
-  });
-
-  it("owns scope admission schema and runtime validation", () => {
-    expect(RUNX_CONTROL_SCHEMA_REFS.scope_admission).toBe("https://runx.ai/spec/scope-admission.schema.json");
-    expect(validateScopeAdmissionContract({
-      status: "allow",
-      requested_scopes: ["repo:status"],
-      granted_scopes: ["repo:*"],
-      decision_summary: "",
-    })).toEqual({
-      status: "allow",
-      requested_scopes: ["repo:status"],
-      granted_scopes: ["repo:*"],
-      decision_summary: "",
-    });
-    expect(() => validateScopeAdmissionContract({
-      status: "pending",
-      requested_scopes: ["repo:status"],
-      granted_scopes: ["repo:*"],
-    })).toThrow(/scope-admission\.schema\.json/);
-  });
-
-  it("owns authority proof schema and generated artifact", () => {
-    expect(authorityProofSchema.$id).toBe(RUNX_CONTROL_SCHEMA_REFS.authority_proof);
-    expect(runxContractSchemas.authorityProof.$id).toBe(authorityProofSchema.$id);
-    expect(runxGeneratedSchemaArtifacts["authority-proof.schema.json"].$id).toBe(authorityProofSchema.$id);
-    expect(validateAuthorityProofContract({
-      schema_version: "runx.authority-proof.v1",
-      skill_name: "connected-review",
-      source_type: "agent-task",
-      requested: {
-        connected_auth: true,
-        scopes: ["repo:read"],
-        scope_family: "github_repo",
-        authority_kind: "read_only",
-        target_repo: "runxhq/runx",
-      },
-      scope_admission: {
-        status: "allow",
-        requested_scopes: ["repo:read"],
-        granted_scopes: ["repo:*"],
-      },
-      credential_material: {
-        status: "not_resolved",
-        provider: "github",
-        scopes: ["repo:read"],
-        scope_family: "github_repo",
-        authority_kind: "read_only",
-        target_repo: "runxhq/runx",
-      },
-      execution_boundary: {
-        kind: "remote_provider",
-      },
-      redaction: {
-        status: "applied",
-        secret_material: "omitted",
-        stdout: "hashed",
-        stderr: "hashed",
-        metadata_secret_keys: ["token-like metadata keys"],
-      },
-    })).toMatchObject({
-      schema_version: "runx.authority-proof.v1",
-    });
   });
 
   it("owns executor control protocol schemas and runtime validation", () => {

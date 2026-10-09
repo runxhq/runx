@@ -46,7 +46,6 @@ pub(crate) struct LocalSkillEdge {
 }
 
 #[derive(Default)]
-#[cfg(feature = "process-tool")]
 pub(crate) struct LocalExecutionClosure {
     pub packages: BTreeMap<PathBuf, BTreeSet<String>>,
     pub skill_edges: BTreeSet<LocalSkillEdge>,
@@ -131,7 +130,6 @@ pub(super) fn inspect_execution_closures(
         .collect()
 }
 
-#[cfg(feature = "process-tool")]
 pub(super) fn inspect_local_execution_closure(
     loaded: Arc<LoadedSkillPackage>,
     env: &BTreeMap<String, String>,
@@ -171,7 +169,6 @@ pub(super) fn inspect_local_execution_closure(
     Ok(closure)
 }
 
-#[cfg(feature = "process-tool")]
 impl ClosureAccumulator {
     fn into_local_execution_closure(self) -> LocalExecutionClosure {
         LocalExecutionClosure {
@@ -181,7 +178,6 @@ impl ClosureAccumulator {
     }
 }
 
-#[cfg(feature = "process-tool")]
 fn merge_local_execution_closure(
     target: &mut LocalExecutionClosure,
     source: LocalExecutionClosure,
@@ -255,7 +251,6 @@ impl<'a> ExecutionClosureInspector<'a> {
         Ok(closure)
     }
 
-    #[cfg(feature = "process-tool")]
     fn inspect_harness_graph_accumulator(
         &mut self,
         fixture_path: &str,

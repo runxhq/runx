@@ -72,42 +72,6 @@
         {
           "additionalProperties": false,
           "properties": {
-            "kind": {
-              "const": "state-machine.createSingleStepState"
-            },
-            "stepId": {
-              "type": "string"
-            }
-          },
-          "required": [
-            "kind",
-            "stepId"
-          ],
-          "type": "object"
-        },
-        {
-          "additionalProperties": false,
-          "properties": {
-            "event": {
-              "type": "object"
-            },
-            "kind": {
-              "const": "state-machine.transitionSingleStep"
-            },
-            "state": {
-              "type": "object"
-            }
-          },
-          "required": [
-            "event",
-            "kind",
-            "state"
-          ],
-          "type": "object"
-        },
-        {
-          "additionalProperties": false,
-          "properties": {
             "graphId": {
               "type": "string"
             },

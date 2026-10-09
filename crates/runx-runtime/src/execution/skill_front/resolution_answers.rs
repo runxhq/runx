@@ -27,9 +27,9 @@ enum AnswerKeys {
     /// By address: a resume answers one open request, once.
     #[default]
     Address,
-    /// By the request's id in its own run: a harness script answers every
-    /// ask of that id, at any depth.
-    #[cfg(feature = "process-tool")]
+    /// As a harness script: an answer keyed by an address answers that
+    /// request; one keyed by a request's id in its own run answers every ask
+    /// of that id, at any depth, that no address names.
     Script,
 }
 
@@ -43,7 +43,6 @@ impl ResolutionAnswers {
 
     /// These answers as a script: each answers every request with its id,
     /// in whichever run asks it.
-    #[cfg(feature = "process-tool")]
     pub(super) fn scripted(self) -> Self {
         Self {
             keys: AnswerKeys::Script,
@@ -54,10 +53,16 @@ impl ResolutionAnswers {
     /// The key `request_id`, an address, is answered under.
     fn key<'a>(&self, request_id: &'a str) -> &'a str {
         match self.keys {
-            AnswerKeys::Address => request_id,
-            #[cfg(feature = "process-tool")]
-            AnswerKeys::Script => crate::execution::run_record::local_request_id(request_id),
+            AnswerKeys::Script if !self.values.contains_key(request_id) => {
+                crate::execution::run_record::local_request_id(request_id)
+            }
+            AnswerKeys::Address | AnswerKeys::Script => request_id,
         }
+    }
+
+    /// Whether an answer names the request at `address` itself.
+    pub(super) fn answers_address(&self, address: &str) -> bool {
+        self.values.contains_key(address)
     }
 
     pub(super) fn from_lanes(

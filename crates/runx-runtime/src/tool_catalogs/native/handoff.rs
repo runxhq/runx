@@ -363,7 +363,6 @@ mod tests {
     use runx_contracts::OrchestratorExecutionContext;
     use serde_json::json;
 
-    #[cfg(feature = "catalog")]
     use crate::RuntimeEffectRegistry;
     use crate::credentials::CredentialDelivery;
     use crate::tool_catalogs::native::NativeInvocation;
@@ -436,16 +435,14 @@ mod tests {
     fn credential_guard_rejects_delivered_values_without_guessing_business_keys()
     -> Result<(), Box<dyn std::error::Error>> {
         let workspace = tempfile::tempdir()?;
-        let delivery = CredentialDelivery::from_local_descriptor(
+        let delivery = CredentialDelivery::process_env(
             "n8n",
             "bearer",
             "N8N_WEBHOOK_TOKEN",
             "local:n8n:test",
-            vec!["orchestrator.n8n.workflow.invoke".to_owned()],
             "credential-sentinel",
         )?;
         let env = BTreeMap::new();
-        #[cfg(feature = "catalog")]
         let effects = RuntimeEffectRegistry::default();
         let mut allowed = input();
         allowed.payload = value(json!({ "token": "business-domain-value" }));
@@ -456,7 +453,6 @@ mod tests {
             skill_directory: workspace.path(),
             credential_delivery: &delivery,
             local_artifacts: crate::tool_catalogs::native::fixture_local_artifacts(),
-            #[cfg(feature = "catalog")]
             effects: &effects,
         };
         prepare(&invocation).expect("business token field remains valid");
@@ -470,7 +466,6 @@ mod tests {
             skill_directory: workspace.path(),
             credential_delivery: &delivery,
             local_artifacts: crate::tool_catalogs::native::fixture_local_artifacts(),
-            #[cfg(feature = "catalog")]
             effects: &effects,
         };
         let error = prepare(&invocation).expect_err("delivered credential value refused");

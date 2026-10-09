@@ -31,7 +31,6 @@ struct PackageBundleDescriptor {
     dependencies: Vec<PackageBundleDependency>,
 }
 
-#[cfg(any(feature = "process-tool", test))]
 pub(crate) fn encode_package_bundle(
     dependencies: BTreeSet<PackageBundleDependency>,
 ) -> Result<String, String> {

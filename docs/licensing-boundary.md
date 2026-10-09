@@ -19,8 +19,8 @@ hosted/cloud layer owns OAuth brokerage and hosted credential custody.
 
 ## Current OSS Surface
 
-- `runx-contracts` keeps provider-neutral credential envelope and credential
-  delivery contracts.
+- `runx-contracts` keeps the provider-neutral credential delivery observation
+  contract.
 - `runx-core` keeps policy and authority admission. It does not call providers
   or issue grants.
 - `runx-runtime` keeps local credential consumption, resolved delivery, and

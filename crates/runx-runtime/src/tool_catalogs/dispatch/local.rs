@@ -1,10 +1,8 @@
-#[cfg(feature = "agent")]
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
 use runx_contracts::JsonObject;
-#[cfg(feature = "agent")]
 use runx_contracts::tools::ToolInspectResult;
 use runx_parser::SkillArtifactContract;
 
@@ -12,11 +10,9 @@ use super::{ToolDispatchRequest, catalog_error, configured_tool_roots, failure, 
 use crate::RuntimeError;
 use crate::adapter::{InvocationOutput, SkillAdapter, SkillInvocation};
 use crate::adapters::process_tool::ProcessToolAdapter;
-#[cfg(feature = "agent")]
 use crate::effects::RuntimeEffectRegistry;
 use crate::tool_catalogs::{ToolCatalogError, ToolInspectOptions, resolve_local_tool};
 
-#[cfg(feature = "agent")]
 pub(super) fn inspect_catalog_tool(
     tool_ref: &str,
     env: &BTreeMap<String, String>,

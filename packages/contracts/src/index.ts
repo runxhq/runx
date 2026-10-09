@@ -122,42 +122,14 @@ export {
   type SkillApplyResultContract,
 } from "./schemas/skill-authoring.js";
 
-export {
-  credentialGrantReferenceSchema,
-  credentialEnvelopeSchema,
-  scopeAdmissionSchema,
-  authorityProofSchema,
-  authorityProofSchemaVersion,
-  validateCredentialEnvelopeContract,
-  validateScopeAdmissionContract,
-  validateAuthorityProofContract,
-  type CredentialGrantReferenceContract,
-  type CredentialEnvelopeContract,
-  type ScopeAdmissionContract,
-  type AuthorityProofContract,
-} from "./schemas/credentials.js";
 
 export {
   credentialDeliveryModeSchema,
   credentialDeliveryPurposeSchema,
   credentialMaterialRoleSchema,
-  credentialDeliveryStatusSchema,
   credentialDeliveryObservationStatusSchema,
-  credentialDeliveryEnvBindingSchema,
-  credentialDeliveryProfileV1Schema,
-  credentialDeliveryRequestV1Schema,
-  credentialDeliveryHandleSchema,
-  credentialDeliveryResponseV1Schema,
   credentialDeliveryObservationV1Schema,
-  validateCredentialDeliveryProfileContract,
-  validateCredentialDeliveryRequestContract,
-  validateCredentialDeliveryResponseContract,
   validateCredentialDeliveryObservationContract,
-  type CredentialDeliveryEnvBindingContract,
-  type CredentialDeliveryProfileContract,
-  type CredentialDeliveryRequestContract,
-  type CredentialDeliveryHandleContract,
-  type CredentialDeliveryResponseContract,
   type CredentialDeliveryObservationContract,
 } from "./schemas/credential-delivery.js";
 
@@ -694,13 +666,7 @@ export {
 
 import { agentContextEnvelopeSchema } from "./schemas/context.js";
 import { agentActInvocationSchema, approvalGateSchema, questionSchema } from "./schemas/agent-act.js";
-import { credentialEnvelopeSchema, scopeAdmissionSchema, authorityProofSchema } from "./schemas/credentials.js";
-import {
-  credentialDeliveryResponseV1Schema,
-  credentialDeliveryObservationV1Schema,
-  credentialDeliveryProfileV1Schema,
-  credentialDeliveryRequestV1Schema,
-} from "./schemas/credential-delivery.js";
+import { credentialDeliveryObservationV1Schema } from "./schemas/credential-delivery.js";
 import { outputSchema } from "./schemas/output.js";
 import { actResultEnvelopeSchema, resolutionRequestSchema, resolutionResponseSchema } from "./schemas/resolution.js";
 import { doctorV1Schema } from "./schemas/doctor.js";
@@ -763,12 +729,6 @@ export const runxContractSchemas = {
   resolutionRequest: runxSchemaArtifacts["resolution-request.schema.json"],
   resolutionResponse: runxSchemaArtifacts["resolution-response.schema.json"],
   actResultEnvelope: runxSchemaArtifacts["act-result.schema.json"],
-  credentialEnvelope: runxSchemaArtifacts["credential-envelope.schema.json"],
-  scopeAdmission: runxSchemaArtifacts["scope-admission.schema.json"],
-  authorityProof: runxSchemaArtifacts["authority-proof.schema.json"],
-  credentialDeliveryProfile: runxSchemaArtifacts["credential-delivery-profile.schema.json"],
-  credentialDeliveryRequest: runxSchemaArtifacts["credential-delivery-request.schema.json"],
-  credentialDeliveryResponse: runxSchemaArtifacts["credential-delivery-response.schema.json"],
   credentialDeliveryObservation: runxSchemaArtifacts["credential-delivery-observation.schema.json"],
   dataOperationResult: dataOperationResultV1Schema,
   doctor: runxSchemaArtifacts["doctor.schema.json"],

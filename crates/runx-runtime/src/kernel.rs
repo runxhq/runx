@@ -14,23 +14,15 @@
 //! - `custody`: effect custody for each act, across runs.
 //! - `operation`: operation steps, from admission to the sealed packet.
 
-#[cfg(feature = "async-http")]
 pub mod admission;
 pub mod authority;
-#[cfg(feature = "async-http")]
 pub(crate) mod capability;
 pub mod connectors;
-#[cfg(feature = "async-http")]
 pub(crate) mod custody;
 pub mod instances;
-#[cfg(feature = "async-http")]
 pub mod operation;
-#[cfg(feature = "async-http")]
 pub(crate) mod session;
-#[cfg(feature = "async-http")]
 pub mod setup;
-#[cfg(feature = "async-http")]
 pub mod standing;
 pub mod store;
-#[cfg(feature = "async-http")]
 pub(crate) mod usage;

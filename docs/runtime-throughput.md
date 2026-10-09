@@ -121,21 +121,12 @@ native digest, and seals the ordinary local receipt. It therefore measures the
 real contained document reader and selected-runner path; it is not the separate
 `kernel eval --input` command dressed up as skill-input evidence.
 
-## Fanout Execution
-
-Fanout defaults to the host's available parallelism, capped at 64. Set
-`RUNX_MAX_FANOUT_CONCURRENCY` in `RuntimeOptions.env` or the process environment
-to restrict that ceiling. The runtime uses parallel capacity only for isolated
-JavaScript or explicitly isolated adapter lanes. Native run steps, tool and
-host resolution, effect-authority inputs, and adapters without isolation stay
-serial.
-
 ## Runtime Boundaries
 
 The hot-path runtime changes keep ownership narrow:
 
 - `runx-core` remains the pure decision layer for graph planning, scope
-  admission, credential binding, and authority proof metadata.
+  matching, and authority derivation.
 - `runx-runtime` owns mutable execution indexes, step dispatch, subprocess
   supervision, receipt linking, receipt store indexing, and journal projection.
 - `runx-receipts` owns canonical byte output, body/full digesting, proof

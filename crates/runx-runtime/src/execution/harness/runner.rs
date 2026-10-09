@@ -183,10 +183,6 @@ pub enum HarnessReplayError {
     },
     #[error(transparent)]
     ReceiptStore(#[from] crate::receipts::store::ReceiptStoreError),
-    #[error(
-        "native harness replay is unavailable because runx-runtime was built without the process-tool feature"
-    )]
-    ProcessToolFeatureDisabled,
 }
 
 #[derive(Debug, Error)]
@@ -220,20 +216,11 @@ pub fn run_harness_fixture(
     fixture_path: impl AsRef<Path>,
     env: BTreeMap<String, String>,
 ) -> Result<HarnessReplayOutput, HarnessReplayError> {
-    #[cfg(feature = "process-tool")]
-    {
-        run_harness_fixture_with_adapter(
-            fixture_path,
-            crate::execution::skill_front::ExecutableAdapter,
-            HarnessOptions::from_env(env)?,
-        )
-    }
-    #[cfg(not(feature = "process-tool"))]
-    {
-        let _ = fixture_path;
-        let _ = env;
-        Err(HarnessReplayError::ProcessToolFeatureDisabled)
-    }
+    run_harness_fixture_with_adapter(
+        fixture_path,
+        crate::execution::skill_front::ExecutableAdapter,
+        HarnessOptions::from_env(env)?,
+    )
 }
 
 pub fn run_harness_fixture_with_adapter<A>(
@@ -257,7 +244,6 @@ where
             RuntimeError::effect_state("isolating a harness case", error.to_string())
         })?;
     crate::paths::isolate(&mut fixture.env, case_root.path());
-    #[cfg(feature = "async-http")]
     let options = {
         let mut options = options;
         wire_operations(&mut fixture, &target_path, &mut options)?;
@@ -325,7 +311,6 @@ fn seed_harness_receipts(
 /// Stand the case's fixtures in beneath operation steps: its exact HTTP
 /// answers, its provider fixture, and the sessions and credentials it runs
 /// under.
-#[cfg(feature = "async-http")]
 fn wire_operations(
     fixture: &mut HarnessFixture,
     target_path: &Path,
@@ -349,7 +334,6 @@ fn wire_operations(
 /// Confirm and select the session instances the case runs under, as
 /// `runx connector use` would, in the case's own kernel and
 /// with the fixture environment resolved as the run resolves it.
-#[cfg(feature = "async-http")]
 fn seed_harness_sessions(
     fixture: &HarnessFixture,
     target_path: &Path,
@@ -387,7 +371,6 @@ fn seed_harness_sessions(
 
 /// Store and select the credentials the case runs under, as `runx
 /// credential set` would, in the case's own home.
-#[cfg(feature = "async-http")]
 fn seed_harness_credentials(
     fixture: &mut HarnessFixture,
     target_path: &Path,
@@ -738,6 +721,8 @@ where
 
 struct FixtureHost<'a> {
     fixture: &'a HarnessFixture,
+    /// The outputs scripted turns end with, by address.
+    worked: JsonObject,
     replayed_answers: JsonObject,
     unanswered: Vec<String>,
 }
@@ -746,6 +731,7 @@ impl<'a> FixtureHost<'a> {
     fn new(fixture: &'a HarnessFixture) -> Self {
         Self {
             fixture,
+            worked: JsonObject::new(),
             replayed_answers: JsonObject::new(),
             unanswered: Vec::new(),
         }
@@ -767,33 +753,39 @@ impl Host for FixtureHost<'_> {
         request: ResolutionRequest,
     ) -> Result<Option<ResolutionResponse>, RuntimeError> {
         match request {
-            ResolutionRequest::Approval { gate, .. } => {
-                let response =
-                    self.fixture
-                        .caller
-                        .approvals
-                        .get(gate.id.as_str())
-                        .map(|approved| ResolutionResponse {
-                            actor: ResolutionResponseActor::Human,
-                            payload: JsonValue::Bool(*approved),
-                        });
+            // A case decides a gate by its address, or by its id at any depth.
+            ResolutionRequest::Approval { id, gate } => {
+                let approvals = &self.fixture.caller.approvals;
+                let response = approvals
+                    .get(id.as_str())
+                    .or_else(|| approvals.get(gate.id.as_str()))
+                    .map(|approved| ResolutionResponse {
+                        actor: ResolutionResponseActor::Human,
+                        payload: JsonValue::Bool(*approved),
+                    });
                 if response.is_none() {
                     self.unanswered.push(gate.id.to_string());
                 }
                 Ok(response)
             }
-            // A case scripts an act by its id in its own run, at any depth.
+            // A case scripts an act by its address, or by its id in its own
+            // run at any depth.
             ResolutionRequest::AgentAct { id, .. } => {
-                let id = crate::execution::run_record::local_request_id(id.as_str());
-                let response =
-                    self.fixture
-                        .caller
-                        .answers
-                        .get(id)
-                        .map(|answer| ResolutionResponse {
-                            actor: ResolutionResponseActor::Agent,
-                            payload: answer.clone(),
-                        });
+                let address = id.as_str();
+                let answers = &self.fixture.caller.answers;
+                let id = if answers.contains_key(address) {
+                    address
+                } else {
+                    crate::execution::run_record::local_request_id(address)
+                };
+                let response = self
+                    .worked
+                    .remove(address)
+                    .or_else(|| answers.get(id).cloned())
+                    .map(|answer| ResolutionResponse {
+                        actor: ResolutionResponseActor::Agent,
+                        payload: answer,
+                    });
                 if response.is_none() {
                     self.unanswered.push(id.to_owned());
                 }
@@ -813,6 +805,22 @@ impl Host for FixtureHost<'_> {
     fn log(&mut self, _message: String) -> Result<(), RuntimeError> {
         Ok(())
     }
+
+    /// A scripted turn makes its calls, then ends with its output.
+    fn drive_turn(
+        &mut self,
+        turn: &mut dyn crate::execution::runner::turn::Turn,
+    ) -> Result<(), RuntimeError> {
+        let fixture = self.fixture;
+        let address = turn.invocation().id.as_str().to_owned();
+        let answered = fixture.caller.answers.contains_key(&address);
+        if let Some(output) =
+            super::turns::work_scripted_turn(turn, self, &fixture.caller.turns, answered)?
+        {
+            self.worked.insert(address, output);
+        }
+        Ok(())
+    }
 }
 
 fn replay_output_from_graph(
@@ -828,7 +836,7 @@ fn replay_output_from_graph(
         } else {
             InvocationOutput::runtime_failure(
                 result,
-                format!("graph {} did not succeed", graph_run.graph.name),
+                crate::execution::runner::graph_failure(&graph_run),
                 0,
                 JsonObject::new(),
             )

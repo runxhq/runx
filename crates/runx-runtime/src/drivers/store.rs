@@ -64,7 +64,9 @@ enum StoreErrorKind {
     Unavailable,
     /// The store holds something it could not have written.
     Corrupt,
-    /// A write may have been applied: the store did not confirm the commit.
+    /// A write may have been applied: a networked store did not confirm the
+    /// commit.
+    #[cfg(feature = "store")]
     Uncertain,
 }
 
@@ -81,6 +83,7 @@ impl StoreError {
         Self::new(StoreErrorKind::Corrupt, message)
     }
 
+    #[cfg(feature = "store")]
     pub(crate) fn uncertain(message: impl Into<String>) -> Self {
         Self::new(StoreErrorKind::Uncertain, message)
     }
@@ -107,6 +110,7 @@ impl StoreError {
                 code: "store_corrupt",
                 reason: message,
             },
+            #[cfg(feature = "store")]
             StoreErrorKind::Uncertain => Unperformed::MaybeSent {
                 code: "store_uncertain",
                 reason: message,

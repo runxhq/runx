@@ -6,7 +6,6 @@ use runx_contracts::{JsonObject, JsonValue};
 use super::{
     GitBlobDigestInput, GitDiffInput, GitInput, blob_digest, current_branch, diff_name_only, status,
 };
-#[cfg(feature = "catalog")]
 use crate::RuntimeEffectRegistry;
 use crate::credentials::CredentialDelivery;
 use crate::paths::RUNX_CWD_ENV;
@@ -140,7 +139,6 @@ fn invoke_tool<I, O: serde::Serialize>(
 ) -> Result<JsonObject, Box<dyn std::error::Error>> {
     let env = BTreeMap::from([(RUNX_CWD_ENV.to_owned(), root.to_string_lossy().into_owned())]);
     let delivery = CredentialDelivery::none();
-    #[cfg(feature = "catalog")]
     let effects = RuntimeEffectRegistry::default();
     let output = tool(&NativeInvocation {
         inputs: &inputs,
@@ -149,7 +147,6 @@ fn invoke_tool<I, O: serde::Serialize>(
         skill_directory: root,
         credential_delivery: &delivery,
         local_artifacts: crate::tool_catalogs::native::fixture_local_artifacts(),
-        #[cfg(feature = "catalog")]
         effects: &effects,
     })?;
     let value: JsonValue = serde_json::from_value(serde_json::to_value(output)?)?;

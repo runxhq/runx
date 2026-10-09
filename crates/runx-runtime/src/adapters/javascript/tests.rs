@@ -10,12 +10,11 @@ use crate::credentials::CredentialDelivery;
 fn rejects_credentials_before_loading_a_module() -> Result<(), Box<dyn std::error::Error>> {
     let directory = tempfile::tempdir()?;
     let mut request = invocation(directory.path());
-    request.credential_delivery = CredentialDelivery::from_local_descriptor(
+    request.credential_delivery = CredentialDelivery::process_env(
         "example",
         "token",
         "EXAMPLE_TOKEN",
         "local:test",
-        vec!["example:read".to_owned()],
         "secret",
     )?;
     let error = JavaScriptAdapter::default()

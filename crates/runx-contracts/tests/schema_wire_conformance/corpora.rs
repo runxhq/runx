@@ -200,21 +200,7 @@ pub(super) fn tool_manifest_corpus() -> Vec<(&'static str, Value)> {
             "path": { "type": "string", "required": true }
         },
         "scopes": ["fs.read"],
-        "risk": { "level": "low" },
-        "runx": { "owner": "runx" },
-        "runtime": {
-            "command": "node",
-            "args": ["tool.mjs"],
-            "env": {}
-        },
-        "output": {
-            "packet": "file",
-            "description": "Read file contents"
-        },
-        "retry": { "max_attempts": 2 },
-        "idempotency": { "key": "path" },
-        "source_hash": "sha256:source",
-        "schema_hash": "sha256:schema"
+        "idempotency": { "key": "path" }
     });
     vec![
         ("valid tool manifest", valid.clone()),
@@ -225,11 +211,11 @@ pub(super) fn tool_manifest_corpus() -> Vec<(&'static str, Value)> {
         ("missing schema", drop_field(valid.clone(), "schema")),
         ("missing source", drop_field(valid.clone(), "source")),
         (
-            "unknown source type",
+            "source with a retired type",
             set_field(
                 valid.clone(),
                 "source",
-                set_field(valid["source"].clone(), "type", json!("unknown")),
+                set_field(valid["source"].clone(), "type", json!("cli-tool")),
             ),
         ),
         (
@@ -241,11 +227,11 @@ pub(super) fn tool_manifest_corpus() -> Vec<(&'static str, Value)> {
             ),
         ),
         (
-            "missing runtime command",
+            "missing source command",
             set_field(
                 valid.clone(),
-                "runtime",
-                drop_field(valid["runtime"].clone(), "command"),
+                "source",
+                drop_field(valid["source"].clone(), "command"),
             ),
         ),
         (
@@ -440,304 +426,6 @@ fn doctor_valid_report() -> Value {
         "summary": { "errors": 0, "warnings": 0, "infos": 0 },
         "diagnostics": [],
     })
-}
-
-pub(super) fn scope_admission_corpus() -> Vec<(&'static str, Value)> {
-    // `decision_summary` is optional on the committed wire contract. Keep a
-    // no-summary valid case so the Rust source stays aligned with that shape.
-    let valid = json!({
-        "status": "allow",
-        "requested_scopes": ["issues:write"],
-        "granted_scopes": ["issues:write"],
-    });
-    vec![
-        ("minimal valid", valid.clone()),
-        ("full valid", {
-            let mut v = valid.clone();
-            v["grant_id"] = json!("grant_1");
-            v["reasons"] = json!(["policy allowed"]);
-            v["decision_summary"] = json!("granted");
-            v
-        }),
-        ("missing status", drop_field(valid.clone(), "status")),
-        (
-            "missing requested_scopes",
-            drop_field(valid.clone(), "requested_scopes"),
-        ),
-        (
-            "empty requested scope",
-            set_field(valid.clone(), "requested_scopes", json!([""])),
-        ),
-        (
-            "empty grant_id",
-            set_field(valid.clone(), "grant_id", json!("")),
-        ),
-        (
-            "empty reason",
-            set_field(valid.clone(), "reasons", json!([""])),
-        ),
-        (
-            "unknown status",
-            set_field(valid.clone(), "status", json!("maybe")),
-        ),
-        (
-            "status as object",
-            set_field(valid.clone(), "status", json!({})),
-        ),
-        (
-            "additional property",
-            set_field(valid.clone(), "bogus", json!(true)),
-        ),
-    ]
-}
-
-pub(super) fn credential_envelope_corpus() -> Vec<(&'static str, Value)> {
-    let valid = json!({
-        "kind": "runx.credential-envelope.v1",
-        "grant_id": "grant_1",
-        "provider": "github",
-        "auth_mode": "api_key",
-        "material_kind": "token",
-        "provider_reference": "provider-ref-1",
-        "scopes": ["issues:write"],
-        "material_ref": "ref:abc",
-    });
-    vec![
-        ("minimal valid", valid.clone()),
-        ("full valid (grant_reference)", {
-            let mut v = valid.clone();
-            v["grant_reference"] = json!({
-                "grant_id": "grant_1",
-                "scope_family": "github",
-                "authority_kind": "constructive",
-                "target_repo": "acme/widgets",
-                "target_locator": "issue/1",
-            });
-            v
-        }),
-        ("missing grant_id", drop_field(valid.clone(), "grant_id")),
-        ("missing provider", drop_field(valid.clone(), "provider")),
-        (
-            "missing provider_reference",
-            drop_field(valid.clone(), "provider_reference"),
-        ),
-        (
-            "missing material_ref",
-            drop_field(valid.clone(), "material_ref"),
-        ),
-        (
-            "wrong kind",
-            set_field(valid.clone(), "kind", json!("runx.old")),
-        ),
-        (
-            "empty grant_id",
-            set_field(valid.clone(), "grant_id", json!("")),
-        ),
-        (
-            "empty scope item",
-            set_field(valid.clone(), "scopes", json!([""])),
-        ),
-        (
-            "grant_reference unknown authority_kind",
-            set_field(
-                valid.clone(),
-                "grant_reference",
-                json!({
-                    "grant_id": "g",
-                    "scope_family": "github",
-                    "authority_kind": "godmode",
-                }),
-            ),
-        ),
-        (
-            "grant_reference missing grant_id",
-            set_field(
-                valid.clone(),
-                "grant_reference",
-                json!({ "scope_family": "github" }),
-            ),
-        ),
-        (
-            "grant_reference missing scope_family",
-            set_field(
-                valid.clone(),
-                "grant_reference",
-                json!({ "grant_id": "g", "authority_kind": "constructive" }),
-            ),
-        ),
-        (
-            "grant_reference missing authority_kind",
-            set_field(
-                valid.clone(),
-                "grant_reference",
-                json!({ "grant_id": "g", "scope_family": "github" }),
-            ),
-        ),
-        (
-            "additional property",
-            set_field(valid.clone(), "bogus", json!(true)),
-        ),
-    ]
-}
-
-fn authority_proof_requested() -> Value {
-    json!({
-        "connected_auth": true,
-        "scopes": ["issues:write"],
-    })
-}
-
-fn authority_proof_credential_material() -> Value {
-    json!({ "status": "resolved" })
-}
-
-fn authority_proof_redaction() -> Value {
-    json!({
-        "status": "applied",
-        "secret_material": "omitted",
-        "stdout": "hashed",
-        "stderr": "hashed",
-        "metadata_secret_keys": [],
-    })
-}
-
-pub(super) fn authority_proof_corpus() -> Vec<(&'static str, Value)> {
-    let valid = json!({
-        "schema_version": "runx.authority-proof.v1",
-        "skill_name": "demo",
-        "source_type": "github_issue",
-        "requested": authority_proof_requested(),
-        "scope_admission": {
-            "status": "allow",
-            "requested_scopes": ["issues:write"],
-            "granted_scopes": ["issues:write"],
-            "decision_summary": "granted",
-        },
-        "credential_material": authority_proof_credential_material(),
-        "execution_boundary": { "kind": "remote_provider" },
-        "redaction": authority_proof_redaction(),
-    });
-    vec![
-        ("minimal valid", valid.clone()),
-        ("full valid (approval + targeting)", {
-            let mut v = valid.clone();
-            v["run_id"] = json!("run_1");
-            v["requested"] = json!({
-                "connected_auth": true,
-                "scopes": ["issues:write"],
-                "scope_family": "github",
-                "authority_kind": "constructive",
-                "target_repo": "acme/widgets",
-                "target_locator": "issue/1",
-            });
-            v["credential_material"] = json!({
-                "status": "resolved",
-                "grant_id": "grant_1",
-                "provider": "github",
-                "provider_reference": "provider-ref-1",
-                "scopes": ["issues:write"],
-                "authority_kind": "constructive",
-                "grant_reference": {
-                    "grant_id": "grant_1",
-                    "scope_family": "github",
-                    "authority_kind": "constructive",
-                },
-            });
-            v["approval_gate"] = json!({
-                "gate_id": "gate_1",
-                "gate_type": "human",
-                "decision": "approved",
-            });
-            v
-        }),
-        (
-            "missing schema_version",
-            drop_field(valid.clone(), "schema_version"),
-        ),
-        (
-            "wrong schema_version",
-            set_field(valid.clone(), "schema_version", json!("runx.old")),
-        ),
-        (
-            "empty skill_name",
-            set_field(valid.clone(), "skill_name", json!("")),
-        ),
-        (
-            "empty source_type",
-            set_field(valid.clone(), "source_type", json!("")),
-        ),
-        ("missing requested", drop_field(valid.clone(), "requested")),
-        (
-            "missing scope_admission",
-            drop_field(valid.clone(), "scope_admission"),
-        ),
-        ("missing redaction", drop_field(valid.clone(), "redaction")),
-        (
-            "requested unknown authority_kind",
-            set_field(
-                valid.clone(),
-                "requested",
-                set_field(
-                    authority_proof_requested(),
-                    "authority_kind",
-                    json!("godmode"),
-                ),
-            ),
-        ),
-        (
-            "scope_admission unknown status",
-            set_field(
-                valid.clone(),
-                "scope_admission",
-                json!({
-                    "status": "maybe",
-                    "requested_scopes": [],
-                    "granted_scopes": [],
-                    "decision_summary": "x",
-                }),
-            ),
-        ),
-        (
-            "credential_material unknown status",
-            set_field(
-                valid.clone(),
-                "credential_material",
-                json!({ "status": "materialized" }),
-            ),
-        ),
-        (
-            "redaction wrong status",
-            set_field(
-                valid.clone(),
-                "redaction",
-                set_field(authority_proof_redaction(), "status", json!("pending")),
-            ),
-        ),
-        (
-            "redaction wrong secret posture",
-            set_field(
-                valid.clone(),
-                "redaction",
-                set_field(
-                    authority_proof_redaction(),
-                    "secret_material",
-                    json!("inline"),
-                ),
-            ),
-        ),
-        (
-            "redaction wrong stdout posture",
-            set_field(
-                valid.clone(),
-                "redaction",
-                set_field(authority_proof_redaction(), "stdout", json!("raw")),
-            ),
-        ),
-        (
-            "additional property",
-            set_field(valid.clone(), "bogus", json!(true)),
-        ),
-    ]
 }
 
 pub(super) fn output_corpus() -> Vec<(&'static str, Value)> {
@@ -1134,8 +822,13 @@ pub(super) fn agent_context_envelope_corpus() -> Vec<(&'static str, Value)> {
     let valid = json!({
         "run_id": "run_1",
         "skill": "demo",
+        "instructions_sha256": "sha256:5fe4c181ed14ea09fbb32d86087a29f22a9dd0c35c5fc7c5bc7f6a4270d719ef",
         "instructions": "do the thing",
         "inputs": {},
+        "requirements": {
+            "declaration": {},
+            "execution_boundary": { "kind": "remote_provider" },
+        },
         "current_context": [],
         "historical_context": [],
         "provenance": [],
@@ -2077,148 +1770,6 @@ pub(super) fn set_field(mut value: Value, field: &str, replacement: Value) -> Va
     value
 }
 
-pub(super) fn credential_delivery_profile_corpus() -> Vec<(&'static str, Value)> {
-    let valid = json!({
-        "schema": "runx.credential_delivery.profile.v1",
-        "profile_id": "github-env",
-        "provider": "github",
-        "auth_mode": "api_key",
-        "purpose": "provider_api",
-        "delivery_mode": "process_env",
-        "material_roles": ["api_key"],
-        "env_bindings": [{ "role": "api_key", "env_var": "GITHUB_TOKEN", "required": true }],
-        "redaction_policy_ref": a_ref(),
-    });
-    vec![
-        ("valid", valid.clone()),
-        (
-            "missing profile_id",
-            drop_field(valid.clone(), "profile_id"),
-        ),
-        ("missing schema", drop_field(valid.clone(), "schema")),
-        (
-            "empty profile_id",
-            set_field(valid.clone(), "profile_id", json!("")),
-        ),
-        (
-            "empty provider",
-            set_field(valid.clone(), "provider", json!("")),
-        ),
-        (
-            "unknown purpose",
-            set_field(valid.clone(), "purpose", json!("nope")),
-        ),
-        (
-            "unknown delivery_mode",
-            set_field(valid.clone(), "delivery_mode", json!("nope")),
-        ),
-        (
-            "unknown material role",
-            set_field(valid.clone(), "material_roles", json!(["nope"])),
-        ),
-        (
-            "additional property",
-            set_field(valid.clone(), "bogus", json!(true)),
-        ),
-    ]
-}
-
-pub(super) fn credential_delivery_request_corpus() -> Vec<(&'static str, Value)> {
-    let valid = json!({
-        "schema": "runx.credential_delivery.request.v1",
-        "request_id": "req_1",
-        "harness_ref": a_ref(),
-        "host_ref": a_ref(),
-        "grant_ref": a_ref(),
-        "credential_ref": a_ref(),
-        "profile_id": "github-env",
-        "provider": "github",
-        "purpose": "provider_api",
-        "requested_roles": ["api_key"],
-        "requested_at": "2026-01-01T00:00:00Z",
-    });
-    vec![
-        ("valid", valid.clone()),
-        (
-            "missing request_id",
-            drop_field(valid.clone(), "request_id"),
-        ),
-        ("missing schema", drop_field(valid.clone(), "schema")),
-        (
-            "empty request_id",
-            set_field(valid.clone(), "request_id", json!("")),
-        ),
-        (
-            "empty profile_id",
-            set_field(valid.clone(), "profile_id", json!("")),
-        ),
-        (
-            "unknown purpose",
-            set_field(valid.clone(), "purpose", json!("nope")),
-        ),
-        (
-            "malformed requested_at",
-            set_field(valid.clone(), "requested_at", json!("nope")),
-        ),
-        (
-            "missing requested_at",
-            drop_field(valid.clone(), "requested_at"),
-        ),
-        (
-            "additional property",
-            set_field(valid.clone(), "bogus", json!(true)),
-        ),
-    ]
-}
-
-pub(super) fn credential_delivery_response_corpus() -> Vec<(&'static str, Value)> {
-    let valid = json!({
-        "schema": "runx.credential_delivery.response.v1",
-        "response_id": "resp_1",
-        "request_id": "req_1",
-        "status": "delivered",
-        "credential_refs": [a_ref()],
-        "issued_at": "2026-01-01T00:00:00Z",
-    });
-    vec![
-        ("minimal valid", valid.clone()),
-        ("full valid", {
-            let mut v = valid.clone();
-            v["delivery_mode"] = json!("process_env");
-            v["handles"] = json!([{ "role": "api_key", "delivery_handle_ref": a_ref(), "env_var": "GITHUB_TOKEN" }]);
-            v["material_ref_hash"] = json!("sha256:abc");
-            v["denied_reasons"] = json!([]);
-            v["expires_at"] = json!("2026-02-01T00:00:00Z");
-            v
-        }),
-        (
-            "missing response_id",
-            drop_field(valid.clone(), "response_id"),
-        ),
-        ("missing schema", drop_field(valid.clone(), "schema")),
-        (
-            "empty response_id",
-            set_field(valid.clone(), "response_id", json!("")),
-        ),
-        (
-            "unknown status",
-            set_field(valid.clone(), "status", json!("nope")),
-        ),
-        (
-            "empty denied_reasons item",
-            set_field(valid.clone(), "denied_reasons", json!([""])),
-        ),
-        (
-            "malformed issued_at",
-            set_field(valid.clone(), "issued_at", json!("nope")),
-        ),
-        (
-            "additional property",
-            set_field(valid.clone(), "bogus", json!(true)),
-        ),
-    ]
-}
-
 pub(super) fn credential_delivery_observation_corpus() -> Vec<(&'static str, Value)> {
     let valid = json!({
         "schema": "runx.credential_delivery.observation.v1",
@@ -2355,14 +1906,13 @@ pub(super) fn resolution_response_corpus() -> Vec<(&'static str, Value)> {
 pub(super) fn agent_act_invocation_corpus() -> Vec<(&'static str, Value)> {
     let valid = json!({
         "id": "inv_1",
-        "source_type": "agent-task",
-        "agent": "assistant",
+        "role": "assistant",
         "task": "draft",
         "envelope": agent_context_envelope(),
         "allowance": {},
     });
     vec![
-        ("valid agent-task invocation", valid.clone()),
+        ("valid invocation", valid.clone()),
         (
             "valid turn allowance",
             set_field(
@@ -2393,20 +1943,10 @@ pub(super) fn agent_act_invocation_corpus() -> Vec<(&'static str, Value)> {
                 json!({"operations": [{"operation": "issue.read"}]}),
             ),
         ),
-        (
-            "valid agent invocation",
-            set_field(valid.clone(), "source_type", json!("agent")),
-        ),
         ("missing id", drop_field(valid.clone(), "id")),
         ("empty id", set_field(valid.clone(), "id", json!(""))),
-        (
-            "unknown source type",
-            set_field(valid.clone(), "source_type", json!("robot")),
-        ),
-        (
-            "empty optional agent",
-            set_field(valid.clone(), "agent", json!("")),
-        ),
+        ("missing role", drop_field(valid.clone(), "role")),
+        ("empty task", set_field(valid.clone(), "task", json!(""))),
         ("missing envelope", drop_field(valid.clone(), "envelope")),
         (
             "invalid envelope",
@@ -2427,8 +1967,13 @@ fn agent_context_envelope() -> Value {
     json!({
         "run_id": "run_1",
         "skill": "demo",
+        "instructions_sha256": "sha256:5fe4c181ed14ea09fbb32d86087a29f22a9dd0c35c5fc7c5bc7f6a4270d719ef",
         "instructions": "do the thing",
         "inputs": {},
+        "requirements": {
+            "declaration": {},
+            "execution_boundary": { "kind": "remote_provider" },
+        },
         "current_context": [],
         "historical_context": [],
         "provenance": [],
@@ -2439,7 +1984,8 @@ fn agent_context_envelope() -> Value {
 fn turn_invocation() -> Value {
     json!({
         "id": "agent.answer.output",
-        "source_type": "agent",
+        "role": "answer",
+        "task": "answer",
         "envelope": agent_context_envelope(),
         "allowance": { "tools": ["data.digest"], "asks": true },
     })
@@ -2601,7 +2147,8 @@ pub(super) fn resolution_request_corpus() -> Vec<(&'static str, Value)> {
         "id": "aa_1",
         "invocation": {
             "id": "inv_1",
-            "source_type": "agent",
+            "role": "assistant",
+            "task": "draft",
             "envelope": agent_context_envelope(),
             "allowance": {},
         },

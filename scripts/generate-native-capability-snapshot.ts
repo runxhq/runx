@@ -21,8 +21,6 @@ const args = prebuilt
       path.join(workspaceRoot, "crates", "Cargo.toml"),
       "-p",
       "runx-runtime",
-      "--features",
-      "catalog",
       "--bin",
       "runx-native-capability-snapshot",
       "--",

@@ -155,7 +155,7 @@ for (const crateName of expectedMembers) {
   checkRunxDependencies(crateName, manifest);
   await checkRunxDependencyUsage(crateName, manifest);
   checkDisallowedDependencies(crateName, manifest);
-  checkRuntimeAsyncHttpContract(crateName, manifest);
+  checkRuntimeHttpContract(crateName, manifest);
 }
 
 if (findings.length > 0) {
@@ -353,23 +353,15 @@ function disallowedDependenciesFor(crateName) {
   return pureCrateDisallowedDeps;
 }
 
-function checkRuntimeAsyncHttpContract(crateName, manifest) {
+function checkRuntimeHttpContract(crateName, manifest) {
   if (crateName !== "runx-runtime") {
     return;
   }
 
   const featuresBody = sectionBody(manifest, "features");
-  // With mcp, the MCP client's streamable HTTP leg rides the guarded reqwest
-  // client (D25).
-  if (!/^async-http\s*=\s*\["dep:reqwest", "dep:tokio", "dep:rustls", "dep:webpki-root-certs", "tokio\/rt-multi-thread", "rmcp\?\/transport-streamable-http-client-reqwest"\]\s*$/mu.test(featuresBody)) {
-    findings.push("runx-runtime async-http feature must be exactly [\"dep:reqwest\", \"dep:tokio\", \"dep:rustls\", \"dep:webpki-root-certs\", \"tokio/rt-multi-thread\", \"rmcp?/transport-streamable-http-client-reqwest\"]");
-  }
-  if (!/^process-tool\s*=\s*\["async-http"\]\s*$/mu.test(featuresBody)) {
-    findings.push("runx-runtime process-tool feature must imply async-http so the cargo CLI exercises reviewed HTTP");
-  }
-  // The MCP client speaks over the guarded HTTP client, so mcp implies it.
-  if (!/^mcp\s*=\s*\["async-http", "dep:rmcp", "dep:tokio", "tokio\/process", "tokio\/io-util", "tokio\/sync", "tokio\/rt-multi-thread"\]\s*$/mu.test(featuresBody)) {
-    findings.push("runx-runtime mcp feature must be exactly [\"async-http\", \"dep:rmcp\", \"dep:tokio\", \"tokio/process\", \"tokio/io-util\", \"tokio/sync\", \"tokio/rt-multi-thread\"]");
+  // The MCP client's streamable HTTP leg rides the guarded reqwest client (D25).
+  if (!/^mcp\s*=\s*\["dep:rmcp", "rmcp\/transport-streamable-http-client-reqwest", "tokio\/process", "tokio\/io-util", "tokio\/sync"\]\s*$/mu.test(featuresBody)) {
+    findings.push("runx-runtime mcp feature must be exactly [\"dep:rmcp\", \"rmcp/transport-streamable-http-client-reqwest\", \"tokio/process\", \"tokio/io-util\", \"tokio/sync\"]");
   }
   if (!/^mcp-http-server\s*=\s*\[\s*"mcp",\s*"rmcp\/transport-streamable-http-server",\s*"dep:bytes",\s*"dep:http",\s*"dep:http-body-util",\s*"dep:hyper",\s*"dep:hyper-util",\s*"dep:tower-service",\s*\]\s*$/mu.test(featuresBody)) {
     findings.push("runx-runtime mcp-http-server feature must be exactly [\"mcp\", \"rmcp/transport-streamable-http-server\", \"dep:bytes\", \"dep:http\", \"dep:http-body-util\", \"dep:hyper\", \"dep:hyper-util\", \"dep:tower-service\"]");
@@ -377,7 +369,7 @@ function checkRuntimeAsyncHttpContract(crateName, manifest) {
 
   const reqwest = dependencyInlineSpec(manifest, "dependencies", "reqwest");
   if (!reqwest) {
-    findings.push("runx-runtime must declare optional reqwest for the approved async-http edge");
+    findings.push("runx-runtime must declare reqwest for its governed HTTP client");
   } else {
     if (!/version\s*=\s*"=[^"]+"/u.test(reqwest)) {
       findings.push("runx-runtime reqwest dependency must use an exact version pin");
@@ -385,8 +377,8 @@ function checkRuntimeAsyncHttpContract(crateName, manifest) {
     if (!/default-features\s*=\s*false/u.test(reqwest)) {
       findings.push("runx-runtime reqwest dependency must disable default features");
     }
-    if (!/optional\s*=\s*true/u.test(reqwest)) {
-      findings.push("runx-runtime reqwest dependency must stay optional");
+    if (/optional\s*=\s*true/u.test(reqwest)) {
+      findings.push("runx-runtime reqwest dependency is part of every runtime and must not be optional");
     }
     // reqwest drives rustls without bundling a crypto provider; the ring
     // provider is supplied by the explicit `rustls` dependency and installed at
@@ -405,7 +397,7 @@ function checkRuntimeAsyncHttpContract(crateName, manifest) {
 
   const tokio = dependencyInlineSpec(manifest, "dependencies", "tokio");
   if (!tokio) {
-    findings.push("runx-runtime must declare optional tokio for the approved async-http edge");
+    findings.push("runx-runtime must declare tokio for its governed HTTP client");
   } else {
     if (!/version\s*=\s*"=[^"]+"/u.test(tokio)) {
       findings.push("runx-runtime tokio dependency must use an exact version pin");
@@ -413,11 +405,11 @@ function checkRuntimeAsyncHttpContract(crateName, manifest) {
     if (!/default-features\s*=\s*false/u.test(tokio)) {
       findings.push("runx-runtime tokio dependency must disable default features");
     }
-    if (!/optional\s*=\s*true/u.test(tokio)) {
-      findings.push("runx-runtime tokio dependency must stay optional");
+    if (/optional\s*=\s*true/u.test(tokio)) {
+      findings.push("runx-runtime tokio dependency is part of every runtime and must not be optional");
     }
     const tokioFeatures = dependencyInlineFeatures(tokio);
-    for (const feature of ["rt", "net", "time"]) {
+    for (const feature of ["rt", "rt-multi-thread", "net", "time"]) {
       if (!tokioFeatures.includes(feature)) {
         findings.push(`runx-runtime tokio dependency must enable the ${feature} feature`);
       }

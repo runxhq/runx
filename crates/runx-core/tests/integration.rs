@@ -6,8 +6,6 @@
 //! See .scafld/specs/active/test-surface-build-consolidation.md.
 
 mod kernel_eval;
-mod maturity_parity;
 mod policy_fixtures;
-mod policy_proptest;
 mod state_machine_fixtures;
 mod state_machine_proptest;

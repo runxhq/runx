@@ -5,20 +5,12 @@ use crate::{CapabilityApproval, CapabilityArtifacts, CapabilityEffect};
 use super::core_capabilities;
 
 const SNAPSHOT_SCHEMA: &str = "runx.native_capability_snapshot.v1";
-const SNAPSHOT_PROFILE: &str = "runx-runtime/catalog";
 
 #[derive(Serialize)]
 pub struct NativeCapabilitySnapshot {
     schema: &'static str,
-    profile: SnapshotProfile,
     capability_count: usize,
     capabilities: Vec<SnapshotCapability>,
-}
-
-#[derive(Serialize)]
-struct SnapshotProfile {
-    name: &'static str,
-    features: Vec<&'static str>,
 }
 
 #[derive(Serialize)]
@@ -82,25 +74,7 @@ pub fn native_capability_snapshot() -> NativeCapabilitySnapshot {
 
     NativeCapabilitySnapshot {
         schema: SNAPSHOT_SCHEMA,
-        profile: SnapshotProfile {
-            name: SNAPSHOT_PROFILE,
-            features: enabled_roster_features(),
-        },
         capability_count: capabilities.len(),
         capabilities,
     }
-}
-
-fn enabled_roster_features() -> Vec<&'static str> {
-    let mut features = Vec::new();
-    if cfg!(feature = "async-http") {
-        features.push("async-http");
-    }
-    if cfg!(feature = "catalog") {
-        features.push("catalog");
-    }
-    if cfg!(feature = "process-tool") {
-        features.push("process-tool");
-    }
-    features
 }

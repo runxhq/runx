@@ -267,9 +267,7 @@ mod tests {
     };
 
     use super::{DerivationError, DerivationParent, ExecutionTermRequest, derive_execution_term};
-    use crate::policy::{
-        AttenuationRequest, ConnectorBoundsComparator, ensure_subset_proof, mint_attenuated,
-    };
+    use crate::policy::{AttenuationRequest, ConnectorBoundsComparator, mint_attenuated};
 
     const INSTANCE: &str = "runx:connector_instance:slack-acme";
 
@@ -389,14 +387,11 @@ mod tests {
         .expect("derivation");
         assert_eq!(proofs.len(), 2);
         assert!(term.term_id.as_str().starts_with("exec-"));
-        assert_eq!(
-            ensure_subset_proof(Some(&proofs[0]), &term, &capability),
-            Ok(())
-        );
-        assert_eq!(
-            ensure_subset_proof(Some(&proofs[1]), &term, &delegations[0]),
-            Ok(())
-        );
+        for (proof, parent) in proofs.iter().zip([&capability, &delegations[0]]) {
+            assert_eq!(proof.parent_authority_ref, parent.resource_ref);
+            assert_eq!(proof.compared_terms[0].child_term_id, term.term_id);
+            assert_eq!(proof.compared_terms[0].parent_term_id, parent.term_id);
+        }
     }
 
     #[test]

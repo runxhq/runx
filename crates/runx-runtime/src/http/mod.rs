@@ -3,69 +3,49 @@
 // in one review unit.
 mod types;
 
-#[cfg(all(feature = "async-http", feature = "mcp"))]
+#[cfg(feature = "mcp")]
 use std::collections::BTreeMap;
-#[cfg(feature = "async-http")]
 use std::error::Error as StdError;
-#[cfg(feature = "async-http")]
 use std::fmt;
-#[cfg(any(feature = "async-http", test))]
 use std::net::IpAddr;
-#[cfg(feature = "async-http")]
 use std::net::SocketAddr;
 use std::net::{Ipv4Addr, Ipv6Addr};
-#[cfg(feature = "async-http")]
 use std::sync::{Mutex, OnceLock};
-#[cfg(feature = "async-http")]
 use std::time::Duration;
 
 use url::Url;
 
 pub(crate) use self::types::RuntimeHarnessHttpExchange;
-#[cfg(any(feature = "async-http", test))]
 pub(crate) use self::types::RuntimeHarnessHttpRequestBody;
-#[cfg(feature = "async-http")]
 pub use self::types::{
     ExactLoopbackHttpTransport, HttpMethod, ReqwestHttpTransport, RuntimeHttpHeader,
     RuntimeHttpRequest, RuntimeHttpResponse, RuntimeHttpTransport,
 };
 
-#[cfg(feature = "async-http")]
 const DEFAULT_HTTP_REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
-#[cfg(feature = "async-http")]
 const DEFAULT_HTTP_CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
-#[cfg(feature = "async-http")]
 const MANAGED_AGENT_REQUEST_TIMEOUT: Duration = Duration::from_secs(180);
 /// Provider operations may contain one adapter-owned synchronous budget of up
 /// to 120 seconds. Keep the control-plane envelope above that budget so the
 /// caller never abandons a still-running, idempotently recoverable effect.
-#[cfg(feature = "async-http")]
 pub(crate) const PROVIDER_OPERATION_REQUEST_TIMEOUT: Duration = Duration::from_secs(180);
-#[cfg(feature = "async-http")]
 const MAX_SAFE_READ_ATTEMPTS: usize = 3;
-#[cfg(feature = "async-http")]
 const DEFAULT_SAFE_READ_RETRY_DELAY: Duration = Duration::from_millis(100);
-#[cfg(feature = "async-http")]
 const MAX_SAFE_READ_RETRY_DELAY: Duration = Duration::from_secs(2);
-#[cfg(feature = "async-http")]
 static HTTP_CLIENT_RUNTIME: RetryableCell<tokio::runtime::Runtime> = RetryableCell::new();
-#[cfg(feature = "async-http")]
 const HTTP_CLIENT_PROFILE_COUNT: usize = 6;
 /// rmcp's streamable HTTP client, carried by the guarded client.
 #[cfg(feature = "mcp")]
 pub(crate) type McpTransport = rmcp::transport::StreamableHttpClientTransport<reqwest::Client>;
 
-#[cfg(feature = "async-http")]
 static HTTP_CLIENTS: [RetryableCell<reqwest::Client>; HTTP_CLIENT_PROFILE_COUNT] =
     [const { RetryableCell::new() }; HTTP_CLIENT_PROFILE_COUNT];
 
-#[cfg(feature = "async-http")]
 struct RetryableCell<T> {
     value: OnceLock<T>,
     initialize: Mutex<()>,
 }
 
-#[cfg(feature = "async-http")]
 impl<T> RetryableCell<T> {
     const fn new() -> Self {
         Self {
@@ -90,7 +70,6 @@ impl<T> RetryableCell<T> {
     }
 }
 
-#[cfg(feature = "async-http")]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(usize)]
 enum TransportProfile {
@@ -102,7 +81,6 @@ enum TransportProfile {
     ExactLoopbackAgent = 5,
 }
 
-#[cfg(feature = "async-http")]
 #[derive(Clone, Copy)]
 struct TransportConfig {
     request_timeout: Duration,
@@ -111,7 +89,6 @@ struct TransportConfig {
     no_proxy: bool,
 }
 
-#[cfg(feature = "async-http")]
 impl TransportProfile {
     const fn config(self) -> TransportConfig {
         match self {
@@ -159,7 +136,6 @@ impl TransportProfile {
     }
 }
 
-#[cfg(feature = "async-http")]
 impl ReqwestHttpTransport {
     pub fn new() -> Result<Self, RuntimeHttpError> {
         Self::from_profile(TransportProfile::PublicStandard)
@@ -305,13 +281,11 @@ impl ReqwestHttpTransport {
 /// Runtime-owned transport selection for native HTTP capabilities. Exact
 /// harness exchanges can enter only through the private harness registry;
 /// ordinary executions always construct the live guarded transport.
-#[cfg(feature = "async-http")]
 pub(crate) enum NativeHttpTransport<'a> {
     Live(ReqwestHttpTransport),
     Harness(&'a [RuntimeHarnessHttpExchange]),
 }
 
-#[cfg(feature = "async-http")]
 impl<'a> NativeHttpTransport<'a> {
     #[cfg(test)]
     pub(crate) fn new(
@@ -323,7 +297,6 @@ impl<'a> NativeHttpTransport<'a> {
         }
     }
 
-    #[cfg(feature = "catalog")]
     pub(crate) fn for_hosted_api(
         harness: Option<&'a [RuntimeHarnessHttpExchange]>,
         allow_private_network: bool,
@@ -338,7 +311,6 @@ impl<'a> NativeHttpTransport<'a> {
     }
 }
 
-#[cfg(feature = "async-http")]
 impl RuntimeHttpTransport for NativeHttpTransport<'_> {
     fn send(&self, request: RuntimeHttpRequest) -> Result<RuntimeHttpResponse, RuntimeHttpError> {
         match self {
@@ -388,7 +360,6 @@ impl RuntimeHttpTransport for NativeHttpTransport<'_> {
 
 /// The harness's answer to `request`: the one exchange whose method, URL and
 /// body match it exactly. Anything else is refused, never sent.
-#[cfg(feature = "async-http")]
 pub(crate) fn exact_harness_response(
     exchanges: &[RuntimeHarnessHttpExchange],
     request: &RuntimeHttpRequest,
@@ -410,7 +381,6 @@ pub(crate) fn exact_harness_response(
         })
 }
 
-#[cfg(feature = "async-http")]
 fn harness_request_body_matches(
     expected: &RuntimeHarnessHttpRequestBody,
     actual: Option<&str>,
@@ -423,7 +393,6 @@ fn harness_request_body_matches(
     }
 }
 
-#[cfg(feature = "async-http")]
 fn enforce_harness_response_limit(
     response: RuntimeHttpResponse,
     response_limit: usize,
@@ -436,7 +405,6 @@ fn enforce_harness_response_limit(
     Ok(response)
 }
 
-#[cfg(feature = "async-http")]
 fn build_http_client(config: TransportConfig) -> Result<reqwest::Client, String> {
     // reqwest is built with `rustls-no-provider`, so the process needs a
     // default crypto provider before a TLS client can be constructed.
@@ -479,7 +447,6 @@ fn build_http_client(config: TransportConfig) -> Result<reqwest::Client, String>
         .map_err(|error| transport_error_message(&error))
 }
 
-#[cfg(feature = "async-http")]
 impl RuntimeHttpTransport for ReqwestHttpTransport {
     fn send(&self, request: RuntimeHttpRequest) -> Result<RuntimeHttpResponse, RuntimeHttpError> {
         self.send_with_limit(request, None, false)
@@ -509,7 +476,6 @@ impl RuntimeHttpTransport for ReqwestHttpTransport {
     }
 }
 
-#[cfg(feature = "async-http")]
 impl RuntimeHttpTransport for ExactLoopbackHttpTransport {
     fn send(&self, request: RuntimeHttpRequest) -> Result<RuntimeHttpResponse, RuntimeHttpError> {
         if request.method != HttpMethod::Post
@@ -524,7 +490,6 @@ impl RuntimeHttpTransport for ExactLoopbackHttpTransport {
     }
 }
 
-#[cfg(feature = "async-http")]
 impl ReqwestHttpTransport {
     /// Send and read the whole body, refusing one longer than `response_limit`
     /// when a limit is given. A body is never clipped.
@@ -560,7 +525,6 @@ impl ReqwestHttpTransport {
     }
 }
 
-#[cfg(feature = "async-http")]
 fn reqwest_headers(
     headers: &[RuntimeHttpHeader],
 ) -> Result<reqwest::header::HeaderMap, RuntimeHttpError> {
@@ -584,7 +548,6 @@ fn reqwest_headers(
     Ok(output)
 }
 
-#[cfg(feature = "async-http")]
 async fn send_reqwest_with_safe_read_retries(
     client: reqwest::Client,
     request: RuntimeHttpRequest,
@@ -631,7 +594,6 @@ async fn send_reqwest_with_safe_read_retries(
     }
 }
 
-#[cfg(feature = "async-http")]
 fn safe_response_headers(response: &reqwest::Response) -> Vec<RuntimeHttpHeader> {
     response
         .headers()
@@ -646,12 +608,10 @@ fn safe_response_headers(response: &reqwest::Response) -> Vec<RuntimeHttpHeader>
         .collect()
 }
 
-#[cfg(feature = "async-http")]
 fn retryable_read_status(status: u16) -> bool {
     matches!(status, 429 | 502 | 503 | 504)
 }
 
-#[cfg(feature = "async-http")]
 fn safe_read_retry_delay(response: &reqwest::Response, completed_attempts: usize) -> Duration {
     response
         .headers()
@@ -665,7 +625,6 @@ fn safe_read_retry_delay(response: &reqwest::Response, completed_attempts: usize
         .min(MAX_SAFE_READ_RETRY_DELAY)
 }
 
-#[cfg(feature = "async-http")]
 fn parse_retry_after(value: &str) -> Option<Duration> {
     if let Ok(seconds) = value.trim().parse::<u64>() {
         return Some(Duration::from_secs(seconds));
@@ -678,7 +637,6 @@ fn parse_retry_after(value: &str) -> Option<Duration> {
     )
 }
 
-#[cfg(feature = "async-http")]
 fn transport_error_message(error: &(dyn StdError + 'static)) -> String {
     let mut parts = vec![error.to_string()];
     let mut source = error.source();
@@ -690,20 +648,17 @@ fn transport_error_message(error: &(dyn StdError + 'static)) -> String {
     parts.join(": ")
 }
 
-#[cfg(feature = "async-http")]
 #[derive(Clone, Debug)]
 struct GuardedDnsResolver<R> {
     inner: R,
 }
 
-#[cfg(feature = "async-http")]
 impl<R> GuardedDnsResolver<R> {
     fn new(inner: R) -> Self {
         Self { inner }
     }
 }
 
-#[cfg(feature = "async-http")]
 impl<R> reqwest::dns::Resolve for GuardedDnsResolver<R>
 where
     R: reqwest::dns::Resolve + Clone + Send + Sync + 'static,
@@ -728,11 +683,9 @@ where
     }
 }
 
-#[cfg(feature = "async-http")]
 #[derive(Clone, Copy, Debug, Default)]
 struct TokioDnsResolver;
 
-#[cfg(feature = "async-http")]
 impl reqwest::dns::Resolve for TokioDnsResolver {
     fn resolve(&self, name: reqwest::dns::Name) -> reqwest::dns::Resolving {
         let host = name.as_str().to_owned();
@@ -746,14 +699,12 @@ impl reqwest::dns::Resolve for TokioDnsResolver {
     }
 }
 
-#[cfg(feature = "async-http")]
 #[derive(Debug)]
 struct PrivateDnsResolutionError {
     host: String,
     addr: SocketAddr,
 }
 
-#[cfg(feature = "async-http")]
 impl fmt::Display for PrivateDnsResolutionError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
@@ -764,16 +715,13 @@ impl fmt::Display for PrivateDnsResolutionError {
     }
 }
 
-#[cfg(feature = "async-http")]
 impl StdError for PrivateDnsResolutionError {}
 
-#[cfg(feature = "async-http")]
 #[derive(Debug)]
 struct EmptyDnsResolutionError {
     host: String,
 }
 
-#[cfg(feature = "async-http")]
 impl fmt::Display for EmptyDnsResolutionError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
@@ -784,7 +732,6 @@ impl fmt::Display for EmptyDnsResolutionError {
     }
 }
 
-#[cfg(feature = "async-http")]
 impl StdError for EmptyDnsResolutionError {}
 
 #[derive(Debug, thiserror::Error)]
@@ -815,7 +762,6 @@ pub(crate) fn strip_one_trailing_slash(value: &str) -> String {
     value.strip_suffix('/').unwrap_or(value).to_owned()
 }
 
-#[cfg(feature = "async-http")]
 fn validate_header(header: &RuntimeHttpHeader) -> Result<(), RuntimeHttpError> {
     let name = header.name.trim();
     if name.is_empty() || !name.bytes().all(is_header_token_byte) {
@@ -833,7 +779,6 @@ fn validate_header(header: &RuntimeHttpHeader) -> Result<(), RuntimeHttpError> {
     Ok(())
 }
 
-#[cfg(any(feature = "async-http", test))]
 fn validate_http_url(value: &str, allow_private_networks: bool) -> Result<(), RuntimeHttpError> {
     let url = Url::parse(value)?;
     match url.scheme() {
@@ -867,7 +812,6 @@ pub(crate) fn validate_exact_loopback_agent_endpoint(value: &str) -> Result<(), 
     Ok(())
 }
 
-#[cfg(any(feature = "async-http", test))]
 fn validate_public_host(url: &Url, allow_private_networks: bool) -> Result<(), RuntimeHttpError> {
     if allow_private_networks {
         return Ok(());
@@ -900,7 +844,6 @@ fn validate_public_host(url: &Url, allow_private_networks: bool) -> Result<(), R
     Ok(())
 }
 
-#[cfg(any(feature = "async-http", test))]
 fn is_private_network_ip(ip: IpAddr) -> bool {
     match ip {
         IpAddr::V4(ip) => is_private_network_ipv4(ip),
@@ -908,7 +851,6 @@ fn is_private_network_ip(ip: IpAddr) -> bool {
     }
 }
 
-#[cfg(any(feature = "async-http", test))]
 fn is_private_network_ipv4(ip: Ipv4Addr) -> bool {
     let octets = ip.octets();
     ip.is_private()
@@ -926,7 +868,6 @@ fn is_private_network_ipv4(ip: Ipv4Addr) -> bool {
         || octets == [169, 254, 169, 254]
 }
 
-#[cfg(any(feature = "async-http", test))]
 fn is_private_network_ipv6(ip: Ipv6Addr) -> bool {
     ip.to_ipv4_mapped().is_some_and(is_private_network_ipv4)
         || ip.is_loopback()
@@ -939,22 +880,18 @@ fn is_private_network_ipv6(ip: Ipv6Addr) -> bool {
         || six_to_four_embedded_ipv4(ip).is_some_and(is_private_network_ipv4)
 }
 
-#[cfg(any(feature = "async-http", test))]
 fn is_unique_local_ipv6(ip: Ipv6Addr) -> bool {
     (ip.segments()[0] & 0xfe00) == 0xfc00
 }
 
-#[cfg(any(feature = "async-http", test))]
 fn is_unicast_link_local_ipv6(ip: Ipv6Addr) -> bool {
     (ip.segments()[0] & 0xffc0) == 0xfe80
 }
 
-#[cfg(any(feature = "async-http", test))]
 fn is_documentation_ipv6(ip: Ipv6Addr) -> bool {
     ip.segments()[0] == 0x2001 && ip.segments()[1] == 0x0db8
 }
 
-#[cfg(any(feature = "async-http", test))]
 fn nat64_embedded_ipv4(ip: Ipv6Addr) -> Option<Ipv4Addr> {
     let segments = ip.segments();
     if segments[..6] != [0x0064, 0xff9b, 0, 0, 0, 0] {
@@ -968,7 +905,6 @@ fn nat64_embedded_ipv4(ip: Ipv6Addr) -> Option<Ipv4Addr> {
     ))
 }
 
-#[cfg(any(feature = "async-http", test))]
 fn six_to_four_embedded_ipv4(ip: Ipv6Addr) -> Option<Ipv4Addr> {
     let segments = ip.segments();
     if segments[0] != 0x2002 {
@@ -982,7 +918,6 @@ fn six_to_four_embedded_ipv4(ip: Ipv6Addr) -> Option<Ipv4Addr> {
     ))
 }
 
-#[cfg(feature = "async-http")]
 async fn read_response_body(
     mut response: reqwest::Response,
     limit: Option<usize>,
@@ -1011,7 +946,6 @@ async fn read_response_body(
     Ok(body)
 }
 
-#[cfg(feature = "async-http")]
 fn declared_response_length(response: &reqwest::Response) -> Result<Option<u64>, RuntimeHttpError> {
     let Some(value) = response.headers().get(reqwest::header::CONTENT_LENGTH) else {
         return Ok(response.content_length());
@@ -1029,7 +963,6 @@ fn declared_response_length(response: &reqwest::Response) -> Result<Option<u64>,
         })
 }
 
-#[cfg(feature = "async-http")]
 fn reqwest_method(method: HttpMethod) -> reqwest::Method {
     match method {
         HttpMethod::Get => reqwest::Method::GET,
@@ -1040,7 +973,6 @@ fn reqwest_method(method: HttpMethod) -> reqwest::Method {
     }
 }
 
-#[cfg(feature = "async-http")]
 fn block_on_http<F, T>(future: F) -> Result<T, RuntimeHttpError>
 where
     F: std::future::Future<Output = Result<T, RuntimeHttpError>>,
@@ -1051,7 +983,6 @@ where
     http_runtime()?.block_on(future)
 }
 
-#[cfg(feature = "async-http")]
 pub(crate) fn http_runtime() -> Result<&'static tokio::runtime::Runtime, RuntimeHttpError> {
     HTTP_CLIENT_RUNTIME
         .get_or_try_init(|| {
@@ -1065,7 +996,6 @@ pub(crate) fn http_runtime() -> Result<&'static tokio::runtime::Runtime, Runtime
         .map_err(|message| RuntimeHttpError::AsyncRuntimeUnavailable { message })
 }
 
-#[cfg(feature = "async-http")]
 fn is_header_token_byte(byte: u8) -> bool {
     byte.is_ascii_alphanumeric()
         || matches!(
@@ -1089,39 +1019,27 @@ fn is_header_token_byte(byte: u8) -> bool {
 
 #[cfg(test)]
 mod tests {
-    #[cfg(feature = "async-http")]
     use std::io;
-    #[cfg(feature = "async-http")]
     use std::io::{Read, Write};
-    #[cfg(feature = "async-http")]
     use std::net::TcpListener;
-    #[cfg(feature = "async-http")]
     use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
-    #[cfg(feature = "async-http")]
     use std::time::Duration;
 
-    #[cfg(feature = "async-http")]
     use super::RuntimeHttpResponse;
-    #[cfg(feature = "async-http")]
     use super::RuntimeHttpTransport;
-    #[cfg(feature = "async-http")]
     use super::{
         GuardedDnsResolver, NativeHttpTransport, PROVIDER_OPERATION_REQUEST_TIMEOUT,
         ReqwestHttpTransport, TransportProfile, block_on_http, http_runtime,
     };
     use super::{HttpMethod, RuntimeHttpError, RuntimeHttpHeader, RuntimeHttpRequest};
-    #[cfg(feature = "async-http")]
     use super::{RuntimeHarnessHttpExchange, RuntimeHarnessHttpRequestBody};
-    #[cfg(feature = "async-http")]
     use reqwest::dns::Resolve as _;
 
-    #[cfg(feature = "async-http")]
     #[derive(Clone, Debug)]
     struct StaticDnsResolver {
         addrs: Vec<SocketAddr>,
     }
 
-    #[cfg(feature = "async-http")]
     impl reqwest::dns::Resolve for StaticDnsResolver {
         fn resolve(&self, _name: reqwest::dns::Name) -> reqwest::dns::Resolving {
             let addrs = self.addrs.clone();
@@ -1135,12 +1053,10 @@ mod tests {
         RuntimeHttp(#[from] RuntimeHttpError),
         #[error(transparent)]
         Io(#[from] io::Error),
-        #[cfg(feature = "async-http")]
         #[error("server thread panicked")]
         ServerThread,
     }
 
-    #[cfg(feature = "async-http")]
     #[test]
     fn harness_http_transport_is_exact_limited_and_never_falls_through()
     -> Result<(), RuntimeHttpTestError> {
@@ -1192,7 +1108,6 @@ mod tests {
         Ok(())
     }
 
-    #[cfg(feature = "async-http")]
     #[test]
     fn harness_http_exchanges_match_complete_requests() -> Result<(), RuntimeHttpTestError> {
         let url = "https://fixture.runx.invalid/mcp";
@@ -1312,7 +1227,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "async-http")]
     fn local_model_transport_rechecks_every_request() -> Result<(), RuntimeHttpTestError> {
         let endpoint = "http://127.0.0.1:18081/v1/chat/completions";
         let transport = ReqwestHttpTransport::for_exact_loopback_agent(endpoint)?;
@@ -1380,7 +1294,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "async-http")]
     fn synchronous_http_reuses_one_runtime() -> Result<(), RuntimeHttpTestError> {
         let first = http_runtime()?;
         let second = http_runtime()?;
@@ -1389,7 +1302,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "async-http")]
     fn retryable_cell_does_not_memoize_transient_initialization_failure() {
         let attempts = std::cell::Cell::new(0);
         let cell = super::RetryableCell::new();
@@ -1413,7 +1325,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "async-http")]
     fn canonical_http_profiles_populate_distinct_policy_cache_slots()
     -> Result<(), RuntimeHttpTestError> {
         let _public_first = ReqwestHttpTransport::new()?;
@@ -1471,7 +1382,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "async-http")]
     fn shared_http_runtime_supports_concurrent_sync_callers() -> Result<(), RuntimeHttpTestError> {
         let callers = (0..8)
             .map(|value| {
@@ -1498,7 +1408,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "async-http")]
     fn guarded_dns_resolver_rejects_private_resolved_addresses() -> Result<(), RuntimeHttpTestError>
     {
         let resolver = GuardedDnsResolver::new(StaticDnsResolver {
@@ -1530,7 +1439,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "async-http")]
     fn reqwest_transport_does_not_follow_redirects() -> Result<(), RuntimeHttpTestError> {
         let listener = TcpListener::bind("127.0.0.1:0")?;
         let address = listener.local_addr()?;
@@ -1561,7 +1469,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "async-http")]
     fn reqwest_transport_retries_bounded_safe_reads() -> Result<(), RuntimeHttpTestError> {
         let listener = TcpListener::bind("127.0.0.1:0")?;
         let address = listener.local_addr()?;
@@ -1604,7 +1511,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "async-http")]
     fn reqwest_transport_never_retries_mutations() -> Result<(), RuntimeHttpTestError> {
         let listener = TcpListener::bind("127.0.0.1:0")?;
         let address = listener.local_addr()?;
@@ -1635,7 +1541,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "async-http")]
     fn reqwest_transport_retries_declared_idempotent_posts() -> Result<(), RuntimeHttpTestError> {
         let listener = TcpListener::bind("127.0.0.1:0")?;
         let address = listener.local_addr()?;
@@ -1678,7 +1583,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "async-http")]
     fn reqwest_transport_rejects_header_injection() -> Result<(), RuntimeHttpTestError> {
         let transport = ReqwestHttpTransport::new()?;
         let error = transport
@@ -1696,7 +1600,6 @@ mod tests {
         Ok(())
     }
 
-    #[cfg(feature = "async-http")]
     #[test]
     fn reqwest_transport_rejects_non_http_urls_before_sending() -> Result<(), RuntimeHttpTestError>
     {
@@ -1717,7 +1620,6 @@ mod tests {
         Ok(())
     }
 
-    #[cfg(feature = "async-http")]
     #[test]
     fn reqwest_transport_refuses_a_declared_length_over_the_limit()
     -> Result<(), RuntimeHttpTestError> {
@@ -1754,7 +1656,6 @@ mod tests {
         Ok(())
     }
 
-    #[cfg(feature = "async-http")]
     #[test]
     fn reqwest_transport_reads_whole_bodies_and_refuses_a_stream_over_the_limit()
     -> Result<(), RuntimeHttpTestError> {
@@ -1793,7 +1694,6 @@ mod tests {
         Ok(())
     }
 
-    #[cfg(feature = "async-http")]
     #[test]
     fn transport_filters_response_secrets() -> Result<(), RuntimeHttpTestError> {
         let listener = TcpListener::bind("127.0.0.1:0")?;
@@ -1837,7 +1737,6 @@ mod tests {
         Ok(())
     }
 
-    #[cfg(feature = "async-http")]
     #[test]
     fn reqwest_transport_times_out_stalled_response() -> Result<(), RuntimeHttpTestError> {
         let listener = TcpListener::bind("127.0.0.1:0")?;

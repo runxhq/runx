@@ -260,34 +260,8 @@ fn parse_skill_arg(
         }
         "-i" => index = parse_input_arg(args, index, None, &mut state.inputs)?,
         "--run" => state.force_run = true,
-        value
-            if [
-                "--credential",
-                "--credential-profile",
-                "--credential-scope",
-                "--secret-env",
-            ]
-            .iter()
-            .any(|flag| value == *flag || value.starts_with(&format!("{flag}="))) =>
-        {
-            return Err(
-                "a run takes no credential: bind the connector's account once with `runx credential set <connector> --credential <name> --from-stdin`"
-                    .to_owned(),
-            );
-        }
         "--json" | "-j" => state.json = true,
         "--diagnostics" => state.diagnostics = true,
-        value
-            if value == "--skip-operator-context"
-                || value.starts_with("--skip-operator-context=")
-                || value == "--no-operator-context"
-                || value.starts_with("--no-operator-context=") =>
-        {
-            return Err(
-                "runx skill operator context is always prepared and digest-bound; it cannot be bypassed"
-                    .to_owned(),
-            );
-        }
         value if value.starts_with("--full-operator-context=") => {
             state.full_operator_context = parse_boolean_flag(
                 "skill",
@@ -391,29 +365,6 @@ mod tests {
         };
         assert!(error.contains("requires --managed-agent"));
         Ok(())
-    }
-
-    #[test]
-    fn a_run_refuses_credential_flags() {
-        for flag in [
-            "--credential",
-            "--credential-profile=main",
-            "--credential-scope",
-            "--secret-env=TOKEN",
-        ] {
-            let error = super::parse_skill_plan(
-                &["skill", "skills/release", flag, "value"]
-                    .into_iter()
-                    .map(std::ffi::OsString::from)
-                    .collect::<Vec<_>>(),
-            )
-            .err()
-            .unwrap_or_default();
-            assert!(
-                error.contains("a run takes no credential"),
-                "{flag}: {error}"
-            );
-        }
     }
 
     #[test]
@@ -544,26 +495,6 @@ mod tests {
             plan.inputs.get("location"),
             Some(&runx_contracts::JsonValue::String("hello".to_owned()))
         );
-        Ok(())
-    }
-
-    #[test]
-    fn unbound_operator_context_bypass_is_not_a_public_flag() -> Result<(), String> {
-        let args = [
-            "skill",
-            "skills/weather-forecast",
-            "--skip-operator-context",
-            "--input",
-            "location=hello",
-        ]
-        .into_iter()
-        .map(std::ffi::OsString::from)
-        .collect::<Vec<_>>();
-        let error = match super::parse_skill_plan(&args) {
-            Err(error) => error,
-            Ok(_) => return Err("public skill runs bypassed prepared context binding".to_owned()),
-        };
-        assert!(error.contains("operator context is always prepared and digest-bound"));
         Ok(())
     }
 

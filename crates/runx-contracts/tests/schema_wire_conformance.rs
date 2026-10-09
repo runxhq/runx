@@ -96,6 +96,12 @@ fn emitted_schemas_conform_to_committed_value_domains() {
                     "{name} / {label}: committed accepts={committed_accepts}, emitted accepts={emitted_accepts}"
                 ));
             }
+            // A case named valid must be valid, or the corpus has drifted from
+            // the contract and its rejections prove nothing.
+            let named_valid = label.starts_with("valid") || label.starts_with("minimal valid");
+            if named_valid && !emitted_accepts {
+                failures.push(format!("{name} / {label}: a valid case is rejected"));
+            }
         }
     }
 

@@ -1,39 +1,12 @@
 use proptest::prelude::*;
 use runx_core::state_machine::{
     GraphStatus, GraphStepStatus, SequentialGraphEvent, SequentialGraphPlan, SequentialGraphState,
-    SequentialGraphStepDefinition, SequentialGraphStepState, SingleStepEvent, SingleStepState,
-    StepAdmissionWitness, StepStatus, plan_sequential_graph_transition,
-    transition_sequential_graph, transition_single_step,
+    SequentialGraphStepDefinition, SequentialGraphStepState, StepAdmissionWitness,
+    plan_sequential_graph_transition, transition_sequential_graph,
 };
 
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(64))]
-
-    #[test]
-    fn single_step_transitions_are_deterministic(
-        state in single_step_state(),
-        event in single_step_event(),
-    ) {
-        let left = transition_single_step(&state, &event);
-        let right = transition_single_step(&state, &event);
-
-        prop_assert_eq!(left, right);
-    }
-
-    #[test]
-    fn terminal_single_step_states_ignore_later_events(
-        mut state in single_step_state(),
-        event in single_step_event(),
-    ) {
-        state.status = if state.step_id.len() % 2 == 0 {
-            StepStatus::Succeeded
-        } else {
-            StepStatus::Failed
-        };
-        let next = transition_single_step(&state, &event);
-
-        prop_assert_eq!(next, state);
-    }
 
     #[test]
     fn sequential_graph_transitions_are_deterministic(
@@ -117,41 +90,6 @@ fn a_pending_step_is_planned_as_its_first_attempt() {
     );
 }
 
-fn single_step_state() -> impl Strategy<Value = SingleStepState> {
-    (
-        safe_string(),
-        step_status(),
-        prop::option::of(safe_string()),
-        prop::option::of(safe_string()),
-        prop::option::of(safe_string()),
-    )
-        .prop_map(
-            |(step_id, status, started_at, completed_at, error)| SingleStepState {
-                step_id,
-                status,
-                started_at,
-                completed_at,
-                error,
-            },
-        )
-}
-
-fn single_step_event() -> impl Strategy<Value = SingleStepEvent> {
-    prop_oneof![
-        Just(SingleStepEvent::Admit),
-        safe_string().prop_map(|at| SingleStepEvent::Start { at }),
-        (safe_string(), safe_string(), safe_string()).prop_map(|(at, step_id, receipt_id)| {
-            SingleStepEvent::Succeed {
-                at,
-                admission_witness: Box::new(StepAdmissionWitness::local_runtime(
-                    step_id, receipt_id,
-                )),
-            }
-        }),
-        (safe_string(), safe_string()).prop_map(|(at, error)| SingleStepEvent::Fail { at, error }),
-    ]
-}
-
 fn sequential_graph_state() -> impl Strategy<Value = SequentialGraphState> {
     (
         safe_string(),
@@ -210,16 +148,6 @@ fn sequential_graph_event() -> impl Strategy<Value = SequentialGraphEvent> {
         }),
         Just(SequentialGraphEvent::Complete),
         safe_string().prop_map(|error| SequentialGraphEvent::FailGraph { error }),
-    ]
-}
-
-fn step_status() -> impl Strategy<Value = StepStatus> {
-    prop_oneof![
-        Just(StepStatus::Pending),
-        Just(StepStatus::Admitted),
-        Just(StepStatus::Running),
-        Just(StepStatus::Succeeded),
-        Just(StepStatus::Failed),
     ]
 }
 

@@ -55,11 +55,8 @@ deterministic `BTreeMap`-backed objects rather than public
 
 The Rust policy fixture runner lives in
 `crates/runx-core/tests/policy_fixtures.rs`.
-Current policy fixtures cover authority proof, credential binding, scope
-admission, public work, local admission, grant attenuation, retry
-admission, and graph-scope admission. Domain-specific authority comparators
-live in their effect-family crates rather than in the core kernel fixture
-surface.
+Current policy fixtures cover scope-grant matching, which the TypeScript
+contracts mirror; state-machine fixtures cover the sequential graph.
 
 Fixtures under `runner/` pin fixture-runner ingestion behavior rather than a
 trusted-kernel decision. They exist to keep the cross-language fixture harness

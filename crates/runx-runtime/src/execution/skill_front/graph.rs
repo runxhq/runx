@@ -53,6 +53,7 @@ impl BoundRun {
             (None, None) => ResolutionAnswers::default(),
         };
         let mut host = RunHost::new(answers);
+        host.scripts = std::rc::Rc::new(self.overrides.turn_scripts.clone());
         #[cfg(feature = "agent")]
         {
             host.managed = self.request.managed_agent.max_rounds().map(|max_rounds| {
@@ -597,10 +598,13 @@ pub(super) enum TurnActed {
 }
 
 /// The host a run's driver works it through: the answers the caller
-/// brought, an action on one of the run's open turns, or the managed agent
-/// the run consents to. Anything else suspends the run where it asks.
+/// brought, an action on one of the run's open turns, a harness caller's
+/// scripted turns, or the managed agent the run consents to. Anything else
+/// suspends the run where it asks.
 pub(super) struct RunHost {
     answers: ResolutionAnswers,
+    /// The turns a harness caller works call by call, by request id.
+    scripts: std::rc::Rc<BTreeMap<String, runx_parser::harness_fixture::HarnessTurnScript>>,
     /// The answers turns are given while the run is driven, by address.
     given: BTreeMap<String, JsonValue>,
     act: Option<TurnAct>,
@@ -614,6 +618,7 @@ impl RunHost {
     fn new(answers: ResolutionAnswers) -> Self {
         Self {
             answers,
+            scripts: std::rc::Rc::default(),
             given: BTreeMap::new(),
             act: None,
             acted: None,
@@ -647,7 +652,7 @@ impl RunHost {
 
     /// Whether the host brings nothing a paused run could continue with.
     fn is_idle(&self) -> bool {
-        !self.manages() && self.answers.is_empty() && self.act.is_none()
+        !self.manages() && self.answers.is_empty() && self.act.is_none() && self.scripts.is_empty()
     }
 
     /// An action on a turn needs that turn open.
@@ -670,7 +675,8 @@ impl RunHost {
     /// One driver works a run's turns: the one it started with. Answers
     /// alone drive no turn.
     fn check_driver(&self, run_id: &str, driver: Option<Driver>) -> Result<(), SkillRunError> {
-        let drives = self.manages() || self.act.is_some();
+        let attached = self.act.is_some() || !self.scripts.is_empty();
+        let drives = self.manages() || attached;
         match driver {
             None if drives => Err(invalid(format!(
                 "run {run_id} was started before runs recorded their driver; no driver can work its turns, so start it again"
@@ -678,7 +684,7 @@ impl RunHost {
             Some(Driver::Attached) if self.manages() => Err(invalid(format!(
                 "run {run_id} is driven by the host it is attached to; the managed agent cannot work its turns"
             ))),
-            Some(Driver::Managed) if self.act.is_some() => Err(invalid(format!(
+            Some(Driver::Managed) if attached => Err(invalid(format!(
                 "run {run_id} is driven by the managed agent; another host cannot work its turns"
             ))),
             None | Some(Driver::Attached | Driver::Managed) => Ok(()),
@@ -703,9 +709,10 @@ impl RunHost {
     }
 
     /// Whether this host brings something for a call that waits on
-    /// `waiting`: an answer to one of them, an action on one of its turns, or
-    /// the managed agent for a turn. A call that waits on nothing, a child run
-    /// that sealed or never started, is taken further by any host.
+    /// `waiting`: an answer to one of them, an action on one of its turns, a
+    /// script for one of its turns, or the managed agent for a turn. A call
+    /// that waits on nothing, a child run that sealed or never started, is
+    /// taken further by any host.
     fn reaches(&self, waiting: &[ResolutionRequest]) -> Result<bool, RuntimeError> {
         if waiting.is_empty() {
             return Ok(true);
@@ -713,9 +720,15 @@ impl RunHost {
         for request in waiting {
             let id = resolution_request_id(request);
             let digest = crate::execution::run_record::request_digest(request)?;
+            let agent_act = matches!(request, ResolutionRequest::AgentAct { .. });
             if self.answers.get(id, &digest).is_some()
                 || self.act.as_ref().is_some_and(|act| act.turn == id)
-                || (self.manages() && matches!(request, ResolutionRequest::AgentAct { .. }))
+                || (agent_act
+                    && (self.scripts.contains_key(id)
+                        || self
+                            .scripts
+                            .contains_key(crate::execution::run_record::local_request_id(id))))
+                || (self.manages() && agent_act)
             {
                 return Ok(true);
             }
@@ -777,8 +790,9 @@ impl Host for RunHost {
     }
 
     /// The calls this host brings something for go further first. Then the
-    /// host does what it came to do on this turn, or its managed agent works
-    /// it once nothing in it waits on a human.
+    /// host does what it came to do on this turn, works it from a harness
+    /// script, or its managed agent works it once nothing in it waits on a
+    /// human.
     fn drive_turn(&mut self, turn: &mut dyn Turn) -> Result<(), RuntimeError> {
         self.settle(turn)?;
         let address = turn.invocation().id.as_str().to_owned();
@@ -793,6 +807,14 @@ impl Host for RunHost {
                     TurnActed::Completed
                 }
             });
+            return Ok(());
+        }
+        let scripts = std::rc::Rc::clone(&self.scripts);
+        let answered = self.answers.answers_address(&address);
+        if let Some(output) =
+            crate::execution::harness::turns::work_scripted_turn(turn, self, &scripts, answered)?
+        {
+            self.given.insert(address, output);
             return Ok(());
         }
         #[cfg(feature = "agent")]
@@ -1200,7 +1222,6 @@ steps:
         Ok(())
     }
 
-    #[cfg(feature = "process-tool")]
     #[test]
     fn graph_process_uses_structured_credential_redaction() -> Result<(), Box<dyn std::error::Error>>
     {
@@ -1213,12 +1234,11 @@ steps:
         );
         env.remove(crate::paths::RUNX_PROJECT_DIR_ENV);
         let secret = "cli-credential-redaction-sentinel-\"quoted\\slash\ncontrol";
-        let delivery = crate::credentials::CredentialDelivery::from_local_descriptor(
+        let delivery = crate::credentials::CredentialDelivery::process_env(
             "twitter",
             "oauth1_user",
             "TWITTER_TOKEN",
             "ref:twitter:primary",
-            vec!["twitter:read".to_owned()],
             secret,
         )?;
         let encoded = serde_json::to_string(&JsonValue::Object(JsonObject::from([

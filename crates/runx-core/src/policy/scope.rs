@@ -1,5 +1,3 @@
-use std::collections::BTreeSet;
-
 use serde::{Deserialize, Serialize};
 
 /// The wildcard authority a scope grant is allowed to exercise.
@@ -68,22 +66,9 @@ pub fn missing_granted_scopes(
         .collect()
 }
 
-pub(crate) fn unique_strings(values: &[String]) -> Vec<String> {
-    let mut seen = BTreeSet::new();
-    let mut unique = Vec::new();
-
-    for value in values {
-        if seen.insert(value.clone()) {
-            unique.push(value.clone());
-        }
-    }
-
-    unique
-}
-
 #[cfg(test)]
 mod tests {
-    use super::{ScopeGrantPolicy, missing_granted_scopes, scope_grant_allows, unique_strings};
+    use super::{ScopeGrantPolicy, missing_granted_scopes, scope_grant_allows};
 
     #[test]
     fn universal_wildcard_is_reserved_for_trusted_grants() {
@@ -164,16 +149,5 @@ mod tests {
             missing_granted_scopes(&required, &granted, ScopeGrantPolicy::Delegated),
             ["repo:admin:keys"]
         );
-    }
-
-    #[test]
-    fn unique_strings_preserves_first_seen_order() {
-        let values = vec![
-            "repo:read".to_owned(),
-            "repo:write".to_owned(),
-            "repo:read".to_owned(),
-        ];
-
-        assert_eq!(unique_strings(&values), vec!["repo:read", "repo:write"]);
     }
 }

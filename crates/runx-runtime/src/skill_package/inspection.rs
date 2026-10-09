@@ -9,10 +9,8 @@ use runx_contracts::{JsonObject, JsonValue};
 use runx_parser::{CatalogMetadata, SkillRunnerDefinition, StepKind, ToolTarget};
 
 use super::LoadedSkillPackage;
-#[cfg(feature = "process-tool")]
 pub(crate) use execution_closure::LocalExecutionClosure;
 use execution_closure::inspect_execution_closures;
-#[cfg(feature = "process-tool")]
 use execution_closure::inspect_local_execution_closure;
 use runner::{catalog_capabilities, fixture_examples, fixture_operator_journeys, inspect_runner};
 use thiserror::Error;
@@ -83,7 +81,6 @@ pub fn inspect_skill_package(
 
 /// The readiness of each connector operation the selected runner calls,
 /// projected by the kernel from the instances and evidence present for `cwd`.
-#[cfg(feature = "async-http")]
 pub fn inspect_connector_readiness(
     skill_path: &Path,
     selected_runner: Option<&str>,
@@ -113,7 +110,6 @@ pub fn inspect_connector_readiness(
 /// The requirements a runner's operation steps use, narrowed to the
 /// operations they call. A step that binds its operation at run time may call
 /// any operation its requirement lists.
-#[cfg(feature = "async-http")]
 fn runner_requirements(
     connectors: &BTreeMap<String, runx_parser::ConnectorRequirement>,
     runner: &runx_parser::SkillRunnerDefinition,
@@ -277,7 +273,6 @@ pub(crate) fn inspect_loaded_execution_closure_binding(
     })
 }
 
-#[cfg(feature = "process-tool")]
 pub(crate) fn inspect_loaded_local_execution_closure(
     loaded: &LoadedSkillPackage,
     env: &std::collections::BTreeMap<String, String>,

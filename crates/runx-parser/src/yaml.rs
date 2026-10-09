@@ -333,7 +333,7 @@ fn reject_duplicate_mapping_key(
     let (key_indent, key, sequence_item) = match sequence_item_key(trimmed, indent) {
         Some(value) => value,
         None => {
-            let Some((key, _)) = top_level_plain_key(trimmed) else {
+            let Some(key) = mapping_key(trimmed) else {
                 return Ok(());
             };
             (indent, key, false)
@@ -370,7 +370,7 @@ fn reject_duplicate_mapping_key(
             ),
         });
     };
-    if !frame.keys.insert(key.to_owned()) {
+    if !frame.keys.insert(key.clone()) {
         return Err(ParseError::InvalidYaml {
             field: field.to_owned(),
             message: format!(
@@ -381,12 +381,46 @@ fn reject_duplicate_mapping_key(
     Ok(())
 }
 
-fn sequence_item_key(trimmed: &str, indent: usize) -> Option<(usize, &str, bool)> {
+fn sequence_item_key(trimmed: &str, indent: usize) -> Option<(usize, String, bool)> {
     let rest = trimmed.strip_prefix("- ")?;
     let item = rest.trim_start();
     let leading = rest.len() - item.len();
-    let (key, _) = top_level_plain_key(item)?;
+    let key = mapping_key(item)?;
     Some((indent + 2 + leading, key, true))
+}
+
+/// The key a mapping line opens, plain or quoted, as YAML reads it: a quoted
+/// key and the same plain key are one key.
+fn mapping_key(trimmed: &str) -> Option<String> {
+    let mut chars = trimmed.char_indices();
+    let quote = match trimmed.chars().next() {
+        Some(quote @ ('"' | '\'')) => quote,
+        _ => return top_level_plain_key(trimmed).map(|(key, _)| key.to_owned()),
+    };
+    chars.next();
+    let mut key = String::new();
+    let mut end = None;
+    while let Some((index, char)) = chars.next() {
+        match (quote, char) {
+            ('"', '\\') => key.extend(chars.next().map(|(_, escaped)| escaped)),
+            ('\'', '\'') if trimmed[index + 1..].starts_with('\'') => {
+                key.push('\'');
+                chars.next();
+            }
+            (quote_char, char) if char == quote_char => {
+                end = Some(index + char.len_utf8());
+                break;
+            }
+            (_, char) => key.push(char),
+        }
+    }
+    let rest = trimmed[end?..].trim_start();
+    let after = rest.strip_prefix(':')?;
+    after
+        .chars()
+        .next()
+        .is_none_or(char::is_whitespace)
+        .then_some(key)
 }
 
 fn leading_spaces(content: &str) -> usize {
@@ -619,6 +653,33 @@ runners:
         assert!(
             sequence_result.is_ok(),
             "sequence item maps may reuse keys in separate items: {sequence_result:?}"
+        );
+    }
+
+    #[test]
+    fn execution_profile_subset_reads_quoted_keys_as_keys() {
+        // A quoted key closes the mapping before it, so its children are its own.
+        let nested = assert_execution_profile_yaml_subset(
+            "runner_manifest",
+            r#"
+turns:
+  agent.answer.output:
+    output: {}
+  "answer/0#agent.answer.output":
+    output: {}
+"#,
+        );
+        assert!(
+            nested.is_ok(),
+            "a quoted key opens its own mapping: {nested:?}"
+        );
+
+        // A quoted key and the same plain key are one key.
+        let duplicate =
+            assert_execution_profile_yaml_subset("runner_manifest", "skill: one\n\"skill\": two\n");
+        assert!(
+            duplicate.is_err(),
+            "expected duplicate key rejection, got {duplicate:?}"
         );
     }
 

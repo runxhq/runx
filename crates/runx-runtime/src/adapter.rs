@@ -114,7 +114,6 @@ impl EphemeralValue {
         self.0.as_ref()
     }
 
-    #[cfg(feature = "async-http")]
     pub(crate) fn as_value_mut(&mut self) -> Option<&mut JsonValue> {
         self.0.as_mut()
     }
@@ -486,12 +485,11 @@ mod tests {
     #[test]
     fn credential_observation_is_idempotent_and_rejects_conflicting_evidence()
     -> Result<(), Box<dyn std::error::Error>> {
-        let delivery = CredentialDelivery::from_local_descriptor(
+        let delivery = CredentialDelivery::process_env(
             "example",
             "api_key",
             "EXAMPLE_TOKEN",
             "local:example:test",
-            vec!["example.read".to_owned()],
             "secret",
         )?;
         let observation = delivery

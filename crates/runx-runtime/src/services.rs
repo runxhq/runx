@@ -2,7 +2,6 @@ mod env;
 mod receipt_proof;
 mod receipt_query;
 mod receipts;
-#[cfg(feature = "catalog")]
 mod skill_packages;
 mod tool_roots;
 mod verified_receipts;
@@ -13,7 +12,6 @@ pub(crate) use env::{merge_inferred_tool_roots, process_env_value};
 pub(crate) use receipt_proof::prove_receipts;
 pub(crate) use receipt_query::{ReceiptQueryInput, query_receipts};
 pub(crate) use receipts::{ReceiptReadContext, ReceiptServices};
-#[cfg(feature = "catalog")]
 pub(crate) use skill_packages::{
     apply_skill_change, bind_skill_change, inspect_skill_workspace, plan_skill_architecture,
     validate_skill_package,

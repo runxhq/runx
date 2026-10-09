@@ -19,12 +19,8 @@ use super::types::{
     DevError, DevFixtureAssertion, DevFixtureAssertionKind, DevFixtureResult, DevFixtureStatus,
     LoadedDevFixture, PreparedDevFixtureWorkspace,
 };
-#[cfg(feature = "process-tool")]
 use crate::adapters::process_tool::ProcessToolAdapter;
-#[cfg(not(feature = "process-tool"))]
-use crate::harness::run_harness_fixture;
 use crate::harness::{HarnessExpectedStatus, HarnessReplayError, HarnessReplayOutput};
-#[cfg(feature = "process-tool")]
 use crate::{HarnessOptions, run_harness_fixture_with_adapter};
 
 pub(super) fn run_skill_or_graph_fixture(
@@ -94,18 +90,10 @@ fn run_skill_or_graph_fixture_inner(
 
 fn run_dev_harness_fixture(
     path: &Path,
-    _env: &BTreeMap<String, String>,
+    env: &BTreeMap<String, String>,
 ) -> Result<HarnessReplayOutput, HarnessReplayError> {
-    #[cfg(feature = "process-tool")]
-    {
-        let options =
-            HarnessOptions::from_env(_env.clone()).map_err(HarnessReplayError::Runtime)?;
-        run_harness_fixture_with_adapter(path, ProcessToolAdapter, options)
-    }
-    #[cfg(not(feature = "process-tool"))]
-    {
-        run_harness_fixture(path, _env.clone())
-    }
+    let options = HarnessOptions::from_env(env.clone()).map_err(HarnessReplayError::Runtime)?;
+    run_harness_fixture_with_adapter(path, ProcessToolAdapter, options)
 }
 
 fn write_harness_replay_fixture(

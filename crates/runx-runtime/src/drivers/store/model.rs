@@ -194,6 +194,7 @@ pub(super) fn record_object(record: &EventRecord) -> JsonObject {
 }
 
 /// A stored record back from its object form.
+#[cfg(feature = "store")]
 pub(super) fn record_from_object(value: &JsonValue) -> Result<EventRecord, StoreError> {
     let object = value
         .as_object()

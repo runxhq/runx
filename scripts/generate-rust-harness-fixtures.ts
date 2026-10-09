@@ -30,8 +30,6 @@ if (process.env.RUNX_HARNESS_FIXTURE_ORACLE_BIN) {
     path.join(repoRoot, "crates", "Cargo.toml"),
     "-p",
     "runx-runtime",
-    "--features",
-    "process-tool",
     "--bin",
     "runx-harness-fixture-oracles",
     "--",

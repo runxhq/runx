@@ -14,132 +14,40 @@ pub runx_core::kernel_eval::KernelEvalOutput::Output
 pub runx_core::kernel_eval::KernelEvalOutput::Output::value: runx_contracts::json::JsonValue
 pub fn runx_core::kernel_eval::evaluate_kernel_document_str(source: &str) -> core::result::Result<runx_core::kernel_eval::KernelEvalOutput, runx_core::kernel_eval::KernelEvalError>
 pub mod runx_core::policy
-pub use runx_core::policy::AuthorityKind
-pub use runx_core::policy::AuthorityProof
-pub use runx_core::policy::AuthorityProofApprovalDecision
-pub use runx_core::policy::AuthorityProofApprovalDecisionValue
-pub use runx_core::policy::AuthorityProofCredentialMaterial
-pub use runx_core::policy::AuthorityProofCredentialMaterialStatus
-pub use runx_core::policy::AuthorityProofRedaction
-pub use runx_core::policy::AuthorityProofRedactionSecretMaterial
-pub use runx_core::policy::AuthorityProofRedactionStatus
-pub use runx_core::policy::AuthorityProofRedactionStream
-pub use runx_core::policy::AuthorityProofRequested
-pub use runx_core::policy::AuthorityProofSchemaVersion
-pub use runx_core::policy::CredentialEnvelope
-pub use runx_core::policy::CredentialEnvelopeKind
-pub use runx_core::policy::CredentialGrantReference
-pub use runx_core::policy::ScopeAdmission
-pub use runx_core::policy::ScopeAdmissionStatus
-pub mod runx_core::policy::authority_algebra
-pub struct runx_core::policy::authority_algebra::AuthorityEffectGuardDecision<'a>
-pub runx_core::policy::authority_algebra::AuthorityEffectGuardDecision::family: &'a str
-pub runx_core::policy::authority_algebra::AuthorityEffectGuardDecision::non_replay_required: bool
-pub runx_core::policy::authority_algebra::AuthorityEffectGuardDecision::proof_kinds: alloc::vec::Vec<runx_contracts::reference::ProofKind>
-pub runx_core::policy::authority_algebra::AuthorityEffectGuardDecision::receipt_before_success_required: bool
-pub fn runx_core::policy::authority_algebra::authority_effect_family<'a>(parent: &'a runx_contracts::authority::AuthorityTerm, child: &'a runx_contracts::authority::AuthorityTerm) -> core::option::Option<&'a str>
-pub fn runx_core::policy::authority_algebra::authority_effect_guard_required(term: &runx_contracts::authority::AuthorityTerm, family: &str, guard_kind: runx_contracts::authority::AuthorityEffectGuardKind) -> bool
-pub fn runx_core::policy::authority_algebra::authority_effect_proof_kinds(parent: &runx_contracts::authority::AuthorityTerm, child: &runx_contracts::authority::AuthorityTerm, family: &str) -> alloc::vec::Vec<runx_contracts::reference::ProofKind>
-pub fn runx_core::policy::authority_algebra::authority_term_has_verb(term: &runx_contracts::authority::AuthorityTerm, verb: runx_contracts::authority::AuthorityVerb) -> bool
-pub fn runx_core::policy::authority_algebra::evaluate_authority_effect_guards<'a>(parent: &'a runx_contracts::authority::AuthorityTerm, child: &'a runx_contracts::authority::AuthorityTerm, family: &'a str) -> runx_core::policy::authority_algebra::AuthorityEffectGuardDecision<'a>
-pub fn runx_core::policy::authority_algebra::items_subset<T: core::cmp::PartialEq>(child: &[T], parent: &[T]) -> bool
-pub fn runx_core::policy::authority_algebra::optional_bound_subset<T: core::cmp::Ord + core::marker::Copy>(child: core::option::Option<T>, parent: core::option::Option<T>) -> bool
-pub fn runx_core::policy::authority_algebra::optional_exact_or_narrower<T: core::cmp::Eq>(child: &core::option::Option<T>, parent: &core::option::Option<T>) -> bool
-pub fn runx_core::policy::authority_algebra::optional_ref_bound_subset<T: core::cmp::Ord>(child: core::option::Option<&T>, parent: core::option::Option<&T>) -> bool
-pub fn runx_core::policy::authority_algebra::parent_items_preserved<T: core::cmp::PartialEq>(child: &[T], parent: &[T]) -> bool
-pub fn runx_core::policy::authority_algebra::same_reference_address(child: &runx_contracts::reference::Reference, parent: &runx_contracts::reference::Reference) -> bool
-pub mod runx_core::policy::authority_mint
-pub enum runx_core::policy::authority_mint::AttenuationError
-pub runx_core::policy::authority_mint::AttenuationError::CapabilitiesNotSubset
-pub runx_core::policy::authority_mint::AttenuationError::ChildNotSubset
-pub runx_core::policy::authority_mint::AttenuationError::ExpiryNotSubset
-pub runx_core::policy::authority_mint::AttenuationError::ResourceAddressMismatch
-pub runx_core::policy::authority_mint::AttenuationError::ResourceFamilyMismatch
-pub runx_core::policy::authority_mint::AttenuationError::VerbsNotSubset
-pub enum runx_core::policy::authority_mint::SubsetProofError
-pub runx_core::policy::authority_mint::SubsetProofError::Invalid
-pub runx_core::policy::authority_mint::SubsetProofError::Missing
-pub struct runx_core::policy::authority_mint::AttenuationRequest
-pub runx_core::policy::authority_mint::AttenuationRequest::bounds: runx_contracts::authority::AuthorityBounds
-pub runx_core::policy::authority_mint::AttenuationRequest::capabilities: alloc::vec::Vec<runx_contracts::authority::AuthorityCapability>
-pub runx_core::policy::authority_mint::AttenuationRequest::expires_at: core::option::Option<runx_contracts::schema::IsoDateTime>
-pub runx_core::policy::authority_mint::AttenuationRequest::principal_ref: runx_contracts::reference::Reference
-pub runx_core::policy::authority_mint::AttenuationRequest::resource_family: runx_contracts::authority::AuthorityResourceFamily
-pub runx_core::policy::authority_mint::AttenuationRequest::resource_ref: runx_contracts::reference::Reference
-pub runx_core::policy::authority_mint::AttenuationRequest::verbs: alloc::vec::Vec<runx_contracts::authority::AuthorityVerb>
-pub struct runx_core::policy::authority_mint::ScopeBoundsComparator
-impl runx_core::policy::authority_mint::ScopeBoundsComparator
-pub const runx_core::policy::authority_mint::ScopeBoundsComparator::ALGORITHM: &'static str
-impl runx_core::policy::authority_mint::FamilySubsetComparator for runx_core::policy::authority_mint::ScopeBoundsComparator
-pub fn runx_core::policy::authority_mint::ScopeBoundsComparator::bounds_subset(&self, child: &runx_contracts::authority::AuthorityTerm, parent: &runx_contracts::authority::AuthorityTerm) -> bool
-pub fn runx_core::policy::authority_mint::ScopeBoundsComparator::comparison_algorithm(&self) -> &str
-pub fn runx_core::policy::authority_mint::ScopeBoundsComparator::narrow_bounds(&self, parent: &runx_contracts::authority::AuthorityTerm, requested: &runx_contracts::authority::AuthorityBounds) -> runx_contracts::authority::AuthorityBounds
-pub trait runx_core::policy::authority_mint::FamilySubsetComparator
-pub fn runx_core::policy::authority_mint::FamilySubsetComparator::bounds_subset(&self, child: &runx_contracts::authority::AuthorityTerm, parent: &runx_contracts::authority::AuthorityTerm) -> bool
-pub fn runx_core::policy::authority_mint::FamilySubsetComparator::comparison_algorithm(&self) -> &str
-pub fn runx_core::policy::authority_mint::FamilySubsetComparator::narrow_bounds(&self, parent: &runx_contracts::authority::AuthorityTerm, requested: &runx_contracts::authority::AuthorityBounds) -> runx_contracts::authority::AuthorityBounds
-impl runx_core::policy::authority_mint::FamilySubsetComparator for runx_core::policy::authority_mint::ScopeBoundsComparator
-pub fn runx_core::policy::authority_mint::ScopeBoundsComparator::bounds_subset(&self, child: &runx_contracts::authority::AuthorityTerm, parent: &runx_contracts::authority::AuthorityTerm) -> bool
-pub fn runx_core::policy::authority_mint::ScopeBoundsComparator::comparison_algorithm(&self) -> &str
-pub fn runx_core::policy::authority_mint::ScopeBoundsComparator::narrow_bounds(&self, parent: &runx_contracts::authority::AuthorityTerm, requested: &runx_contracts::authority::AuthorityBounds) -> runx_contracts::authority::AuthorityBounds
-pub fn runx_core::policy::authority_mint::ensure_subset_proof(proof: core::option::Option<&runx_contracts::authority::AuthoritySubsetProof>, child: &runx_contracts::authority::AuthorityTerm, parent: &runx_contracts::authority::AuthorityTerm) -> core::result::Result<(), runx_core::policy::authority_mint::SubsetProofError>
-pub fn runx_core::policy::authority_mint::is_authority_subset(child: &runx_contracts::authority::AuthorityTerm, parent: &runx_contracts::authority::AuthorityTerm, comparator: &dyn runx_core::policy::authority_mint::FamilySubsetComparator) -> bool
-pub fn runx_core::policy::authority_mint::mint_attenuated(parent: &runx_contracts::authority::AuthorityTerm, request: &runx_core::policy::authority_mint::AttenuationRequest, comparator: &dyn runx_core::policy::authority_mint::FamilySubsetComparator, checked_at: runx_contracts::schema::IsoDateTime) -> core::result::Result<(runx_contracts::authority::AuthorityTerm, runx_contracts::authority::AuthoritySubsetProof), runx_core::policy::authority_mint::AttenuationError>
-pub mod runx_core::policy::authority_proof
-pub fn runx_core::policy::authority_proof::build_authority_proof(options: &runx_core::policy::BuildAuthorityProofOptions) -> runx_contracts::policy_proof::AuthorityProof
-pub fn runx_core::policy::authority_proof::build_authority_proof_metadata(options: &runx_core::policy::BuildAuthorityProofOptions) -> runx_core::policy::AuthorityProofMetadata
-pub fn runx_core::policy::authority_proof::build_local_scope_admission(auth: core::option::Option<&runx_contracts::json::JsonValue>, grants: &[runx_core::policy::LocalAdmissionGrant], options: &runx_core::policy::LocalScopeAdmissionOptions) -> runx_contracts::policy_proof::ScopeAdmission
-pub fn runx_core::policy::authority_proof::validate_credential_binding(request: &runx_core::policy::CredentialBindingRequest) -> runx_core::policy::CredentialBindingDecision
-pub mod runx_core::policy::scope
-pub enum runx_core::policy::scope::ScopeGrantPolicy
-pub runx_core::policy::scope::ScopeGrantPolicy::Delegated
-pub runx_core::policy::scope::ScopeGrantPolicy::ExactOnly
-pub runx_core::policy::scope::ScopeGrantPolicy::Trusted
-pub fn runx_core::policy::scope::missing_granted_scopes(required_scopes: &[alloc::string::String], granted_scopes: &[alloc::string::String], policy: runx_core::policy::scope::ScopeGrantPolicy) -> alloc::vec::Vec<alloc::string::String>
-pub fn runx_core::policy::scope::scope_grant_allows(granted_scope: &str, requested_scope: &str, policy: runx_core::policy::scope::ScopeGrantPolicy) -> bool
-pub enum runx_core::policy::AdmissionDecision
-pub runx_core::policy::AdmissionDecision::Allow
-pub runx_core::policy::AdmissionDecision::Allow::reasons: alloc::vec::Vec<alloc::string::String>
-pub runx_core::policy::AdmissionDecision::AllowMarked
-pub runx_core::policy::AdmissionDecision::AllowMarked::norm_refs: alloc::vec::Vec<alloc::string::String>
-pub runx_core::policy::AdmissionDecision::AllowMarked::reasons: alloc::vec::Vec<alloc::string::String>
-pub runx_core::policy::AdmissionDecision::Deny
-pub runx_core::policy::AdmissionDecision::Deny::reasons: alloc::vec::Vec<alloc::string::String>
 pub enum runx_core::policy::AttenuationError
 pub runx_core::policy::AttenuationError::CapabilitiesNotSubset
 pub runx_core::policy::AttenuationError::ChildNotSubset
+pub runx_core::policy::AttenuationError::Expired
 pub runx_core::policy::AttenuationError::ExpiryNotSubset
 pub runx_core::policy::AttenuationError::ResourceAddressMismatch
 pub runx_core::policy::AttenuationError::ResourceFamilyMismatch
 pub runx_core::policy::AttenuationError::VerbsNotSubset
-pub enum runx_core::policy::CredentialBindingDecision
-pub runx_core::policy::CredentialBindingDecision::Allow
-pub runx_core::policy::CredentialBindingDecision::Allow::reasons: alloc::vec::Vec<alloc::string::String>
-pub runx_core::policy::CredentialBindingDecision::Deny
-pub runx_core::policy::CredentialBindingDecision::Deny::reasons: alloc::vec::Vec<alloc::string::String>
-pub enum runx_core::policy::GraphScopeAdmissionDecision
-pub runx_core::policy::GraphScopeAdmissionDecision::Allow
-pub runx_core::policy::GraphScopeAdmissionDecision::Allow::grant_id: core::option::Option<alloc::string::String>
-pub runx_core::policy::GraphScopeAdmissionDecision::Allow::granted_scopes: alloc::vec::Vec<alloc::string::String>
-pub runx_core::policy::GraphScopeAdmissionDecision::Allow::reasons: alloc::vec::Vec<alloc::string::String>
-pub runx_core::policy::GraphScopeAdmissionDecision::Allow::requested_scopes: alloc::vec::Vec<alloc::string::String>
-pub runx_core::policy::GraphScopeAdmissionDecision::Allow::step_id: alloc::string::String
-pub runx_core::policy::GraphScopeAdmissionDecision::Deny
-pub runx_core::policy::GraphScopeAdmissionDecision::Deny::grant_id: core::option::Option<alloc::string::String>
-pub runx_core::policy::GraphScopeAdmissionDecision::Deny::granted_scopes: alloc::vec::Vec<alloc::string::String>
-pub runx_core::policy::GraphScopeAdmissionDecision::Deny::reasons: alloc::vec::Vec<alloc::string::String>
-pub runx_core::policy::GraphScopeAdmissionDecision::Deny::requested_scopes: alloc::vec::Vec<alloc::string::String>
-pub runx_core::policy::GraphScopeAdmissionDecision::Deny::step_id: alloc::string::String
-pub enum runx_core::policy::LocalAdmissionGrantStatus
-pub runx_core::policy::LocalAdmissionGrantStatus::Active
-pub runx_core::policy::LocalAdmissionGrantStatus::Revoked
+pub enum runx_core::policy::DerivationError
+pub runx_core::policy::DerivationError::ActorMismatch
+pub runx_core::policy::DerivationError::ActorMismatch::parent: runx_core::policy::DerivationParent
+pub runx_core::policy::DerivationError::BoundsNotCovered
+pub runx_core::policy::DerivationError::BoundsNotCovered::parent: runx_core::policy::DerivationParent
+pub runx_core::policy::DerivationError::CapabilitiesNotCovered
+pub runx_core::policy::DerivationError::CapabilitiesNotCovered::parent: runx_core::policy::DerivationParent
+pub runx_core::policy::DerivationError::Expired
+pub runx_core::policy::DerivationError::Expired::parent: runx_core::policy::DerivationParent
+pub runx_core::policy::DerivationError::ExpiryNotCovered
+pub runx_core::policy::DerivationError::ExpiryNotCovered::parent: runx_core::policy::DerivationParent
+pub runx_core::policy::DerivationError::InvalidDelegation
+pub runx_core::policy::DerivationError::InvalidDelegation::parent: runx_core::policy::DerivationParent
+pub runx_core::policy::DerivationError::ResourceMismatch
+pub runx_core::policy::DerivationError::ResourceMismatch::parent: runx_core::policy::DerivationParent
+pub runx_core::policy::DerivationError::VerbsNotCovered
+pub runx_core::policy::DerivationError::VerbsNotCovered::parent: runx_core::policy::DerivationParent
+impl runx_core::policy::DerivationError
+pub fn runx_core::policy::DerivationError::parent(&self) -> runx_core::policy::DerivationParent
+pub enum runx_core::policy::DerivationParent
+pub runx_core::policy::DerivationParent::Capability
+pub runx_core::policy::DerivationParent::Delegation(usize)
 pub enum runx_core::policy::ScopeGrantPolicy
 pub runx_core::policy::ScopeGrantPolicy::Delegated
 pub runx_core::policy::ScopeGrantPolicy::ExactOnly
 pub runx_core::policy::ScopeGrantPolicy::Trusted
-pub enum runx_core::policy::SubsetProofError
-pub runx_core::policy::SubsetProofError::Invalid
-pub runx_core::policy::SubsetProofError::Missing
 pub struct runx_core::policy::AttenuationRequest
 pub runx_core::policy::AttenuationRequest::bounds: runx_contracts::authority::AuthorityBounds
 pub runx_core::policy::AttenuationRequest::capabilities: alloc::vec::Vec<runx_contracts::authority::AuthorityCapability>
@@ -148,85 +56,22 @@ pub runx_core::policy::AttenuationRequest::principal_ref: runx_contracts::refere
 pub runx_core::policy::AttenuationRequest::resource_family: runx_contracts::authority::AuthorityResourceFamily
 pub runx_core::policy::AttenuationRequest::resource_ref: runx_contracts::reference::Reference
 pub runx_core::policy::AttenuationRequest::verbs: alloc::vec::Vec<runx_contracts::authority::AuthorityVerb>
-pub struct runx_core::policy::AuthorityEffectGuardDecision<'a>
-pub runx_core::policy::AuthorityEffectGuardDecision::family: &'a str
-pub runx_core::policy::AuthorityEffectGuardDecision::non_replay_required: bool
-pub runx_core::policy::AuthorityEffectGuardDecision::proof_kinds: alloc::vec::Vec<runx_contracts::reference::ProofKind>
-pub runx_core::policy::AuthorityEffectGuardDecision::receipt_before_success_required: bool
-pub struct runx_core::policy::AuthorityProofApproval
-pub runx_core::policy::AuthorityProofApproval::approved: bool
-pub runx_core::policy::AuthorityProofApproval::gate: runx_core::policy::AuthorityProofApprovalGate
-pub struct runx_core::policy::AuthorityProofApprovalGate
-pub runx_core::policy::AuthorityProofApprovalGate::gate_type: core::option::Option<alloc::string::String>
-pub runx_core::policy::AuthorityProofApprovalGate::id: alloc::string::String
-pub runx_core::policy::AuthorityProofApprovalGate::reason: core::option::Option<alloc::string::String>
-pub struct runx_core::policy::AuthorityProofMetadata
-pub runx_core::policy::AuthorityProofMetadata::authority_proof: runx_contracts::policy_proof::AuthorityProof
-pub struct runx_core::policy::BuildAuthorityProofOptions
-pub runx_core::policy::BuildAuthorityProofOptions::approval: core::option::Option<runx_core::policy::AuthorityProofApproval>
-pub runx_core::policy::BuildAuthorityProofOptions::auth: core::option::Option<runx_contracts::json::JsonValue>
-pub runx_core::policy::BuildAuthorityProofOptions::connected_auth_checked_at: core::option::Option<alloc::string::String>
-pub runx_core::policy::BuildAuthorityProofOptions::credential: core::option::Option<runx_contracts::policy_proof::CredentialEnvelope>
-pub runx_core::policy::BuildAuthorityProofOptions::execution_boundary: runx_contracts::execution_boundary::ExecutionBoundaryObservation
-pub runx_core::policy::BuildAuthorityProofOptions::grants: alloc::vec::Vec<runx_core::policy::LocalAdmissionGrant>
-pub runx_core::policy::BuildAuthorityProofOptions::run_id: core::option::Option<alloc::string::String>
-pub runx_core::policy::BuildAuthorityProofOptions::scope_admission: core::option::Option<runx_contracts::policy_proof::ScopeAdmission>
-pub runx_core::policy::BuildAuthorityProofOptions::scopes: alloc::vec::Vec<alloc::string::String>
-pub runx_core::policy::BuildAuthorityProofOptions::skill_name: alloc::string::String
-pub runx_core::policy::BuildAuthorityProofOptions::source_type: alloc::string::String
-pub struct runx_core::policy::CredentialBindingRequest
-pub runx_core::policy::CredentialBindingRequest::auth: core::option::Option<runx_contracts::json::JsonValue>
-pub runx_core::policy::CredentialBindingRequest::credential: core::option::Option<runx_contracts::policy_proof::CredentialEnvelope>
-pub runx_core::policy::CredentialBindingRequest::grants: alloc::vec::Vec<runx_core::policy::LocalAdmissionGrant>
-pub runx_core::policy::CredentialBindingRequest::scope_admission: runx_contracts::policy_proof::ScopeAdmission
-pub struct runx_core::policy::GraphScopeAdmissionRequest
-pub runx_core::policy::GraphScopeAdmissionRequest::grant: runx_core::policy::GraphScopeGrant
-pub runx_core::policy::GraphScopeAdmissionRequest::requested_scopes: alloc::vec::Vec<alloc::string::String>
-pub runx_core::policy::GraphScopeAdmissionRequest::step_id: alloc::string::String
-pub struct runx_core::policy::GraphScopeGrant
-pub runx_core::policy::GraphScopeGrant::grant_id: core::option::Option<alloc::string::String>
-pub runx_core::policy::GraphScopeGrant::scopes: alloc::vec::Vec<alloc::string::String>
-pub struct runx_core::policy::LocalAdmissionGrant
-pub runx_core::policy::LocalAdmissionGrant::authority_kind: core::option::Option<runx_contracts::policy_proof::AuthorityKind>
-pub runx_core::policy::LocalAdmissionGrant::expires_at: core::option::Option<alloc::string::String>
-pub runx_core::policy::LocalAdmissionGrant::grant_id: alloc::string::String
-pub runx_core::policy::LocalAdmissionGrant::not_before: core::option::Option<alloc::string::String>
-pub runx_core::policy::LocalAdmissionGrant::provider: alloc::string::String
-pub runx_core::policy::LocalAdmissionGrant::scope_family: core::option::Option<alloc::string::String>
-pub runx_core::policy::LocalAdmissionGrant::scopes: alloc::vec::Vec<alloc::string::String>
-pub runx_core::policy::LocalAdmissionGrant::status: core::option::Option<runx_core::policy::LocalAdmissionGrantStatus>
-pub runx_core::policy::LocalAdmissionGrant::target_locator: core::option::Option<alloc::string::String>
-pub runx_core::policy::LocalAdmissionGrant::target_repo: core::option::Option<alloc::string::String>
-pub struct runx_core::policy::LocalAdmissionOptions
-pub runx_core::policy::LocalAdmissionOptions::allowed_source_types: core::option::Option<alloc::vec::Vec<alloc::string::String>>
-pub runx_core::policy::LocalAdmissionOptions::connected_auth_checked_at: core::option::Option<alloc::string::String>
-pub runx_core::policy::LocalAdmissionOptions::connected_grants: core::option::Option<alloc::vec::Vec<runx_core::policy::LocalAdmissionGrant>>
-pub runx_core::policy::LocalAdmissionOptions::execution_policy: core::option::Option<runx_core::policy::LocalExecutionPolicy>
-pub runx_core::policy::LocalAdmissionOptions::max_timeout_seconds: core::option::Option<i64>
-pub runx_core::policy::LocalAdmissionOptions::skip_connected_auth: core::option::Option<bool>
-pub struct runx_core::policy::LocalAdmissionSkill
-pub runx_core::policy::LocalAdmissionSkill::auth: core::option::Option<runx_contracts::json::JsonValue>
-pub runx_core::policy::LocalAdmissionSkill::name: alloc::string::String
-pub runx_core::policy::LocalAdmissionSkill::runtime: core::option::Option<runx_contracts::json::JsonValue>
-pub runx_core::policy::LocalAdmissionSkill::source: runx_core::policy::LocalAdmissionSource
-pub struct runx_core::policy::LocalAdmissionSource
-pub runx_core::policy::LocalAdmissionSource::args: core::option::Option<alloc::vec::Vec<alloc::string::String>>
-pub runx_core::policy::LocalAdmissionSource::command: core::option::Option<alloc::string::String>
-pub runx_core::policy::LocalAdmissionSource::source_type: alloc::string::String
-pub runx_core::policy::LocalAdmissionSource::timeout_seconds: core::option::Option<i64>
+pub struct runx_core::policy::ConnectorBoundsComparator
+impl runx_core::policy::ConnectorBoundsComparator
+pub const runx_core::policy::ConnectorBoundsComparator::ALGORITHM: &'static str
+impl runx_core::policy::FamilySubsetComparator for runx_core::policy::ConnectorBoundsComparator
+pub fn runx_core::policy::ConnectorBoundsComparator::bounds_subset(&self, child: &runx_contracts::authority::AuthorityTerm, parent: &runx_contracts::authority::AuthorityTerm) -> bool
+pub fn runx_core::policy::ConnectorBoundsComparator::comparison_algorithm(&self) -> &str
+pub fn runx_core::policy::ConnectorBoundsComparator::narrow_bounds(&self, parent: &runx_contracts::authority::AuthorityTerm, requested: &runx_contracts::authority::AuthorityBounds) -> runx_contracts::authority::AuthorityBounds
+pub struct runx_core::policy::ExecutionTermRequest<'a>
+pub runx_core::policy::ExecutionTermRequest::approvals: alloc::vec::Vec<runx_contracts::authority::AuthorityApproval>
+pub runx_core::policy::ExecutionTermRequest::capability: &'a runx_contracts::authority::AuthorityTerm
+pub runx_core::policy::ExecutionTermRequest::delegations: &'a [runx_contracts::authority::AuthorityTerm]
+pub runx_core::policy::ExecutionTermRequest::intent: &'a runx_core::policy::AttenuationRequest
+pub runx_core::policy::ExecutionTermRequest::intent_digest: &'a str
+pub runx_core::policy::ExecutionTermRequest::issued_by_ref: runx_contracts::reference::Reference
 pub struct runx_core::policy::LocalExecutionPolicy
 pub runx_core::policy::LocalExecutionPolicy::strict_process_tool_inline_code: core::option::Option<bool>
-pub struct runx_core::policy::LocalScopeAdmissionOptions
-pub runx_core::policy::LocalScopeAdmissionOptions::connected_auth_checked_at: core::option::Option<alloc::string::String>
-pub runx_core::policy::LocalScopeAdmissionOptions::denied_before_grant_resolution: core::option::Option<bool>
-pub runx_core::policy::LocalScopeAdmissionOptions::wildcard_scopes_trusted: bool
-pub struct runx_core::policy::ScopeBoundsComparator
-impl runx_core::policy::authority_mint::ScopeBoundsComparator
-pub const runx_core::policy::authority_mint::ScopeBoundsComparator::ALGORITHM: &'static str
-impl runx_core::policy::authority_mint::FamilySubsetComparator for runx_core::policy::authority_mint::ScopeBoundsComparator
-pub fn runx_core::policy::authority_mint::ScopeBoundsComparator::bounds_subset(&self, child: &runx_contracts::authority::AuthorityTerm, parent: &runx_contracts::authority::AuthorityTerm) -> bool
-pub fn runx_core::policy::authority_mint::ScopeBoundsComparator::comparison_algorithm(&self) -> &str
-pub fn runx_core::policy::authority_mint::ScopeBoundsComparator::narrow_bounds(&self, parent: &runx_contracts::authority::AuthorityTerm, requested: &runx_contracts::authority::AuthorityBounds) -> runx_contracts::authority::AuthorityBounds
 pub struct runx_core::policy::ToolRefAdmission
 pub runx_core::policy::ToolRefAdmission::allowed: bool
 pub runx_core::policy::ToolRefAdmission::reason: &'static str
@@ -237,66 +82,21 @@ pub trait runx_core::policy::FamilySubsetComparator
 pub fn runx_core::policy::FamilySubsetComparator::bounds_subset(&self, child: &runx_contracts::authority::AuthorityTerm, parent: &runx_contracts::authority::AuthorityTerm) -> bool
 pub fn runx_core::policy::FamilySubsetComparator::comparison_algorithm(&self) -> &str
 pub fn runx_core::policy::FamilySubsetComparator::narrow_bounds(&self, parent: &runx_contracts::authority::AuthorityTerm, requested: &runx_contracts::authority::AuthorityBounds) -> runx_contracts::authority::AuthorityBounds
-impl runx_core::policy::authority_mint::FamilySubsetComparator for runx_core::policy::authority_mint::ScopeBoundsComparator
-pub fn runx_core::policy::authority_mint::ScopeBoundsComparator::bounds_subset(&self, child: &runx_contracts::authority::AuthorityTerm, parent: &runx_contracts::authority::AuthorityTerm) -> bool
-pub fn runx_core::policy::authority_mint::ScopeBoundsComparator::comparison_algorithm(&self) -> &str
-pub fn runx_core::policy::authority_mint::ScopeBoundsComparator::narrow_bounds(&self, parent: &runx_contracts::authority::AuthorityTerm, requested: &runx_contracts::authority::AuthorityBounds) -> runx_contracts::authority::AuthorityBounds
+impl runx_core::policy::FamilySubsetComparator for runx_core::policy::ConnectorBoundsComparator
+pub fn runx_core::policy::ConnectorBoundsComparator::bounds_subset(&self, child: &runx_contracts::authority::AuthorityTerm, parent: &runx_contracts::authority::AuthorityTerm) -> bool
+pub fn runx_core::policy::ConnectorBoundsComparator::comparison_algorithm(&self) -> &str
+pub fn runx_core::policy::ConnectorBoundsComparator::narrow_bounds(&self, parent: &runx_contracts::authority::AuthorityTerm, requested: &runx_contracts::authority::AuthorityBounds) -> runx_contracts::authority::AuthorityBounds
 pub fn runx_core::policy::admit_agent_tool_ref(value: &str) -> runx_core::policy::ToolRefAdmission
-pub fn runx_core::policy::admit_graph_step_scopes(request: &runx_core::policy::GraphScopeAdmissionRequest) -> runx_core::policy::GraphScopeAdmissionDecision
-pub fn runx_core::policy::admit_local_skill(skill: &runx_core::policy::LocalAdmissionSkill, options: &runx_core::policy::LocalAdmissionOptions) -> runx_core::policy::AdmissionDecision
-pub fn runx_core::policy::authority_effect_family<'a>(parent: &'a runx_contracts::authority::AuthorityTerm, child: &'a runx_contracts::authority::AuthorityTerm) -> core::option::Option<&'a str>
-pub fn runx_core::policy::authority_effect_guard_required(term: &runx_contracts::authority::AuthorityTerm, family: &str, guard_kind: runx_contracts::authority::AuthorityEffectGuardKind) -> bool
-pub fn runx_core::policy::authority_effect_proof_kinds(parent: &runx_contracts::authority::AuthorityTerm, child: &runx_contracts::authority::AuthorityTerm, family: &str) -> alloc::vec::Vec<runx_contracts::reference::ProofKind>
-pub fn runx_core::policy::authority_term_has_verb(term: &runx_contracts::authority::AuthorityTerm, verb: runx_contracts::authority::AuthorityVerb) -> bool
-pub fn runx_core::policy::build_authority_proof(options: &runx_core::policy::BuildAuthorityProofOptions) -> runx_contracts::policy_proof::AuthorityProof
-pub fn runx_core::policy::build_authority_proof_metadata(options: &runx_core::policy::BuildAuthorityProofOptions) -> runx_core::policy::AuthorityProofMetadata
-pub fn runx_core::policy::build_local_scope_admission(auth: core::option::Option<&runx_contracts::json::JsonValue>, grants: &[runx_core::policy::LocalAdmissionGrant], options: &runx_core::policy::LocalScopeAdmissionOptions) -> runx_contracts::policy_proof::ScopeAdmission
-pub fn runx_core::policy::compute_maturity(signals: &runx_contracts::maturity::MaturitySignals) -> runx_contracts::maturity::MaturityTier
-pub fn runx_core::policy::ensure_subset_proof(proof: core::option::Option<&runx_contracts::authority::AuthoritySubsetProof>, child: &runx_contracts::authority::AuthorityTerm, parent: &runx_contracts::authority::AuthorityTerm) -> core::result::Result<(), runx_core::policy::authority_mint::SubsetProofError>
-pub fn runx_core::policy::evaluate_authority_effect_guards<'a>(parent: &'a runx_contracts::authority::AuthorityTerm, child: &'a runx_contracts::authority::AuthorityTerm, family: &'a str) -> runx_core::policy::authority_algebra::AuthorityEffectGuardDecision<'a>
-pub fn runx_core::policy::is_authority_subset(child: &runx_contracts::authority::AuthorityTerm, parent: &runx_contracts::authority::AuthorityTerm, comparator: &dyn runx_core::policy::authority_mint::FamilySubsetComparator) -> bool
-pub fn runx_core::policy::mint_attenuated(parent: &runx_contracts::authority::AuthorityTerm, request: &runx_core::policy::authority_mint::AttenuationRequest, comparator: &dyn runx_core::policy::authority_mint::FamilySubsetComparator, checked_at: runx_contracts::schema::IsoDateTime) -> core::result::Result<(runx_contracts::authority::AuthorityTerm, runx_contracts::authority::AuthoritySubsetProof), runx_core::policy::authority_mint::AttenuationError>
-pub fn runx_core::policy::missing_granted_scopes(required_scopes: &[alloc::string::String], granted_scopes: &[alloc::string::String], policy: runx_core::policy::scope::ScopeGrantPolicy) -> alloc::vec::Vec<alloc::string::String>
+pub fn runx_core::policy::derive_execution_term(request: &runx_core::policy::ExecutionTermRequest<'_>, comparator: &dyn runx_core::policy::FamilySubsetComparator, checked_at: runx_contracts::schema::IsoDateTime) -> core::result::Result<(runx_contracts::authority::AuthorityTerm, alloc::vec::Vec<runx_contracts::authority::AuthoritySubsetProof>), runx_core::policy::DerivationError>
+pub fn runx_core::policy::mint_attenuated(parent: &runx_contracts::authority::AuthorityTerm, request: &runx_core::policy::AttenuationRequest, comparator: &dyn runx_core::policy::FamilySubsetComparator, checked_at: runx_contracts::schema::IsoDateTime) -> core::result::Result<(runx_contracts::authority::AuthorityTerm, runx_contracts::authority::AuthoritySubsetProof), runx_core::policy::AttenuationError>
+pub fn runx_core::policy::missing_granted_scopes(required_scopes: &[alloc::string::String], granted_scopes: &[alloc::string::String], policy: runx_core::policy::ScopeGrantPolicy) -> alloc::vec::Vec<alloc::string::String>
 pub fn runx_core::policy::parse_rfc3339_moment(value: &str) -> core::option::Option<(i64, i64, u32)>
-pub fn runx_core::policy::scope_grant_allows(granted_scope: &str, requested_scope: &str, policy: runx_core::policy::scope::ScopeGrantPolicy) -> bool
+pub fn runx_core::policy::scope_grant_allows(granted_scope: &str, requested_scope: &str, policy: runx_core::policy::ScopeGrantPolicy) -> bool
 pub fn runx_core::policy::strict_process_tool_inline_code_denial(command: core::option::Option<&str>, args: &[alloc::string::String], policy: core::option::Option<&runx_core::policy::LocalExecutionPolicy>) -> core::option::Option<alloc::string::String>
-pub fn runx_core::policy::validate_credential_binding(request: &runx_core::policy::CredentialBindingRequest) -> runx_core::policy::CredentialBindingDecision
 pub mod runx_core::serde_conventions
 pub mod runx_core::state_machine
-pub enum runx_core::state_machine::FanoutBranchFailurePolicy
-pub runx_core::state_machine::FanoutBranchFailurePolicy::Continue
-pub runx_core::state_machine::FanoutBranchFailurePolicy::Halt
-pub enum runx_core::state_machine::FanoutGate
-pub runx_core::state_machine::FanoutGate::Conflict
-pub runx_core::state_machine::FanoutGate::Conflict::action: runx_core::state_machine::FanoutGateAction
-pub runx_core::state_machine::FanoutGate::Conflict::field: alloc::string::String
-pub runx_core::state_machine::FanoutGate::Conflict::values: core::option::Option<alloc::collections::btree::map::BTreeMap<alloc::string::String, runx_contracts::json::JsonValue>>
-pub runx_core::state_machine::FanoutGate::Threshold
-pub runx_core::state_machine::FanoutGate::Threshold::action: runx_core::state_machine::FanoutGateAction
-pub runx_core::state_machine::FanoutGate::Threshold::compared_to: core::option::Option<runx_contracts::json::JsonNumber>
-pub runx_core::state_machine::FanoutGate::Threshold::field: alloc::string::String
-pub runx_core::state_machine::FanoutGate::Threshold::step_id: core::option::Option<alloc::string::String>
-pub runx_core::state_machine::FanoutGate::Threshold::value: core::option::Option<runx_contracts::json::JsonValue>
-pub enum runx_core::state_machine::FanoutGateAction
-pub runx_core::state_machine::FanoutGateAction::Escalate
-pub runx_core::state_machine::FanoutGateAction::Pause
-impl core::convert::From<runx_core::state_machine::FanoutGateAction> for runx_core::state_machine::FanoutSyncOutcome
-pub fn runx_core::state_machine::FanoutSyncOutcome::from(action: runx_core::state_machine::FanoutGateAction) -> Self
-pub enum runx_core::state_machine::FanoutSyncOutcome
-pub runx_core::state_machine::FanoutSyncOutcome::Escalate
-pub runx_core::state_machine::FanoutSyncOutcome::Halt
-pub runx_core::state_machine::FanoutSyncOutcome::Pause
-pub runx_core::state_machine::FanoutSyncOutcome::Proceed
-impl core::convert::From<runx_core::state_machine::FanoutGateAction> for runx_core::state_machine::FanoutSyncOutcome
-pub fn runx_core::state_machine::FanoutSyncOutcome::from(action: runx_core::state_machine::FanoutGateAction) -> Self
-pub enum runx_core::state_machine::FanoutSyncStrategy
-pub runx_core::state_machine::FanoutSyncStrategy::All
-pub runx_core::state_machine::FanoutSyncStrategy::Any
-pub runx_core::state_machine::FanoutSyncStrategy::Quorum
 pub enum runx_core::state_machine::GraphStatus
-pub runx_core::state_machine::GraphStatus::Escalated
 pub runx_core::state_machine::GraphStatus::Failed
-pub runx_core::state_machine::GraphStatus::Paused
 pub runx_core::state_machine::GraphStatus::Pending
 pub runx_core::state_machine::GraphStatus::Running
 pub runx_core::state_machine::GraphStatus::Succeeded
@@ -308,12 +108,8 @@ pub runx_core::state_machine::GraphStepStatus::Skipped
 pub runx_core::state_machine::GraphStepStatus::Succeeded
 pub enum runx_core::state_machine::SequentialGraphEvent
 pub runx_core::state_machine::SequentialGraphEvent::Complete
-pub runx_core::state_machine::SequentialGraphEvent::EscalateGraph
-pub runx_core::state_machine::SequentialGraphEvent::EscalateGraph::reason: alloc::string::String
 pub runx_core::state_machine::SequentialGraphEvent::FailGraph
 pub runx_core::state_machine::SequentialGraphEvent::FailGraph::error: alloc::string::String
-pub runx_core::state_machine::SequentialGraphEvent::PauseGraph
-pub runx_core::state_machine::SequentialGraphEvent::PauseGraph::reason: alloc::string::String
 pub runx_core::state_machine::SequentialGraphEvent::StartStep
 pub runx_core::state_machine::SequentialGraphEvent::StartStep::at: alloc::string::String
 pub runx_core::state_machine::SequentialGraphEvent::StartStep::step_id: alloc::string::String
@@ -332,98 +128,29 @@ pub enum runx_core::state_machine::SequentialGraphPlan
 pub runx_core::state_machine::SequentialGraphPlan::Blocked
 pub runx_core::state_machine::SequentialGraphPlan::Blocked::reason: alloc::string::String
 pub runx_core::state_machine::SequentialGraphPlan::Blocked::step_id: alloc::string::String
-pub runx_core::state_machine::SequentialGraphPlan::Blocked::sync_decision: core::option::Option<runx_core::state_machine::FanoutSyncDecision>
 pub runx_core::state_machine::SequentialGraphPlan::Complete
-pub runx_core::state_machine::SequentialGraphPlan::Escalated
-pub runx_core::state_machine::SequentialGraphPlan::Escalated::reason: alloc::string::String
-pub runx_core::state_machine::SequentialGraphPlan::Escalated::step_id: alloc::string::String
-pub runx_core::state_machine::SequentialGraphPlan::Escalated::sync_decision: runx_core::state_machine::FanoutSyncDecision
 pub runx_core::state_machine::SequentialGraphPlan::Failed
 pub runx_core::state_machine::SequentialGraphPlan::Failed::reason: alloc::string::String
 pub runx_core::state_machine::SequentialGraphPlan::Failed::step_id: alloc::string::String
-pub runx_core::state_machine::SequentialGraphPlan::Failed::sync_decision: core::option::Option<runx_core::state_machine::FanoutSyncDecision>
-pub runx_core::state_machine::SequentialGraphPlan::Paused
-pub runx_core::state_machine::SequentialGraphPlan::Paused::reason: alloc::string::String
-pub runx_core::state_machine::SequentialGraphPlan::Paused::step_id: alloc::string::String
-pub runx_core::state_machine::SequentialGraphPlan::Paused::sync_decision: runx_core::state_machine::FanoutSyncDecision
-pub runx_core::state_machine::SequentialGraphPlan::RunFanout
-pub runx_core::state_machine::SequentialGraphPlan::RunFanout::branches: alloc::vec::Vec<runx_core::state_machine::FanoutBranchPlan>
-pub runx_core::state_machine::SequentialGraphPlan::RunFanout::group_id: alloc::string::String
 pub runx_core::state_machine::SequentialGraphPlan::RunStep
 pub runx_core::state_machine::SequentialGraphPlan::RunStep::attempt: u32
 pub runx_core::state_machine::SequentialGraphPlan::RunStep::context_from: alloc::vec::Vec<alloc::string::String>
 pub runx_core::state_machine::SequentialGraphPlan::RunStep::step_id: alloc::string::String
-pub enum runx_core::state_machine::SingleStepEvent
-pub runx_core::state_machine::SingleStepEvent::Admit
-pub runx_core::state_machine::SingleStepEvent::Fail
-pub runx_core::state_machine::SingleStepEvent::Fail::at: alloc::string::String
-pub runx_core::state_machine::SingleStepEvent::Fail::error: alloc::string::String
-pub runx_core::state_machine::SingleStepEvent::Start
-pub runx_core::state_machine::SingleStepEvent::Start::at: alloc::string::String
-pub runx_core::state_machine::SingleStepEvent::Succeed
-pub runx_core::state_machine::SingleStepEvent::Succeed::admission_witness: alloc::boxed::Box<runx_core::state_machine::StepAdmissionWitness>
-pub runx_core::state_machine::SingleStepEvent::Succeed::at: alloc::string::String
-pub enum runx_core::state_machine::StepStatus
-pub runx_core::state_machine::StepStatus::Admitted
-pub runx_core::state_machine::StepStatus::Failed
-pub runx_core::state_machine::StepStatus::Pending
-pub runx_core::state_machine::StepStatus::Running
-pub runx_core::state_machine::StepStatus::Succeeded
 pub struct runx_core::state_machine::AuthorityAdmissionWitness
 pub runx_core::state_machine::AuthorityAdmissionWitness::capability_ref: core::option::Option<runx_contracts::reference::Reference>
 pub runx_core::state_machine::AuthorityAdmissionWitness::child_term_id: alloc::string::String
 pub runx_core::state_machine::AuthorityAdmissionWitness::idempotency_key: core::option::Option<alloc::string::String>
 pub runx_core::state_machine::AuthorityAdmissionWitness::parent_term_id: alloc::string::String
 pub runx_core::state_machine::AuthorityAdmissionWitness::verb: runx_contracts::authority::AuthorityVerb
-pub struct runx_core::state_machine::FanoutBranchPlan
-pub runx_core::state_machine::FanoutBranchPlan::attempt: u32
-pub runx_core::state_machine::FanoutBranchPlan::context_from: alloc::vec::Vec<alloc::string::String>
-pub runx_core::state_machine::FanoutBranchPlan::step_id: alloc::string::String
-pub struct runx_core::state_machine::FanoutBranchResult
-pub runx_core::state_machine::FanoutBranchResult::outputs: core::option::Option<runx_contracts::json::JsonObject>
-pub runx_core::state_machine::FanoutBranchResult::status: runx_core::state_machine::GraphStepStatus
-pub runx_core::state_machine::FanoutBranchResult::step_id: alloc::string::String
-pub struct runx_core::state_machine::FanoutConflictGate
-pub runx_core::state_machine::FanoutConflictGate::action: runx_core::state_machine::FanoutGateAction
-pub runx_core::state_machine::FanoutConflictGate::field: alloc::string::String
-pub runx_core::state_machine::FanoutConflictGate::steps: alloc::vec::Vec<alloc::string::String>
-pub struct runx_core::state_machine::FanoutGroupPolicy
-pub runx_core::state_machine::FanoutGroupPolicy::conflict_gates: core::option::Option<alloc::vec::Vec<runx_core::state_machine::FanoutConflictGate>>
-pub runx_core::state_machine::FanoutGroupPolicy::group_id: alloc::string::String
-pub runx_core::state_machine::FanoutGroupPolicy::min_success: core::option::Option<u32>
-pub runx_core::state_machine::FanoutGroupPolicy::on_branch_failure: runx_core::state_machine::FanoutBranchFailurePolicy
-pub runx_core::state_machine::FanoutGroupPolicy::strategy: runx_core::state_machine::FanoutSyncStrategy
-pub runx_core::state_machine::FanoutGroupPolicy::threshold_gates: core::option::Option<alloc::vec::Vec<runx_core::state_machine::FanoutThresholdGate>>
-pub struct runx_core::state_machine::FanoutSyncDecision
-pub runx_core::state_machine::FanoutSyncDecision::branch_count: usize
-pub runx_core::state_machine::FanoutSyncDecision::decision: runx_core::state_machine::FanoutSyncOutcome
-pub runx_core::state_machine::FanoutSyncDecision::failure_count: usize
-pub runx_core::state_machine::FanoutSyncDecision::gate: core::option::Option<runx_core::state_machine::FanoutGate>
-pub runx_core::state_machine::FanoutSyncDecision::group_id: alloc::string::String
-pub runx_core::state_machine::FanoutSyncDecision::reason: alloc::string::String
-pub runx_core::state_machine::FanoutSyncDecision::required_successes: usize
-pub runx_core::state_machine::FanoutSyncDecision::rule_fired: alloc::string::String
-pub runx_core::state_machine::FanoutSyncDecision::strategy: runx_core::state_machine::FanoutSyncStrategy
-pub runx_core::state_machine::FanoutSyncDecision::success_count: usize
-pub struct runx_core::state_machine::FanoutThresholdGate
-pub runx_core::state_machine::FanoutThresholdGate::above: runx_contracts::json::JsonNumber
-pub runx_core::state_machine::FanoutThresholdGate::action: runx_core::state_machine::FanoutGateAction
-pub runx_core::state_machine::FanoutThresholdGate::field: alloc::string::String
-pub runx_core::state_machine::FanoutThresholdGate::step: alloc::string::String
-pub struct runx_core::state_machine::RetryPolicy
-pub runx_core::state_machine::RetryPolicy::max_attempts: u32
 pub struct runx_core::state_machine::SequentialGraphState
 pub runx_core::state_machine::SequentialGraphState::graph_id: alloc::string::String
 pub runx_core::state_machine::SequentialGraphState::status: runx_core::state_machine::GraphStatus
 pub runx_core::state_machine::SequentialGraphState::steps: alloc::vec::Vec<runx_core::state_machine::SequentialGraphStepState>
 pub struct runx_core::state_machine::SequentialGraphStepDefinition
 pub runx_core::state_machine::SequentialGraphStepDefinition::context_from: core::option::Option<alloc::vec::Vec<alloc::string::String>>
-pub runx_core::state_machine::SequentialGraphStepDefinition::fanout_group: core::option::Option<alloc::string::String>
 pub runx_core::state_machine::SequentialGraphStepDefinition::id: alloc::string::String
-pub runx_core::state_machine::SequentialGraphStepDefinition::retry: core::option::Option<runx_core::state_machine::RetryPolicy>
 pub struct runx_core::state_machine::SequentialGraphStepIndex
 impl runx_core::state_machine::SequentialGraphStepIndex
-pub fn runx_core::state_machine::SequentialGraphStepIndex::fanout_positions(&self, group_id: &str) -> core::option::Option<&[usize]>
 pub fn runx_core::state_machine::SequentialGraphStepIndex::new(steps: &[runx_core::state_machine::SequentialGraphStepDefinition]) -> Self
 pub struct runx_core::state_machine::SequentialGraphStepState
 pub runx_core::state_machine::SequentialGraphStepState::attempts: u32
@@ -434,12 +161,6 @@ pub runx_core::state_machine::SequentialGraphStepState::receipt_id: core::option
 pub runx_core::state_machine::SequentialGraphStepState::started_at: core::option::Option<alloc::string::String>
 pub runx_core::state_machine::SequentialGraphStepState::status: runx_core::state_machine::GraphStepStatus
 pub runx_core::state_machine::SequentialGraphStepState::step_id: alloc::string::String
-pub struct runx_core::state_machine::SingleStepState
-pub runx_core::state_machine::SingleStepState::completed_at: core::option::Option<alloc::string::String>
-pub runx_core::state_machine::SingleStepState::error: core::option::Option<alloc::string::String>
-pub runx_core::state_machine::SingleStepState::started_at: core::option::Option<alloc::string::String>
-pub runx_core::state_machine::SingleStepState::status: runx_core::state_machine::StepStatus
-pub runx_core::state_machine::SingleStepState::step_id: alloc::string::String
 pub struct runx_core::state_machine::StepAdmissionWitness
 pub runx_core::state_machine::StepAdmissionWitness::authority: core::option::Option<runx_core::state_machine::AuthorityAdmissionWitness>
 pub runx_core::state_machine::StepAdmissionWitness::receipt_id: alloc::string::String
@@ -452,14 +173,9 @@ pub fn runx_core::state_machine::apply_sequential_graph_event_indexed(state: &mu
 pub fn runx_core::state_machine::apply_sequential_graph_event_owned_indexed(state: &mut runx_core::state_machine::SequentialGraphState, event: runx_core::state_machine::SequentialGraphEvent, step_index: &runx_core::state_machine::SequentialGraphStepIndex)
 pub fn runx_core::state_machine::create_sequential_graph_state(graph_id: impl core::convert::Into<alloc::string::String>, steps: &[runx_core::state_machine::SequentialGraphStepDefinition]) -> runx_core::state_machine::SequentialGraphState
 pub fn runx_core::state_machine::create_sequential_graph_step_index(steps: &[runx_core::state_machine::SequentialGraphStepDefinition]) -> runx_core::state_machine::SequentialGraphStepIndex
-pub fn runx_core::state_machine::create_single_step_state(step_id: impl core::convert::Into<alloc::string::String>) -> runx_core::state_machine::SingleStepState
-pub fn runx_core::state_machine::evaluate_fanout_sync(policy: &runx_core::state_machine::FanoutGroupPolicy, results: &[runx_core::state_machine::FanoutBranchResult], resolved_gate_keys: core::option::Option<&alloc::collections::btree::set::BTreeSet<alloc::string::String>>) -> runx_core::state_machine::FanoutSyncDecision
-pub fn runx_core::state_machine::evaluate_sequential_fanout_sync(state: &runx_core::state_machine::SequentialGraphState, definitions: &[runx_core::state_machine::SequentialGraphStepDefinition], step_index: &runx_core::state_machine::SequentialGraphStepIndex, policy: &runx_core::state_machine::FanoutGroupPolicy, resolved_gate_keys: core::option::Option<&alloc::collections::btree::set::BTreeSet<alloc::string::String>>) -> runx_core::state_machine::FanoutSyncDecision
-pub fn runx_core::state_machine::fanout_sync_decision_key(group_id: &str, rule_fired: &str) -> alloc::string::String
-pub fn runx_core::state_machine::plan_sequential_graph_transition(state: &runx_core::state_machine::SequentialGraphState, steps: &[runx_core::state_machine::SequentialGraphStepDefinition], fanout_policies: &alloc::collections::btree::map::BTreeMap<alloc::string::String, runx_core::state_machine::FanoutGroupPolicy>, resolved_fanout_gate_keys: core::option::Option<&alloc::collections::btree::set::BTreeSet<alloc::string::String>>) -> runx_core::state_machine::SequentialGraphPlan
-pub fn runx_core::state_machine::plan_sequential_graph_transition_indexed(state: &runx_core::state_machine::SequentialGraphState, steps: &[runx_core::state_machine::SequentialGraphStepDefinition], step_index: &runx_core::state_machine::SequentialGraphStepIndex, fanout_policies: &alloc::collections::btree::map::BTreeMap<alloc::string::String, runx_core::state_machine::FanoutGroupPolicy>, resolved_fanout_gate_keys: core::option::Option<&alloc::collections::btree::set::BTreeSet<alloc::string::String>>) -> runx_core::state_machine::SequentialGraphPlan
-pub fn runx_core::state_machine::plan_sequential_graph_transition_indexed_from(state: &runx_core::state_machine::SequentialGraphState, steps: &[runx_core::state_machine::SequentialGraphStepDefinition], step_index: &runx_core::state_machine::SequentialGraphStepIndex, fanout_policies: &alloc::collections::btree::map::BTreeMap<alloc::string::String, runx_core::state_machine::FanoutGroupPolicy>, resolved_fanout_gate_keys: core::option::Option<&alloc::collections::btree::set::BTreeSet<alloc::string::String>>, start_index: usize) -> runx_core::state_machine::SequentialGraphPlan
+pub fn runx_core::state_machine::plan_sequential_graph_transition(state: &runx_core::state_machine::SequentialGraphState, steps: &[runx_core::state_machine::SequentialGraphStepDefinition]) -> runx_core::state_machine::SequentialGraphPlan
+pub fn runx_core::state_machine::plan_sequential_graph_transition_indexed(state: &runx_core::state_machine::SequentialGraphState, steps: &[runx_core::state_machine::SequentialGraphStepDefinition], step_index: &runx_core::state_machine::SequentialGraphStepIndex) -> runx_core::state_machine::SequentialGraphPlan
+pub fn runx_core::state_machine::plan_sequential_graph_transition_indexed_from(state: &runx_core::state_machine::SequentialGraphState, steps: &[runx_core::state_machine::SequentialGraphStepDefinition], step_index: &runx_core::state_machine::SequentialGraphStepIndex, start_index: usize) -> runx_core::state_machine::SequentialGraphPlan
 pub fn runx_core::state_machine::start_sequential_graph_step_indexed(state: &mut runx_core::state_machine::SequentialGraphState, step_id: &str, at: alloc::string::String, step_index: &runx_core::state_machine::SequentialGraphStepIndex)
 pub fn runx_core::state_machine::succeed_sequential_graph_step_indexed(state: &mut runx_core::state_machine::SequentialGraphState, at: alloc::string::String, admission_witness: runx_core::state_machine::StepAdmissionWitness, outputs: core::option::Option<runx_contracts::json::JsonObject>, step_index: &runx_core::state_machine::SequentialGraphStepIndex)
 pub fn runx_core::state_machine::transition_sequential_graph(state: &runx_core::state_machine::SequentialGraphState, event: &runx_core::state_machine::SequentialGraphEvent) -> runx_core::state_machine::SequentialGraphState
-pub fn runx_core::state_machine::transition_single_step(state: &runx_core::state_machine::SingleStepState, event: &runx_core::state_machine::SingleStepEvent) -> runx_core::state_machine::SingleStepState

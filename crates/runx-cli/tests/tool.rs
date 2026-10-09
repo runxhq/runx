@@ -11,7 +11,7 @@ fn tool_search_native_catalog_json() -> Result<(), Box<dyn std::error::Error>> {
     assert!(output.status.success());
     let stdout = String::from_utf8(output.stdout)?;
     assert!(stdout.contains(r#""name": "fs.read""#));
-    assert!(stdout.contains(r#""source_type": "native""#));
+    assert!(stdout.contains(r#""tool_id": "native/fs.read""#));
     assert_eq!(String::from_utf8(output.stderr)?, "");
     Ok(())
 }

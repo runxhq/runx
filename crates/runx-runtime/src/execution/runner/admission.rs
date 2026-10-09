@@ -161,7 +161,6 @@ impl StepAuthorityContext {
         self.admission.witness()
     }
 
-    #[cfg(feature = "async-http")]
     pub(super) fn admission(&self) -> &EffectAdmission {
         &self.admission
     }

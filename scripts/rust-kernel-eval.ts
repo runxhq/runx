@@ -13,28 +13,13 @@ const defaultRunxBinary = path.join(
 );
 
 export type GraphStatus = "pending" | "running" | "succeeded" | "failed";
-export type GraphStepStatus = "pending" | "running" | "succeeded" | "failed";
-export type StepStatus = "pending" | "admitted" | "running" | "succeeded" | "failed";
-
-export interface SingleStepState {
-  readonly stepId: string;
-  readonly status: StepStatus;
-  readonly startedAt?: string;
-  readonly completedAt?: string;
-  readonly error?: string;
-}
+export type GraphStepStatus = "pending" | "running" | "succeeded" | "failed" | "skipped";
 
 export interface StepAdmissionWitness {
   readonly stepId: string;
   readonly receiptId: string;
   readonly authority?: unknown;
 }
-
-export type SingleStepEvent =
-  | { readonly type: "admit" }
-  | { readonly type: "start"; readonly at: string }
-  | { readonly type: "succeed"; readonly at: string; readonly admissionWitness: StepAdmissionWitness }
-  | { readonly type: "fail"; readonly at: string; readonly error: string };
 
 export interface SequentialGraphStepDefinition {
   readonly id: string;

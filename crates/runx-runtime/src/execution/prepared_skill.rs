@@ -1483,7 +1483,6 @@ runners:
         );
     }
 
-    #[cfg(feature = "process-tool")]
     #[test]
     fn prepared_skill_unprepared_receipt_rejects_forged_internal_env() -> Result<(), Box<dyn Error>>
     {

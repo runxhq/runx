@@ -19,7 +19,6 @@ use crate::kernel::operation::OperationEffect;
 /// other request is refused; a harness run never reaches the network. No public runtime input,
 /// environment variable or provider configuration can create this state;
 /// only the harness fronts call this function.
-#[cfg(feature = "process-tool")]
 pub(crate) fn effects_for_harness(
     effects: &RuntimeEffectRegistry,
     caller: &HarnessCaller,

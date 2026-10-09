@@ -112,7 +112,6 @@ fn core_tool_inventory(
     effects: &crate::RuntimeEffectRegistry,
 ) -> Result<Vec<JsonValue>, RuntimeError> {
     let mut core_tools = catalog_inventory(repo_root, RunxListRequestedKind::Tools)?;
-    #[cfg(feature = "catalog")]
     {
         let native_tools = crate::tool_catalogs::native::inventory(effects);
         let native_names = native_tools

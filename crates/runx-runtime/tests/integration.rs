@@ -26,9 +26,7 @@ mod license_boundary;
 mod managed_chat_completions;
 mod mcp_server;
 mod parity;
-#[cfg(all(feature = "catalog", feature = "process-tool"))]
 mod policy_approval;
-#[cfg(feature = "process-tool")]
 mod process_invocation_contract;
 mod receipt_archive;
 mod receipt_paths;

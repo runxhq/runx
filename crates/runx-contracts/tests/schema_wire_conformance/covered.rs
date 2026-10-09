@@ -4,10 +4,7 @@ use runx_contracts::act::result::ActResultEnvelope;
 use runx_contracts::agent_context::AgentContextEnvelope;
 use runx_contracts::artifact::Artifact;
 use runx_contracts::authority::{Authority, AuthoritySubsetProof, AuthorityTerm};
-use runx_contracts::credential_delivery::{
-    CredentialDeliveryObservation, CredentialDeliveryProfile, CredentialDeliveryRequest,
-    CredentialDeliveryResponse,
-};
+use runx_contracts::credential_delivery::CredentialDeliveryObservation;
 use runx_contracts::decision::Decision;
 use runx_contracts::dev::DevReport;
 use runx_contracts::doctor::DoctorReport;
@@ -26,7 +23,6 @@ use runx_contracts::orchestrator_handoff::{
 };
 use runx_contracts::output::Output;
 use runx_contracts::packet_index::PacketIndex;
-use runx_contracts::policy_proof::{AuthorityProof, CredentialEnvelope, ScopeAdmission};
 use runx_contracts::receipt::Receipt;
 use runx_contracts::redaction::Redaction;
 use runx_contracts::reference::{Reference, ReferenceLink};
@@ -96,21 +92,6 @@ pub(super) fn covered() -> Vec<Covered> {
             file_name: "decision.schema.json",
             emitted: Decision::json_schema(),
             corpus: decision_corpus(),
-        },
-        Covered {
-            file_name: "credential-delivery-profile.schema.json",
-            emitted: CredentialDeliveryProfile::json_schema(),
-            corpus: credential_delivery_profile_corpus(),
-        },
-        Covered {
-            file_name: "credential-delivery-request.schema.json",
-            emitted: CredentialDeliveryRequest::json_schema(),
-            corpus: credential_delivery_request_corpus(),
-        },
-        Covered {
-            file_name: "credential-delivery-response.schema.json",
-            emitted: CredentialDeliveryResponse::json_schema(),
-            corpus: credential_delivery_response_corpus(),
         },
         Covered {
             file_name: "credential-delivery-observation.schema.json",
@@ -271,21 +252,6 @@ pub(super) fn covered() -> Vec<Covered> {
             file_name: "ledger-entry.schema.json",
             emitted: LedgerEntry::json_schema(),
             corpus: ledger_entry_corpus(),
-        },
-        Covered {
-            file_name: "scope-admission.schema.json",
-            emitted: ScopeAdmission::json_schema(),
-            corpus: scope_admission_corpus(),
-        },
-        Covered {
-            file_name: "credential-envelope.schema.json",
-            emitted: CredentialEnvelope::json_schema(),
-            corpus: credential_envelope_corpus(),
-        },
-        Covered {
-            file_name: "authority-proof.schema.json",
-            emitted: AuthorityProof::json_schema(),
-            corpus: authority_proof_corpus(),
         },
         Covered {
             file_name: "output.schema.json",

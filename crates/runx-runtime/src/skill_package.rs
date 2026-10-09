@@ -16,10 +16,8 @@ use crate::filesystem::{DirectoryEntry, find_files_named, read_dir_sorted};
 mod inspection;
 mod retention;
 
-#[cfg(feature = "async-http")]
 pub use inspection::inspect_connector_readiness;
 pub(crate) use inspection::inspect_loaded_execution_closure_binding;
-#[cfg(feature = "process-tool")]
 pub(crate) use inspection::{LocalExecutionClosure, inspect_loaded_local_execution_closure};
 pub use inspection::{SkillInspectionError, inspect_skill_package};
 pub use retention::{

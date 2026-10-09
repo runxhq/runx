@@ -9,7 +9,6 @@ use super::{
     FileApplyBundleInput, FileReadBundleInput, FileReadInput, FileWriteInput, apply_files, read,
     read_bundle, write,
 };
-#[cfg(feature = "catalog")]
 use crate::RuntimeEffectRegistry;
 use crate::credentials::CredentialDelivery;
 use crate::paths::RUNX_CWD_ENV;
@@ -28,7 +27,6 @@ fn reads_and_digests_one_contained_file() -> Result<(), Box<dyn std::error::Erro
         JsonValue::String("profile.json".to_owned()),
     )]))?;
     let delivery = CredentialDelivery::none();
-    #[cfg(feature = "catalog")]
     let effects = RuntimeEffectRegistry::default();
     let output = json_output(read(&NativeInvocation {
         inputs: &inputs,
@@ -37,7 +35,6 @@ fn reads_and_digests_one_contained_file() -> Result<(), Box<dyn std::error::Erro
         skill_directory: workspace.path(),
         credential_delivery: &delivery,
         local_artifacts: crate::tool_catalogs::native::fixture_local_artifacts(),
-        #[cfg(feature = "catalog")]
         effects: &effects,
     })?)?;
     let output = output.as_object().ok_or("missing output")?;
@@ -71,7 +68,6 @@ fn reads_and_digests_a_bounded_file_bundle() -> Result<(), Box<dyn std::error::E
         ]),
     )]))?;
     let delivery = CredentialDelivery::none();
-    #[cfg(feature = "catalog")]
     let effects = RuntimeEffectRegistry::default();
     let output = json_output(read_bundle(&NativeInvocation {
         inputs: &inputs,
@@ -80,7 +76,6 @@ fn reads_and_digests_a_bounded_file_bundle() -> Result<(), Box<dyn std::error::E
         skill_directory: workspace.path(),
         credential_delivery: &delivery,
         local_artifacts: crate::tool_catalogs::native::fixture_local_artifacts(),
-        #[cfg(feature = "catalog")]
         effects: &effects,
     })?)?;
     let output = output.as_object().ok_or("missing output")?;
@@ -122,7 +117,6 @@ fn rejects_a_symlink_that_escapes_the_root() -> Result<(), Box<dyn std::error::E
         JsonValue::String("escape".to_owned()),
     )]))?;
     let delivery = CredentialDelivery::none();
-    #[cfg(feature = "catalog")]
     let effects = RuntimeEffectRegistry::default();
     let error = read(&NativeInvocation {
         inputs: &inputs,
@@ -131,7 +125,6 @@ fn rejects_a_symlink_that_escapes_the_root() -> Result<(), Box<dyn std::error::E
         skill_directory: workspace.path(),
         credential_delivery: &delivery,
         local_artifacts: crate::tool_catalogs::native::fixture_local_artifacts(),
-        #[cfg(feature = "catalog")]
         effects: &effects,
     })
     .expect_err("escaping symlink must be rejected");
@@ -157,7 +150,6 @@ fn writes_and_proves_one_contained_file() -> Result<(), Box<dyn std::error::Erro
         ),
     ]))?;
     let delivery = CredentialDelivery::none();
-    #[cfg(feature = "catalog")]
     let effects = RuntimeEffectRegistry::default();
     let output = json_output(write(&NativeInvocation {
         inputs: &inputs,
@@ -166,7 +158,6 @@ fn writes_and_proves_one_contained_file() -> Result<(), Box<dyn std::error::Erro
         skill_directory: workspace.path(),
         credential_delivery: &delivery,
         local_artifacts: crate::tool_catalogs::native::fixture_local_artifacts(),
-        #[cfg(feature = "catalog")]
         effects: &effects,
     })?)?;
     let output = output.as_object().ok_or("missing output")?;
@@ -202,7 +193,6 @@ fn native_file_tools_cannot_change_kernel_state() -> Result<(), Box<dyn std::err
         workspace.path().to_string_lossy().into_owned(),
     )]);
     let delivery = CredentialDelivery::none();
-    #[cfg(feature = "catalog")]
     let effects = RuntimeEffectRegistry::default();
     for root in [workspace.path(), alternate.path()] {
         for filename in [
@@ -233,7 +223,6 @@ fn native_file_tools_cannot_change_kernel_state() -> Result<(), Box<dyn std::err
                     skill_directory: workspace.path(),
                     credential_delivery: &delivery,
                     local_artifacts: crate::tool_catalogs::native::fixture_local_artifacts(),
-                    #[cfg(feature = "catalog")]
                     effects: &effects,
                 })
                 .is_err()
@@ -264,7 +253,6 @@ fn native_file_tools_cannot_change_kernel_state() -> Result<(), Box<dyn std::err
                         skill_directory: workspace.path(),
                         credential_delivery: &delivery,
                         local_artifacts: crate::tool_catalogs::native::fixture_local_artifacts(),
-                        #[cfg(feature = "catalog")]
                         effects: &effects,
                     })
                     .is_err()
@@ -280,7 +268,6 @@ fn native_file_tools_cannot_change_kernel_state() -> Result<(), Box<dyn std::err
                     skill_directory: workspace.path(),
                     credential_delivery: &delivery,
                     local_artifacts: crate::tool_catalogs::native::fixture_local_artifacts(),
-                    #[cfg(feature = "catalog")]
                     effects: &effects,
                 })
                 .is_err()
@@ -327,7 +314,6 @@ fn file_tool_cannot_replace_lock_while_a_receipt_write_waits()
         workspace.path().to_string_lossy().into_owned(),
     )]);
     let delivery = CredentialDelivery::none();
-    #[cfg(feature = "catalog")]
     let effects = RuntimeEffectRegistry::default();
     let inputs = fixture_input::<FileApplyBundleInput>(JsonObject::from([
         (
@@ -350,7 +336,6 @@ fn file_tool_cannot_replace_lock_while_a_receipt_write_waits()
             skill_directory: workspace.path(),
             credential_delivery: &delivery,
             local_artifacts: crate::tool_catalogs::native::fixture_local_artifacts(),
-            #[cfg(feature = "catalog")]
             effects: &effects,
         })
         .is_err()
@@ -387,7 +372,6 @@ fn write_rejects_a_symlink_that_escapes_the_root() -> Result<(), Box<dyn std::er
         ),
     ]))?;
     let delivery = CredentialDelivery::none();
-    #[cfg(feature = "catalog")]
     let effects = RuntimeEffectRegistry::default();
     let error = write(&NativeInvocation {
         inputs: &inputs,
@@ -396,7 +380,6 @@ fn write_rejects_a_symlink_that_escapes_the_root() -> Result<(), Box<dyn std::er
         skill_directory: workspace.path(),
         credential_delivery: &delivery,
         local_artifacts: crate::tool_catalogs::native::fixture_local_artifacts(),
-        #[cfg(feature = "catalog")]
         effects: &effects,
     })
     .expect_err("escaping symlink must be rejected");

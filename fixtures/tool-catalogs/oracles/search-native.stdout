@@ -9,7 +9,6 @@
       "summary": "Read one bounded UTF-8 file through native workspace and symlink containment.",
       "source": "runx-runtime/filesystem",
       "source_label": "runx-runtime/filesystem",
-      "source_type": "native",
       "namespace": "fs",
       "external_name": "read",
       "required_scopes": [
@@ -27,7 +26,6 @@
       "summary": "Read a bounded set of UTF-8 files through one native containment boundary.",
       "source": "runx-runtime/filesystem",
       "source_label": "runx-runtime/filesystem",
-      "source_type": "native",
       "namespace": "fs",
       "external_name": "read_bundle",
       "required_scopes": [

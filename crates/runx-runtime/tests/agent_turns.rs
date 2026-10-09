@@ -6,8 +6,8 @@ use runx_contracts::{
     JsonObject, JsonValue, ResolutionRequest, TurnCallOutcome, TurnCallResult, TurnStatus,
 };
 use runx_runtime::{
-    LocalOrchestrator, ManagedAgentPolicy, ResumeRequest, RunResult, SkillRunRequest, TurnRequest,
-    TurnSession,
+    LocalOrchestrator, ManagedAgentPolicy, PackageHarnessRequest, ResumeRequest, RunResult,
+    SkillRunRequest, TurnRequest, TurnSession,
 };
 use tempfile::tempdir;
 
@@ -620,6 +620,292 @@ fn a_resume_pinned_to_another_package_is_refused() -> TestResult {
             .to_string()
             .contains("the package digest sha256:another is not the one run"),
         "{error}"
+    );
+    Ok(())
+}
+
+/// A one-turn skill whose harness case works the turn: it digests a value,
+/// expects the call to end `status`, then answers.
+fn write_scripted_turn_skill(root: &Path, status: &str) -> TestResult<PathBuf> {
+    let skill_dir = root.join("scripted-turn");
+    crate::support::write_test_skill_package(
+        &skill_dir,
+        "---\nname: scripted-turn\ndescription: Answers with what it digested.\n---\n# Scripted turn\n\nDigest the question, then answer.\n",
+        &format!(
+            r#"skill: scripted-turn
+tools: [data.digest]
+harness:
+  cases:
+    - name: digests-then-answers
+      inputs:
+        question: what digests?
+      caller:
+        turns:
+          {TURN}:
+            calls:
+              - tool: data_digest
+                input:
+                  value: what digests?
+                  encoding: utf8_text
+                expect:
+                  subset:
+                    index: 0
+                    outcome:
+                      status: {status}
+            output:
+              answer: digested
+      expect:
+        status: sealed
+        output:
+          subset:
+            answer: digested
+runners:
+  answer:
+    default: true
+    inputs:
+      question: {{ type: string, required: true }}
+    outputs:
+      answer: string
+"#
+        ),
+    )?;
+    Ok(skill_dir)
+}
+
+fn run_case(root: &Path, skill_dir: PathBuf) -> TestResult<runx_runtime::PackageHarnessReport> {
+    Ok(LocalOrchestrator::default()
+        .with_environment(env(root))
+        .run_package_harness(&PackageHarnessRequest {
+            skill_path: skill_dir,
+            receipt_dir: Some(root.join("receipts")),
+        })?)
+}
+
+/// A parent and child whose turns share an id: a script keyed by the
+/// child's address is the child's own, and the parent's works only the parent.
+#[test]
+fn a_script_by_address_works_the_turn_it_names() -> TestResult {
+    let temp = tempdir()?;
+    write_answer_skills(temp.path())?;
+    let skill_dir = temp.path().join("scripted-parent");
+    crate::support::write_test_skill_package(
+        &skill_dir,
+        "---\nname: scripted-parent\ndescription: Asks its child.\n---\n# Scripted parent\n\nAsk the child, then answer.\n",
+        &format!(
+            r#"skill: scripted-parent
+skills: [../answer-child]
+harness:
+  cases:
+    - name: the-child-has-its-own-script
+      inputs:
+        question: what digests?
+      caller:
+        turns:
+          {TURN}:
+            calls:
+              - tool: skill__answer-child
+                expect:
+                  subset:
+                    outcome:
+                      status: completed
+                      output:
+                        answer: from the child
+            output:
+              answer: from the parent
+          "answer/0#{TURN}":
+            output:
+              answer: from the child
+      expect:
+        status: sealed
+        output:
+          subset:
+            answer: from the parent
+runners:
+  answer:
+    default: true
+    inputs:
+      question: {{ type: string, required: true }}
+    outputs:
+      answer: string
+"#
+        ),
+    )?;
+    let report = run_case(temp.path(), skill_dir)?;
+    assert_eq!(report.status, "passed", "{:?}", report.assertion_errors);
+    Ok(())
+}
+
+#[test]
+fn a_harness_case_works_a_turn_call_by_call() -> TestResult {
+    let temp = tempdir()?;
+    let report = run_case(
+        temp.path(),
+        write_scripted_turn_skill(temp.path(), "completed")?,
+    )?;
+    assert_eq!(report.status, "passed", "{:?}", report.assertion_errors);
+    assert_eq!(report.case_count, 1);
+    Ok(())
+}
+
+#[test]
+fn a_scripted_call_that_returns_something_else_fails_its_case() -> TestResult {
+    let temp = tempdir()?;
+    let report = run_case(
+        temp.path(),
+        write_scripted_turn_skill(temp.path(), "refused")?,
+    )?;
+    assert_eq!(report.status, "failed");
+    assert!(
+        report
+            .assertion_errors
+            .iter()
+            .any(|error| error.contains("caller.turns.agent.answer.output.calls[0].expect")),
+        "{:?}",
+        report.assertion_errors
+    );
+    Ok(())
+}
+
+/// An actor's authority whose one delegation bounds how far it spreads.
+fn bounded(fanout: Option<u32>, depth: Option<u32>) -> runx_runtime::RunAuthority {
+    use runx_contracts::{
+        AuthorityBounds, AuthorityResourceFamily, AuthorityVerb, Reference, ReferenceType,
+    };
+    let actor = Reference::with_uri(ReferenceType::Principal, "runx:principal:assistant");
+    runx_runtime::RunAuthority {
+        actor_ref: actor.clone(),
+        mandate_ref: Some(Reference::runx(ReferenceType::Mandate, "test-mandate")),
+        delegations: vec![runx_core::policy::AttenuationRequest {
+            principal_ref: actor,
+            resource_ref: Reference::with_uri(
+                ReferenceType::ConnectorInstance,
+                "runx:connector_instance:any",
+            ),
+            resource_family: AuthorityResourceFamily::Connector,
+            verbs: vec![AuthorityVerb::Read],
+            capabilities: Vec::new(),
+            bounds: AuthorityBounds {
+                max_fanout: fanout,
+                max_child_depth: depth,
+                ..AuthorityBounds::default()
+            },
+            expires_at: None,
+        }],
+    }
+}
+
+/// Start `skill_dir` under `authority` and return what the run first says.
+fn start_bounded(
+    root: &Path,
+    skill_dir: PathBuf,
+    authority: runx_runtime::RunAuthority,
+) -> TestResult<RunResult> {
+    Ok(LocalOrchestrator::default().run_skill(&SkillRunRequest {
+        current_context: Vec::new(),
+        historical_context: Vec::new(),
+        run_authority: Some(authority),
+        skill_path: skill_dir,
+        receipt_dir: Some(root.join("receipts")),
+        run_id: None,
+        answers_path: None,
+        inputs: BTreeMap::from([(
+            "question".to_owned(),
+            JsonValue::String("what digests?".to_owned()),
+        )]),
+        env: env(root),
+        cwd: root.to_path_buf(),
+        managed_agent: ManagedAgentPolicy::HostDriven,
+    })?)
+}
+
+fn opened(root: &Path, started: &RunResult) -> TestResult<TurnSession> {
+    Ok(LocalOrchestrator::default().open_turns(&TurnRequest {
+        run_id: text(object(&started.output)?, "run_id")
+            .ok_or("missing run_id")?
+            .to_owned(),
+        receipt_dir: Some(root.join("receipts")),
+        env: env(root),
+        cwd: root.to_path_buf(),
+    })?)
+}
+
+#[test]
+fn a_delegation_bounds_the_child_runs_a_turn_starts() -> TestResult {
+    let temp = tempdir()?;
+    let skill_dir = write_turn_skill(temp.path())?;
+    let started = start_bounded(temp.path(), skill_dir, bounded(Some(1), None))?;
+    let turn = opened(temp.path(), &started)?;
+    let call = |value: &str| -> TestResult<TurnCallResult> {
+        Ok(turn.call(
+            TURN,
+            "skill__digest-child",
+            input(serde_json::json!({ "value": value }))?,
+        )?)
+    };
+    assert!(matches!(
+        call("one")?.outcome,
+        TurnCallOutcome::Completed { .. }
+    ));
+    let second = call("two")?;
+    assert!(
+        matches!(&second.outcome, TurnCallOutcome::Refused { reason } if reason.as_str().contains("at most 1 child runs")),
+        "{second:?}"
+    );
+    Ok(())
+}
+
+#[test]
+fn a_skill_call_that_starts_no_child_spends_no_fanout() -> TestResult {
+    let temp = tempdir()?;
+    let skill_dir = write_turn_skill(temp.path())?;
+    let started = start_bounded(temp.path(), skill_dir, bounded(Some(1), None))?;
+    let turn = opened(temp.path(), &started)?;
+    let missing = turn.call(TURN, "skill__digest-child", JsonObject::new())?;
+    assert!(
+        !matches!(missing.outcome, TurnCallOutcome::Completed { .. }),
+        "{missing:?}"
+    );
+    let first = turn.call(
+        TURN,
+        "skill__digest-child",
+        input(serde_json::json!({ "value": "one" }))?,
+    )?;
+    assert!(
+        matches!(first.outcome, TurnCallOutcome::Completed { .. }),
+        "{first:?}"
+    );
+    Ok(())
+}
+
+#[test]
+fn a_delegation_bounds_how_deep_child_runs_nest() -> TestResult {
+    let temp = tempdir()?;
+    let turn_skill = write_turn_skill(temp.path())?;
+    let started = start_bounded(temp.path(), turn_skill, bounded(None, Some(0)))?;
+    let refused = opened(temp.path(), &started)?.call(
+        TURN,
+        "skill__digest-child",
+        input(serde_json::json!({ "value": "deep" }))?,
+    )?;
+    assert!(
+        matches!(&refused.outcome, TurnCallOutcome::Refused { reason } if reason.as_str().contains("nest at most 0 deep")),
+        "{refused:?}"
+    );
+
+    // A graph's skill step starts a child run too.
+    let other = tempdir()?;
+    let parent = write_parent_skill(other.path())?;
+    let sealed = start_bounded(other.path(), parent, bounded(None, Some(0)))?;
+    let closure = object(
+        object(&sealed.output)?
+            .get("closure")
+            .ok_or("missing closure")?,
+    )?;
+    assert_eq!(text(closure, "disposition"), Some("blocked"));
+    assert_eq!(text(closure, "reason_code"), Some("authority_denied"));
+    assert!(
+        text(closure, "summary").is_some_and(|summary| summary.contains("nest at most 0 deep")),
+        "{closure:?}"
     );
     Ok(())
 }

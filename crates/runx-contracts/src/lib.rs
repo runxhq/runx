@@ -42,7 +42,6 @@ pub mod packet_index;
 pub mod paid_invocation;
 pub mod paid_invocation_fingerprint;
 pub mod paid_skill_listing;
-pub mod policy_proof;
 pub mod provider_operation;
 pub mod receipt;
 pub mod redaction;
@@ -105,12 +104,8 @@ pub use connector::{
 pub use connector_instance::{ConnectorInstance, InstanceAuthority};
 pub use conversation_source::{ConversationObservation, ConversationPage};
 pub use credential_delivery::{
-    CredentialDeliveryEnvBinding, CredentialDeliveryHandle, CredentialDeliveryMode,
-    CredentialDeliveryObservation, CredentialDeliveryObservationSchema,
-    CredentialDeliveryObservationStatus, CredentialDeliveryProfile,
-    CredentialDeliveryProfileSchema, CredentialDeliveryPurpose, CredentialDeliveryRequest,
-    CredentialDeliveryRequestSchema, CredentialDeliveryResponse, CredentialDeliveryResponseSchema,
-    CredentialDeliveryStatus, CredentialMaterialRole,
+    CredentialDeliveryMode, CredentialDeliveryObservation, CredentialDeliveryObservationSchema,
+    CredentialDeliveryObservationStatus, CredentialDeliveryPurpose, CredentialMaterialRole,
 };
 pub use decision::{
     Closure, ClosureDisposition, Decision, DecisionChoice, DecisionInputs, DecisionJustification,
@@ -245,15 +240,6 @@ pub use paid_skill_listing::{
     PaidSkillOffers, PaidSkillPreparedMediation, PaidSkillPreparedMediationTerms,
     PaidSkillPreparedOfferTerms, PaidSkillPreparedRunnerOffer, PaidSkillRunnerOffer,
     PaidSkillVendorAmountRange,
-};
-pub use policy_proof::{
-    AuthorityKind, AuthorityProof, AuthorityProofApprovalDecision,
-    AuthorityProofApprovalDecisionValue, AuthorityProofCredentialMaterial,
-    AuthorityProofCredentialMaterialStatus, AuthorityProofRedaction,
-    AuthorityProofRedactionSecretMaterial, AuthorityProofRedactionStatus,
-    AuthorityProofRedactionStream, AuthorityProofRequested, AuthorityProofSchemaVersion,
-    CredentialEnvelope, CredentialEnvelopeKind, CredentialGrantReference, ScopeAdmission,
-    ScopeAdmissionStatus,
 };
 pub use provider_operation::ProviderOperationPacket;
 pub use receipt::{

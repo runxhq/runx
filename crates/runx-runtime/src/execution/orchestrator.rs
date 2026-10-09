@@ -16,7 +16,6 @@ use super::harness::{HarnessReplayError, HarnessReplayOutput};
 use super::prepared_skill::{
     PreparedEntryProvenance, PreparedSkillRun, prepare_skill_run_with_effects,
 };
-#[cfg(feature = "process-tool")]
 use super::skill_front::PackageHarnessReport;
 use super::skill_front::{SkillRunError, TurnSession};
 use crate::effects::RuntimeEffectRegistry;
@@ -185,10 +184,6 @@ pub enum OrchestratorError {
     Harness(#[from] HarnessReplayError),
     #[error(transparent)]
     ReceiptStore(#[from] crate::receipts::store::ReceiptStoreError),
-    #[error(
-        "native graph orchestration is unavailable because runx-runtime was built without the process-tool feature"
-    )]
-    ProcessToolFeatureDisabled,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -393,7 +388,6 @@ impl LocalOrchestrator {
         harness_result(self.run_harness_fixture(request)?)
     }
 
-    #[cfg(feature = "process-tool")]
     pub fn run_package_harness(
         &self,
         request: &PackageHarnessRequest,
@@ -406,7 +400,6 @@ impl LocalOrchestrator {
         )?)
     }
 
-    #[cfg(feature = "process-tool")]
     pub fn run_harness_fixture(
         &self,
         request: &HarnessRunRequest,
@@ -436,19 +429,8 @@ impl LocalOrchestrator {
         persist_harness_receipts(&output, &options, &receipt_dir)?;
         Ok(output)
     }
-
-    #[cfg(not(feature = "process-tool"))]
-    pub fn run_harness_fixture(
-        &self,
-        request: &HarnessRunRequest,
-    ) -> Result<HarnessReplayOutput, OrchestratorError> {
-        let _ = self;
-        let _ = request;
-        Err(OrchestratorError::ProcessToolFeatureDisabled)
-    }
 }
 
-#[cfg(feature = "process-tool")]
 fn standalone_harness_options(
     request: &HarnessRunRequest,
     environment: &BTreeMap<String, String>,
@@ -469,7 +451,6 @@ fn standalone_harness_options(
     Ok((options, receipt_dir))
 }
 
-#[cfg(feature = "process-tool")]
 fn persist_harness_receipts(
     output: &HarnessReplayOutput,
     options: &super::harness::HarnessOptions,

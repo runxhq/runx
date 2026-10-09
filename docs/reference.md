@@ -159,7 +159,9 @@ answers that request with `{"retry": true}`, which runs the call again with the
 same input. A call that needs approval stays pending until `runx resume`
 answers it under `approvals`, by the address the paused run lists.
 `turn_complete` ends a turn with its output once none of its calls is pending,
-and the run continues. A run started with `--managed-agent` is worked by the
+and the run continues. A run whose delegation sets `max_fanout` or
+`max_child_depth` refuses a skill call that would start more child runs in one
+turn, or nest them deeper, than it allows. A run started with `--managed-agent` is worked by the
 managed agent: `runx turn` refuses it, and `--managed-agent` cannot take over a
 run its host drives.
 
@@ -786,9 +788,31 @@ A case's `caller` stands in for the host and the world. It is one shape in
 fixture files, inline runner cases and dev fixtures:
 
 - `answers`: agent act outputs, by request id;
+- `turns`: agent turns the caller works call by call, by request id. An act
+  is answered or worked, not both;
 - `approvals`: approval decisions, `true` or `false`, by gate id;
+
+An id answers that request in every run of the case that asks it. A key may
+instead be an address, such as `answer/0#agent.answer.output`, which answers
+only the request at that place in the run and wins over an id.
 - `http_exchanges`, `mcp_calls` and `provider_responses`: what the run's
   requests reach, described below.
+
+A worked turn makes each call through the turn, as an attached agent would,
+then ends with its `output`. A call names a tool the turn offers, by the name
+its status lists, and may say what it must return; a call that returns
+something else fails the case and is named in its error:
+
+```yaml
+caller:
+  turns:
+    agent.answer.output:
+      calls:
+        - tool: data_digest
+          input: { value: hello, encoding: utf8_text }
+          expect: { subset: { outcome: { status: completed } } }
+      output: { answer: digested }
+```
 
 Supplied `caller.answers` are semantic oracles, not inert model stubs. Native
 replay fails unless every supplied answer is observable in the root or step

@@ -784,7 +784,15 @@ mod tests {
             ),
         ]));
 
-        let serialized = serialize_json_output(&value, Path::new(".runx"), false)?;
+        let workspace = std::env::temp_dir().join(format!(
+            "runx-compact-output-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)?
+                .as_nanos()
+        ));
+        let artifacts = workspace.join(".runx").join("artifacts");
+        let serialized = serialize_json_output(&value, &artifacts, false)?;
         let projected: serde_json::Value = serde_json::from_str(&serialized)?;
 
         assert!(projected.get("context").is_none());
@@ -792,9 +800,10 @@ mod tests {
         assert_eq!(projected["result"]["message"], "ready");
         assert_eq!(projected["next"], serde_json::Value::Null);
 
-        let diagnostic = serialize_json_output(&value, Path::new(".runx"), true)?;
+        let diagnostic = serialize_json_output(&value, &artifacts, true)?;
         let diagnostic: serde_json::Value = serde_json::from_str(&diagnostic)?;
         assert!(diagnostic.get("context").is_some());
+        fs::remove_dir_all(workspace)?;
         Ok(())
     }
 

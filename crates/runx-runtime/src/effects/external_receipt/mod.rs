@@ -1,13 +1,10 @@
 use runx_contracts::AuthorityVerb;
-#[cfg(feature = "catalog")]
 use runx_contracts::JsonValue;
 use runx_core::state_machine::AuthorityAdmissionWitness;
 
-#[cfg(feature = "catalog")]
 use super::EffectToolRequest;
 use super::{EffectAdmission, EffectStepRequest, RuntimeEffect, RuntimeEffectError};
 use crate::CapabilityContract;
-#[cfg(feature = "catalog")]
 use crate::RuntimeError;
 
 mod contract;
@@ -53,7 +50,6 @@ impl RuntimeEffect for ExternalReceiptEffect {
         )))
     }
 
-    #[cfg(feature = "catalog")]
     fn invoke_tool(
         &self,
         request: EffectToolRequest<'_>,

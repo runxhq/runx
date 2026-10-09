@@ -21,13 +21,7 @@ pub struct RuntimeEffectRegistry {
 impl RuntimeEffectRegistry {
     /// Standard portable local effect owners used by every operator surface.
     pub fn local() -> Result<Self, RuntimeEffectError> {
-        #[cfg(feature = "async-http")]
-        #[allow(unused_mut)]
         let mut registry = Self::with_effect(crate::kernel::operation::OperationEffect::default())?;
-        #[cfg(not(feature = "async-http"))]
-        #[allow(unused_mut)]
-        let mut registry = Self::empty();
-        #[cfg(feature = "catalog")]
         registry.register_effect(super::ExternalReceiptEffect)?;
         Ok(registry)
     }
@@ -48,7 +42,6 @@ impl RuntimeEffectRegistry {
         self
     }
 
-    #[cfg(feature = "catalog")]
     pub(crate) fn harness_http_exchanges(
         &self,
     ) -> Option<&[crate::http::RuntimeHarnessHttpExchange]> {
@@ -77,7 +70,6 @@ impl RuntimeEffectRegistry {
         catalog::validate_capabilities(family, effect.capabilities())?;
         for capability in effect.capabilities() {
             let definition = capability.definition();
-            #[cfg(feature = "catalog")]
             if crate::tool_catalogs::native::is_core_tool(definition.id) {
                 return Err(RuntimeEffectError::InvalidMetadata {
                     family: family.to_owned(),
@@ -105,7 +97,6 @@ impl RuntimeEffectRegistry {
     /// effect. This is crate-private because only isolated runtime assembly
     /// (currently the deterministic harness) may alter an already-wired
     /// registry.
-    #[cfg(feature = "async-http")]
     pub(crate) fn replace_effect<T>(&mut self, effect: T) -> Result<(), RuntimeEffectError>
     where
         T: RuntimeEffect + 'static,

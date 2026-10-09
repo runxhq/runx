@@ -138,12 +138,11 @@ fn native_filesystem_reads_from_explicit_absolute_roots() -> Result<(), Box<dyn 
 fn native_command_boundary_keeps_generic_commands_credential_free()
 -> Result<(), Box<dyn std::error::Error>> {
     let workspace = tempfile::tempdir()?;
-    let delivery = CredentialDelivery::from_local_descriptor(
+    let delivery = CredentialDelivery::process_env(
         "example",
         "api_key",
         "EXAMPLE_TOKEN",
         "local:example:test",
-        vec!["example:read".to_owned()],
         "credential-sentinel",
     )?;
     let output = invoke(

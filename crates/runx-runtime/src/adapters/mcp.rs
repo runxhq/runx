@@ -22,7 +22,6 @@ pub use http_server::{
     serve_mcp_http_server, serve_mcp_http_server_blocking,
 };
 pub use server::{mcp_tool_result_from_run_result, serve_mcp_json_rpc};
-#[cfg(feature = "async-http")]
 pub(crate) use stdio_transport::{StdioJsonRpcTransport, TransportErrorState};
 pub use types::{
     McpContent, McpServerError, McpServerExecutionOptions, McpServerOptions,

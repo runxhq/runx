@@ -19,7 +19,6 @@ pub struct RegistryClient<T = DefaultRuntimeHttpTransport> {
     transport: T,
 }
 
-#[cfg(feature = "async-http")]
 impl RegistryClient<DefaultRuntimeHttpTransport> {
     pub fn new(base_url: impl AsRef<str>) -> Result<Self, RegistryClientError> {
         Self::with_transport(base_url, DefaultRuntimeHttpTransport::new()?)

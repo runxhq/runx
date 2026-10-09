@@ -2,37 +2,27 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-#[cfg(feature = "process-tool")]
 use base64::Engine;
-#[cfg(feature = "process-tool")]
 use base64::engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD};
-#[cfg(feature = "process-tool")]
 use ring::signature::KeyPair;
 use runx_contracts::JsonValue;
-#[cfg(all(feature = "process-tool", feature = "catalog"))]
 use runx_receipts::ReceiptTreeConfig;
-#[cfg(feature = "process-tool")]
 use runx_runtime::registry::TrustTier;
 use runx_runtime::registry::{FileRegistryStore, IngestSkillOptions, ingest_skill_markdown};
 use runx_runtime::{
     LocalOrchestrator, LocalReceiptStore, RUNX_RECEIPT_DIR_ENV, RunResult, RuntimeOptions,
     SkillRunRequest,
 };
-#[cfg(feature = "process-tool")]
 use runx_runtime::{
     RUNX_RECEIPT_VERIFY_ED25519_PUBLIC_KEY_BASE64_ENV, RUNX_RECEIPT_VERIFY_KID_ENV,
 };
 use tempfile::tempdir;
 
 const FIXTURE_CREATED_AT: &str = "2026-05-18T00:00:00Z";
-#[cfg(feature = "process-tool")]
 const TEST_MANIFEST_KEY_ID: &str = "runx-runtime-registry-test-key";
-#[cfg(feature = "process-tool")]
 const TEST_MANIFEST_SIGNER_ID: &str = "runx-runtime-registry-test-signer";
-#[cfg(feature = "process-tool")]
 const TEST_MANIFEST_SEED: [u8; 32] = [9; 32];
 
-#[cfg(feature = "process-tool")]
 fn registry_child_profile_document() -> String {
     r#"
 skill: registry-child
@@ -59,12 +49,10 @@ runners:
     .to_owned()
 }
 
-#[cfg(feature = "process-tool")]
 fn trusted_manifest_env() -> Result<BTreeMap<String, String>, Box<dyn std::error::Error>> {
     trusted_manifest_env_for_owner("acme", None)
 }
 
-#[cfg(feature = "process-tool")]
 fn trusted_manifest_env_for_owner(
     owner: &str,
     source_authority: Option<&str>,
@@ -95,7 +83,6 @@ fn trusted_manifest_env_for_owner(
     Ok(env)
 }
 
-#[cfg(feature = "process-tool")]
 fn sign_registry_version(
     registry_dir: &Path,
     skill_id: &str,
@@ -112,7 +99,6 @@ fn sign_registry_version(
     Ok(())
 }
 
-#[cfg(feature = "process-tool")]
 fn tamper_registry_version_markdown(
     registry_dir: &Path,
     skill_id: &str,
@@ -133,7 +119,6 @@ fn tamper_registry_version_markdown(
     Ok(())
 }
 
-#[cfg(feature = "process-tool")]
 fn registry_version_path(
     registry_dir: &Path,
     skill_id: &str,
@@ -148,7 +133,6 @@ fn registry_version_path(
         .join(format!("{version}.json")))
 }
 
-#[cfg(feature = "process-tool")]
 fn signed_manifest(
     version_record: &serde_json::Value,
 ) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
@@ -185,7 +169,6 @@ fn signed_manifest(
     }))
 }
 
-#[cfg(feature = "process-tool")]
 fn registry_manifest_payload(
     skill_id: &str,
     version: &str,
@@ -201,7 +184,6 @@ fn registry_manifest_payload(
     )
 }
 
-#[cfg(feature = "process-tool")]
 fn test_manifest_key_pair() -> Result<ring::signature::Ed25519KeyPair, std::io::Error> {
     ring::signature::Ed25519KeyPair::from_seed_unchecked(&TEST_MANIFEST_SEED).map_err(|error| {
         std::io::Error::other(format!("static registry manifest seed rejected: {error:?}"))
@@ -646,7 +628,6 @@ fn native_skill_run_uses_runtime_receipt_path_resolution() -> Result<(), Box<dyn
 }
 
 #[test]
-#[cfg(feature = "process-tool")]
 fn explicit_receipt_dir_is_available_to_process_tool_subprocess()
 -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;
@@ -717,7 +698,6 @@ runners:
 }
 
 #[test]
-#[cfg(feature = "process-tool")]
 fn native_graph_runs_a_javascript_module_without_manifest_process_plumbing()
 -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;
@@ -815,7 +795,6 @@ runners:
 }
 
 #[test]
-#[cfg(feature = "process-tool")]
 fn native_javascript_runner_rejects_a_packet_schema_violation()
 -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;
@@ -1714,7 +1693,6 @@ runners:
     Ok(())
 }
 
-#[cfg(feature = "catalog")]
 #[test]
 fn native_graph_skill_run_executes_local_tool_step() -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;
@@ -1759,7 +1737,6 @@ fn native_graph_skill_run_executes_local_tool_step() -> Result<(), Box<dyn std::
     Ok(())
 }
 
-#[cfg(feature = "catalog")]
 #[test]
 fn configured_model_credentials_do_not_enable_graph_agent_without_run_consent()
 -> Result<(), Box<dyn std::error::Error>> {
@@ -1789,7 +1766,6 @@ fn configured_model_credentials_do_not_enable_graph_agent_without_run_consent()
     Ok(())
 }
 
-#[cfg(feature = "catalog")]
 #[test]
 fn native_graph_skill_run_resolves_agent_task_named_emit_context()
 -> Result<(), Box<dyn std::error::Error>> {
@@ -1864,7 +1840,6 @@ fn native_graph_skill_run_resolves_agent_task_named_emit_context()
     Ok(())
 }
 
-#[cfg(feature = "catalog")]
 #[test]
 fn native_graph_skill_resume_preserves_initial_inputs_for_later_tool_steps()
 -> Result<(), Box<dyn std::error::Error>> {
@@ -1980,7 +1955,6 @@ fn native_graph_skill_resume_preserves_initial_inputs_for_later_tool_steps()
 // Transport-envelope probing is intentionally forbidden: an agent claim must
 // return the declared contract directly, so an `output`-wrapped answer fails
 // with the typed missing-output error instead of being silently unwrapped.
-#[cfg(feature = "catalog")]
 #[test]
 fn native_graph_skill_run_refuses_agent_output_envelope_claim()
 -> Result<(), Box<dyn std::error::Error>> {
@@ -2077,7 +2051,6 @@ fn native_graph_skill_run_refuses_agent_output_envelope_claim()
     Ok(())
 }
 
-#[cfg(feature = "catalog")]
 #[test]
 fn native_graph_skill_run_omits_missing_optional_graph_input_references()
 -> Result<(), Box<dyn std::error::Error>> {
@@ -2337,7 +2310,6 @@ fn native_graph_skill_resume_rejects_agent_answer_for_approval()
     Ok(())
 }
 
-#[cfg(feature = "catalog")]
 #[test]
 fn native_graph_skill_run_uses_canonical_tool_root() -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;
@@ -2379,7 +2351,6 @@ fn native_graph_skill_run_uses_canonical_tool_root() -> Result<(), Box<dyn std::
     Ok(())
 }
 
-#[cfg(feature = "catalog")]
 #[test]
 fn native_graph_skill_run_merges_imported_graph_skill_tool_roots()
 -> Result<(), Box<dyn std::error::Error>> {
@@ -2473,7 +2444,6 @@ fn native_graph_skill_run_merges_imported_graph_skill_tool_roots()
     Ok(())
 }
 
-#[cfg(feature = "process-tool")]
 #[test]
 fn native_graph_skill_run_executes_nested_process_tool_skill()
 -> Result<(), Box<dyn std::error::Error>> {
@@ -2576,7 +2546,6 @@ fn native_graph_skill_run_executes_nested_process_tool_skill()
     Ok(())
 }
 
-#[cfg(feature = "process-tool")]
 #[test]
 fn native_graph_skill_run_executes_nested_registry_skill() -> Result<(), Box<dyn std::error::Error>>
 {
@@ -2626,7 +2595,6 @@ fn native_graph_skill_run_executes_nested_registry_skill() -> Result<(), Box<dyn
     Ok(())
 }
 
-#[cfg(feature = "process-tool")]
 #[test]
 fn native_graph_skill_run_rejects_env_promoted_official_nested_registry_skill()
 -> Result<(), Box<dyn std::error::Error>> {
@@ -2685,7 +2653,6 @@ fn native_graph_skill_run_rejects_env_promoted_official_nested_registry_skill()
     Ok(())
 }
 
-#[cfg(feature = "process-tool")]
 #[test]
 fn native_graph_skill_run_rejects_unsigned_nested_registry_skill()
 -> Result<(), Box<dyn std::error::Error>> {
@@ -2739,7 +2706,6 @@ fn native_graph_skill_run_rejects_unsigned_nested_registry_skill()
     Ok(())
 }
 
-#[cfg(feature = "process-tool")]
 #[test]
 fn native_graph_skill_run_rejects_tampered_nested_registry_skill()
 -> Result<(), Box<dyn std::error::Error>> {
@@ -2791,7 +2757,6 @@ fn native_graph_skill_run_rejects_tampered_nested_registry_skill()
     Ok(())
 }
 
-#[cfg(feature = "process-tool")]
 #[test]
 fn native_graph_skill_run_rejects_nested_registry_skill_without_registry_dir()
 -> Result<(), Box<dyn std::error::Error>> {
@@ -2825,7 +2790,6 @@ fn native_graph_skill_run_rejects_nested_registry_skill_without_registry_dir()
     Ok(())
 }
 
-#[cfg(feature = "process-tool")]
 #[test]
 fn native_graph_skill_run_does_not_rerun_final_step() -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;
@@ -2925,7 +2889,6 @@ fn native_graph_skill_run_does_not_rerun_final_step() -> Result<(), Box<dyn std:
     Ok(())
 }
 
-#[cfg(feature = "process-tool")]
 #[test]
 fn native_graph_skill_run_recovers_domain_act_receipt() -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;
@@ -2957,7 +2920,6 @@ fn native_graph_skill_run_recovers_domain_act_receipt() -> Result<(), Box<dyn st
     Ok(())
 }
 
-#[cfg(feature = "process-tool")]
 #[test]
 fn native_graph_skill_run_executes_graph_stage_process_tool_skill()
 -> Result<(), Box<dyn std::error::Error>> {
@@ -3001,7 +2963,6 @@ fn native_graph_skill_run_executes_graph_stage_process_tool_skill()
     Ok(())
 }
 
-#[cfg(feature = "process-tool")]
 #[test]
 fn native_graph_skill_run_executes_nested_x_yaml_runner_skill()
 -> Result<(), Box<dyn std::error::Error>> {
@@ -3371,19 +3332,16 @@ runners:
     Ok(skill_dir)
 }
 
-#[cfg(feature = "catalog")]
 fn write_graph_tool_skill(root: &Path) -> Result<PathBuf, Box<dyn std::error::Error>> {
     let skill_dir = root.join("graph-tool");
     write_graph_tool_skill_at(&skill_dir)
 }
 
-#[cfg(feature = "catalog")]
 fn write_graph_tool_skill_under_skills(root: &Path) -> Result<PathBuf, Box<dyn std::error::Error>> {
     let skill_dir = root.join("skills/graph-tool");
     write_graph_tool_skill_at(&skill_dir)
 }
 
-#[cfg(feature = "catalog")]
 fn write_graph_importing_graph_with_bundled_tool(
     root: &Path,
 ) -> Result<PathBuf, Box<dyn std::error::Error>> {
@@ -3448,7 +3406,6 @@ runners:
     Ok(parent_dir)
 }
 
-#[cfg(feature = "catalog")]
 fn write_graph_tool_skill_at(skill_dir: &Path) -> Result<PathBuf, Box<dyn std::error::Error>> {
     fs::create_dir_all(skill_dir)?;
     fs::write(
@@ -3479,7 +3436,6 @@ runners:
     Ok(skill_dir.to_path_buf())
 }
 
-#[cfg(feature = "catalog")]
 fn write_graph_agent_artifact_context_skill(
     root: &Path,
 ) -> Result<PathBuf, Box<dyn std::error::Error>> {
@@ -3516,7 +3472,6 @@ runners:
     Ok(skill_dir)
 }
 
-#[cfg(feature = "catalog")]
 fn write_graph_agent_then_input_tool_skill(
     root: &Path,
 ) -> Result<PathBuf, Box<dyn std::error::Error>> {
@@ -3557,7 +3512,6 @@ runners:
     Ok(skill_dir)
 }
 
-#[cfg(feature = "catalog")]
 fn write_graph_optional_json_tool_skill(
     root: &Path,
 ) -> Result<PathBuf, Box<dyn std::error::Error>> {
@@ -3648,12 +3602,10 @@ runners:
     Ok(skill_dir)
 }
 
-#[cfg(feature = "catalog")]
 fn write_echo_tool(root: &Path) -> Result<(), Box<dyn std::error::Error>> {
     write_echo_tool_at(&root.join("tools/test/echo"), "Graph tool bug")
 }
 
-#[cfg(feature = "catalog")]
 fn write_echo_tool_at(tool_dir: &Path, message: &str) -> Result<(), Box<dyn std::error::Error>> {
     fs::create_dir_all(tool_dir)?;
     fs::write(
@@ -3693,7 +3645,6 @@ esac
     Ok(())
 }
 
-#[cfg(feature = "catalog")]
 fn write_optional_json_tool(root: &Path) -> Result<(), Box<dyn std::error::Error>> {
     let tool_dir = root.join("tools/test/optional-json");
     fs::create_dir_all(&tool_dir)?;
@@ -3744,7 +3695,6 @@ esac
     Ok(())
 }
 
-#[cfg(feature = "process-tool")]
 fn write_graph_nested_cli_skill(root: &Path) -> Result<PathBuf, Box<dyn std::error::Error>> {
     let child_dir = root.join("child-echo");
     crate::support::write_test_skill_package(
@@ -3813,12 +3763,10 @@ runners:
     Ok(skill_dir)
 }
 
-#[cfg(feature = "process-tool")]
 fn write_graph_nested_registry_skill(root: &Path) -> Result<PathBuf, Box<dyn std::error::Error>> {
     write_graph_nested_registry_skill_with_ref(root, "registry:acme/registry-child@1.0.0")
 }
 
-#[cfg(feature = "process-tool")]
 fn write_graph_nested_registry_skill_with_ref(
     root: &Path,
     skill_ref: &str,
@@ -3848,7 +3796,6 @@ runners:
     Ok(skill_dir)
 }
 
-#[cfg(feature = "process-tool")]
 fn write_graph_stage_cli_skill(root: &Path) -> Result<PathBuf, Box<dyn std::error::Error>> {
     let skill_dir = root.join("graph-stage-cli");
     let stage_dir = skill_dir.join("graph/child-echo");
@@ -3914,7 +3861,6 @@ runners:
     Ok(skill_dir)
 }
 
-#[cfg(feature = "process-tool")]
 fn write_graph_nested_cli_counter_skill(
     root: &Path,
     domain_act: bool,
@@ -3998,7 +3944,6 @@ runners:
     Ok(skill_dir)
 }
 
-#[cfg(feature = "process-tool")]
 fn write_graph_nested_x_yaml_cli_skill(root: &Path) -> Result<PathBuf, Box<dyn std::error::Error>> {
     let child_dir = root.join("child-x-cli");
     fs::create_dir_all(&child_dir)?;
@@ -4097,7 +4042,6 @@ fn array_field<'a>(
 /// Minimal operator environment for tests that spawn real subprocesses: the
 /// runtime passes through only declared and baseline variables, so the tests
 /// forward the host PATH explicitly instead of relying on ambient fallback.
-#[cfg(feature = "process-tool")]
 fn path_env() -> BTreeMap<String, String> {
     std::env::var("PATH")
         .ok()

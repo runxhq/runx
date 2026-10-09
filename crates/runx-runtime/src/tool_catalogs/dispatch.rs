@@ -3,7 +3,6 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
-#[cfg(feature = "agent")]
 use runx_contracts::tools::ToolInspectResult;
 use runx_contracts::{JsonObject, JsonValue};
 use runx_parser::SkillArtifactContract;
@@ -33,10 +32,8 @@ pub(crate) struct ToolDispatchRequest<'a> {
     pub effect_admission: Option<&'a EffectAdmission>,
 }
 
-/// Inspect a model-callable tool through the same native/local catalog roots
-/// used at execution time. Managed agents receive the real tool description
-/// and input contract instead of guessing from a bare ref.
-#[cfg(feature = "agent")]
+/// Inspect a tool through the same native/local catalog roots used at
+/// execution time, so a turn offers its real description and input contract.
 pub(crate) fn inspect_catalog_tool(
     tool_ref: &str,
     env: &BTreeMap<String, String>,

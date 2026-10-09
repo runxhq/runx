@@ -3,12 +3,11 @@
 #[test]
 fn credential_delivery_keeps_material_in_memory_and_redacts_output() {
     const SECRET: &str = "provider-secret-must-not-escape";
-    let delivery = runx_runtime::CredentialDelivery::from_local_descriptor(
+    let delivery = runx_runtime::CredentialDelivery::process_env(
         "slack",
         "bearer",
         "SLACK_TOKEN",
         "credential:slack:operator",
-        vec!["channel.post".to_owned()],
         SECRET,
     )
     .expect("local credential delivery");

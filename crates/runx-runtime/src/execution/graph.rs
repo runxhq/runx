@@ -579,7 +579,7 @@ mod tests {
             ("id".to_owned(), JsonValue::String("mutate".to_owned())),
             (
                 "tool".to_owned(),
-                JsonValue::String("provider.mutate".to_owned()),
+                JsonValue::String("acme.publish".to_owned()),
             ),
             (
                 "idempotency_key".to_owned(),

@@ -39,7 +39,6 @@ pub(crate) fn is_missing(value: Option<&JsonValue>) -> bool {
 /// Runtime-resolved values have precedence over static values. Undeclared
 /// values are not ambient tool input. Defaults, required fields, artifact
 /// projection, and declared JSON types are enforced before any process starts.
-#[cfg(feature = "catalog")]
 pub(crate) fn materialize_tool_inputs(
     declared: &BTreeMap<String, SkillInput>,
     static_inputs: &JsonObject,

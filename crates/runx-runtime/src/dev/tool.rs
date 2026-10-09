@@ -1,59 +1,28 @@
 // Module rationale: deterministic dev tool fixtures prepare fixture-owned
 // inputs and expectations, then enter the same catalog dispatcher as live
 // graph and managed-agent calls.
-#[cfg(feature = "catalog")]
 use std::borrow::Cow;
 use std::collections::BTreeMap;
-#[cfg(feature = "catalog")]
 use std::fs;
 use std::path::Path;
-#[cfg(feature = "catalog")]
 use std::time::Instant;
 
-#[cfg(feature = "catalog")]
 use runx_contracts::{JsonObject, JsonValue};
 
-#[cfg(feature = "catalog")]
 use super::r#loop::{
     assert_fixture_expectation, failed_fixture, prepare_fixture_workspace,
     resolve_fixture_execution_roots,
 };
-#[cfg(feature = "catalog")]
 use super::materialize::{materialize_fixture_string, materialize_fixture_value};
-#[cfg(feature = "catalog")]
 use super::support::elapsed_ms;
 use super::types::{DevError, DevFixtureResult, LoadedDevFixture};
-#[cfg(feature = "catalog")]
 use super::types::{
     DevFixtureAssertion, DevFixtureAssertionKind, DevFixtureExecutionRoots, DevFixtureStatus,
     PreparedDevFixtureWorkspace,
 };
-#[cfg(feature = "catalog")]
 use crate::tool_catalogs::{ToolCatalogError, ToolInspectOptions, resolve_local_tool};
 
 pub(super) fn run_tool_fixture(
-    root: &Path,
-    fixture: &LoadedDevFixture,
-    base_env: &BTreeMap<String, String>,
-) -> Result<DevFixtureResult, DevError> {
-    #[cfg(not(feature = "catalog"))]
-    {
-        let _ = (root, fixture, base_env);
-        Err(crate::RuntimeError::SkillFailed {
-            skill_name: "runx-dev".to_owned(),
-            message: "tool fixtures require the runx-runtime catalog feature".to_owned(),
-        }
-        .into())
-    }
-
-    #[cfg(feature = "catalog")]
-    {
-        run_tool_fixture_with_catalog(root, fixture, base_env)
-    }
-}
-
-#[cfg(feature = "catalog")]
-fn run_tool_fixture_with_catalog(
     root: &Path,
     fixture: &LoadedDevFixture,
     base_env: &BTreeMap<String, String>,
@@ -89,7 +58,6 @@ fn run_tool_fixture_with_catalog(
     result
 }
 
-#[cfg(feature = "catalog")]
 fn run_tool_fixture_inner(
     root: &Path,
     fixture: &LoadedDevFixture,
@@ -155,7 +123,6 @@ fn run_tool_fixture_inner(
     Ok(tool_result_from_execution(fixture, started, output))
 }
 
-#[cfg(feature = "catalog")]
 fn tool_fixture_env(
     root: &Path,
     fixture: &LoadedDevFixture,
@@ -189,7 +156,6 @@ fn tool_fixture_env(
     env
 }
 
-#[cfg(feature = "catalog")]
 fn tool_result_from_execution(
     fixture: &LoadedDevFixture,
     started: Instant,
@@ -218,7 +184,6 @@ fn tool_result_from_execution(
     }
 }
 
-#[cfg(feature = "catalog")]
 fn unknown_tool_ref(
     fixture: &LoadedDevFixture,
     started: Instant,
@@ -237,7 +202,6 @@ fn unknown_tool_ref(
     )
 }
 
-#[cfg(feature = "catalog")]
 fn missing_execution_roots(fixture: &LoadedDevFixture, started: Instant) -> DevFixtureResult {
     failed_fixture(
         fixture,
@@ -253,7 +217,6 @@ fn missing_execution_roots(fixture: &LoadedDevFixture, started: Instant) -> DevF
     )
 }
 
-#[cfg(feature = "catalog")]
 fn materialize_fixture_env(
     object: &JsonObject,
     tokens: &BTreeMap<String, String>,
@@ -264,7 +227,6 @@ fn materialize_fixture_env(
         .collect()
 }
 
-#[cfg(feature = "catalog")]
 fn materialize_env_entry(
     key: &str,
     value: &JsonValue,
@@ -282,7 +244,6 @@ fn materialize_env_entry(
     }
 }
 
-#[cfg(feature = "catalog")]
 fn json_display(value: &JsonValue) -> String {
     serde_json::to_string(value).unwrap_or_else(|_| "null".to_owned())
 }

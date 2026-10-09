@@ -26,26 +26,18 @@ fn evaluates_state_machine_fixture_document() -> Result<(), Box<dyn std::error::
 #[test]
 fn evaluates_raw_input_document() -> Result<(), Box<dyn std::error::Error>> {
     let output = evaluate_kernel_document_str(
-        r#"{"kind":"state-machine.createSingleStepState","stepId":"only"}"#,
+        r#"{"kind":"policy.scopeGrantAllows","grantedScope":"repo:*","requestedScope":"repo:read","policy":"delegated"}"#,
     )?;
 
     let KernelEvalOutput::Output { value } = output;
-    assert_eq!(
-        value,
-        json_value(
-            r#"{
-            "stepId": "only",
-            "status": "pending"
-        }"#
-        )?
-    );
+    assert_eq!(value, json_value("true")?);
     Ok(())
 }
 
 #[test]
 fn rejects_oversized_documents_fail_closed() {
     let source = format!(
-        r#"{{"kind":"state-machine.createSingleStepState","stepId":"{}"}}"#,
+        r#"{{"kind":"state-machine.createSequentialGraphState","graphId":"{}","steps":[]}}"#,
         "a".repeat(1024 * 1024)
     );
 
@@ -55,7 +47,7 @@ fn rejects_oversized_documents_fail_closed() {
 #[test]
 fn rejects_deeply_nested_documents_fail_closed() {
     let source = format!(
-        r#"{{"kind":"state-machine.fanoutSyncDecisionKey","decision":{}}}"#,
+        r#"{{"kind":"state-machine.planSequentialGraphTransition","decision":{}}}"#,
         nested_json_object(65)
     );
 
@@ -68,8 +60,9 @@ fn rejects_wide_documents_fail_closed() {
         .map(|index| format!(r#""k{index}":null"#))
         .collect::<Vec<_>>()
         .join(",");
-    let source =
-        format!(r#"{{"kind":"state-machine.fanoutSyncDecisionKey","decision":{{{fields}}}}}"#);
+    let source = format!(
+        r#"{{"kind":"state-machine.planSequentialGraphTransition","decision":{{{fields}}}}}"#
+    );
 
     assert_invalid_input_contains(&source, "object exceeds 512 fields");
 }

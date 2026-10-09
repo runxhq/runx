@@ -4,7 +4,6 @@ use std::process::Command;
 
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum ProcessSignal {
-    #[cfg(any(feature = "async-http", feature = "mcp", test))]
     Terminate,
     Force,
 }
@@ -13,7 +12,6 @@ pub(crate) enum ProcessSignal {
 impl ProcessSignal {
     const fn rustix_signal(self) -> rustix::process::Signal {
         match self {
-            #[cfg(any(feature = "async-http", feature = "mcp", test))]
             Self::Terminate => rustix::process::Signal::TERM,
             Self::Force => rustix::process::Signal::KILL,
         }

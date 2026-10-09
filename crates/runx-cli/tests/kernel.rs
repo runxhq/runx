@@ -38,7 +38,9 @@ fn kernel_eval_accepts_stdin_json() -> Result<(), Box<dyn std::error::Error>> {
         .spawn()?;
 
     if let Some(mut stdin) = child.stdin.take() {
-        stdin.write_all(br#"{"kind":"state-machine.createSingleStepState","stepId":"only"}"#)?;
+        stdin.write_all(
+            br#"{"kind":"state-machine.createSequentialGraphState","graphId":"only","steps":[{"id":"first"}]}"#,
+        )?;
     }
 
     let output = child.wait_with_output()?;
@@ -46,7 +48,7 @@ fn kernel_eval_accepts_stdin_json() -> Result<(), Box<dyn std::error::Error>> {
     assert_eq!(String::from_utf8(output.stderr)?, "");
     let value = serde_json::from_slice::<serde_json::Value>(&output.stdout)?;
     assert_eq!(value["status"], "success");
-    assert_eq!(value["result"]["value"]["stepId"], "only");
+    assert_eq!(value["result"]["value"]["graphId"], "only");
     assert_eq!(value["result"]["value"]["status"], "pending");
     Ok(())
 }

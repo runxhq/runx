@@ -157,6 +157,7 @@ fn run_inline_harness_case(
     let overrides = SkillRunOverrides {
         runner: case.runner.clone(),
         seeded_answers,
+        turn_scripts: case.caller.turns.clone(),
         ..Default::default()
     };
     execute_inline_harness_case(context, &request, &receipt_dir, case, &overrides)
@@ -283,10 +284,21 @@ fn assert_inline_harness_expectations(
     if let Some(expected_status) = &case.expect.status
         && *expected_status != actual_status
     {
+        // A failed run says why, so the case names what broke.
+        let reason = output
+            .as_object()
+            .and_then(|object| object.get("error"))
+            .and_then(JsonValue::as_object)
+            .and_then(|error| error.get("message"))
+            .and_then(JsonValue::as_str);
+        let actual = match reason {
+            Some(reason) => format!("{} ({reason})", status_name(&actual_status)),
+            None => status_name(&actual_status).to_owned(),
+        };
         return Err(HarnessReplayError::Mismatch {
             field: "expect.status".to_owned(),
             expected: status_name(expected_status).to_owned(),
-            actual: status_name(&actual_status).to_owned(),
+            actual,
         });
     }
 

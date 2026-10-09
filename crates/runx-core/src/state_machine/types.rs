@@ -1,17 +1,7 @@
-// Module rationale: state-machine wire types stay colocated so single-step and
-// sequential-graph serde surfaces are reviewed together.
+// Module rationale: state-machine wire types stay colocated so the
+// sequential-graph serde surface is reviewed together.
 use runx_contracts::{AuthorityVerb, JsonObject, Reference};
 use serde::{Deserialize, Serialize};
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum StepStatus {
-    Pending,
-    Admitted,
-    Running,
-    Succeeded,
-    Failed,
-}
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -32,19 +22,6 @@ pub enum GraphStepStatus {
     /// A `when` condition the runtime resolved to false selected this step out;
     /// it never runs and counts as terminal for graph-completion purposes.
     Skipped,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SingleStepState {
-    pub step_id: String,
-    pub status: StepStatus,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub started_at: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub completed_at: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub error: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -90,27 +67,6 @@ impl StepAdmissionWitness {
             authority: Some(authority),
         }
     }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(
-    tag = "type",
-    rename_all = "snake_case",
-    rename_all_fields = "camelCase"
-)]
-pub enum SingleStepEvent {
-    Admit,
-    Start {
-        at: String,
-    },
-    Succeed {
-        at: String,
-        admission_witness: Box<StepAdmissionWitness>,
-    },
-    Fail {
-        at: String,
-        error: String,
-    },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

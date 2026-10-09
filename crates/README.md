@@ -46,12 +46,11 @@ before they may be added to `deny.toml`.
   verification with an adversarial unit matrix.
 - `runx-runtime`: impure runtime. Owns filesystem, exact process invocation and
   supervision, journals, registry clients, harness replay, doctor, dev loop,
-  project initialization, generic authority gating, and the adapter set. Adapter
-  families are opt-in features: `async-http`, `process-tool`, `mcp`,
-  `mcp-http-server`, `agent`, `catalog`, and `store`.
-  The `async-http` feature owns runtime HTTP with reqwest over rustls, disables
-  redirect following, and uses bounded request/connect timeouts. `process-tool`
-  enables `async-http`; defaults keep the runtime dependency-light.
+  project initialization, generic authority gating, and the adapter set. Every
+  runtime carries the governed HTTP client (reqwest over rustls, no redirect
+  following, bounded request and connect timeouts), process tools and the tool
+  catalog. The opt-in features are `mcp`, `mcp-http-server`, `agent` and
+  `store`.
 - `runx-sdk`: blocking CLI-backed Rust SDK v0. Depends on `runx-contracts`
   only; explicit non-dep on `runx-core` and `runx-runtime`.
 - `runx-x402`: pure x402 v2 presentation, bounded header codecs, and exact

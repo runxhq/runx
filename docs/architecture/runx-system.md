@@ -218,10 +218,11 @@ promise, not an enforcement source.
 
 A scoped grant answers **may this principal call this provider operation?** It
 does not pretend a human approved the exact act. Most bounded provider
-mutations need only admitted grant authority. When the owning skill decides an
-act is consequential, it supplies an optional typed `approval` request to
-`provider.mutate`. The provider effect hashes that request into the exact plan,
-asks the host for one human decision, and refuses agent-authored approval.
+mutations need only admitted grant authority. An act needs one human decision
+when its connector operation declares `approval: required`, or when the skill's
+`operation` step supplies a typed `approval` request because the skill decides
+the act is consequential. Admission hashes that request into the exact intent,
+asks the host for the decision, and refuses agent-authored approval.
 There is no generic mutation flag and no adjacent graph gate for the same act.
 
 Generic local capabilities do not impose human approval merely because they

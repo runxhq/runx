@@ -1,260 +1,22 @@
 // Module rationale: credential delivery is one secret-handling trust surface; secret
-// string/env types, redaction, material resolution, and the delivery boundary stay colocated so the
+// string/env types, redaction, and the delivery boundary stay colocated so the
 // "secrets never leak" review happens against the whole module at once.
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::sync::Arc;
 
 use base64::Engine as _;
-use runx_contracts::policy_proof::CredentialEnvelope;
 use runx_contracts::{
     CredentialDeliveryMode, CredentialDeliveryObservation, CredentialDeliveryObservationStatus,
-    CredentialDeliveryPurpose, CredentialEnvelopeKind, JsonObject, JsonValue, ProofKind, Reference,
-    ReferenceType, sha256_hex, sha256_prefixed,
+    CredentialDeliveryPurpose, JsonObject, JsonValue, ProofKind, Reference, ReferenceType,
+    sha256_hex, sha256_prefixed,
 };
-use runx_core::policy::CredentialBindingDecision;
 use subtle::ConstantTimeEq;
 use thiserror::Error;
 use zeroize::Zeroize;
 
 const REDACTED_CREDENTIAL: &str = "[redacted-credential]";
 const MAX_STRUCTURED_REDACTION_DEPTH: usize = 128;
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct CredentialDeliveryProfile {
-    provider: String,
-    auth_mode: String,
-    env_bindings: Vec<CredentialEnvBinding>,
-}
-
-impl CredentialDeliveryProfile {
-    pub fn env_token(
-        provider: impl Into<String>,
-        auth_mode: impl Into<String>,
-        env_var: impl Into<String>,
-    ) -> Result<Self, CredentialDeliveryError> {
-        let env_var = env_var.into();
-        validate_env_name(&env_var)?;
-        Ok(Self {
-            provider: provider.into(),
-            auth_mode: auth_mode.into(),
-            env_bindings: vec![CredentialEnvBinding {
-                role: CredentialMaterialRole::ApiKey,
-                env_var,
-                required: true,
-            }],
-        })
-    }
-
-    #[must_use]
-    pub fn provider(&self) -> &str {
-        &self.provider
-    }
-
-    #[must_use]
-    pub fn auth_mode(&self) -> &str {
-        &self.auth_mode
-    }
-
-    pub fn from_contract_profile(
-        profile: &runx_contracts::CredentialDeliveryProfile,
-    ) -> Result<Self, CredentialDeliveryError> {
-        if profile.delivery_mode != runx_contracts::CredentialDeliveryMode::ProcessEnv {
-            return Err(CredentialDeliveryError::UnsupportedDeliveryMode {
-                mode: format!("{:?}", profile.delivery_mode),
-            });
-        }
-        let mut env_bindings = Vec::with_capacity(profile.env_bindings.len());
-        for binding in &profile.env_bindings {
-            let role = CredentialMaterialRole::from_contract_role(binding.role.clone());
-            validate_env_name(&binding.env_var)?;
-            env_bindings.push(CredentialEnvBinding {
-                role,
-                env_var: binding.env_var.clone(),
-                required: binding.required,
-            });
-        }
-        Ok(Self {
-            provider: profile.provider.to_string(),
-            auth_mode: profile.auth_mode.to_string(),
-            env_bindings,
-        })
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-struct CredentialEnvBinding {
-    role: CredentialMaterialRole,
-    env_var: String,
-    required: bool,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub enum CredentialMaterialRole {
-    PersonalToken,
-    ApiKey,
-    ClientSecret,
-    SessionToken,
-}
-
-impl CredentialMaterialRole {
-    const fn label(self) -> &'static str {
-        match self {
-            Self::PersonalToken => "personal_token",
-            Self::ApiKey => "api_key",
-            Self::ClientSecret => "client_secret",
-            Self::SessionToken => "session_token",
-        }
-    }
-
-    fn from_contract_role(role: runx_contracts::CredentialMaterialRole) -> Self {
-        match role {
-            runx_contracts::CredentialMaterialRole::PersonalToken => Self::PersonalToken,
-            runx_contracts::CredentialMaterialRole::ApiKey => Self::ApiKey,
-            runx_contracts::CredentialMaterialRole::ClientSecret => Self::ClientSecret,
-            runx_contracts::CredentialMaterialRole::SessionToken => Self::SessionToken,
-        }
-    }
-}
-
-pub trait MaterialResolver {
-    fn resolve_material(
-        &self,
-        material_ref: &str,
-    ) -> Result<ResolvedCredentialMaterial, CredentialDeliveryError>;
-}
-
-pub struct CredentialResolutionRequest<'a> {
-    pub decision: &'a CredentialBindingDecision,
-    pub credential: &'a CredentialEnvelope,
-    pub profile: &'a CredentialDeliveryProfile,
-    /// The non-secret observation recording this delivery. Required so a resolved
-    /// secret can never be delivered without its audit record on the receipt.
-    pub observation: CredentialDeliveryObservation,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct CredentialResolution {
-    delivery: CredentialDelivery,
-}
-
-impl CredentialResolution {
-    #[must_use]
-    pub fn into_delivery(self) -> CredentialDelivery {
-        self.delivery
-    }
-}
-
-pub trait CredentialSupervisor {
-    fn resolve(
-        &self,
-        request: CredentialResolutionRequest<'_>,
-    ) -> Result<CredentialResolution, CredentialDeliveryError>;
-}
-
-pub struct MaterialCredentialSupervisor<'a, R> {
-    resolver: &'a R,
-}
-
-impl<'a, R> MaterialCredentialSupervisor<'a, R>
-where
-    R: MaterialResolver,
-{
-    #[must_use]
-    pub const fn new(resolver: &'a R) -> Self {
-        Self { resolver }
-    }
-}
-
-impl<R> CredentialSupervisor for MaterialCredentialSupervisor<'_, R>
-where
-    R: MaterialResolver,
-{
-    fn resolve(
-        &self,
-        request: CredentialResolutionRequest<'_>,
-    ) -> Result<CredentialResolution, CredentialDeliveryError> {
-        require_allowed_binding(request.decision)?;
-        if request.credential.provider != request.profile.provider {
-            return Err(CredentialDeliveryError::ProviderMismatch {
-                credential_provider: request.credential.provider.to_string(),
-                profile_provider: request.profile.provider.clone(),
-            });
-        }
-        let material = self
-            .resolver
-            .resolve_material(&request.credential.material_ref)?;
-        if material.material_ref != request.credential.material_ref {
-            return Err(CredentialDeliveryError::MaterialRefMismatch {
-                expected_hash: hash_material_ref(&request.credential.material_ref),
-                actual_hash: hash_material_ref(&material.material_ref),
-            });
-        }
-        Ok(CredentialResolution {
-            delivery: CredentialDelivery::from_parts(
-                apply_profile(request.profile, &material)?,
-                Some(request.observation),
-            ),
-        })
-    }
-}
-
-#[derive(Clone, Debug, Default)]
-pub struct InMemoryMaterialResolver {
-    materials: BTreeMap<String, ResolvedCredentialMaterial>,
-}
-
-impl InMemoryMaterialResolver {
-    #[must_use]
-    pub fn with_material(
-        material_ref: impl Into<String>,
-        material: ResolvedCredentialMaterial,
-    ) -> Self {
-        let mut materials = BTreeMap::new();
-        materials.insert(material_ref.into(), material);
-        Self { materials }
-    }
-}
-
-impl MaterialResolver for InMemoryMaterialResolver {
-    fn resolve_material(
-        &self,
-        material_ref: &str,
-    ) -> Result<ResolvedCredentialMaterial, CredentialDeliveryError> {
-        self.materials.get(material_ref).cloned().ok_or_else(|| {
-            CredentialDeliveryError::MaterialNotFound {
-                material_ref_hash: hash_material_ref(material_ref),
-            }
-        })
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ResolvedCredentialMaterial {
-    material_ref: String,
-    values: BTreeMap<CredentialMaterialRole, SecretString>,
-}
-
-impl ResolvedCredentialMaterial {
-    #[must_use]
-    pub fn api_key(material_ref: impl Into<String>, value: impl Into<String>) -> Self {
-        Self::with_role(material_ref, CredentialMaterialRole::ApiKey, value)
-    }
-
-    #[must_use]
-    pub fn with_role(
-        material_ref: impl Into<String>,
-        role: CredentialMaterialRole,
-        value: impl Into<String>,
-    ) -> Self {
-        let mut values = BTreeMap::new();
-        values.insert(role, SecretString::new(value));
-        Self {
-            material_ref: material_ref.into(),
-            values,
-        }
-    }
-}
 
 #[derive(Clone)]
 pub struct SecretString(String);
@@ -405,70 +167,31 @@ impl CredentialDelivery {
         }
     }
 
-    /// Build a delivery from a resolved, per-run local credential descriptor.
-    ///
-    /// This is the OSS local-delivery path: no network and no brokerage. The
-    /// resolver may have loaded encrypted profile material or a declared
-    /// workspace value. This derives a delivery profile, a credential envelope, and an
-    /// allowed binding decision purely from the supplied descriptor, resolves
-    /// the secret in-memory, and routes it through the same
-    /// [`Self::from_allowed_binding`] seam so policy checks and redaction stay
-    /// centralized. The secret value is held only for the lifetime of this run.
-    pub fn from_local_descriptor(
-        provider: impl Into<String>,
-        auth_mode: impl Into<String>,
-        env_var: impl Into<String>,
-        material_ref: impl Into<String>,
-        scopes: Vec<String>,
+    /// Deliver one credential to a process as an environment variable, with
+    /// the non-secret observation the receipt records. The secret is held only
+    /// for the lifetime of the run.
+    pub fn process_env(
+        connector: &str,
+        kind: &str,
+        env_var: &str,
+        material_ref: &str,
         secret: impl Into<String>,
     ) -> Result<Self, CredentialDeliveryError> {
-        let provider = provider.into();
-        let auth_mode = auth_mode.into();
-        let material_ref = material_ref.into();
-
-        // Captured before the values move into the envelope/resolver below, so
-        // the run records a non-secret observation of the local provision.
-        let observation = build_local_provision_observation(&provider, &auth_mode, &material_ref);
-
-        let profile =
-            CredentialDeliveryProfile::env_token(provider.clone(), auth_mode.clone(), env_var)?;
-        let envelope = CredentialEnvelope {
-            kind: CredentialEnvelopeKind::V1,
-            grant_id: material_ref.clone().into(),
-            provider: provider.into(),
-            auth_mode: auth_mode.into(),
-            material_kind: "api_key".into(),
-            provider_reference: "local_per_run".into(),
-            scopes: scopes.into_iter().map(Into::into).collect(),
-            grant_reference: None,
-            material_ref: material_ref.clone().into(),
-        };
-        let decision = CredentialBindingDecision::Allow {
-            reasons: vec!["local per-run credential provision".to_owned()],
-        };
-        let resolver = InMemoryMaterialResolver::with_material(
-            material_ref.clone(),
-            ResolvedCredentialMaterial::api_key(material_ref, secret),
-        );
-
-        Self::from_allowed_binding(&decision, &envelope, &profile, &resolver, observation)
-    }
-
-    pub fn from_allowed_binding<R: MaterialResolver>(
-        decision: &CredentialBindingDecision,
-        credential: &CredentialEnvelope,
-        profile: &CredentialDeliveryProfile,
-        resolver: &R,
-        observation: CredentialDeliveryObservation,
-    ) -> Result<Self, CredentialDeliveryError> {
-        MaterialCredentialSupervisor::new(resolver)
-            .resolve(CredentialResolutionRequest {
-                decision,
-                credential,
-                profile,
-                observation,
-            })
-            .map(CredentialResolution::into_delivery)
+        validate_env_name(env_var)?;
+        let secret = SecretString::new(secret);
+        if secret.expose().trim().is_empty() {
+            return Err(CredentialDeliveryError::EmptySecret);
+        }
+        Ok(Self::from_parts(
+            SecretEnv {
+                values: BTreeMap::from([(env_var.to_owned(), secret)]),
+            },
+            Some(build_local_provision_observation(
+                connector,
+                kind,
+                material_ref,
+            )),
+        ))
     }
 
     #[must_use]
@@ -635,32 +358,10 @@ impl CredentialDelivery {
 
 #[derive(Debug, Error)]
 pub enum CredentialDeliveryError {
-    #[error("credential binding denied: {}", reasons.join("; "))]
-    BindingDenied { reasons: Vec<String> },
-    #[error(
-        "credential provider '{credential_provider}' does not match delivery profile provider '{profile_provider}'"
-    )]
-    ProviderMismatch {
-        credential_provider: String,
-        profile_provider: String,
-    },
-    #[error("credential material with hash '{material_ref_hash}' was not found")]
-    MaterialNotFound { material_ref_hash: String },
-    #[error(
-        "credential material ref hash mismatch: expected '{expected_hash}', got '{actual_hash}'"
-    )]
-    MaterialRefMismatch {
-        expected_hash: String,
-        actual_hash: String,
-    },
-    #[error("credential material is missing role '{role}'")]
-    MissingRole { role: String },
-    #[error("credential material for role '{role}' is empty")]
-    EmptyMaterial { role: String },
+    #[error("the credential is empty")]
+    EmptySecret,
     #[error("invalid credential delivery env var '{name}'")]
     InvalidEnvName { name: String },
-    #[error("unsupported credential delivery mode '{mode}'")]
-    UnsupportedDeliveryMode { mode: String },
     #[error("credential process-env delivery is not supported across the '{boundary}' boundary")]
     ProcessEnvBoundaryUnsupported { boundary: String },
     #[error(
@@ -719,43 +420,6 @@ fn hash_material_ref(material_ref: &str) -> String {
     sha256_prefixed(material_ref.as_bytes())
 }
 
-fn require_allowed_binding(
-    decision: &CredentialBindingDecision,
-) -> Result<(), CredentialDeliveryError> {
-    match decision {
-        CredentialBindingDecision::Allow { .. } => Ok(()),
-        CredentialBindingDecision::Deny { reasons } => {
-            Err(CredentialDeliveryError::BindingDenied {
-                reasons: reasons.clone(),
-            })
-        }
-    }
-}
-
-fn apply_profile(
-    profile: &CredentialDeliveryProfile,
-    material: &ResolvedCredentialMaterial,
-) -> Result<SecretEnv, CredentialDeliveryError> {
-    let mut values = BTreeMap::new();
-    for binding in &profile.env_bindings {
-        let Some(secret) = material.values.get(&binding.role) else {
-            if !binding.required {
-                continue;
-            }
-            return Err(CredentialDeliveryError::MissingRole {
-                role: binding.role.label().to_owned(),
-            });
-        };
-        if secret.expose().trim().is_empty() {
-            return Err(CredentialDeliveryError::EmptyMaterial {
-                role: binding.role.label().to_owned(),
-            });
-        }
-        values.insert(binding.env_var.clone(), secret.clone());
-    }
-    Ok(SecretEnv { values })
-}
-
 fn validate_env_name(name: &str) -> Result<(), CredentialDeliveryError> {
     let mut chars = name.chars();
     let valid = chars
@@ -790,12 +454,11 @@ mod tests {
     {
         const SECRET: &str = "credential-redaction-sentinel-\"quoted\\slash\ncontrol";
         const MARKER: &str = "credential-redaction-sentinel";
-        let delivery = CredentialDelivery::from_local_descriptor(
+        let delivery = CredentialDelivery::process_env(
             "example",
             "api_key",
             "EXAMPLE_TOKEN",
             "local:example:test",
-            vec!["example:read".to_owned()],
             SECRET,
         )?;
         let document = JsonValue::Object(JsonObject::from([
@@ -824,118 +487,38 @@ mod tests {
     }
 
     #[test]
-    fn optional_env_binding_is_skipped_when_material_role_is_missing()
-    -> Result<(), CredentialDeliveryError> {
-        let profile = CredentialDeliveryProfile {
-            provider: "github".to_owned(),
-            auth_mode: "api_key".to_owned(),
-            env_bindings: vec![CredentialEnvBinding {
-                role: CredentialMaterialRole::ApiKey,
-                env_var: "GITHUB_TOKEN".to_owned(),
-                required: false,
-            }],
-        };
-        let material = ResolvedCredentialMaterial {
-            material_ref: "secret://github/main".to_owned(),
-            values: BTreeMap::new(),
-        };
-
-        let env = apply_profile(&profile, &material)?;
-
-        assert!(env.is_empty());
-        Ok(())
-    }
-
-    #[test]
-    fn required_env_binding_fails_when_material_role_is_missing() {
-        let profile = CredentialDeliveryProfile {
-            provider: "github".to_owned(),
-            auth_mode: "api_key".to_owned(),
-            env_bindings: vec![CredentialEnvBinding {
-                role: CredentialMaterialRole::ApiKey,
-                env_var: "GITHUB_TOKEN".to_owned(),
-                required: true,
-            }],
-        };
-        let material = ResolvedCredentialMaterial {
-            material_ref: "secret://github/main".to_owned(),
-            values: BTreeMap::new(),
-        };
-
-        let result = apply_profile(&profile, &material);
-
+    fn a_delivery_refuses_an_empty_secret_or_a_bad_variable_name() {
         assert!(matches!(
-            result,
-            Err(CredentialDeliveryError::MissingRole { role }) if role == "api_key"
+            CredentialDelivery::process_env(
+                "github",
+                "api_key",
+                "GITHUB_TOKEN",
+                "local:github",
+                " "
+            ),
+            Err(CredentialDeliveryError::EmptySecret)
+        ));
+        assert!(matches!(
+            CredentialDelivery::process_env(
+                "github",
+                "api_key",
+                "github-token",
+                "local:github",
+                "x"
+            ),
+            Err(CredentialDeliveryError::InvalidEnvName { .. })
         ));
     }
 
     #[test]
-    fn delivery_profile_resolves_non_api_contract_role() -> Result<(), CredentialDeliveryError> {
-        let contract_profile = runx_contracts::CredentialDeliveryProfile {
-            schema: runx_contracts::CredentialDeliveryProfileSchema::V1,
-            profile_id: "github-app".into(),
-            provider: "github".into(),
-            auth_mode: "app".into(),
-            purpose: CredentialDeliveryPurpose::ProviderApi,
-            delivery_mode: CredentialDeliveryMode::ProcessEnv,
-            material_roles: vec![runx_contracts::CredentialMaterialRole::ClientSecret],
-            env_bindings: vec![runx_contracts::CredentialDeliveryEnvBinding {
-                role: runx_contracts::CredentialMaterialRole::ClientSecret,
-                env_var: "GITHUB_CLIENT_SECRET".to_owned(),
-                required: true,
-            }],
-            redaction_policy_ref: Reference::with_uri(
-                ReferenceType::RedactionPolicy,
-                "runx:redaction:credential",
-            ),
-        };
-        let profile = CredentialDeliveryProfile::from_contract_profile(&contract_profile)?;
-        let material = ResolvedCredentialMaterial::with_role(
-            "secret://github/app",
-            CredentialMaterialRole::ClientSecret,
-            "client-secret-value",
-        );
-
-        let env = apply_profile(&profile, &material)?;
-
-        assert_eq!(env.get("GITHUB_CLIENT_SECRET"), Some("client-secret-value"));
-        Ok(())
-    }
-
-    #[test]
-    fn credential_supervisor_resolves_allowed_binding_without_secret_debug_leak()
-    -> Result<(), CredentialDeliveryError> {
-        let material_ref = "secret://github/main";
-        let resolver = InMemoryMaterialResolver::with_material(
-            material_ref,
-            ResolvedCredentialMaterial::api_key(material_ref, "ghp_secret_value"),
-        );
-        let profile = CredentialDeliveryProfile::env_token("github", "api_key", "GITHUB_TOKEN")?;
-        let credential = CredentialEnvelope {
-            kind: CredentialEnvelopeKind::V1,
-            grant_id: "grant_1".into(),
-            provider: "github".into(),
-            auth_mode: "api_key".into(),
-            material_kind: "api_key".into(),
-            provider_reference: "local_per_run".into(),
-            scopes: vec!["repo:read".into()],
-            grant_reference: None,
-            material_ref: material_ref.into(),
-        };
-        let decision = CredentialBindingDecision::Allow {
-            reasons: vec!["unit-test".to_owned()],
-        };
-
-        let delivery = MaterialCredentialSupervisor::new(&resolver)
-            .resolve(CredentialResolutionRequest {
-                decision: &decision,
-                credential: &credential,
-                profile: &profile,
-                observation: build_local_provision_observation("github", "api_key", material_ref),
-            })?
-            .into_delivery();
-
+    fn a_delivery_never_prints_its_secret() -> Result<(), CredentialDeliveryError> {
+        let delivery = CredentialDelivery::process_env(
+            "github",
+            "api_key",
+            "GITHUB_TOKEN",
+            "local:github:main",
+            "ghp_secret_value",
+        )?;
         assert_eq!(
             delivery.secret_env().get("GITHUB_TOKEN"),
             Some("ghp_secret_value")
@@ -947,12 +530,11 @@ mod tests {
     #[test]
     fn credential_delivery_clones_share_one_zeroizing_secret_owner()
     -> Result<(), CredentialDeliveryError> {
-        let delivery = CredentialDelivery::from_local_descriptor(
+        let delivery = CredentialDelivery::process_env(
             "github",
             "api_key",
             "GITHUB_TOKEN",
             "local:github:shared",
-            vec!["repo:read".to_owned()],
             "ghp_secret_value",
         )?;
         let clone = delivery.clone();
@@ -967,12 +549,11 @@ mod tests {
 
     #[test]
     fn each_field_of_a_multi_field_credential_is_redacted_on_its_own() -> Result<(), String> {
-        let delivery = CredentialDelivery::from_local_descriptor(
+        let delivery = CredentialDelivery::process_env(
             "example",
             "oauth1_user",
             "EXAMPLE_USER_AUTH",
             "local:example:user",
-            Vec::new(),
             r#"{"consumer_key":"ck-field-sentinel","consumer_secret":"cs-field-sentinel"}"#,
         )
         .map_err(|error| error.to_string())?;
@@ -985,12 +566,11 @@ mod tests {
 
     #[test]
     fn local_credential_observation_marks_credential_resolution_proof() -> Result<(), String> {
-        let delivery = CredentialDelivery::from_local_descriptor(
+        let delivery = CredentialDelivery::process_env(
             "github",
             "api_key",
             "GITHUB_TOKEN",
             "local:github:grant_1",
-            vec!["repo:read".to_owned()],
             "ghp_secret_value",
         )
         .map_err(|error| error.to_string())?;
@@ -1008,27 +588,5 @@ mod tests {
         let serialized = serde_json::to_string(observation).map_err(|error| error.to_string())?;
         assert!(!serialized.contains("ghp_secret_value"));
         Ok(())
-    }
-
-    #[test]
-    fn material_ref_errors_report_hashes_not_raw_refs() {
-        let result = InMemoryMaterialResolver::default().resolve_material("secret://github/main");
-        assert!(result.is_err(), "missing material must fail");
-        let missing = match result {
-            Err(error) => error,
-            Ok(_) => return,
-        };
-        let message = missing.to_string();
-        assert!(message.contains("sha256:"));
-        assert!(!message.contains("secret://github/main"));
-
-        let mismatch = CredentialDeliveryError::MaterialRefMismatch {
-            expected_hash: hash_material_ref("secret://github/main"),
-            actual_hash: hash_material_ref("secret://github/other"),
-        };
-        let message = mismatch.to_string();
-        assert!(message.contains("sha256:"));
-        assert!(!message.contains("secret://github/main"));
-        assert!(!message.contains("secret://github/other"));
     }
 }

@@ -44,6 +44,13 @@ use graph_engine::GraphExecution;
 
 pub const RUNX_RUN_ID_ENV: &str = "RUNX_RUN_ID";
 
+/// Why the run's delegation refuses a child run one level below this run.
+pub(crate) fn child_depth_refusal(options: &RuntimeOptions) -> Option<String> {
+    let limit = options.run_authority.as_ref()?.child_limits().depth?;
+    (options.run.depth() + 1 > limit)
+        .then(|| format!("the run's delegation lets child runs nest at most {limit} deep"))
+}
+
 #[derive(Clone, Debug)]
 pub struct RuntimeOptions {
     pub current_context: Vec<runx_contracts::ContextEntry>,
@@ -834,15 +841,33 @@ pub(crate) fn graph_run_skill_output(
     let mut output = if run.state.status == GraphStatus::Succeeded {
         InvocationOutput::runtime_success(result.clone(), 0, JsonObject::new())
     } else {
-        InvocationOutput::runtime_failure(
-            result.clone(),
-            format!("graph {} did not succeed", run.graph.name),
-            0,
-            JsonObject::new(),
-        )
+        InvocationOutput::runtime_failure(result.clone(), graph_failure(run), 0, JsonObject::new())
     };
     output.set_ephemeral(graph_run_ephemeral_result(run));
     Ok(output)
+}
+
+/// Why a graph did not succeed: the first step that failed, and its error.
+pub(crate) fn graph_failure(run: &GraphRun) -> String {
+    let failed = run.state.steps.iter().find_map(|step| {
+        (step.status == runx_core::state_machine::GraphStepStatus::Failed)
+            .then_some((step.step_id.as_str(), step.error.as_deref()))
+    });
+    match failed {
+        Some((step_id, Some(error))) => {
+            format!(
+                "graph {} did not succeed: step {step_id}: {error}",
+                run.graph.name
+            )
+        }
+        Some((step_id, None)) => {
+            format!(
+                "graph {} did not succeed: step {step_id} failed",
+                run.graph.name
+            )
+        }
+        None => format!("graph {} did not succeed", run.graph.name),
+    }
 }
 
 #[cfg(test)]
@@ -1147,7 +1172,6 @@ mod tests {
         Ok(())
     }
 
-    #[cfg(feature = "process-tool")]
     #[test]
     fn a_recorded_run_continues_without_running_its_recorded_steps_again()
     -> Result<(), Box<dyn std::error::Error>> {

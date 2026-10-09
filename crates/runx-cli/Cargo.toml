@@ -33,7 +33,7 @@ runx-contracts.workspace = true
 runx-assistant.workspace = true
 runx-parser.workspace = true
 runx-receipts.workspace = true
-runx-runtime = { workspace = true, features = ["process-tool", "catalog", "mcp", "mcp-http-server", "agent", "store"] }
+runx-runtime = { workspace = true, features = ["mcp", "mcp-http-server", "agent", "store"] }
 runx-x402.workspace = true
 serde.workspace = true
 serde_json.workspace = true

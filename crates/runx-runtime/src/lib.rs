@@ -21,7 +21,6 @@ pub mod credential_profiles;
 pub mod credentials;
 pub mod dev;
 pub mod doctor;
-#[cfg(feature = "async-http")]
 mod drivers;
 pub mod effects;
 pub mod error;
@@ -30,7 +29,6 @@ mod execution_environment;
 pub mod export;
 mod filesystem;
 pub mod host;
-#[cfg(feature = "async-http")]
 mod hosted_api;
 mod http;
 mod init;
@@ -46,7 +44,6 @@ mod path_util;
 pub mod paths;
 mod process;
 pub mod process_invocation;
-#[cfg(feature = "async-http")]
 mod provider_operations;
 pub mod receipts;
 pub mod registry;
@@ -64,7 +61,6 @@ pub use execution::runner::turn::Turn;
 pub use execution::skill_front;
 pub use execution::skill_front::TurnSession;
 pub use execution_environment::environment_requirement_statuses;
-#[cfg(feature = "catalog")]
 pub use tool_catalogs::native::{NativeCapabilitySnapshot, native_capability_snapshot};
 
 pub mod adapters;
@@ -91,19 +87,13 @@ pub use credential_profiles::{
     CredentialProfileError, CredentialProfileSummary, list_local_credential_profiles,
     remove_local_credential_profile, set_local_credential_profile,
 };
-pub use credentials::{
-    CredentialDelivery, CredentialDeliveryError, CredentialDeliveryProfile, CredentialMaterialRole,
-    CredentialResolution, CredentialResolutionRequest, CredentialSupervisor,
-    InMemoryMaterialResolver, MaterialCredentialSupervisor, MaterialResolver,
-    ResolvedCredentialMaterial, SecretEnv, SecretString,
-};
+pub use credentials::{CredentialDelivery, CredentialDeliveryError, SecretEnv, SecretString};
 pub use dev::{
     DevFixtureLane, DevFixtureResult, DevFixtureStatus, DevLoopOptions, DevReport, DevReportStatus,
     DevWatchOptions, DevWatchTrigger, PollingDevWatcher, dev_receipt_metadata,
     discover_fixture_paths, render_dev_result, run_dev_once, should_ignore_dev_watch_path,
 };
 pub use doctor::{DoctorOptions, default_doctor_options, run_doctor};
-#[cfg(feature = "catalog")]
 pub use effects::{
     EXTERNAL_RECEIPT_EFFECT_FAMILY, EXTERNAL_RECEIPT_VERIFY_TOOL, ExternalReceiptEffect,
 };
@@ -119,7 +109,6 @@ pub use harness::{
     run_harness_fixture_with_adapter,
 };
 pub use host::{Host, NoopHost};
-#[cfg(feature = "async-http")]
 pub use hosted_api::{
     AuthenticatedHostedApiEnvironment, DEFAULT_HOSTED_API_BASE_URL, HOSTED_API_BASE_URL_ENV,
     HOSTED_API_TOKEN_ENV, HostedApiCredentialPurpose, HostedApiEnvironment, HostedApiError,
@@ -132,7 +121,6 @@ pub use hosted_api::{
     store_authenticated_hosted_environment,
 };
 pub use http::RuntimeHttpError;
-#[cfg(feature = "async-http")]
 pub use http::{
     ExactLoopbackHttpTransport, HttpMethod, ReqwestHttpTransport, RuntimeHttpHeader,
     RuntimeHttpRequest, RuntimeHttpResponse, RuntimeHttpTransport,
@@ -141,7 +129,7 @@ pub use init::{
     InitAction, InitError, InitGeneratedValues, RunxInitOptions, RunxInitResult, RunxInstallState,
     RunxProjectState, ensure_runx_install_state, ensure_runx_project_state, runx_init,
 };
-pub use kernel::authority::RunAuthority;
+pub use kernel::authority::{ChildLimits, RunAuthority};
 pub use kernel::connectors::{
     ConnectorOrigin, ConnectorRegistryError, ConnectorScope, LoadedConnector,
 };
@@ -149,15 +137,12 @@ pub use kernel::instances::{
     INJECTED_GRANT_ID_ENV, INJECTED_GRANTED_SCOPES_ENV, INJECTED_PRINCIPAL_REF_ENV, InstanceError,
     InstanceRecord, Instances, decode_injected_scopes, encode_injected_scopes,
 };
-#[cfg(feature = "async-http")]
 pub use kernel::operation::egress::{
     CONFIDENTIAL_TERMS_ENV, REQUIRE_MUTATION_APPROVAL_ENV, outbound_text_is_safe,
 };
-#[cfg(feature = "async-http")]
 pub use kernel::operation::{
     OPERATION_EFFECT_FAMILY, OperationEffect, PAID_EXTERNAL_JOB_AUTHORITY_ENV,
 };
-#[cfg(feature = "async-http")]
 pub use kernel::standing::{
     STANDING_APPROVAL_ID_ENV, STANDING_DELEGATE_DIGEST_ENV, StandingApproval, StandingApprovals,
     StandingError, StandingStatus,
@@ -175,7 +160,6 @@ pub use orchestrator::{
 pub use paths::{
     RUNX_CWD_ENV, RUNX_HOME_ENV, RUNX_PROJECT_DIR_ENV, RUNX_RECEIPT_DIR_ENV, RunxPaths,
 };
-#[cfg(feature = "async-http")]
 pub use provider_operations::{
     HostedProviderGrant, ProviderOperationError, ProviderOperationRequest, list_provider_grants,
     validate_provider_grant_id, validate_provider_operation,
@@ -213,7 +197,6 @@ pub use services::{
     VerifiedReceiptStore, WorkspaceEnv, WorkspaceEnvError, WorkspaceFileError, read_workspace_text,
 };
 pub use skill_front::PackageHarnessReport;
-#[cfg(feature = "async-http")]
 pub use skill_package::inspect_connector_readiness;
 pub use skill_package::{
     LoadedSkillPackage, SkillInspectionError, SkillRetentionError, inspect_local_skill_binding,

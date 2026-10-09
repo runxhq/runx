@@ -4,10 +4,8 @@
 mod host_resolution;
 mod output;
 
-#[cfg(feature = "catalog")]
 use std::borrow::Cow;
 use std::path::Path;
-#[cfg(feature = "async-http")]
 use std::time::Instant;
 
 use output::{build_ephemeral_step_output, build_step_output_projection, contract_output_claim};
@@ -331,6 +329,15 @@ where
     );
     let graph = materialize_graph_parameter_inputs(nested.graph, nested.inputs);
     let log = runtime.options.run.child(nested.step_id)?;
+    if log.load()?.is_none()
+        && let Some(reason) = super::child_depth_refusal(&runtime.options)
+    {
+        return Err(RuntimeError::AuthorityDenied {
+            verb: runx_contracts::AuthorityVerb::Execute,
+            step_id: nested.step_id.to_owned(),
+            reason,
+        });
+    }
     let existing = log.start_child(
         runtime.options.run.run_id(),
         nested.step_id,
@@ -894,76 +901,55 @@ where
         authority,
         loaded_skill: _,
     } = request;
-    #[cfg(not(feature = "catalog"))]
-    {
-        let _ = (
+    let tool_ref = step
+        .catalog_tool()
+        .ok_or_else(|| RuntimeError::InvalidRunStep {
+            step_id: step.id.clone(),
+            reason: "tool step missing tool reference".to_owned(),
+        })?;
+    let tool_request = crate::tool_catalogs::dispatch::ToolDispatchRequest {
+        tool_ref: Cow::Borrowed(tool_ref),
+        inputs: Cow::Owned(inputs),
+        resolved_inputs: Cow::Owned(JsonObject::new()),
+        scopes: &step.scopes,
+        env: &runtime.options.env,
+        skill_directory: graph_dir,
+        credential_delivery: &crate::credentials::CredentialDelivery::none(),
+        local_artifacts: &runtime.local_artifacts,
+        skill_name: tool_ref,
+        allow_explicit_manifest_path: true,
+        effect_admission: authority.as_ref().map(StepAuthorityContext::admission),
+    };
+    // Source the tool manifest's artifact contract so the wrapped packet the
+    // dispatcher folds into the claim (e.g. `data_operation_result`) is
+    // exposed at the OUTER step as `<step>.<packet>.data`.
+    let tool_artifacts = crate::tool_catalogs::dispatch::resolve_tool_artifacts(
+        &tool_request,
+        &runtime.options.effects,
+    )?;
+    let output = crate::tool_catalogs::dispatch::dispatch_tool(
+        tool_request,
+        &runtime.options.effects,
+        &runtime.options.created_at,
+        Instant::now(),
+    )?;
+    seal_effect_step(
+        EffectStepSeal {
             runtime,
             graph_dir,
             graph_name,
             step,
             attempt,
-            inputs,
             policy_approval_refs,
-            authority,
-        );
-        Err(RuntimeError::UnsupportedAdapter {
-            adapter_type: "catalog".to_owned(),
-        })
-    }
-
-    #[cfg(feature = "catalog")]
-    {
-        let tool_ref = step
-            .catalog_tool()
-            .ok_or_else(|| RuntimeError::InvalidRunStep {
-                step_id: step.id.clone(),
-                reason: "tool step missing tool reference".to_owned(),
-            })?;
-        let tool_request = crate::tool_catalogs::dispatch::ToolDispatchRequest {
-            tool_ref: Cow::Borrowed(tool_ref),
-            inputs: Cow::Owned(inputs),
-            resolved_inputs: Cow::Owned(JsonObject::new()),
-            scopes: &step.scopes,
-            env: &runtime.options.env,
-            skill_directory: graph_dir,
-            credential_delivery: &crate::credentials::CredentialDelivery::none(),
-            local_artifacts: &runtime.local_artifacts,
-            skill_name: tool_ref,
-            allow_explicit_manifest_path: true,
-            effect_admission: authority.as_ref().map(StepAuthorityContext::admission),
-        };
-        // Source the tool manifest's artifact contract so the wrapped packet the
-        // dispatcher folds into the claim (e.g. `data_operation_result`) is
-        // exposed at the OUTER step as `<step>.<packet>.data`.
-        let tool_artifacts = crate::tool_catalogs::dispatch::resolve_tool_artifacts(
-            &tool_request,
-            &runtime.options.effects,
-        )?;
-        let output = crate::tool_catalogs::dispatch::dispatch_tool(
-            tool_request,
-            &runtime.options.effects,
-            &runtime.options.created_at,
-            Instant::now(),
-        )?;
-        seal_effect_step(
-            EffectStepSeal {
-                runtime,
-                graph_dir,
-                graph_name,
-                step,
-                attempt,
-                policy_approval_refs,
-                authority: authority.as_ref(),
-                skill: format!("tool:{tool_ref}"),
-            },
-            output,
-            tool_artifacts.as_ref(),
-        )
-    }
+            authority: authority.as_ref(),
+            skill: format!("tool:{tool_ref}"),
+        },
+        output,
+        tool_artifacts.as_ref(),
+    )
 }
 
 /// Everything a step owned by an effect seals with.
-#[cfg(feature = "async-http")]
 struct EffectStepSeal<'a, A> {
     runtime: &'a Runtime<A>,
     graph_dir: &'a Path,
@@ -977,7 +963,6 @@ struct EffectStepSeal<'a, A> {
 
 /// Project, gate, seal, finalize and persist a step whose output an effect
 /// produced: a tool step or an operation step.
-#[cfg(feature = "async-http")]
 fn seal_effect_step<A>(
     seal: EffectStepSeal<'_, A>,
     mut output: InvocationOutput,
@@ -1070,13 +1055,11 @@ where
 
 /// The step's runtime, as the kernel's runner for `process` implementations:
 /// the dispatch path a tool step takes, with the operation's credential.
-#[cfg(feature = "catalog")]
 struct StepTools<'a, A> {
     runtime: &'a Runtime<A>,
     graph_dir: &'a Path,
 }
 
-#[cfg(feature = "catalog")]
 impl<A> crate::kernel::operation::ToolRunner for StepTools<'_, A>
 where
     A: SkillAdapter,
@@ -1122,99 +1105,85 @@ fn run_operation_step<A>(request: StepHandlerCtx<'_, A>) -> Result<StepRun, Runt
 where
     A: SkillAdapter,
 {
-    #[cfg(not(feature = "async-http"))]
-    {
-        let _ = request;
-        Err(RuntimeError::UnsupportedAdapter {
-            adapter_type: "operation".to_owned(),
-        })
+    let StepHandlerCtx {
+        runtime,
+        graph_dir,
+        graph_name,
+        step,
+        attempt,
+        policy_approval_refs,
+        authority,
+        ..
+    } = request;
+    let authority = authority.ok_or_else(|| RuntimeError::InvalidRunStep {
+        step_id: step.id.clone(),
+        reason: "an operation step runs only after the kernel admits it".to_owned(),
+    })?;
+    let context = authority
+        .admission()
+        .context::<crate::kernel::operation::OperationAdmission>()
+        .ok_or_else(|| RuntimeError::InvalidRunStep {
+            step_id: step.id.clone(),
+            reason: "the step's admission is not an operation admission".to_owned(),
+        })?;
+    let tools = StepTools { runtime, graph_dir };
+    let started = Instant::now();
+    let outcome = crate::kernel::operation::execute(
+        context,
+        &step.id,
+        &runtime.options.env,
+        graph_dir,
+        &tools,
+    );
+    let mut output = match outcome {
+        Ok(outcome) => {
+            let mut output = crate::adapter_pipeline::AdapterProjection::from_started(started)
+                .runtime_output(
+                    crate::adapter::InvocationStatus::Success,
+                    outcome.value,
+                    None,
+                    JsonObject::new(),
+                );
+            if let Some(ephemeral) = outcome.ephemeral {
+                output.set_ephemeral(ephemeral);
+            }
+            output
+                .metadata
+                .extend(crate::process_invocation::boundary_metadata(
+                    outcome.boundary,
+                )?);
+            output
+        }
+        Err(
+            error @ (RuntimeError::ProviderEffectUnknown { .. }
+            | RuntimeError::ProviderReadbackPending { .. }
+            | RuntimeError::EffectState { .. }),
+        ) => return Err(error),
+        Err(error) => crate::adapter_pipeline::AdapterProjection::from_started(started)
+            .failure(error.to_string(), JsonObject::new()),
+    };
+    let artifacts = crate::kernel::operation::packet_artifacts();
+    if output.succeeded() {
+        crate::output_contract::apply_artifact_outputs(&mut output.value, Some(&artifacts));
+        if let Some(ephemeral) = output.ephemeral.as_value_mut() {
+            crate::output_contract::apply_artifact_outputs(ephemeral, Some(&artifacts));
+        }
     }
-
-    #[cfg(feature = "async-http")]
-    {
-        let StepHandlerCtx {
+    let skill = context.skill_label();
+    seal_effect_step(
+        EffectStepSeal {
             runtime,
             graph_dir,
             graph_name,
             step,
             attempt,
             policy_approval_refs,
-            authority,
-            ..
-        } = request;
-        let authority = authority.ok_or_else(|| RuntimeError::InvalidRunStep {
-            step_id: step.id.clone(),
-            reason: "an operation step runs only after the kernel admits it".to_owned(),
-        })?;
-        let context = authority
-            .admission()
-            .context::<crate::kernel::operation::OperationAdmission>()
-            .ok_or_else(|| RuntimeError::InvalidRunStep {
-                step_id: step.id.clone(),
-                reason: "the step's admission is not an operation admission".to_owned(),
-            })?;
-        #[cfg(feature = "catalog")]
-        let tools = StepTools { runtime, graph_dir };
-        #[cfg(not(feature = "catalog"))]
-        let tools = crate::kernel::operation::NoTools;
-        let started = Instant::now();
-        let outcome = crate::kernel::operation::execute(
-            context,
-            &step.id,
-            &runtime.options.env,
-            graph_dir,
-            &tools,
-        );
-        let mut output = match outcome {
-            Ok(outcome) => {
-                let mut output = crate::adapter_pipeline::AdapterProjection::from_started(started)
-                    .runtime_output(
-                        crate::adapter::InvocationStatus::Success,
-                        outcome.value,
-                        None,
-                        JsonObject::new(),
-                    );
-                if let Some(ephemeral) = outcome.ephemeral {
-                    output.set_ephemeral(ephemeral);
-                }
-                output
-                    .metadata
-                    .extend(crate::process_invocation::boundary_metadata(
-                        outcome.boundary,
-                    )?);
-                output
-            }
-            Err(
-                error @ (RuntimeError::ProviderEffectUnknown { .. }
-                | RuntimeError::ProviderReadbackPending { .. }
-                | RuntimeError::EffectState { .. }),
-            ) => return Err(error),
-            Err(error) => crate::adapter_pipeline::AdapterProjection::from_started(started)
-                .failure(error.to_string(), JsonObject::new()),
-        };
-        let artifacts = crate::kernel::operation::packet_artifacts();
-        if output.succeeded() {
-            crate::output_contract::apply_artifact_outputs(&mut output.value, Some(&artifacts));
-            if let Some(ephemeral) = output.ephemeral.as_value_mut() {
-                crate::output_contract::apply_artifact_outputs(ephemeral, Some(&artifacts));
-            }
-        }
-        let skill = context.skill_label();
-        seal_effect_step(
-            EffectStepSeal {
-                runtime,
-                graph_dir,
-                graph_name,
-                step,
-                attempt,
-                policy_approval_refs,
-                authority: Some(&authority),
-                skill,
-            },
-            output,
-            Some(&artifacts),
-        )
-    }
+            authority: Some(&authority),
+            skill,
+        },
+        output,
+        Some(&artifacts),
+    )
 }
 
 fn tool_operator_references(

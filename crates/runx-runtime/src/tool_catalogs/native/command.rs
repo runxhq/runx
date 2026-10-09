@@ -135,7 +135,6 @@ mod tests {
     use runx_contracts::{JsonObject, JsonValue};
 
     use super::{CommandInput, execute, plan};
-    #[cfg(feature = "catalog")]
     use crate::RuntimeEffectRegistry;
     use crate::credentials::CredentialDelivery;
     use crate::paths::RUNX_CWD_ENV;
@@ -164,7 +163,6 @@ mod tests {
             ),
         ]))?;
         let delivery = CredentialDelivery::none();
-        #[cfg(feature = "catalog")]
         let effects = RuntimeEffectRegistry::default();
         let output = json_output(execute(&NativeInvocation {
             inputs: &inputs,
@@ -173,7 +171,6 @@ mod tests {
             skill_directory: workspace.path(),
             credential_delivery: &delivery,
             local_artifacts: crate::tool_catalogs::native::fixture_local_artifacts(),
-            #[cfg(feature = "catalog")]
             effects: &effects,
         })?)?;
         let execution = output
@@ -218,7 +215,6 @@ mod tests {
             ),
         ]))?;
         let delivery = CredentialDelivery::none();
-        #[cfg(feature = "catalog")]
         let effects = RuntimeEffectRegistry::default();
         let output = json_output(plan(&NativeInvocation {
             inputs: &inputs,
@@ -227,7 +223,6 @@ mod tests {
             skill_directory: workspace.path(),
             credential_delivery: &delivery,
             local_artifacts: crate::tool_catalogs::native::fixture_local_artifacts(),
-            #[cfg(feature = "catalog")]
             effects: &effects,
         })?)?;
         let env_names = output
@@ -250,7 +245,6 @@ mod tests {
             workspace.path().to_string_lossy().into_owned(),
         )]);
         let delivery = CredentialDelivery::none();
-        #[cfg(feature = "catalog")]
         let effects = RuntimeEffectRegistry::default();
         let mut inputs = fixture_input::<CommandInput>(JsonObject::from([(
             "command".to_owned(),
@@ -264,7 +258,6 @@ mod tests {
             skill_directory: workspace.path(),
             credential_delivery: &delivery,
             local_artifacts: crate::tool_catalogs::native::fixture_local_artifacts(),
-            #[cfg(feature = "catalog")]
             effects: &effects,
         })?;
 
@@ -276,7 +269,6 @@ mod tests {
             skill_directory: workspace.path(),
             credential_delivery: &delivery,
             local_artifacts: crate::tool_catalogs::native::fixture_local_artifacts(),
-            #[cfg(feature = "catalog")]
             effects: &effects,
         })
         .expect_err("timeouts above one hour must remain bounded");
@@ -296,15 +288,13 @@ mod tests {
             "command".to_owned(),
             JsonValue::String("/usr/bin/true".to_owned()),
         )]))?;
-        let delivery = CredentialDelivery::from_local_descriptor(
+        let delivery = CredentialDelivery::process_env(
             "example",
             "api_key",
             "EXAMPLE_TOKEN",
             "local:example:test",
-            vec!["example:read".to_owned()],
             "credential-sentinel",
         )?;
-        #[cfg(feature = "catalog")]
         let effects = RuntimeEffectRegistry::default();
         let error = execute(&NativeInvocation {
             inputs: &inputs,
@@ -313,7 +303,6 @@ mod tests {
             skill_directory: workspace.path(),
             credential_delivery: &delivery,
             local_artifacts: crate::tool_catalogs::native::fixture_local_artifacts(),
-            #[cfg(feature = "catalog")]
             effects: &effects,
         })
         .expect_err("generic command execution must reject delivered credentials");
@@ -335,7 +324,6 @@ mod tests {
             JsonValue::String("true".to_owned()),
         )]))?;
         let delivery = CredentialDelivery::none();
-        #[cfg(feature = "catalog")]
         let effects = RuntimeEffectRegistry::default();
         let planned = json_output(plan(&NativeInvocation {
             inputs: &inputs,
@@ -344,7 +332,6 @@ mod tests {
             skill_directory: workspace.path(),
             credential_delivery: &delivery,
             local_artifacts: crate::tool_catalogs::native::fixture_local_artifacts(),
-            #[cfg(feature = "catalog")]
             effects: &effects,
         })?)?;
         let digest = planned
@@ -364,7 +351,6 @@ mod tests {
             skill_directory: workspace.path(),
             credential_delivery: &delivery,
             local_artifacts: crate::tool_catalogs::native::fixture_local_artifacts(),
-            #[cfg(feature = "catalog")]
             effects: &effects,
         })
         .expect_err("drifted execution must be rejected before spawning");

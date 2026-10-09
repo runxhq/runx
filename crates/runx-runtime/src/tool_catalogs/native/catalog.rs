@@ -79,7 +79,6 @@ fn inspect_report(
                 origin: ToolInspectOrigin::Native,
                 source: Some(source.to_owned()),
                 source_label: Some(source.to_owned()),
-                source_type: Some("native".to_owned()),
                 namespace: name
                     .split_once('.')
                     .map(|(namespace, _)| namespace.to_owned()),
@@ -226,7 +225,6 @@ fn search_result(
         summary: Some(description.to_owned()),
         source: source.to_owned(),
         source_label: source.to_owned(),
-        source_type: "native".to_owned(),
         namespace: name
             .split_once('.')
             .map_or("runx", |(namespace, _)| namespace)

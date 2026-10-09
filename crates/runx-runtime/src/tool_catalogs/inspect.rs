@@ -108,7 +108,6 @@ fn local_provenance() -> ToolInspectProvenance {
         origin: ToolInspectOrigin::Local,
         source: None,
         source_label: None,
-        source_type: None,
         namespace: None,
         external_name: None,
         catalog_ref: None,

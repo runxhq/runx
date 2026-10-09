@@ -1,5 +1,3 @@
-#![cfg(feature = "process-tool")]
-
 use std::path::{Path, PathBuf};
 
 use runx_contracts::{ClosureDisposition, JsonValue};

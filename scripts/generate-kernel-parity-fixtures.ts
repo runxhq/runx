@@ -54,19 +54,6 @@ interface KernelFixtureCase {
   readonly expected?: KernelFixture["expected"];
 }
 
-interface AuthorityProofGrant {
-  readonly grant_id: string;
-  readonly provider?: string;
-  readonly scopes: readonly string[];
-  readonly status?: string;
-  readonly not_before?: string;
-  readonly expires_at?: string;
-  readonly scope_family?: string;
-  readonly authority_kind?: string;
-  readonly target_repo?: string;
-  readonly target_locator?: string;
-}
-
 interface ValidationResult {
   readonly valid: boolean;
   readonly errors: readonly string[];
@@ -188,19 +175,6 @@ function evaluateKernelFixtureInputUnchecked(input: KernelFixture["input"]): unk
   return evaluateRustKernelInputSync(input);
 }
 
-function buildLocalScopeAdmission(
-  auth: unknown,
-  grants: readonly AuthorityProofGrant[],
-  options: Record<string, unknown> = {},
-): unknown {
-  return evaluateRustKernelInputSync({
-    kind: "policy.buildLocalScopeAdmission",
-    auth,
-    grants,
-    options,
-  });
-}
-
 function createSequentialGraphState(
   graphId: string,
   steps: readonly SequentialGraphStepDefinition[],
@@ -302,48 +276,6 @@ function fixtureCases(): readonly KernelFixtureCase[] {
     at: "2026-04-10T00:00:01.000Z",
     error: "boom",
   });
-  const githubReadAuth = {
-    type: "connected",
-    provider: "github",
-    scopes: ["repo:read", "repo:read"],
-    scope_family: "github_repo",
-    authority_kind: "read_only",
-    target_repo: "runxhq/runx",
-    target_locator: "runxhq/runx#issue/4",
-  };
-  const connectedAuthCheckedAt = "2026-05-22T00:00:00Z";
-  const connectedAuthNotBefore = "2026-05-21T00:00:00Z";
-  const connectedAuthExpiresAt = "2026-05-23T00:00:00Z";
-  const githubReadGrant: AuthorityProofGrant = {
-    grant_id: "grant_expected",
-    provider: "github",
-    scopes: ["repo:read", "user:read"],
-    status: "active",
-    not_before: connectedAuthNotBefore,
-    expires_at: connectedAuthExpiresAt,
-    scope_family: "github_repo",
-    authority_kind: "read_only",
-    target_repo: "runxhq/runx",
-    target_locator: "runxhq/runx#issue/4",
-  };
-  const githubCredential = {
-    kind: "runx.credential-envelope.v1",
-    grant_id: "grant_expected",
-    provider: "github",
-    auth_mode: "api_key",
-    material_kind: "api_key",
-    provider_reference: "local_per_run",
-    scopes: ["repo:read"],
-    grant_reference: {
-      grant_id: "grant_expected",
-      scope_family: "github_repo",
-      authority_kind: "read_only",
-      target_repo: "runxhq/runx",
-      target_locator: "runxhq/runx#issue/4",
-    },
-    material_ref: "local:github:grant_1",
-  };
-
   return [
     {
       name: "scope-grant-exact-only-allows-exact",
@@ -410,162 +342,6 @@ function fixtureCases(): readonly KernelFixtureCase[] {
       },
     },
     {
-      name: "authority-credential-binding-allows-matching",
-      input: {
-        kind: "policy.validateCredentialBinding",
-        request: {
-          auth: githubReadAuth,
-          grants: [githubReadGrant],
-          scopeAdmission: buildLocalScopeAdmission(githubReadAuth, [githubReadGrant], { connectedAuthCheckedAt }),
-          credential: githubCredential,
-        },
-      },
-    },
-    {
-      name: "authority-credential-binding-denies-grant-reference",
-      input: {
-        kind: "policy.validateCredentialBinding",
-        request: {
-          auth: githubReadAuth,
-          grants: [githubReadGrant],
-          scopeAdmission: buildLocalScopeAdmission(githubReadAuth, [githubReadGrant], { connectedAuthCheckedAt }),
-          credential: {
-            ...githubCredential,
-            grant_id: "grant_other",
-            grant_reference: {
-              ...githubCredential.grant_reference,
-              grant_id: "grant_other",
-            },
-          },
-        },
-      },
-    },
-    {
-      name: "authority-proof-metadata-full",
-      input: {
-        kind: "policy.buildAuthorityProofMetadata",
-        options: {
-          runId: "run_policy_fixture",
-          skillName: "issue-intake",
-          sourceType: "agent-task",
-          auth: githubReadAuth,
-          grants: [githubReadGrant],
-          connectedAuthCheckedAt,
-          credential: githubCredential,
-          scopes: ["opaque capability with spaces"],
-          executionBoundary: {
-            kind: "remote_provider",
-          },
-          approval: {
-            gate: {
-              id: "approval_1",
-              type: "human",
-              reason: "mutating github action",
-            },
-            approved: true,
-          },
-        },
-      },
-    },
-    {
-      name: "authority-scope-admission-active-grant",
-      input: {
-        kind: "policy.buildLocalScopeAdmission",
-        auth: githubReadAuth,
-        grants: [githubReadGrant],
-        options: {
-          connectedAuthCheckedAt,
-        },
-      },
-    },
-    {
-      name: "authority-scope-admission-denied-before-grant",
-      input: {
-        kind: "policy.buildLocalScopeAdmission",
-        auth: githubReadAuth,
-        grants: [githubReadGrant],
-        options: {
-          connectedAuthCheckedAt,
-          deniedBeforeGrantResolution: true,
-        },
-      },
-    },
-    {
-      name: "authority-scope-admission-no-connected-auth",
-      input: {
-        kind: "policy.buildLocalScopeAdmission",
-        auth: {
-          type: "env",
-        },
-        grants: [githubReadGrant],
-        options: {
-          connectedAuthCheckedAt,
-        },
-      },
-    },
-    {
-      name: "authority-scope-admission-no-matching-grant",
-      input: {
-        kind: "policy.buildLocalScopeAdmission",
-        auth: {
-          type: "connected",
-          provider: "github",
-          scopes: ["repo:write"],
-        },
-        grants: [githubReadGrant],
-        options: {
-          connectedAuthCheckedAt,
-        },
-      },
-    },
-    {
-      name: "single-step-create-pending",
-      description: "Creates a pending single-step state.",
-      input: {
-        kind: "state-machine.createSingleStepState",
-        stepId: "lint",
-      },
-    },
-    {
-      name: "single-step-transition-succeed",
-      description: "Completes a running single-step state.",
-      input: {
-        kind: "state-machine.transitionSingleStep",
-        state: {
-          stepId: "lint",
-          status: "running",
-          startedAt: "2026-04-10T00:00:00.000Z",
-        },
-        event: {
-          type: "succeed",
-          at: "2026-04-10T00:00:01.000Z",
-          admissionWitness: {
-            stepId: "lint",
-            receiptId: "rx_lint",
-          },
-        },
-      },
-    },
-    {
-      name: "single-step-transition-ignores-invalid-event",
-      description: "Invalid status/event pairs return the current state.",
-      input: {
-        kind: "state-machine.transitionSingleStep",
-        state: {
-          stepId: "lint",
-          status: "pending",
-        },
-        event: {
-          type: "succeed",
-          at: "2026-04-10T00:00:01.000Z",
-          admissionWitness: {
-            stepId: "lint",
-            receiptId: "rx_lint",
-          },
-        },
-      },
-    },
-    {
       name: "sequential-create-graph",
       input: {
         kind: "state-machine.createSequentialGraphState",
@@ -611,141 +387,18 @@ function fixtureCases(): readonly KernelFixtureCase[] {
       },
     },
     {
-      name: "runner-rejects-missing-grant",
+      name: "runner-rejects-malformed-state",
       description:
-        "Pins the fixture-runner ingestion error envelope for invalid but schema-shaped policy input; this is not a policy decision fixture.",
+        "Pins the fixture-runner ingestion error envelope for invalid but schema-shaped input; this is not a state-machine decision fixture.",
       input: {
-        kind: "policy.admitGraphStepScopes",
-        request: {
-          stepId: "read",
-          requestedScopes: ["repo:read"],
-        },
+        kind: "state-machine.planSequentialGraphTransition",
+        state: {},
+        steps: [{ id: "first" }],
       },
       expected: {
         kind: "error",
         code: "kernel.fixture.evaluation_failed",
         message: "kernel fixture evaluation failed",
-      },
-    },
-    {
-      name: "graph-scope-allows-exact-match",
-      input: {
-        kind: "policy.admitGraphStepScopes",
-        request: {
-          stepId: "read",
-          requestedScopes: ["repo:read"],
-          grant: { grant_id: "grant_1", scopes: ["repo:read"] },
-        },
-      },
-    },
-    {
-      name: "graph-scope-allows-wildcard-narrowing",
-      input: {
-        kind: "policy.admitGraphStepScopes",
-        request: {
-          stepId: "checks",
-          requestedScopes: ["checks:read"],
-          grant: { scopes: ["checks:*", "repo:read"] },
-        },
-      },
-    },
-    {
-      name: "graph-scope-allows-empty-request",
-      input: {
-        kind: "policy.admitGraphStepScopes",
-        request: {
-          stepId: "no-scope",
-          requestedScopes: [],
-          grant: { scopes: ["repo:read"] },
-        },
-      },
-    },
-    {
-      name: "graph-scope-denies-widening",
-      input: {
-        kind: "policy.admitGraphStepScopes",
-        request: {
-          stepId: "deploy",
-          requestedScopes: ["deployments:write"],
-          grant: { grant_id: "grant_1", scopes: ["checks:read"] },
-        },
-      },
-    },
-    {
-      name: "graph-scope-denies-empty-grant",
-      input: {
-        kind: "policy.admitGraphStepScopes",
-        request: {
-          stepId: "read",
-          requestedScopes: ["repo:read"],
-          grant: { scopes: [] },
-        },
-      },
-    },
-    {
-      name: "graph-scope-denies-partial-widening",
-      input: {
-        kind: "policy.admitGraphStepScopes",
-        request: {
-          stepId: "deploy",
-          requestedScopes: ["repo:read", "repo:write", "deploy:prod"],
-          grant: { scopes: ["repo:*"] },
-        },
-      },
-    },
-    {
-      name: "graph-scope-denies-prefix-wildcard-request",
-      input: {
-        kind: "policy.admitGraphStepScopes",
-        request: {
-          stepId: "read-all",
-          requestedScopes: ["repo:*"],
-          grant: { scopes: ["repo:read"] },
-        },
-      },
-    },
-    {
-      name: "graph-scope-denies-prefix-substring",
-      input: {
-        kind: "policy.admitGraphStepScopes",
-        request: {
-          stepId: "repository-read",
-          requestedScopes: ["repository:read"],
-          grant: { scopes: ["repo:*"] },
-        },
-      },
-    },
-    {
-      name: "graph-scope-denies-prefix-nested-segment",
-      input: {
-        kind: "policy.admitGraphStepScopes",
-        request: {
-          stepId: "repo-admin",
-          requestedScopes: ["repo:admin:keys"],
-          grant: { scopes: ["repo:*"] },
-        },
-      },
-    },
-    {
-      name: "graph-scope-deduplicates-requests",
-      input: {
-        kind: "policy.admitGraphStepScopes",
-        request: {
-          stepId: "read",
-          requestedScopes: ["repo:read", "repo:read"],
-          grant: { scopes: ["*"] },
-        },
-      },
-    },
-    {
-      name: "graph-scope-omits-grant-id-when-absent",
-      input: {
-        kind: "policy.admitGraphStepScopes",
-        request: {
-          stepId: "read",
-          requestedScopes: ["repo:read"],
-          grant: { scopes: ["repo:read"] },
-        },
       },
     },
   ];

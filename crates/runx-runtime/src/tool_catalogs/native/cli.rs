@@ -175,7 +175,6 @@ mod tests {
     use runx_contracts::{JsonObject, JsonValue};
 
     use super::{CaptureHelpInput, capture_help};
-    #[cfg(feature = "catalog")]
     use crate::RuntimeEffectRegistry;
     use crate::credentials::CredentialDelivery;
     use crate::paths::RUNX_CWD_ENV;
@@ -193,7 +192,6 @@ mod tests {
             JsonValue::String("git".to_owned()),
         )]))?;
         let delivery = CredentialDelivery::none();
-        #[cfg(feature = "catalog")]
         let effects = RuntimeEffectRegistry::default();
         let output = capture_help(&NativeInvocation {
             inputs: &inputs,
@@ -202,7 +200,6 @@ mod tests {
             skill_directory: workspace.path(),
             credential_delivery: &delivery,
             local_artifacts: crate::tool_catalogs::native::fixture_local_artifacts(),
-            #[cfg(feature = "catalog")]
             effects: &effects,
         })?;
         assert_eq!(output.exit_code, Some(0));
@@ -225,7 +222,6 @@ mod tests {
             ),
         ]))?;
         let delivery = CredentialDelivery::none();
-        #[cfg(feature = "catalog")]
         let effects = RuntimeEffectRegistry::default();
         let error = capture_help(&NativeInvocation {
             inputs: &inputs,
@@ -234,7 +230,6 @@ mod tests {
             skill_directory: workspace.path(),
             credential_delivery: &delivery,
             local_artifacts: crate::tool_catalogs::native::fixture_local_artifacts(),
-            #[cfg(feature = "catalog")]
             effects: &effects,
         })
         .expect_err("flags before the help flag must be rejected");

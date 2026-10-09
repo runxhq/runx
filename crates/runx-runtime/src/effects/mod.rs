@@ -1,5 +1,4 @@
 mod error;
-#[cfg(feature = "catalog")]
 mod external_receipt;
 mod metadata;
 mod registry;
@@ -7,7 +6,6 @@ mod state;
 mod types;
 
 pub use error::RuntimeEffectError;
-#[cfg(feature = "catalog")]
 pub use external_receipt::{
     EXTERNAL_RECEIPT_EFFECT_FAMILY, EXTERNAL_RECEIPT_VERIFY_TOOL, ExternalReceiptEffect,
 };
@@ -60,15 +58,12 @@ mod tests {
         });
     static EFFECT_CAPABILITIES: &[&dyn crate::CapabilityContract] = &[&DEPLOY_CAPABILITY];
 
-    #[cfg(feature = "catalog")]
     #[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
     #[serde(deny_unknown_fields)]
     struct EmptyInput {}
 
-    #[cfg(feature = "catalog")]
     impl crate::CapabilityInput for EmptyInput {}
 
-    #[cfg(feature = "catalog")]
     static COLLIDING_CAPABILITY: crate::TypedCapability<EmptyInput> =
         crate::TypedCapability::new(crate::CapabilityDefinition {
             id: "fs.read",
@@ -80,7 +75,6 @@ mod tests {
             artifacts: crate::CapabilityArtifacts::None,
             fields: &[],
         });
-    #[cfg(feature = "catalog")]
     static COLLIDING_CAPABILITIES: &[&dyn crate::CapabilityContract] = &[&COLLIDING_CAPABILITY];
 
     struct MockEffect;
@@ -117,7 +111,6 @@ mod tests {
             )))
         }
 
-        #[cfg(feature = "catalog")]
         fn invoke_tool(
             &self,
             request: EffectToolRequest<'_>,
@@ -265,7 +258,6 @@ mod tests {
         );
     }
 
-    #[cfg(feature = "catalog")]
     #[test]
     fn registry_rejects_effect_tool_collision_with_runtime_catalog() {
         struct CollidingEffect;
@@ -293,7 +285,6 @@ mod tests {
         );
     }
 
-    #[cfg(feature = "catalog")]
     #[test]
     fn effect_tools_are_discoverable_only_through_their_declared_source() {
         let registry = valid_registry(MockEffect);

@@ -133,7 +133,6 @@ pub struct ToolCatalogSearchResult {
     pub summary: Option<String>,
     pub source: String,
     pub source_label: String,
-    pub source_type: String,
     pub namespace: String,
     pub external_name: String,
     pub required_scopes: Vec<String>,
@@ -195,8 +194,6 @@ pub struct ToolInspectProvenance {
     pub source: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source_label: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub source_type: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub namespace: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -347,7 +344,6 @@ mod tests {
               "summary": "Read a UTF-8 text file.",
               "source": "runx-runtime/filesystem",
               "source_label": "runx-runtime/filesystem",
-              "source_type": "native",
               "namespace": "fs",
               "external_name": "read",
               "required_scopes": ["fs.read"],
@@ -376,7 +372,6 @@ mod tests {
                 "origin": "native",
                 "source": "runx-runtime/filesystem",
                 "source_label": "runx-runtime/filesystem",
-                "source_type": "native",
                 "catalog_ref": "runx-runtime/filesystem:fs.read"
               }
             }"#,
@@ -389,7 +384,6 @@ mod tests {
                 origin: ToolInspectOrigin::Native,
                 source: Some("runx-runtime/filesystem".to_owned()),
                 source_label: Some("runx-runtime/filesystem".to_owned()),
-                source_type: Some("native".to_owned()),
                 namespace: None,
                 external_name: None,
                 catalog_ref: Some("runx-runtime/filesystem:fs.read".to_owned()),

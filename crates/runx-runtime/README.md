@@ -13,33 +13,28 @@ Current slice:
 - parses a skill's runners, each a graph of agent, tool, operation, ask and
   skill steps, with `runx-parser`
 - plans sequential transitions with `runx-core`
-- runs worker tools through the dedicated `runx-js-worker`; trusted host
-  processes remain behind the `process-tool` feature
+- runs worker tools through the dedicated `runx-js-worker` and trusted host
+  processes through the process supervisor
 - emits receipts and validates the parent receipt tree with
   `runx-receipts`
 - exposes native skill, doctor, list, history, MCP, registry, config, policy,
   tool, and dev command support through `runx-cli`
 
 The worker lane is part of the core runtime. It has no Node or CLI fallback and
-exposes no host authority. Adapter families that can cross
-host or provider boundaries remain feature gated:
+exposes no host authority. Every runtime carries the governed HTTP client,
+process tools and the tool catalog. These are opt-in:
 
-- `process-tool`
 - `mcp`
 - `mcp-http-server`
 - `agent`
-- `catalog`
 - `store`
-- `async-http`
 
-The CLI enables `process-tool`, `catalog`, `mcp`, `mcp-http-server`, `agent`,
-and `store`. `process-tool` enables `async-http` transitively.
+The CLI enables all four.
 
-The generated catalog-profile capability snapshot lives at
+The generated capability snapshot lives at
 `fixtures/tool-catalogs/native-capabilities.snapshot.json`. It pins the
 runtime-owned roster, scopes, effect and approval posture, packet binding, and
-execution boundary for the explicit `catalog`/`process-tool`/`async-http` feature
-set. Run `pnpm capabilities:snapshot:generate` only for an intentional contract
+execution boundary. Run `pnpm capabilities:snapshot:generate` only for an intentional contract
 change; `pnpm catalog:check` is the freshness wall.
 
 ## Doctor

@@ -1,5 +1,4 @@
 pub mod build;
-#[cfg(feature = "catalog")]
 pub(crate) mod dispatch;
 pub mod error;
 pub mod inspect;

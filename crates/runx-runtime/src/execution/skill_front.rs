@@ -26,7 +26,6 @@ use crate::services::{ReceiptServices, WorkspaceEnv};
 
 mod executable_adapter;
 mod graph;
-#[cfg(feature = "process-tool")]
 mod inline_harness;
 mod resolution_answers;
 pub(crate) mod runner_manifest;
@@ -34,7 +33,6 @@ mod turn_session;
 
 pub(crate) use self::executable_adapter::ExecutableAdapter;
 pub(crate) use self::graph::graph_domain_act_receipt;
-#[cfg(feature = "process-tool")]
 pub(crate) use self::inline_harness::run_package_harness_with_effects;
 pub use self::turn_session::TurnSession;
 
@@ -89,6 +87,9 @@ pub(crate) struct SkillRunOverrides {
     /// kept distinct from agent answers. `None` reads the request's
     /// `answers_path`.
     pub(crate) seeded_answers: Option<resolution_answers::ResolutionAnswers>,
+    /// Agent turns a harness caller works from its script, by request id.
+    pub(crate) turn_scripts:
+        std::collections::BTreeMap<String, runx_parser::harness_fixture::HarnessTurnScript>,
     /// Native host services shared for the lifetime of a local server session.
     pub(crate) javascript: Option<crate::adapters::javascript::JavaScriptAdapter>,
 }
@@ -473,7 +474,6 @@ pub struct PackageHarnessReport {
 }
 
 impl PackageHarnessReport {
-    #[cfg(feature = "process-tool")]
     fn not_declared() -> Self {
         Self {
             status: "not_declared",

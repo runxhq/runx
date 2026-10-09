@@ -126,8 +126,6 @@ const rustBuild = await runStep(
     "runx-receipts",
     "-p",
     "runx-core",
-    "--features",
-    "runx-runtime/process-tool",
     "--bin",
     "runx",
     "--bin",

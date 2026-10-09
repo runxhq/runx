@@ -1,11 +1,10 @@
 # runx-core
 
-Pure Rust parity kernel for runx state-machine and policy decisions.
+Pure Rust kernel for runx state-machine and policy decisions.
 
-This crate implements the Rust-owned state-machine and policy decision surface
-against the checked-in kernel fixture set. The policy surface includes local
-admission, grant attenuation, retry, graph-scope, authority
-proof, credential binding, scope admission, and public work helpers.
+This crate owns the sequential graph state machine, scope-grant matching, and
+authority derivation and minting, and checks them against the checked-in kernel
+fixture set.
 
 Scope names remain open, provider-neutral strings. `ScopeGrantPolicy` is the
 single matching registry: exact-only for provider-native permissions,

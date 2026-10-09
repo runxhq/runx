@@ -1,18 +1,19 @@
 # Security Authority Proof
 
 Runx receipts must explain the authority boundary without becoming a secret
-side channel. The compact policy projection lives under `authority_proof` and
-validates against `runx.authority-proof.v1`. The adapter-observed execution
-boundary is also copied into `receipt.authority.enforcement` before sealing, so
-it is part of the signed receipt body rather than unsigned read metadata.
+side channel. A receipt's `authority` section records the execution terms
+admission derived with their subset proofs, the grants that admitted each
+effect and the adapter-observed execution boundary
+(`receipt.authority.enforcement`). All of it is sealed into the signed receipt
+body rather than kept as unsigned read metadata.
 
 Allowed public fields:
 
-- `run_id`, `skill_name`, and `source_type`
-- requested connected-auth scopes and the admitted execution boundary
-- scope admission status, granted scopes, grant id, and decision summary
-- provider, connection id, grant reference, and `material_ref` hash
-- typed execution-boundary observation and approval result
+- the admitted execution terms and their subset proofs
+- granted scopes and grant references
+- the connector, the instance and the credential delivery observation with its
+  `material_ref` hash
+- the typed execution-boundary observation and approval decisions
 - redaction policy status
 
 Banned fields:
@@ -25,10 +26,7 @@ Banned fields:
 
 Credential material is represented by hashed opaque handles such as
 `material_ref_hash`. Receipt writers still hash stdout and stderr, and metadata is
-passed through the receipt redactor before signing. Hosted workers and local
-runners use the same `authority_proof` schema name; consuming repos add policy
-for source channels, assignees, and target repositories outside the core proof.
-Local secret handoff is owned by the connector instance and the Rust
+passed through the receipt redactor before signing. Local secret handoff is owned by the connector instance and the Rust
 `CredentialDelivery` boundary. Hosted provider execution keeps material in runx
 Connect, which renders only the connector's declared requests. In both paths,
 secret values may cross only the trusted driver or supervisor delivery channel,
@@ -37,12 +35,11 @@ public provider evidence. See [Credentials](./credentials.md).
 
 ## Ownership Boundary
 
-The Rust `AuthorityProof` wire structs and
-`ExecutionBoundaryObservation` live in `runx-contracts`, which owns their
-portable JSON shape and generated schemas. `runx-core` alone owns the policy
-projection that constructs an authority proof from admission decisions. The
-runtime adapter alone owns the observed execution-boundary value and binds it
-into the receipt at seal time. Neither a skill nor an agent may self-attest that
+`ExecutionBoundaryObservation` and the receipt's authority shapes live in
+`runx-contracts`, which owns their portable JSON shape and generated schemas.
+`runx-core` alone derives execution terms and their subset proofs. The runtime
+adapter alone owns the observed execution-boundary value and binds it into the
+receipt at seal time. Neither a skill nor an agent may self-attest that
 observation.
 
 The local runner applies authority in this order:

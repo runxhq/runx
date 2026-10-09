@@ -206,7 +206,7 @@ where
     }
 
     /// Why the turn's allowance refuses `target`, if it does.
-    fn refusal(&self, target: &TurnTarget) -> Option<String> {
+    fn refusal(&self, target: &TurnTarget) -> Result<Option<String>, RuntimeError> {
         let allowance = &self.scope.agent.allowance;
         let allowed = match target {
             TurnTarget::Tool { tool } => allowance.tools.contains(tool),
@@ -220,7 +220,46 @@ where
             TurnTarget::Skill { skill } => allowance.skills.contains(skill),
             TurnTarget::Ask => allowance.asks,
         };
-        (!allowed).then(|| format!("{} is not in the turn's allowance", label(target)))
+        if !allowed {
+            return Ok(Some(format!(
+                "{} is not in the turn's allowance",
+                label(target)
+            )));
+        }
+        if matches!(target, TurnTarget::Skill { .. }) {
+            return self.child_refusal();
+        }
+        Ok(None)
+    }
+
+    /// Why the run's delegation refuses the child run a skill call would
+    /// start: one level too deep, or one more than the turn may start.
+    fn child_refusal(&self) -> Result<Option<String>, RuntimeError> {
+        let options = &self.scope.runtime.options;
+        if let Some(reason) = super::child_depth_refusal(options) {
+            return Ok(Some(reason));
+        }
+        let Some(limit) = options
+            .run_authority
+            .as_ref()
+            .and_then(|authority| authority.child_limits().fanout)
+        else {
+            return Ok(None);
+        };
+        let mut started = 0_usize;
+        for call in self.recorded()? {
+            if !matches!(call.target, TurnTarget::Skill { .. }) {
+                continue;
+            }
+            let child = options
+                .run
+                .child(&call_step_id(self.scope.step_id, call.index))?;
+            if child.load()?.is_some() {
+                started += 1;
+            }
+        }
+        Ok((started >= usize::try_from(limit).unwrap_or(usize::MAX))
+            .then(|| format!("the run's delegation lets a turn start at most {limit} child runs")))
     }
 
     /// Run the call at `index` through `host`, which carries what the call
@@ -239,7 +278,7 @@ where
         input: JsonObject,
     ) -> Result<TurnCallResult, RuntimeError> {
         let step = match self
-            .refusal(&target)
+            .refusal(&target)?
             .map_or_else(|| self.call_step(index, &target, &input), Err)
         {
             Ok(step) => step,
@@ -718,7 +757,6 @@ where
 
     /// A catalog tool's tool: its description and inputs as the catalog
     /// declares them.
-    #[cfg(feature = "catalog")]
     fn catalog_tool(&self, tool: &NonEmptyString) -> Result<TurnTool, RuntimeError> {
         let inspected = crate::tool_catalogs::dispatch::inspect_catalog_tool(
             tool.as_str(),
@@ -736,15 +774,7 @@ where
         ))
     }
 
-    #[cfg(not(feature = "catalog"))]
-    fn catalog_tool(&self, tool: &NonEmptyString) -> Result<TurnTool, RuntimeError> {
-        Err(RuntimeError::UnsupportedAdapter {
-            adapter_type: format!("catalog tool {tool}"),
-        })
-    }
-
     /// Listing a tool grants it the scopes it declares.
-    #[cfg(feature = "catalog")]
     fn declared_scopes(&self, tool: &str) -> Result<Vec<String>, String> {
         crate::tool_catalogs::dispatch::inspect_catalog_tool(
             tool,
@@ -754,13 +784,6 @@ where
         )
         .map(|inspected| inspected.scopes)
         .map_err(|error| format!("tool {tool} could not be resolved: {error}"))
-    }
-
-    #[cfg(not(feature = "catalog"))]
-    fn declared_scopes(&self, tool: &str) -> Result<Vec<String>, String> {
-        Err(format!(
-            "tool {tool} needs the tool catalog, which this runtime does not include"
-        ))
     }
 }
 

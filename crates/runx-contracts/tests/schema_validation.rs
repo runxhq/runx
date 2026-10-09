@@ -4,14 +4,8 @@ use std::path::{Path, PathBuf};
 
 use serde_json::{Value, json};
 
-const AUTHORITY_PROOF_SCHEMA: &str = include_str!("../../../schemas/authority-proof.schema.json");
 const RESOLUTION_REQUEST_SCHEMA: &str =
     include_str!("../../../schemas/resolution-request.schema.json");
-const AUTHORITY_PROOF_FIXTURES: &[(&str, &str)] = &[(
-    "authority-proof-metadata-full",
-    include_str!("../../../fixtures/kernel/policy/authority-proof-metadata-full.json"),
-)];
-
 const CONTRACT_FIXTURE_SCHEMA_MAPPINGS: &[FixtureSchemaMapping] = &[
     FixtureSchemaMapping::new(
         "fixtures/contracts/act-assignment/cli-no-trigger.json",
@@ -34,24 +28,9 @@ const CONTRACT_FIXTURE_SCHEMA_MAPPINGS: &[FixtureSchemaMapping] = &[
         "act-assignment.schema.json",
     ),
     FixtureSchemaMapping::new(
-        "fixtures/contracts/credential-delivery/response.json",
-        "/expected",
-        "credential-delivery-response.schema.json",
-    ),
-    FixtureSchemaMapping::new(
         "fixtures/contracts/credential-delivery/observation.json",
         "/expected",
         "credential-delivery-observation.schema.json",
-    ),
-    FixtureSchemaMapping::new(
-        "fixtures/contracts/credential-delivery/profile.json",
-        "/expected",
-        "credential-delivery-profile.schema.json",
-    ),
-    FixtureSchemaMapping::new(
-        "fixtures/contracts/credential-delivery/request.json",
-        "/expected",
-        "credential-delivery-request.schema.json",
     ),
     FixtureSchemaMapping::new(
         "fixtures/contracts/harness-spine/receipt-abnormal.json",
@@ -97,20 +76,6 @@ const CONTRACT_FIXTURE_SCHEMA_MAPPINGS: &[FixtureSchemaMapping] = &[
 
 const CONTRACT_FIXTURE_EXEMPT_KINDS: &[&str] =
     &["event", "governed_act_ref", "run_result", "run_state"];
-
-#[test]
-fn authority_proof_outputs_validate_against_generated_schema()
--> Result<(), Box<dyn std::error::Error>> {
-    let validator = schema_validator(AUTHORITY_PROOF_SCHEMA)?;
-    for (name, fixture_json) in AUTHORITY_PROOF_FIXTURES {
-        let fixture: Value = serde_json::from_str(fixture_json)?;
-        let authority_proof = fixture
-            .pointer("/expected/value/authority_proof")
-            .ok_or_else(|| format!("{name} missing expected.value.authority_proof"))?;
-        assert_valid(&validator, authority_proof, name)?;
-    }
-    Ok(())
-}
 
 #[test]
 fn mapped_contract_fixtures_validate_against_generated_schemas()
@@ -175,30 +140,7 @@ fn contract_fixture_schema_mapping_has_only_declared_exemptions()
 }
 
 #[test]
-fn host_approval_gate_is_rejected_inside_authority_proof() -> Result<(), Box<dyn std::error::Error>>
-{
-    let validator = schema_validator(AUTHORITY_PROOF_SCHEMA)?;
-    let mut fixture: Value = serde_json::from_str(AUTHORITY_PROOF_FIXTURES[0].1)?;
-    let authority_proof = fixture
-        .pointer_mut("/expected/value/authority_proof")
-        .ok_or("authority-proof fixture missing expected.value.authority_proof")?;
-    authority_proof["approval_gate"] = json!({
-        "id": "workspace-write",
-        "reason": "Allow workspace write",
-        "type": "filesystem_write",
-        "summary": { "path": "docs/guide.md" }
-    });
-
-    assert_invalid(
-        &validator,
-        authority_proof,
-        "host gate must not masquerade as authority proof gate",
-    );
-    Ok(())
-}
-
-#[test]
-fn authority_proof_approval_gate_is_rejected_inside_host_resolution_request()
+fn a_decided_gate_is_rejected_inside_a_host_resolution_request()
 -> Result<(), Box<dyn std::error::Error>> {
     let validator = schema_validator(RESOLUTION_REQUEST_SCHEMA)?;
     let resolution_request = json!({
@@ -215,7 +157,7 @@ fn authority_proof_approval_gate_is_rejected_inside_host_resolution_request()
     assert_invalid(
         &validator,
         &resolution_request,
-        "authority-proof gate must not masquerade as host resolution request gate",
+        "a decided gate must not masquerade as a host resolution request gate",
     );
     Ok(())
 }

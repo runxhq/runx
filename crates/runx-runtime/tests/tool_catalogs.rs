@@ -64,7 +64,7 @@ fn tool_catalogs_search_returns_native_tools() {
         .results
         .iter()
         .find(|result| result.name == "fs.read");
-    assert!(read.is_some_and(|result| result.source_type == "native"));
+    assert!(read.is_some_and(|result| result.tool_id == "native/fs.read"));
 }
 
 #[test]

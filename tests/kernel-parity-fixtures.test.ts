@@ -96,7 +96,7 @@ describe("kernel parity fixtures", () => {
     const validation = await validateKernelFixture({
       $schema: "../../../schema/state-machine.schema.json" as "../schema/state-machine.schema.json",
       name: "invalid-schema-ref",
-      input: { kind: "state-machine.createSingleStepState", stepId: "lint" },
+      input: { kind: "state-machine.createSequentialGraphState", graphId: "lint", steps: [] },
       expected: { kind: "output", value: {} },
     });
 
@@ -109,7 +109,7 @@ describe("kernel parity fixtures", () => {
     const validation = await validateKernelFixture({
       $schema: "toString" as "../schema/state-machine.schema.json",
       name: "prototype-schema-ref",
-      input: { kind: "state-machine.createSingleStepState", stepId: "lint" },
+      input: { kind: "state-machine.createSequentialGraphState", graphId: "lint", steps: [] },
       expected: { kind: "output", value: {} },
     });
 
@@ -121,10 +121,12 @@ describe("kernel parity fixtures", () => {
   it("requires runner ingestion fixtures to use the runner prefix", async () => {
     const validation = await validateKernelFixture({
       $schema: "../schema/policy.schema.json",
-      name: "missing-grant-runner-error",
+      name: "malformed-state-runner-error",
       input: {
-        kind: "policy.admitGraphStepScopes",
-        request: { stepId: "read", requestedScopes: ["repo:read"] },
+        kind: "policy.scopeGrantAllows",
+        grantedScope: "repo:*",
+        requestedScope: "repo:read",
+        policy: "delegated",
       },
       expected: {
         kind: "error",
@@ -139,20 +141,16 @@ describe("kernel parity fixtures", () => {
   it("reserves the runner prefix for fixture-runner ingestion errors", async () => {
     const validation = await validateKernelFixture({
       $schema: "../schema/policy.schema.json",
-      name: "runner-graph-scope-denies-widening",
+      name: "runner-scope-grant-denies-widening",
       input: {
-        kind: "policy.admitGraphStepScopes",
-        request: {
-          stepId: "deploy",
-          requestedScopes: ["deployments:write"],
-          grant: { scopes: ["checks:read"] },
-        },
+        kind: "policy.scopeGrantAllows",
+        grantedScope: "checks:read",
+        requestedScope: "deployments:write",
+        policy: "delegated",
       },
       expected: {
         kind: "output",
-        value: {
-          status: "deny",
-        },
+        value: false,
       },
     });
 
@@ -183,8 +181,9 @@ describe("kernel parity fixtures", () => {
   it("preserves source error details on fixture oracle failures", () => {
     try {
       evaluateKernelFixtureInput({
-        kind: "policy.admitGraphStepScopes",
-        request: { stepId: "read", requestedScopes: ["repo:read"] },
+        kind: "state-machine.planSequentialGraphTransition",
+        state: {},
+        steps: [{ id: "first" }],
       });
       throw new Error("expected fixture oracle failure");
     } catch (error) {

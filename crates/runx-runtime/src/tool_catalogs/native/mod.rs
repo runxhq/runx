@@ -1,77 +1,57 @@
-#![cfg_attr(not(feature = "catalog"), allow(dead_code))]
-
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 use std::sync::OnceLock;
 
 use runx_contracts::JsonObject;
-#[cfg(feature = "catalog")]
 use runx_contracts::JsonValue;
 
-#[cfg(feature = "catalog")]
 use crate::RuntimeError;
 use crate::credentials::CredentialDelivery;
-#[cfg(feature = "catalog")]
 use crate::effects::EffectToolRequest;
-#[cfg(feature = "catalog")]
 use crate::effects::RuntimeEffectRegistry;
 
 mod artifacts;
 mod attestation;
-#[cfg(feature = "catalog")]
 mod authoring;
 mod capability;
-#[cfg(feature = "process-tool")]
 mod cli;
-#[cfg(feature = "process-tool")]
 mod command;
 mod data;
 mod evidence;
 mod files;
-#[cfg(feature = "process-tool")]
 mod git;
 mod handoff;
-#[cfg(feature = "catalog")]
 mod hosted_artifacts;
 mod input;
 mod policy;
 mod receipt_tools;
 mod run_tools;
-#[cfg(feature = "catalog")]
 mod snapshot;
 mod workspace;
 
 mod catalog;
 
 use capability::NativeCapability;
-#[cfg(feature = "catalog")]
 use capability::RawNativeInvocation;
 pub(super) use input::{invalid_input, required_string};
 pub(super) use workspace::resolve_repo_root_for;
 
 pub(crate) use catalog::artifacts;
-#[cfg(feature = "catalog")]
 pub(crate) use catalog::inventory;
 pub(crate) use catalog::{inspect, list_items, search};
-#[cfg(feature = "catalog")]
 pub use snapshot::{NativeCapabilitySnapshot, native_capability_snapshot};
 
 const CAPABILITY_GROUPS: &[&[&dyn NativeCapability]] = &[
-    #[cfg(feature = "process-tool")]
     command::CAPABILITIES,
-    #[cfg(feature = "catalog")]
     authoring::CAPABILITIES,
     files::CAPABILITIES,
-    #[cfg(feature = "process-tool")]
     git::CAPABILITIES,
-    #[cfg(feature = "process-tool")]
     cli::CAPABILITIES,
     data::CAPABILITIES,
     handoff::CAPABILITIES,
     evidence::CAPABILITIES,
     attestation::CAPABILITIES,
     artifacts::CAPABILITIES,
-    #[cfg(feature = "catalog")]
     hosted_artifacts::CAPABILITIES,
     receipt_tools::CAPABILITIES,
     run_tools::CAPABILITIES,
@@ -114,24 +94,15 @@ pub(super) struct NativeInvocation<'a, I: ?Sized = JsonObject> {
     pub skill_directory: &'a Path,
     pub credential_delivery: &'a CredentialDelivery,
     pub local_artifacts: &'a crate::services::LocalArtifactService,
-    #[cfg(feature = "catalog")]
     pub effects: &'a RuntimeEffectRegistry,
 }
 
 impl<I: ?Sized> NativeInvocation<'_, I> {
     fn harness_http_exchanges(&self) -> Option<&[crate::http::RuntimeHarnessHttpExchange]> {
-        #[cfg(feature = "catalog")]
-        {
-            self.effects.harness_http_exchanges()
-        }
-        #[cfg(not(feature = "catalog"))]
-        {
-            None
-        }
+        self.effects.harness_http_exchanges()
     }
 }
 
-#[cfg(feature = "catalog")]
 pub(crate) struct NativeToolInvocation<'a> {
     pub tool_ref: &'a str,
     pub observed_at: &'a str,
@@ -145,14 +116,12 @@ pub(crate) struct NativeToolInvocation<'a> {
     pub effects: &'a RuntimeEffectRegistry,
 }
 
-#[cfg(feature = "catalog")]
 pub(crate) struct NativeToolInvocationResult {
     pub(crate) result: Result<JsonValue, RuntimeError>,
     pub(crate) ephemeral: Option<JsonValue>,
     pub(crate) execution_boundary: runx_contracts::ExecutionBoundaryKind,
 }
 
-#[cfg(feature = "catalog")]
 pub(crate) fn invoke(request: NativeToolInvocation<'_>) -> Option<NativeToolInvocationResult> {
     if let Some(tool) = definition(request.tool_ref) {
         let invocation = RawNativeInvocation {

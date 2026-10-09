@@ -2,7 +2,6 @@ use std::collections::BTreeSet;
 
 use crate::CapabilityContract;
 
-#[cfg(feature = "catalog")]
 use super::super::EffectToolRequest;
 use super::{RuntimeEffectError, RuntimeEffectRegistry};
 
@@ -36,7 +35,6 @@ impl RuntimeEffectRegistry {
         })
     }
 
-    #[cfg(feature = "catalog")]
     pub(crate) fn invoke_tool(
         &self,
         request: EffectToolRequest<'_>,
@@ -79,7 +77,6 @@ impl RuntimeEffectRegistry {
     }
 }
 
-#[cfg(feature = "catalog")]
 fn invoke_effect_tool(
     effect: &dyn super::super::RuntimeEffect,
     capability: &dyn CapabilityContract,

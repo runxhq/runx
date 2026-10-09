@@ -19,9 +19,6 @@ export const RUNX_CONTRACT_IDS = {
   toolManifest: `${RUNX_SCHEMA_BASE_URL}/runx/tool/manifest/v1.json`,
   packetIndex: `${RUNX_SCHEMA_BASE_URL}/runx/packet/index/v1.json`,
   actAssignment: `${RUNX_SCHEMA_BASE_URL}/runx/act-assignment/v1.json`,
-  credentialDeliveryProfile: `${RUNX_SCHEMA_BASE_URL}/runx/credential-delivery/profile/v1.json`,
-  credentialDeliveryRequest: `${RUNX_SCHEMA_BASE_URL}/runx/credential-delivery/request/v1.json`,
-  credentialDeliveryResponse: `${RUNX_SCHEMA_BASE_URL}/runx/credential-delivery/response/v1.json`,
   credentialDeliveryObservation: `${RUNX_SCHEMA_BASE_URL}/runx/credential-delivery/observation/v1.json`,
   dataOperationResult: `${RUNX_SCHEMA_BASE_URL}/runx/data/operation-result/v1.json`,
   reference: `${RUNX_SCHEMA_BASE_URL}/runx/reference/v1.json`,
@@ -69,9 +66,6 @@ export const RUNX_LOGICAL_SCHEMAS = {
   toolManifest: "runx.tool.manifest.v1",
   packetIndex: "runx.packet.index.v1",
   actAssignment: "runx.act_assignment.v1",
-  credentialDeliveryProfile: "runx.credential_delivery.profile.v1",
-  credentialDeliveryRequest: "runx.credential_delivery.request.v1",
-  credentialDeliveryResponse: "runx.credential_delivery.response.v1",
   credentialDeliveryObservation: "runx.credential_delivery.observation.v1",
   dataOperationResult: "runx.data.operation_result.v1",
   reference: "runx.reference.v1",
@@ -117,9 +111,6 @@ export const RUNX_CONTROL_SCHEMA_REFS = {
   resolution_request: "https://runx.ai/spec/resolution-request.schema.json",
   resolution_response: "https://runx.ai/spec/resolution-response.schema.json",
   act_result: "https://runx.ai/spec/act-result.schema.json",
-  credential_envelope: "https://runx.ai/spec/credential-envelope.schema.json",
-  scope_admission: "https://runx.ai/spec/scope-admission.schema.json",
-  authority_proof: "https://runx.ai/spec/authority-proof.schema.json",
 } as const;
 
 export const RUNX_AUXILIARY_SCHEMA_IDS = {

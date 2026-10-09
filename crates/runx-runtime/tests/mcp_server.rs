@@ -1,6 +1,6 @@
 #![cfg(feature = "mcp")]
 
-#[cfg(all(feature = "mcp", feature = "process-tool"))]
+#[cfg(feature = "mcp")]
 use std::fs;
 use std::io::Cursor;
 #[cfg(feature = "mcp")]
@@ -177,7 +177,7 @@ fn mcp_server_handles_many_calls_in_one_streaming_session() -> Result<(), Box<dy
 }
 
 #[test]
-#[cfg(all(feature = "mcp", feature = "process-tool"))]
+#[cfg(feature = "mcp")]
 fn mcp_server_concurrent_call_completes_while_slow_skill_runs()
 -> Result<(), Box<dyn std::error::Error>> {
     let slow_skill = tempfile::tempdir()?;

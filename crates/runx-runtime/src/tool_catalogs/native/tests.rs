@@ -2,16 +2,12 @@
 
 use std::collections::BTreeSet;
 
-#[cfg(feature = "catalog")]
 use std::collections::BTreeMap;
 
-#[cfg(feature = "catalog")]
 use runx_contracts::{JsonObject, JsonValue};
 
 use super::{core_capabilities, definition};
-#[cfg(feature = "catalog")]
 use crate::credentials::CredentialDelivery;
-#[cfg(feature = "catalog")]
 use crate::effects::RuntimeEffectRegistry;
 
 #[test]
@@ -37,24 +33,13 @@ fn capability_registry_definitions_are_unique_and_valid() {
     }
 }
 
-#[cfg(feature = "catalog")]
 #[test]
-fn capability_snapshot_is_sorted_and_pins_the_catalog_feature_profile() {
+fn capability_snapshot_is_sorted_and_pins_the_catalog() {
     let snapshot = serde_json::to_value(super::native_capability_snapshot())
         .expect("snapshot should serialize");
     assert_eq!(
         snapshot.get("schema").and_then(serde_json::Value::as_str),
         Some("runx.native_capability_snapshot.v1")
-    );
-    assert_eq!(
-        snapshot
-            .pointer("/profile/features")
-            .and_then(serde_json::Value::as_array),
-        Some(&vec![
-            serde_json::Value::String("async-http".to_owned()),
-            serde_json::Value::String("catalog".to_owned()),
-            serde_json::Value::String("process-tool".to_owned()),
-        ])
     );
     let capabilities = snapshot
         .get("capabilities")
@@ -109,7 +94,6 @@ fn capability_registry_defaults_keep_declared_json_types() {
     );
 }
 
-#[cfg(feature = "catalog")]
 #[test]
 fn capability_registry_owns_inspect_search_and_artifacts() {
     let effects =
@@ -124,10 +108,9 @@ fn capability_registry_owns_inspect_search_and_artifacts() {
             .iter()
             .any(|tool| tool.name == "runx.skill.apply")
     );
-    assert_eq!(super::execution_boundary("provider.read", &effects), None);
+    assert_eq!(super::execution_boundary("acme.lookup", &effects), None);
 }
 
-#[cfg(feature = "catalog")]
 #[test]
 fn capability_registry_dispatch_projects_only_declared_inputs() {
     let inputs = JsonObject::from([
@@ -180,7 +163,6 @@ fn capability_registry_exposes_one_input_schema() {
     );
 }
 
-#[cfg(feature = "catalog")]
 #[test]
 fn native_output_contract_is_exact_and_rejects_invalid_inner_fields() {
     let capability = definition("data.digest").expect("data.digest should be registered");

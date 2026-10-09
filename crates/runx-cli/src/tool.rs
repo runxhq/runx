@@ -163,7 +163,6 @@ fn render_search_results(results: &[runx_contracts::tools::ToolCatalogSearchResu
     let mut lines = vec!["".to_owned(), "  Tools".to_owned()];
     for result in results {
         lines.push(format!("  {}  {}", result.name, result.source_label));
-        lines.push(format!("  type      {}", result.source_type));
         lines.push(format!("  namespace {}", result.namespace));
         lines.push(format!("  external  {}", result.external_name));
         lines.push(format!("  catalog   {}", result.catalog_ref));

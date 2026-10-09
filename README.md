@@ -276,7 +276,7 @@ A Runx receipt answers the questions that matter after the agent has moved on:
 | Question | Receipt surface |
 | --- | --- |
 | What ran? | subject, skill ref, source type, runner metadata |
-| Who or what admitted it? | actor ref, grant refs, authority proof refs |
+| Who or what admitted it? | actor ref, grant refs, execution terms |
 | What was allowed? | scopes, resolved grants, approval metadata |
 | What happened? | acts, output artifacts, exit status, closure summary |
 | Can it be checked later? | content-addressed id, canonical digest, signature, lineage |

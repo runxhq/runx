@@ -348,7 +348,6 @@ impl PacketSchemaCatalog {
     /// Add packet schemas from the exact package snapshot already admitted by
     /// the parser. Registry publication uses this instead of rereading package
     /// files after validation.
-    #[cfg(feature = "process-tool")]
     pub(crate) fn discover_loaded_package(
         &mut self,
         loaded: &crate::LoadedSkillPackage,
@@ -396,7 +395,6 @@ impl PacketSchemaCatalog {
         self.entries.get(packet_id)
     }
 
-    #[cfg(feature = "process-tool")]
     pub(crate) fn entries(&self) -> impl Iterator<Item = &PacketSchemaEntry> {
         self.entries.values()
     }

@@ -1,11 +1,10 @@
 mod assertions;
 pub mod fixtures;
 mod json_assertions;
-#[cfg(feature = "async-http")]
 mod provider_responses;
 pub mod runner;
-#[cfg(feature = "async-http")]
 mod transport;
+pub(crate) mod turns;
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -47,20 +46,17 @@ pub(crate) fn credential_variables(
 }
 
 pub use assertions::HarnessReplayReceipt;
-#[cfg(feature = "process-tool")]
 pub(crate) use assertions::{assert_receipt_expectation, status_name};
 pub use fixtures::{
     HarnessExpectedStatus, HarnessFixture, HarnessFixtureCase, HarnessFixtureError,
     HarnessFixtureKind, HarnessFixtureStepOracle, HarnessSetup, ReceiptExpectation, list_cases,
     load_harness_fixture,
 };
-#[cfg(feature = "process-tool")]
 pub(crate) use json_assertions::assert_json_expectation;
 pub use runner::{
     HarnessOptions, HarnessReplayError, HarnessReplayOutput, run_harness_fixture,
     run_harness_fixture_with_adapter,
 };
-#[cfg(feature = "process-tool")]
 pub(crate) use transport::{effects_for_harness, provider_env};
 
 #[cfg(test)]
