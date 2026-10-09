@@ -142,18 +142,26 @@ caller-supplied work and cannot resolve an approval gate. Runx rejects an agent
 response presented to an approval request. The pending run's `answers_template`
 contains the exact request ids to resolve.
 
-`runx turn <run-id>` serves the agent turn a paused run waits on as MCP tools
-over stdio: one tool per entry of the skill's limits (its `tools:`, `skills:`
-and connector operations), plus `ask_human`, `turn_status` and `turn_complete`.
+`runx turn <run-id>` serves the agent turns a paused run waits on as MCP tools
+over stdio. The tools are fixed and take a turn's address: `turn_list` shows
+everything the run waits on, `turn_status` reads a turn, `turn_call` makes a
+call in it and `turn_complete` ends it. A turn's address is its act's request
+id. A turn that a call opens in a child skill is addressed by the child's place
+in the run, as in `answer/0#agent.report.output`, and is worked on the same
+connection. `turn_status` lists the calls a turn may make, one per entry of
+its skill's limits (`tools:`, `skills:`, connector operations, and
+`ask_human` when the skill declares `asks: true`), with their input schemas.
 Each call is admitted against the turn's allowance and the run's authority,
 executed, and recorded in the run; the turn's receipt names every call it made.
 A write names its `idempotency_key`, which a retry reuses. A call whose outcome
-runx cannot confirm stays pending on its own retry request, and the turn makes
-no other call until `runx resume` answers that request with `{"retry": true}`,
-which runs the call again with the same input. A call that needs approval stays
-pending until `runx resume` answers it under `approvals`. The paused run lists
-each pending call's request beside the turn's own. `turn_complete` ends the
-turn with its output once no call is pending, and the run continues.
+runx cannot confirm stays pending on its own retry request until `runx resume`
+answers that request with `{"retry": true}`, which runs the call again with the
+same input. A call that needs approval stays pending until `runx resume`
+answers it under `approvals`, by the address the paused run lists.
+`turn_complete` ends a turn with its output once none of its calls is pending,
+and the run continues. A run started with `--managed-agent` is worked by the
+managed agent: `runx turn` refuses it, and `--managed-agent` cannot take over a
+run its host drives.
 
 Hosted and replay drivers may bind `runx skill` or `runx resume` with
 `--package-digest` and `--execution-closure-digest`. Runx recomputes both at the

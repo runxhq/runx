@@ -157,7 +157,7 @@ pub use host_protocol::{
     HostRunLineageKind, HostRunResult, HostRunState, HostRunVerification,
     HostRunVerificationStatus, HostTerminalState, Question, ResolutionRequest, ResolutionResponse,
     ResolutionResponseActor, TurnAllowance, TurnCallOutcome, TurnCallResult, TurnStatus,
-    TurnTarget,
+    TurnTarget, TurnTool,
 };
 pub use json::{
     JsonNumber, JsonObject, JsonValue, MAX_PORTABLE_INTEGER, json_bool_field, json_object,

@@ -468,3 +468,110 @@ fn the_managed_agent_works_the_turn_its_own_call_opens_in_a_child_skill()
     );
     Ok(())
 }
+
+#[test]
+fn a_managed_run_paused_inside_a_child_turn_goes_on_once_the_human_answers()
+-> Result<(), Box<dyn std::error::Error>> {
+    let temp = tempdir()?;
+    let child_dir = temp.path().join("child");
+    fs::create_dir_all(&child_dir)?;
+    fs::write(
+        child_dir.join("SKILL.md"),
+        "---\nname: child\ndescription: Reports a status.\n---\n# Child\n\nAsk, then finish with a status.\n",
+    )?;
+    fs::write(
+        child_dir.join("run.yaml"),
+        "skill: child\nasks: true\nrunners:\n  report:\n    default: true\n    outputs:\n      status: string\n",
+    )?;
+    let skill_dir = temp.path().join("parent");
+    fs::create_dir_all(&skill_dir)?;
+    fs::write(
+        skill_dir.join("SKILL.md"),
+        "---\nname: parent\ndescription: Asks its child.\n---\n# Parent\n\nRun the child, then finish.\n",
+    )?;
+    fs::write(
+        skill_dir.join("run.yaml"),
+        "skill: parent\nskills: [../child]\nrunners:\n  proof:\n    default: true\n    outputs:\n      status: string\n",
+    )?;
+    // First pass: the parent calls the child, whose turn asks the human. The
+    // second pass, once the human answers, ends the child's turn, then the
+    // parent's.
+    let listener = TcpListener::bind("127.0.0.1:0")?;
+    let endpoint = format!("http://{}/v1/chat/completions", listener.local_addr()?);
+    let server = std::thread::spawn(move || {
+        serve_responses(
+            listener,
+            [
+                json!({"choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[{"id":"call-child","type":"function","function":{"name":"skill__child","arguments":"{}"}}]}}]}),
+                json!({"choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[{"id":"child-ask","type":"function","function":{"name":"ask_human","arguments":"{\"reason\":\"Go on?\"}"}}]}}]}),
+                json!({"choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[{"id":"child-final","type":"function","function":{"name":"turn_complete","arguments":"{\"status\":\"child done\"}"}}]}}]}),
+                json!({"choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[{"id":"call-final","type":"function","function":{"name":"turn_complete","arguments":"{\"status\":\"done\"}"}}]}}]}),
+            ],
+        )
+    });
+    let mut env = BTreeMap::from([
+        (
+            "RUNX_HOME".to_owned(),
+            temp.path().join("home").to_string_lossy().into_owned(),
+        ),
+        ("RUNX_AGENT_PROVIDER".to_owned(), "openai".to_owned()),
+        ("RUNX_AGENT_MODEL".to_owned(), "fixture-model".to_owned()),
+        ("RUNX_AGENT_AUTH_MODE".to_owned(), "local_none".to_owned()),
+        ("RUNX_AGENT_ENDPOINT_URL".to_owned(), endpoint),
+    ]);
+    crate::support::insert_test_signing_env(&mut env);
+    let receipts = temp.path().join("receipts");
+    let paused = LocalOrchestrator::default().run_skill(&SkillRunRequest {
+        current_context: Vec::new(),
+        historical_context: Vec::new(),
+        run_authority: None,
+        skill_path: skill_dir,
+        receipt_dir: Some(receipts.clone()),
+        run_id: None,
+        answers_path: None,
+        inputs: BTreeMap::new(),
+        env: env.clone(),
+        cwd: temp.path().to_path_buf(),
+        managed_agent: ManagedAgentPolicy::inline(3)?,
+    })?;
+    let ids = |result: &runx_runtime::RunResult| -> Vec<String> {
+        result
+            .pending_requests
+            .iter()
+            .filter_map(|request| {
+                request
+                    .as_object()
+                    .and_then(|request| request.get("id"))
+                    .and_then(JsonValue::as_str)
+                    .map(str::to_owned)
+            })
+            .collect()
+    };
+    let ask = "proof/0#report/0";
+    assert_eq!(
+        ids(&paused),
+        ["agent.proof.output", "proof/0#agent.report.output", ask],
+        "the paused run lists the child's ask beside both turns"
+    );
+    let run_id = serde_json::to_value(&paused.output)?["run_id"]
+        .as_str()
+        .ok_or("missing run_id")?
+        .to_owned();
+    let answers = temp.path().join("answers.json");
+    fs::write(&answers, json!({"approvals": {ask: true}}).to_string())?;
+    let sealed = LocalOrchestrator::default().resume(&runx_runtime::ResumeRequest {
+        run_id,
+        answers_path: answers,
+        receipt_dir: Some(receipts),
+        env,
+        cwd: temp.path().to_path_buf(),
+        managed_agent: ManagedAgentPolicy::inline(3)?,
+        package_digest: None,
+        execution_closure_digest: None,
+    })?;
+    let output = serde_json::to_value(&sealed.output)?;
+    assert_eq!(output["status"], "sealed", "{output}");
+    assert_eq!(output["result"]["status"], "done", "{output}");
+    assert_eq!(finish_server(server)?.len(), 4);
+    Ok(())
+}

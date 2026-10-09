@@ -6,10 +6,11 @@ use super::{
     invalid, paused_output, sealed_output,
 };
 
+use std::collections::BTreeMap;
+
 use runx_contracts::{
-    AgentActInvocation, ClosureDisposition, JsonObject, JsonValue, ResolutionRequest,
-    ResolutionResponse, ResolutionResponseActor, TurnCallOutcome, TurnCallResult, TurnStatus,
-    TurnTarget,
+    ClosureDisposition, JsonObject, JsonValue, ResolutionRequest, ResolutionResponse,
+    ResolutionResponseActor, TurnCallOutcome, TurnCallResult, TurnStatus,
 };
 use runx_parser::{ExecutionGraph, SkillRunnerDefinition};
 
@@ -19,10 +20,10 @@ use crate::adapter::SkillInvocation;
 use crate::execution::graph::materialize_graph_parameter_inputs;
 use crate::execution::orchestrator::{RunResult, SkillRunRequest};
 use crate::execution::run_record::{
-    Hold, Origin, PendingRequest, RunContext, RunLog, RunRecord, StartRequest, pending_request,
+    Driver, Hold, Origin, PendingRequest, RunContext, RunLog, RunRecord, StartRequest,
     waiting_requests,
 };
-use crate::execution::runner::turn::{Turn, TurnTool};
+use crate::execution::runner::turn::{Turn, call_tool};
 use crate::execution::runner::{
     GraphRun, RUNX_RUN_ID_ENV, Runtime, RuntimeOptions, graph_run_context, graph_run_result,
     graph_run_skill_output, graph_run_trace, sealed_graph_run,
@@ -78,8 +79,8 @@ impl BoundRun {
             .ok_or_else(|| invalid("graph execution requires an execution-closure digest"))?;
         let log = run_log(request, &self.workspace, &self.manifest.skill)?;
         let existing = log.load()?;
-        let waiting_on = pending_request(log.store(), log.run_id())?;
-        host.check_turn(log.run_id(), waiting_on.as_ref())?;
+        let waiting = waiting_requests(log.store(), log.run_id())?;
+        host.check_turn(log.run_id(), &waiting)?;
         let request_context = RunContext {
             current: request.current_context.clone(),
             historical: request.historical_context.clone(),
@@ -94,6 +95,7 @@ impl BoundRun {
                     &self.package_digest,
                     execution_closure_digest,
                 )?;
+                host.check_driver(log.run_id(), started.driver)?;
                 (
                     record.created_at.clone(),
                     record.inputs.clone(),
@@ -123,6 +125,11 @@ impl BoundRun {
                     inputs: &inputs,
                     context: &request_context,
                     run_authority: request.run_authority.as_ref(),
+                    driver: if request.managed_agent.max_rounds().is_some() {
+                        Driver::Managed
+                    } else {
+                        Driver::Attached
+                    },
                     created_at: &created_at,
                 })?;
                 (
@@ -149,7 +156,7 @@ impl BoundRun {
         {
             match &suspension.hold {
                 Hold::Retry(retry) => {
-                    let Some(answer) = host.answers.get(&retry.id) else {
+                    let Some(answer) = host.answers.get(&retry.id, &retry.digest) else {
                         return self.paused(&log);
                     };
                     if host.answers.request_digest(&retry.id) != Some(retry.digest.as_str())
@@ -164,9 +171,12 @@ impl BoundRun {
                         ));
                     }
                 }
-                // Nothing new to continue with: the run still waits on the
-                // same request.
-                Hold::Request(_) | Hold::Child(_) if host.is_idle() => return self.paused(&log),
+                // Nothing new to continue with: the run still waits on what
+                // only a host can answer. A run that waits on nothing, a child
+                // that sealed before its parent step was recorded, goes on.
+                Hold::Request(_) | Hold::Child(_) if host.is_idle() && !waiting.is_empty() => {
+                    return self.paused(&log);
+                }
                 Hold::Request(_) | Hold::Child(_) => {}
             }
         }
@@ -319,8 +329,13 @@ impl BoundRun {
         }
     }
 
-    /// The run waits: on what its step asked, and on what its open turn's
-    /// calls ask.
+    /// Every request the run waits on, by address.
+    pub(super) fn waiting(&self) -> Result<Vec<PendingRequest>, SkillRunError> {
+        let log = run_log(&self.request, &self.workspace, &self.manifest.skill)?;
+        Ok(waiting_requests(log.store(), log.run_id())?)
+    }
+
+    /// The run waits on every request open in it, at any depth.
     fn paused(&self, log: &RunLog) -> Result<RunResult, SkillRunError> {
         let waiting = waiting_requests(log.store(), log.run_id())?;
         Ok(paused_output(
@@ -557,38 +572,37 @@ impl Driven<'_> {
     }
 }
 
-/// An action on the turn a paused run waits on, bound to that turn.
+/// An action on one open turn of a paused run, by the turn's address.
 pub(super) struct TurnAct {
-    /// The turn's request id; `None` acts on whichever turn the run waits on.
-    pub(super) turn: Option<String>,
+    pub(super) turn: String,
     pub(super) action: TurnAction,
 }
 
 pub(super) enum TurnAction {
-    /// Read the turn: its act and its tools.
-    Open,
     Status,
-    Call(TurnTarget, JsonObject),
+    /// Make the call the turn offers as `tool`.
+    Call {
+        tool: String,
+        input: JsonObject,
+    },
     /// Answer the act; the run continues.
     Complete(JsonObject),
 }
 
 /// What an action on a turn did.
 pub(super) enum TurnActed {
-    Opened {
-        invocation: Box<AgentActInvocation>,
-        tools: Vec<TurnTool>,
-    },
-    Status(TurnStatus),
+    Status(Box<TurnStatus>),
     Call(TurnCallResult),
     Completed,
 }
 
 /// The host a run's driver works it through: the answers the caller
-/// brought, an action on the turn the run waits on, and the managed agent
+/// brought, an action on one of the run's open turns, or the managed agent
 /// the run consents to. Anything else suspends the run where it asks.
 pub(super) struct RunHost {
     answers: ResolutionAnswers,
+    /// The answers turns are given while the run is driven, by address.
+    given: BTreeMap<String, JsonValue>,
     act: Option<TurnAct>,
     /// What the act did, once the run reached its turn.
     acted: Option<TurnActed>,
@@ -600,6 +614,7 @@ impl RunHost {
     fn new(answers: ResolutionAnswers) -> Self {
         Self {
             answers,
+            given: BTreeMap::new(),
             act: None,
             acted: None,
             #[cfg(feature = "agent")]
@@ -607,7 +622,7 @@ impl RunHost {
         }
     }
 
-    /// A host that does one thing on a paused run's turn.
+    /// A host that does one thing on one of a paused run's turns.
     pub(super) fn acting(act: TurnAct) -> Self {
         Self {
             act: Some(act),
@@ -620,66 +635,92 @@ impl RunHost {
         self.acted.take()
     }
 
-    /// Whether the host brings nothing a paused run could continue with.
-    fn is_idle(&self) -> bool {
-        #[cfg(feature = "agent")]
-        if self.managed.is_some() {
-            return false;
-        }
-        self.answers.is_empty() && self.act.is_none()
+    #[cfg(feature = "agent")]
+    fn manages(&self) -> bool {
+        self.managed.is_some()
     }
 
-    /// An action on a turn needs the run paused at that turn.
-    fn check_turn(
-        &self,
-        run_id: &str,
-        waiting: Option<&PendingRequest>,
-    ) -> Result<(), SkillRunError> {
+    #[cfg(not(feature = "agent"))]
+    fn manages(&self) -> bool {
+        false
+    }
+
+    /// Whether the host brings nothing a paused run could continue with.
+    fn is_idle(&self) -> bool {
+        !self.manages() && self.answers.is_empty() && self.act.is_none()
+    }
+
+    /// An action on a turn needs that turn open.
+    fn check_turn(&self, run_id: &str, waiting: &[PendingRequest]) -> Result<(), SkillRunError> {
         let Some(act) = &self.act else {
             return Ok(());
         };
-        let Some(waiting) = waiting.filter(|waiting| {
-            waiting
-                .value
-                .as_object()
-                .and_then(|value| value.get("kind"))
-                == Some(&JsonValue::String("agent_act".to_owned()))
-        }) else {
-            return Err(invalid(format!(
-                "run {run_id} is not waiting on an agent turn"
-            )));
-        };
-        match &act.turn {
-            Some(turn) if turn != &waiting.id => Err(invalid(format!(
-                "run {run_id} now waits on {}, not turn {turn}",
-                waiting.id
+        if waiting
+            .iter()
+            .any(|request| request.id == act.turn && is_agent_act(request))
+        {
+            return Ok(());
+        }
+        Err(invalid(format!(
+            "run {run_id} has no open turn {}",
+            act.turn
+        )))
+    }
+
+    /// One driver works a run's turns: the one it started with. Answers
+    /// alone drive no turn.
+    fn check_driver(&self, run_id: &str, driver: Option<Driver>) -> Result<(), SkillRunError> {
+        let drives = self.manages() || self.act.is_some();
+        match driver {
+            None if drives => Err(invalid(format!(
+                "run {run_id} was started before runs recorded their driver; no driver can work its turns, so start it again"
             ))),
-            _ => Ok(()),
+            Some(Driver::Attached) if self.manages() => Err(invalid(format!(
+                "run {run_id} is driven by the host it is attached to; the managed agent cannot work its turns"
+            ))),
+            Some(Driver::Managed) if self.act.is_some() => Err(invalid(format!(
+                "run {run_id} is driven by the managed agent; another host cannot work its turns"
+            ))),
+            None | Some(Driver::Attached | Driver::Managed) => Ok(()),
         }
     }
 
-    /// Run again each pending call of `turn` this host now answers.
+    /// Take further each pending call of `turn` this host brings something
+    /// for.
     fn settle(&mut self, turn: &mut dyn Turn) -> Result<(), RuntimeError> {
-        if self.answers.is_empty() {
-            return Ok(());
+        let mut reached = Vec::new();
+        for call in turn.calls()? {
+            if let TurnCallOutcome::Pending { waiting } = &call.outcome
+                && self.reaches(waiting)?
+            {
+                reached.push(call.index);
+            }
         }
-        let answered = turn
-            .status()?
-            .calls
-            .into_iter()
-            .filter_map(|call| match &call.outcome {
-                TurnCallOutcome::Pending { request }
-                    if self.answers.get(resolution_request_id(request)).is_some() =>
-                {
-                    Some(call.index)
-                }
-                _ => None,
-            })
-            .collect::<Vec<_>>();
-        for index in answered {
+        for index in reached {
             turn.settle(self, index)?;
         }
         Ok(())
+    }
+
+    /// Whether this host brings something for a call that waits on
+    /// `waiting`: an answer to one of them, an action on one of its turns, or
+    /// the managed agent for a turn. A call that waits on nothing, a child run
+    /// that sealed or never started, is taken further by any host.
+    fn reaches(&self, waiting: &[ResolutionRequest]) -> Result<bool, RuntimeError> {
+        if waiting.is_empty() {
+            return Ok(true);
+        }
+        for request in waiting {
+            let id = resolution_request_id(request);
+            let digest = crate::execution::run_record::request_digest(request)?;
+            if self.answers.get(id, &digest).is_some()
+                || self.act.as_ref().is_some_and(|act| act.turn == id)
+                || (self.manages() && matches!(request, ResolutionRequest::AgentAct { .. }))
+            {
+                return Ok(true);
+            }
+        }
+        Ok(false)
     }
 }
 
@@ -693,7 +734,14 @@ impl Host for RunHost {
         request: ResolutionRequest,
     ) -> Result<Option<ResolutionResponse>, RuntimeError> {
         let request_id = resolution_request_id(&request).to_owned();
-        let Some(answer) = self.answers.get(&request_id).cloned() else {
+        if let Some(answer) = self.given.remove(&request_id) {
+            return Ok(Some(ResolutionResponse {
+                actor: ResolutionResponseActor::Agent,
+                payload: answer,
+            }));
+        }
+        let current = crate::execution::run_record::request_digest(&request)?;
+        let Some(answer) = self.answers.get(&request_id, &current).cloned() else {
             return Ok(None);
         };
         if self.answers.requires_request_digest(&request_id) {
@@ -702,7 +750,6 @@ impl Host for RunHost {
                     reason: format!("request_digests did not include pending request {request_id}"),
                 }
             })?;
-            let current = crate::execution::run_record::request_digest(&request)?;
             if supplied != current {
                 return Err(RuntimeError::ContinuationRejected {
                     reason: format!(
@@ -716,8 +763,9 @@ impl Host for RunHost {
         } else {
             ResolutionResponseActor::Agent
         };
-        // An answer answers one ask: a later request with the same id waits.
-        self.answers.consume(&request_id);
+        // An answer answers its request: a different request at the same
+        // address waits.
+        self.answers.spend(&request_id, &current);
         Ok(Some(ResolutionResponse {
             actor,
             payload: answer,
@@ -728,39 +776,45 @@ impl Host for RunHost {
         Ok(())
     }
 
-    /// The calls this host now answers settle first. Then the host does what
-    /// it came to do on this turn, or its managed agent works it.
+    /// The calls this host brings something for go further first. Then the
+    /// host does what it came to do on this turn, or its managed agent works
+    /// it once nothing in it waits on a human.
     fn drive_turn(&mut self, turn: &mut dyn Turn) -> Result<(), RuntimeError> {
         self.settle(turn)?;
-        let request_id = turn.invocation().id.as_str().to_owned();
-        if let Some(act) = self
-            .act
-            .take_if(|act| act.turn.as_ref().is_none_or(|turn| turn == &request_id))
-        {
+        let address = turn.invocation().id.as_str().to_owned();
+        if let Some(act) = self.act.take_if(|act| act.turn == address) {
             self.acted = Some(match act.action {
-                TurnAction::Open => TurnActed::Opened {
-                    invocation: Box::new(turn.invocation().clone()),
-                    tools: turn.tools()?,
-                },
-                TurnAction::Status => TurnActed::Status(turn.status()?),
-                TurnAction::Call(target, input) => TurnActed::Call(turn.call(self, target, input)?),
+                TurnAction::Status => TurnActed::Status(Box::new(turn.status()?)),
+                TurnAction::Call { tool, input } => {
+                    TurnActed::Call(call_tool(turn, self, &tool, input)?)
+                }
                 TurnAction::Complete(output) => {
-                    self.answers.answer(&request_id, JsonValue::Object(output));
+                    self.given.insert(address, JsonValue::Object(output));
                     TurnActed::Completed
                 }
             });
             return Ok(());
         }
-        // The managed agent works every turn of the run, including one a
-        // call of its own opens in a child skill.
         #[cfg(feature = "agent")]
         if let Some(managed) = self.managed.clone()
+            && turn
+                .calls()?
+                .iter()
+                .all(|call| !matches!(call.outcome, TurnCallOutcome::Pending { .. }))
             && let Some(output) = managed.drive(turn, self)?
         {
-            self.answers.answer(&request_id, output);
+            self.given.insert(address, output);
         }
         Ok(())
     }
+}
+
+fn is_agent_act(request: &PendingRequest) -> bool {
+    request
+        .value
+        .as_object()
+        .and_then(|value| value.get("kind"))
+        == Some(&JsonValue::String("agent_act".to_owned()))
 }
 
 fn resolution_request_id(request: &ResolutionRequest) -> &str {
@@ -892,6 +946,35 @@ mod tests {
     use std::path::PathBuf;
 
     use super::*;
+
+    #[test]
+    fn a_run_without_a_recorded_driver_takes_answers_but_no_driver() {
+        let answers = RunHost::new(ResolutionAnswers::default());
+        assert!(answers.check_driver("run_old", None).is_ok());
+        let acting = RunHost::acting(TurnAct {
+            turn: "agent.answer.output".to_owned(),
+            action: TurnAction::Status,
+        });
+        let refused = acting
+            .check_driver("run_old", None)
+            .err()
+            .map(|error| error.to_string())
+            .unwrap_or_default();
+        assert!(
+            refused.contains("started before runs recorded their driver"),
+            "{refused}"
+        );
+        assert!(
+            acting
+                .check_driver("run_new", Some(Driver::Attached))
+                .is_ok()
+        );
+        assert!(
+            acting
+                .check_driver("run_new", Some(Driver::Managed))
+                .is_err()
+        );
+    }
     use crate::adapter::SkillAdapter;
 
     #[test]
@@ -994,6 +1077,7 @@ steps:
                 inputs: &JsonObject::new(),
                 context: &RunContext::default(),
                 run_authority: None,
+                driver: crate::execution::run_record::Driver::Managed,
                 created_at: "2026-07-24T00:00:00Z",
             })?;
             if suspended {

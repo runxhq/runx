@@ -790,8 +790,11 @@ where
         .current_context
         .extend(runtime.options.current_context.clone());
     invocation.historical_context = runtime.options.historical_context.clone();
-    let request_id = agent_act_invocation_id(&invocation)?;
-    let request = agent_act_resolution_request(&invocation)?;
+    let request_id = runtime
+        .options
+        .run
+        .address(&agent_act_invocation_id(&invocation)?);
+    let request = agent_act_resolution_request(&invocation, request_id.clone())?;
     host.report(ExecutionEvent::ResolutionRequested {
         message: format!("agent step '{}' requested resolution", step.id),
         data: Some(resolution_event_data(step, &request)?),
@@ -819,10 +822,10 @@ where
         });
     };
     // A turn ends only once each of its calls has settled.
-    if let Some((index, waiting)) = turn.pending()? {
+    if let Some(index) = turn.unsettled()? {
         return Err(RuntimeError::ContinuationRejected {
             reason: format!(
-                "agent answer {request_id} was refused: call {index} of its turn still waits on {waiting}"
+                "agent answer {request_id} was refused: call {index} of its turn has not settled"
             ),
         });
     }
@@ -1278,13 +1281,14 @@ where
     A: SkillAdapter,
 {
     let gate = approval_gate(ask, &inputs);
-    // Route resolution by the gate's identity, not the step id: a caller's
-    // seeded approval is keyed by gate.
-    let request_id = gate.id.to_string();
+    // The request is the gate at its address, not the step: a caller's
+    // approval names the gate.
+    let request_id = runtime.options.run.address(gate.id.as_str());
     let resolution = completed_approval_resolution(
         step,
         &gate,
-        resolve_step_approval(step, host, request_id, gate.clone())?,
+        &request_id,
+        resolve_step_approval(step, host, request_id.clone(), gate.clone())?,
     )?;
     let outputs = approval_outputs(step, &gate, &resolution)?;
     let output =
@@ -1328,6 +1332,7 @@ where
 fn completed_approval_resolution(
     step: &GraphStep,
     gate: &ApprovalGate,
+    request_id: &str,
     resolution: ApprovalResolution,
 ) -> Result<ApprovalResolution, RuntimeError> {
     if matches!(resolution, ApprovalResolution::Pending { .. }) {
@@ -1335,7 +1340,7 @@ fn completed_approval_resolution(
             step_id: step.id.clone(),
             reason: format!("approval gate '{}' is pending", gate.id),
             request: Box::new(ResolutionRequest::Approval {
-                id: gate.id.clone(),
+                id: request_id.into(),
                 gate: gate.clone(),
             }),
             child: None,

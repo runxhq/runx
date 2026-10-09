@@ -315,9 +315,9 @@ impl LocalOrchestrator {
         Ok(run.execute()?)
     }
 
-    /// Open the agent turn a paused run waits on, for an agent that works it
+    /// Open the agent turns a paused run waits on, for a host that works them
     /// from outside the run.
-    pub fn open_turn(&self, request: &TurnRequest) -> Result<TurnSession, OrchestratorError> {
+    pub fn open_turns(&self, request: &TurnRequest) -> Result<TurnSession, OrchestratorError> {
         let run = super::skill_front::bind_paused_run(
             super::skill_front::Continuation {
                 run_id: &request.run_id,

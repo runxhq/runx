@@ -5,8 +5,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use runx_contracts::{JsonObject, JsonValue, TurnAllowance};
 
 use super::helpers::{
-    optional_non_empty_string, optional_object, optional_string, optional_string_array,
-    optional_string_object, required_object, required_string, validation_error,
+    gate_id, optional_non_empty_string, optional_object, optional_string, optional_string_array,
+    optional_string_object, required_object, required_string, step_id, validation_error,
 };
 use super::tool::validate_tool_target;
 use super::types::{
@@ -233,7 +233,10 @@ fn validate_kind(
                 )));
             }
             Ok(StepKind::Ask(AskGate {
-                gate: non_empty(ask.get("gate"), &format!("{qualified}.gate"))?,
+                gate: gate_id(
+                    non_empty(ask.get("gate"), &format!("{qualified}.gate"))?,
+                    &format!("{qualified}.gate"),
+                )?,
                 reason: non_empty(ask.get("reason"), &format!("{qualified}.reason"))?,
                 gate_type: optional_non_empty_string(
                     ask.get("type"),
@@ -461,7 +464,10 @@ fn validate_step_id(
     field: &str,
     previous_step_ids: &BTreeSet<String>,
 ) -> Result<String, ValidationError> {
-    let id = required_string(raw_step.get("id"), &format!("{field}.id"))?;
+    let id = step_id(
+        required_string(raw_step.get("id"), &format!("{field}.id"))?,
+        &format!("{field}.id"),
+    )?;
     if previous_step_ids.contains(&id) {
         return Err(validation_error(format!(
             "{field}.id '{id}' must be unique."

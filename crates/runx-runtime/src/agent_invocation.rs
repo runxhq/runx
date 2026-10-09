@@ -15,17 +15,20 @@ mod profiles;
 
 pub(crate) use profiles::agent_profile_metadata;
 
+/// The act `request` asks, at `address`: its id where the run raises it.
 pub(crate) fn agent_act_resolution_request(
     request: &SkillInvocation,
+    address: String,
 ) -> Result<ResolutionRequest, RuntimeError> {
-    let invocation = build_agent_act_invocation(request)?;
+    let mut invocation = build_agent_act_invocation(request)?;
+    invocation.id = address.into();
     Ok(ResolutionRequest::AgentAct {
         id: invocation.id.clone(),
         invocation: Box::new(invocation),
     })
 }
 
-/// The agent turn's request id: `agent.<task>.output`.
+/// The agent turn's request id in its run: `agent.<task>.output`.
 pub(crate) fn agent_act_invocation_id(request: &SkillInvocation) -> Result<String, RuntimeError> {
     Ok(format!(
         "agent.{}.output",

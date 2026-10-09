@@ -3,8 +3,9 @@
 //! act's allowance. A call runs as one step under the agent step's own
 //! runtime, at whatever depth the step runs, so it is admitted, executed and
 //! sealed exactly as the step kind it names would be, and it is recorded in
-//! the run's stream before its outcome is returned. The turn ends when the
-//! host answers the act.
+//! the run's stream before its outcome is returned. A skill call runs its
+//! child skill as a child run of its own, whose turns are open turns too. The
+//! turn ends when the host answers the act.
 
 use std::cell::OnceCell;
 use std::collections::BTreeMap;
@@ -14,7 +15,7 @@ use runx_contracts::connector::{AmountRule, OperationAccess, OperationName};
 use runx_contracts::schema::NonEmptyString;
 use runx_contracts::{
     AgentActInvocation, AllowedOperation, JsonObject, JsonValue, ResolutionRequest,
-    TurnCallOutcome, TurnCallResult, TurnStatus, TurnTarget,
+    TurnCallOutcome, TurnCallResult, TurnStatus, TurnTarget, TurnTool,
 };
 use runx_parser::{
     AgentTask, AskGate, GraphStep, OperationStepTarget, SkillTarget, StepKind, ToolTarget,
@@ -23,6 +24,7 @@ use runx_parser::{
 use super::super::graph::{StepSkillLoadOptions, load_step_skill};
 use super::super::run_record::{
     Answer, CallOutcome, CallRecord, PendingRequest, RecordedCall, call_step_id, request_digest,
+    waiting_requests,
 };
 use super::graph_engine::AnsweringHost;
 use super::step_handlers::{
@@ -35,18 +37,27 @@ use crate::host::Host;
 
 /// The turn an unanswered agent act holds open, as its host works it.
 pub trait Turn {
-    /// The act the turn answers.
+    /// The act the turn answers; its id is the turn's address.
     fn invocation(&self) -> &AgentActInvocation;
 
     /// The agent step that holds the turn.
     fn step_id(&self) -> &str;
 
-    /// The tools the turn offers its agent, named for MCP: one per allowance
-    /// entry, then `ask_human`, `turn_status` and `turn_complete`.
+    /// The calls the turn offers its agent: one per allowance entry, named
+    /// for MCP.
     fn tools(&self) -> Result<Vec<TurnTool>, RuntimeError>;
 
-    /// What the turn answers, what it may call, and how each call ended.
-    fn status(&self) -> Result<TurnStatus, RuntimeError>;
+    /// How each call the turn made so far ended.
+    fn calls(&self) -> Result<Vec<TurnCallResult>, RuntimeError>;
+
+    /// The turn as its agent reads it.
+    fn status(&self) -> Result<TurnStatus, RuntimeError> {
+        Ok(TurnStatus {
+            invocation: self.invocation().clone(),
+            tools: self.tools()?,
+            calls: self.calls()?,
+        })
+    }
 
     /// Make a new call. `host` answers what the call itself asks; a call it
     /// cannot answer is pending until it can.
@@ -57,29 +68,35 @@ pub trait Turn {
         input: JsonObject,
     ) -> Result<TurnCallResult, RuntimeError>;
 
-    /// Run the pending call `index` again under `host`, which now answers
-    /// what it waits on.
+    /// Take the pending call `index` further under `host`, which now brings
+    /// something for what it waits on.
     fn settle(&mut self, host: &mut dyn Host, index: u32) -> Result<TurnCallResult, RuntimeError>;
 }
 
-/// One tool an open turn offers its agent.
-#[derive(Clone, Debug, PartialEq)]
-pub struct TurnTool {
-    pub name: String,
-    pub description: String,
-    pub input_schema: JsonObject,
-    pub action: TurnToolAction,
+/// Make the call the turn offers as `tool`.
+pub(crate) fn call_tool(
+    turn: &mut dyn Turn,
+    host: &mut dyn Host,
+    tool: &str,
+    input: JsonObject,
+) -> Result<TurnCallResult, RuntimeError> {
+    let target = turn
+        .tools()?
+        .into_iter()
+        .find(|offered| offered.name.as_str() == tool)
+        .map(|offered| offered.target)
+        .ok_or_else(|| RuntimeError::ContinuationRejected {
+            reason: format!(
+                "turn {} offers no tool {tool}",
+                turn.invocation().id.as_str()
+            ),
+        })?;
+    turn.call(host, target, input)
 }
 
-/// What calling a turn tool does.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum TurnToolAction {
-    Call(TurnTarget),
-    Status,
-    Complete,
-}
-
-/// The tool that ends a turn with the act's output.
+/// The controls a host presents beside a turn's own tools; a turn's tools
+/// never take these names.
+pub(crate) const TURN_STATUS_TOOL: &str = "turn_status";
 pub(crate) const TURN_COMPLETE_TOOL: &str = "turn_complete";
 
 const OPERATION_CALL_FIELDS: &[&str] = &["connector", "input", "idempotency_key", "amount"];
@@ -105,6 +122,15 @@ pub(super) struct OpenTurn<'a, A> {
     calls: OnceCell<Vec<RecordedCall>>,
 }
 
+/// How a call's step went.
+enum Ran {
+    Settled(CallOutcome),
+    /// The step waits on `request`: its own, or one its child run raised.
+    Waiting(Box<ResolutionRequest>),
+    /// The step's effect may have happened and is not confirmed.
+    Unconfirmed,
+}
+
 impl<'a, A> OpenTurn<'a, A>
 where
     A: SkillAdapter,
@@ -128,8 +154,8 @@ where
         })
     }
 
-    /// The turn's calls, in order.
-    fn calls(&self) -> Result<&[RecordedCall], RuntimeError> {
+    /// The turn's calls as the run records them, in order.
+    fn recorded(&self) -> Result<&[RecordedCall], RuntimeError> {
         if let Some(calls) = self.calls.get() {
             return Ok(calls);
         }
@@ -142,8 +168,8 @@ where
         Ok(self.calls.get_or_init(|| read))
     }
 
-    fn calls_mut(&mut self) -> Result<&mut Vec<RecordedCall>, RuntimeError> {
-        self.calls()?;
+    fn recorded_mut(&mut self) -> Result<&mut Vec<RecordedCall>, RuntimeError> {
+        self.recorded()?;
         self.calls
             .get_mut()
             .ok_or_else(|| RuntimeError::EngineInvariant {
@@ -155,7 +181,7 @@ where
     /// The runs of the turn's completed calls, in order.
     pub(super) fn completed(&self) -> Result<Vec<&StepRun>, RuntimeError> {
         Ok(self
-            .calls()?
+            .recorded()?
             .iter()
             .filter_map(|call| match &call.outcome {
                 CallOutcome::Completed(run) => Some(run.as_ref()),
@@ -164,12 +190,19 @@ where
             .collect())
     }
 
-    /// The first call still waiting on an answer: its index and request.
-    pub(super) fn pending(&self) -> Result<Option<(u32, &str)>, RuntimeError> {
-        Ok(self.calls()?.iter().find_map(|call| match &call.outcome {
-            CallOutcome::Pending(request) => Some((call.index, request.id.as_str())),
-            _ => None,
-        }))
+    /// The first call that has not settled.
+    pub(super) fn unsettled(&self) -> Result<Option<u32>, RuntimeError> {
+        Ok(self
+            .recorded()?
+            .iter()
+            .find_map(|call| match &call.outcome {
+                CallOutcome::Pending(_) | CallOutcome::Claimed(_) | CallOutcome::Child(_) => {
+                    Some(call.index)
+                }
+                CallOutcome::Completed(_) | CallOutcome::Refused(_) | CallOutcome::Failed(_) => {
+                    None
+                }
+            }))
     }
 
     /// Why the turn's allowance refuses `target`, if it does.
@@ -185,19 +218,19 @@ where
                 .iter()
                 .any(|item| &item.requirement == requirement && &item.operation == operation),
             TurnTarget::Skill { skill } => allowance.skills.contains(skill),
-            TurnTarget::Ask => true,
+            TurnTarget::Ask => allowance.asks,
         };
         (!allowed).then(|| format!("{} is not in the turn's allowance", label(target)))
     }
 
     /// Run the call at `index` through `host`, which carries what the call
     /// already consumed. A call outside the allowance, or malformed, is
-    /// refused before it runs. Otherwise it is claimed first: its identity,
-    /// its input and what authorized it enter the run's record under the
-    /// version this driver last read, so a second driver of the turn is
-    /// refused before anything runs. A claimed call that does not settle,
-    /// because its effect is unconfirmed or its driver stopped, waits on its
-    /// own retry.
+    /// refused before it runs. A call that performs an effect is claimed
+    /// first, and a skill call links the child run it starts: either enters
+    /// the run's record, with what authorized it, under the version this
+    /// driver last read, so a second driver of the turn is refused before
+    /// anything runs. A claimed call whose effect is unconfirmed, or whose
+    /// driver stopped, waits on its retry; a skill call waits on its child.
     fn run(
         &mut self,
         mut host: AnsweringHost<'_>,
@@ -215,48 +248,97 @@ where
                 return self.settled(index, target, input, refused, &host.answers);
             }
         };
-        let claim = CallOutcome::Pending(self.claim(index)?);
-        let authorized = std::mem::take(&mut host.answers);
-        self.record(
-            RecordedCall {
-                step_id: self.scope.step_id.to_owned(),
-                attempt: self.scope.attempt,
-                index,
-                target: target.clone(),
-                input: input.clone(),
-                outcome: claim.clone(),
-            },
-            &authorized,
-        )?;
-        match self.run_call_step(&step, &target, &input, &mut host)? {
-            Some(outcome) => self.settled(index, target, input, outcome, &host.answers),
-            None => call_result(index, &target, &claim),
+        let claim = match &target {
+            TurnTarget::Tool { .. } | TurnTarget::Operation { .. } => {
+                Some(CallOutcome::Claimed(self.retry(index)?))
+            }
+            TurnTarget::Skill { .. } => Some(CallOutcome::Child(
+                self.scope.runtime.options.run.child_id(&step.id),
+            )),
+            TurnTarget::Ask => None,
+        };
+        if let Some(claim) = &claim {
+            let authorized = std::mem::take(&mut host.answers);
+            self.record(
+                RecordedCall {
+                    step_id: self.scope.step_id.to_owned(),
+                    attempt: self.scope.attempt,
+                    index,
+                    target: target.clone(),
+                    input: input.clone(),
+                    outcome: claim.clone(),
+                },
+                &authorized,
+            )?;
+        }
+        match (
+            self.run_call_step(&step, &target, &input, &mut host)?,
+            claim,
+        ) {
+            (Ran::Settled(outcome), _) => {
+                self.settled(index, target, input, outcome, &host.answers)
+            }
+            // The child run holds what it waits on; its link stands.
+            (Ran::Waiting(_) | Ran::Unconfirmed, Some(claim @ CallOutcome::Child(_))) => {
+                self.result(index, &target, &claim)
+            }
+            (Ran::Waiting(request), _) => {
+                let pending = CallOutcome::Pending(pending_request(&request)?);
+                self.settled(index, target, input, pending, &host.answers)
+            }
+            (Ran::Unconfirmed, Some(claim)) => self.result(index, &target, &claim),
+            (Ran::Unconfirmed, None) => Err(RuntimeError::EngineInvariant {
+                context: "running a turn call",
+                message: "an unclaimed call has no effect to leave unconfirmed".to_owned(),
+            }),
         }
     }
 
-    /// The first call claimed but not settled.
-    fn unsettled(&self) -> Result<Option<u32>, RuntimeError> {
-        Ok(self.calls()?.iter().find_map(|call| match &call.outcome {
-            CallOutcome::Pending(request)
-                if request.id == retry_id(self.scope.step_id, call.index) =>
-            {
-                Some(call.index)
+    /// Take a skill call further: run its child again, from the child's own
+    /// record. The parent records the call again only once the child settles.
+    fn enter(
+        &mut self,
+        host: &mut dyn Host,
+        call: RecordedCall,
+    ) -> Result<TurnCallResult, RuntimeError> {
+        let step = self
+            .call_step(call.index, &call.target, &call.input)
+            .map_err(|reason| RuntimeError::EngineInvariant {
+                context: "entering a skill call",
+                message: reason,
+            })?;
+        let mut answering = AnsweringHost::new(host, None);
+        match self.run_call_step(&step, &call.target, &call.input, &mut answering)? {
+            Ran::Settled(outcome) => {
+                let answers = answering.answers;
+                self.settled(call.index, call.target, call.input, outcome, &answers)
             }
-            _ => None,
-        }))
+            Ran::Waiting(_) | Ran::Unconfirmed => {
+                self.result(call.index, &call.target, &call.outcome)
+            }
+        }
     }
 
     /// What a claimed call waits on until it settles: the host's
     /// acknowledgement to run it again with the same input.
-    fn claim(&self, index: u32) -> Result<PendingRequest, RuntimeError> {
+    fn retry(&self, index: u32) -> Result<PendingRequest, RuntimeError> {
         pending_request(&ResolutionRequest::Retry {
-            id: retry_id(self.scope.step_id, index).into(),
+            id: self.retry_id(index).into(),
             reason: format!(
                 "call {index} has not settled and may have run; acknowledge with {{\"retry\": true}} to run it again with the same input"
             )
             .into(),
             retry_after_seconds: 0,
         })
+    }
+
+    /// The address of call `index`'s retry: `<step>/<index>/retry` in this
+    /// run.
+    fn retry_id(&self, index: u32) -> String {
+        self.scope.runtime.options.run.address(&format!(
+            "{}/retry",
+            call_step_id(self.scope.step_id, index)
+        ))
     }
 
     /// Record how a call ended, and return it as its agent reads it.
@@ -268,7 +350,7 @@ where
         outcome: CallOutcome,
         answers: &[Answer],
     ) -> Result<TurnCallResult, RuntimeError> {
-        let result = call_result(index, &target, &outcome)?;
+        let result = self.result(index, &target, &outcome)?;
         self.record(
             RecordedCall {
                 step_id: self.scope.step_id.to_owned(),
@@ -295,7 +377,7 @@ where
             outcome: &call.outcome,
             answers,
         })?;
-        let calls = self.calls_mut()?;
+        let calls = self.recorded_mut()?;
         match calls.iter_mut().find(|known| known.index == call.index) {
             Some(known) => *known = call,
             None => calls.push(call),
@@ -303,14 +385,57 @@ where
         Ok(())
     }
 
-    /// Run a call as its step. `None`: the call has not settled.
+    /// How a call stands, as its agent reads it. A skill call waits on what
+    /// its child run waits on.
+    fn result(
+        &self,
+        index: u32,
+        target: &TurnTarget,
+        outcome: &CallOutcome,
+    ) -> Result<TurnCallResult, RuntimeError> {
+        let outcome = match outcome {
+            CallOutcome::Completed(run) if run.outcome.succeeded() => TurnCallOutcome::Completed {
+                output: run.contract.clone(),
+                receipt_id: run.receipt.id.to_string().into(),
+            },
+            CallOutcome::Completed(run) => TurnCallOutcome::Failed {
+                reason: reason(output_error(run)),
+                receipt_id: Some(run.receipt.id.to_string().into()),
+            },
+            CallOutcome::Refused(why) => TurnCallOutcome::Refused {
+                reason: reason(why.clone()),
+            },
+            CallOutcome::Failed(why) => TurnCallOutcome::Failed {
+                reason: reason(why.clone()),
+                receipt_id: None,
+            },
+            CallOutcome::Pending(request) | CallOutcome::Claimed(request) => {
+                TurnCallOutcome::Pending {
+                    waiting: vec![resolution_request(request)?],
+                }
+            }
+            CallOutcome::Child(run_id) => TurnCallOutcome::Pending {
+                waiting: waiting_requests(self.scope.runtime.options.run.store(), run_id)?
+                    .iter()
+                    .map(resolution_request)
+                    .collect::<Result<_, _>>()?,
+            },
+        };
+        Ok(TurnCallResult {
+            index,
+            target: target.clone(),
+            outcome,
+        })
+    }
+
+    /// Run a call as its step.
     fn run_call_step(
         &self,
         step: &GraphStep,
         target: &TurnTarget,
         input: &JsonObject,
         host: &mut dyn Host,
-    ) -> Result<Option<CallOutcome>, RuntimeError> {
+    ) -> Result<Ran, RuntimeError> {
         let scope = &self.scope;
         let request = StepRunRequest {
             runtime: scope.runtime,
@@ -334,20 +459,20 @@ where
             .and_then(|skill| run_step_with_loaded_skill_inputs(request, skill)),
             _ => run_step_with_inputs(request),
         };
-        Ok(Some(match result {
-            Ok(run) => CallOutcome::Completed(Box::new(run)),
-            Err(RuntimeError::ResolutionPending { request, .. }) => {
-                CallOutcome::Pending(pending_request(&request)?)
+        Ok(match result {
+            Ok(run) => Ran::Settled(CallOutcome::Completed(Box::new(run))),
+            Err(RuntimeError::ResolutionPending { request, .. }) => Ran::Waiting(request),
+            Err(RuntimeError::AuthorityDenied { reason, .. }) => {
+                Ran::Settled(CallOutcome::Refused(reason))
             }
-            Err(RuntimeError::AuthorityDenied { reason, .. }) => CallOutcome::Refused(reason),
             // The act may have reached its provider: its custody holds it, and
             // the call stays claimed until a retry with the same input
             // reconciles it.
             Err(RuntimeError::ProviderEffectUnknown { .. })
-            | Err(RuntimeError::ProviderReadbackPending { .. }) => return Ok(None),
+            | Err(RuntimeError::ProviderReadbackPending { .. }) => Ran::Unconfirmed,
             Err(error) if error.is_fatal_step_fault() => return Err(error),
-            Err(error) => CallOutcome::Failed(error.to_string()),
-        }))
+            Err(error) => Ran::Settled(CallOutcome::Failed(error.to_string())),
+        })
     }
 
     /// The step a call runs as. A malformed call is refused before it runs.
@@ -552,7 +677,7 @@ where
         } else {
             description
         };
-        Ok(call_tool(
+        Ok(offered(
             &format!("{}__{}", allowed.requirement, allowed.operation),
             description,
             input_schema,
@@ -583,7 +708,7 @@ where
             .skill
             .description
             .unwrap_or_else(|| format!("Run the {} skill.", loaded.runner.name));
-        Ok(call_tool(
+        Ok(offered(
             &format!("skill__{}", skill.as_str().trim_start_matches(['.', '/'])),
             description,
             runx_contracts::input_contract_schema(&loaded.runner.inputs),
@@ -601,7 +726,7 @@ where
             self.scope.graph_dir,
             &self.scope.runtime.options.effects,
         )?;
-        Ok(call_tool(
+        Ok(offered(
             tool.as_str(),
             inspected
                 .description
@@ -673,48 +798,24 @@ where
         for skill in &allowance.skills {
             tools.push(self.skill_tool(skill)?);
         }
-        tools.push(call_tool(
-            "ask_human",
-            "Ask the human to approve something; the call stays pending until they answer."
-                .to_owned(),
-            object_schema([("reason", string_schema())], &["reason"]),
-            TurnTarget::Ask,
-        ));
-        tools.push(TurnTool {
-            name: "turn_status".to_owned(),
-            description: "Read the turn: its request, what it may call, and how each call ended."
-                .to_owned(),
-            input_schema: object_schema([], &[]),
-            action: TurnToolAction::Status,
-        });
-        let envelope = &self.invocation.envelope;
-        tools.push(TurnTool {
-            name: TURN_COMPLETE_TOOL.to_owned(),
-            description: "End the turn with its output; the run continues.".to_owned(),
-            input_schema: match &envelope.output_schema {
-                Some(JsonValue::Object(schema)) => schema.clone(),
-                _ => runx_contracts::output_value_schema(envelope.output.as_ref())
-                    .as_object()
-                    .cloned()
-                    .unwrap_or_default(),
-            },
-            action: TurnToolAction::Complete,
-        });
+        if allowance.asks {
+            tools.push(offered(
+                "ask_human",
+                "Ask the human to approve something; the call stays pending until they answer."
+                    .to_owned(),
+                object_schema([("reason", string_schema())], &["reason"]),
+                TurnTarget::Ask,
+            ));
+        }
         distinct_names(&mut tools);
         Ok(tools)
     }
 
-    fn status(&self) -> Result<TurnStatus, RuntimeError> {
-        Ok(TurnStatus {
-            step_id: self.scope.step_id.into(),
-            request_id: self.request.id.as_str().into(),
-            allowance: self.scope.agent.allowance.clone(),
-            calls: self
-                .calls()?
-                .iter()
-                .map(|call| call_result(call.index, &call.target, &call.outcome))
-                .collect::<Result<_, _>>()?,
-        })
+    fn calls(&self) -> Result<Vec<TurnCallResult>, RuntimeError> {
+        self.recorded()?
+            .iter()
+            .map(|call| self.result(call.index, &call.target, &call.outcome))
+            .collect()
     }
 
     fn call(
@@ -723,18 +824,8 @@ where
         target: TurnTarget,
         input: JsonObject,
     ) -> Result<TurnCallResult, RuntimeError> {
-        // A call that may have run settles before the turn goes on, so no
-        // effect is made twice behind an unconfirmed one.
-        if let Some(unsettled) = self.unsettled()? {
-            return Err(RuntimeError::ContinuationRejected {
-                reason: format!(
-                    "call {unsettled} has not settled; it waits on {}",
-                    retry_id(self.scope.step_id, unsettled)
-                ),
-            });
-        }
         let index = self
-            .calls()?
+            .recorded()?
             .iter()
             .map(|call| call.index + 1)
             .max()
@@ -744,7 +835,7 @@ where
 
     fn settle(&mut self, host: &mut dyn Host, index: u32) -> Result<TurnCallResult, RuntimeError> {
         let Some(call) = self
-            .calls()?
+            .recorded()?
             .iter()
             .find(|call| call.index == index)
             .cloned()
@@ -753,70 +844,41 @@ where
                 reason: format!("the turn has no call {index}"),
             });
         };
-        let CallOutcome::Pending(waiting) = &call.outcome else {
-            return call_result(index, &call.target, &call.outcome);
-        };
-        // The call asks again what it waits on, unchanged. A claimed call
-        // runs again only on the host's exact acknowledgement, which its new
-        // claim records.
-        let mut answering = AnsweringHost::new(host, Some(waiting));
-        if waiting.id == retry_id(self.scope.step_id, index) {
-            let request = serde_json::to_value(&waiting.value)
-                .and_then(serde_json::from_value)
-                .map_err(|source| RuntimeError::json("reading a claimed call", source))?;
-            let acknowledged = answering
-                .resolve(request)?
-                .is_some_and(|response| response.payload == retry_acknowledgement());
-            if !acknowledged {
-                return Err(RuntimeError::ContinuationRejected {
-                    reason: format!(
-                        "call {index} runs again only on the acknowledgement {{\"retry\": true}}"
-                    ),
-                });
+        match call.outcome.clone() {
+            CallOutcome::Child(_) => self.enter(host, call),
+            // The call asks again what it waits on, unchanged.
+            CallOutcome::Pending(waiting) => self.run(
+                AnsweringHost::new(host, Some(&waiting)),
+                index,
+                call.target,
+                call.input,
+            ),
+            // A claimed call runs again only on the host's exact
+            // acknowledgement, which its new claim records.
+            CallOutcome::Claimed(retry) => {
+                let mut answering = AnsweringHost::new(host, Some(&retry));
+                let acknowledged = answering
+                    .resolve(resolution_request(&retry)?)?
+                    .is_some_and(|response| response.payload == retry_acknowledgement());
+                if !acknowledged {
+                    return Err(RuntimeError::ContinuationRejected {
+                        reason: format!(
+                            "call {index} runs again only on the acknowledgement {{\"retry\": true}}"
+                        ),
+                    });
+                }
+                self.run(answering, index, call.target, call.input)
             }
+            settled => self.result(index, &call.target, &settled),
         }
-        self.run(answering, index, call.target.clone(), call.input.clone())
     }
 }
 
-/// How a call ended, as its agent reads it.
-fn call_result(
-    index: u32,
-    target: &TurnTarget,
-    outcome: &CallOutcome,
-) -> Result<TurnCallResult, RuntimeError> {
-    let outcome = match outcome {
-        CallOutcome::Completed(run) if run.outcome.succeeded() => TurnCallOutcome::Completed {
-            output: run.contract.clone(),
-            receipt_id: run.receipt.id.to_string().into(),
-        },
-        CallOutcome::Completed(run) => TurnCallOutcome::Failed {
-            reason: reason(output_error(run)),
-            receipt_id: Some(run.receipt.id.to_string().into()),
-        },
-        CallOutcome::Refused(why) => TurnCallOutcome::Refused {
-            reason: reason(why.clone()),
-        },
-        CallOutcome::Failed(why) => TurnCallOutcome::Failed {
-            reason: reason(why.clone()),
-            receipt_id: None,
-        },
-        CallOutcome::Pending(request) => TurnCallOutcome::Pending {
-            request: serde_json::to_value(&request.value)
-                .and_then(serde_json::from_value)
-                .map_err(|source| RuntimeError::json("reading a call's pending request", source))?,
-        },
-    };
-    Ok(TurnCallResult {
-        index,
-        target: target.clone(),
-        outcome,
-    })
-}
-
-/// The request a claimed call waits on: `<step>/<index>/retry`.
-fn retry_id(step_id: &str, index: u32) -> String {
-    format!("{}/retry", call_step_id(step_id, index))
+/// A recorded request as the host protocol carries it.
+fn resolution_request(request: &PendingRequest) -> Result<ResolutionRequest, RuntimeError> {
+    serde_json::to_value(&request.value)
+        .and_then(serde_json::from_value)
+        .map_err(|source| RuntimeError::json("reading a pending request", source))
 }
 
 fn retry_acknowledgement() -> JsonValue {
@@ -842,32 +904,37 @@ fn label(target: &TurnTarget) -> String {
     }
 }
 
-fn call_tool(
+/// One call a turn offers, named for MCP.
+fn offered(
     name: &str,
     description: String,
     input_schema: JsonObject,
     target: TurnTarget,
 ) -> TurnTool {
     TurnTool {
-        name: mcp_name(name),
-        description,
+        name: mcp_name(name).into(),
+        description: NonEmptyString::new(description).unwrap_or_else(|| label(&target).into()),
+        target,
         input_schema,
-        action: TurnToolAction::Call(target),
     }
 }
 
-/// Give each tool a distinct name: a repeat takes the first free `_<n>`
-/// suffix, shortening the name to keep it within the grammar.
+/// Give each tool a distinct name, clear of the host's controls: a repeat
+/// takes the first free `_<n>` suffix, shortening the name to keep it within
+/// the grammar.
 fn distinct_names(tools: &mut [TurnTool]) {
-    let mut seen = std::collections::BTreeSet::new();
+    let mut seen = std::collections::BTreeSet::from([
+        TURN_STATUS_TOOL.to_owned(),
+        TURN_COMPLETE_TOOL.to_owned(),
+    ]);
     for tool in tools {
-        let base = tool.name.clone();
+        let base = tool.name.as_str().to_owned();
         let mut suffix = 1;
-        while !seen.insert(tool.name.clone()) {
+        while !seen.insert(tool.name.as_str().to_owned()) {
             suffix += 1;
             let tail = format!("_{suffix}");
             let head = base.get(..base.len().min(MCP_NAME_BYTES - tail.len()));
-            tool.name = format!("{}{tail}", head.unwrap_or_default());
+            tool.name = format!("{}{tail}", head.unwrap_or_default()).into();
         }
     }
 }
@@ -949,12 +1016,12 @@ mod tests {
     use super::*;
 
     fn tool(name: &str) -> TurnTool {
-        TurnTool {
-            name: mcp_name(name),
-            description: String::new(),
-            input_schema: JsonObject::new(),
-            action: TurnToolAction::Status,
-        }
+        offered(
+            name,
+            "a tool".to_owned(),
+            JsonObject::new(),
+            TurnTarget::Ask,
+        )
     }
 
     #[test]
@@ -966,6 +1033,7 @@ mod tests {
             tool(&long),
             tool("a.b"),
             tool("a_b"),
+            tool("turn.status"),
         ];
         distinct_names(&mut tools);
         let names = tools
@@ -975,7 +1043,7 @@ mod tests {
         assert_eq!(names[0], "x".repeat(64));
         assert_eq!(names[1], format!("{}_2", "x".repeat(62)));
         assert_eq!(names[2], format!("{}_3", "x".repeat(62)));
-        assert_eq!(&names[3..], ["a_b", "a_b_2"]);
+        assert_eq!(&names[3..], ["a_b", "a_b_2", "turn_status_2"]);
         assert!(names.iter().all(|name| name.len() <= MCP_NAME_BYTES));
     }
 }

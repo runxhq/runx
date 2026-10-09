@@ -782,22 +782,24 @@ impl Host for FixtureHost<'_> {
                 }
                 Ok(response)
             }
+            // A case scripts an act by its id in its own run, at any depth.
             ResolutionRequest::AgentAct { id, .. } => {
+                let id = crate::execution::run_record::local_request_id(id.as_str());
                 let response =
                     self.fixture
                         .caller
                         .answers
-                        .get(id.as_str())
+                        .get(id)
                         .map(|answer| ResolutionResponse {
                             actor: ResolutionResponseActor::Agent,
                             payload: answer.clone(),
                         });
                 if response.is_none() {
-                    self.unanswered.push(id.to_string());
+                    self.unanswered.push(id.to_owned());
                 }
                 if let Some(response) = &response {
                     self.replayed_answers
-                        .insert(id.to_string(), response.payload.clone());
+                        .insert(id.to_owned(), response.payload.clone());
                 }
                 Ok(response)
             }

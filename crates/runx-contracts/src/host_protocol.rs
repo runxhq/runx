@@ -140,8 +140,7 @@ pub struct AgentActInvocation {
     pub allowance: TurnAllowance,
 }
 
-/// The calls an open turn admits: the skill's declared limits. Asking the
-/// human a question needs no allowance.
+/// The calls an open turn admits: the skill's declared limits.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub struct TurnAllowance {
@@ -153,12 +152,15 @@ pub struct TurnAllowance {
     /// Child skill refs.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub skills: Vec<NonEmptyString>,
+    /// Whether the turn may ask the human.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub asks: bool,
 }
 
 impl TurnAllowance {
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.operations.is_empty() && self.tools.is_empty() && self.skills.is_empty()
+        self.operations.is_empty() && self.tools.is_empty() && self.skills.is_empty() && !self.asks
     }
 }
 
@@ -171,8 +173,7 @@ pub struct AllowedOperation {
     pub operation: NonEmptyString,
 }
 
-/// What a turn call names: one entry of the turn's allowance, or a question
-/// for the human, which needs none.
+/// What a turn call names: one entry of the turn's allowance.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum TurnTarget {
@@ -218,20 +219,34 @@ pub enum TurnCallOutcome {
     },
     /// Admission refused the call; nothing ran.
     Refused { reason: NonEmptyString },
-    /// The call waits on the human's answer to `request`. The turn stays
-    /// open; the call settles when the host answers.
-    Pending { request: ResolutionRequest },
+    /// The call has not settled. `waiting` is what it waits on, each request
+    /// by its address: its own ask or approval, its retry while its effect
+    /// is unconfirmed, or what the child run it started waits on, including
+    /// that run's open turns. The call settles when those are answered.
+    Pending { waiting: Vec<ResolutionRequest> },
 }
 
-/// An open turn as its agent reads it: the act it answers, what it may call,
-/// and how each call it made so far ended.
+/// One call an open turn offers its agent: an allowance entry, named for
+/// MCP, with the input it takes.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
+#[serde(deny_unknown_fields)]
+pub struct TurnTool {
+    /// Distinct within the turn, in the MCP tool-name grammar.
+    pub name: NonEmptyString,
+    pub description: NonEmptyString,
+    pub target: TurnTarget,
+    pub input_schema: JsonObject,
+}
+
+/// An open turn as its agent reads it: the act it answers (its id is the
+/// turn's address), the calls it may make, and how each call it made so far
+/// ended.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 #[runx_schema(spec_id = "https://runx.ai/spec/turn-status.schema.json")]
 pub struct TurnStatus {
-    pub step_id: NonEmptyString,
-    pub request_id: NonEmptyString,
-    pub allowance: TurnAllowance,
+    pub invocation: AgentActInvocation,
+    pub tools: Vec<TurnTool>,
     pub calls: Vec<TurnCallResult>,
 }
 

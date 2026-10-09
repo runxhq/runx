@@ -1784,8 +1784,8 @@ pub(super) fn status(loaded: &LoadedProfile, workspace: &WorkspaceEnv) -> Result
         "confirmed_memory_count":record.state.confirmed_memory.len(),
         "pending_work_count":record.state.work.iter().filter(|item| item.status == "pending").count(),
         "awaiting_resolution_count":record.state.work.iter().filter(|item| work_is_open(item)).filter_map(|item| item.native_run.as_ref())
-            .map(|bound| runx_runtime::run_record::paused_request(workspace.env(), workspace.cwd(), &bound.run_id))
-            .collect::<Result<Vec<_>, _>>().map_err(|error| error.to_string())?.iter().filter(|request| request.is_some()).count(),
+            .map(|bound| runx_runtime::run_record::paused_requests(workspace.env(), workspace.cwd(), &bound.run_id))
+            .collect::<Result<Vec<_>, _>>().map_err(|error| error.to_string())?.iter().filter(|waiting| !waiting.is_empty()).count(),
         "pending_private_work_updates":record.state.work.iter()
             .map(|item| item.private_updates.iter().filter(|update| update.status.is_none()).count()).sum::<usize>(),
         "report_available":record.state.last_review_ref.is_some(),
@@ -1913,13 +1913,16 @@ pub(super) fn work(
                     .count()
             );
             if let Some(pending) = item.native_run.as_ref() {
-                let native = runx_runtime::run_record::paused_request(
+                let ids = runx_runtime::run_record::paused_requests(
                     workspace.env(),
                     workspace.cwd(),
                     &pending.run_id,
                 )
-                .map_err(|error| format!("inspecting native pending request: {error}"))?;
-                projection["pending_request_ids"] = json!(native.map(|request| vec![request.id]));
+                .map_err(|error| format!("inspecting native pending request: {error}"))?
+                .into_iter()
+                .map(|request| request.id)
+                .collect::<Vec<_>>();
+                projection["pending_request_ids"] = json!((!ids.is_empty()).then_some(ids));
             }
             projection["result"] = json!(read_work_result(workspace, item)?);
             Ok::<Value, String>(projection)
@@ -2611,9 +2614,15 @@ fn record_suspended_work(
     run_id: &str,
     requests: &[Value],
 ) -> Result<Value, String> {
-    let native = runx_runtime::run_record::paused_request(workspace.env(), workspace.cwd(), run_id)
-        .map_err(|error| format!("inspecting native pending request: {error}"))?
-        .ok_or("native run has no paused request")?;
+    let native =
+        match runx_runtime::run_record::paused_requests(workspace.env(), workspace.cwd(), run_id)
+            .map_err(|error| format!("inspecting native pending request: {error}"))?
+            .as_slice()
+        {
+            [] => return Err("native run has no paused request".to_owned()),
+            [native] => native.clone(),
+            _ => return Err("assistant work waits on one native request at a time".to_owned()),
+        };
     if requests.len() != 1 || requests[0]["id"] != native.id {
         return Err("native suspended request differs from its run checkpoint".to_owned());
     }
@@ -3667,7 +3676,9 @@ fn dispatch_pending_work(
             if Some(native.skill_ref.as_str()) != path.to_str() {
                 return Err("native run differs from its admitted binding".into());
             }
-            let request = native.request;
+            let [request] = native.waiting.as_slice() else {
+                return Err("assistant work waits on one native request at a time".into());
+            };
             let native_request: ResolutionRequest = serde_json::from_value(
                 serde_json::to_value(&request.value).map_err(|error| error.to_string())?,
             )

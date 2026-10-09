@@ -16,15 +16,47 @@ pub(crate) struct ResolutionAnswers {
     human_approvals: BTreeSet<String>,
     request_digests: BTreeMap<String, String>,
     digest_bound_requests: BTreeSet<String>,
+    keys: AnswerKeys,
+    /// The digest of the request each addressed answer was spent on.
+    spent: BTreeMap<String, String>,
+}
+
+/// How an answer names the request it answers.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+enum AnswerKeys {
+    /// By address: a resume answers one open request, once.
+    #[default]
+    Address,
+    /// By the request's id in its own run: a harness script answers every
+    /// ask of that id, at any depth.
+    #[cfg(feature = "process-tool")]
+    Script,
 }
 
 impl ResolutionAnswers {
     pub(super) fn agent(values: JsonObject) -> Self {
         Self {
             values,
-            human_approvals: BTreeSet::new(),
-            request_digests: BTreeMap::new(),
-            digest_bound_requests: BTreeSet::new(),
+            ..Self::default()
+        }
+    }
+
+    /// These answers as a script: each answers every request with its id,
+    /// in whichever run asks it.
+    #[cfg(feature = "process-tool")]
+    pub(super) fn scripted(self) -> Self {
+        Self {
+            keys: AnswerKeys::Script,
+            ..self
+        }
+    }
+
+    /// The key `request_id`, an address, is answered under.
+    fn key<'a>(&self, request_id: &'a str) -> &'a str {
+        match self.keys {
+            AnswerKeys::Address => request_id,
+            #[cfg(feature = "process-tool")]
+            AnswerKeys::Script => crate::execution::run_record::local_request_id(request_id),
         }
     }
 
@@ -49,30 +81,37 @@ impl ResolutionAnswers {
         Ok(resolved)
     }
 
-    /// Hold an agent's answer to `request_id`, given while the run is driven.
-    pub(super) fn answer(&mut self, request_id: &str, value: JsonValue) {
-        self.values.insert(request_id.to_owned(), value);
+    /// Spend the answer to `request_id` on the request with `digest`. An
+    /// addressed answer answers that request wherever it is asked again,
+    /// and no other: a different request at its address waits. A script
+    /// answers each.
+    pub(super) fn spend(&mut self, request_id: &str, digest: &str) {
+        if self.keys == AnswerKeys::Address {
+            self.spent.insert(request_id.to_owned(), digest.to_owned());
+        }
     }
 
-    /// Spend the answer to `request_id`: it answers one ask.
-    pub(super) fn consume(&mut self, request_id: &str) {
-        self.values.remove(request_id);
-    }
-
-    pub(super) fn get(&self, request_id: &str) -> Option<&JsonValue> {
-        self.values.get(request_id)
+    /// The answer to `request_id`, the request with `digest`.
+    pub(super) fn get(&self, request_id: &str, digest: &str) -> Option<&JsonValue> {
+        let key = self.key(request_id);
+        if self.spent.get(key).is_some_and(|spent| spent != digest) {
+            return None;
+        }
+        self.values.get(key)
     }
 
     pub(super) fn is_human_approval(&self, request_id: &str) -> bool {
-        self.human_approvals.contains(request_id)
+        self.human_approvals.contains(self.key(request_id))
     }
 
     pub(super) fn request_digest(&self, request_id: &str) -> Option<&str> {
-        self.request_digests.get(request_id).map(String::as_str)
+        self.request_digests
+            .get(self.key(request_id))
+            .map(String::as_str)
     }
 
     pub(super) fn requires_request_digest(&self, request_id: &str) -> bool {
-        self.digest_bound_requests.contains(request_id)
+        self.digest_bound_requests.contains(self.key(request_id))
     }
 
     pub(super) fn is_empty(&self) -> bool {
@@ -196,9 +235,36 @@ mod tests {
         assert!(answers.is_human_approval(approval_id));
         assert!(!answers.is_human_approval("agent.task"));
         assert!(matches!(
-            answers.get(approval_id),
+            answers.get(approval_id, "sha256:approval"),
             Some(JsonValue::Object(_))
         ));
+        Ok(())
+    }
+
+    #[test]
+    fn an_addressed_answer_answers_its_request_and_no_other() -> Result<(), String> {
+        let mut answers = normalize_answers(JsonObject::from([(
+            "agent.answer.output".to_owned(),
+            JsonValue::String("done".to_owned()),
+        )]))
+        .map_err(|error| error.to_string())?;
+        answers.spend("agent.answer.output", "sha256:first");
+        assert!(
+            answers.get("agent.answer.output", "sha256:first").is_some(),
+            "the same request asked again is answered again"
+        );
+        assert!(
+            answers
+                .get("agent.answer.output", "sha256:second")
+                .is_none(),
+            "a different request at the same address waits"
+        );
+        assert!(
+            answers
+                .get("answer/0#agent.answer.output", "sha256:first")
+                .is_none(),
+            "an addressed answer answers only its own address"
+        );
         Ok(())
     }
 

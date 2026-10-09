@@ -26,5 +26,6 @@ pub use server::{mcp_tool_result_from_run_result, serve_mcp_json_rpc};
 pub(crate) use stdio_transport::{StdioJsonRpcTransport, TransportErrorState};
 pub use types::{
     McpContent, McpServerError, McpServerExecutionOptions, McpServerOptions,
-    McpServerSkillExecution, McpServerTool, McpServerToolBehavior, McpToolResult, McpTurnTool,
+    McpServerSkillExecution, McpServerTool, McpServerToolBehavior, McpToolResult, McpTurnAction,
+    McpTurnTool,
 };

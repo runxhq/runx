@@ -27,9 +27,18 @@ fn start(log: &RunLog, inputs: &JsonObject) {
         inputs,
         context: &RunContext::default(),
         run_authority: None,
+        driver: Driver::Attached,
         created_at: "2026-10-09T00:00:00.000Z",
     })
     .expect("begin");
+}
+
+fn waiting_ids(store: &KernelStore, run_id: &str) -> Vec<String> {
+    waiting_requests(store, run_id)
+        .unwrap()
+        .into_iter()
+        .map(|request| request.id)
+        .collect()
 }
 
 fn step(run_id: &str, step_id: &str) -> StepRun {
@@ -144,12 +153,7 @@ fn a_run_replays_its_steps_suspension_and_answers() {
         request.digest,
         request_digest(&approval("send.approval")).unwrap()
     );
-    assert_eq!(
-        pending_request(&store, "run_triage_1")
-            .unwrap()
-            .map(|request| request.id),
-        Some("send.approval".to_owned())
-    );
+    assert_eq!(waiting_ids(&store, "run_triage_1"), ["send.approval"]);
 
     // The step that consumes the answer records it; the run then no longer
     // waits on the host.
@@ -168,7 +172,7 @@ fn a_run_replays_its_steps_suspension_and_answers() {
     assert_eq!(record.answers.len(), 1);
     assert!(record.answers[0].human);
     assert_eq!(record.answers[0].request_digest, request.digest);
-    assert_eq!(pending_request(&store, "run_triage_1").unwrap(), None);
+    assert!(waiting_ids(&store, "run_triage_1").is_empty());
 }
 
 #[test]
@@ -196,6 +200,7 @@ fn a_second_driver_of_the_same_run_is_refused() {
                 inputs: &JsonObject::new(),
                 context: &RunContext::default(),
                 run_authority: None,
+                driver: Driver::Attached,
                 created_at: "2026-10-09T00:00:00.000Z",
             }),
         Err(RunRecordError::Contended { .. })
@@ -227,7 +232,7 @@ fn a_sealed_run_holds_its_receipt_and_waits_on_nothing() {
         sealed.receipt.subject.reference.uri.as_str(),
         "runx:run:run_triage_3"
     );
-    assert_eq!(pending_request(&store, "run_triage_3").unwrap(), None);
+    assert!(waiting_ids(&store, "run_triage_3").is_empty());
 }
 
 #[test]
@@ -256,12 +261,7 @@ fn a_child_run_holds_the_request_its_parent_step_waits_on() {
         .record_child_hold("review", 1, child.run_id())
         .unwrap();
 
-    assert_eq!(
-        pending_request(&store, "run_triage_4")
-            .unwrap()
-            .map(|request| request.id),
-        Some("review.approval".to_owned())
-    );
+    assert_eq!(waiting_ids(&store, "run_triage_4"), ["review.approval"]);
     // A child continues only under the parent step that started it.
     assert!(matches!(
         child.start_child(
@@ -371,7 +371,7 @@ fn a_call_leaves_the_run_paused_at_its_turn() {
     start(&log, &JsonObject::new());
     let turn_request = agent_act("agent.answer.output");
     log.record_request("answer", 1, &turn_request).unwrap();
-    let turn = pending_request(&store, "run_turn_1").unwrap().unwrap();
+    let turn = waiting_requests(&store, "run_turn_1").unwrap().remove(0);
     let target = TurnTarget::Tool {
         tool: "data.digest".into(),
     };
@@ -396,12 +396,6 @@ fn a_call_leaves_the_run_paused_at_its_turn() {
         .unwrap();
     }
 
-    assert_eq!(
-        pending_request(&store, "run_turn_1")
-            .unwrap()
-            .map(|request| request.id),
-        Some("agent.answer.output".to_owned())
-    );
     let listing = list_runs(&env, workspace.path(), &RunFilter::default()).unwrap();
     assert_eq!(listing.runs[0].state, RunState::Paused);
     assert_eq!(
@@ -416,11 +410,7 @@ fn a_call_leaves_the_run_paused_at_its_turn() {
     assert_eq!(record.calls.len(), 2);
     assert_eq!(log.calls("answer", 1).unwrap().len(), 2);
     assert_eq!(
-        waiting_requests(&store, "run_turn_1")
-            .unwrap()
-            .into_iter()
-            .map(|request| request.id)
-            .collect::<Vec<_>>(),
+        waiting_ids(&store, "run_turn_1"),
         ["agent.answer.output", "answer/1"],
         "a paused turn waits on its act and on each pending call"
     );
@@ -444,14 +434,7 @@ fn a_call_leaves_the_run_paused_at_its_turn() {
             .iter()
             .all(|call| matches!(call.outcome, CallOutcome::Completed(_)))
     );
-    assert_eq!(
-        waiting_requests(&store, "run_turn_1")
-            .unwrap()
-            .into_iter()
-            .map(|request| request.id)
-            .collect::<Vec<_>>(),
-        ["agent.answer.output"]
-    );
+    assert_eq!(waiting_ids(&store, "run_turn_1"), ["agent.answer.output"]);
 
     // A reader that has not seen the run's latest event is contended.
     let stale = RunLog::open(Arc::clone(&store), "run_turn_1").unwrap();
@@ -470,4 +453,136 @@ fn a_call_leaves_the_run_paused_at_its_turn() {
         stale.calls("answer", 1),
         Err(RunRecordError::Contended { .. })
     ));
+}
+
+#[test]
+fn a_paused_run_waits_on_every_open_request_in_its_tree() {
+    let (_root, store) = store();
+    let log = RunLog::open(Arc::clone(&store), "run_tree_1").unwrap();
+    start(&log, &JsonObject::new());
+    log.record_request("answer", 1, &agent_act("agent.answer.output"))
+        .unwrap();
+    let turn = waiting_requests(&store, "run_tree_1").unwrap().remove(0);
+
+    // Call 0 runs a child skill: its own turn is open, and its ask waits.
+    let child = log.child("answer/0").unwrap();
+    assert_eq!(
+        child.address("agent.report.output"),
+        "answer/0#agent.report.output"
+    );
+    assert_eq!(local_request_id("answer/0#report/0"), "report/0");
+    assert_eq!(
+        local_request_id("agent.answer.output"),
+        "agent.answer.output"
+    );
+    child
+        .start_child(
+            "run_tree_1",
+            "answer/0",
+            "report",
+            &JsonObject::new(),
+            "2026-10-09T00:00:00.000Z",
+        )
+        .unwrap();
+    child
+        .record_request(
+            "report",
+            1,
+            &agent_act(&child.address("agent.report.output")),
+        )
+        .unwrap();
+    let child_turn = waiting_requests(&store, child.run_id()).unwrap().remove(0);
+    let ask = approval(&child.address("report/0"));
+    child
+        .record_call(&CallRecord {
+            step_id: "report",
+            attempt: 1,
+            turn: &child_turn,
+            index: 0,
+            target: &TurnTarget::Ask,
+            input: &JsonObject::new(),
+            outcome: &CallOutcome::Pending(PendingRequest {
+                id: child.address("report/0"),
+                value: serde_json::from_value(serde_json::to_value(&ask).unwrap()).unwrap(),
+                digest: request_digest(&ask).unwrap(),
+            }),
+            answers: &[],
+        })
+        .unwrap();
+    log.record_call(&CallRecord {
+        step_id: "answer",
+        attempt: 1,
+        turn: &turn,
+        index: 0,
+        target: &TurnTarget::Skill {
+            skill: "./report".into(),
+        },
+        input: &JsonObject::new(),
+        outcome: &CallOutcome::Child(child.run_id().to_owned()),
+        answers: &[],
+    })
+    .unwrap();
+
+    assert_eq!(
+        waiting_ids(&store, "run_tree_1"),
+        [
+            "agent.answer.output",
+            "answer/0#agent.report.output",
+            "answer/0#report/0"
+        ],
+        "the run waits on its turn, its child's turn, and the child's ask"
+    );
+}
+
+#[test]
+fn a_run_whose_child_sealed_before_its_step_was_recorded_stays_paused() {
+    let workspace = tempfile::tempdir().unwrap();
+    let env = BTreeMap::from([(
+        crate::paths::RUNX_PROJECT_DIR_ENV.to_owned(),
+        workspace.path().join(".runx").display().to_string(),
+    )]);
+    let store = KernelStore::for_project(&crate::paths::RunxPaths::resolve(&env, workspace.path()))
+        .unwrap();
+    let parent = RunLog::open(Arc::clone(&store), "run_held_1").unwrap();
+    start(&parent, &JsonObject::new());
+    let child = parent.child("review").unwrap();
+    child
+        .start_child(
+            "run_held_1",
+            "review",
+            "review",
+            &JsonObject::new(),
+            "2026-10-09T00:00:00.000Z",
+        )
+        .unwrap();
+    child
+        .record_request("approve", 1, &approval(&child.address("review.approval")))
+        .unwrap();
+    parent
+        .record_child_hold("review", 1, child.run_id())
+        .unwrap();
+    assert_eq!(
+        waiting_ids(&store, "run_held_1"),
+        ["review#review.approval"]
+    );
+
+    // The child seals; the process stops before the parent records its step.
+    let read = step(child.run_id(), "approve");
+    child.record_step(&read, &[]).unwrap();
+    let receipt = graph_receipt(
+        RunScope {
+            run_id: child.run_id(),
+            graph_name: "review",
+        },
+        &[read],
+        "2026-10-09T00:00:00.000Z",
+    )
+    .unwrap();
+    child.record_sealed(&receipt, None, None).unwrap();
+
+    assert!(waiting_ids(&store, "run_held_1").is_empty());
+    let paused = paused_run(&env, workspace.path(), "run_held_1")
+        .unwrap()
+        .expect("the parent is still paused, so a continuation can take it further");
+    assert!(paused.waiting.is_empty());
 }

@@ -5,7 +5,6 @@ use std::sync::Arc;
 use runx_contracts::JsonObject;
 
 use crate::effects::RuntimeEffectRegistry;
-use crate::execution::runner::turn::TurnToolAction;
 use crate::execution::skill_front::TurnSession;
 
 #[derive(Clone, Debug)]
@@ -43,16 +42,25 @@ pub enum McpServerToolBehavior {
     Turn(McpTurnTool),
 }
 
-/// A tool of an open agent turn: what calling it does, on which turn.
+/// A tool of a run's open turns: what calling it does, in which session.
 #[derive(Clone, Debug)]
 pub struct McpTurnTool {
-    pub turn: Arc<TurnSession>,
-    pub action: TurnToolAction,
+    pub session: Arc<TurnSession>,
+    pub action: McpTurnAction,
+}
+
+/// The fixed tools a turn session serves; each takes a turn's address.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum McpTurnAction {
+    List,
+    Status,
+    Call,
+    Complete,
 }
 
 impl PartialEq for McpTurnTool {
     fn eq(&self, other: &Self) -> bool {
-        Arc::ptr_eq(&self.turn, &other.turn) && self.action == other.action
+        Arc::ptr_eq(&self.session, &other.session) && self.action == other.action
     }
 }
 

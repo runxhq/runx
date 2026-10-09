@@ -23,6 +23,7 @@ export const turnAllowanceSchema = Type.Object(
     operations: Type.Optional(Type.Array(allowedOperationSchema)),
     tools: Type.Optional(Type.Array(Type.String({ minLength: 1 }))),
     skills: Type.Optional(Type.Array(Type.String({ minLength: 1 }))),
+    asks: Type.Optional(Type.Boolean()),
   },
   { additionalProperties: false },
 );

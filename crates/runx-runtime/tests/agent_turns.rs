@@ -2,7 +2,9 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use runx_contracts::{JsonObject, JsonValue, TurnCallOutcome, TurnStatus, TurnTarget};
+use runx_contracts::{
+    JsonObject, JsonValue, ResolutionRequest, TurnCallOutcome, TurnCallResult, TurnStatus,
+};
 use runx_runtime::{
     LocalOrchestrator, ManagedAgentPolicy, ResumeRequest, RunResult, SkillRunRequest, TurnRequest,
     TurnSession,
@@ -11,8 +13,11 @@ use tempfile::tempdir;
 
 type TestResult<T = ()> = Result<T, Box<dyn std::error::Error>>;
 
-/// A skill whose one runner is one agent turn: it may digest data and run a
-/// child skill that does the same.
+/// The act of a one-turn runner named `answer`, at the root.
+const TURN: &str = "agent.answer.output";
+
+/// A skill whose one runner is one agent turn: it may digest data, run a
+/// child skill that does the same, and ask the human.
 fn write_turn_skill(root: &Path) -> TestResult<PathBuf> {
     crate::support::write_test_skill_package(
         &root.join("digest-child"),
@@ -38,6 +43,7 @@ runners:
         r#"skill: turn-demo
 tools: [data.digest]
 skills: [../digest-child]
+asks: true
 runners:
   answer:
     default: true
@@ -73,6 +79,32 @@ runners:
     Ok(skill_dir)
 }
 
+/// A one-turn skill whose turn may run `answer-child`, a one-turn skill with
+/// the same task; the child may ask the human.
+fn write_answer_skills(root: &Path) -> TestResult<PathBuf> {
+    crate::support::write_test_skill_package(
+        &root.join("answer-child"),
+        "---\nname: answer-child\ndescription: Answers.\n---\n# Answer child\n\nAnswer.\n",
+        "skill: answer-child\nasks: true\nrunners:\n  answer:\n    default: true\n    outputs:\n      answer: string\n",
+    )?;
+    let skill_dir = root.join("answer-parent");
+    crate::support::write_test_skill_package(
+        &skill_dir,
+        "---\nname: answer-parent\ndescription: Answers through a child.\n---\n# Answer parent\n\nAsk the child, then answer.\n",
+        r#"skill: answer-parent
+skills: [../answer-child]
+runners:
+  answer:
+    default: true
+    inputs:
+      question: { type: string, required: true }
+    outputs:
+      answer: string
+"#,
+    )?;
+    Ok(skill_dir)
+}
+
 struct Paused {
     root: PathBuf,
     receipts: PathBuf,
@@ -80,8 +112,17 @@ struct Paused {
 }
 
 impl Paused {
-    /// Start `skill_dir` and stop at its turn.
-    fn start(root: &Path, skill_dir: PathBuf) -> TestResult<Self> {
+    /// Start `skill_dir` and stop where it first waits, at `turn`.
+    fn start(root: &Path, skill_dir: PathBuf, turn: &str) -> TestResult<Self> {
+        Self::start_with(root, skill_dir, turn, ManagedAgentPolicy::HostDriven)
+    }
+
+    fn start_with(
+        root: &Path,
+        skill_dir: PathBuf,
+        turn: &str,
+        managed_agent: ManagedAgentPolicy,
+    ) -> TestResult<Self> {
         let receipts = root.join("receipts");
         let started = LocalOrchestrator::default().run_skill(&SkillRunRequest {
             current_context: Vec::new(),
@@ -97,9 +138,9 @@ impl Paused {
             )]),
             env: env(root),
             cwd: root.to_path_buf(),
-            managed_agent: Default::default(),
+            managed_agent,
         })?;
-        assert_eq!(requests(&started)?, ["agent.answer.output"]);
+        assert_eq!(requests(&started)?, [turn]);
         Ok(Self {
             root: root.to_path_buf(),
             receipts,
@@ -110,7 +151,7 @@ impl Paused {
     }
 
     fn open(&self) -> TestResult<TurnSession> {
-        Ok(LocalOrchestrator::default().open_turn(&TurnRequest {
+        Ok(LocalOrchestrator::default().open_turns(&TurnRequest {
             run_id: self.run_id.clone(),
             receipt_dir: Some(self.receipts.clone()),
             env: env(&self.root),
@@ -119,6 +160,14 @@ impl Paused {
     }
 
     fn resume(&self, answers: serde_json::Value) -> TestResult<RunResult> {
+        self.resume_with(answers, ManagedAgentPolicy::HostDriven)
+    }
+
+    fn resume_with(
+        &self,
+        answers: serde_json::Value,
+        managed_agent: ManagedAgentPolicy,
+    ) -> TestResult<RunResult> {
         let path = self.root.join("answers.json");
         fs::write(&path, answers.to_string())?;
         Ok(LocalOrchestrator::default().resume(&ResumeRequest {
@@ -127,7 +176,7 @@ impl Paused {
             receipt_dir: Some(self.receipts.clone()),
             env: env(&self.root),
             cwd: self.root.clone(),
-            managed_agent: ManagedAgentPolicy::HostDriven,
+            managed_agent,
             package_digest: None,
             execution_closure_digest: None,
         })?)
@@ -151,10 +200,6 @@ fn input(value: serde_json::Value) -> TestResult<JsonObject> {
     Ok(serde_json::from_value(value)?)
 }
 
-fn tool(name: &str) -> TurnTarget {
-    TurnTarget::Tool { tool: name.into() }
-}
-
 fn statuses(status: &TurnStatus) -> Vec<&'static str> {
     status
         .calls
@@ -168,18 +213,43 @@ fn statuses(status: &TurnStatus) -> Vec<&'static str> {
         .collect()
 }
 
+/// The addresses a pending call waits on.
+fn waiting_on(call: &TurnCallResult) -> TestResult<Vec<String>> {
+    let TurnCallOutcome::Pending { waiting } = &call.outcome else {
+        return Err(format!("the call is not pending: {call:?}").into());
+    };
+    Ok(waiting
+        .iter()
+        .map(|request| request_id(request).to_owned())
+        .collect())
+}
+
+fn request_id(request: &ResolutionRequest) -> &str {
+    match request {
+        ResolutionRequest::Input { id, .. }
+        | ResolutionRequest::Approval { id, .. }
+        | ResolutionRequest::AgentAct { id, .. }
+        | ResolutionRequest::Retry { id, .. } => id.as_str(),
+    }
+}
+
+fn tool_names(status: &TurnStatus) -> Vec<&str> {
+    status.tools.iter().map(|tool| tool.name.as_str()).collect()
+}
+
 #[test]
 fn an_agent_turn_records_its_calls_and_seals_them_with_its_answer() -> TestResult {
     let temp = tempdir()?;
-    let paused = Paused::start(temp.path(), write_turn_skill(temp.path())?)?;
+    let paused = Paused::start(temp.path(), write_turn_skill(temp.path())?, TURN)?;
     let turn = paused.open()?;
     assert_eq!(
-        serde_json::to_value(&turn.invocation().allowance)?,
-        serde_json::json!({"tools": ["data.digest"], "skills": ["../digest-child"]})
+        serde_json::to_value(&turn.status(TURN)?.invocation.allowance)?,
+        serde_json::json!({"tools": ["data.digest"], "skills": ["../digest-child"], "asks": true})
     );
 
     let digest = turn.call(
-        tool("data.digest"),
+        TURN,
+        "data_digest",
         input(serde_json::json!({"value": "hello", "encoding": "utf8_text"}))?,
     )?;
     assert_eq!(digest.index, 0);
@@ -188,19 +258,15 @@ fn an_agent_turn_records_its_calls_and_seals_them_with_its_answer() -> TestResul
         "{digest:?}"
     );
 
-    let refused = turn.call(
-        tool("fs.read"),
-        input(serde_json::json!({"path": "SKILL.md"}))?,
-    )?;
+    let refused = turn.call(TURN, "ask_human", JsonObject::new())?;
     assert!(
-        matches!(&refused.outcome, TurnCallOutcome::Refused { reason } if reason.as_str().contains("allowance")),
+        matches!(&refused.outcome, TurnCallOutcome::Refused { reason } if reason.as_str().contains("reason")),
         "{refused:?}"
     );
 
     let child = turn.call(
-        TurnTarget::Skill {
-            skill: "../digest-child".into(),
-        },
+        TURN,
+        "skill__digest-child",
         input(serde_json::json!({"value": "child"}))?,
     )?;
     assert!(
@@ -209,33 +275,25 @@ fn an_agent_turn_records_its_calls_and_seals_them_with_its_answer() -> TestResul
     );
 
     let asked = turn.call(
-        TurnTarget::Ask,
+        TURN,
+        "ask_human",
         input(serde_json::json!({"reason": "Send it?"}))?,
     )?;
-    let TurnCallOutcome::Pending { request } = &asked.outcome else {
-        return Err(format!("an ask waits on the human: {asked:?}").into());
-    };
-    let gate = serde_json::to_value(request)?["id"]
-        .as_str()
-        .ok_or("the ask names its request")?
-        .to_owned();
-    assert_eq!(gate, "answer/3");
+    assert_eq!(waiting_on(&asked)?, ["answer/3"]);
 
     // The paused run lists what the human must answer beside the act.
     let waiting = paused.resume(serde_json::json!({}))?;
-    assert_eq!(requests(&waiting)?, ["agent.answer.output", "answer/3"]);
+    assert_eq!(requests(&waiting)?, [TURN, "answer/3"]);
 
     // The human's answer settles the pending call; the turn stays open.
-    let settled = paused.resume(serde_json::json!({"approvals": {gate.clone(): true}}))?;
-    assert_eq!(requests(&settled)?, ["agent.answer.output"]);
-    let status = turn.status()?;
-    assert_eq!(status.request_id.as_str(), "agent.answer.output");
+    let settled = paused.resume(serde_json::json!({"approvals": {"answer/3": true}}))?;
+    assert_eq!(requests(&settled)?, [TURN]);
     assert_eq!(
-        statuses(&status),
+        statuses(&turn.status(TURN)?),
         ["completed", "refused", "completed", "completed"]
     );
 
-    let sealed = turn.complete(input(serde_json::json!({"answer": "digested"}))?)?;
+    let sealed = turn.complete(TURN, input(serde_json::json!({"answer": "digested"}))?)?;
     assert_eq!(
         paused.sealed_step_children(&sealed)?,
         3,
@@ -245,38 +303,29 @@ fn an_agent_turn_records_its_calls_and_seals_them_with_its_answer() -> TestResul
 }
 
 #[test]
-fn a_turn_inside_a_child_skill_is_worked_at_its_own_step() -> TestResult {
+fn a_turn_inside_a_child_skill_is_worked_at_its_own_address() -> TestResult {
     let temp = tempdir()?;
-    let paused = Paused::start(temp.path(), write_parent_skill(temp.path())?)?;
+    let child_turn = "delegate#agent.answer.output";
+    let paused = Paused::start(temp.path(), write_parent_skill(temp.path())?, child_turn)?;
     let turn = paused.open()?;
-    let names = turn
-        .tools()
-        .iter()
-        .map(|tool| tool.name.as_str())
-        .collect::<Vec<_>>();
     assert_eq!(
-        names,
-        [
-            "data_digest",
-            "skill__digest-child",
-            "ask_human",
-            "turn_status",
-            "turn_complete"
-        ],
+        tool_names(&turn.status(child_turn)?),
+        ["data_digest", "skill__digest-child", "ask_human"],
         "the child's turn offers the child's limits"
     );
 
     let digest = turn.call(
-        tool("data.digest"),
+        child_turn,
+        "data_digest",
         input(serde_json::json!({"value": "nested", "encoding": "utf8_text"}))?,
     )?;
     assert!(
         matches!(digest.outcome, TurnCallOutcome::Completed { .. }),
         "{digest:?}"
     );
-    assert_eq!(statuses(&turn.status()?), ["completed"]);
+    assert_eq!(statuses(&turn.status(child_turn)?), ["completed"]);
 
-    let sealed = turn.complete(input(serde_json::json!({"answer": "nested"}))?)?;
+    let sealed = turn.complete(child_turn, input(serde_json::json!({"answer": "nested"}))?)?;
     let output = object(&sealed.output)?;
     assert_eq!(text(output, "status"), Some("sealed"), "{output:?}");
     assert_eq!(
@@ -292,24 +341,27 @@ fn a_turn_inside_a_child_skill_is_worked_at_its_own_step() -> TestResult {
 #[test]
 fn a_turn_answer_waits_until_its_calls_settle() -> TestResult {
     let temp = tempdir()?;
-    let paused = Paused::start(temp.path(), write_turn_skill(temp.path())?)?;
+    let paused = Paused::start(temp.path(), write_turn_skill(temp.path())?, TURN)?;
     let turn = paused.open()?;
     turn.call(
-        TurnTarget::Ask,
+        TURN,
+        "ask_human",
         input(serde_json::json!({"reason": "Go ahead?"}))?,
     )?;
 
     let refused = turn
-        .complete(input(serde_json::json!({"answer": "early"}))?)
+        .complete(TURN, input(serde_json::json!({"answer": "early"}))?)
         .err()
         .ok_or("an answer while a call waits is refused")?;
     assert!(
-        refused.to_string().contains("still waits on answer/0"),
+        refused
+            .to_string()
+            .contains("call 0 of its turn has not settled"),
         "{refused}"
     );
 
     paused.resume(serde_json::json!({"approvals": {"answer/0": false}}))?;
-    let sealed = turn.complete(input(serde_json::json!({"answer": "after"}))?)?;
+    let sealed = turn.complete(TURN, input(serde_json::json!({"answer": "after"}))?)?;
     assert_eq!(paused.sealed_step_children(&sealed)?, 1);
     Ok(())
 }
@@ -317,51 +369,54 @@ fn a_turn_answer_waits_until_its_calls_settle() -> TestResult {
 #[test]
 fn a_turn_lists_its_tools_with_their_contracts() -> TestResult {
     let temp = tempdir()?;
-    let paused = Paused::start(temp.path(), write_turn_skill(temp.path())?)?;
-    let turn = paused.open()?;
+    let paused = Paused::start(temp.path(), write_turn_skill(temp.path())?, TURN)?;
+    let status = paused.open()?.status(TURN)?;
+    let envelope = &status.invocation.envelope;
+    assert!(envelope.instructions.as_str().contains("Turn demo"));
     assert!(
-        turn.invocation()
-            .envelope
-            .instructions
-            .as_str()
-            .contains("Turn demo")
+        envelope
+            .output_schema
+            .as_ref()
+            .and_then(|schema| schema.as_object())
+            .and_then(|schema| schema.get("properties"))
+            .and_then(JsonValue::as_object)
+            .is_some_and(|properties| properties.contains_key("answer")),
+        "{envelope:?}"
     );
     let schema = |name: &str| -> TestResult<serde_json::Value> {
         Ok(serde_json::to_value(
-            &turn
-                .tools()
+            &status
+                .tools
                 .iter()
-                .find(|tool| tool.name == name)
+                .find(|tool| tool.name.as_str() == name)
                 .ok_or(format!("missing tool {name}"))?
                 .input_schema,
         )?)
     };
     assert!(schema("data_digest")?["properties"]["value"].is_object());
     assert!(schema("skill__digest-child")?["properties"]["value"].is_object());
-    assert!(schema("turn_complete")?["properties"]["answer"].is_object());
+    assert!(schema("ask_human")?["properties"]["reason"].is_object());
     Ok(())
 }
 
 #[test]
 fn a_turn_the_run_has_left_cannot_be_worked() -> TestResult {
     let temp = tempdir()?;
-    let paused = Paused::start(temp.path(), write_turn_skill(temp.path())?)?;
+    let paused = Paused::start(temp.path(), write_turn_skill(temp.path())?, TURN)?;
     let turn = paused.open()?;
     paused.resume(serde_json::json!({
-        "answers": {"agent.answer.output": {"answer": "done"}}
+        "answers": {TURN: {"answer": "done"}}
     }))?;
 
     let error = turn
         .call(
-            tool("data.digest"),
+            TURN,
+            "data_digest",
             input(serde_json::json!({"value": "late", "encoding": "utf8_text"}))?,
         )
         .err()
         .ok_or("a sealed run's turn takes no calls")?;
-    assert!(
-        error.to_string().contains("not waiting on an agent turn"),
-        "{error}"
-    );
+    assert!(error.to_string().contains("has no open turn"), "{error}");
     let error = paused
         .open()
         .err()
@@ -394,76 +449,157 @@ runners:
           answer: string
 "#,
     )?;
-    let paused = Paused::start(temp.path(), skill_dir)?;
+    let paused = Paused::start(temp.path(), skill_dir, TURN)?;
+    let step = |status: TurnStatus| status.invocation.envelope.step_id.map(|id| id.to_string());
     let first = paused.open()?;
-    assert_eq!(first.status()?.step_id.as_str(), "first");
-    let next = first.complete(input(serde_json::json!({"answer": "one"}))?)?;
-    assert_eq!(
-        requests(&next)?,
-        ["agent.answer.output"],
-        "the second step asks its own act"
-    );
+    assert_eq!(step(first.status(TURN)?), Some("first".to_owned()));
+    let next = first.complete(TURN, input(serde_json::json!({"answer": "one"}))?)?;
+    assert_eq!(requests(&next)?, [TURN], "the second step asks its own act");
     let second = paused.open()?;
-    assert_eq!(second.status()?.step_id.as_str(), "second");
-    let sealed = second.complete(input(serde_json::json!({"answer": "two"}))?)?;
+    assert_eq!(step(second.status(TURN)?), Some("second".to_owned()));
+    let sealed = second.complete(TURN, input(serde_json::json!({"answer": "two"}))?)?;
     assert_eq!(text(object(&sealed.output)?, "status"), Some("sealed"));
     Ok(())
 }
 
 #[test]
-fn a_call_into_a_skill_whose_agent_shares_the_task_waits_on_that_agent() -> TestResult {
+fn a_call_into_a_skill_whose_agent_shares_the_task_opens_a_turn_of_its_own() -> TestResult {
     let temp = tempdir()?;
-    let root = temp.path();
-    crate::support::write_test_skill_package(
-        &root.join("answer-child"),
-        "---\nname: answer-child\ndescription: Answers.\n---\n# Answer child\n\nAnswer.\n",
-        "skill: answer-child\nrunners:\n  answer:\n    default: true\n    outputs:\n      answer: string\n",
-    )?;
-    let skill_dir = root.join("answer-parent");
-    crate::support::write_test_skill_package(
-        &skill_dir,
-        "---\nname: answer-parent\ndescription: Answers through a child.\n---\n# Answer parent\n\nAsk the child, then answer.\n",
-        r#"skill: answer-parent
-skills: [../answer-child]
-runners:
-  answer:
-    default: true
-    inputs:
-      question: { type: string, required: true }
-    outputs:
-      answer: string
-"#,
-    )?;
-    let paused = Paused::start(root, skill_dir)?;
+    let paused = Paused::start(temp.path(), write_answer_skills(temp.path())?, TURN)?;
     let turn = paused.open()?;
-    let child = turn.call(
-        TurnTarget::Skill {
-            skill: "../answer-child".into(),
-        },
-        JsonObject::new(),
-    )?;
-    assert!(
-        matches!(&child.outcome, TurnCallOutcome::Pending { .. }),
-        "the child's act is its own request: {child:?}"
+    assert_eq!(
+        tool_names(&turn.status(TURN)?),
+        ["skill__answer-child"],
+        "a turn may ask the human only when its skill declares asks"
+    );
+    let child = turn.call(TURN, "skill__answer-child", JsonObject::new())?;
+    let child_turn = "answer/0#agent.answer.output";
+    assert_eq!(waiting_on(&child)?, [child_turn]);
+    assert_eq!(
+        turn.waiting()?
+            .iter()
+            .map(|request| request_id(request).to_owned())
+            .collect::<Vec<_>>(),
+        [TURN, child_turn]
     );
 
-    // An answer settles the pending call first: the turn cannot complete
-    // while it waits.
-    let settled = paused.resume(serde_json::json!({
-        "answers": {"agent.answer.output": {"answer": "from the child"}}
-    }))?;
-    assert_eq!(requests(&settled)?, ["agent.answer.output"]);
-    assert_eq!(statuses(&turn.status()?), ["completed"]);
+    // The same session works the child's turn, by its address.
+    assert_eq!(
+        turn.status(child_turn)?.invocation.envelope.skill.as_str(),
+        "answer"
+    );
+    turn.complete(
+        child_turn,
+        input(serde_json::json!({"answer": "from the child"}))?,
+    )?;
+    assert_eq!(statuses(&turn.status(TURN)?), ["completed"]);
 
-    let sealed = turn.complete(input(serde_json::json!({"answer": "parent"}))?)?;
+    let sealed = turn.complete(TURN, input(serde_json::json!({"answer": "parent"}))?)?;
     assert_eq!(paused.sealed_step_children(&sealed)?, 1);
+    Ok(())
+}
+
+#[test]
+fn sibling_child_turns_are_worked_apart() -> TestResult {
+    let temp = tempdir()?;
+    let paused = Paused::start(temp.path(), write_answer_skills(temp.path())?, TURN)?;
+    let turn = paused.open()?;
+    turn.call(TURN, "skill__answer-child", JsonObject::new())?;
+    turn.call(TURN, "skill__answer-child", JsonObject::new())?;
+    let (first, second) = (
+        "answer/0#agent.answer.output",
+        "answer/1#agent.answer.output",
+    );
+    assert_eq!(
+        turn.waiting()?
+            .iter()
+            .map(|request| request_id(request).to_owned())
+            .collect::<Vec<_>>(),
+        [TURN, first, second]
+    );
+
+    // The later sibling ends first; the earlier one is untouched.
+    turn.complete(second, input(serde_json::json!({"answer": "two"}))?)?;
+    assert_eq!(statuses(&turn.status(TURN)?), ["pending", "completed"]);
+    turn.complete(first, input(serde_json::json!({"answer": "one"}))?)?;
+    assert_eq!(statuses(&turn.status(TURN)?), ["completed", "completed"]);
+
+    let sealed = turn.complete(TURN, input(serde_json::json!({"answer": "both"}))?)?;
+    assert_eq!(paused.sealed_step_children(&sealed)?, 2);
+    Ok(())
+}
+
+#[test]
+fn a_nested_ask_is_answered_by_its_address() -> TestResult {
+    let temp = tempdir()?;
+    let paused = Paused::start(temp.path(), write_answer_skills(temp.path())?, TURN)?;
+    let turn = paused.open()?;
+    turn.call(TURN, "skill__answer-child", JsonObject::new())?;
+    let child_turn = "answer/0#agent.answer.output";
+    let asked = turn.call(
+        child_turn,
+        "ask_human",
+        input(serde_json::json!({"reason": "Go on?"}))?,
+    )?;
+    let ask = "answer/0#answer/0";
+    assert_eq!(waiting_on(&asked)?, [ask]);
+
+    // The run lists the child's ask beside both turns, and a resume answers
+    // it where it waits.
+    let waiting = paused.resume(serde_json::json!({}))?;
+    assert_eq!(requests(&waiting)?, [TURN, child_turn, ask]);
+    let settled = paused.resume(serde_json::json!({"approvals": {ask: true}}))?;
+    assert_eq!(requests(&settled)?, [TURN, child_turn]);
+    assert_eq!(statuses(&turn.status(child_turn)?), ["completed"]);
+
+    turn.complete(
+        child_turn,
+        input(serde_json::json!({"answer": "approved"}))?,
+    )?;
+    let sealed = turn.complete(TURN, input(serde_json::json!({"answer": "done"}))?)?;
+    assert_eq!(paused.sealed_step_children(&sealed)?, 1);
+    Ok(())
+}
+
+#[test]
+fn a_run_keeps_the_driver_it_started_with() -> TestResult {
+    let temp = tempdir()?;
+    let skill_dir = write_turn_skill(temp.path())?;
+    // No model is configured, so the managed agent leaves the turn open.
+    let managed = Paused::start_with(
+        temp.path(),
+        skill_dir.clone(),
+        TURN,
+        ManagedAgentPolicy::inline(2)?,
+    )?;
+    let error = managed
+        .open()
+        .err()
+        .ok_or("a host cannot work a managed run's turns")?;
+    assert!(
+        error.to_string().contains("driven by the managed agent"),
+        "{error}"
+    );
+    assert_eq!(requests(&managed.resume(serde_json::json!({}))?)?, [TURN]);
+
+    let attached = Paused::start(temp.path(), skill_dir, TURN)?;
+    let error = attached
+        .resume_with(serde_json::json!({}), ManagedAgentPolicy::inline(2)?)
+        .err()
+        .ok_or("the managed agent cannot work an attached run's turns")?;
+    assert!(
+        error
+            .to_string()
+            .contains("driven by the host it is attached to"),
+        "{error}"
+    );
     Ok(())
 }
 
 #[test]
 fn a_resume_pinned_to_another_package_is_refused() -> TestResult {
     let temp = tempdir()?;
-    let paused = Paused::start(temp.path(), write_turn_skill(temp.path())?)?;
+    let paused = Paused::start(temp.path(), write_turn_skill(temp.path())?, TURN)?;
     let path = temp.path().join("answers.json");
     fs::write(&path, "{}")?;
     let error = LocalOrchestrator::default()

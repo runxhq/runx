@@ -449,9 +449,10 @@ fn inline_harness_execution_error(
     }
 }
 
-// Preserve the harness caller's answer lanes while keying both by resolution
-// request id. Inline execution must exercise the same approval provenance as a
-// live resume file.
+// Preserve the harness caller's answer lanes, each keyed by the request's id
+// in its own run: a case scripts its answers by what is asked, at any depth.
+// Inline execution must exercise the same approval provenance as a live
+// resume file.
 fn seeded_answers_from_caller(
     caller: &HarnessCaller,
 ) -> Result<Option<ResolutionAnswers>, SkillRunError> {
@@ -462,7 +463,8 @@ fn seeded_answers_from_caller(
         .approvals
         .iter()
         .map(|(gate, approved)| (gate.clone(), JsonValue::Bool(*approved)));
-    ResolutionAnswers::from_lanes(caller.answers.clone(), approvals).map(Some)
+    ResolutionAnswers::from_lanes(caller.answers.clone(), approvals)
+        .map(|answers| Some(answers.scripted()))
 }
 
 // Map an `execute_skill_run` output onto the harness status vocabulary
@@ -518,7 +520,15 @@ mod tests {
 
         assert!(answers.is_human_approval(approval_id));
         assert!(!answers.is_human_approval("agent.plan"));
-        assert_eq!(answers.get(approval_id), Some(&JsonValue::Bool(true)));
+        assert_eq!(
+            answers.get(approval_id, "sha256:approval"),
+            Some(&JsonValue::Bool(true))
+        );
+        // A script answers by the request's id in its own run, at any depth.
+        assert_eq!(
+            answers.get(&format!("deliver#{approval_id}"), "sha256:approval"),
+            Some(&JsonValue::Bool(true))
+        );
         Ok(())
     }
 }

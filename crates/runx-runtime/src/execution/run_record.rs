@@ -20,7 +20,13 @@
 //!
 //! While a run waits on an agent act, each call the agent makes is a `call`
 //! event naming the turn it belongs to. Calls never change where the run
-//! waits: a run whose latest event is a call is still paused at its turn.
+//! waits: a run whose latest event is a call is still paused at its turn. A
+//! call that runs a child skill links that child run; the child's own stream
+//! records its progress.
+//!
+//! Everything a run waits on has an address: its request id at the root, and
+//! `<path>#<id>` below it, the path being the child run's place under the
+//! root. A paused run waits on every open request in its tree.
 
 use std::sync::{Arc, Mutex};
 
@@ -86,7 +92,21 @@ pub(crate) struct Started {
     pub context: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub run_authority: Option<RunAuthority>,
+    /// Who works the run's turns, fixed when it starts. A run started before
+    /// runs recorded it has none, and no driver may take its turns.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub driver: Option<Driver>,
     pub created_at: String,
+}
+
+/// Who works a run's agent turns.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum Driver {
+    /// The host the run is attached to.
+    Attached,
+    /// runx's managed agent.
+    Managed,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -215,13 +235,22 @@ enum CallOutcomeEvent {
     Refused { reason: String },
     /// The call could not run.
     Failed { reason: String },
-    /// The call waits on a request: what it asked, or, while it has not
-    /// settled, its own retry.
+    /// The call waits on its own ask or approval.
     Pending {
         request_id: String,
         request: String,
         digest: String,
     },
+    /// The call was claimed and has not settled, so its effect may have
+    /// happened: it waits on its retry.
+    Claimed {
+        request_id: String,
+        request: String,
+        digest: String,
+    },
+    /// The call runs a child skill as `run_id`, and waits on what that run
+    /// waits on.
+    Child { run_id: String },
 }
 
 /// An answer a step consumed, bound to the request it answered.
@@ -307,7 +336,12 @@ pub(crate) enum CallOutcome {
     Completed(Box<StepRun>),
     Refused(String),
     Failed(String),
+    /// Waits on its own ask or approval.
     Pending(PendingRequest),
+    /// Claimed and not settled: waits on its retry.
+    Claimed(PendingRequest),
+    /// Runs a child skill as this run, and waits on what it waits on.
+    Child(String),
 }
 
 /// What a call records: its turn, its place in it, and how it ended.
@@ -443,17 +477,24 @@ impl RunLog {
         &self.0.run_id
     }
 
+    /// The address of `request_id`, a request this run raises.
+    pub(crate) fn address(&self, request_id: &str) -> String {
+        request_address(&self.0.run_id, request_id)
+    }
+
     #[must_use]
     pub(crate) fn store(&self) -> &Arc<KernelStore> {
         &self.0.store
     }
 
+    /// The id of the child run a nested skill step runs as.
+    pub(crate) fn child_id(&self, step_id: &str) -> String {
+        format!("{}/{step_id}", self.0.run_id)
+    }
+
     /// The log of the child run that a nested skill step runs as.
     pub(crate) fn child(&self, step_id: &str) -> Result<Self, RunRecordError> {
-        Self::open(
-            Arc::clone(&self.0.store),
-            format!("{}/{step_id}", self.0.run_id),
-        )
+        Self::open(Arc::clone(&self.0.store), self.child_id(step_id))
     }
 
     /// Rebuild the run from its stream; `None` when it has not started.
@@ -506,6 +547,7 @@ impl RunLog {
             inputs: inputs.digest().to_owned(),
             context: context.as_ref().map(|blob| blob.digest().to_owned()),
             run_authority: started.run_authority.cloned(),
+            driver: Some(started.driver),
             created_at: started.created_at.to_owned(),
         };
         let mut blobs = vec![inputs];
@@ -726,6 +768,19 @@ impl RunLog {
                 blobs.push(request);
                 outcome
             }
+            CallOutcome::Claimed(retry) => {
+                let request = Blob::json(&retry.value)?;
+                let outcome = CallOutcomeEvent::Claimed {
+                    request_id: retry.id.clone(),
+                    request: request.digest().to_owned(),
+                    digest: retry.digest.clone(),
+                };
+                blobs.push(request);
+                outcome
+            }
+            CallOutcome::Child(run_id) => CallOutcomeEvent::Child {
+                run_id: run_id.clone(),
+            },
         };
         let values = call
             .answers
@@ -850,6 +905,7 @@ pub(crate) struct StartRequest<'a> {
     pub inputs: &'a JsonObject,
     pub context: &'a RunContext,
     pub run_authority: Option<&'a RunAuthority>,
+    pub driver: Driver,
     pub created_at: &'a str,
 }
 
@@ -1144,7 +1200,37 @@ fn call_outcome(store: &KernelStore, call: &CallEvent) -> Result<CallOutcome, Ru
             value: store.blob_json(request)?,
             digest: digest.clone(),
         }),
+        CallOutcomeEvent::Claimed {
+            request_id,
+            request,
+            digest,
+        } => CallOutcome::Claimed(PendingRequest {
+            id: request_id.clone(),
+            value: store.blob_json(request)?,
+            digest: digest.clone(),
+        }),
+        CallOutcomeEvent::Child { run_id } => CallOutcome::Child(run_id.clone()),
     })
+}
+
+/// The address of `request_id`, a request run `run_id` raises: the id itself
+/// at the root; below it, `<path>#<id>`, the path being the run's place under
+/// the root. A root run id holds no `/`, and no step id or request id holds
+/// `#`, so two open requests share an address only when they are the same
+/// request: an operation call made twice with the same intent.
+pub(crate) fn request_address(run_id: &str, request_id: &str) -> String {
+    match run_id.split_once('/') {
+        Some((_, path)) => format!("{path}#{request_id}"),
+        None => request_id.to_owned(),
+    }
+}
+
+/// The id `address` has in its own run: what follows its `#`, or the whole
+/// address at the root.
+pub(crate) fn local_request_id(address: &str) -> &str {
+    address
+        .split_once('#')
+        .map_or(address, |(_, request_id)| request_id)
 }
 
 /// The step a call runs as: `<turn step>/<index>`, so a child run it starts
@@ -1173,62 +1259,67 @@ fn step_run(store: &KernelStore, event: StepEvent) -> Result<StepRun, RunRecordE
     })
 }
 
-/// The request a run waits on, following child runs down to the step that
-/// asked. `None` unless the run's latest event is a suspension: once a host
-/// has answered, the run waits on its own continuation, not on the host.
-pub(crate) fn pending_request(
-    store: &KernelStore,
-    run_id: &str,
-) -> Result<Option<PendingRequest>, RunRecordError> {
-    Ok(holder(store, run_id)?.map(|holder| holder.request))
-}
-
-/// Every request a paused run waits on: the one its step asked, then those
-/// its open turn's calls wait on.
+/// Every request a paused run waits on, each by its address: where its step
+/// is held, following the child runs graph steps hold; and at an agent turn,
+/// what each call of the turn waits on, following the child runs skill calls
+/// started. Empty unless the run is paused: once a host has answered, the
+/// run waits on its own continuation, not on the host.
 pub(crate) fn waiting_requests(
     store: &KernelStore,
     run_id: &str,
 ) -> Result<Vec<PendingRequest>, RunRecordError> {
-    let Some(holder) = holder(store, run_id)? else {
-        return Ok(Vec::new());
+    let mut waiting = Vec::new();
+    collect_waiting(store, run_id, &mut waiting)?;
+    Ok(waiting)
+}
+
+fn collect_waiting(
+    store: &KernelStore,
+    run_id: &str,
+    waiting: &mut Vec<PendingRequest>,
+) -> Result<(), RunRecordError> {
+    let Some(held) = held(store, run_id)? else {
+        return Ok(());
     };
     // Only an agent turn makes calls of its own.
-    if holder
+    let turn = held
         .request
         .value
         .as_object()
         .and_then(|value| value.get("kind"))
-        != Some(&JsonValue::String("agent_act".to_owned()))
-    {
-        return Ok(vec![holder.request]);
+        == Some(&JsonValue::String("agent_act".to_owned()));
+    waiting.push(held.request);
+    if !turn {
+        return Ok(());
     }
+    let events = store.read::<RunEvent>(&held.run_id)?;
     let calls = turn_calls(
         store,
-        store
-            .read::<RunEvent>(&holder.run_id)?
-            .into_iter()
-            .map(|event| event.event),
-        &holder.step_id,
-        holder.attempt,
+        events.into_iter().map(|event| event.event),
+        &held.step_id,
+        held.attempt,
     )?;
-    let mut waiting = vec![holder.request];
-    waiting.extend(calls.into_iter().filter_map(|call| match call.outcome {
-        CallOutcome::Pending(request) => Some(request),
-        _ => None,
-    }));
-    Ok(waiting)
+    for call in calls {
+        match call.outcome {
+            CallOutcome::Pending(request) | CallOutcome::Claimed(request) => waiting.push(request),
+            CallOutcome::Child(child) => collect_waiting(store, &child, waiting)?,
+            CallOutcome::Completed(_) | CallOutcome::Refused(_) | CallOutcome::Failed(_) => {}
+        }
+    }
+    Ok(())
 }
 
-/// Where a run's wait is held: the run and step that asked, and the request.
-struct Holder {
+/// Where a run's step is held: the run and step that asked, and the request.
+struct Held {
     run_id: String,
     step_id: String,
     attempt: u32,
     request: PendingRequest,
 }
 
-/// What `run_id` waits on, following child runs down to the step that asked.
-fn holder(store: &KernelStore, run_id: &str) -> Result<Option<Holder>, RunRecordError> {
+/// Where `run_id` is held, following the child runs graph steps hold down to
+/// the step that asked.
+fn held(store: &KernelStore, run_id: &str) -> Result<Option<Held>, RunRecordError> {
     let mut current = run_id.to_owned();
     loop {
         let Some(latest) = store.latest::<RunEvent>(&current)? else {
@@ -1238,7 +1329,7 @@ fn holder(store: &KernelStore, run_id: &str) -> Result<Option<Holder>, RunRecord
             RunEvent::Suspended(suspended) => suspended,
             // A call leaves the run waiting on the turn it was made in.
             RunEvent::Call(call) => {
-                return Ok(Some(Holder {
+                return Ok(Some(Held {
                     run_id: current,
                     request: PendingRequest {
                         id: call.turn.request_id,
@@ -1262,7 +1353,7 @@ fn holder(store: &KernelStore, run_id: &str) -> Result<Option<Holder>, RunRecord
                 request,
                 digest,
             } => {
-                return Ok(Some(Holder {
+                return Ok(Some(Held {
                     run_id: current,
                     request: PendingRequest {
                         id: request_id,
@@ -1287,6 +1378,8 @@ pub struct RunSummary {
     pub state: RunState,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub disposition: Option<ClosureDisposition>,
+    /// The request a paused run's step is held on: its turn's act, or what
+    /// it asked.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pending_request_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -1412,17 +1505,17 @@ fn listing(runs: Vec<RunSummary>) -> RunListing {
     }
 }
 
-/// The request a paused run in this workspace waits on.
-pub fn paused_request(
+/// Every request a paused run in this workspace waits on, by address.
+pub fn paused_requests(
     env: &std::collections::BTreeMap<String, String>,
     cwd: &std::path::Path,
     run_id: &str,
-) -> Result<Option<PendingRequest>, RunRecordError> {
+) -> Result<Vec<PendingRequest>, RunRecordError> {
     let store = KernelStore::for_project(&crate::paths::RunxPaths::resolve(env, cwd))?;
-    pending_request(&store, validate_run_id(run_id)?)
+    waiting_requests(&store, validate_run_id(run_id)?)
 }
 
-/// A paused run: what `runx resume` reloads, and the request it waits on.
+/// A paused run: what `runx resume` reloads, and what it waits on.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct PausedRun {
     pub run_id: String,
@@ -1431,7 +1524,7 @@ pub struct PausedRun {
     pub runner: String,
     pub package_digest: String,
     pub execution_closure_digest: String,
-    pub request: PendingRequest,
+    pub waiting: Vec<PendingRequest>,
 }
 
 pub fn paused_run(
@@ -1441,9 +1534,15 @@ pub fn paused_run(
 ) -> Result<Option<PausedRun>, RunRecordError> {
     let store = KernelStore::for_project(&crate::paths::RunxPaths::resolve(env, cwd))?;
     let run_id = validate_run_id(run_id)?;
-    let Some(request) = pending_request(&store, run_id)? else {
+    // A run is paused when its own latest event leaves it waiting, even when
+    // nothing it waits on needs a host: a child that sealed before its parent
+    // step was recorded is taken further by the next continuation.
+    let paused = store
+        .latest::<RunEvent>(run_id)?
+        .is_some_and(|latest| matches!(latest.event, RunEvent::Suspended(_) | RunEvent::Call(_)));
+    if !paused {
         return Ok(None);
-    };
+    }
     let Some(first) = store.first::<RunEvent>(run_id)? else {
         return Ok(None);
     };
@@ -1457,7 +1556,7 @@ pub fn paused_run(
         runner: started.runner,
         package_digest: started.package_digest,
         execution_closure_digest: started.execution_closure_digest,
-        request,
+        waiting: waiting_requests(&store, run_id)?,
     }))
 }
 
@@ -1514,7 +1613,7 @@ fn summarize(store: &KernelStore, head: &Head) -> Result<Option<RunSummary>, Run
             RunState::Paused,
             None,
             None,
-            pending_request(store, &head.key)?.map(|request| request.id),
+            held(store, &head.key)?.map(|held| held.request.id),
         ),
         RunEvent::Call(call) => (RunState::Paused, None, None, Some(call.turn.request_id)),
         _ => (RunState::Running, None, None, None),

@@ -3,10 +3,10 @@ import {
   generatedSchema,
   validateContractSchema,
 } from "../internal.js";
-import type { TurnAllowanceContract } from "./agent-act.js";
+import type { AgentActInvocationContract } from "./agent-act.js";
 import type { ResolutionRequestContract } from "./resolution.js";
 
-/** What a turn call names: an allowance entry, or a question for the human. */
+/** What a turn call names: one entry of the turn's allowance. */
 export type TurnTargetContract = DeepReadonly<
   | { kind: "tool"; tool: string }
   | { kind: "operation"; requirement: string; operation: string }
@@ -14,11 +14,16 @@ export type TurnTargetContract = DeepReadonly<
   | { kind: "ask" }
 >;
 
+/**
+ * How a call ended. A pending call lists what it waits on, each request by
+ * its address: its own ask or approval, its retry while its effect is
+ * unconfirmed, or what the child run it started waits on.
+ */
 export type TurnCallOutcomeContract = DeepReadonly<
   | { status: "completed"; output: Record<string, unknown>; receipt_id: string }
   | { status: "failed"; reason: string; receipt_id?: string }
   | { status: "refused"; reason: string }
-  | { status: "pending"; request: ResolutionRequestContract }
+  | { status: "pending"; waiting: readonly ResolutionRequestContract[] }
 >;
 
 /** One call an agent made in its turn, and how it ended. */
@@ -28,11 +33,18 @@ export type TurnCallContract = DeepReadonly<{
   outcome: TurnCallOutcomeContract;
 }>;
 
-/** An open turn as its agent reads it. */
+/** One call an open turn offers its agent, with the input it takes. */
+export type TurnToolContract = DeepReadonly<{
+  name: string;
+  description: string;
+  target: TurnTargetContract;
+  input_schema: Record<string, unknown>;
+}>;
+
+/** An open turn as its agent reads it; the invocation's id is its address. */
 export type TurnStatusContract = DeepReadonly<{
-  step_id: string;
-  request_id: string;
-  allowance: TurnAllowanceContract;
+  invocation: AgentActInvocationContract;
+  tools: readonly TurnToolContract[];
   calls: readonly TurnCallContract[];
 }>;
 

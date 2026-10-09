@@ -37,6 +37,7 @@ connectors:
     operations: [issue.read, issue.comment]
 tools: [fs.read, git.status]
 skills: [./label]
+asks: true
 runners:
   review:
     steps:
@@ -60,9 +61,11 @@ runners:
         ],
         tools: vec!["fs.read".into(), "git.status".into()],
         skills: vec!["./label".into()],
+        asks: true,
     };
     assert_eq!(manifest.tools, ["fs.read", "git.status"]);
     assert_eq!(manifest.skills, ["./label"]);
+    assert!(manifest.asks);
     for step in &manifest.runners["review"].graph.steps {
         let StepKind::Agent(agent) = &step.kind else {
             return Err("expected agent steps".to_owned());
@@ -229,5 +232,34 @@ steps:
             .contains("not an admissible catalog tool ref"),
         "{error}"
     );
+    Ok(())
+}
+
+#[test]
+fn step_and_gate_ids_are_identifiers_a_run_can_address() -> Result<(), String> {
+    let step = refusal(
+        r#"
+skill: triage
+runners:
+  review:
+    steps:
+      - id: read/0
+        agent: { role: reviewer, task: read }
+        outputs:
+          summary: string
+"#,
+    )?;
+    assert!(step.contains("must match [a-z][a-z0-9_-]*"), "{step}");
+    let gate = refusal(
+        r#"
+skill: triage
+runners:
+  review:
+    steps:
+      - id: confirm
+        ask: { gate: "send#now", reason: Send it? }
+"#,
+    )?;
+    assert!(gate.contains("must match [a-z0-9][a-z0-9_.-]*"), "{gate}");
     Ok(())
 }

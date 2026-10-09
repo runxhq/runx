@@ -231,6 +231,7 @@ export {
   type TurnTargetContract,
   type TurnCallOutcomeContract,
   type TurnCallContract,
+  type TurnToolContract,
   type TurnStatusContract,
 } from "./schemas/turn.js";
 

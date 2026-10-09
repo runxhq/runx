@@ -3,47 +3,6 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "properties": {
-    "allowance": {
-      "additionalProperties": false,
-      "properties": {
-        "operations": {
-          "items": {
-            "additionalProperties": false,
-            "properties": {
-              "operation": {
-                "minLength": 1,
-                "type": "string"
-              },
-              "requirement": {
-                "minLength": 1,
-                "type": "string"
-              }
-            },
-            "required": [
-              "requirement",
-              "operation"
-            ],
-            "type": "object"
-          },
-          "type": "array"
-        },
-        "skills": {
-          "items": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "tools": {
-          "items": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "type": "array"
-        }
-      },
-      "type": "object"
-    },
     "calls": {
       "items": {
         "$id": "https://runx.ai/spec/turn-call.schema.json",
@@ -121,577 +80,195 @@
               {
                 "additionalProperties": false,
                 "properties": {
-                  "request": {
-                    "$id": "https://runx.ai/spec/resolution-request.schema.json",
-                    "$schema": "https://json-schema.org/draft/2020-12/schema",
-                    "anyOf": [
-                      {
-                        "additionalProperties": false,
-                        "properties": {
-                          "id": {
-                            "minLength": 1,
-                            "type": "string"
+                  "status": {
+                    "const": "pending",
+                    "type": "string"
+                  },
+                  "waiting": {
+                    "items": {
+                      "$id": "https://runx.ai/spec/resolution-request.schema.json",
+                      "$schema": "https://json-schema.org/draft/2020-12/schema",
+                      "anyOf": [
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "id": {
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "kind": {
+                              "const": "input",
+                              "type": "string"
+                            },
+                            "questions": {
+                              "items": {
+                                "$id": "https://runx.ai/spec/question.schema.json",
+                                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                "additionalProperties": false,
+                                "properties": {
+                                  "description": {
+                                    "type": "string"
+                                  },
+                                  "id": {
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "prompt": {
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "required": {
+                                    "type": "boolean"
+                                  },
+                                  "type": {
+                                    "minLength": 1,
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "id",
+                                  "prompt",
+                                  "required",
+                                  "type"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array"
+                            }
                           },
-                          "kind": {
-                            "const": "input",
-                            "type": "string"
-                          },
-                          "questions": {
-                            "items": {
-                              "$id": "https://runx.ai/spec/question.schema.json",
+                          "required": [
+                            "kind",
+                            "id",
+                            "questions"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "gate": {
+                              "$id": "https://runx.ai/spec/approval-gate.schema.json",
                               "$schema": "https://json-schema.org/draft/2020-12/schema",
                               "additionalProperties": false,
                               "properties": {
-                                "description": {
-                                  "type": "string"
-                                },
                                 "id": {
                                   "minLength": 1,
                                   "type": "string"
                                 },
-                                "prompt": {
+                                "reason": {
                                   "minLength": 1,
                                   "type": "string"
                                 },
-                                "required": {
-                                  "type": "boolean"
+                                "summary": {
+                                  "additionalProperties": {},
+                                  "type": "object"
                                 },
                                 "type": {
-                                  "minLength": 1,
                                   "type": "string"
                                 }
                               },
                               "required": [
                                 "id",
-                                "prompt",
-                                "required",
-                                "type"
+                                "reason"
                               ],
                               "type": "object"
                             },
-                            "type": "array"
-                          }
-                        },
-                        "required": [
-                          "kind",
-                          "id",
-                          "questions"
-                        ],
-                        "type": "object"
-                      },
-                      {
-                        "additionalProperties": false,
-                        "properties": {
-                          "gate": {
-                            "$id": "https://runx.ai/spec/approval-gate.schema.json",
-                            "$schema": "https://json-schema.org/draft/2020-12/schema",
-                            "additionalProperties": false,
-                            "properties": {
-                              "id": {
-                                "minLength": 1,
-                                "type": "string"
-                              },
-                              "reason": {
-                                "minLength": 1,
-                                "type": "string"
-                              },
-                              "summary": {
-                                "additionalProperties": {},
-                                "type": "object"
-                              },
-                              "type": {
-                                "type": "string"
-                              }
+                            "id": {
+                              "minLength": 1,
+                              "type": "string"
                             },
-                            "required": [
-                              "id",
-                              "reason"
-                            ],
-                            "type": "object"
+                            "kind": {
+                              "const": "approval",
+                              "type": "string"
+                            }
                           },
-                          "id": {
-                            "minLength": 1,
-                            "type": "string"
-                          },
-                          "kind": {
-                            "const": "approval",
-                            "type": "string"
-                          }
+                          "required": [
+                            "kind",
+                            "id",
+                            "gate"
+                          ],
+                          "type": "object"
                         },
-                        "required": [
-                          "kind",
-                          "id",
-                          "gate"
-                        ],
-                        "type": "object"
-                      },
-                      {
-                        "additionalProperties": false,
-                        "properties": {
-                          "id": {
-                            "minLength": 1,
-                            "type": "string"
-                          },
-                          "invocation": {
-                            "$id": "https://runx.ai/spec/agent-act-invocation.schema.json",
-                            "$schema": "https://json-schema.org/draft/2020-12/schema",
-                            "additionalProperties": false,
-                            "properties": {
-                              "allowance": {
-                                "additionalProperties": false,
-                                "properties": {
-                                  "operations": {
-                                    "items": {
-                                      "additionalProperties": false,
-                                      "properties": {
-                                        "operation": {
-                                          "minLength": 1,
-                                          "type": "string"
-                                        },
-                                        "requirement": {
-                                          "minLength": 1,
-                                          "type": "string"
-                                        }
-                                      },
-                                      "required": [
-                                        "requirement",
-                                        "operation"
-                                      ],
-                                      "type": "object"
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "id": {
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "invocation": {
+                              "$id": "https://runx.ai/spec/agent-act-invocation.schema.json",
+                              "$schema": "https://json-schema.org/draft/2020-12/schema",
+                              "additionalProperties": false,
+                              "properties": {
+                                "allowance": {
+                                  "additionalProperties": false,
+                                  "properties": {
+                                    "asks": {
+                                      "type": "boolean"
                                     },
-                                    "type": "array"
-                                  },
-                                  "skills": {
-                                    "items": {
-                                      "minLength": 1,
-                                      "type": "string"
-                                    },
-                                    "type": "array"
-                                  },
-                                  "tools": {
-                                    "items": {
-                                      "minLength": 1,
-                                      "type": "string"
-                                    },
-                                    "type": "array"
-                                  }
-                                },
-                                "type": "object"
-                              },
-                              "envelope": {
-                                "$id": "https://runx.ai/spec/agent-context-envelope.schema.json",
-                                "$schema": "https://json-schema.org/draft/2020-12/schema",
-                                "additionalProperties": false,
-                                "properties": {
-                                  "context": {
-                                    "additionalProperties": false,
-                                    "properties": {
-                                      "conventions": {
+                                    "operations": {
+                                      "items": {
                                         "additionalProperties": false,
                                         "properties": {
-                                          "content": {
-                                            "type": "string"
-                                          },
-                                          "path": {
+                                          "operation": {
                                             "minLength": 1,
                                             "type": "string"
                                           },
-                                          "root_path": {
+                                          "requirement": {
                                             "minLength": 1,
-                                            "type": "string"
-                                          },
-                                          "sha256": {
-                                            "minLength": 1,
-                                            "type": "string"
-                                          },
-                                          "sharing": {
-                                            "enum": [
-                                              "local_only",
-                                              "configured_model"
-                                            ],
                                             "type": "string"
                                           }
                                         },
                                         "required": [
-                                          "sharing",
-                                          "root_path",
-                                          "path",
-                                          "sha256",
-                                          "content"
+                                          "requirement",
+                                          "operation"
                                         ],
                                         "type": "object"
                                       },
-                                      "memory": {
-                                        "additionalProperties": false,
-                                        "properties": {
-                                          "content": {
-                                            "type": "string"
-                                          },
-                                          "path": {
-                                            "minLength": 1,
-                                            "type": "string"
-                                          },
-                                          "root_path": {
-                                            "minLength": 1,
-                                            "type": "string"
-                                          },
-                                          "sha256": {
-                                            "minLength": 1,
-                                            "type": "string"
-                                          },
-                                          "sharing": {
-                                            "enum": [
-                                              "local_only",
-                                              "configured_model"
-                                            ],
-                                            "type": "string"
-                                          }
-                                        },
-                                        "required": [
-                                          "sharing",
-                                          "root_path",
-                                          "path",
-                                          "sha256",
-                                          "content"
-                                        ],
-                                        "type": "object"
-                                      }
+                                      "type": "array"
                                     },
-                                    "type": "object"
-                                  },
-                                  "current_context": {
-                                    "items": {
-                                      "additionalProperties": false,
-                                      "properties": {
-                                        "data": {
-                                          "additionalProperties": {},
-                                          "type": "object"
-                                        },
-                                        "meta": {
-                                          "additionalProperties": false,
-                                          "properties": {
-                                            "artifact_id": {
-                                              "minLength": 1,
-                                              "type": "string"
-                                            },
-                                            "created_at": {
-                                              "minLength": 1,
-                                              "type": "string"
-                                            },
-                                            "hash": {
-                                              "minLength": 1,
-                                              "type": "string"
-                                            },
-                                            "parent_artifact_id": {
-                                              "anyOf": [
-                                                {
-                                                  "minLength": 1,
-                                                  "type": "string"
-                                                },
-                                                {
-                                                  "type": "null"
-                                                }
-                                              ]
-                                            },
-                                            "producer": {
-                                              "additionalProperties": false,
-                                              "properties": {
-                                                "runner": {
-                                                  "minLength": 1,
-                                                  "type": "string"
-                                                },
-                                                "skill": {
-                                                  "minLength": 1,
-                                                  "type": "string"
-                                                }
-                                              },
-                                              "required": [
-                                                "skill",
-                                                "runner"
-                                              ],
-                                              "type": "object"
-                                            },
-                                            "receipt_id": {
-                                              "anyOf": [
-                                                {
-                                                  "minLength": 1,
-                                                  "type": "string"
-                                                },
-                                                {
-                                                  "type": "null"
-                                                }
-                                              ]
-                                            },
-                                            "redacted": {
-                                              "type": "boolean"
-                                            },
-                                            "run_id": {
-                                              "minLength": 1,
-                                              "type": "string"
-                                            },
-                                            "size_bytes": {
-                                              "type": "integer"
-                                            },
-                                            "step_id": {
-                                              "anyOf": [
-                                                {
-                                                  "minLength": 1,
-                                                  "type": "string"
-                                                },
-                                                {
-                                                  "type": "null"
-                                                }
-                                              ]
-                                            }
-                                          },
-                                          "required": [
-                                            "artifact_id",
-                                            "run_id",
-                                            "step_id",
-                                            "producer",
-                                            "created_at",
-                                            "hash",
-                                            "size_bytes",
-                                            "parent_artifact_id",
-                                            "receipt_id",
-                                            "redacted"
-                                          ],
-                                          "type": "object"
-                                        },
-                                        "scope": {
-                                          "additionalProperties": false,
-                                          "properties": {
-                                            "goal_id": {
-                                              "anyOf": [
-                                                {
-                                                  "minLength": 1,
-                                                  "type": "string"
-                                                },
-                                                {
-                                                  "type": "null"
-                                                }
-                                              ]
-                                            },
-                                            "purpose": {
-                                              "enum": [
-                                                "procedure",
-                                                "mandate",
-                                                "confirmed_memory",
-                                                "observation",
-                                                "work_continuity",
-                                                "retrieved_history",
-                                                "hypothesis"
-                                              ],
-                                              "type": "string"
-                                            },
-                                            "sharing": {
-                                              "enum": [
-                                                "local_only",
-                                                "configured_model"
-                                              ],
-                                              "type": "string"
-                                            },
-                                            "source_ref": {
-                                              "anyOf": [
-                                                {
-                                                  "minLength": 1,
-                                                  "type": "string"
-                                                },
-                                                {
-                                                  "type": "null"
-                                                }
-                                              ]
-                                            },
-                                            "trust": {
-                                              "enum": [
-                                                "operator_confirmed",
-                                                "skill_instructions",
-                                                "untrusted_evidence"
-                                              ],
-                                              "type": "string"
-                                            }
-                                          },
-                                          "required": [
-                                            "purpose",
-                                            "trust",
-                                            "sharing",
-                                            "goal_id",
-                                            "source_ref"
-                                          ],
-                                          "type": "object"
-                                        },
-                                        "type": {
-                                          "anyOf": [
-                                            {
-                                              "minLength": 1,
-                                              "type": "string"
-                                            },
-                                            {
-                                              "type": "null"
-                                            }
-                                          ]
-                                        },
-                                        "version": {
-                                          "enum": [
-                                            "1"
-                                          ],
-                                          "type": "string"
-                                        }
-                                      },
-                                      "required": [
-                                        "type",
-                                        "version",
-                                        "scope",
-                                        "data",
-                                        "meta"
-                                      ],
-                                      "type": "object"
-                                    },
-                                    "type": "array"
-                                  },
-                                  "execution_location": {
-                                    "additionalProperties": false,
-                                    "properties": {
-                                      "skill_directory": {
+                                    "skills": {
+                                      "items": {
                                         "minLength": 1,
                                         "type": "string"
                                       },
-                                      "tool_roots": {
-                                        "items": {
-                                          "minLength": 1,
-                                          "type": "string"
-                                        },
-                                        "type": "array"
-                                      }
+                                      "type": "array"
                                     },
-                                    "required": [
-                                      "skill_directory"
-                                    ],
-                                    "type": "object"
+                                    "tools": {
+                                      "items": {
+                                        "minLength": 1,
+                                        "type": "string"
+                                      },
+                                      "type": "array"
+                                    }
                                   },
-                                  "historical_context": {
-                                    "items": {
+                                  "type": "object"
+                                },
+                                "envelope": {
+                                  "$id": "https://runx.ai/spec/agent-context-envelope.schema.json",
+                                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                  "additionalProperties": false,
+                                  "properties": {
+                                    "context": {
                                       "additionalProperties": false,
                                       "properties": {
-                                        "data": {
-                                          "additionalProperties": {},
-                                          "type": "object"
-                                        },
-                                        "meta": {
+                                        "conventions": {
                                           "additionalProperties": false,
                                           "properties": {
-                                            "artifact_id": {
+                                            "content": {
+                                              "type": "string"
+                                            },
+                                            "path": {
                                               "minLength": 1,
                                               "type": "string"
                                             },
-                                            "created_at": {
+                                            "root_path": {
                                               "minLength": 1,
                                               "type": "string"
                                             },
-                                            "hash": {
+                                            "sha256": {
                                               "minLength": 1,
-                                              "type": "string"
-                                            },
-                                            "parent_artifact_id": {
-                                              "anyOf": [
-                                                {
-                                                  "minLength": 1,
-                                                  "type": "string"
-                                                },
-                                                {
-                                                  "type": "null"
-                                                }
-                                              ]
-                                            },
-                                            "producer": {
-                                              "additionalProperties": false,
-                                              "properties": {
-                                                "runner": {
-                                                  "minLength": 1,
-                                                  "type": "string"
-                                                },
-                                                "skill": {
-                                                  "minLength": 1,
-                                                  "type": "string"
-                                                }
-                                              },
-                                              "required": [
-                                                "skill",
-                                                "runner"
-                                              ],
-                                              "type": "object"
-                                            },
-                                            "receipt_id": {
-                                              "anyOf": [
-                                                {
-                                                  "minLength": 1,
-                                                  "type": "string"
-                                                },
-                                                {
-                                                  "type": "null"
-                                                }
-                                              ]
-                                            },
-                                            "redacted": {
-                                              "type": "boolean"
-                                            },
-                                            "run_id": {
-                                              "minLength": 1,
-                                              "type": "string"
-                                            },
-                                            "size_bytes": {
-                                              "type": "integer"
-                                            },
-                                            "step_id": {
-                                              "anyOf": [
-                                                {
-                                                  "minLength": 1,
-                                                  "type": "string"
-                                                },
-                                                {
-                                                  "type": "null"
-                                                }
-                                              ]
-                                            }
-                                          },
-                                          "required": [
-                                            "artifact_id",
-                                            "run_id",
-                                            "step_id",
-                                            "producer",
-                                            "created_at",
-                                            "hash",
-                                            "size_bytes",
-                                            "parent_artifact_id",
-                                            "receipt_id",
-                                            "redacted"
-                                          ],
-                                          "type": "object"
-                                        },
-                                        "scope": {
-                                          "additionalProperties": false,
-                                          "properties": {
-                                            "goal_id": {
-                                              "anyOf": [
-                                                {
-                                                  "minLength": 1,
-                                                  "type": "string"
-                                                },
-                                                {
-                                                  "type": "null"
-                                                }
-                                              ]
-                                            },
-                                            "purpose": {
-                                              "enum": [
-                                                "procedure",
-                                                "mandate",
-                                                "confirmed_memory",
-                                                "observation",
-                                                "work_continuity",
-                                                "retrieved_history",
-                                                "hypothesis"
-                                              ],
                                               "type": "string"
                                             },
                                             "sharing": {
@@ -700,383 +277,771 @@
                                                 "configured_model"
                                               ],
                                               "type": "string"
+                                            }
+                                          },
+                                          "required": [
+                                            "sharing",
+                                            "root_path",
+                                            "path",
+                                            "sha256",
+                                            "content"
+                                          ],
+                                          "type": "object"
+                                        },
+                                        "memory": {
+                                          "additionalProperties": false,
+                                          "properties": {
+                                            "content": {
+                                              "type": "string"
                                             },
-                                            "source_ref": {
-                                              "anyOf": [
-                                                {
-                                                  "minLength": 1,
-                                                  "type": "string"
-                                                },
-                                                {
-                                                  "type": "null"
-                                                }
-                                              ]
+                                            "path": {
+                                              "minLength": 1,
+                                              "type": "string"
                                             },
-                                            "trust": {
+                                            "root_path": {
+                                              "minLength": 1,
+                                              "type": "string"
+                                            },
+                                            "sha256": {
+                                              "minLength": 1,
+                                              "type": "string"
+                                            },
+                                            "sharing": {
                                               "enum": [
-                                                "operator_confirmed",
-                                                "skill_instructions",
-                                                "untrusted_evidence"
+                                                "local_only",
+                                                "configured_model"
                                               ],
                                               "type": "string"
                                             }
                                           },
                                           "required": [
-                                            "purpose",
-                                            "trust",
                                             "sharing",
-                                            "goal_id",
-                                            "source_ref"
+                                            "root_path",
+                                            "path",
+                                            "sha256",
+                                            "content"
                                           ],
                                           "type": "object"
-                                        },
-                                        "type": {
-                                          "anyOf": [
-                                            {
-                                              "minLength": 1,
-                                              "type": "string"
-                                            },
-                                            {
-                                              "type": "null"
-                                            }
-                                          ]
-                                        },
-                                        "version": {
-                                          "enum": [
-                                            "1"
-                                          ],
-                                          "type": "string"
                                         }
                                       },
-                                      "required": [
-                                        "type",
-                                        "version",
-                                        "scope",
-                                        "data",
-                                        "meta"
-                                      ],
                                       "type": "object"
                                     },
-                                    "type": "array"
-                                  },
-                                  "inputs": {
-                                    "additionalProperties": {},
-                                    "type": "object"
-                                  },
-                                  "instructions": {
-                                    "minLength": 1,
-                                    "type": "string"
-                                  },
-                                  "instructions_sha256": {
-                                    "minLength": 1,
-                                    "type": "string"
-                                  },
-                                  "output": {
-                                    "additionalProperties": {
-                                      "anyOf": [
-                                        {
-                                          "enum": [
-                                            "string",
-                                            "number",
-                                            "integer",
-                                            "boolean",
-                                            "array",
-                                            "object",
-                                            "null"
-                                          ],
-                                          "type": "string"
-                                        },
-                                        {
-                                          "additionalProperties": false,
-                                          "properties": {
-                                            "description": {
-                                              "type": "string"
-                                            },
-                                            "enum": {
-                                              "items": {
-                                                "type": "string"
-                                              },
-                                              "type": "array"
-                                            },
-                                            "required": {
-                                              "type": "boolean"
-                                            },
-                                            "schema": {
-                                              "additionalProperties": {},
-                                              "type": "object"
-                                            },
-                                            "type": {
-                                              "enum": [
-                                                "string",
-                                                "number",
-                                                "integer",
-                                                "boolean",
-                                                "array",
-                                                "object",
-                                                "null"
-                                              ],
-                                              "type": "string"
-                                            },
-                                            "wrap_as": {
-                                              "minLength": 1,
-                                              "type": "string"
-                                            }
-                                          },
-                                          "type": "object"
-                                        }
-                                      ]
-                                    },
-                                    "type": "object"
-                                  },
-                                  "output_schema": {},
-                                  "provenance": {
-                                    "items": {
-                                      "additionalProperties": false,
-                                      "properties": {
-                                        "artifact_id": {
-                                          "type": "string"
-                                        },
-                                        "from_step": {
-                                          "type": "string"
-                                        },
-                                        "input": {
-                                          "minLength": 1,
-                                          "type": "string"
-                                        },
-                                        "output": {
-                                          "minLength": 1,
-                                          "type": "string"
-                                        },
-                                        "receipt_id": {
-                                          "type": "string"
-                                        }
-                                      },
-                                      "required": [
-                                        "input",
-                                        "output"
-                                      ],
-                                      "type": "object"
-                                    },
-                                    "type": "array"
-                                  },
-                                  "requirements": {
-                                    "additionalProperties": false,
-                                    "properties": {
-                                      "declaration": {
+                                    "current_context": {
+                                      "items": {
                                         "additionalProperties": false,
                                         "properties": {
-                                          "environment": {
+                                          "data": {
+                                            "additionalProperties": {},
+                                            "type": "object"
+                                          },
+                                          "meta": {
                                             "additionalProperties": false,
                                             "properties": {
-                                              "optional": {
+                                              "artifact_id": {
+                                                "minLength": 1,
+                                                "type": "string"
+                                              },
+                                              "created_at": {
+                                                "minLength": 1,
+                                                "type": "string"
+                                              },
+                                              "hash": {
+                                                "minLength": 1,
+                                                "type": "string"
+                                              },
+                                              "parent_artifact_id": {
+                                                "anyOf": [
+                                                  {
+                                                    "minLength": 1,
+                                                    "type": "string"
+                                                  },
+                                                  {
+                                                    "type": "null"
+                                                  }
+                                                ]
+                                              },
+                                              "producer": {
+                                                "additionalProperties": false,
+                                                "properties": {
+                                                  "runner": {
+                                                    "minLength": 1,
+                                                    "type": "string"
+                                                  },
+                                                  "skill": {
+                                                    "minLength": 1,
+                                                    "type": "string"
+                                                  }
+                                                },
+                                                "required": [
+                                                  "skill",
+                                                  "runner"
+                                                ],
+                                                "type": "object"
+                                              },
+                                              "receipt_id": {
+                                                "anyOf": [
+                                                  {
+                                                    "minLength": 1,
+                                                    "type": "string"
+                                                  },
+                                                  {
+                                                    "type": "null"
+                                                  }
+                                                ]
+                                              },
+                                              "redacted": {
+                                                "type": "boolean"
+                                              },
+                                              "run_id": {
+                                                "minLength": 1,
+                                                "type": "string"
+                                              },
+                                              "size_bytes": {
+                                                "type": "integer"
+                                              },
+                                              "step_id": {
+                                                "anyOf": [
+                                                  {
+                                                    "minLength": 1,
+                                                    "type": "string"
+                                                  },
+                                                  {
+                                                    "type": "null"
+                                                  }
+                                                ]
+                                              }
+                                            },
+                                            "required": [
+                                              "artifact_id",
+                                              "run_id",
+                                              "step_id",
+                                              "producer",
+                                              "created_at",
+                                              "hash",
+                                              "size_bytes",
+                                              "parent_artifact_id",
+                                              "receipt_id",
+                                              "redacted"
+                                            ],
+                                            "type": "object"
+                                          },
+                                          "scope": {
+                                            "additionalProperties": false,
+                                            "properties": {
+                                              "goal_id": {
+                                                "anyOf": [
+                                                  {
+                                                    "minLength": 1,
+                                                    "type": "string"
+                                                  },
+                                                  {
+                                                    "type": "null"
+                                                  }
+                                                ]
+                                              },
+                                              "purpose": {
+                                                "enum": [
+                                                  "procedure",
+                                                  "mandate",
+                                                  "confirmed_memory",
+                                                  "observation",
+                                                  "work_continuity",
+                                                  "retrieved_history",
+                                                  "hypothesis"
+                                                ],
+                                                "type": "string"
+                                              },
+                                              "sharing": {
+                                                "enum": [
+                                                  "local_only",
+                                                  "configured_model"
+                                                ],
+                                                "type": "string"
+                                              },
+                                              "source_ref": {
+                                                "anyOf": [
+                                                  {
+                                                    "minLength": 1,
+                                                    "type": "string"
+                                                  },
+                                                  {
+                                                    "type": "null"
+                                                  }
+                                                ]
+                                              },
+                                              "trust": {
+                                                "enum": [
+                                                  "operator_confirmed",
+                                                  "skill_instructions",
+                                                  "untrusted_evidence"
+                                                ],
+                                                "type": "string"
+                                              }
+                                            },
+                                            "required": [
+                                              "purpose",
+                                              "trust",
+                                              "sharing",
+                                              "goal_id",
+                                              "source_ref"
+                                            ],
+                                            "type": "object"
+                                          },
+                                          "type": {
+                                            "anyOf": [
+                                              {
+                                                "minLength": 1,
+                                                "type": "string"
+                                              },
+                                              {
+                                                "type": "null"
+                                              }
+                                            ]
+                                          },
+                                          "version": {
+                                            "enum": [
+                                              "1"
+                                            ],
+                                            "type": "string"
+                                          }
+                                        },
+                                        "required": [
+                                          "type",
+                                          "version",
+                                          "scope",
+                                          "data",
+                                          "meta"
+                                        ],
+                                        "type": "object"
+                                      },
+                                      "type": "array"
+                                    },
+                                    "execution_location": {
+                                      "additionalProperties": false,
+                                      "properties": {
+                                        "skill_directory": {
+                                          "minLength": 1,
+                                          "type": "string"
+                                        },
+                                        "tool_roots": {
+                                          "items": {
+                                            "minLength": 1,
+                                            "type": "string"
+                                          },
+                                          "type": "array"
+                                        }
+                                      },
+                                      "required": [
+                                        "skill_directory"
+                                      ],
+                                      "type": "object"
+                                    },
+                                    "historical_context": {
+                                      "items": {
+                                        "additionalProperties": false,
+                                        "properties": {
+                                          "data": {
+                                            "additionalProperties": {},
+                                            "type": "object"
+                                          },
+                                          "meta": {
+                                            "additionalProperties": false,
+                                            "properties": {
+                                              "artifact_id": {
+                                                "minLength": 1,
+                                                "type": "string"
+                                              },
+                                              "created_at": {
+                                                "minLength": 1,
+                                                "type": "string"
+                                              },
+                                              "hash": {
+                                                "minLength": 1,
+                                                "type": "string"
+                                              },
+                                              "parent_artifact_id": {
+                                                "anyOf": [
+                                                  {
+                                                    "minLength": 1,
+                                                    "type": "string"
+                                                  },
+                                                  {
+                                                    "type": "null"
+                                                  }
+                                                ]
+                                              },
+                                              "producer": {
+                                                "additionalProperties": false,
+                                                "properties": {
+                                                  "runner": {
+                                                    "minLength": 1,
+                                                    "type": "string"
+                                                  },
+                                                  "skill": {
+                                                    "minLength": 1,
+                                                    "type": "string"
+                                                  }
+                                                },
+                                                "required": [
+                                                  "skill",
+                                                  "runner"
+                                                ],
+                                                "type": "object"
+                                              },
+                                              "receipt_id": {
+                                                "anyOf": [
+                                                  {
+                                                    "minLength": 1,
+                                                    "type": "string"
+                                                  },
+                                                  {
+                                                    "type": "null"
+                                                  }
+                                                ]
+                                              },
+                                              "redacted": {
+                                                "type": "boolean"
+                                              },
+                                              "run_id": {
+                                                "minLength": 1,
+                                                "type": "string"
+                                              },
+                                              "size_bytes": {
+                                                "type": "integer"
+                                              },
+                                              "step_id": {
+                                                "anyOf": [
+                                                  {
+                                                    "minLength": 1,
+                                                    "type": "string"
+                                                  },
+                                                  {
+                                                    "type": "null"
+                                                  }
+                                                ]
+                                              }
+                                            },
+                                            "required": [
+                                              "artifact_id",
+                                              "run_id",
+                                              "step_id",
+                                              "producer",
+                                              "created_at",
+                                              "hash",
+                                              "size_bytes",
+                                              "parent_artifact_id",
+                                              "receipt_id",
+                                              "redacted"
+                                            ],
+                                            "type": "object"
+                                          },
+                                          "scope": {
+                                            "additionalProperties": false,
+                                            "properties": {
+                                              "goal_id": {
+                                                "anyOf": [
+                                                  {
+                                                    "minLength": 1,
+                                                    "type": "string"
+                                                  },
+                                                  {
+                                                    "type": "null"
+                                                  }
+                                                ]
+                                              },
+                                              "purpose": {
+                                                "enum": [
+                                                  "procedure",
+                                                  "mandate",
+                                                  "confirmed_memory",
+                                                  "observation",
+                                                  "work_continuity",
+                                                  "retrieved_history",
+                                                  "hypothesis"
+                                                ],
+                                                "type": "string"
+                                              },
+                                              "sharing": {
+                                                "enum": [
+                                                  "local_only",
+                                                  "configured_model"
+                                                ],
+                                                "type": "string"
+                                              },
+                                              "source_ref": {
+                                                "anyOf": [
+                                                  {
+                                                    "minLength": 1,
+                                                    "type": "string"
+                                                  },
+                                                  {
+                                                    "type": "null"
+                                                  }
+                                                ]
+                                              },
+                                              "trust": {
+                                                "enum": [
+                                                  "operator_confirmed",
+                                                  "skill_instructions",
+                                                  "untrusted_evidence"
+                                                ],
+                                                "type": "string"
+                                              }
+                                            },
+                                            "required": [
+                                              "purpose",
+                                              "trust",
+                                              "sharing",
+                                              "goal_id",
+                                              "source_ref"
+                                            ],
+                                            "type": "object"
+                                          },
+                                          "type": {
+                                            "anyOf": [
+                                              {
+                                                "minLength": 1,
+                                                "type": "string"
+                                              },
+                                              {
+                                                "type": "null"
+                                              }
+                                            ]
+                                          },
+                                          "version": {
+                                            "enum": [
+                                              "1"
+                                            ],
+                                            "type": "string"
+                                          }
+                                        },
+                                        "required": [
+                                          "type",
+                                          "version",
+                                          "scope",
+                                          "data",
+                                          "meta"
+                                        ],
+                                        "type": "object"
+                                      },
+                                      "type": "array"
+                                    },
+                                    "inputs": {
+                                      "additionalProperties": {},
+                                      "type": "object"
+                                    },
+                                    "instructions": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    },
+                                    "instructions_sha256": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    },
+                                    "output": {
+                                      "additionalProperties": {
+                                        "anyOf": [
+                                          {
+                                            "enum": [
+                                              "string",
+                                              "number",
+                                              "integer",
+                                              "boolean",
+                                              "array",
+                                              "object",
+                                              "null"
+                                            ],
+                                            "type": "string"
+                                          },
+                                          {
+                                            "additionalProperties": false,
+                                            "properties": {
+                                              "description": {
+                                                "type": "string"
+                                              },
+                                              "enum": {
                                                 "items": {
                                                   "type": "string"
                                                 },
                                                 "type": "array"
                                               },
                                               "required": {
-                                                "items": {
-                                                  "type": "string"
-                                                },
-                                                "type": "array"
+                                                "type": "boolean"
+                                              },
+                                              "schema": {
+                                                "additionalProperties": {},
+                                                "type": "object"
+                                              },
+                                              "type": {
+                                                "enum": [
+                                                  "string",
+                                                  "number",
+                                                  "integer",
+                                                  "boolean",
+                                                  "array",
+                                                  "object",
+                                                  "null"
+                                                ],
+                                                "type": "string"
+                                              },
+                                              "wrap_as": {
+                                                "minLength": 1,
+                                                "type": "string"
                                               }
                                             },
                                             "type": "object"
-                                          },
-                                          "scopes": {
-                                            "items": {
-                                              "type": "string"
-                                            },
-                                            "type": "array"
                                           }
-                                        },
-                                        "type": "object"
+                                        ]
                                       },
-                                      "environment": {
-                                        "items": {
-                                          "additionalProperties": false,
-                                          "properties": {
-                                            "available": {
-                                              "type": "boolean"
-                                            },
-                                            "name": {
-                                              "type": "string"
-                                            },
-                                            "required": {
-                                              "type": "boolean"
-                                            }
-                                          },
-                                          "required": [
-                                            "name",
-                                            "required",
-                                            "available"
-                                          ],
-                                          "type": "object"
-                                        },
-                                        "type": "array"
-                                      },
-                                      "execution_boundary": {
+                                      "type": "object"
+                                    },
+                                    "output_schema": {},
+                                    "provenance": {
+                                      "items": {
                                         "additionalProperties": false,
                                         "properties": {
-                                          "kind": {
-                                            "enum": [
-                                              "trusted_host_process",
-                                              "deterministic_worker",
-                                              "native_capability",
-                                              "remote_provider"
-                                            ],
+                                          "artifact_id": {
+                                            "type": "string"
+                                          },
+                                          "from_step": {
+                                            "type": "string"
+                                          },
+                                          "input": {
+                                            "minLength": 1,
+                                            "type": "string"
+                                          },
+                                          "output": {
+                                            "minLength": 1,
+                                            "type": "string"
+                                          },
+                                          "receipt_id": {
                                             "type": "string"
                                           }
                                         },
                                         "required": [
-                                          "kind"
+                                          "input",
+                                          "output"
                                         ],
                                         "type": "object"
-                                      }
+                                      },
+                                      "type": "array"
                                     },
-                                    "required": [
-                                      "declaration",
-                                      "execution_boundary"
-                                    ],
-                                    "type": "object"
-                                  },
-                                  "run_id": {
-                                    "minLength": 1,
-                                    "type": "string"
-                                  },
-                                  "skill": {
-                                    "minLength": 1,
-                                    "type": "string"
-                                  },
-                                  "step_id": {
-                                    "minLength": 1,
-                                    "type": "string"
-                                  },
-                                  "trust_boundary": {
-                                    "minLength": 1,
-                                    "type": "string"
-                                  },
-                                  "voice_profile": {
-                                    "additionalProperties": false,
-                                    "properties": {
-                                      "content": {
-                                        "type": "string"
+                                    "requirements": {
+                                      "additionalProperties": false,
+                                      "properties": {
+                                        "declaration": {
+                                          "additionalProperties": false,
+                                          "properties": {
+                                            "environment": {
+                                              "additionalProperties": false,
+                                              "properties": {
+                                                "optional": {
+                                                  "items": {
+                                                    "type": "string"
+                                                  },
+                                                  "type": "array"
+                                                },
+                                                "required": {
+                                                  "items": {
+                                                    "type": "string"
+                                                  },
+                                                  "type": "array"
+                                                }
+                                              },
+                                              "type": "object"
+                                            },
+                                            "scopes": {
+                                              "items": {
+                                                "type": "string"
+                                              },
+                                              "type": "array"
+                                            }
+                                          },
+                                          "type": "object"
+                                        },
+                                        "environment": {
+                                          "items": {
+                                            "additionalProperties": false,
+                                            "properties": {
+                                              "available": {
+                                                "type": "boolean"
+                                              },
+                                              "name": {
+                                                "type": "string"
+                                              },
+                                              "required": {
+                                                "type": "boolean"
+                                              }
+                                            },
+                                            "required": [
+                                              "name",
+                                              "required",
+                                              "available"
+                                            ],
+                                            "type": "object"
+                                          },
+                                          "type": "array"
+                                        },
+                                        "execution_boundary": {
+                                          "additionalProperties": false,
+                                          "properties": {
+                                            "kind": {
+                                              "enum": [
+                                                "trusted_host_process",
+                                                "deterministic_worker",
+                                                "native_capability",
+                                                "remote_provider"
+                                              ],
+                                              "type": "string"
+                                            }
+                                          },
+                                          "required": [
+                                            "kind"
+                                          ],
+                                          "type": "object"
+                                        }
                                       },
-                                      "path": {
-                                        "minLength": 1,
-                                        "type": "string"
-                                      },
-                                      "root_path": {
-                                        "minLength": 1,
-                                        "type": "string"
-                                      },
-                                      "sha256": {
-                                        "minLength": 1,
-                                        "type": "string"
-                                      },
-                                      "sharing": {
-                                        "enum": [
-                                          "local_only",
-                                          "configured_model"
-                                        ],
-                                        "type": "string"
-                                      }
+                                      "required": [
+                                        "declaration",
+                                        "execution_boundary"
+                                      ],
+                                      "type": "object"
                                     },
-                                    "required": [
-                                      "sharing",
-                                      "root_path",
-                                      "path",
-                                      "sha256",
-                                      "content"
-                                    ],
-                                    "type": "object"
-                                  }
+                                    "run_id": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    },
+                                    "skill": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    },
+                                    "step_id": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    },
+                                    "trust_boundary": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    },
+                                    "voice_profile": {
+                                      "additionalProperties": false,
+                                      "properties": {
+                                        "content": {
+                                          "type": "string"
+                                        },
+                                        "path": {
+                                          "minLength": 1,
+                                          "type": "string"
+                                        },
+                                        "root_path": {
+                                          "minLength": 1,
+                                          "type": "string"
+                                        },
+                                        "sha256": {
+                                          "minLength": 1,
+                                          "type": "string"
+                                        },
+                                        "sharing": {
+                                          "enum": [
+                                            "local_only",
+                                            "configured_model"
+                                          ],
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "sharing",
+                                        "root_path",
+                                        "path",
+                                        "sha256",
+                                        "content"
+                                      ],
+                                      "type": "object"
+                                    }
+                                  },
+                                  "required": [
+                                    "run_id",
+                                    "skill",
+                                    "instructions_sha256",
+                                    "instructions",
+                                    "inputs",
+                                    "requirements",
+                                    "current_context",
+                                    "historical_context",
+                                    "provenance",
+                                    "trust_boundary"
+                                  ],
+                                  "type": "object"
                                 },
-                                "required": [
-                                  "run_id",
-                                  "skill",
-                                  "instructions_sha256",
-                                  "instructions",
-                                  "inputs",
-                                  "requirements",
-                                  "current_context",
-                                  "historical_context",
-                                  "provenance",
-                                  "trust_boundary"
-                                ],
-                                "type": "object"
+                                "id": {
+                                  "minLength": 1,
+                                  "type": "string"
+                                },
+                                "role": {
+                                  "minLength": 1,
+                                  "type": "string"
+                                },
+                                "task": {
+                                  "minLength": 1,
+                                  "type": "string"
+                                }
                               },
-                              "id": {
-                                "minLength": 1,
-                                "type": "string"
-                              },
-                              "role": {
-                                "minLength": 1,
-                                "type": "string"
-                              },
-                              "task": {
-                                "minLength": 1,
-                                "type": "string"
-                              }
+                              "required": [
+                                "id",
+                                "role",
+                                "task",
+                                "envelope",
+                                "allowance"
+                              ],
+                              "type": "object"
                             },
-                            "required": [
-                              "id",
-                              "role",
-                              "task",
-                              "envelope",
-                              "allowance"
-                            ],
-                            "type": "object"
+                            "kind": {
+                              "const": "agent_act",
+                              "type": "string"
+                            }
                           },
-                          "kind": {
-                            "const": "agent_act",
-                            "type": "string"
-                          }
+                          "required": [
+                            "kind",
+                            "id",
+                            "invocation"
+                          ],
+                          "type": "object"
                         },
-                        "required": [
-                          "kind",
-                          "id",
-                          "invocation"
-                        ],
-                        "type": "object"
-                      },
-                      {
-                        "additionalProperties": false,
-                        "properties": {
-                          "id": {
-                            "minLength": 1,
-                            "type": "string"
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "id": {
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "kind": {
+                              "const": "retry",
+                              "type": "string"
+                            },
+                            "reason": {
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "retry_after_seconds": {
+                              "type": "integer"
+                            }
                           },
-                          "kind": {
-                            "const": "retry",
-                            "type": "string"
-                          },
-                          "reason": {
-                            "minLength": 1,
-                            "type": "string"
-                          },
-                          "retry_after_seconds": {
-                            "type": "integer"
-                          }
-                        },
-                        "required": [
-                          "kind",
-                          "id",
-                          "reason",
-                          "retry_after_seconds"
-                        ],
-                        "type": "object"
-                      }
-                    ]
-                  },
-                  "status": {
-                    "const": "pending",
-                    "type": "string"
+                          "required": [
+                            "kind",
+                            "id",
+                            "reason",
+                            "retry_after_seconds"
+                          ],
+                          "type": "object"
+                        }
+                      ]
+                    },
+                    "type": "array"
                   }
                 },
                 "required": [
                   "status",
-                  "request"
+                  "waiting"
                 ],
                 "type": "object"
               }
@@ -1168,19 +1133,912 @@
       },
       "type": "array"
     },
-    "request_id": {
-      "minLength": 1,
-      "type": "string"
+    "invocation": {
+      "$id": "https://runx.ai/spec/agent-act-invocation.schema.json",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "allowance": {
+          "additionalProperties": false,
+          "properties": {
+            "asks": {
+              "type": "boolean"
+            },
+            "operations": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "operation": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "requirement": {
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "requirement",
+                  "operation"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "skills": {
+              "items": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "tools": {
+              "items": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "type": "object"
+        },
+        "envelope": {
+          "$id": "https://runx.ai/spec/agent-context-envelope.schema.json",
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "context": {
+              "additionalProperties": false,
+              "properties": {
+                "conventions": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "content": {
+                      "type": "string"
+                    },
+                    "path": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "root_path": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "sha256": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "sharing": {
+                      "enum": [
+                        "local_only",
+                        "configured_model"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "sharing",
+                    "root_path",
+                    "path",
+                    "sha256",
+                    "content"
+                  ],
+                  "type": "object"
+                },
+                "memory": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "content": {
+                      "type": "string"
+                    },
+                    "path": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "root_path": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "sha256": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "sharing": {
+                      "enum": [
+                        "local_only",
+                        "configured_model"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "sharing",
+                    "root_path",
+                    "path",
+                    "sha256",
+                    "content"
+                  ],
+                  "type": "object"
+                }
+              },
+              "type": "object"
+            },
+            "current_context": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "data": {
+                    "additionalProperties": {},
+                    "type": "object"
+                  },
+                  "meta": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "artifact_id": {
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      "created_at": {
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      "hash": {
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      "parent_artifact_id": {
+                        "anyOf": [
+                          {
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "producer": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "runner": {
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          "skill": {
+                            "minLength": 1,
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "skill",
+                          "runner"
+                        ],
+                        "type": "object"
+                      },
+                      "receipt_id": {
+                        "anyOf": [
+                          {
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "redacted": {
+                        "type": "boolean"
+                      },
+                      "run_id": {
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      "size_bytes": {
+                        "type": "integer"
+                      },
+                      "step_id": {
+                        "anyOf": [
+                          {
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "artifact_id",
+                      "run_id",
+                      "step_id",
+                      "producer",
+                      "created_at",
+                      "hash",
+                      "size_bytes",
+                      "parent_artifact_id",
+                      "receipt_id",
+                      "redacted"
+                    ],
+                    "type": "object"
+                  },
+                  "scope": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "goal_id": {
+                        "anyOf": [
+                          {
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "purpose": {
+                        "enum": [
+                          "procedure",
+                          "mandate",
+                          "confirmed_memory",
+                          "observation",
+                          "work_continuity",
+                          "retrieved_history",
+                          "hypothesis"
+                        ],
+                        "type": "string"
+                      },
+                      "sharing": {
+                        "enum": [
+                          "local_only",
+                          "configured_model"
+                        ],
+                        "type": "string"
+                      },
+                      "source_ref": {
+                        "anyOf": [
+                          {
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "trust": {
+                        "enum": [
+                          "operator_confirmed",
+                          "skill_instructions",
+                          "untrusted_evidence"
+                        ],
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "purpose",
+                      "trust",
+                      "sharing",
+                      "goal_id",
+                      "source_ref"
+                    ],
+                    "type": "object"
+                  },
+                  "type": {
+                    "anyOf": [
+                      {
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "version": {
+                    "enum": [
+                      "1"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "type",
+                  "version",
+                  "scope",
+                  "data",
+                  "meta"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "execution_location": {
+              "additionalProperties": false,
+              "properties": {
+                "skill_directory": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "tool_roots": {
+                  "items": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "type": "array"
+                }
+              },
+              "required": [
+                "skill_directory"
+              ],
+              "type": "object"
+            },
+            "historical_context": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "data": {
+                    "additionalProperties": {},
+                    "type": "object"
+                  },
+                  "meta": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "artifact_id": {
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      "created_at": {
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      "hash": {
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      "parent_artifact_id": {
+                        "anyOf": [
+                          {
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "producer": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "runner": {
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          "skill": {
+                            "minLength": 1,
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "skill",
+                          "runner"
+                        ],
+                        "type": "object"
+                      },
+                      "receipt_id": {
+                        "anyOf": [
+                          {
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "redacted": {
+                        "type": "boolean"
+                      },
+                      "run_id": {
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      "size_bytes": {
+                        "type": "integer"
+                      },
+                      "step_id": {
+                        "anyOf": [
+                          {
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "artifact_id",
+                      "run_id",
+                      "step_id",
+                      "producer",
+                      "created_at",
+                      "hash",
+                      "size_bytes",
+                      "parent_artifact_id",
+                      "receipt_id",
+                      "redacted"
+                    ],
+                    "type": "object"
+                  },
+                  "scope": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "goal_id": {
+                        "anyOf": [
+                          {
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "purpose": {
+                        "enum": [
+                          "procedure",
+                          "mandate",
+                          "confirmed_memory",
+                          "observation",
+                          "work_continuity",
+                          "retrieved_history",
+                          "hypothesis"
+                        ],
+                        "type": "string"
+                      },
+                      "sharing": {
+                        "enum": [
+                          "local_only",
+                          "configured_model"
+                        ],
+                        "type": "string"
+                      },
+                      "source_ref": {
+                        "anyOf": [
+                          {
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "trust": {
+                        "enum": [
+                          "operator_confirmed",
+                          "skill_instructions",
+                          "untrusted_evidence"
+                        ],
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "purpose",
+                      "trust",
+                      "sharing",
+                      "goal_id",
+                      "source_ref"
+                    ],
+                    "type": "object"
+                  },
+                  "type": {
+                    "anyOf": [
+                      {
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "version": {
+                    "enum": [
+                      "1"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "type",
+                  "version",
+                  "scope",
+                  "data",
+                  "meta"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "inputs": {
+              "additionalProperties": {},
+              "type": "object"
+            },
+            "instructions": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "instructions_sha256": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "output": {
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "enum": [
+                      "string",
+                      "number",
+                      "integer",
+                      "boolean",
+                      "array",
+                      "object",
+                      "null"
+                    ],
+                    "type": "string"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "description": {
+                        "type": "string"
+                      },
+                      "enum": {
+                        "items": {
+                          "type": "string"
+                        },
+                        "type": "array"
+                      },
+                      "required": {
+                        "type": "boolean"
+                      },
+                      "schema": {
+                        "additionalProperties": {},
+                        "type": "object"
+                      },
+                      "type": {
+                        "enum": [
+                          "string",
+                          "number",
+                          "integer",
+                          "boolean",
+                          "array",
+                          "object",
+                          "null"
+                        ],
+                        "type": "string"
+                      },
+                      "wrap_as": {
+                        "minLength": 1,
+                        "type": "string"
+                      }
+                    },
+                    "type": "object"
+                  }
+                ]
+              },
+              "type": "object"
+            },
+            "output_schema": {},
+            "provenance": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "artifact_id": {
+                    "type": "string"
+                  },
+                  "from_step": {
+                    "type": "string"
+                  },
+                  "input": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "output": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "receipt_id": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "input",
+                  "output"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "requirements": {
+              "additionalProperties": false,
+              "properties": {
+                "declaration": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "environment": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "optional": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        },
+                        "required": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        }
+                      },
+                      "type": "object"
+                    },
+                    "scopes": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                },
+                "environment": {
+                  "items": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "available": {
+                        "type": "boolean"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "required": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "name",
+                      "required",
+                      "available"
+                    ],
+                    "type": "object"
+                  },
+                  "type": "array"
+                },
+                "execution_boundary": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "kind": {
+                      "enum": [
+                        "trusted_host_process",
+                        "deterministic_worker",
+                        "native_capability",
+                        "remote_provider"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "kind"
+                  ],
+                  "type": "object"
+                }
+              },
+              "required": [
+                "declaration",
+                "execution_boundary"
+              ],
+              "type": "object"
+            },
+            "run_id": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "skill": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "step_id": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "trust_boundary": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "voice_profile": {
+              "additionalProperties": false,
+              "properties": {
+                "content": {
+                  "type": "string"
+                },
+                "path": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "root_path": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "sha256": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "sharing": {
+                  "enum": [
+                    "local_only",
+                    "configured_model"
+                  ],
+                  "type": "string"
+                }
+              },
+              "required": [
+                "sharing",
+                "root_path",
+                "path",
+                "sha256",
+                "content"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "run_id",
+            "skill",
+            "instructions_sha256",
+            "instructions",
+            "inputs",
+            "requirements",
+            "current_context",
+            "historical_context",
+            "provenance",
+            "trust_boundary"
+          ],
+          "type": "object"
+        },
+        "id": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "role": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "task": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "role",
+        "task",
+        "envelope",
+        "allowance"
+      ],
+      "type": "object"
     },
-    "step_id": {
-      "minLength": 1,
-      "type": "string"
+    "tools": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "input_schema": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "name": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "target": {
+            "anyOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "kind": {
+                    "const": "tool",
+                    "type": "string"
+                  },
+                  "tool": {
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "tool"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "kind": {
+                    "const": "operation",
+                    "type": "string"
+                  },
+                  "operation": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "requirement": {
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "requirement",
+                  "operation"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "kind": {
+                    "const": "skill",
+                    "type": "string"
+                  },
+                  "skill": {
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "skill"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "kind": {
+                    "const": "ask",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "kind"
+                ],
+                "type": "object"
+              }
+            ]
+          }
+        },
+        "required": [
+          "name",
+          "description",
+          "target",
+          "input_schema"
+        ],
+        "type": "object"
+      },
+      "type": "array"
     }
   },
   "required": [
-    "step_id",
-    "request_id",
-    "allowance",
+    "invocation",
+    "tools",
     "calls"
   ],
   "type": "object"

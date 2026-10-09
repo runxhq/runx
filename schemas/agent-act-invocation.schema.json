@@ -6,6 +6,9 @@
     "allowance": {
       "additionalProperties": false,
       "properties": {
+        "asks": {
+          "type": "boolean"
+        },
         "operations": {
           "items": {
             "additionalProperties": false,

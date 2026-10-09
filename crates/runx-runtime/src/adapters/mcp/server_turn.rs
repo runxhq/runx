@@ -1,47 +1,89 @@
-//! An open agent turn served as MCP tools. The server holds the turn's
-//! session: every call is made through the run, admitted against the turn's
-//! allowance and recorded in the run's stream, and an action after the run
-//! has moved on is refused.
+//! A run's open agent turns served as MCP tools. The tool set is fixed,
+//! `turn_list`, `turn_status`, `turn_call` and `turn_complete`, each taking a
+//! turn's address, so a turn a call opens mid-session is reachable in every
+//! client; a turn's own tools arrive with its status. Every call is made
+//! through the run: admitted against the turn's allowance and recorded in the
+//! run's stream. An action on a turn that is no longer open is refused.
 use std::sync::Arc;
 
-use runx_contracts::{JsonObject, JsonValue, TurnCallOutcome};
+use runx_contracts::{JsonObject, JsonValue, ResolutionRequest, TurnCallOutcome};
 use serde::Serialize;
 
 use super::types::{
-    McpContent, McpServerOptions, McpServerTool, McpServerToolBehavior, McpToolResult, McpTurnTool,
+    McpContent, McpServerOptions, McpServerTool, McpServerToolBehavior, McpToolResult,
+    McpTurnAction, McpTurnTool,
 };
 use crate::effects::RuntimeEffectRegistry;
-use crate::execution::runner::turn::TurnToolAction;
 use crate::execution::skill_front::TurnSession;
 
 impl McpServerOptions {
-    /// Serve `turn`'s tools.
-    pub fn for_turn(
-        turn: TurnSession,
+    /// Serve `session`'s open turns.
+    pub fn for_turns(
+        session: TurnSession,
         package_name: impl Into<String>,
         package_version: impl Into<String>,
     ) -> Self {
-        let envelope = &turn.invocation().envelope;
-        let inputs = serde_json::to_string_pretty(&envelope.inputs).unwrap_or_default();
-        let instructions = format!(
-            "{}\n\nInputs (JSON):\n{inputs}\n\nDo the work with these tools; each call is admitted and recorded by runx. End the turn by calling turn_complete with the output.",
-            envelope.instructions
-        );
-        let turn = Arc::new(turn);
-        let tools = turn
-            .tools()
-            .iter()
-            .map(|tool| McpServerTool {
-                name: tool.name.clone(),
-                description: tool.description.clone(),
-                input_schema: tool.input_schema.clone(),
-                required_scopes: Vec::new(),
-                result: McpServerToolBehavior::Turn(McpTurnTool {
-                    turn: Arc::clone(&turn),
-                    action: tool.action.clone(),
-                }),
+        let open = session
+            .waiting()
+            .map(|waiting| {
+                waiting
+                    .into_iter()
+                    .filter_map(|request| match request {
+                        ResolutionRequest::AgentAct { id, .. } => Some(id.to_string()),
+                        _ => None,
+                    })
+                    .collect::<Vec<_>>()
+                    .join(", ")
             })
-            .collect();
+            .unwrap_or_default();
+        let instructions = format!(
+            "This server works the open agent turns of runx run {}. A turn is addressed by its act's id; open now: {open}.\n\nRead a turn with turn_status: its instructions, inputs, output schema and the tools it offers. Make each call with turn_call, naming one of those tools and its input; runx admits, executes and records it. End a turn with turn_complete and its output. A call that starts a child skill may open a turn of its own, worked the same way; turn_list shows everything the run waits on.",
+            session.run_id()
+        );
+        let session = Arc::new(session);
+        let turn = || ("turn", string_schema());
+        let tools = [
+            (
+                McpTurnAction::List,
+                "turn_list",
+                "What the run waits on: each open turn's act, whose id is the turn's address, and each ask, approval or retry beneath them.",
+                object_schema(&[]),
+            ),
+            (
+                McpTurnAction::Status,
+                "turn_status",
+                "Read an open turn: its instructions, inputs and output schema, the tools it offers with their input schemas, and how each call it made so far ended.",
+                object_schema(&[turn()]),
+            ),
+            (
+                McpTurnAction::Call,
+                "turn_call",
+                "Make a call in an open turn: one of the tools its status lists, by name, with its input. A call that waits on a human, or on a turn of its own, returns pending with what it waits on.",
+                object_schema(&[
+                    turn(),
+                    ("tool", string_schema()),
+                    ("input", any_object_schema()),
+                ]),
+            ),
+            (
+                McpTurnAction::Complete,
+                "turn_complete",
+                "End an open turn with its output, which must match the turn's output schema; the run continues. A turn whose calls have not settled cannot end.",
+                object_schema(&[turn(), ("output", any_object_schema())]),
+            ),
+        ]
+        .into_iter()
+        .map(|(action, name, description, input_schema)| McpServerTool {
+            name: name.to_owned(),
+            description: description.to_owned(),
+            input_schema,
+            required_scopes: Vec::new(),
+            result: McpServerToolBehavior::Turn(McpTurnTool {
+                session: Arc::clone(&session),
+                action,
+            }),
+        })
+        .collect();
         Self {
             package_name: package_name.into(),
             package_version: package_version.into(),
@@ -54,27 +96,67 @@ impl McpServerOptions {
 
 /// Do what one turn tool does, through the run.
 pub(super) fn execute_mcp_turn_tool(tool: &McpTurnTool, arguments: JsonObject) -> McpToolResult {
-    let result = match &tool.action {
-        TurnToolAction::Call(target) => tool.turn.call(target.clone(), arguments).map(|call| {
-            let failed = matches!(
-                call.outcome,
-                TurnCallOutcome::Failed { .. } | TurnCallOutcome::Refused { .. }
-            );
-            structured(&call, failed)
+    let session = &tool.session;
+    let result = match tool.action {
+        McpTurnAction::List => session
+            .waiting()
+            .map(|requests| structured(&Waiting { requests }, false))
+            .map_err(|error| error.to_string()),
+        McpTurnAction::Status => text(&arguments, "turn").and_then(|turn| {
+            session
+                .status(turn)
+                .map(|status| structured(&status, false))
+                .map_err(|error| error.to_string())
         }),
-        TurnToolAction::Status => tool.turn.status().map(|status| structured(&status, false)),
-        TurnToolAction::Complete => tool
-            .turn
-            .complete(arguments)
-            .map(|result| super::server::mcp_tool_result_from_run_result(result, None)),
+        McpTurnAction::Call => text(&arguments, "turn").and_then(|turn| {
+            let tool = text(&arguments, "tool")?;
+            let input = object(&arguments, "input")?;
+            session
+                .call(turn, tool, input)
+                .map(|call| {
+                    let failed = matches!(
+                        call.outcome,
+                        TurnCallOutcome::Failed { .. } | TurnCallOutcome::Refused { .. }
+                    );
+                    structured(&call, failed)
+                })
+                .map_err(|error| error.to_string())
+        }),
+        McpTurnAction::Complete => text(&arguments, "turn").and_then(|turn| {
+            let output = object(&arguments, "output")?;
+            session
+                .complete(turn, output)
+                .map(|result| super::server::mcp_tool_result_from_run_result(result, None))
+                .map_err(|error| error.to_string())
+        }),
     };
     result.unwrap_or_else(|error| McpToolResult {
-        content: vec![McpContent {
-            text: error.to_string(),
-        }],
+        content: vec![McpContent { text: error }],
         structured_content: None,
         is_error: true,
     })
+}
+
+/// What `turn_list` returns.
+#[derive(Serialize)]
+struct Waiting {
+    requests: Vec<ResolutionRequest>,
+}
+
+fn text<'a>(arguments: &'a JsonObject, field: &str) -> Result<&'a str, String> {
+    arguments
+        .get(field)
+        .and_then(JsonValue::as_str)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| format!("{field} must be a non-empty string"))
+}
+
+fn object(arguments: &JsonObject, field: &str) -> Result<JsonObject, String> {
+    arguments
+        .get(field)
+        .and_then(JsonValue::as_object)
+        .cloned()
+        .ok_or_else(|| format!("{field} must be an object"))
 }
 
 fn structured(value: &impl Serialize, is_error: bool) -> McpToolResult {
@@ -92,4 +174,35 @@ fn structured(value: &impl Serialize, is_error: bool) -> McpToolResult {
         structured_content: structured,
         is_error,
     }
+}
+
+fn string_schema() -> JsonValue {
+    JsonValue::Object(JsonObject::from([
+        ("type".to_owned(), JsonValue::String("string".to_owned())),
+        ("minLength".to_owned(), JsonValue::Number(1_u64.into())),
+    ]))
+}
+
+fn any_object_schema() -> JsonValue {
+    JsonValue::Object(JsonObject::from([(
+        "type".to_owned(),
+        JsonValue::String("object".to_owned()),
+    )]))
+}
+
+fn object_schema(properties: &[(&str, JsonValue)]) -> JsonObject {
+    let properties = properties
+        .iter()
+        .map(|(name, schema)| ((*name).to_owned(), schema.clone()))
+        .collect::<JsonObject>();
+    let required = properties
+        .keys()
+        .map(|name| JsonValue::String(name.clone()))
+        .collect();
+    JsonObject::from([
+        ("type".to_owned(), JsonValue::String("object".to_owned())),
+        ("additionalProperties".to_owned(), JsonValue::Bool(false)),
+        ("properties".to_owned(), JsonValue::Object(properties)),
+        ("required".to_owned(), JsonValue::Array(required)),
+    ])
 }

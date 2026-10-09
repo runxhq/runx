@@ -111,8 +111,9 @@ steps `first`, then `second`.
 
 A runner is a list of steps; a runner without steps is one agent turn. In an
 agent turn the skill's manual is the instructions, the skill's `tools:`,
-`skills:` and connector operations are what the agent may call, and the turn
-normally yields `needs_agent` to the calling agent. `--managed-agent` explicitly delegates that act to the configured
+`skills:` and connector operations are what the agent may call (and it may ask
+the human when the skill declares `asks: true`), and the turn normally yields
+`needs_agent` to the calling agent. `--managed-agent` explicitly delegates that act to the configured
 in-process provider for the current run; credentials alone never enable it. The
 round cap is shown in prepared context and defaults to four. Not everything
 needs a graph. Reach for one when a single judgment step produces the result.

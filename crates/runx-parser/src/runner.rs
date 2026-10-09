@@ -26,6 +26,7 @@ const MANIFEST_FIELDS: &[&str] = &[
     "connectors",
     "tools",
     "skills",
+    "asks",
     "input_definitions",
     "marketplace",
     "runners",
@@ -60,6 +61,9 @@ pub struct SkillRunnerManifest {
     /// The child skills an agent turn may run.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub skills: Vec<String>,
+    /// Whether an agent turn may ask the human.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub asks: bool,
     /// Manifest-local reusable input declarations. Runner references are
     /// expanded during parsing, so runtime consumers never resolve them again.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
@@ -145,9 +149,12 @@ pub fn validate_runner_manifest(
         (!admission.allowed).then(|| admission.reason.to_owned())
     })?;
     let skills = validate_limit_refs(raw.document.get("skills"), "skills", |_| None)?;
+    let asks = FIELDS
+        .optional_bool(raw.document.get("asks"), "asks")?
+        .unwrap_or(false);
     bind_turn_allowance(
         &mut runners,
-        &turn_allowance(&connectors, &tools, &skills),
+        &turn_allowance(&connectors, &tools, &skills, asks),
         &connectors,
     );
     let marketplace = validate_marketplace(raw.document.get("marketplace"), &runners)?;
@@ -171,6 +178,7 @@ pub fn validate_runner_manifest(
         connectors,
         tools,
         skills,
+        asks,
         input_definitions,
         marketplace,
         runners,
@@ -211,6 +219,7 @@ fn turn_allowance(
     connectors: &BTreeMap<String, ConnectorRequirement>,
     tools: &[String],
     skills: &[String],
+    asks: bool,
 ) -> TurnAllowance {
     TurnAllowance {
         operations: connectors
@@ -227,6 +236,7 @@ fn turn_allowance(
             .collect(),
         tools: tools.iter().map(|tool| tool.as_str().into()).collect(),
         skills: skills.iter().map(|skill| skill.as_str().into()).collect(),
+        asks,
     }
 }
 

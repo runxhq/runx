@@ -1809,11 +1809,12 @@ fn human(
             .or_else(|| Some("operation".to_owned())),
         summary: Some(summary),
     };
+    let request_id = crate::execution::run_record::request_address(&context.lanes.run_id, &gate_id);
     let request = ResolutionRequest::Approval {
-        id: gate_id.clone().into(),
+        id: request_id.clone().into(),
         gate: gate.clone(),
     };
-    match crate::request_approval(host, gate_id.clone(), gate)
+    match crate::request_approval(host, request_id, gate)
         .map_err(|error| denied(error.to_string()))?
     {
         // The resolver admits only host-attested human answers.

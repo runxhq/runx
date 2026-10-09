@@ -52,18 +52,20 @@ The resume packet passes to native unchanged; the client does not assign actors,
 answer approvals, retry a mutation or reinterpret a checkpoint.
 
 When a run returns `needs_agent` on an agent act, the act's request carries its
-`allowance`: the connector operations, tools and child skills the agent may
-call. `turns.server` returns the command, arguments, environment and working
-directory an MCP stdio client starts to serve that turn. Its tools are the
-allowance, `ask_human`, `turn_status` and `turn_complete`; the act's
-instructions and inputs arrive as the server's instructions. Runx admits,
-executes and records every call under the run's authority. Each call's
-structured result is a `TurnCallContract` and `turn_status` returns a
-`TurnStatusContract`, both from `@runxhq/contracts`. A write names its
-`idempotency_key`. A call that needs approval stays pending, and the paused
-run lists its request, until the host answers it through `runs.resume` under
-`approvals`. `turn_complete` ends the turn with its output once no call is
-pending, and the run continues.
+`allowance`: the connector operations, tools, child skills and asks the agent
+may call. `turns.server` returns the command, arguments, environment and
+working directory an MCP stdio client starts to serve the run's open turns.
+Its tools are fixed (`turn_list`, `turn_status`, `turn_call` and
+`turn_complete`) and take a turn's address, so a turn that a call opens in a
+child skill is worked on the same connection. `turn_status` returns a
+`TurnStatusContract`: the turn's act and the calls it may make, each a
+`TurnToolContract` with a name, target and input schema that a host can
+present to its model as a typed tool. Each call returns a `TurnCallContract`.
+All three come from `@runxhq/contracts`. Runx admits, executes and records
+every call under the run's authority. A write names its `idempotency_key`. A
+pending call lists what it waits on. The host answers an approval through
+`runs.resume` under `approvals`, by its address. `turn_complete` ends a turn
+with its output once none of its calls is pending, and the run continues.
 
 Inspection is uncached. An immutable deployment may cache at its owning host.
 An execution binding pins runner, package and execution closure, and native

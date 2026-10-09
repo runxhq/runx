@@ -409,7 +409,7 @@ runners:
 }
 
 #[test]
-fn runx_turn_serves_an_open_agent_turn_and_completes_it() -> Result<(), Box<dyn std::error::Error>>
+fn runx_turn_serves_a_runs_open_turns_and_completes_one() -> Result<(), Box<dyn std::error::Error>>
 {
     let workspace = TestTempDir::new("runx-turn-workspace")?;
     let skill_dir = workspace.path().join("turn-demo");
@@ -453,7 +453,8 @@ fn runx_turn_serves_an_open_agent_turn_and_completes_it() -> Result<(), Box<dyn 
     write_frame(server.stdin_mut()?, &initialize_request(1))?;
     let initialize = server.read_response("initialize", MCP_INITIALIZE_TIMEOUT)?;
     assert!(
-        path_text(&initialize, &["result", "instructions"])?.contains("Digest what you need"),
+        path_text(&initialize, &["result", "instructions"])?
+            .contains("open now: agent.answer.output"),
         "{initialize}"
     );
     write_frame(server.stdin_mut()?, &initialized_notification())?;
@@ -467,7 +468,35 @@ fn runx_turn_serves_an_open_agent_turn_and_completes_it() -> Result<(), Box<dyn 
         .collect::<Vec<_>>();
     assert_eq!(
         names,
-        ["data_digest", "ask_human", "turn_status", "turn_complete"]
+        ["turn_list", "turn_status", "turn_call", "turn_complete"],
+        "the tool set is fixed; a turn's own tools come with its status"
+    );
+    write_frame(
+        server.stdin_mut()?,
+        &request(
+            6,
+            "tools/call",
+            json!({"name": "turn_status", "arguments": {"turn": "agent.answer.output"}}),
+        ),
+    )?;
+    let opened = server.read_response("turn_status", MCP_REQUEST_TIMEOUT)?;
+    assert!(
+        path_text(
+            &opened,
+            &[
+                "result",
+                "structuredContent",
+                "invocation",
+                "envelope",
+                "instructions"
+            ]
+        )?
+        .contains("Digest what you need"),
+        "{opened}"
+    );
+    assert_eq!(
+        opened["result"]["structuredContent"]["tools"][0]["name"], "data_digest",
+        "{opened}"
     );
 
     write_frame(
@@ -475,10 +504,14 @@ fn runx_turn_serves_an_open_agent_turn_and_completes_it() -> Result<(), Box<dyn 
         &request(
             3,
             "tools/call",
-            json!({"name": "data_digest", "arguments": {"value": "hello", "encoding": "utf8_text"}}),
+            json!({"name": "turn_call", "arguments": {
+                "turn": "agent.answer.output",
+                "tool": "data_digest",
+                "input": {"value": "hello", "encoding": "utf8_text"},
+            }}),
         ),
     )?;
-    let digest = server.read_response("data_digest", MCP_REQUEST_TIMEOUT)?;
+    let digest = server.read_response("turn_call", MCP_REQUEST_TIMEOUT)?;
     assert_eq!(
         path_text(
             &digest,
@@ -492,7 +525,7 @@ fn runx_turn_serves_an_open_agent_turn_and_completes_it() -> Result<(), Box<dyn 
         &request(
             5,
             "tools/call",
-            json!({"name": "turn_status", "arguments": {}}),
+            json!({"name": "turn_status", "arguments": {"turn": "agent.answer.output"}}),
         ),
     )?;
     let status = server.read_response("turn_status", MCP_REQUEST_TIMEOUT)?;
@@ -509,7 +542,10 @@ fn runx_turn_serves_an_open_agent_turn_and_completes_it() -> Result<(), Box<dyn 
         &request(
             4,
             "tools/call",
-            json!({"name": "turn_complete", "arguments": {"answer": "digested"}}),
+            json!({"name": "turn_complete", "arguments": {
+                "turn": "agent.answer.output",
+                "output": {"answer": "digested"},
+            }}),
         ),
     )?;
     let completed = server.read_response("turn_complete", MCP_REQUEST_TIMEOUT)?;

@@ -9,7 +9,8 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 use runx_contracts::{
-    AgentContextEnvelope, JsonObject, JsonValue, OutputField, TurnCallOutcome, TurnStatus,
+    AgentContextEnvelope, JsonObject, JsonValue, OutputField, TurnCallOutcome, TurnCallResult,
+    TurnTarget,
 };
 use serde::Serialize;
 
@@ -20,7 +21,7 @@ use super::agent_loop::{AgentLoopConfig, ModelCaller, ToolExecutor, ToolOutcome,
 use super::agent_tool_definitions::{AgentToolDefinition, AgentToolNameMap};
 use crate::RuntimeError;
 use crate::config::{ManagedAgentAuthMode, ManagedAgentConfig, ModelDialect};
-use crate::execution::runner::turn::{TURN_COMPLETE_TOOL, Turn, TurnToolAction};
+use crate::execution::runner::turn::{TURN_COMPLETE_TOOL, TURN_STATUS_TOOL, Turn};
 use crate::host::Host;
 use crate::http::ReqwestHttpTransport;
 
@@ -85,22 +86,40 @@ impl ManagedAgent {
             )));
         }
         let tools = turn.tools()?;
-        let actions = tools
+        let targets = tools
             .iter()
-            .map(|tool| (tool.name.clone(), tool.action.clone()))
+            .map(|tool| (tool.name.as_str().to_owned(), tool.target.clone()))
             .collect();
         let definitions = AgentToolNameMap::new(
             tools
                 .into_iter()
                 .map(|tool| AgentToolDefinition {
-                    name: tool.name,
-                    description: tool.description,
+                    name: tool.name.as_str().to_owned(),
+                    description: tool.description.as_str().to_owned(),
                     input_schema: JsonValue::Object(tool.input_schema),
                 })
+                .chain([
+                    AgentToolDefinition {
+                        name: TURN_STATUS_TOOL.to_owned(),
+                        description: "Read the turn: what it answers, what it may call, and how each call ended.".to_owned(),
+                        input_schema: JsonValue::Object(JsonObject::from([
+                            ("type".to_owned(), JsonValue::String("object".to_owned())),
+                            ("additionalProperties".to_owned(), JsonValue::Bool(false)),
+                        ])),
+                    },
+                    AgentToolDefinition {
+                        name: TURN_COMPLETE_TOOL.to_owned(),
+                        description: "End the turn with its output; the run continues.".to_owned(),
+                        input_schema: match &envelope.output_schema {
+                            Some(schema @ JsonValue::Object(_)) => schema.clone(),
+                            _ => runx_contracts::output_value_schema(envelope.output.as_ref()),
+                        },
+                    },
+                ])
                 .collect(),
         )
         .map_err(|error| fail(ManagedAgentError::sanitized(error)))?;
-        let prompt = build_prompt(&envelope, &turn.status()?).map_err(&fail)?;
+        let prompt = build_prompt(&envelope, &turn.calls()?).map_err(&fail)?;
         let model = caller(&config, definitions).map_err(&fail)?;
         let loop_config = AgentLoopConfig {
             max_rounds: self.max_rounds,
@@ -112,7 +131,7 @@ impl ManagedAgent {
         let mut calls = TurnCalls {
             turn,
             host,
-            actions,
+            targets,
         };
         let end =
             run_agent_loop(&loop_config, model.as_ref(), &mut calls, prompt).map_err(|error| {
@@ -130,39 +149,40 @@ impl ManagedAgent {
 struct TurnCalls<'a> {
     turn: &'a mut dyn Turn,
     host: &'a mut dyn Host,
-    actions: BTreeMap<String, TurnToolAction>,
+    /// The turn's tools by name.
+    targets: BTreeMap<String, TurnTarget>,
 }
 
 impl ToolExecutor for TurnCalls<'_> {
     fn admitted_tool_name(&self, tool: &str) -> Option<String> {
-        self.actions.contains_key(tool).then(|| tool.to_owned())
+        (self.targets.contains_key(tool) || tool == TURN_STATUS_TOOL).then(|| tool.to_owned())
     }
 
+    // The loop ends the turn on its final tool; it never runs here.
     fn execute(&mut self, tool: &str, input: &JsonValue) -> Result<ToolOutcome, RuntimeError> {
-        match self.actions.get(tool).cloned() {
-            Some(TurnToolAction::Call(target)) => {
-                let input = input.as_object().cloned().unwrap_or_default();
-                let result = self.turn.call(&mut *self.host, target, input)?;
-                let is_error = match &result.outcome {
-                    TurnCallOutcome::Pending { .. } => return Ok(ToolOutcome::Paused),
-                    TurnCallOutcome::Completed { .. } => false,
-                    TurnCallOutcome::Failed { .. } | TurnCallOutcome::Refused { .. } => true,
-                };
-                Ok(ToolOutcome::Result {
-                    content: json_text(&result)?,
-                    is_error,
-                })
-            }
-            Some(TurnToolAction::Status) => Ok(ToolOutcome::Result {
+        if tool == TURN_STATUS_TOOL {
+            return Ok(ToolOutcome::Result {
                 content: json_text(&self.turn.status()?)?,
                 is_error: false,
-            }),
-            // The loop ends the turn on its final tool; it never runs here.
-            Some(TurnToolAction::Complete) | None => Err(RuntimeError::effect_state(
+            });
+        }
+        let target = self.targets.get(tool).cloned().ok_or_else(|| {
+            RuntimeError::effect_state(
                 "a managed agent call",
                 format!("{tool} is not a call the turn offers"),
-            )),
-        }
+            )
+        })?;
+        let input = input.as_object().cloned().unwrap_or_default();
+        let result = self.turn.call(&mut *self.host, target, input)?;
+        let is_error = match &result.outcome {
+            TurnCallOutcome::Pending { .. } => return Ok(ToolOutcome::Paused),
+            TurnCallOutcome::Completed { .. } => false,
+            TurnCallOutcome::Failed { .. } | TurnCallOutcome::Refused { .. } => true,
+        };
+        Ok(ToolOutcome::Result {
+            content: json_text(&result)?,
+            is_error,
+        })
     }
 }
 
@@ -253,15 +273,15 @@ fn speak<T: crate::http::RuntimeHttpTransport + 'static>(
 /// and how to end it.
 fn build_prompt(
     envelope: &AgentContextEnvelope,
-    status: &TurnStatus,
+    calls: &[TurnCallResult],
 ) -> Result<String, ManagedAgentError> {
     let context = pretty(&AgentPromptContext::from(envelope))?;
-    let calls = if status.calls.is_empty() {
+    let calls = if calls.is_empty() {
         String::new()
     } else {
         format!(
             "\n\nCalls already made in this turn (JSON):\n{}",
-            pretty(&status.calls)?
+            pretty(&calls)?
         )
     };
     Ok(format!(
@@ -337,10 +357,7 @@ mod tests {
             "issue_title".to_owned(),
             JsonValue::String("bug report".to_owned()),
         );
-        let prompt = build_prompt(
-            &prompt_envelope("Triage", inputs, Vec::new()),
-            &status(Vec::new()),
-        )?;
+        let prompt = build_prompt(&prompt_envelope("Triage", inputs, Vec::new()), &[])?;
         assert!(
             prompt.contains("Triage")
                 && prompt.contains(TURN_COMPLETE_TOOL)
@@ -379,7 +396,7 @@ mod tests {
             skill_directory: non_empty("/workspace/skills/review"),
             tool_roots: Some(vec![non_empty("/workspace/tools")]),
         });
-        let prompt = build_prompt(&envelope, &status(Vec::new()))?;
+        let prompt = build_prompt(&envelope, &[])?;
 
         assert!(prompt.contains(CONTEXT_POLICY));
         assert!(prompt.contains("runx.skill.context"));
@@ -407,20 +424,11 @@ mod tests {
         };
         let prompt = build_prompt(
             &prompt_envelope("Review", JsonObject::new(), Vec::new()),
-            &status(vec![call]),
+            &[call],
         )?;
         assert!(prompt.contains("Calls already made in this turn"));
         assert!(prompt.contains("no reason given"));
         Ok(())
-    }
-
-    fn status(calls: Vec<runx_contracts::TurnCallResult>) -> TurnStatus {
-        TurnStatus {
-            step_id: non_empty("review"),
-            request_id: non_empty("agent.review.output"),
-            allowance: Default::default(),
-            calls,
-        }
     }
 
     fn prompt_envelope(

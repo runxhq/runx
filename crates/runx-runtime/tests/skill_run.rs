@@ -1033,7 +1033,14 @@ fn native_graph_skill_run_pauses_and_resumes_agent_task() -> Result<(), Box<dyn 
         .ok_or("the run is not paused in its record")?;
     assert!(paused.package_digest.starts_with("sha256:"));
     assert!(paused.execution_closure_digest.starts_with("sha256:"));
-    assert_eq!(paused.request.id, "agent.graph-decide.output");
+    assert_eq!(
+        paused
+            .waiting
+            .iter()
+            .map(|request| request.id.as_str())
+            .collect::<Vec<_>>(),
+        ["agent.graph-decide.output"]
+    );
 
     // An answer the run refuses is never recorded: the run still waits.
     let malformed_answers_path = temp.path().join("malformed-graph-answers.json");
@@ -1060,9 +1067,14 @@ fn native_graph_skill_run_pauses_and_resumes_agent_task() -> Result<(), Box<dyn 
         "an answer outside the output contract must be refused"
     );
     assert_eq!(
-        runx_runtime::run_record::paused_run(&BTreeMap::new(), temp.path(), run_id)?
-            .map(|paused| paused.request.id),
-        Some("agent.graph-decide.output".to_owned())
+        runx_runtime::run_record::paused_run(&BTreeMap::new(), temp.path(), run_id)?.map(
+            |paused| paused
+                .waiting
+                .into_iter()
+                .map(|request| request.id)
+                .collect()
+        ),
+        Some(vec!["agent.graph-decide.output".to_owned()])
     );
 
     // A changed package cannot continue the run it did not start.
@@ -1380,9 +1392,10 @@ fn native_graph_skill_run_pauses_and_resumes_nested_agent_skill()
     let requests = array_field(output, "requests").ok_or("missing requests")?;
     assert_eq!(requests.len(), 1);
     let request = object(&requests[0], "request")?;
+    // The act waits in the child run of step `nested`, and is answered there.
     assert_eq!(
         string_field(request, "id"),
-        Some("agent.child-agent.output")
+        Some("nested#agent.child-agent.output")
     );
     let invocation = object_field(request, "invocation").ok_or("missing invocation")?;
     assert_eq!(string_field(invocation, "role"), Some("builder"));
@@ -1393,7 +1406,7 @@ fn native_graph_skill_run_pauses_and_resumes_nested_agent_skill()
         &answers_path,
         serde_json::json!({
             "answers": {
-                "agent.child-agent.output": {
+                "nested#agent.child-agent.output": {
                     "result": {
                         "summary": "Nested agent fix authored."
                     },
@@ -2243,8 +2256,10 @@ fn native_graph_skill_resume_binds_human_approval_to_checkpoint_digest()
     };
     let pending = run_skill(start.clone())?;
     assert_eq!(pending.status, runx_runtime::RunStatus::NeedsAgent);
-    let request = runx_runtime::run_record::paused_request(&BTreeMap::new(), temp.path(), &run_id)?
-        .ok_or("the paused run's approval request is missing")?;
+    let request =
+        runx_runtime::run_record::paused_requests(&BTreeMap::new(), temp.path(), &run_id)?
+            .pop()
+            .ok_or("the paused run's approval request is missing")?;
     let digest = runx_contracts::sha256_prefixed(&serde_json::to_vec(&request.value)?);
     let answers_path = temp.path().join("native-approval-answer.json");
     let mut answer = serde_json::json!({

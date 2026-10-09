@@ -2372,8 +2372,13 @@ pub(super) fn agent_act_invocation_corpus() -> Vec<(&'static str, Value)> {
                     "operations": [{"requirement": "github", "operation": "issue.read"}],
                     "tools": ["fs.read"],
                     "skills": ["./triage"],
+                    "asks": true,
                 }),
             ),
+        ),
+        (
+            "allowance asks not a boolean",
+            set_field(valid.clone(), "allowance", json!({"asks": "yes"})),
         ),
         ("missing allowance", drop_field(valid.clone(), "allowance")),
         (
@@ -2431,6 +2436,15 @@ fn agent_context_envelope() -> Value {
     })
 }
 
+fn turn_invocation() -> Value {
+    json!({
+        "id": "agent.answer.output",
+        "source_type": "agent",
+        "envelope": agent_context_envelope(),
+        "allowance": { "tools": ["data.digest"], "asks": true },
+    })
+}
+
 fn turn_call() -> Value {
     json!({
         "index": 0,
@@ -2470,11 +2484,26 @@ pub(super) fn turn_call_corpus() -> Vec<(&'static str, Value)> {
                 "target": { "kind": "ask" },
                 "outcome": {
                     "status": "pending",
-                    "request": {
+                    "waiting": [{
                         "kind": "approval",
                         "id": "answer/3",
                         "gate": { "id": "answer/3", "reason": "Send it?" },
-                    },
+                    }],
+                },
+            }),
+        ),
+        (
+            "valid pending skill call waiting on its child's turn",
+            json!({
+                "index": 4,
+                "target": { "kind": "skill", "skill": "./report" },
+                "outcome": {
+                    "status": "pending",
+                    "waiting": [{
+                        "kind": "agent_act",
+                        "id": "answer/4#agent.report.output",
+                        "invocation": turn_invocation(),
+                    }],
                 },
             }),
         ),
@@ -2504,7 +2533,7 @@ pub(super) fn turn_call_corpus() -> Vec<(&'static str, Value)> {
             ),
         ),
         (
-            "pending without its request",
+            "pending without what it waits on",
             set_field(valid.clone(), "outcome", json!({ "status": "pending" })),
         ),
         (
@@ -2516,9 +2545,13 @@ pub(super) fn turn_call_corpus() -> Vec<(&'static str, Value)> {
 
 pub(super) fn turn_status_corpus() -> Vec<(&'static str, Value)> {
     let valid = json!({
-        "step_id": "answer",
-        "request_id": "agent.answer.output",
-        "allowance": { "tools": ["data.digest"] },
+        "invocation": turn_invocation(),
+        "tools": [{
+            "name": "data_digest",
+            "description": "Digest a value.",
+            "target": { "kind": "tool", "tool": "data.digest" },
+            "input_schema": { "type": "object" },
+        }],
         "calls": [turn_call()],
     });
     vec![
@@ -2527,11 +2560,19 @@ pub(super) fn turn_status_corpus() -> Vec<(&'static str, Value)> {
             "valid status without calls",
             set_field(valid.clone(), "calls", json!([])),
         ),
-        ("missing allowance", drop_field(valid.clone(), "allowance")),
+        (
+            "missing invocation",
+            drop_field(valid.clone(), "invocation"),
+        ),
+        ("missing tools", drop_field(valid.clone(), "tools")),
         ("missing calls", drop_field(valid.clone(), "calls")),
         (
-            "empty request id",
-            set_field(valid.clone(), "request_id", json!("")),
+            "tool without its target",
+            set_field(
+                valid.clone(),
+                "tools",
+                json!([{ "name": "data_digest", "description": "Digest a value.", "input_schema": {} }]),
+            ),
         ),
         (
             "invalid call",

@@ -1,7 +1,8 @@
-//! `runx turn <run-id>`: the agent turn a paused run waits on, served as MCP
-//! tools over stdio. Each tool call is made through the run: admitted against
-//! the turn's allowance and the run's authority, executed, and recorded.
-//! `turn_complete` ends the turn and the run continues.
+//! `runx turn <run-id>`: the agent turns a paused run waits on, served as MCP
+//! tools over stdio: `turn_list`, `turn_status`, `turn_call` and
+//! `turn_complete`, each taking a turn's address. Each call is made through
+//! the run: admitted against its turn's allowance and the run's authority,
+//! executed, and recorded. `turn_complete` ends a turn and the run continues.
 
 use std::ffi::OsString;
 use std::io::Write;
@@ -46,11 +47,11 @@ pub fn parse_turn_plan(args: &[OsString]) -> Result<TurnPlan, String> {
 }
 
 pub fn run_native_turn_with_workspace(plan: TurnPlan, workspace: &WorkspaceEnv) -> ExitCode {
-    let turn = crate::runtime::local_orchestrator(workspace.env())
+    let session = crate::runtime::local_orchestrator(workspace.env())
         .map_err(|error| error.to_string())
         .and_then(|orchestrator| {
             orchestrator
-                .open_turn(&TurnRequest {
+                .open_turns(&TurnRequest {
                     run_id: plan.run_id,
                     receipt_dir: plan.receipt_dir,
                     env: workspace.env().clone(),
@@ -58,8 +59,8 @@ pub fn run_native_turn_with_workspace(plan: TurnPlan, workspace: &WorkspaceEnv) 
                 })
                 .map_err(|error| error.to_string())
         });
-    let turn = match turn {
-        Ok(turn) => turn,
+    let session = match session {
+        Ok(session) => session,
         Err(error) => {
             let _ignored = writeln!(std::io::stderr(), "runx: {error}");
             return ExitCode::from(1);
@@ -68,8 +69,8 @@ pub fn run_native_turn_with_workspace(plan: TurnPlan, workspace: &WorkspaceEnv) 
     match runx_runtime::adapters::mcp::serve_mcp_json_rpc(
         std::io::stdin(),
         std::io::stdout(),
-        runx_runtime::adapters::mcp::McpServerOptions::for_turn(
-            turn,
+        runx_runtime::adapters::mcp::McpServerOptions::for_turns(
+            session,
             "runx-cli",
             env!("CARGO_PKG_VERSION"),
         ),

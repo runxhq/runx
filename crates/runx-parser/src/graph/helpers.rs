@@ -21,6 +21,55 @@ fn field_from_message(message: &str) -> String {
         .unwrap_or_else(|| "document".to_owned())
 }
 
+/// A step id, `[a-z][a-z0-9_-]*`. Step ids and call indexes make up the path
+/// of every run in a run's tree, and an address joins a path to an id with
+/// `#`, so neither holds `/` or `#`: what a run waits on is unique at any
+/// depth.
+pub fn step_id(value: String, field: &str) -> Result<String, ValidationError> {
+    grammar(
+        value,
+        field,
+        "[a-z][a-z0-9_-]*",
+        |first| first.is_ascii_lowercase(),
+        |character| {
+            character.is_ascii_lowercase()
+                || character.is_ascii_digit()
+                || matches!(character, '_' | '-')
+        },
+    )
+}
+
+/// A gate id, `[a-z0-9][a-z0-9_.-]*`: the local id of an ask's request.
+pub fn gate_id(value: String, field: &str) -> Result<String, ValidationError> {
+    grammar(
+        value,
+        field,
+        "[a-z0-9][a-z0-9_.-]*",
+        |first| first.is_ascii_lowercase() || first.is_ascii_digit(),
+        |character| {
+            character.is_ascii_lowercase()
+                || character.is_ascii_digit()
+                || matches!(character, '_' | '.' | '-')
+        },
+    )
+}
+
+fn grammar(
+    value: String,
+    field: &str,
+    pattern: &str,
+    first: impl Fn(char) -> bool,
+    rest: impl Fn(char) -> bool,
+) -> Result<String, ValidationError> {
+    let mut characters = value.chars();
+    if characters.next().is_some_and(first) && characters.all(rest) {
+        return Ok(value);
+    }
+    Err(validation_error(format!(
+        "{field} {value:?} must match {pattern}."
+    )))
+}
+
 pub fn required_string(value: Option<&JsonValue>, field: &str) -> Result<String, ValidationError> {
     match optional_string(value, field)? {
         Some(value) if !value.is_empty() => Ok(value),
