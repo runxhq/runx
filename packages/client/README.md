@@ -38,6 +38,7 @@ Directory separation is not an operating-system sandbox.
 | `skills.inspect({ skillPath, runner? })` | `skill inspect` |
 | `skills.run({ skillPath, inputs?, receiptDir, binding? })` | `skill` |
 | `runs.resume({ runId, resolutions, receiptDir, binding? })` | `resume` |
+| `turns.server({ runId, receiptDir })` | `turn` (started by your MCP client) |
 | `packages.materialize({ skillPath })` | `registry package` |
 | `harness.run({ skillPath, receiptDir })` | `harness` |
 | `receipts.verify({ receipt, allowLocalDevelopmentSignatures? })` | `verify --receipt -` |
@@ -49,6 +50,17 @@ Input and resume packets use exclusive, private temporary files removed after
 the native process closes. Input keys are never converted into CLI flags.
 The resume packet passes to native unchanged; the client does not assign actors,
 answer approvals, retry a mutation or reinterpret a checkpoint.
+
+When a run returns `needs_agent` on an agent act, the act's request carries its
+`allowance`: the connector operations, tools and child skills the agent may
+call. `turns.server` returns the command, arguments, environment and working
+directory an MCP stdio client starts to serve that turn. Its tools are the
+allowance, `ask_human`, `turn_status` and `turn_complete`; the act's
+instructions and inputs arrive as the server's instructions. Runx admits,
+executes and records every call under the run's authority. A write names its
+`idempotency_key`. A call that needs approval stays pending until the host
+answers it through `runs.resume` under `approvals`. `turn_complete` ends the
+turn with its output and the run continues.
 
 Inspection is uncached. An immutable deployment may cache at its owning host.
 An execution binding pins runner, package and execution closure, and native

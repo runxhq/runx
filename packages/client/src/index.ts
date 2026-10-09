@@ -58,6 +58,17 @@ export function createRunxClient(configuration: RunxClientConfig): RunxClient {
         return await decodeSkill(result, { projectDir: config.projectDir, receiptDir, maxArtifactBytes });
       }),
     },
+    turns: {
+      server: (options) => ({
+        command: config.command,
+        args: ["turn", argument(options.runId), "--receipt-dir", absolute(options.receiptDir)],
+        env: Object.fromEntries(
+          Object.entries({ ...skillEnvironment(options.environment), ...trustedEnv })
+            .filter((entry): entry is [string, string] => typeof entry[1] === "string"),
+        ),
+        cwd: config.cwd,
+      }),
+    },
     packages: {
       materialize: async (options) => {
         const output = parseJson(await execute(["registry", "package", argument(options.skillPath), "--json"], options), [0]);

@@ -56,6 +56,15 @@ describe("native invocation and decoding", () => {
     expect(captured.args.slice(0, 2)).toEqual(["resume", "run_test"]);
     await expect(readFile(captured.args[2])).rejects.toMatchObject({ code: "ENOENT" });
   });
+  it("names the turn server an MCP client starts, with the trusted environment", async () => {
+    const { root, config, receiptDir } = await setup();
+    const server = createRunxClient(config).turns.server({ runId: "run_test", receiptDir, environment: { SKILL_FLAG: "1" } });
+    expect(server).toMatchObject({ command: config.command, args: ["turn", "run_test", "--receipt-dir", receiptDir], cwd: config.cwd });
+    expect(server.env).toMatchObject({ SKILL_FLAG: "1", RUNX_CWD: config.cwd, RUNX_PROJECT_DIR: config.projectDir, RUNX_HOME: config.home, NO_COLOR: "1" });
+    expect(() => createRunxClient(config).turns.server({ runId: "--help", receiptDir })).toThrow("positional");
+    expect(() => createRunxClient(config).turns.server({ runId: "run_test", receiptDir: "relative" })).toThrow("absolute");
+    expect(() => createRunxClient(config).turns.server({ runId: "run_test", receiptDir, environment: { RUNX_HOME: path.join(root, "x") } })).toThrow("runtime-owned");
+  });
   it("returns native failed harness and invalid verification verdicts as data", async () => {
     const { root, config, receiptDir } = await setup();
     const capture = path.join(root, "verify.json");

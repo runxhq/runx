@@ -54,6 +54,23 @@ export interface RunResumeOptions extends InvocationOptions {
   readonly binding?: ExecutionBinding;
 }
 
+export interface TurnServerOptions extends InvocationOptions {
+  readonly runId: string;
+  readonly receiptDir: string;
+}
+
+/**
+ * What an MCP stdio client starts to serve the agent turn a paused run waits
+ * on. Every tool call is admitted, executed and recorded by the run;
+ * `turn_complete` ends the turn and the run continues.
+ */
+export interface TurnServer {
+  readonly command: string;
+  readonly args: readonly string[];
+  readonly env: Readonly<Record<string, string>>;
+  readonly cwd: string;
+}
+
 export interface SkillRunOutput extends SkillOutputContract {
   readonly requests?: readonly ResolutionRequestContract[];
   readonly receipt?: ReceiptContract;
@@ -90,6 +107,7 @@ export interface RunxClient {
     run(options: SkillRunOptions): Promise<SkillRunOutput>;
   };
   readonly runs: { resume(options: RunResumeOptions): Promise<SkillRunOutput> };
+  readonly turns: { server(options: TurnServerOptions): TurnServer };
   readonly packages: { materialize(options: InvocationOptions & { readonly skillPath: string }): Promise<NativePackageOutput> };
   readonly harness: { run(options: InvocationOptions & { readonly skillPath: string; readonly receiptDir: string }): Promise<NativeHarnessOutput> };
   readonly receipts: {

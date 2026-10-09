@@ -220,6 +220,7 @@ export {
   type AgentActInvocationContract,
   type QuestionContract,
   type ApprovalGateContract,
+  type TurnAllowanceContract,
 } from "./schemas/agent-act.js";
 
 export {
