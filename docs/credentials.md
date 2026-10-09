@@ -69,6 +69,10 @@ runx connector use github --session
 runx connector use github --grant <grant-id>
 ```
 
+A plugin's own connectors are bound from inside the plugin: run these
+commands in the plugin root or below it, and the instance is recorded in the
+workspace store as any other.
+
 `runx credential set` checks the secret against the declaration's `kind` and
 `fields`, stores it as a profile (named after the connector unless `--profile`
 says otherwise), and selects it as the connector's instance. `--scope` narrows

@@ -33,7 +33,8 @@ impl WorkspaceEnv {
         cwd: PathBuf,
     ) -> Result<Self, WorkspaceEnvError> {
         require_absolute_cwd(&cwd)?;
-        let cwd = RunxPaths::resolve(&ambient_env, &cwd)
+        let invoked = cwd;
+        let cwd = RunxPaths::resolve(&ambient_env, &invoked)
             .workspace()
             .to_path_buf();
         require_absolute_cwd(&cwd)?;
@@ -44,7 +45,7 @@ impl WorkspaceEnv {
         // Freeze workspace identity after discovery. A value inside `.env`
         // cannot redirect Runx to a different workspace after the file was read.
         env.insert(RUNX_CWD_ENV.to_owned(), cwd.to_string_lossy().into_owned());
-        let paths = RunxPaths::resolve(&env, &cwd);
+        let paths = RunxPaths::resolve(&env, &invoked);
 
         Ok(Self {
             env,
@@ -59,10 +60,11 @@ impl WorkspaceEnv {
         cwd: PathBuf,
     ) -> Result<Self, WorkspaceEnvError> {
         require_absolute_cwd(&cwd)?;
-        let cwd = RunxPaths::resolve(&env, &cwd).workspace().to_path_buf();
+        let invoked = cwd;
+        let cwd = RunxPaths::resolve(&env, &invoked).workspace().to_path_buf();
         require_absolute_cwd(&cwd)?;
         env.insert(RUNX_CWD_ENV.to_owned(), cwd.to_string_lossy().into_owned());
-        let paths = RunxPaths::resolve(&env, &cwd);
+        let paths = RunxPaths::resolve(&env, &invoked);
         Ok(Self {
             env,
             cwd,

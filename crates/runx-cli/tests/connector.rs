@@ -258,3 +258,60 @@ fn a_store_url_never_carries_a_password() -> TestResult {
     fs::remove_dir_all(&root)?;
     result
 }
+
+/// A plugin below its workspace root is bound from inside the plugin; the
+/// instance lands in the workspace store either way.
+#[test]
+fn a_plugin_connector_binds_from_inside_its_plugin() -> TestResult {
+    let root = temp_root("runx-connector-plugin");
+    let plugin = root.join("runx");
+    let manifest = plugin.join("connectors/acme");
+    fs::create_dir_all(&manifest)?;
+    fs::create_dir_all(root.join(".runx"))?;
+    fs::write(root.join("pnpm-workspace.yaml"), "packages: []\n")?;
+    fs::write(
+        manifest.join("connector.yaml"),
+        "schema: runx.connector.v1\nid: acme\nname: Acme\ndescription: Read Acme widgets.\n\
+         auth:\n  credentials:\n    token:\n      kind: bearer_token\n      fields:\n        - {name: token, label: Acme token}\n\
+         \x20     delivery:\n        env: ACME_TOKEN\n      audience: [api.acme.test]\n\
+         placements:\n  local:\n    auth: [credentials]\n\
+         operations:\n  widgets.read:\n    description: Read the widgets.\n    verb: read\n    scopes: [widgets.read]\n\
+         \x20   credentials: [token]\n    target:\n      template: \"https://api.acme.test/widgets\"\n",
+    )?;
+    let result = (|| -> TestResult {
+        let set = [
+            "credential",
+            "set",
+            "acme",
+            "--credential",
+            "token",
+            "--profile",
+            "operator",
+            "--from-stdin",
+        ];
+        let (ok, refused) = runx(&root, &set, Some("acme_token"))?;
+        assert!(!ok, "the workspace root is not in the plugin: {refused}");
+
+        let (ok, bound) = runx(&plugin, &set, Some("acme_token"))?;
+        assert!(ok, "{bound}");
+        assert_eq!(
+            bound["credential"]["instance"]["instance_id"],
+            "credential.acme.operator"
+        );
+        let (ok, listed) = connector(&root, &["instances"])?;
+        assert!(ok, "{listed}");
+        assert_eq!(
+            listed["instances"][0]["instance_id"],
+            "credential.acme.operator"
+        );
+        let (ok, inspected) = connector(&plugin, &["inspect", "acme"])?;
+        assert!(ok, "{inspected}");
+        assert_eq!(
+            inspected["readiness"][0]["instance_id"], "credential.acme.operator",
+            "{inspected}"
+        );
+        Ok(())
+    })();
+    fs::remove_dir_all(&root)?;
+    result
+}

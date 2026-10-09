@@ -55,6 +55,17 @@ fn relative_roots_resolve_against_the_workspace() {
 }
 
 #[test]
+fn without_a_user_home_every_directory_of_a_workspace_shares_its_home() {
+    let paths = RunxPaths::resolve(
+        &env(&[(RUNX_CWD_ENV, "/work/app")]),
+        Path::new("/work/app/plugin/skills"),
+    );
+
+    assert_eq!(paths.cwd(), Path::new("/work/app/plugin/skills"));
+    assert_eq!(paths.home(), Path::new("/work/app/.runx"));
+}
+
+#[test]
 fn a_blank_root_is_unset() {
     let paths = RunxPaths::resolve(
         &env(&[

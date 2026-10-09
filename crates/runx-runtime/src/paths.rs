@@ -45,7 +45,7 @@ impl RunxPaths {
         );
         let within = |path: &Path| lexical_normalize(&workspace.join(path));
         let home = env_path(env, RUNX_HOME_ENV)
-            .map_or_else(|| user_home(env, &cwd).join(RUNX_DIR), &within);
+            .map_or_else(|| user_home(env, &workspace).join(RUNX_DIR), &within);
         let project =
             env_path(env, RUNX_PROJECT_DIR_ENV).map_or_else(|| workspace.join(RUNX_DIR), &within);
         let receipts = env_path(env, RUNX_RECEIPT_DIR_ENV).map(within);
@@ -250,10 +250,12 @@ fn find_workspace(start: &Path) -> Option<PathBuf> {
         .map(Path::to_path_buf)
 }
 
-fn user_home(env: &BTreeMap<String, String>, cwd: &Path) -> PathBuf {
+/// The user's home, else the workspace, so every directory of one workspace
+/// shares one home.
+fn user_home(env: &BTreeMap<String, String>, workspace: &Path) -> PathBuf {
     env.get("HOME")
         .or_else(|| env.get("USERPROFILE"))
-        .map_or_else(|| cwd.to_path_buf(), PathBuf::from)
+        .map_or_else(|| workspace.to_path_buf(), PathBuf::from)
 }
 
 #[cfg(test)]

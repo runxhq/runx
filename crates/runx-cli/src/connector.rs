@@ -263,7 +263,7 @@ fn execute(plan: &ConnectorPlan, workspace: &WorkspaceEnv) -> Result<String, Str
     let records = |instances: &Instances| instances.list().map_err(|error| error.to_string());
     match &plan.action {
         ConnectorAction::List => {
-            let connectors = ConnectorScope::for_workspace(workspace.cwd())
+            let connectors = ConnectorScope::for_workspace(workspace.paths().cwd())
                 .and_then(|scope| scope.connectors())
                 .map_err(|error| error.to_string())?;
             let records = records(&instances)?;
@@ -312,8 +312,11 @@ fn execute(plan: &ConnectorPlan, workspace: &WorkspaceEnv) -> Result<String, Str
         }
         ConnectorAction::Inspect { connector } => {
             let connector = in_workspace(workspace, connector)?;
-            let readiness =
-                admission::connector_readiness(&connector, workspace.env(), workspace.cwd())?;
+            let readiness = admission::connector_readiness(
+                &connector,
+                workspace.env(),
+                workspace.paths().cwd(),
+            )?;
             let records = records(&instances)?
                 .into_iter()
                 .filter(|record| record.instance.connector == connector.manifest.id)
@@ -421,9 +424,9 @@ fn execute(plan: &ConnectorPlan, workspace: &WorkspaceEnv) -> Result<String, Str
     }
 }
 
-/// An official connector, or one of the plugin the workspace is in.
+/// An official connector, or one of the plugin runx was invoked in.
 fn in_workspace(workspace: &WorkspaceEnv, connector: &str) -> Result<Arc<LoadedConnector>, String> {
-    ConnectorScope::for_workspace(workspace.cwd())
+    ConnectorScope::for_workspace(workspace.paths().cwd())
         .and_then(|scope| scope.connector(connector))
         .map_err(|error| error.to_string())
 }
