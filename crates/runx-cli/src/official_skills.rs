@@ -132,8 +132,8 @@ pub(crate) const OFFICIAL_SKILLS: &[OfficialSkillLockEntry] = &[
     },
     OfficialSkillLockEntry {
         skill_id: "runx/github-sync",
-        version: "sha-c760c33b0a3f",
-        digest: "19b467301fc571f490bea3d258b315817a2b7d230b25c6186fe87661803cd6a8",
+        version: "sha-9c05a5e12bcc",
+        digest: "d38fa7dc233e1e9a335eb3a1a09f73a001c33158b16a6ed4e1750cdaaee90120",
     },
     OfficialSkillLockEntry {
         skill_id: "runx/google-analytics",

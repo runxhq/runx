@@ -791,6 +791,10 @@ export const officialConnectors: readonly OfficialConnector[] = [
         "implementation": "sha256:64d3faa95f6fcbb19fc1d04f0f04b174e0b906efc243744e813fa25dcb81186e",
         "operation": "sha256:30c8abd2d09462a97f17f75156bfd6c55eaa8826ec8246e92e34de2ec73ad199"
       },
+      "issues.create": {
+        "implementation": "sha256:7382e15dae3c01e5af567897b3ed38a67bfe11496402e7dcf8565bb75b10c632",
+        "operation": "sha256:0f00f290f84da4688d02c23704ffe9af7cd18ca1c78f675836a9622df3edb704"
+      },
       "issues.list": {
         "implementation": "sha256:46959afa156baf0480ec069d1e7759fe21ca85224a3af56d314a277165dcc9c5",
         "operation": "sha256:47c44e7b23565fa780dc8747e9f3ff5ae2c68ff5d9e6940c551cdb3aacab648f"
@@ -1609,6 +1613,196 @@ export const officialConnectors: readonly OfficialConnector[] = [
             }
           },
           "verb": "read"
+        },
+        "issues.create": {
+          "credentials": [
+            "token"
+          ],
+          "description": "Open issues in a repository, one issue per item.",
+          "hosted": {
+            "provider_scopes": [
+              "repo"
+            ]
+          },
+          "implementation": {
+            "http": {
+              "allowed_hosts": [
+                "api.github.com"
+              ],
+              "auth": {
+                "token": {
+                  "field": "token",
+                  "type": "bearer"
+                }
+              },
+              "decode": [
+                {
+                  "op": "auto_json"
+                }
+              ],
+              "readbacks": [
+                {
+                  "matches": [
+                    {
+                      "expected": {
+                        "path": "number",
+                        "source": "acknowledgement"
+                      },
+                      "observed": "number"
+                    },
+                    {
+                      "expected": {
+                        "path": "title",
+                        "source": "item"
+                      },
+                      "observed": "title"
+                    },
+                    {
+                      "expected": {
+                        "path": "body",
+                        "source": "item"
+                      },
+                      "observed": "body"
+                    },
+                    {
+                      "expected": {
+                        "path": "labels",
+                        "source": "item"
+                      },
+                      "observed": "labels.*.name"
+                    },
+                    {
+                      "expected": {
+                        "path": "assignees",
+                        "source": "item"
+                      },
+                      "observed": "assignees.*.login"
+                    },
+                    {
+                      "expected": {
+                        "path": "milestone",
+                        "source": "item"
+                      },
+                      "observed": "milestone.number"
+                    }
+                  ],
+                  "request": {
+                    "headers": {
+                      "accept": "application/vnd.github+json"
+                    },
+                    "id": "issue",
+                    "method": "GET",
+                    "url": {
+                      "$concat": [
+                        "https://api.github.com/repos/",
+                        {
+                          "$argument": "/repository"
+                        },
+                        "/issues/",
+                        {
+                          "$response": "write.json.number"
+                        }
+                      ]
+                    }
+                  }
+                }
+              ],
+              "requests": [
+                {
+                  "body": {
+                    "$item": ""
+                  },
+                  "each": {
+                    "$argument": "/issues"
+                  },
+                  "headers": {
+                    "accept": "application/vnd.github+json"
+                  },
+                  "id": "create",
+                  "method": "POST",
+                  "url": {
+                    "$concat": [
+                      "https://api.github.com/repos/",
+                      {
+                        "$argument": "/repository"
+                      },
+                      "/issues"
+                    ]
+                  }
+                }
+              ],
+              "result_paths": {
+                "issues": "acknowledgement"
+              }
+            }
+          },
+          "input_schema": {
+            "additionalProperties": false,
+            "properties": {
+              "issues": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "assignees": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "maxItems": 10,
+                      "type": "array"
+                    },
+                    "body": {
+                      "maxLength": 65536,
+                      "type": "string"
+                    },
+                    "labels": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "maxItems": 100,
+                      "type": "array"
+                    },
+                    "milestone": {
+                      "minimum": 1,
+                      "type": "integer"
+                    },
+                    "title": {
+                      "maxLength": 256,
+                      "minLength": 1,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "title"
+                  ],
+                  "type": "object"
+                },
+                "maxItems": 20,
+                "minItems": 1,
+                "type": "array"
+              },
+              "repository": {
+                "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "repository",
+              "issues"
+            ],
+            "type": "object"
+          },
+          "result_fields": [
+            "issues"
+          ],
+          "scopes": [
+            "repo.write"
+          ],
+          "target": {
+            "template": {
+              "$argument": "/repository"
+            }
+          },
+          "verb": "create"
         },
         "issues.list": {
           "credentials": [
@@ -2832,7 +3026,7 @@ export const officialConnectors: readonly OfficialConnector[] = [
       ],
       "schema": "runx.connector.v1"
     },
-    "manifest_digest": "sha256:d6b02732c3e69be9649fe1c468ee9e7178b248c1b47cbb0bbc65145a8dd6217d"
+    "manifest_digest": "sha256:7aa4b303e68b0351744720467f5d7bf9f21c7c3ec863d2dc1c876cb7a5a6001c"
   },
   {
     "digests": {

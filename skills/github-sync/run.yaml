@@ -1,5 +1,5 @@
 skill: github-sync
-version: "0.5.4"
+version: "0.5.5"
 
 catalog:
   kind: skill
@@ -76,34 +76,59 @@ input_definitions:
                 type: array
                 maxItems: 8
                 items:
-                  type: object
-                  required: [ref, op, payload]
-                  additionalProperties: false
-                  properties:
-                    ref: { type: string, pattern: '^issues/[1-9][0-9]*$' }
-                    op: { const: update }
-                    payload:
-                      type: object
-                      minProperties: 1
+                  oneOf:
+                    - type: object
+                      required: [ref, op, payload]
                       additionalProperties: false
                       properties:
-                        title: { type: string, minLength: 1, maxLength: 256, pattern: '^[^\u0000]+$' }
-                        body: { type: string, maxLength: 65536, pattern: '^[^\u0000]*$' }
-                        state: { type: string, enum: [open, closed] }
-                        state_reason: { type: string, enum: [completed, not_planned, reopened] }
-                        labels:
-                          type: array
-                          maxItems: 100
-                          uniqueItems: true
-                          items: { type: string, minLength: 1, maxLength: 100, pattern: '^[^\u0000]+$' }
-                        assignees:
-                          type: array
-                          maxItems: 20
-                          uniqueItems: true
-                          items: { type: string, minLength: 1, maxLength: 100, pattern: '^[^\u0000]+$' }
-                        milestone:
-                          type: [integer, 'null']
-                          minimum: 1
+                        ref: { type: string, pattern: '^issues/[1-9][0-9]*$' }
+                        op: { const: update }
+                        payload:
+                          type: object
+                          minProperties: 1
+                          additionalProperties: false
+                          properties:
+                            title: { type: string, minLength: 1, maxLength: 256, pattern: '^[^\u0000]+$' }
+                            body: { type: string, maxLength: 65536, pattern: '^[^\u0000]*$' }
+                            state: { type: string, enum: [open, closed] }
+                            state_reason: { type: string, enum: [completed, not_planned, reopened] }
+                            labels:
+                              type: array
+                              maxItems: 100
+                              uniqueItems: true
+                              items: { type: string, minLength: 1, maxLength: 100, pattern: '^[^\u0000]+$' }
+                            assignees:
+                              type: array
+                              maxItems: 20
+                              uniqueItems: true
+                              items: { type: string, minLength: 1, maxLength: 100, pattern: '^[^\u0000]+$' }
+                            milestone:
+                              type: [integer, 'null']
+                              minimum: 1
+                    - type: object
+                      required: [ref, op, payload]
+                      additionalProperties: false
+                      properties:
+                        ref: { const: issues }
+                        op: { const: create }
+                        payload:
+                          type: object
+                          required: [title]
+                          additionalProperties: false
+                          properties:
+                            title: { type: string, minLength: 1, maxLength: 256, pattern: '^[^\u0000]+$' }
+                            body: { type: string, maxLength: 65536, pattern: '^[^\u0000]*$' }
+                            labels:
+                              type: array
+                              maxItems: 100
+                              uniqueItems: true
+                              items: { type: string, minLength: 1, maxLength: 100, pattern: '^[^\u0000]+$' }
+                            assignees:
+                              type: array
+                              maxItems: 10
+                              uniqueItems: true
+                              items: { type: string, minLength: 1, maxLength: 100, pattern: '^[^\u0000]+$' }
+                            milestone: { type: integer, minimum: 1 }
         - if:
             properties: { kind: { const: prs } }
             required: [kind]
@@ -221,6 +246,30 @@ input_definitions:
                       required: [ref, op, payload]
                       additionalProperties: false
                       properties:
+                        ref: { const: issues }
+                        op: { const: create }
+                        payload:
+                          type: object
+                          required: [title]
+                          additionalProperties: false
+                          properties:
+                            title: { type: string, minLength: 1, maxLength: 256, pattern: '^[^\u0000]+$' }
+                            body: { type: string, maxLength: 65536, pattern: '^[^\u0000]*$' }
+                            labels:
+                              type: array
+                              maxItems: 100
+                              uniqueItems: true
+                              items: { type: string, minLength: 1, maxLength: 100, pattern: '^[^\u0000]+$' }
+                            assignees:
+                              type: array
+                              maxItems: 10
+                              uniqueItems: true
+                              items: { type: string, minLength: 1, maxLength: 100, pattern: '^[^\u0000]+$' }
+                            milestone: { type: integer, minimum: 1 }
+                    - type: object
+                      required: [ref, op, payload]
+                      additionalProperties: false
+                      properties:
                         ref: { type: string, pattern: '^pulls/[1-9][0-9]*$' }
                         op: { const: update }
                         payload:
@@ -259,7 +308,7 @@ input_definitions:
                             body: { type: string, minLength: 1, maxLength: 65536, pattern: '^[^\u0000]+$' }
 connectors:
   github:
-    operations: [issues.read, issues.list, pullrequests.read, pullrequests.list, comments.list, issues.update, pullrequests.update, comments.create, comments.update]
+    operations: [issues.read, issues.list, pullrequests.read, pullrequests.list, comments.list, issues.create, issues.update, pullrequests.update, comments.create, comments.update]
 runners:
   github-sync:
     default: true

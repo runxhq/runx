@@ -125,6 +125,7 @@ function writeOperation(repository, mutations) {
   for (const mutation of mutations) {
     const [first, second, third] = String(mutation.ref).split("/");
     if (first === "issues" && second === "comments") add("comments.update", "comments", { comment_id: Number(third), body: mutation.payload.body });
+    else if (first === "issues" && second === undefined) add("issues.create", "issues", mutation.payload);
     else if (third === "comments") add("comments.create", "comments", { number: Number(second), body: mutation.payload.body });
     else if (first === "issues") add("issues.update", "updates", { number: Number(second), patch: mutation.payload });
     else if (first === "pulls") add("pullrequests.update", "updates", { number: Number(second), patch: mutation.payload });

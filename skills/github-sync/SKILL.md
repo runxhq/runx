@@ -48,8 +48,8 @@ evidence. Do not silently turn a denied push into a pull.
 2. A `pull` plan requires read scope and records the exact resources a provider
    may fetch.
 3. A `push` plan requires write scope and one to eight typed mutations that
-   one GitHub operation applies: `issues.update`, `pullrequests.update`,
-   `comments.create`, or `comments.update`. It rejects unknown fields,
+   one GitHub operation applies: `issues.create`, `issues.update`,
+   `pullrequests.update`, `comments.create`, or `comments.update`. It rejects unknown fields,
    oversized content, and mixed kinds, then returns `ready_for_execution`;
    planning itself does not grant provider authority.
 4. Optional `plan_and_append_cursor` composes the canonical `data-store` skill
@@ -71,8 +71,8 @@ evidence. Do not silently turn a denied push into a pull.
 - `direction` is `pull` or `push`.
 - `resources` contains the issue, PR, thread, or `batch` selector and a
   limit no greater than 100. A push has one to eight `mutations` entries with `ref`, `op`, and an
-  exact typed `payload`. Issue and PR changes use `op: update`; new thread
-  comments use `op: comment`. Bodies are capped at 65,536 characters. Pulls
+  exact typed `payload`. Issue and PR changes use `op: update`; a new issue
+  uses `ref: issues` and `op: create`; new thread comments use `op: comment`. Bodies are capped at 65,536 characters. Pulls
   return GitHub's records whole.
 - `scope` is the requested read or write scope.
 
@@ -89,8 +89,8 @@ remote effect.
   content beyond the declared bounds.
 - Refuse push when write scope is missing; do not degrade silently.
 - Do not treat local cursor persistence as remote provider readback.
-- Refuse a push that mixes issue, pull-request, and comment changes; send each
-  kind as its own push.
+- Refuse a push that mixes new issues, issue, pull-request, and comment
+  changes; send each kind as its own push.
 - Refuse when no GitHub instance is selected, or the selected one lacks the
   scope. Never treat an available instance as evidence of the intended
   repository.
