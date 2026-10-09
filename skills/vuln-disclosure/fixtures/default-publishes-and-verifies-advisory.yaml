@@ -58,7 +58,7 @@ caller:
           payload_digest: sha256:ffbfa74bacc06d2eb87da944c16d6827723a80508c52b2a8f6bdd5c077e56490
           status: published
   approvals:
-    "operation:sha256:e8e3df82803b1ce422c6969c580e70754b20a236342045c23285d1ae7e4c7f0f": true
+    "publish": true
 expect:
   status: sealed
   steps: [prepare, publish]

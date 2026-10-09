@@ -261,7 +261,7 @@ Interpret the runx JSON result exactly:
 - `status` is lifecycle state; `outcome` says whether the promised operation completed. A sealed blocked or failed run is not success.
 - If `status` is `sealed`, surface the outcome, receipt id, result, and artifact refs.
 - If runx returns `needs_agent` or `needs_approval`, read only the selected digest-bound request artifact and obey its exact output contract and `allowed_tools`.
-- Bind every answer to its `request_digest`; relay approval requests and never fabricate human approval.
+- Answer each request by the id the run lists; relay approval requests and never fabricate human approval.
 
 Pipe the structured continuation object to the same digest-bound run; do not create a manual answer file:
 

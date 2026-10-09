@@ -62,7 +62,7 @@ caller:
           sent_at: "2026-08-11T00:00:00Z"
           idempotency_key: $previous.idempotency_key
   approvals:
-    "operation:sha256:0dc935d252807f14fdfa0b0eefb5e1e311b1194b2376b34e2c4d94c96c98ae3e": true
+    "deliver": true
 expect:
   status: sealed
   steps: [plan, apply, finalize]

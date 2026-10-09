@@ -45,7 +45,7 @@ pub fn mcp_tool_result_from_run_result(
 ) -> McpToolResult {
     let succeeded = result.succeeded();
     let pending = result.needs_resolution();
-    let JsonValue::Object(mut runx) = result.output else {
+    let JsonValue::Object(runx) = result.output else {
         return McpToolResult {
             content: vec![McpContent {
                 text: "Invalid native run result.".to_owned(),
@@ -91,21 +91,6 @@ pub fn mcp_tool_result_from_run_result(
             result.receipt_refs.first().map_or("n/a", String::as_str)
         )
     };
-    if pending && !result.pending_requests.is_empty() {
-        let digests = result
-            .pending_requests
-            .iter()
-            .filter_map(|request| {
-                let id = request.as_object()?.get("id")?.as_str()?;
-                let bytes = serde_json::to_vec(request).ok()?;
-                Some((
-                    id.to_owned(),
-                    JsonValue::String(runx_contracts::sha256_prefixed(&bytes)),
-                ))
-            })
-            .collect();
-        runx.insert("request_digests".to_owned(), JsonValue::Object(digests));
-    }
     mcp_host_tool_result(text, runx, output, !succeeded && !pending)
 }
 

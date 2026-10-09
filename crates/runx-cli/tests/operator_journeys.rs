@@ -572,7 +572,13 @@ fn stdin_resume_reuses_run_and_rejects_digest_drift() -> TestResult {
         .and_then(|requests| requests.first())
         .ok_or("pending run omitted request summary")?;
     let request_id = json_string(request, "id")?;
-    let request_digest = json_string(request, "request_digest")?;
+    // The summary names the request artifact by its content digest.
+    assert_eq!(
+        json_string(request, "request_digest")?,
+        request["artifact_ref"]["digest"]
+            .as_str()
+            .ok_or("request summary omitted artifact digest")?
+    );
     let request_path = request["artifact_ref"]["path"]
         .as_str()
         .ok_or("request summary omitted artifact path")?;
@@ -606,35 +612,16 @@ fn stdin_resume_reuses_run_and_rejects_digest_drift() -> TestResult {
         assert_eq!(rejected["status"], "failure");
     }
 
-    let answer = |digest: &str| {
-        serde_json::json!({
-            "request_digests": { (request_id): digest },
-            "answers": {
-                (request_id): {
-                    "intake_report": { "summary": "Docs bug is bounded." }
-                }
-            }
-        })
-        .to_string()
-    };
-    let mut mismatch = command(&root);
-    mismatch
-        .arg("resume")
-        .arg(run_id)
-        .arg("-")
-        .arg("--receipt-dir")
-        .arg(&receipt_dir)
-        .arg("--json");
-    let mismatch = output_with_stdin(&mut mismatch, &answer("sha256:wrong-request"))?;
-    let mismatch = assert_json(&mismatch, 1)?;
-    assert_eq!(mismatch["status"], "failure");
-    assert!(
-        mismatch["error"]["message"]
-            .as_str()
-            .is_some_and(|message| message.contains("request digest mismatch"))
-    );
     let pending = history_json(&root, &receipt_dir, run_id)?;
     assert!(run_is_paused(&pending, run_id));
+    let answer = serde_json::json!({
+        "answers": {
+            (request_id): {
+                "intake_report": { "summary": "Docs bug is bounded." }
+            }
+        }
+    })
+    .to_string();
 
     let mut resume = command(&root);
     resume
@@ -644,7 +631,7 @@ fn stdin_resume_reuses_run_and_rejects_digest_drift() -> TestResult {
         .arg("--receipt-dir")
         .arg(&receipt_dir)
         .arg("--json");
-    let resume = output_with_stdin(&mut resume, &answer(request_digest))?;
+    let resume = output_with_stdin(&mut resume, &answer)?;
     let resume = assert_json(&resume, 0)?;
     assert_eq!(resume["status"], "sealed");
     assert_eq!(resume["outcome"], "completed");
@@ -655,7 +642,7 @@ fn stdin_resume_reuses_run_and_rejects_digest_drift() -> TestResult {
 }
 
 #[test]
-fn nested_graph_resume_preserves_completed_effects_and_request_digests() -> TestResult {
+fn nested_graph_resume_preserves_completed_effects() -> TestResult {
     for topology in ["nested", "deep"] {
         let root = crate::support::temp_root(&format!("runx-{topology}-resume-effects"));
         let skill_dir = root.join("skills/nested-resume");
@@ -731,9 +718,7 @@ runners:
             fs::write(root.join(marker), "observed after pause")?;
             let request = &paused["requests"][0];
             let request_id = json_string(request, "id")?;
-            let digest = json_string(request, "request_digest")?;
             let answers = serde_json::json!({
-                "request_digests": { (request_id): digest },
                 "answers": { (request_id): { "decision": { "accepted": true } } }
             });
             let mut resume = command(&root);

@@ -25,7 +25,7 @@ inputs:
   brand_sid: br_sourcey
 caller:
   approvals:
-    "operation:sha256:2d594e2bf1fc61a2624eee9ce8a852aac725900b03c5db24134a63153014e291": true
+    "request": true
   mcp_calls:
   - tool: nitro_review_delivery
     arguments:

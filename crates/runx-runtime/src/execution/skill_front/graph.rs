@@ -82,6 +82,13 @@ impl BoundRun {
         let existing = log.load()?;
         let waiting = waiting_requests(log.store(), log.run_id())?;
         host.check_turn(log.run_id(), &waiting)?;
+        host.answers.check_waiting(
+            log.run_id(),
+            &waiting
+                .iter()
+                .map(|request| request.id.as_str())
+                .collect::<Vec<_>>(),
+        )?;
         let request_context = RunContext {
             current: request.current_context.clone(),
             historical: request.historical_context.clone(),
@@ -160,16 +167,16 @@ impl BoundRun {
                     let Some(answer) = host.answers.get(&retry.id, &retry.digest) else {
                         return self.paused(&log);
                     };
-                    if host.answers.request_digest(&retry.id) != Some(retry.digest.as_str())
-                        || answer
-                            != &JsonValue::Object(JsonObject::from([(
-                                "retry".to_owned(),
-                                JsonValue::Bool(true),
-                            )]))
+                    if answer
+                        != &JsonValue::Object(JsonObject::from([(
+                            "retry".to_owned(),
+                            JsonValue::Bool(true),
+                        )]))
                     {
-                        return Err(invalid(
-                            "native retry requires the exact digest-bound acknowledgement",
-                        ));
+                        return Err(invalid(format!(
+                            "{} is answered with {{\"retry\": true}}",
+                            retry.id
+                        )));
                     }
                 }
                 // Nothing new to continue with: the run still waits on what
@@ -757,20 +764,6 @@ impl Host for RunHost {
         let Some(answer) = self.answers.get(&request_id, &current).cloned() else {
             return Ok(None);
         };
-        if self.answers.requires_request_digest(&request_id) {
-            let supplied = self.answers.request_digest(&request_id).ok_or_else(|| {
-                RuntimeError::ContinuationRejected {
-                    reason: format!("request_digests did not include pending request {request_id}"),
-                }
-            })?;
-            if supplied != current {
-                return Err(RuntimeError::ContinuationRejected {
-                    reason: format!(
-                        "request digest mismatch for {request_id}: supplied {supplied}, current {current}"
-                    ),
-                });
-            }
-        }
         let actor = if self.answers.is_human_approval(&request_id) {
             ResolutionResponseActor::Human
         } else {

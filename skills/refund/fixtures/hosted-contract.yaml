@@ -16,7 +16,7 @@ inputs:
   settlement_family: mpp
   idempotency_key: refund-test-001
 caller:
-  approvals: { "operation:sha256:75b72fe32dff52caab1433df02f6e7ca1fc5523475d08aeccc73acddb1fe98cc": true }
+  approvals: { "refund": true }
   provider_responses:
     principal_id: refund-fixture
     grant: { grant_id: refund-fixture, provider: mpp, scopes: [payment.refund, payment.refund.read] }

@@ -366,8 +366,12 @@ fn ambiguous_reply_holds_for_reconciliation_and_another_thread_needs_its_own_app
 
     // A reply to another thread is a different consequential act: it needs
     // its own exact approval, never the first one's.
-    let (_, other_approval) = reply_pause(&root, &ambiguous_url, &receipt_dir, "other-reply.json")?;
-    assert_ne!(other_approval, approval_id);
+    // Each run asks at its own reply step, and a resume's approval answers
+    // only its own run's waiting request.
+    let (other_run, other_approval) =
+        reply_pause(&root, &ambiguous_url, &receipt_dir, "other-reply.json")?;
+    assert_ne!(other_run, run_id);
+    assert_eq!(other_approval, approval_id);
 
     // Retrying the first reply finds its unsettled attempt. The reply may have
     // posted and Slack does not deduplicate it, so the run holds for

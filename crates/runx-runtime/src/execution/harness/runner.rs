@@ -753,18 +753,21 @@ impl Host for FixtureHost<'_> {
         request: ResolutionRequest,
     ) -> Result<Option<ResolutionResponse>, RuntimeError> {
         match request {
-            // A case decides a gate by its address, or by its id at any depth.
-            ResolutionRequest::Approval { id, gate } => {
+            // A case decides an approval by its address, or by its id in its
+            // own run at any depth: the step that asks.
+            ResolutionRequest::Approval { id, .. } => {
                 let approvals = &self.fixture.caller.approvals;
                 let response = approvals
                     .get(id.as_str())
-                    .or_else(|| approvals.get(gate.id.as_str()))
+                    .or_else(|| {
+                        approvals.get(crate::execution::run_record::local_request_id(id.as_str()))
+                    })
                     .map(|approved| ResolutionResponse {
                         actor: ResolutionResponseActor::Human,
                         payload: JsonValue::Bool(*approved),
                     });
                 if response.is_none() {
-                    self.unanswered.push(gate.id.to_string());
+                    self.unanswered.push(id.to_string());
                 }
                 Ok(response)
             }

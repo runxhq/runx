@@ -67,7 +67,7 @@ caller:
         headers: { content-type: application/json, x-rate-limit-remaining: "0", x-rate-limit-reset: "1800000000" }
         body: '{"title":"Too Many Requests","detail":"Too Many Requests","type":"about:blank","status":429}'
   approvals:
-    "operation:sha256:481eda4897c561b95454f024c9fb5f6c47b18b973120111b12d4fcad3d705520": true
+    "request": true
 expect:
   status: sealed
   steps: [ledger, digest, prepare, self, bind, request, apply, persist]

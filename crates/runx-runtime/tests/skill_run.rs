@@ -2208,7 +2208,7 @@ fn native_graph_skill_resume_applies_approval_before_completing_step()
 }
 
 #[test]
-fn native_graph_skill_resume_binds_human_approval_to_checkpoint_digest()
+fn native_graph_skill_resume_approves_only_what_the_run_waits_on()
 -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;
     let skill_dir = write_graph_approval_resume_skill(temp.path())?;
@@ -2233,21 +2233,30 @@ fn native_graph_skill_resume_binds_human_approval_to_checkpoint_digest()
         runx_runtime::run_record::paused_requests(&BTreeMap::new(), temp.path(), &run_id)?
             .pop()
             .ok_or("the paused run's approval request is missing")?;
-    let digest = runx_contracts::sha256_prefixed(&serde_json::to_vec(&request.value)?);
+    // A person approves only what the run waits on: an approval of any other
+    // request, such as one the resume would ask next, is refused.
     let answers_path = temp.path().join("native-approval-answer.json");
-    let mut answer = serde_json::json!({
-        "approvals": { request.id.clone(): true },
-        "request_digests": { request.id.clone(): format!("sha256:{}", "0".repeat(64)) }
-    });
-    fs::write(&answers_path, serde_json::to_vec(&answer)?)?;
+    fs::write(
+        &answers_path,
+        serde_json::to_vec(&serde_json::json!({
+            "approvals": { request.id.clone(): true, "a-later-step": true }
+        }))?,
+    )?;
     let mut resume = start;
     resume.answers_path = Some(answers_path.clone());
     let rejected = run_skill(resume.clone())
         .err()
-        .ok_or("wrong request digest was accepted")?;
-    assert!(rejected.to_string().contains("request digest mismatch"));
-    answer["request_digests"][&request.id] = serde_json::json!(digest);
-    fs::write(&answers_path, serde_json::to_vec(&answer)?)?;
+        .ok_or("an approval of a request not shown was accepted")?;
+    assert!(
+        rejected
+            .to_string()
+            .contains("approval a-later-step names no request"),
+        "{rejected}"
+    );
+    fs::write(
+        &answers_path,
+        serde_json::to_vec(&serde_json::json!({ "approvals": { request.id.clone(): true } }))?,
+    )?;
     let resumed = run_skill(resume)?;
     assert_eq!(resumed.status, runx_runtime::RunStatus::Sealed);
     assert!(resumed.succeeded());
@@ -3076,28 +3085,14 @@ fn complete_agent_fixture(
     let mut start = request.clone();
     start.answers_path = None;
     let pending = LocalOrchestrator::default().run_skill(&start)?;
-    let mut digests = serde_json::Map::new();
-    for pending_request in &pending.pending_requests {
-        let pending_object = object(pending_request, "pending request")?;
-        let id = string_field(pending_object, "id").ok_or("missing pending request id")?;
-        digests.insert(
-            id.to_owned(),
-            serde_json::Value::String(runx_contracts::sha256_prefixed(&serde_json::to_vec(
-                pending_request,
-            )?)),
-        );
-    }
-    assert!(!digests.is_empty());
+    assert!(!pending.pending_requests.is_empty());
     let pending = serde_json::to_value(&pending.output)?;
     assert_eq!(pending["status"], "needs_agent");
     assert_eq!(pending["run_id"].as_str(), request.run_id.as_deref());
-    let answers_path = request
+    request
         .answers_path
         .as_ref()
         .ok_or("fixture answers are required")?;
-    let mut answers: serde_json::Value = serde_json::from_slice(&fs::read(answers_path)?)?;
-    answers["request_digests"] = serde_json::Value::Object(digests);
-    fs::write(answers_path, serde_json::to_vec(&answers)?)?;
     LocalOrchestrator::default()
         .run_skill(&request)
         .map_err(Into::into)

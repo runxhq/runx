@@ -15,7 +15,7 @@ inputs:
   rail_profile_ref: "rail-profile:stripe-test"
   idempotency_seed: stripe-test-001
 caller:
-  approvals: { "operation:sha256:d784777dedc9000133c9492b0bf501d034d000e37e98dc8117b1c31af62ba545": true }
+  approvals: { "spend": true }
   provider_responses:
     principal_id: stripe-fixture
     grant: { grant_id: stripe-fixture, provider: stripe-spt, scopes: [payment.spend, payment.spend.read] }

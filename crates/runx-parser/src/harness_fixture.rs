@@ -181,7 +181,8 @@ pub struct HarnessCaller {
     /// answered or worked, not both.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub turns: BTreeMap<String, HarnessTurnScript>,
-    /// Approval decisions, by gate id.
+    /// Approval decisions, by request address, or by the request's id in its
+    /// own run: an operation step's id, or an ask's gate.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub approvals: BTreeMap<String, bool>,
     /// The exact HTTP exchanges the run may make; any other request is

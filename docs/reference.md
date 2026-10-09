@@ -124,7 +124,7 @@ The resume file keeps agent work and human authorization distinct:
     }
   },
   "approvals": {
-    "provider-effect:example": {
+    "deliver": {
       "approved": true,
       "reason": "I authorize this exact provider action."
     }
@@ -139,8 +139,11 @@ must never author or promote that entry; it returns the pending approval to its
 human or to an integrated host that authenticates the decision. Never place a
 consequential decision under `answers`; that section records agent or
 caller-supplied work and cannot resolve an approval gate. Runx rejects an agent
-response presented to an approval request. The pending run's `answers_template`
-contains the exact request ids to resolve.
+response presented to an approval request. An approval names a request the run
+is paused on, by the address the paused run lists; one naming any other
+request is refused, so no approval reaches a request a person has not seen,
+and a resumed run checks that each request it re-asks is the one it paused on.
+The pending run's `answers_template` contains the exact request ids to resolve.
 
 `runx turn <run-id>` serves the agent turns a paused run waits on as MCP tools
 over stdio. The tools are fixed and take a turn's address: `turn_list` shows
@@ -512,7 +515,8 @@ The verb, scopes, target and readbacks come from the connector operation, and
 the kernel confirms a write by its declared readbacks before the step
 succeeds. The approval request is optional unless the operation requires one.
 When present, it is part of the intent digest and the kernel returns a
-resumable approval request, `operation:<intent digest>`, before dispatch. The
+resumable approval request before dispatch, addressed by the step that asks,
+with the gate `operation:<intent digest>`. The
 runtime constructs the operator summary from the admitted connector,
 operation, target, scopes, payload digest, intent digest, and amount when
 present; package code cannot inject a second free-form account of the act. Do
@@ -790,7 +794,8 @@ fixture files, inline runner cases and dev fixtures:
 - `answers`: agent act outputs, by request id;
 - `turns`: agent turns the caller works call by call, by request id. An act
   is answered or worked, not both;
-- `approvals`: approval decisions, `true` or `false`, by gate id;
+- `approvals`: approval decisions, `true` or `false`, by request id: an
+  operation step's id, or an ask's gate;
 
 An id answers that request in every run of the case that asks it. A key may
 instead be an address, such as `answer/0#agent.answer.output`, which answers

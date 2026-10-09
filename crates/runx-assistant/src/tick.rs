@@ -3692,13 +3692,9 @@ fn dispatch_pending_work(
                 {
                     return Err("native retry differs from the bound readback continuation".into());
                 }
-                let digest = sha256_prefixed(
-                    &serde_json::to_vec(&request.value).map_err(|error| error.to_string())?,
-                );
                 let answer =
-                    serde_json::from_value(json!({"answers":{request.id.clone():{"retry":true}},
-                    "request_digests":{request.id.clone():digest}}))
-                    .map_err(|error| format!("encoding native retry answer: {error}"))?;
+                    serde_json::from_value(json!({"answers":{request.id.clone():{"retry":true}}}))
+                        .map_err(|error| format!("encoding native retry answer: {error}"))?;
                 let reference = runx_runtime::persist_json_artifact(
                     &workspace.paths().artifacts(),
                     &bound.run_id,
@@ -4021,8 +4017,7 @@ fn handle_pending_decision(
                 );
             }
             let answer: runx_contracts::JsonValue = serde_json::from_value(json!({
-                "approvals":{decision.request_id.clone():approved},
-                "request_digests":{decision.request_id.clone():decision.request_digest}
+                "approvals":{decision.request_id.clone():approved}
             }))
             .map_err(|error| format!("encoding native approval answer: {error}"))?;
             answer_ref = Some(

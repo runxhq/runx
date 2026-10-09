@@ -324,10 +324,9 @@ runners:
                 .as_str()
                 .ok_or("missing request id")?;
             let answers = if agent {
-                json!({"answers": {request_id: {"intake_report": {"summary": "Original input reviewed"}}},
-                    "request_digests": pending["request_digests"]})
+                json!({"answers": {request_id: {"intake_report": {"summary": "Original input reviewed"}}}})
             } else {
-                json!({"approvals": {request_id: true}, "request_digests": pending["request_digests"]})
+                json!({"approvals": {request_id: true}})
             };
             let answers_path = root.join("answers.json");
             fs::write(&answers_path, serde_json::to_vec(&answers)?)?;
@@ -351,8 +350,9 @@ runners:
                     .any(|run| run["run_id"] == run_id && run["state"] == "paused")
             }));
 
+            // An approval of a request the run was not paused on is refused.
             let mut wrong = answers.clone();
-            wrong["request_digests"][request_id] = json!("sha256:wrong");
+            wrong["approvals"]["not-asked"] = json!(true);
             fs::write(&answers_path, serde_json::to_vec(&wrong)?)?;
             let refused = command()
                 .args(["resume", run_id])

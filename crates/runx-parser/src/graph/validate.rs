@@ -50,6 +50,7 @@ pub fn validate_graph_document(
 
     validate_result_producers(&result_from, &seen_step_ids)?;
     validate_gated_context(&steps)?;
+    validate_ask_addresses(&steps, &seen_step_ids)?;
 
     Ok(ExecutionGraph {
         name,
@@ -80,6 +81,25 @@ fn validate_result_producers(
         if !seen.insert(step_id) {
             return Err(validation_error(format!(
                 "result_from contains duplicate step '{step_id}'."
+            )));
+        }
+    }
+    Ok(())
+}
+
+/// An ask is addressed by its gate and an operation's approval by its step, in
+/// one run, so a gate may not name a step.
+fn validate_ask_addresses(
+    steps: &[crate::GraphStep],
+    step_ids: &BTreeSet<String>,
+) -> Result<(), ValidationError> {
+    for (index, step) in steps.iter().enumerate() {
+        if let crate::StepKind::Ask(ask) = &step.kind
+            && step_ids.contains(&ask.gate)
+        {
+            return Err(validation_error(format!(
+                "steps.{index}.ask.gate '{}' names a step; an ask's gate addresses its request, so it must differ from every step id.",
+                ask.gate
             )));
         }
     }
@@ -272,6 +292,31 @@ steps:
 "#,
         )?;
         assert!(error.contains("result_from contains duplicate step 'result'"));
+        Ok(())
+    }
+
+    #[test]
+    fn an_ask_gate_cannot_share_a_step_address() -> Result<(), String> {
+        let graph = |gate: &str| {
+            format!(
+                r#"
+name: approved-send
+steps:
+  - id: confirm
+    ask: {{gate: {gate}, reason: Approve the send.}}
+  - id: send
+    operation: example/message.send
+    idempotency_key: send-1
+    input: {{text: hello}}
+"#
+            )
+        };
+        let error = validate_err(&graph("send"))?;
+        assert!(
+            error.contains("steps.0.ask.gate 'send' names a step"),
+            "{error}"
+        );
+        validate_yaml(&graph("send.approval"))?;
         Ok(())
     }
 

@@ -1808,7 +1808,9 @@ fn human(
             .or_else(|| Some("operation".to_owned())),
         summary: Some(summary),
     };
-    let request_id = crate::execution::run_record::request_address(&context.lanes.run_id, &gate_id);
+    // The request is addressed by the call that asks; the gate keeps the
+    // intent, and a resumed run answers only the request it waited on.
+    let request_id = crate::execution::run_record::request_address(&context.lanes.run_id, &step.id);
     let request = ResolutionRequest::Approval {
         id: request_id.clone().into(),
         gate: gate.clone(),

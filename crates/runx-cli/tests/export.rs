@@ -142,7 +142,7 @@ fn codex_global_writes_shim_and_idempotent_permission_block()
     assert!(shim.contains("If runx returns `needs_agent` or `needs_approval`"));
     assert!(shim.contains("digest-bound request artifact"));
     assert!(shim.contains("allowed_tools"));
-    assert!(shim.contains("request_digest"));
+    assert!(shim.contains("Answer each request by the id the run lists"));
     assert!(shim.contains("resume \"<run_id>\" - --package-digest sha256:"));
     assert!(shim.contains("--execution-closure-digest sha256:"));
     assert!(shim.contains("runx-export:codex"));

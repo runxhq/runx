@@ -14,8 +14,6 @@ use crate::RuntimeError;
 pub(crate) struct ResolutionAnswers {
     values: JsonObject,
     human_approvals: BTreeSet<String>,
-    request_digests: BTreeMap<String, String>,
-    digest_bound_requests: BTreeSet<String>,
     keys: AnswerKeys,
     /// The digest of the request each addressed answer was spent on.
     spent: BTreeMap<String, String>,
@@ -109,14 +107,29 @@ impl ResolutionAnswers {
         self.human_approvals.contains(self.key(request_id))
     }
 
-    pub(super) fn request_digest(&self, request_id: &str) -> Option<&str> {
-        self.request_digests
-            .get(self.key(request_id))
-            .map(String::as_str)
-    }
-
-    pub(super) fn requires_request_digest(&self, request_id: &str) -> bool {
-        self.digest_bound_requests.contains(self.key(request_id))
+    /// A person approves only what they were shown: every approval a resume
+    /// brings names one of `waiting`, the addresses the run is paused at, so
+    /// none reaches a request first asked during the resume. A script decides
+    /// whatever its case asks.
+    pub(super) fn check_waiting(
+        &self,
+        run_id: &str,
+        waiting: &[&str],
+    ) -> Result<(), SkillRunError> {
+        if self.keys == AnswerKeys::Script {
+            return Ok(());
+        }
+        match self
+            .human_approvals
+            .iter()
+            .find(|key| !waiting.contains(&key.as_str()))
+        {
+            Some(key) => Err(invalid(format!(
+                "approval {key} names no request run {run_id} waits on; it waits on [{}]",
+                waiting.join(", ")
+            ))),
+            None => Ok(()),
+        }
     }
 
     pub(super) fn is_empty(&self) -> bool {
@@ -137,15 +150,13 @@ pub(super) fn read_answers(path: &Path) -> Result<ResolutionAnswers, SkillRunErr
 }
 
 fn normalize_answers(mut object: JsonObject) -> Result<ResolutionAnswers, SkillRunError> {
-    let nested_shape = object.contains_key("answers")
-        || object.contains_key("approvals")
-        || object.contains_key("request_digests");
+    let nested_shape = object.contains_key("answers") || object.contains_key("approvals");
     if !nested_shape {
         return Ok(ResolutionAnswers::agent(object));
     }
     let extra = object
         .keys()
-        .filter(|key| !matches!(key.as_str(), "answers" | "approvals" | "request_digests"))
+        .filter(|key| !matches!(key.as_str(), "answers" | "approvals"))
         .cloned()
         .collect::<Vec<_>>();
     if !extra.is_empty() {
@@ -164,27 +175,7 @@ fn normalize_answers(mut object: JsonObject) -> Result<ResolutionAnswers, SkillR
         Some(_) => return Err(invalid("approvals field must be a JSON object")),
         None => JsonObject::new(),
     };
-    let request_digests = match object.remove("request_digests") {
-        Some(JsonValue::Object(digests)) => digests
-            .into_iter()
-            .map(|(id, digest)| match digest {
-                JsonValue::String(digest) if !digest.trim().is_empty() => Ok((id, digest)),
-                _ => Err(invalid(
-                    "request_digests values must be non-empty digest strings",
-                )),
-            })
-            .collect::<Result<BTreeMap<_, _>, _>>()?,
-        Some(_) => return Err(invalid("request_digests field must be a JSON object")),
-        None => BTreeMap::new(),
-    };
-    let mut resolved = ResolutionAnswers::from_lanes(answers, approvals)?;
-    if !request_digests.is_empty() {
-        resolved
-            .digest_bound_requests
-            .extend(resolved.values.keys().cloned());
-    }
-    resolved.request_digests = request_digests;
-    Ok(resolved)
+    ResolutionAnswers::from_lanes(answers, approvals)
 }
 
 fn is_human_approval_payload(value: &JsonValue) -> bool {
