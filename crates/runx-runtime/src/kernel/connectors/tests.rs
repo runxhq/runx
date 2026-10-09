@@ -14,7 +14,7 @@ fn official_connectors_load_with_digests() {
     assert!(digest.as_str().starts_with("sha256:"));
     assert!(matches!(
         scope.connector("nope"),
-        Err(ConnectorRegistryError::Unknown(_))
+        Err(ConnectorRegistryError::NotOfficial { .. })
     ));
 }
 
@@ -113,5 +113,31 @@ operations:
         ConnectorScope::for_skill(&skill),
         Err(ConnectorRegistryError::InvalidManifest { message, .. })
             if message.contains("declares no references")
+    ));
+}
+
+#[test]
+fn a_missing_connector_says_where_it_was_looked_for() {
+    let root = tempfile::tempdir().unwrap();
+    let root = root.path().canonicalize().unwrap();
+    let outside = root.join("elsewhere");
+    std::fs::create_dir_all(&outside).unwrap();
+    assert!(matches!(
+        ConnectorScope::for_workspace(&outside).unwrap().connector("acme"),
+        Err(ConnectorRegistryError::NoPlugin { dir, .. }) if dir == outside
+    ));
+
+    let plugin = root.join("plugin");
+    std::fs::create_dir_all(plugin.join("connectors")).unwrap();
+    let inside = plugin.join("skills/work");
+    std::fs::create_dir_all(&inside).unwrap();
+    assert!(matches!(
+        ConnectorScope::for_workspace(&inside).unwrap().connector("acme"),
+        Err(ConnectorRegistryError::NotInPlugin { root, .. }) if root == plugin
+    ));
+
+    assert!(matches!(
+        ConnectorScope::for_workspace(&root.join("gone")),
+        Err(ConnectorRegistryError::Uninspectable { .. })
     ));
 }

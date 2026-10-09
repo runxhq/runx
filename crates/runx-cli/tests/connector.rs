@@ -291,6 +291,13 @@ fn a_plugin_connector_binds_from_inside_its_plugin() -> TestResult {
         ];
         let (ok, refused) = runx(&root, &set, Some("acme_token"))?;
         assert!(!ok, "the workspace root is not in the plugin: {refused}");
+        let canonical = |path: &Path| path.canonicalize().map(|path| path.display().to_string());
+        let message = refused.to_string();
+        assert!(
+            message.contains(&format!("{} is in no plugin", canonical(&root)?))
+                && message.contains("reached from inside the plugin"),
+            "a miss says where it looked: {message}"
+        );
 
         let (ok, bound) = runx(&plugin, &set, Some("acme_token"))?;
         assert!(ok, "{bound}");
@@ -309,6 +316,15 @@ fn a_plugin_connector_binds_from_inside_its_plugin() -> TestResult {
         assert_eq!(
             inspected["readiness"][0]["instance_id"], "credential.acme.operator",
             "{inspected}"
+        );
+        let (ok, missing) = connector(&plugin, &["inspect", "acme-two"])?;
+        assert!(!ok, "{missing}");
+        assert!(
+            missing.to_string().contains(&format!(
+                "connector acme-two is neither an official connector nor one of the plugin at {}",
+                canonical(&plugin)?
+            )),
+            "{missing}"
         );
         Ok(())
     })();

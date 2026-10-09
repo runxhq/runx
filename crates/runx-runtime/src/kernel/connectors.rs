@@ -56,8 +56,20 @@ pub enum ConnectorRegistryError {
     InvalidManifest { path: PathBuf, message: String },
     #[error("connector {id} at {path} conflicts with the official connector of the same id")]
     Shadowed { id: ConnectorId, path: PathBuf },
-    #[error("connector {0} is not an official connector or a connector of this skill's plugin")]
-    Unknown(String),
+    #[error("connector {id} is not an official connector")]
+    NotOfficial { id: String },
+    #[error(
+        "connector {id} is neither an official connector nor one of the plugin at {}",
+        root.display()
+    )]
+    NotInPlugin { id: String, root: PathBuf },
+    #[error(
+        "connector {id} is not an official connector, and {} is in no plugin; a plugin's connectors are reached from inside the plugin, at or below the directory holding its connectors/",
+        dir.display()
+    )]
+    NoPlugin { id: String, dir: PathBuf },
+    #[error("{} cannot be inspected for a plugin: {message}", dir.display())]
+    Uninspectable { dir: PathBuf, message: String },
 }
 
 struct Official {
@@ -110,6 +122,9 @@ fn loaded(validated: ValidatedConnector, origin: ConnectorOrigin) -> LoadedConne
 #[derive(Clone)]
 pub struct ConnectorScope {
     plugin: Option<Arc<PluginConnectors>>,
+    /// The directory the plugin was looked for from, so a miss says where.
+    /// None for the official connectors alone.
+    searched: Option<PathBuf>,
 }
 
 struct PluginConnectors {
@@ -121,11 +136,15 @@ impl ConnectorScope {
     /// The scope of the skill in `skill_dir`.
     pub fn for_skill(skill_dir: &Path) -> Result<Self, ConnectorRegistryError> {
         official()?;
-        let plugin = match plugin_root(skill_dir) {
+        let skill_dir = inspected(skill_dir)?;
+        let plugin = match plugin_root(&skill_dir) {
             Some(root) => Some(plugin_connectors(&root)?),
             None => None,
         };
-        Ok(Self { plugin })
+        Ok(Self {
+            plugin,
+            searched: Some(skill_dir),
+        })
     }
 
     /// The scope of an operator working in `dir`: official, plus the
@@ -133,16 +152,19 @@ impl ConnectorScope {
     /// above it holding a `connectors` directory.
     pub fn for_workspace(dir: &Path) -> Result<Self, ConnectorRegistryError> {
         official()?;
-        let root = dir.canonicalize().ok().and_then(|dir| {
-            dir.ancestors()
-                .find(|ancestor| ancestor.join("connectors").is_dir())
-                .map(Path::to_path_buf)
-        });
+        let dir = inspected(dir)?;
+        let root = dir
+            .ancestors()
+            .find(|ancestor| ancestor.join("connectors").is_dir())
+            .map(Path::to_path_buf);
         let plugin = match root {
             Some(root) => Some(plugin_connectors(&root)?),
             None => None,
         };
-        Ok(Self { plugin })
+        Ok(Self {
+            plugin,
+            searched: Some(dir),
+        })
     }
 
     /// Every connector in the scope, official first.
@@ -162,18 +184,30 @@ impl ConnectorScope {
     /// Only the official connectors.
     pub fn official_only() -> Result<Self, ConnectorRegistryError> {
         official()?;
-        Ok(Self { plugin: None })
+        Ok(Self {
+            plugin: None,
+            searched: None,
+        })
     }
 
     pub fn connector(&self, id: &str) -> Result<Arc<LoadedConnector>, ConnectorRegistryError> {
         if let Some(connector) = official()?.connectors.get(id) {
             return Ok(Arc::clone(connector));
         }
-        self.plugin
-            .as_ref()
-            .and_then(|plugin| plugin.connectors.get(id))
-            .map(Arc::clone)
-            .ok_or_else(|| ConnectorRegistryError::Unknown(id.to_owned()))
+        let id = id.to_owned();
+        match (&self.plugin, &self.searched) {
+            (Some(plugin), _) => plugin.connectors.get(id.as_str()).map(Arc::clone).ok_or(
+                ConnectorRegistryError::NotInPlugin {
+                    id,
+                    root: plugin.root.clone(),
+                },
+            ),
+            (None, Some(dir)) => Err(ConnectorRegistryError::NoPlugin {
+                id,
+                dir: dir.clone(),
+            }),
+            (None, None) => Err(ConnectorRegistryError::NotOfficial { id }),
+        }
     }
 
     /// Every official connector, for catalogs and inspection.
@@ -202,9 +236,18 @@ impl ConnectorScope {
     }
 }
 
-/// The nearest ancestor whose `skills/` directory contains `skill_dir`.
+/// `dir` as the filesystem resolves it.
+fn inspected(dir: &Path) -> Result<PathBuf, ConnectorRegistryError> {
+    dir.canonicalize()
+        .map_err(|error| ConnectorRegistryError::Uninspectable {
+            dir: dir.to_path_buf(),
+            message: error.to_string(),
+        })
+}
+
+/// The nearest ancestor of a resolved `skill_dir` named `skills`, whose
+/// parent is the plugin.
 fn plugin_root(skill_dir: &Path) -> Option<PathBuf> {
-    let skill_dir = skill_dir.canonicalize().ok()?;
     skill_dir
         .ancestors()
         .find(|ancestor| ancestor.file_name().is_some_and(|name| name == "skills"))
