@@ -30,7 +30,7 @@ harness:
         receipt: { schema: runx.receipt.v1 }
 connectors:
   nitrosend:
-    operations: [status.read, entities.query, inbox.read, sender.read, insights.read, delivery.review, billing.status, billing.plans, checkout.status, campaign.composition.plan, campaign.composition.validate, flow.composition.plan, flow.composition.validate, template.composition.plan, template.composition.validate, test_message.preview, message.preview, contacts.records.preview, plan.checkout, sender.configure, test_message.send, message.send, campaign.approve, flow.approve, campaign.send, campaign.schedule, flow.activate, segment.define, contacts.records.import, campaign.draft, flow.draft, template.draft, image.ingest]
+    operations: [status.read, entities.query, inbox.read, sender.read, insights.read, delivery.review, billing.status, billing.plans, checkout.status, campaign.composition.plan, campaign.composition.validate, flow.composition.plan, flow.composition.validate, template.composition.plan, template.composition.validate, test_message.preview, message.preview, contacts.records.preview, plan.checkout, sender.configure, test_message.send, message.send, campaign.approve, flow.approve, campaign.send, campaign.schedule, flow.activate, segment.preview, segment.define, contacts.records.import, campaign.draft, flow.draft, template.draft, image.ingest]
 runners:
   read:
     default: true

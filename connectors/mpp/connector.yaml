@@ -16,7 +16,6 @@ operations:
       template: {"$argument": "/provider_policy/counterparty"}
     approval: required
     amount: required
-    readback: payment.charge.read
     input_schema:
       type: object
       required: [mcp_tool_call, provider_policy, credential_ref, verify_capability_ref]
@@ -51,7 +50,6 @@ operations:
       template: {"$argument": "/original_receipt_ref"}
     approval: required
     amount: required
-    readback: payment.refund.read
     input_schema:
       type: object
       required: [original_receipt_ref, refund_request, parent_payment_authority]
@@ -82,7 +80,6 @@ operations:
       template: {"$argument": "/payment_signal/counterparty"}
     approval: required
     amount: required
-    readback: payment.spend.read
     input_schema:
       type: object
       required: [payment_signal, parent_payment_authority, rail_profile_ref]
@@ -118,7 +115,6 @@ operations:
       template: {"$argument": "/invoice_ref"}
     approval: required
     amount: required
-    readback: payment.invoice.read
     input_schema:
       type: object
       required: [invoice_ref, amount_minor, currency, payee, rail_profile_ref, parent_payment_authority]

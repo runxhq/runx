@@ -47,7 +47,7 @@ caller:
         headers: { content-type: application/json }
         body: '{"message":"Workflow was started"}'
   approvals:
-    "operation:sha256:1777e351544b1db2b8d01e779871e9b4f0ae87157897d52abd6b8408c85e751b": true
+    "operation:sha256:ff77afb3d4637774a079686b0e3c78d9f0d4b3abad1f97a0c8d3aa6716feb5d3": true
 expect:
   status: sealed
   steps: [build-handoff-context, address, invoke]

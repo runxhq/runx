@@ -25,8 +25,7 @@ operations:
       http:
         allowed_hosts: [geocoding-api.open-meteo.com]
         requests:
-          - id: locate
-            method: GET
+          - method: GET
             url: "https://geocoding-api.open-meteo.com/v1/search"
             query:
               name: {"$argument": "/name"}
@@ -35,9 +34,6 @@ operations:
               format: json
             headers:
               accept: application/json
-        decode: [{op: auto_json}]
-        result_paths:
-          locate: acknowledgement
   forecast.read:
     description: Read current conditions and a daily forecast for a coordinate.
     verb: read
@@ -57,8 +53,7 @@ operations:
       http:
         allowed_hosts: [api.open-meteo.com]
         requests:
-          - id: forecast
-            method: GET
+          - method: GET
             url: "https://api.open-meteo.com/v1/forecast"
             query:
               latitude: {"$argument": "/latitude"}
@@ -69,9 +64,6 @@ operations:
               forecast_days: {"$argument": "/forecast_days"}
             headers:
               accept: application/json
-        decode: [{op: auto_json}]
-        result_paths:
-          forecast: acknowledgement
   air_quality.read:
     description: Read current air quality for a coordinate.
     verb: read
@@ -90,8 +82,7 @@ operations:
       http:
         allowed_hosts: [air-quality-api.open-meteo.com]
         requests:
-          - id: air_quality
-            method: GET
+          - method: GET
             url: "https://air-quality-api.open-meteo.com/v1/air-quality"
             query:
               latitude: {"$argument": "/latitude"}
@@ -100,6 +91,3 @@ operations:
               timezone: auto
             headers:
               accept: application/json
-        decode: [{op: auto_json}]
-        result_paths:
-          air_quality: acknowledgement

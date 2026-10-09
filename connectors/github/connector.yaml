@@ -54,9 +54,6 @@ operations:
             method: GET
             url: {"$concat": ["https://api.github.com/repos/", {"$argument": "/repository"}, "/issues/", {"$argument": "/number"}]}
             headers: {accept: application/vnd.github+json}
-        decode: [{op: auto_json}]
-        result_paths:
-          issue: acknowledgement
   issues.list:
     description: List one page of a repository's issues; GitHub includes pull requests, which carry a pull_request field.
     verb: read
@@ -92,9 +89,6 @@ operations:
               per_page: {"$argument": "/per_page"}
               page: {"$argument": "/page"}
             headers: {accept: application/vnd.github+json}
-        decode: [{op: auto_json}]
-        result_paths:
-          issues: acknowledgement
   issues.read:
     description: Read issues by number.
     verb: read
@@ -121,9 +115,6 @@ operations:
             method: GET
             url: {"$concat": ["https://api.github.com/repos/", {"$argument": "/repository"}, "/issues/", {"$item": ""}]}
             headers: {accept: application/vnd.github+json}
-        decode: [{op: auto_json}]
-        result_paths:
-          issues: acknowledgement
   issues.update:
     description: Update issues, each with its own patch of title, body, state, labels, assignees or milestone.
     verb: write
@@ -132,7 +123,7 @@ operations:
     target:
       template: {"$argument": "/repository"}
     guarantees:
-      provider_idempotency: enforced
+      provider_idempotency: inherent
     input_schema:
       type: object
       required: [repository, updates]
@@ -189,9 +180,6 @@ operations:
               - {expected: {source: item, path: patch.labels}, observed: labels.*.name}
               - {expected: {source: item, path: patch.assignees}, observed: assignees.*.login}
               - {expected: {source: item, path: patch.milestone}, observed: milestone.number}
-        decode: [{op: auto_json}]
-        result_paths:
-          updates: acknowledgement
   issues.create:
     description: Open issues in a repository, one issue per item.
     verb: create
@@ -245,9 +233,6 @@ operations:
               - {expected: {source: item, path: labels}, observed: labels.*.name}
               - {expected: {source: item, path: assignees}, observed: assignees.*.login}
               - {expected: {source: item, path: milestone}, observed: milestone.number}
-        decode: [{op: auto_json}]
-        result_paths:
-          issues: acknowledgement
   pullrequests.list:
     description: List one page of a repository's pull requests.
     verb: read
@@ -287,9 +272,6 @@ operations:
               per_page: {"$argument": "/per_page"}
               page: {"$argument": "/page"}
             headers: {accept: application/vnd.github+json}
-        decode: [{op: auto_json}]
-        result_paths:
-          pulls: acknowledgement
   pullrequests.read:
     description: Read pull requests by number.
     verb: read
@@ -316,9 +298,6 @@ operations:
             method: GET
             url: {"$concat": ["https://api.github.com/repos/", {"$argument": "/repository"}, "/pulls/", {"$item": ""}]}
             headers: {accept: application/vnd.github+json}
-        decode: [{op: auto_json}]
-        result_paths:
-          pulls: acknowledgement
   pullrequest.read:
     description: Read one pull request.
     verb: read
@@ -344,9 +323,6 @@ operations:
             method: GET
             url: {"$concat": ["https://api.github.com/repos/", {"$argument": "/repository"}, "/pulls/", {"$argument": "/number"}]}
             headers: {accept: application/vnd.github+json}
-        decode: [{op: auto_json}]
-        result_paths:
-          pull: acknowledgement
   pullrequests.update:
     description: Update pull requests, each with its own patch of title, body, state, base or maintainer_can_modify.
     verb: write
@@ -355,7 +331,7 @@ operations:
     target:
       template: {"$argument": "/repository"}
     guarantees:
-      provider_idempotency: enforced
+      provider_idempotency: inherent
     input_schema:
       type: object
       required: [repository, updates]
@@ -408,9 +384,6 @@ operations:
               - {expected: {source: item, path: patch.state}, observed: state}
               - {expected: {source: item, path: patch.base}, observed: base.ref}
               - {expected: {source: item, path: patch.maintainer_can_modify}, observed: maintainer_can_modify}
-        decode: [{op: auto_json}]
-        result_paths:
-          updates: acknowledgement
   pullrequest.open:
     description: Open a pull request from a pushed branch.
     verb: write
@@ -459,7 +432,6 @@ operations:
               - {expected: {source: argument, path: head}, observed: head.ref}
               - {expected: {source: argument, path: base}, observed: base.ref}
               - {expected: {source: argument, path: draft}, observed: draft}
-        decode: [{op: auto_json}]
         operation_id_path: number
         result_paths:
           pull: readbacks.0
@@ -491,9 +463,6 @@ operations:
             query:
               per_page: {"$argument": "/per_page"}
             headers: {accept: application/vnd.github+json}
-        decode: [{op: auto_json}]
-        result_paths:
-          comments: acknowledgement
   comment.read:
     description: Read one issue or pull request comment.
     verb: read
@@ -519,9 +488,6 @@ operations:
             method: GET
             url: {"$concat": ["https://api.github.com/repos/", {"$argument": "/repository"}, "/issues/comments/", {"$argument": "/comment_id"}]}
             headers: {accept: application/vnd.github+json}
-        decode: [{op: auto_json}]
-        result_paths:
-          comment: acknowledgement
   comments.create:
     description: Comment on issues or pull requests, one comment per item.
     verb: comment
@@ -569,9 +535,6 @@ operations:
             matches:
               - {expected: {source: acknowledgement, path: id}, observed: id}
               - {expected: {source: item, path: body}, observed: body}
-        decode: [{op: auto_json}]
-        result_paths:
-          comments: acknowledgement
   comments.update:
     description: Edit comments, one new body per item.
     verb: write
@@ -580,7 +543,7 @@ operations:
     target:
       template: {"$argument": "/repository"}
     guarantees:
-      provider_idempotency: enforced
+      provider_idempotency: inherent
     input_schema:
       type: object
       required: [repository, comments]
@@ -621,9 +584,6 @@ operations:
             matches:
               - {expected: {source: acknowledgement, path: id}, observed: id}
               - {expected: {source: item, path: body}, observed: body}
-        decode: [{op: auto_json}]
-        result_paths:
-          comments: acknowledgement
   branch.push:
     description: Push an exact local commit to a branch of the repository, never forcing it.
     verb: write
@@ -632,7 +592,7 @@ operations:
     target:
       template: {"$argument": "/repository"}
     guarantees:
-      provider_idempotency: enforced
+      provider_idempotency: inherent
     input_schema:
       type: object
       required: [repository, branch, commit]
@@ -663,7 +623,6 @@ operations:
     target:
       template: {"$argument": "/target/locator"}
     approval: required
-    readback: advisory.read
     input_schema:
       type: object
       required: [channel, target, payload, payload_digest, evidence_binding]

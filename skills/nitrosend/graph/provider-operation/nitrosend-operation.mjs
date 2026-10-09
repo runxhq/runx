@@ -41,7 +41,6 @@ const CONNECTOR_OPERATIONS = new Map([
   ["compose_campaign", "campaign.draft"],
   ["compose_flow", "flow.draft"],
   ["manage_template", "template.draft"],
-  ["define_segment", "segment.define"],
   ["ingest_image", "image.ingest"],
 ]);
 const CREATIVE_DRAFT_OPERATIONS = new Set([
@@ -52,7 +51,7 @@ const CREATIVE_DRAFT_OPERATIONS = new Set([
 const COMPOSITION_READS = new Map([["intent", "plan"], ["validate", "validate"]]);
 // The connector operations that only read, among those an act may choose.
 const READ_CONNECTOR_OPERATIONS = new Set([
-  "test_message.preview", "message.preview", "contacts.records.preview",
+  "test_message.preview", "message.preview", "contacts.records.preview", "segment.preview",
 ]);
 // A delivery control, by target and lifecycle operation.
 const CONTROL_OPERATIONS = new Map([
@@ -170,6 +169,7 @@ function connectorOperationFor(operation, args) {
   if (operation === "send_test_message") return preview ? "test_message.preview" : "test_message.send";
   if (operation === "send_transactional") return preview ? "message.preview" : "message.send";
   if (operation === "import_contacts") return preview ? "contacts.records.preview" : "contacts.records.import";
+  if (operation === "define_segment") return args.preview_only === true ? "segment.preview" : "segment.define";
   return CONNECTOR_OPERATIONS.get(operation) ?? null;
 }
 
@@ -190,6 +190,10 @@ function providerInput(operation, args, brandSid) {
   }
   if (["send_test_message", "send_transactional", "import_contacts"].includes(operation)) {
     const { dry_run: _dryRun, idempotency_key: _key, ...fields } = provided;
+    return { ...brand, ...defined(fields) };
+  }
+  if (operation === "define_segment") {
+    const { preview_only: _preview, idempotency_key: _key, ...fields } = provided;
     return { ...brand, ...defined(fields) };
   }
   return { ...brand, arguments: defined(provided) };

@@ -38,8 +38,7 @@ operations:
       http:
         allowed_hosts: [hooks.zapier.com]
         requests:
-          - id: deliver
-            method: POST
+          - method: POST
             url: {"$concat": ["https://hooks.zapier.com/hooks/catch/", {"$argument": "/zapier_account_id"}, "/", {"$argument": "/hook_id"}, "/"]}
             headers:
               accept: application/json
@@ -47,7 +46,4 @@ operations:
               x-runx-handoff-audience: {"$argument": "/delivery/handoff_audience"}
               x-runx-handoff-scope: {"$argument": "/delivery/handoff_scope"}
             body: {"$argument": "/delivery"}
-        decode: [{op: auto_json}]
         operation_id_path: request_id
-        result_paths:
-          acknowledgement: acknowledgement

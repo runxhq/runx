@@ -41,12 +41,10 @@ operations:
         allowed_hosts: [api.x.com]
         auth: {user: {type: oauth1}}
         requests:
-          - id: self
-            method: GET
+          - method: GET
             url: "https://api.x.com/2/users/me"
             query:
               user.fields: "created_at,description,public_metrics"
-        decode: [{op: auto_json}]
         result_paths:
           account: acknowledgement.data
   account.posts.read:
@@ -86,7 +84,6 @@ operations:
               cursor: meta.next_token
               items: data
               limit: {"$argument": "/limit"}
-        decode: [{op: auto_json}]
         result_paths:
           account: acknowledgement.0.data
           posts: acknowledgement.1.items
@@ -128,7 +125,6 @@ operations:
               cursor: meta.next_token
               items: data
               limit: {"$argument": "/limit"}
-        decode: [{op: auto_json}]
         result_paths:
           account: acknowledgement.0.data
           posts: acknowledgement.1.items
@@ -170,7 +166,6 @@ operations:
               cursor: meta.next_token
               items: data
               limit: {"$argument": "/limit"}
-        decode: [{op: auto_json}]
         result_paths:
           account: acknowledgement.0.data
           users: acknowledgement.1.items
@@ -212,7 +207,6 @@ operations:
               cursor: meta.next_token
               items: data
               limit: {"$argument": "/limit"}
-        decode: [{op: auto_json}]
         result_paths:
           account: acknowledgement.0.data
           users: acknowledgement.1.items
@@ -239,8 +233,7 @@ operations:
         allowed_hosts: [api.x.com]
         auth: {user: {type: oauth1}, app: {type: bearer}}
         requests:
-          - id: posts
-            method: GET
+          - method: GET
             url: {"$concat": ["https://api.x.com/2/users/", {"$argument": "/user_id"}, "/tweets"]}
             query:
               tweet.fields: "created_at,public_metrics,entities,referenced_tweets,in_reply_to_user_id"
@@ -251,7 +244,6 @@ operations:
               cursor: meta.next_token
               items: data
               limit: {"$argument": "/limit"}
-        decode: [{op: auto_json}]
         result_paths:
           posts: acknowledgement.items
           next: acknowledgement.next
@@ -277,8 +269,7 @@ operations:
         allowed_hosts: [api.x.com]
         auth: {user: {type: oauth1}, app: {type: bearer}}
         requests:
-          - id: posts
-            method: GET
+          - method: GET
             url: {"$concat": ["https://api.x.com/2/users/", {"$argument": "/user_id"}, "/mentions"]}
             query:
               tweet.fields: "created_at,public_metrics,entities,referenced_tweets,in_reply_to_user_id"
@@ -289,7 +280,6 @@ operations:
               cursor: meta.next_token
               items: data
               limit: {"$argument": "/limit"}
-        decode: [{op: auto_json}]
         result_paths:
           posts: acknowledgement.items
           next: acknowledgement.next
@@ -315,8 +305,7 @@ operations:
         allowed_hosts: [api.x.com]
         auth: {user: {type: oauth1}, app: {type: bearer}}
         requests:
-          - id: users
-            method: GET
+          - method: GET
             url: {"$concat": ["https://api.x.com/2/users/", {"$argument": "/user_id"}, "/following"]}
             query:
               user.fields: "created_at,description,public_metrics"
@@ -327,7 +316,6 @@ operations:
               cursor: meta.next_token
               items: data
               limit: {"$argument": "/limit"}
-        decode: [{op: auto_json}]
         result_paths:
           users: acknowledgement.items
           next: acknowledgement.next
@@ -353,8 +341,7 @@ operations:
         allowed_hosts: [api.x.com]
         auth: {user: {type: oauth1}, app: {type: bearer}}
         requests:
-          - id: users
-            method: GET
+          - method: GET
             url: {"$concat": ["https://api.x.com/2/users/", {"$argument": "/user_id"}, "/followers"]}
             query:
               user.fields: "created_at,description,public_metrics"
@@ -365,7 +352,6 @@ operations:
               cursor: meta.next_token
               items: data
               limit: {"$argument": "/limit"}
-        decode: [{op: auto_json}]
         result_paths:
           users: acknowledgement.items
           next: acknowledgement.next
@@ -391,8 +377,7 @@ operations:
         allowed_hosts: [api.x.com]
         auth: {user: {type: oauth1}, app: {type: bearer}}
         requests:
-          - id: posts
-            method: GET
+          - method: GET
             url: "https://api.x.com/2/tweets/search/recent"
             query:
               query: {"$argument": "/query"}
@@ -404,7 +389,6 @@ operations:
               cursor: meta.next_token
               items: data
               limit: {"$argument": "/limit"}
-        decode: [{op: auto_json}]
         result_paths:
           posts: acknowledgement.items
           next: acknowledgement.next
@@ -428,8 +412,7 @@ operations:
         allowed_hosts: [api.x.com]
         auth: {user: {type: oauth1}}
         requests:
-          - id: post
-            method: POST
+          - method: POST
             url: "https://api.x.com/2/tweets"
             body: {text: {"$argument": "/text"}}
         readbacks:
@@ -439,7 +422,6 @@ operations:
               url: {"$concat": ["https://api.x.com/2/tweets/", {"$response": "write.json.data.id"}]}
             matches:
               - {expected: {source: acknowledgement, path: data.id}, observed: data.id}
-        decode: [{op: auto_json}]
         operation_id_path: data.id
         result_paths:
           post: readbacks.0.data
@@ -464,8 +446,7 @@ operations:
         allowed_hosts: [api.x.com]
         auth: {user: {type: oauth1}}
         requests:
-          - id: post
-            method: POST
+          - method: POST
             url: "https://api.x.com/2/tweets"
             body:
               text: {"$argument": "/text"}
@@ -477,7 +458,6 @@ operations:
               url: {"$concat": ["https://api.x.com/2/tweets/", {"$response": "write.json.data.id"}]}
             matches:
               - {expected: {source: acknowledgement, path: data.id}, observed: data.id}
-        decode: [{op: auto_json}]
         operation_id_path: data.id
         result_paths:
           post: readbacks.0.data
@@ -502,8 +482,7 @@ operations:
         allowed_hosts: [api.x.com]
         auth: {user: {type: oauth1}}
         requests:
-          - id: post
-            method: POST
+          - method: POST
             url: "https://api.x.com/2/tweets"
             body:
               text: {"$argument": "/text"}
@@ -515,7 +494,6 @@ operations:
               url: {"$concat": ["https://api.x.com/2/tweets/", {"$response": "write.json.data.id"}]}
             matches:
               - {expected: {source: acknowledgement, path: data.id}, observed: data.id}
-        decode: [{op: auto_json}]
         operation_id_path: data.id
         result_paths:
           post: readbacks.0.data
@@ -542,13 +520,9 @@ operations:
         allowed_hosts: [api.x.com]
         auth: {user: {type: oauth1}}
         requests:
-          - id: delete
-            each: {"$argument": "/post_ids"}
+          - each: {"$argument": "/post_ids"}
             method: DELETE
             url: {"$concat": ["https://api.x.com/2/tweets/", {"$item": ""}]}
-        decode: [{op: auto_json}]
-        result_paths:
-          outcomes: acknowledgement
         rate_limit: {reset_header: x-rate-limit-reset}
   users.unfollow:
     description: Stop following each listed account. Each answer states the resulting state, which is the evidence; X offers no read of one item cheap enough to confirm a batch.
@@ -574,13 +548,9 @@ operations:
         allowed_hosts: [api.x.com]
         auth: {user: {type: oauth1}}
         requests:
-          - id: unfollow
-            each: {"$argument": "/user_ids"}
+          - each: {"$argument": "/user_ids"}
             method: DELETE
             url: {"$concat": ["https://api.x.com/2/users/", {"$argument": "/source_user_id"}, "/following/", {"$item": ""}]}
-        decode: [{op: auto_json}]
-        result_paths:
-          outcomes: acknowledgement
         rate_limit: {reset_header: x-rate-limit-reset}
   users.follow:
     description: Follow each listed account. Each answer states the resulting state, which is the evidence; X offers no read of one item cheap enough to confirm a batch.
@@ -606,14 +576,10 @@ operations:
         allowed_hosts: [api.x.com]
         auth: {user: {type: oauth1}}
         requests:
-          - id: follow
-            each: {"$argument": "/user_ids"}
+          - each: {"$argument": "/user_ids"}
             method: POST
             url: {"$concat": ["https://api.x.com/2/users/", {"$argument": "/source_user_id"}, "/following"]}
             body: {target_user_id: {"$item": ""}}
-        decode: [{op: auto_json}]
-        result_paths:
-          outcomes: acknowledgement
         rate_limit: {reset_header: x-rate-limit-reset}
   users.mute:
     description: Mute each listed account. Each answer states the resulting state, which is the evidence; X offers no read of one item cheap enough to confirm a batch.
@@ -639,14 +605,10 @@ operations:
         allowed_hosts: [api.x.com]
         auth: {user: {type: oauth1}}
         requests:
-          - id: mute
-            each: {"$argument": "/user_ids"}
+          - each: {"$argument": "/user_ids"}
             method: POST
             url: {"$concat": ["https://api.x.com/2/users/", {"$argument": "/source_user_id"}, "/muting"]}
             body: {target_user_id: {"$item": ""}}
-        decode: [{op: auto_json}]
-        result_paths:
-          outcomes: acknowledgement
         rate_limit: {reset_header: x-rate-limit-reset}
   users.block:
     description: Block each listed account. Each answer states the resulting state, which is the evidence; X offers no read of one item cheap enough to confirm a batch.
@@ -672,14 +634,10 @@ operations:
         allowed_hosts: [api.x.com]
         auth: {user: {type: oauth1}}
         requests:
-          - id: block
-            each: {"$argument": "/user_ids"}
+          - each: {"$argument": "/user_ids"}
             method: POST
             url: {"$concat": ["https://api.x.com/2/users/", {"$argument": "/source_user_id"}, "/blocking"]}
             body: {target_user_id: {"$item": ""}}
-        decode: [{op: auto_json}]
-        result_paths:
-          outcomes: acknowledgement
         rate_limit: {reset_header: x-rate-limit-reset}
   posts.like:
     description: Like each listed post. Each answer states the resulting state, which is the evidence; X offers no read of one item cheap enough to confirm a batch.
@@ -705,14 +663,10 @@ operations:
         allowed_hosts: [api.x.com]
         auth: {user: {type: oauth1}}
         requests:
-          - id: like
-            each: {"$argument": "/post_ids"}
+          - each: {"$argument": "/post_ids"}
             method: POST
             url: {"$concat": ["https://api.x.com/2/users/", {"$argument": "/source_user_id"}, "/likes"]}
             body: {tweet_id: {"$item": ""}}
-        decode: [{op: auto_json}]
-        result_paths:
-          outcomes: acknowledgement
         rate_limit: {reset_header: x-rate-limit-reset}
   posts.repost:
     description: Repost each listed post. Each answer states the resulting state, which is the evidence; X offers no read of one item cheap enough to confirm a batch.
@@ -738,12 +692,8 @@ operations:
         allowed_hosts: [api.x.com]
         auth: {user: {type: oauth1}}
         requests:
-          - id: repost
-            each: {"$argument": "/post_ids"}
+          - each: {"$argument": "/post_ids"}
             method: POST
             url: {"$concat": ["https://api.x.com/2/users/", {"$argument": "/source_user_id"}, "/retweets"]}
             body: {tweet_id: {"$item": ""}}
-        decode: [{op: auto_json}]
-        result_paths:
-          outcomes: acknowledgement
         rate_limit: {reset_header: x-rate-limit-reset}

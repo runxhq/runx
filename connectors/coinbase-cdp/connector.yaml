@@ -61,7 +61,6 @@ operations:
     scopes: [payment.x402.merchant.write]
     target:
       template: {"$argument": "/resource"}
-    readback: payment.x402.merchant.read
     guarantees:
       provider_idempotency: enforced
       reconcile: payment.x402.merchant.lookup
@@ -73,7 +72,6 @@ operations:
     scopes: [payment.x402.merchant.write]
     target:
       template: {"$argument": "/resource"}
-    readback: payment.x402.merchant.read
     result_fields: [payment_contract, payment_ref, idempotency_key, request_binding_digest, resource, amount_minor, currency, status, settlement_ambiguous, reason, evidence_contract, payment_payload_digest, payment_requirements_digest, verification_ref, settlement_ref, payer, pay_to, network, asset, asset_decimals, settled_at]
     hosted: {}
   payment.x402.merchant.read:
@@ -98,7 +96,6 @@ operations:
     scopes: [payment.x402.merchant.write]
     target:
       template: {"$argument": "/resource"}
-    readback: payment.x402.merchant.refund.read
     guarantees:
       provider_idempotency: enforced
     result_fields: [refund_contract, refund_ref, payment_ref, idempotency_key, resource, amount_minor, currency, status, outcome_ambiguous, reason, evidence_contract, original_settlement_ref, provider_idempotency_key, refund_settlement_ref, payer, pay_to, network, asset, asset_decimals, settled_at]

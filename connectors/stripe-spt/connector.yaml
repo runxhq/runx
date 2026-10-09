@@ -16,7 +16,6 @@ operations:
       template: {"$argument": "/payment_signal/counterparty"}
     approval: required
     amount: required
-    readback: payment.spend.read
     input_schema:
       type: object
       required: [payment_signal, parent_payment_authority, rail_profile_ref]

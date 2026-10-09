@@ -52,7 +52,6 @@ struct OperationAuthority<'a> {
     idempotency_key_format: IdempotencyKeyFormat,
     guarantees: &'a OperationGuarantees,
     amount: AmountRule,
-    readback: Option<&'a OperationName>,
     input_schema_digest: Option<Digest>,
 }
 
@@ -73,7 +72,6 @@ pub fn operation_digest(
         idempotency_key_format: operation.idempotency_key_format,
         guarantees: &operation.guarantees,
         amount: operation.amount,
-        readback: operation.readback.as_ref(),
         input_schema_digest: input_schema_digest(operation.input_schema.as_ref())?,
     })
 }

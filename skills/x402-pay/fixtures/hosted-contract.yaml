@@ -26,7 +26,7 @@ inputs:
     counterparty: https://vendor.example/v1/invocations
   idempotency_seed: x402-test-payment-001
 caller:
-  approvals: { "operation:sha256:c510484d3ee2dfb1b3c6063870339bebea890a89e5dfeb105564eae3084cc80f": true }
+  approvals: { "operation:sha256:a1cc53acd248adcda45e1e71d4cb1593ab2a9c39a1b0142c0c6536a40751d23a": true }
   provider_responses:
     principal_id: x402-fixture
     grant: { grant_id: x402-fixture, provider: x402, scopes: [payment.x402, payment.x402.read] }

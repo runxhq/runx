@@ -47,7 +47,7 @@ caller:
         headers: { content-type: application/json }
         body: '{"attempt":"0192a1b2-0000-7000-8000-000000000001","id":"0192a1b2-0000-7000-8000-000000000002","request_id":"0192a1b2-0000-7000-8000-000000000003","status":"success"}'
   approvals:
-    "operation:sha256:ff52517c7806fa7be13e25ae5e5c356cdd0f446a4f834c065f45d626b6e9482f": true
+    "operation:sha256:0039308480f3232e36e426774efeb9790b2161a3b6ba06c3f93165c5acefd52b": true
 expect:
   status: sealed
   steps: [build-handoff-context, address, invoke]

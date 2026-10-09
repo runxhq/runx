@@ -105,7 +105,6 @@ operations:
     scopes: [aws.s3.write]
     target:
       template: {"$argument": "/target"}
-    readback: aws.s3.head
     result_fields: [object_ref, content_digest, size_bytes, version_ref, recovered]
     hosted: {}
   aws.s3.head:
@@ -146,7 +145,6 @@ operations:
     scopes: [aws.textract.execute]
     target:
       template: {"$argument": "/target"}
-    readback: aws.textract.analysis.inspect
     guarantees:
       provider_idempotency: enforced
     result_fields: [job_ref, status, blocks]
@@ -165,7 +163,6 @@ operations:
     scopes: [aws.transcribe.execute]
     target:
       template: {"$argument": "/target"}
-    readback: aws.transcribe.inspect
     guarantees:
       provider_idempotency: enforced
     result_fields: [job_ref, status, output_available, failure_reason, recovered]
@@ -245,7 +242,6 @@ operations:
     scopes: [payment.x402.merchant.write]
     target:
       template: {"$argument": "/resource"}
-    readback: payment.x402.merchant.read
     guarantees:
       provider_idempotency: enforced
       reconcile: payment.x402.merchant.lookup
@@ -257,7 +253,6 @@ operations:
     scopes: [payment.x402.merchant.write]
     target:
       template: {"$argument": "/resource"}
-    readback: payment.x402.merchant.read
     result_fields: [payment_contract, payment_ref, idempotency_key, request_binding_digest, resource, amount_minor, currency, status, settlement_ambiguous, reason, evidence_contract, payment_payload_digest, payment_requirements_digest, verification_ref, settlement_ref, payer, pay_to, network, asset, asset_decimals, settled_at]
     hosted: {}
   payment.x402.merchant.read:
@@ -282,7 +277,6 @@ operations:
     scopes: [payment.x402.merchant.write]
     target:
       template: {"$argument": "/resource"}
-    readback: payment.x402.merchant.refund.read
     guarantees:
       provider_idempotency: enforced
     result_fields: [refund_contract, refund_ref, payment_ref, idempotency_key, resource, amount_minor, currency, status, outcome_ambiguous, reason, evidence_contract, original_settlement_ref, provider_idempotency_key, refund_settlement_ref, payer, pay_to, network, asset, asset_decimals, settled_at]
@@ -355,9 +349,6 @@ operations:
             method: GET
             url: {"$concat": ["https://api.github.com/repos/", {"$argument": "/repository"}, "/issues/", {"$argument": "/number"}]}
             headers: {accept: application/vnd.github+json}
-        decode: [{op: auto_json}]
-        result_paths:
-          issue: acknowledgement
   issues.list:
     description: List one page of a repository's issues; GitHub includes pull requests, which carry a pull_request field.
     verb: read
@@ -393,9 +384,6 @@ operations:
               per_page: {"$argument": "/per_page"}
               page: {"$argument": "/page"}
             headers: {accept: application/vnd.github+json}
-        decode: [{op: auto_json}]
-        result_paths:
-          issues: acknowledgement
   issues.read:
     description: Read issues by number.
     verb: read
@@ -422,9 +410,6 @@ operations:
             method: GET
             url: {"$concat": ["https://api.github.com/repos/", {"$argument": "/repository"}, "/issues/", {"$item": ""}]}
             headers: {accept: application/vnd.github+json}
-        decode: [{op: auto_json}]
-        result_paths:
-          issues: acknowledgement
   issues.update:
     description: Update issues, each with its own patch of title, body, state, labels, assignees or milestone.
     verb: write
@@ -433,7 +418,7 @@ operations:
     target:
       template: {"$argument": "/repository"}
     guarantees:
-      provider_idempotency: enforced
+      provider_idempotency: inherent
     input_schema:
       type: object
       required: [repository, updates]
@@ -490,9 +475,6 @@ operations:
               - {expected: {source: item, path: patch.labels}, observed: labels.*.name}
               - {expected: {source: item, path: patch.assignees}, observed: assignees.*.login}
               - {expected: {source: item, path: patch.milestone}, observed: milestone.number}
-        decode: [{op: auto_json}]
-        result_paths:
-          updates: acknowledgement
   issues.create:
     description: Open issues in a repository, one issue per item.
     verb: create
@@ -546,9 +528,6 @@ operations:
               - {expected: {source: item, path: labels}, observed: labels.*.name}
               - {expected: {source: item, path: assignees}, observed: assignees.*.login}
               - {expected: {source: item, path: milestone}, observed: milestone.number}
-        decode: [{op: auto_json}]
-        result_paths:
-          issues: acknowledgement
   pullrequests.list:
     description: List one page of a repository's pull requests.
     verb: read
@@ -588,9 +567,6 @@ operations:
               per_page: {"$argument": "/per_page"}
               page: {"$argument": "/page"}
             headers: {accept: application/vnd.github+json}
-        decode: [{op: auto_json}]
-        result_paths:
-          pulls: acknowledgement
   pullrequests.read:
     description: Read pull requests by number.
     verb: read
@@ -617,9 +593,6 @@ operations:
             method: GET
             url: {"$concat": ["https://api.github.com/repos/", {"$argument": "/repository"}, "/pulls/", {"$item": ""}]}
             headers: {accept: application/vnd.github+json}
-        decode: [{op: auto_json}]
-        result_paths:
-          pulls: acknowledgement
   pullrequest.read:
     description: Read one pull request.
     verb: read
@@ -645,9 +618,6 @@ operations:
             method: GET
             url: {"$concat": ["https://api.github.com/repos/", {"$argument": "/repository"}, "/pulls/", {"$argument": "/number"}]}
             headers: {accept: application/vnd.github+json}
-        decode: [{op: auto_json}]
-        result_paths:
-          pull: acknowledgement
   pullrequests.update:
     description: Update pull requests, each with its own patch of title, body, state, base or maintainer_can_modify.
     verb: write
@@ -656,7 +626,7 @@ operations:
     target:
       template: {"$argument": "/repository"}
     guarantees:
-      provider_idempotency: enforced
+      provider_idempotency: inherent
     input_schema:
       type: object
       required: [repository, updates]
@@ -709,9 +679,6 @@ operations:
               - {expected: {source: item, path: patch.state}, observed: state}
               - {expected: {source: item, path: patch.base}, observed: base.ref}
               - {expected: {source: item, path: patch.maintainer_can_modify}, observed: maintainer_can_modify}
-        decode: [{op: auto_json}]
-        result_paths:
-          updates: acknowledgement
   pullrequest.open:
     description: Open a pull request from a pushed branch.
     verb: write
@@ -760,7 +727,6 @@ operations:
               - {expected: {source: argument, path: head}, observed: head.ref}
               - {expected: {source: argument, path: base}, observed: base.ref}
               - {expected: {source: argument, path: draft}, observed: draft}
-        decode: [{op: auto_json}]
         operation_id_path: number
         result_paths:
           pull: readbacks.0
@@ -792,9 +758,6 @@ operations:
             query:
               per_page: {"$argument": "/per_page"}
             headers: {accept: application/vnd.github+json}
-        decode: [{op: auto_json}]
-        result_paths:
-          comments: acknowledgement
   comment.read:
     description: Read one issue or pull request comment.
     verb: read
@@ -820,9 +783,6 @@ operations:
             method: GET
             url: {"$concat": ["https://api.github.com/repos/", {"$argument": "/repository"}, "/issues/comments/", {"$argument": "/comment_id"}]}
             headers: {accept: application/vnd.github+json}
-        decode: [{op: auto_json}]
-        result_paths:
-          comment: acknowledgement
   comments.create:
     description: Comment on issues or pull requests, one comment per item.
     verb: comment
@@ -870,9 +830,6 @@ operations:
             matches:
               - {expected: {source: acknowledgement, path: id}, observed: id}
               - {expected: {source: item, path: body}, observed: body}
-        decode: [{op: auto_json}]
-        result_paths:
-          comments: acknowledgement
   comments.update:
     description: Edit comments, one new body per item.
     verb: write
@@ -881,7 +838,7 @@ operations:
     target:
       template: {"$argument": "/repository"}
     guarantees:
-      provider_idempotency: enforced
+      provider_idempotency: inherent
     input_schema:
       type: object
       required: [repository, comments]
@@ -922,9 +879,6 @@ operations:
             matches:
               - {expected: {source: acknowledgement, path: id}, observed: id}
               - {expected: {source: item, path: body}, observed: body}
-        decode: [{op: auto_json}]
-        result_paths:
-          comments: acknowledgement
   branch.push:
     description: Push an exact local commit to a branch of the repository, never forcing it.
     verb: write
@@ -933,7 +887,7 @@ operations:
     target:
       template: {"$argument": "/repository"}
     guarantees:
-      provider_idempotency: enforced
+      provider_idempotency: inherent
     input_schema:
       type: object
       required: [repository, branch, commit]
@@ -964,7 +918,6 @@ operations:
     target:
       template: {"$argument": "/target/locator"}
     approval: required
-    readback: advisory.read
     input_schema:
       type: object
       required: [channel, target, payload, payload_digest, evidence_binding]
@@ -1140,7 +1093,6 @@ operations:
     scopes: [sitemaps.submit]
     target:
       template: {"$argument": "/sitemap_url"}
-    readback: sitemaps.get
     result_fields: [property, sitemap_url, accepted_at, idempotency_key]
     hosted:
       provider_scopes: ["https://www.googleapis.com/auth/webmasters", "openid"]
@@ -1186,15 +1138,13 @@ operations:
         allowed_hosts: [www.moltbook.com]
         auth: {api_key: {type: bearer, field: api_key}}
         requests:
-          - id: posts
-            method: GET
+          - method: GET
             url: "https://www.moltbook.com/api/v1/posts"
             query:
               sort: new
               limit: {"$argument": "/limit"}
               submolt: {"$argument": "/submolt"}
             headers: {accept: application/json}
-        decode: [{op: auto_json}]
         result_paths:
           posts: acknowledgement.posts
   post.create:
@@ -1218,8 +1168,7 @@ operations:
         allowed_hosts: [www.moltbook.com]
         auth: {api_key: {type: bearer, field: api_key}}
         requests:
-          - id: create
-            method: POST
+          - method: POST
             url: "https://www.moltbook.com/api/v1/posts"
             headers: {accept: application/json}
             body:
@@ -1236,7 +1185,6 @@ operations:
               - {expected: {source: acknowledgement, path: post.id}, observed: post.id}
               - {expected: {source: argument, path: title}, observed: post.title}
               - {expected: {source: argument, path: content}, observed: post.content}
-        decode: [{op: auto_json}]
         operation_id_path: post.id
         result_paths:
           post: readbacks.0.post
@@ -1262,7 +1210,6 @@ operations:
       template: {"$argument": "/provider_policy/counterparty"}
     approval: required
     amount: required
-    readback: payment.charge.read
     input_schema:
       type: object
       required: [mcp_tool_call, provider_policy, credential_ref, verify_capability_ref]
@@ -1297,7 +1244,6 @@ operations:
       template: {"$argument": "/original_receipt_ref"}
     approval: required
     amount: required
-    readback: payment.refund.read
     input_schema:
       type: object
       required: [original_receipt_ref, refund_request, parent_payment_authority]
@@ -1328,7 +1274,6 @@ operations:
       template: {"$argument": "/payment_signal/counterparty"}
     approval: required
     amount: required
-    readback: payment.spend.read
     input_schema:
       type: object
       required: [payment_signal, parent_payment_authority, rail_profile_ref]
@@ -1364,7 +1309,6 @@ operations:
       template: {"$argument": "/invoice_ref"}
     approval: required
     amount: required
-    readback: payment.invoice.read
     input_schema:
       type: object
       required: [invoice_ref, amount_minor, currency, payee, rail_profile_ref, parent_payment_authority]
@@ -1435,8 +1379,7 @@ operations:
       http:
         allowed_hosts: ["*.app.n8n.cloud"]
         requests:
-          - id: deliver
-            method: POST
+          - method: POST
             url: {"$concat": ["https://", {"$argument": "/webhook_host"}, "/webhook/", {"$argument": "/workflow_slug"}]}
             headers:
               accept: application/json
@@ -1444,9 +1387,6 @@ operations:
               x-runx-handoff-audience: {"$argument": "/delivery/handoff_audience"}
               x-runx-handoff-scope: {"$argument": "/delivery/handoff_scope"}
             body: {"$argument": "/delivery"}
-        decode: [{op: auto_json}]
-        result_paths:
-          acknowledgement: acknowledgement
 "###,
     ),
     (
@@ -1479,15 +1419,11 @@ operations:
       http:
         allowed_hosts: [api.weather.gov]
         requests:
-          - id: points
-            method: GET
+          - method: GET
             url: {"$concat": ["https://api.weather.gov/points/", {"$argument": "/lat"}, ",", {"$argument": "/lon"}]}
             headers:
               user-agent: "runx-weather-catalog/0.1 (https://github.com/runxhq/runx)"
               accept: "application/geo+json, application/json"
-        decode: [{op: auto_json}]
-        result_paths:
-          points: acknowledgement
   forecast.read:
     description: Read the forecast for one NWS office gridpoint.
     verb: read
@@ -1507,15 +1443,11 @@ operations:
       http:
         allowed_hosts: [api.weather.gov]
         requests:
-          - id: forecast
-            method: GET
+          - method: GET
             url: {"$concat": ["https://api.weather.gov/gridpoints/", {"$argument": "/office"}, "/", {"$argument": "/grid_x"}, ",", {"$argument": "/grid_y"}, "/forecast"]}
             headers:
               user-agent: "runx-weather-catalog/0.1 (https://github.com/runxhq/runx)"
               accept: "application/geo+json, application/json"
-        decode: [{op: auto_json}]
-        result_paths:
-          forecast: acknowledgement
 "###,
     ),
     (
@@ -1621,7 +1553,6 @@ operations:
     credentials: [api_key]
     target:
       template: {"$argument": "/thread_locator"}
-    readback: thread.reply.read
   thread.reply.read:
     description: Read back one reply in a Nitrosend inbox conversation.
     verb: read
@@ -1996,8 +1927,29 @@ operations:
         tool: nitro_control_delivery
         arguments: {target_type: flow, operation: live, target_id: {"$argument": "/target_id"}, revision_id: {"$argument": "/revision_id"}}
         tool_digest: "sha256:b25bbef3a463c528a89b89f280786b45d132de8deca3d9073c1ae2c8f10a6813"
+  segment.preview:
+    description: Preview the contacts one segment's filters select, without saving the segment.
+    verb: read
+    scopes: ["nitrosend:read"]
+    credentials: [api_key]
+    target:
+      template: "nitrosend://segments"
+    input_schema:
+      type: object
+      required: [filters]
+      additionalProperties: false
+      properties:
+        brand_sid: {type: string, pattern: "^[A-Za-z0-9_-]{1,64}$"}
+        filters: {}
+        name: {type: string, minLength: 1, maxLength: 200}
+        segment_id: {type: integer, minimum: 1}
+    implementation:
+      mcp:
+        tool: nitro_define_segment
+        arguments: {filters: {"$argument": "/filters"}, name: {"$argument": "/name"}, segment_id: {"$argument": "/segment_id"}, preview_only: true}
+        tool_digest: "sha256:63d6e6c15119e973577cdb8abe767e69ae6c1cefa3a300b810efae14e801367e"
   segment.define:
-    description: Define or preview one segment from filters.
+    description: Define or update one segment from filters.
     verb: write
     scopes: ["nitrosend:write"]
     credentials: [api_key]
@@ -2008,24 +1960,17 @@ operations:
       readback: unavailable
     input_schema:
       type: object
-      required: [arguments]
+      required: [filters]
       additionalProperties: false
       properties:
         brand_sid: {type: string, pattern: "^[A-Za-z0-9_-]{1,64}$"}
-        arguments:
-          type: object
-          required: [filters]
-          additionalProperties: false
-          properties:
-            filters: {}
-            name: {type: string, minLength: 1, maxLength: 200}
-            preview_only: {type: boolean}
-            segment_id: {type: integer, minimum: 1}
-            idempotency_key: {type: string, minLength: 1, maxLength: 200}
+        filters: {}
+        name: {type: string, minLength: 1, maxLength: 200}
+        segment_id: {type: integer, minimum: 1}
     implementation:
       mcp:
         tool: nitro_define_segment
-        arguments: {"$argument": "/arguments"}
+        arguments: {filters: {"$argument": "/filters"}, name: {"$argument": "/name"}, segment_id: {"$argument": "/segment_id"}, idempotency_key: {"$runx": "idempotency_key"}, preview_only: false}
         tool_digest: "sha256:63d6e6c15119e973577cdb8abe767e69ae6c1cefa3a300b810efae14e801367e"
   test_message.preview:
     description: Validate one test of a template, flow step or campaign for its recipients without dispatching it.
@@ -2492,8 +2437,7 @@ operations:
       http:
         allowed_hosts: [geocoding-api.open-meteo.com]
         requests:
-          - id: locate
-            method: GET
+          - method: GET
             url: "https://geocoding-api.open-meteo.com/v1/search"
             query:
               name: {"$argument": "/name"}
@@ -2502,9 +2446,6 @@ operations:
               format: json
             headers:
               accept: application/json
-        decode: [{op: auto_json}]
-        result_paths:
-          locate: acknowledgement
   forecast.read:
     description: Read current conditions and a daily forecast for a coordinate.
     verb: read
@@ -2524,8 +2465,7 @@ operations:
       http:
         allowed_hosts: [api.open-meteo.com]
         requests:
-          - id: forecast
-            method: GET
+          - method: GET
             url: "https://api.open-meteo.com/v1/forecast"
             query:
               latitude: {"$argument": "/latitude"}
@@ -2536,9 +2476,6 @@ operations:
               forecast_days: {"$argument": "/forecast_days"}
             headers:
               accept: application/json
-        decode: [{op: auto_json}]
-        result_paths:
-          forecast: acknowledgement
   air_quality.read:
     description: Read current air quality for a coordinate.
     verb: read
@@ -2557,8 +2494,7 @@ operations:
       http:
         allowed_hosts: [air-quality-api.open-meteo.com]
         requests:
-          - id: air_quality
-            method: GET
+          - method: GET
             url: "https://air-quality-api.open-meteo.com/v1/air-quality"
             query:
               latitude: {"$argument": "/latitude"}
@@ -2567,9 +2503,6 @@ operations:
               timezone: auto
             headers:
               accept: application/json
-        decode: [{op: auto_json}]
-        result_paths:
-          air_quality: acknowledgement
 "###,
     ),
     (
@@ -2626,14 +2559,10 @@ operations:
       http:
         allowed_hosts: [api.osv.dev]
         requests:
-          - id: query
-            each: {"$argument": "/batches"}
+          - each: {"$argument": "/batches"}
             method: POST
             url: "https://api.osv.dev/v1/querybatch"
             body: {"queries": {"$item": "/queries"}}
-        decode: [{op: auto_json}]
-        result_paths:
-          batches: acknowledgement
   vulnerabilities.read:
     description: Read complete advisory records by OSV id.
     verb: read
@@ -2655,13 +2584,9 @@ operations:
       http:
         allowed_hosts: [api.osv.dev]
         requests:
-          - id: advisory
-            each: {"$argument": "/ids"}
+          - each: {"$argument": "/ids"}
             method: GET
             url: {"$concat": ["https://api.osv.dev/v1/vulns/", {"$item": ""}]}
-        decode: [{op: auto_json}]
-        result_paths:
-          advisories: acknowledgement
 "###,
     ),
     (
@@ -2899,7 +2824,6 @@ operations:
     scopes: [thread.reply]
     target:
       template: {"$argument": "/thread_locator"}
-    readback: thread.reply.read
     result_fields: [provider, external_tenant_ref, connected_subject_ref, conversation_locator, thread_locator, message_locator, occurred_at, content_digest, idempotency_key]
     hosted:
       provider_scopes: ["chat:write"]
@@ -2928,7 +2852,6 @@ operations:
     target:
       template: {"$argument": "/channel_locator"}
       pattern: "slack://[^/]+/[^/]+"
-    readback: channel.post.read
     approval: required
     standing:
       kind: notification
@@ -2954,7 +2877,6 @@ operations:
     target:
       template: {"$argument": "/target"}
     approval: required
-    readback: message.read
     input_schema:
       type: object
       required: [target, message]
@@ -3119,7 +3041,6 @@ operations:
     target:
       template: {"$argument": "/dispute_packet/dispute/dispute_id"}
     approval: required
-    readback: dispute.read
     input_schema:
       type: object
       required: [dispute_packet]
@@ -3169,7 +3090,6 @@ operations:
       template: {"$argument": "/payment_signal/counterparty"}
     approval: required
     amount: required
-    readback: payment.spend.read
     input_schema:
       type: object
       required: [payment_signal, parent_payment_authority, rail_profile_ref]
@@ -3244,12 +3164,10 @@ operations:
         allowed_hosts: [api.x.com]
         auth: {user: {type: oauth1}}
         requests:
-          - id: self
-            method: GET
+          - method: GET
             url: "https://api.x.com/2/users/me"
             query:
               user.fields: "created_at,description,public_metrics"
-        decode: [{op: auto_json}]
         result_paths:
           account: acknowledgement.data
   account.posts.read:
@@ -3289,7 +3207,6 @@ operations:
               cursor: meta.next_token
               items: data
               limit: {"$argument": "/limit"}
-        decode: [{op: auto_json}]
         result_paths:
           account: acknowledgement.0.data
           posts: acknowledgement.1.items
@@ -3331,7 +3248,6 @@ operations:
               cursor: meta.next_token
               items: data
               limit: {"$argument": "/limit"}
-        decode: [{op: auto_json}]
         result_paths:
           account: acknowledgement.0.data
           posts: acknowledgement.1.items
@@ -3373,7 +3289,6 @@ operations:
               cursor: meta.next_token
               items: data
               limit: {"$argument": "/limit"}
-        decode: [{op: auto_json}]
         result_paths:
           account: acknowledgement.0.data
           users: acknowledgement.1.items
@@ -3415,7 +3330,6 @@ operations:
               cursor: meta.next_token
               items: data
               limit: {"$argument": "/limit"}
-        decode: [{op: auto_json}]
         result_paths:
           account: acknowledgement.0.data
           users: acknowledgement.1.items
@@ -3442,8 +3356,7 @@ operations:
         allowed_hosts: [api.x.com]
         auth: {user: {type: oauth1}, app: {type: bearer}}
         requests:
-          - id: posts
-            method: GET
+          - method: GET
             url: {"$concat": ["https://api.x.com/2/users/", {"$argument": "/user_id"}, "/tweets"]}
             query:
               tweet.fields: "created_at,public_metrics,entities,referenced_tweets,in_reply_to_user_id"
@@ -3454,7 +3367,6 @@ operations:
               cursor: meta.next_token
               items: data
               limit: {"$argument": "/limit"}
-        decode: [{op: auto_json}]
         result_paths:
           posts: acknowledgement.items
           next: acknowledgement.next
@@ -3480,8 +3392,7 @@ operations:
         allowed_hosts: [api.x.com]
         auth: {user: {type: oauth1}, app: {type: bearer}}
         requests:
-          - id: posts
-            method: GET
+          - method: GET
             url: {"$concat": ["https://api.x.com/2/users/", {"$argument": "/user_id"}, "/mentions"]}
             query:
               tweet.fields: "created_at,public_metrics,entities,referenced_tweets,in_reply_to_user_id"
@@ -3492,7 +3403,6 @@ operations:
               cursor: meta.next_token
               items: data
               limit: {"$argument": "/limit"}
-        decode: [{op: auto_json}]
         result_paths:
           posts: acknowledgement.items
           next: acknowledgement.next
@@ -3518,8 +3428,7 @@ operations:
         allowed_hosts: [api.x.com]
         auth: {user: {type: oauth1}, app: {type: bearer}}
         requests:
-          - id: users
-            method: GET
+          - method: GET
             url: {"$concat": ["https://api.x.com/2/users/", {"$argument": "/user_id"}, "/following"]}
             query:
               user.fields: "created_at,description,public_metrics"
@@ -3530,7 +3439,6 @@ operations:
               cursor: meta.next_token
               items: data
               limit: {"$argument": "/limit"}
-        decode: [{op: auto_json}]
         result_paths:
           users: acknowledgement.items
           next: acknowledgement.next
@@ -3556,8 +3464,7 @@ operations:
         allowed_hosts: [api.x.com]
         auth: {user: {type: oauth1}, app: {type: bearer}}
         requests:
-          - id: users
-            method: GET
+          - method: GET
             url: {"$concat": ["https://api.x.com/2/users/", {"$argument": "/user_id"}, "/followers"]}
             query:
               user.fields: "created_at,description,public_metrics"
@@ -3568,7 +3475,6 @@ operations:
               cursor: meta.next_token
               items: data
               limit: {"$argument": "/limit"}
-        decode: [{op: auto_json}]
         result_paths:
           users: acknowledgement.items
           next: acknowledgement.next
@@ -3594,8 +3500,7 @@ operations:
         allowed_hosts: [api.x.com]
         auth: {user: {type: oauth1}, app: {type: bearer}}
         requests:
-          - id: posts
-            method: GET
+          - method: GET
             url: "https://api.x.com/2/tweets/search/recent"
             query:
               query: {"$argument": "/query"}
@@ -3607,7 +3512,6 @@ operations:
               cursor: meta.next_token
               items: data
               limit: {"$argument": "/limit"}
-        decode: [{op: auto_json}]
         result_paths:
           posts: acknowledgement.items
           next: acknowledgement.next
@@ -3631,8 +3535,7 @@ operations:
         allowed_hosts: [api.x.com]
         auth: {user: {type: oauth1}}
         requests:
-          - id: post
-            method: POST
+          - method: POST
             url: "https://api.x.com/2/tweets"
             body: {text: {"$argument": "/text"}}
         readbacks:
@@ -3642,7 +3545,6 @@ operations:
               url: {"$concat": ["https://api.x.com/2/tweets/", {"$response": "write.json.data.id"}]}
             matches:
               - {expected: {source: acknowledgement, path: data.id}, observed: data.id}
-        decode: [{op: auto_json}]
         operation_id_path: data.id
         result_paths:
           post: readbacks.0.data
@@ -3667,8 +3569,7 @@ operations:
         allowed_hosts: [api.x.com]
         auth: {user: {type: oauth1}}
         requests:
-          - id: post
-            method: POST
+          - method: POST
             url: "https://api.x.com/2/tweets"
             body:
               text: {"$argument": "/text"}
@@ -3680,7 +3581,6 @@ operations:
               url: {"$concat": ["https://api.x.com/2/tweets/", {"$response": "write.json.data.id"}]}
             matches:
               - {expected: {source: acknowledgement, path: data.id}, observed: data.id}
-        decode: [{op: auto_json}]
         operation_id_path: data.id
         result_paths:
           post: readbacks.0.data
@@ -3705,8 +3605,7 @@ operations:
         allowed_hosts: [api.x.com]
         auth: {user: {type: oauth1}}
         requests:
-          - id: post
-            method: POST
+          - method: POST
             url: "https://api.x.com/2/tweets"
             body:
               text: {"$argument": "/text"}
@@ -3718,7 +3617,6 @@ operations:
               url: {"$concat": ["https://api.x.com/2/tweets/", {"$response": "write.json.data.id"}]}
             matches:
               - {expected: {source: acknowledgement, path: data.id}, observed: data.id}
-        decode: [{op: auto_json}]
         operation_id_path: data.id
         result_paths:
           post: readbacks.0.data
@@ -3745,13 +3643,9 @@ operations:
         allowed_hosts: [api.x.com]
         auth: {user: {type: oauth1}}
         requests:
-          - id: delete
-            each: {"$argument": "/post_ids"}
+          - each: {"$argument": "/post_ids"}
             method: DELETE
             url: {"$concat": ["https://api.x.com/2/tweets/", {"$item": ""}]}
-        decode: [{op: auto_json}]
-        result_paths:
-          outcomes: acknowledgement
         rate_limit: {reset_header: x-rate-limit-reset}
   users.unfollow:
     description: Stop following each listed account. Each answer states the resulting state, which is the evidence; X offers no read of one item cheap enough to confirm a batch.
@@ -3777,13 +3671,9 @@ operations:
         allowed_hosts: [api.x.com]
         auth: {user: {type: oauth1}}
         requests:
-          - id: unfollow
-            each: {"$argument": "/user_ids"}
+          - each: {"$argument": "/user_ids"}
             method: DELETE
             url: {"$concat": ["https://api.x.com/2/users/", {"$argument": "/source_user_id"}, "/following/", {"$item": ""}]}
-        decode: [{op: auto_json}]
-        result_paths:
-          outcomes: acknowledgement
         rate_limit: {reset_header: x-rate-limit-reset}
   users.follow:
     description: Follow each listed account. Each answer states the resulting state, which is the evidence; X offers no read of one item cheap enough to confirm a batch.
@@ -3809,14 +3699,10 @@ operations:
         allowed_hosts: [api.x.com]
         auth: {user: {type: oauth1}}
         requests:
-          - id: follow
-            each: {"$argument": "/user_ids"}
+          - each: {"$argument": "/user_ids"}
             method: POST
             url: {"$concat": ["https://api.x.com/2/users/", {"$argument": "/source_user_id"}, "/following"]}
             body: {target_user_id: {"$item": ""}}
-        decode: [{op: auto_json}]
-        result_paths:
-          outcomes: acknowledgement
         rate_limit: {reset_header: x-rate-limit-reset}
   users.mute:
     description: Mute each listed account. Each answer states the resulting state, which is the evidence; X offers no read of one item cheap enough to confirm a batch.
@@ -3842,14 +3728,10 @@ operations:
         allowed_hosts: [api.x.com]
         auth: {user: {type: oauth1}}
         requests:
-          - id: mute
-            each: {"$argument": "/user_ids"}
+          - each: {"$argument": "/user_ids"}
             method: POST
             url: {"$concat": ["https://api.x.com/2/users/", {"$argument": "/source_user_id"}, "/muting"]}
             body: {target_user_id: {"$item": ""}}
-        decode: [{op: auto_json}]
-        result_paths:
-          outcomes: acknowledgement
         rate_limit: {reset_header: x-rate-limit-reset}
   users.block:
     description: Block each listed account. Each answer states the resulting state, which is the evidence; X offers no read of one item cheap enough to confirm a batch.
@@ -3875,14 +3757,10 @@ operations:
         allowed_hosts: [api.x.com]
         auth: {user: {type: oauth1}}
         requests:
-          - id: block
-            each: {"$argument": "/user_ids"}
+          - each: {"$argument": "/user_ids"}
             method: POST
             url: {"$concat": ["https://api.x.com/2/users/", {"$argument": "/source_user_id"}, "/blocking"]}
             body: {target_user_id: {"$item": ""}}
-        decode: [{op: auto_json}]
-        result_paths:
-          outcomes: acknowledgement
         rate_limit: {reset_header: x-rate-limit-reset}
   posts.like:
     description: Like each listed post. Each answer states the resulting state, which is the evidence; X offers no read of one item cheap enough to confirm a batch.
@@ -3908,14 +3786,10 @@ operations:
         allowed_hosts: [api.x.com]
         auth: {user: {type: oauth1}}
         requests:
-          - id: like
-            each: {"$argument": "/post_ids"}
+          - each: {"$argument": "/post_ids"}
             method: POST
             url: {"$concat": ["https://api.x.com/2/users/", {"$argument": "/source_user_id"}, "/likes"]}
             body: {tweet_id: {"$item": ""}}
-        decode: [{op: auto_json}]
-        result_paths:
-          outcomes: acknowledgement
         rate_limit: {reset_header: x-rate-limit-reset}
   posts.repost:
     description: Repost each listed post. Each answer states the resulting state, which is the evidence; X offers no read of one item cheap enough to confirm a batch.
@@ -3941,14 +3815,10 @@ operations:
         allowed_hosts: [api.x.com]
         auth: {user: {type: oauth1}}
         requests:
-          - id: repost
-            each: {"$argument": "/post_ids"}
+          - each: {"$argument": "/post_ids"}
             method: POST
             url: {"$concat": ["https://api.x.com/2/users/", {"$argument": "/source_user_id"}, "/retweets"]}
             body: {tweet_id: {"$item": ""}}
-        decode: [{op: auto_json}]
-        result_paths:
-          outcomes: acknowledgement
         rate_limit: {reset_header: x-rate-limit-reset}
 "###,
     ),
@@ -3971,7 +3841,6 @@ operations:
     target:
       template: {"$argument": "/secret_ref"}
     approval: required
-    readback: handle.read
     input_schema:
       type: object
       required: [secret_ref, purpose, ttl, scope, principal]
@@ -4060,7 +3929,6 @@ operations:
     scopes: [payment.x402]
     target:
       template: {"$argument": "/payment_signal/resource/url"}
-    readback: payment.x402.read
     guarantees:
       provider_idempotency: enforced
     amount: required
@@ -4125,8 +3993,7 @@ operations:
       http:
         allowed_hosts: [hooks.zapier.com]
         requests:
-          - id: deliver
-            method: POST
+          - method: POST
             url: {"$concat": ["https://hooks.zapier.com/hooks/catch/", {"$argument": "/zapier_account_id"}, "/", {"$argument": "/hook_id"}, "/"]}
             headers:
               accept: application/json
@@ -4134,10 +4001,7 @@ operations:
               x-runx-handoff-audience: {"$argument": "/delivery/handoff_audience"}
               x-runx-handoff-scope: {"$argument": "/delivery/handoff_scope"}
             body: {"$argument": "/delivery"}
-        decode: [{op: auto_json}]
         operation_id_path: request_id
-        result_paths:
-          acknowledgement: acknowledgement
 "###,
     ),
 ];

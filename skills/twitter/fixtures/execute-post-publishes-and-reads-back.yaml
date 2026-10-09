@@ -57,7 +57,7 @@ caller:
         headers: { content-type: application/json }
         body: '{"data":{"id":"6001","text":"Runx 0.5 is out.","edit_history_tweet_ids":["6001"]}}'
   approvals:
-    "operation:sha256:b9ec1701fefd5168e5fc455dc3c8b0aea43021e03082b990072c31a57e2ab8c8": true
+    "operation:sha256:21fcacf213f9d84d447a211f5ce4abf9945784563563227915aac9352b41fdad": true
 expect:
   status: sealed
   steps: [ledger, digest, prepare, self, bind, request, apply, persist]

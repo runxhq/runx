@@ -561,6 +561,8 @@ fn a_nested_ask_is_answered_by_its_address() -> TestResult {
     Ok(())
 }
 
+// Only a build with the managed agent can be refused for using it.
+#[cfg(feature = "agent")]
 #[test]
 fn a_run_keeps_the_driver_it_started_with() -> TestResult {
     let temp = tempdir()?;

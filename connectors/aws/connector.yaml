@@ -26,7 +26,6 @@ operations:
     scopes: [aws.s3.write]
     target:
       template: {"$argument": "/target"}
-    readback: aws.s3.head
     result_fields: [object_ref, content_digest, size_bytes, version_ref, recovered]
     hosted: {}
   aws.s3.head:
@@ -67,7 +66,6 @@ operations:
     scopes: [aws.textract.execute]
     target:
       template: {"$argument": "/target"}
-    readback: aws.textract.analysis.inspect
     guarantees:
       provider_idempotency: enforced
     result_fields: [job_ref, status, blocks]
@@ -86,7 +84,6 @@ operations:
     scopes: [aws.transcribe.execute]
     target:
       template: {"$argument": "/target"}
-    readback: aws.transcribe.inspect
     guarantees:
       provider_idempotency: enforced
     result_fields: [job_ref, status, output_available, failure_reason, recovered]

@@ -19,7 +19,7 @@ inputs:
   parent_payment_authority: { term_id: "authority:test" }
   idempotency_seed: invoice-test-001
 caller:
-  approvals: { "operation:sha256:3d5167877116b91cd43e3d79e6cb008ec84fa5e51de867f10264ace83d054df3": true }
+  approvals: { "operation:sha256:e6816b63e6f4d22b05c12b5e2a972a16bac2abb4b1a33de0cb6f34398733cc96": true }
   provider_responses:
     principal_id: invoice-fixture
     grant: { grant_id: invoice-fixture, provider: mpp, scopes: [payment.invoice.settle, payment.invoice.read] }

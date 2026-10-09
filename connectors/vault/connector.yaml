@@ -15,7 +15,6 @@ operations:
     target:
       template: {"$argument": "/secret_ref"}
     approval: required
-    readback: handle.read
     input_schema:
       type: object
       required: [secret_ref, purpose, ttl, scope, principal]

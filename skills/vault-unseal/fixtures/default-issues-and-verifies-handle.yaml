@@ -37,7 +37,7 @@ caller:
           expires_at: "2026-08-11T00:10:00Z"
           status: active
   approvals:
-    "operation:sha256:9b026197d496da297348a85006ad58e5784a58c585fb26606c6bff2d11d404b4": true
+    "operation:sha256:1b1a9dfd9b5f069d6d740377dbab841133b3542a57edff1b523e86738ffcfcad": true
 expect:
   status: sealed
   steps: [plan, issue-handle, readback]

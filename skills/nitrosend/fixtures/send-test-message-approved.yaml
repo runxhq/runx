@@ -25,7 +25,7 @@ inputs:
   brand_sid: br_sourcey
 caller:
   approvals:
-    "operation:sha256:01426f61457c962fd97aada8c9cebd7d9ff32f664889f7a312db9a84c7a6e68e": true
+    "operation:sha256:2d594e2bf1fc61a2624eee9ce8a852aac725900b03c5db24134a63153014e291": true
   mcp_calls:
   - tool: nitro_review_delivery
     arguments:
@@ -49,7 +49,7 @@ caller:
       - operator@example.com
       data: {}
       dry_run: false
-      idempotency_key: "runx:sha256:01426f61457c962fd97aada8c9cebd7d9ff32f664889f7a312db9a84c7a6e68e"
+      idempotency_key: "runx:sha256:2d594e2bf1fc61a2624eee9ce8a852aac725900b03c5db24134a63153014e291"
     headers:
       x-brand-sid: br_sourcey
     result:

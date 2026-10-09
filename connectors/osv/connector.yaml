@@ -50,14 +50,10 @@ operations:
       http:
         allowed_hosts: [api.osv.dev]
         requests:
-          - id: query
-            each: {"$argument": "/batches"}
+          - each: {"$argument": "/batches"}
             method: POST
             url: "https://api.osv.dev/v1/querybatch"
             body: {"queries": {"$item": "/queries"}}
-        decode: [{op: auto_json}]
-        result_paths:
-          batches: acknowledgement
   vulnerabilities.read:
     description: Read complete advisory records by OSV id.
     verb: read
@@ -79,10 +75,6 @@ operations:
       http:
         allowed_hosts: [api.osv.dev]
         requests:
-          - id: advisory
-            each: {"$argument": "/ids"}
+          - each: {"$argument": "/ids"}
             method: GET
             url: {"$concat": ["https://api.osv.dev/v1/vulns/", {"$item": ""}]}
-        decode: [{op: auto_json}]
-        result_paths:
-          advisories: acknowledgement

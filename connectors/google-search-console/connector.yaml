@@ -59,7 +59,6 @@ operations:
     scopes: [sitemaps.submit]
     target:
       template: {"$argument": "/sitemap_url"}
-    readback: sitemaps.get
     result_fields: [property, sitemap_url, accepted_at, idempotency_key]
     hosted:
       provider_scopes: ["https://www.googleapis.com/auth/webmasters", "openid"]

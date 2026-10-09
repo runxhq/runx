@@ -372,13 +372,93 @@ fn a_target_pattern_must_be_a_regular_expression() {
 }
 
 #[test]
-fn readbacks_must_name_reads_on_the_same_connector() {
+fn reconcile_names_a_read_for_a_write_the_provider_can_read_back() {
+    let reconcile = |operation: &str| format!("    guarantees: {{reconcile: {operation}}}\n");
     assert_rejects(
         &FORGE.replace(
             "    approval: required\n",
-            "    approval: required\n    readback: pullrequest.merge\n",
+            &format!("    approval: required\n{}", reconcile("pullrequest.merge")),
         ),
-        "readback pullrequest.merge must be a read",
+        "reconcile pullrequest.merge must name a read operation on this connector",
+    );
+    assert_rejects(
+        &FORGE.replace(
+            "    hosted: {provider_scopes: [repo]}\n",
+            &format!(
+                "{}    hosted: {{provider_scopes: [repo]}}\n",
+                reconcile("issue.read")
+            ),
+        ),
+        "a read has nothing to reconcile",
+    );
+    assert_rejects(
+        &FORGE.replace(
+            "    approval: required\n",
+            "    approval: required\n    guarantees: {readback: unavailable, reconcile: issue.read}\n",
+        ),
+        "an operation the provider cannot read back has no read to reconcile with",
+    );
+}
+
+const PLAIN_READ: &str = r#"
+schema: runx.connector.v1
+id: example
+name: Example
+description: Example API.
+auth: {none: {}}
+placements: {local: {auth: [none]}}
+operations:
+  item.read:
+    description: Read one item.
+    verb: read
+    scopes: [item.read]
+    target: {template: "https://api.example.com/items"}
+    result_fields: [item]
+    implementation:
+      http:
+        allowed_hosts: [api.example.com]
+        requests:
+          - method: GET
+            url: "https://api.example.com/item"
+"#;
+
+#[test]
+fn a_lone_json_read_takes_its_whole_answer_by_default() {
+    let validated = validate(PLAIN_READ).expect("a plain read validates");
+    let http = validated.manifest.operations[&OperationName::new("item.read").expect("name")]
+        .implementation
+        .as_ref()
+        .and_then(|implementation| match implementation {
+            Implementation::Http(http) => Some(http),
+            _ => None,
+        })
+        .expect("an http implementation");
+    assert_eq!(
+        http.requests
+            .iter()
+            .map(|request| request.id.as_str())
+            .collect::<Vec<_>>(),
+        ["request"]
+    );
+    assert_eq!(
+        http.decode,
+        [runx_contracts::connector::DecodeStep::AutoJson]
+    );
+    assert_eq!(
+        http.result_paths,
+        BTreeMap::from([("item".to_owned(), NonEmptyString::from("acknowledgement"))])
+    );
+
+    assert_rejects(
+        &PLAIN_READ.replace("result_fields: [item]", "result_fields: [item, etag]"),
+        "say where each result field comes from",
+    );
+    assert_rejects(
+        &PLAIN_READ.replace(
+            "            url: \"https://api.example.com/item\"\n",
+            "            url: \"https://api.example.com/item\"\n          - method: GET\n            url: \"https://api.example.com/other\"\n",
+        ),
+        "duplicate request id request; name each request when an exchange has more than one",
     );
 }
 

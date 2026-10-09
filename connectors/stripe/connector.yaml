@@ -15,7 +15,6 @@ operations:
     target:
       template: {"$argument": "/dispute_packet/dispute/dispute_id"}
     approval: required
-    readback: dispute.read
     input_schema:
       type: object
       required: [dispute_packet]

@@ -38,7 +38,7 @@ inputs:
     max_response_bytes: 26214400
   idempotency_seed: marketplace-test-payment-001
 caller:
-  approvals: { "operation:sha256:e3583167ef84936dee05b5d1a667db4e03f644f7d1d2fc609a8fd416af564d52": true }
+  approvals: { "operation:sha256:640b549be83e8cf8d70baf7c38e06abea09bdbd71ec0dfd60778d395b5bcce4a": true }
   provider_responses:
     principal_id: marketplace-fixture
     grant: { grant_id: marketplace-fixture, provider: x402, scopes: [payment.x402, payment.x402.read] }

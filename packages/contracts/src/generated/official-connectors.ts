@@ -7,7 +7,7 @@ export const officialConnectors: readonly OfficialConnector[] = [
   {
     "digests": {
       "ausca.browser.provision": {
-        "operation": "sha256:58728892ae25922f28301d7f6f5d57f472174ad4c607ee70ef286ffe5b1ddf24"
+        "operation": "sha256:985c943bc6a695e9c393450a81334a26838e5b67b581c1e92f4280e7e49f6c66"
       }
     },
     "manifest": {
@@ -70,10 +70,10 @@ export const officialConnectors: readonly OfficialConnector[] = [
   {
     "digests": {
       "ausca.inbox.extend": {
-        "operation": "sha256:4ebfa3b86e54f6bd5835a93925923b9a1b587c6ad9dafa87ae0ef0dd419943a7"
+        "operation": "sha256:85723ab06909d26a03c517bd518baa079b6ea05414ae701e7e58f50a3882a685"
       },
       "ausca.inbox.provision": {
-        "operation": "sha256:b2c70aa4bce7cd6ff3119e5c1f4f7803f2c8db07bcf2a34b7b526eee758facdf"
+        "operation": "sha256:7f336420d85b2b9bf8d6bd9696efaa14db6e15a3342d33c80e0052cf868f1f1b"
       }
     },
     "manifest": {
@@ -147,31 +147,31 @@ export const officialConnectors: readonly OfficialConnector[] = [
   {
     "digests": {
       "aws.s3.delete": {
-        "operation": "sha256:aebcdc7445ffe35ca21b3e9320314b4cafc0927bbe7f440c188879db2f1aa97f"
+        "operation": "sha256:2dc780e4faa76aec055570fcc05cf35393ae45bad1c10e4049ead3176cd31feb"
       },
       "aws.s3.get": {
-        "operation": "sha256:92bd332d2cec154b43989697578c1688234ab99187be7e830582a076967a4d79"
+        "operation": "sha256:1352db7713d57eebaab398fcd06c151fd91db7cb1707a883e87bafc668ef6be2"
       },
       "aws.s3.head": {
-        "operation": "sha256:660d3d43b149644bbfa5a919e57c75945552242cf2e0caabcb1d503504f9d54b"
+        "operation": "sha256:43aa593482eb726eb9c25ad9f5c92417e6fc21726d8c231303ffc1efbb37acc7"
       },
       "aws.s3.put": {
-        "operation": "sha256:3904a1ae61dc0f3b3e55d361da0bfe68e5d7e820fd355776096a9650803775e4"
+        "operation": "sha256:25c1d1843bc28a051cc1be4dade82418edd91223295cee913b1389696e63db76"
       },
       "aws.textract.analysis.inspect": {
-        "operation": "sha256:c9b58616bae4e74fbe493f03cd9c37d9c1f6bfd122c56c358c621dfc025a5150"
+        "operation": "sha256:b497266cd93a4116fd9554552f60159f9e8d4cac3bc55c468bd370363c5596ae"
       },
       "aws.textract.analysis.start": {
-        "operation": "sha256:75d74454ad7895353583266cd08f6437ade2f7edafc8c9e68869b1a74b95b9ca"
+        "operation": "sha256:a614500a56e14aba89d9257336511ac418b34035ee698b9bab85fb6b3c4fa441"
       },
       "aws.textract.detect": {
-        "operation": "sha256:1b5d4d92c76d3865676bf67711a2be049679fd53846d781a2905d244cd5cfa19"
+        "operation": "sha256:e359f7634520cb98abc048947cf9aeac5a592470225927d6f579b056c3a53432"
       },
       "aws.transcribe.inspect": {
-        "operation": "sha256:ab2b452014f985175b83bab9e05de279918c441c69e8631e85f61d3e1244c2c2"
+        "operation": "sha256:8648dc4194ffb2e9bc448276291723189de95cb889ad211708f9010ff944e097"
       },
       "aws.transcribe.start": {
-        "operation": "sha256:6e184bd80b847b8d6d6d3f797b601a6b06daf497c942d553975939c10f298d7d"
+        "operation": "sha256:f6e37e7dd5cdc183c3849141cbf741080a4ae47e25c6d8b8a42fc42515f1f02c"
       }
     },
     "manifest": {
@@ -278,7 +278,6 @@ export const officialConnectors: readonly OfficialConnector[] = [
         "aws.s3.put": {
           "description": "Write one object of at most 10 MiB to an S3 bucket.",
           "hosted": {},
-          "readback": "aws.s3.head",
           "result_fields": [
             "object_ref",
             "content_digest",
@@ -322,7 +321,6 @@ export const officialConnectors: readonly OfficialConnector[] = [
             "provider_idempotency": "enforced"
           },
           "hosted": {},
-          "readback": "aws.textract.analysis.inspect",
           "result_fields": [
             "job_ref",
             "status",
@@ -380,7 +378,6 @@ export const officialConnectors: readonly OfficialConnector[] = [
             "provider_idempotency": "enforced"
           },
           "hosted": {},
-          "readback": "aws.transcribe.inspect",
           "result_fields": [
             "job_ref",
             "status",
@@ -407,30 +404,30 @@ export const officialConnectors: readonly OfficialConnector[] = [
       },
       "schema": "runx.connector.v1"
     },
-    "manifest_digest": "sha256:0af3efb56ef688692c922d3310718689a97f8a43e1361186f3a9f5e177da4516"
+    "manifest_digest": "sha256:f8633f317391e940070156fa40605da12bbd931822a11fe4d83922cddb3168c3"
   },
   {
     "digests": {
       "payment.x402.merchant.lookup": {
-        "operation": "sha256:1dbee0c13efb40c3a0d57b633fe3b42143690e387bcb66952f022bff4cdcc57b"
+        "operation": "sha256:40290112586e607f4350e8842d58aaaea3b4b3b756b9ebc21c4e4d6cb96899bf"
       },
       "payment.x402.merchant.quote": {
-        "operation": "sha256:93725d2fd500e205d33c030f3c68681581bca127be39b42d0812b5421985bf20"
+        "operation": "sha256:78380db48ce90830b4ac6935f26dde627bc90965b9df4914573d57e2c757dccc"
       },
       "payment.x402.merchant.read": {
-        "operation": "sha256:d8dab3d7a030de2a82b56c242f888fefd73f7e7289323309744786432de5e109"
+        "operation": "sha256:e31dc1ee78b366ca656add91d940066667c312ba2c4d37fc65ea15b0b48325e1"
       },
       "payment.x402.merchant.recover": {
-        "operation": "sha256:e0325e78993d64ae3031fc511e220f8a0aec0f92a59492be70db9e470a595b90"
+        "operation": "sha256:3b6ebb70d9acb4329cfa77c5cf95cb23dd172db4f815562dd4c058b280d3089d"
       },
       "payment.x402.merchant.refund": {
-        "operation": "sha256:9fa93906d05626356ee78a2b7c366e2413715896f4d592d5fc7afbf85b8053cf"
+        "operation": "sha256:70fdd25bfd9b2ae911f7573b2fb3c0a1bf859640435db54b03acd730c6b90f54"
       },
       "payment.x402.merchant.refund.read": {
-        "operation": "sha256:c88c2e5190232ef589f45479164ed3ca9f645ebe608a45f222cea260072b3be1"
+        "operation": "sha256:97b41666eb13ea98effbf5f4f3fa340c3c7b5e4c506da17c8dd6797ca8709f9e"
       },
       "payment.x402.merchant.settle": {
-        "operation": "sha256:48c05040eda4784313259d96de2ab92a18bbb1244205aeb2e787733ad6870f05"
+        "operation": "sha256:6354f81f64cb853bb0af33468c80b41d3f4321c06f5f429e7a1630de7d782714"
       }
     },
     "manifest": {
@@ -599,7 +596,6 @@ export const officialConnectors: readonly OfficialConnector[] = [
         "payment.x402.merchant.recover": {
           "description": "Resume settlement of one staged x402 payment.",
           "hosted": {},
-          "readback": "payment.x402.merchant.read",
           "result_fields": [
             "payment_contract",
             "payment_ref",
@@ -639,7 +635,6 @@ export const officialConnectors: readonly OfficialConnector[] = [
             "provider_idempotency": "enforced"
           },
           "hosted": {},
-          "readback": "payment.x402.merchant.refund.read",
           "result_fields": [
             "refund_contract",
             "refund_ref",
@@ -714,7 +709,6 @@ export const officialConnectors: readonly OfficialConnector[] = [
             "reconcile": "payment.x402.merchant.lookup"
           },
           "hosted": {},
-          "readback": "payment.x402.merchant.read",
           "result_fields": [
             "payment_contract",
             "payment_ref",
@@ -757,78 +751,78 @@ export const officialConnectors: readonly OfficialConnector[] = [
       },
       "schema": "runx.connector.v1"
     },
-    "manifest_digest": "sha256:d2ced3de5216ba509c881c67f4ac8ae77cd49acf26cda50a9880612774b8bc8d"
+    "manifest_digest": "sha256:83b84eb998ad1c2ce5bb523fdf34b1d858816a41be0001b772e74a4e2022da81"
   },
   {
     "digests": {
       "advisory.publish": {
-        "operation": "sha256:c871017b18e1ad6cd75403db176038ea6beee233879686fc012684bd3fbb5ba9"
+        "operation": "sha256:8e50042c22d38da3f5400aa3471deb0ff866412d385fef9971d52877b633cd61"
       },
       "advisory.read": {
-        "operation": "sha256:48f1cc10c9df4dce8cf63ca7a49da5dfe456cfdabd78c6a6c9fe89bf7b4bac80"
+        "operation": "sha256:29727389dfd3f7d6607a9301dace2b51cfd74e7230171be9527541630b657bdb"
       },
       "branch.push": {
         "implementation": "sha256:fc0791c52c90a99eb8a7523401cec6fa6274414ed1fbbd2b234f5ba6840142f1",
-        "operation": "sha256:877623547565008cb22143ddba745d62801a8ef5c2eec39d9ebd56688aff757c"
+        "operation": "sha256:c57877b6416ffd2e764ef2ab25d4b3d81faf392a99c1add6cec85ba830e88283"
       },
       "comment.read": {
         "implementation": "sha256:0e5daea0078025122bf72a903e8a68e95eafb4f9ea192b1fbaf51df0953bfd01",
-        "operation": "sha256:24b3a1739f3be913eb47575d3b12767cd7484eb32a1795803b44518d1043b718"
+        "operation": "sha256:5ca38c95afbf61c90369c7feb82a73d45242fb0b2eaba3821c8d2907e8f9d294"
       },
       "comments.create": {
         "implementation": "sha256:777ce0af09956176317637d926c921c8cb30906a45838af6d183be4e26a95752",
-        "operation": "sha256:87f744b5899f891f97f4f0d12a4bfb5661af987ce84e5e3ddf66ceb61d1d3b33"
+        "operation": "sha256:439b9727a7f6e56ea32bc50b3eebcf0a732c8e7d2ca8ea7a1f25e78eab07c80c"
       },
       "comments.list": {
         "implementation": "sha256:f8319cdb57ffacc04c2a8966e9ff363d0b02a97fcc79658817e6b4f2abdff280",
-        "operation": "sha256:790f49dab2a388fef960375931f04dd402c6183faa5232fb6386bd36103cbfed"
+        "operation": "sha256:c6e027daead78718121e435f52f2c87e30f9a97aaff61f38d47622ddcf7f0da5"
       },
       "comments.update": {
         "implementation": "sha256:69ae25b7dabe7fb3514df45b71004b491d30d97b7abd9d0cebea0823cb2ad4ba",
-        "operation": "sha256:728a1c4da35b3db3ff3753997624fa9182fbe5f6f3223cbbc1664e4a81a9f4a6"
+        "operation": "sha256:b359155d5c0523a1ddbcc365fa02bb975eb25d25a576b29202cbe10116fb91b3"
       },
       "issue.read": {
         "implementation": "sha256:64d3faa95f6fcbb19fc1d04f0f04b174e0b906efc243744e813fa25dcb81186e",
-        "operation": "sha256:30c8abd2d09462a97f17f75156bfd6c55eaa8826ec8246e92e34de2ec73ad199"
+        "operation": "sha256:e512947a24925e2a07edbc72c428f8338ecb2906e132c10ef95c8a27d391c52b"
       },
       "issues.create": {
         "implementation": "sha256:7382e15dae3c01e5af567897b3ed38a67bfe11496402e7dcf8565bb75b10c632",
-        "operation": "sha256:0f00f290f84da4688d02c23704ffe9af7cd18ca1c78f675836a9622df3edb704"
+        "operation": "sha256:a16573f6a4942f25692aa1e3251580a0a4c94e1ac7f8f0186075bc1ffa12a930"
       },
       "issues.list": {
         "implementation": "sha256:46959afa156baf0480ec069d1e7759fe21ca85224a3af56d314a277165dcc9c5",
-        "operation": "sha256:47c44e7b23565fa780dc8747e9f3ff5ae2c68ff5d9e6940c551cdb3aacab648f"
+        "operation": "sha256:9ff6b46526494b2a022b5ab1c6065d3282392be24ded648ff4b7dfc7e7989248"
       },
       "issues.read": {
         "implementation": "sha256:c20785bab15a01fcb7cebfe71fe1eed245677fc2aa501d712819e7839cd2c5fe",
-        "operation": "sha256:e1253a077e2880fc7bf60a7367fece83b88c101b5a02e6357f6754342cbd07ca"
+        "operation": "sha256:8c839b30e70a4552c26231df7732ec764f0eca43ff5ec2f84bc35f52a823ebce"
       },
       "issues.update": {
         "implementation": "sha256:4eb5b59f2168edd5017f9701171b7a9c63860a8a13efc1d75cbe4f26f3d4b868",
-        "operation": "sha256:5383c3ae07cbacd96b083ebc710998852892d901a1ca89e8532af9d66382fa01"
+        "operation": "sha256:af19a43a6d4e6afac4c02b7c363bf2da3f3e9384f190de4194fae799ed51a167"
       },
       "pullrequest.merge": {
-        "operation": "sha256:3cab5a6d2e5bcf312fb95d62129389e2032bc413f8e70868953a4d89dca70a7f"
+        "operation": "sha256:9ec3fde71829e8ede4b340ae582c44dcf06240b1de8d20b475d5ddfcad864c5a"
       },
       "pullrequest.open": {
         "implementation": "sha256:f95b73780b8662fd3520ace33d55c208f6dc7ae43bdd54843f1ef1c301d1b81f",
-        "operation": "sha256:e0031d2a88b141f11845815dbbe4f97c601412981ce7e1779a553eb48615c7fe"
+        "operation": "sha256:9be8933eeeefb9abc015d52a8be356bd5a26b1f0139899265ae1d2a360e88471"
       },
       "pullrequest.read": {
         "implementation": "sha256:1f2719886be1c4587fa5b3fa701f2fdc6f1ccb003a26e718838e5a80f02e3394",
-        "operation": "sha256:f3c30f0c2121f13585e687ef503b5bae827e7256b84c0d2c229abc910470b454"
+        "operation": "sha256:90c9c46f949a74dcec80333871fa80fb1a3064adf515cc11d45217a233ffd60b"
       },
       "pullrequests.list": {
         "implementation": "sha256:7b1c87df8f4fd533fe2cce292b5727411d930967a9cbda04fa957c334f525f2c",
-        "operation": "sha256:4c98ae74a2dccf3648e463f191ed358ab0a67f2e2c539ebcf6a9affbd175073b"
+        "operation": "sha256:32f37b005e8049900fc6fa2d1acacbe161ea5b9787aab88a6a5be5885d6e24fe"
       },
       "pullrequests.read": {
         "implementation": "sha256:21eb5910b5adbfa3467acd7f202194f3a5a38ed07c05aa731da754c8aaf4b49c",
-        "operation": "sha256:1d6255ea18b7137785e9223678855eb5fdace5697d11203ec02e80c31e9dbf56"
+        "operation": "sha256:d7b8174b8769fcf02c39680d0b2804db0f29801e0e30c7ec9dba814e488cee72"
       },
       "pullrequests.update": {
         "implementation": "sha256:70c42162b347711f58141b40e362d762739769c51fe599e7d30414951ae7956d",
-        "operation": "sha256:eb31723fdb563c5d92cd66fb6e0bafea1b08f3cb50ee0fde7a41d4626a7a49f9"
+        "operation": "sha256:8bd64cf7183af511d461c5e8db7ccf9e9e600e1f4e35768deb43144e6e23a987"
       }
     },
     "manifest": {
@@ -915,7 +909,6 @@ export const officialConnectors: readonly OfficialConnector[] = [
             ],
             "type": "object"
           },
-          "readback": "advisory.read",
           "result_fields": [
             "advisory_ref",
             "payload_digest"
@@ -968,7 +961,7 @@ export const officialConnectors: readonly OfficialConnector[] = [
           ],
           "description": "Push an exact local commit to a branch of the repository, never forcing it.",
           "guarantees": {
-            "provider_idempotency": "enforced"
+            "provider_idempotency": "inherent"
           },
           "implementation": {
             "process": {
@@ -1376,7 +1369,7 @@ export const officialConnectors: readonly OfficialConnector[] = [
           ],
           "description": "Edit comments, one new body per item.",
           "guarantees": {
-            "provider_idempotency": "enforced"
+            "provider_idempotency": "inherent"
           },
           "hosted": {
             "provider_scopes": [
@@ -2024,7 +2017,7 @@ export const officialConnectors: readonly OfficialConnector[] = [
           ],
           "description": "Update issues, each with its own patch of title, body, state, labels, assignees or milestone.",
           "guarantees": {
-            "provider_idempotency": "enforced"
+            "provider_idempotency": "inherent"
           },
           "hosted": {
             "provider_scopes": [
@@ -2789,7 +2782,7 @@ export const officialConnectors: readonly OfficialConnector[] = [
           ],
           "description": "Update pull requests, each with its own patch of title, body, state, base or maintainer_can_modify.",
           "guarantees": {
-            "provider_idempotency": "enforced"
+            "provider_idempotency": "inherent"
           },
           "hosted": {
             "provider_scopes": [
@@ -3026,21 +3019,21 @@ export const officialConnectors: readonly OfficialConnector[] = [
       ],
       "schema": "runx.connector.v1"
     },
-    "manifest_digest": "sha256:7aa4b303e68b0351744720467f5d7bf9f21c7c3ec863d2dc1c876cb7a5a6001c"
+    "manifest_digest": "sha256:15a528bc5eb7ff3a7183362eeb704ba887f261d2d2ae0a07983a6da85d07defa"
   },
   {
     "digests": {
       "metadata.get": {
-        "operation": "sha256:f5984c953da39f7d6357fd27899a1bb0fa36daa9c7737c8c32856d224ee416fe"
+        "operation": "sha256:07b6be3ea3ebc4b282d367ce47c339da24c1fab80adb771fdae4ef00f16b6c7a"
       },
       "properties.list": {
-        "operation": "sha256:3ce67b96d44796a4febde49c2e7ada69c6d367eb602a247dfe916e5d88d906a0"
+        "operation": "sha256:6c3ad2d62fb2c08f8cf5fa352d31c16f2b1e031605d03949504cd917dca7f213"
       },
       "reports.run": {
-        "operation": "sha256:ba2134653bd1312520b8721962e8866957aa20c9b0a9f4136b91fba99dccfe2c"
+        "operation": "sha256:4624c8556a10b4e08a9fc201dfcd759527ab4f2173b3fb7e95ba67430dba37f6"
       },
       "reports.run_realtime": {
-        "operation": "sha256:f5637e36307a5d23d08f683c5b44d8154759701866a28f2abedb6c06cfd0e51e"
+        "operation": "sha256:c1aae5b00454814e339959a52ab6a1af6dfa7af1646a51f6a70686b27f09139f"
       }
     },
     "manifest": {
@@ -3167,10 +3160,10 @@ export const officialConnectors: readonly OfficialConnector[] = [
   {
     "digests": {
       "events.list": {
-        "operation": "sha256:80a39bad44306378147e56a89d74a6eed3d77b31ea37d830c1540ac8b2d18232"
+        "operation": "sha256:0cfc47be53256da1982497e7f00849c1fa7c7faa6fab607c6edb0f2591df45ae"
       },
       "freebusy.query": {
-        "operation": "sha256:ebba7193f2e2c009d7fba10af5ada2ca98a81a1980b067be9e109ca4f451f50c"
+        "operation": "sha256:3948c0621ccee2bd9e0a8b8f9948bf3e5daec8d100f325e723301c9dc7dd62c7"
       }
     },
     "manifest": {
@@ -3248,22 +3241,22 @@ export const officialConnectors: readonly OfficialConnector[] = [
   {
     "digests": {
       "search.analytics.query": {
-        "operation": "sha256:712eaa8e32beffb84d22af5ed3d2da03ad5c5f1140b1293d1a547f691f7339fc"
+        "operation": "sha256:09b9607a1caf49fa594426301c78e0ddabd85d7ca37bdfc1ba018613f0333c76"
       },
       "sitemaps.get": {
-        "operation": "sha256:8a19da7bc0657541f601f60d61b2b5c6e615630b76266f972247361f2b83ca75"
+        "operation": "sha256:dff4860082495e2ea269fabf70666011d0f459c5b33b5e272c64a714e8e48130"
       },
       "sitemaps.list": {
-        "operation": "sha256:4027587bf1ebb4b1274979480e3ec524e08dc3b36bab8cea8a55dc30e273e884"
+        "operation": "sha256:79ab9097c27a565d35592204c8fd15d8807f0c0bd462eba823e04a18ed85ae84"
       },
       "sitemaps.submit": {
-        "operation": "sha256:6fd18a7384749c4395b2d62ae369d12b8580f4404a8611841d65ec80ccf961a7"
+        "operation": "sha256:d2eb0087748870b4ed0e314842e78c7689efc1954771a3e31247078a408a2bec"
       },
       "sites.list": {
-        "operation": "sha256:6d836d47f32c2e8d13a5f405df18087f9343f5bb4b63f791ee0fce351ab2dcc1"
+        "operation": "sha256:5859be3e8ebfbbf73c7eba76303882fc619532e469e3c2495e85220a19c221dd"
       },
       "url.inspect": {
-        "operation": "sha256:8007e3a5a473f603c0e275a71831459d5eac00a05d548898d951a0b2726008ba"
+        "operation": "sha256:70c445243830ee5c1d3e0842643b2955ee4c6d3eadda13b12fc5ff47ce7f2bf8"
       }
     },
     "manifest": {
@@ -3363,7 +3356,6 @@ export const officialConnectors: readonly OfficialConnector[] = [
               "openid"
             ]
           },
-          "readback": "sitemaps.get",
           "result_fields": [
             "property",
             "sitemap_url",
@@ -3443,17 +3435,17 @@ export const officialConnectors: readonly OfficialConnector[] = [
       },
       "schema": "runx.connector.v1"
     },
-    "manifest_digest": "sha256:a77dc54e5f23c6aea2da3b1c62d5c4a724abc480c043e76152aa5b0f5016587f"
+    "manifest_digest": "sha256:f38a45b76adca04684c03ddb694368978048df1250815fbfe0533ae049325761"
   },
   {
     "digests": {
       "feed.scan": {
-        "implementation": "sha256:d45e79d3582ae2d7f5780506cdaa8e927de108c57620a644893f41dc710b5394",
-        "operation": "sha256:3384fb635209d481f0109be59a5fa1c1d08c63dca651f7939250eacb093c1dfb"
+        "implementation": "sha256:0d06d687a3db033ebb605244af746d6fccc41bd89994713123abb5a004b802c9",
+        "operation": "sha256:80b9b84e59fd6f0f18e2e463c0fed0853e1d48f436aca9b5951bbb15101e426b"
       },
       "post.create": {
-        "implementation": "sha256:c802e95edd5364b5d274e79159f97b2915b0814df7fc4afff5e4d48b42256f6a",
-        "operation": "sha256:3c8fa2ffdf12c77f746f415bf3b824db2b1cc2b572ff7da2c80d08637c370647"
+        "implementation": "sha256:325f7fc438501b27a3ae8e274598e2ae55ae4969b8cbaed57cfa847b5bc1a04b",
+        "operation": "sha256:86fb9c50278b40345e78e23a734bd1b038b398354186d80269538e7571a3fd50"
       }
     },
     "manifest": {
@@ -3506,7 +3498,7 @@ export const officialConnectors: readonly OfficialConnector[] = [
                   "headers": {
                     "accept": "application/json"
                   },
-                  "id": "posts",
+                  "id": "request",
                   "method": "GET",
                   "query": {
                     "limit": {
@@ -3634,7 +3626,7 @@ export const officialConnectors: readonly OfficialConnector[] = [
                   "headers": {
                     "accept": "application/json"
                   },
-                  "id": "create",
+                  "id": "request",
                   "method": "POST",
                   "url": "https://www.moltbook.com/api/v1/posts"
                 }
@@ -3697,33 +3689,33 @@ export const officialConnectors: readonly OfficialConnector[] = [
       },
       "schema": "runx.connector.v1"
     },
-    "manifest_digest": "sha256:544546d97ef4311407e39f2e180c33f56ed9ff7887d9e0cb3e847d6630406b6c"
+    "manifest_digest": "sha256:66cc4c870846247f4671db253bf16143078677155f44af80f27727684bfc7128"
   },
   {
     "digests": {
       "payment.charge": {
-        "operation": "sha256:24bfc6314580e997aa87900862d016d5614ed8d6c18bb52844964da48d775f11"
+        "operation": "sha256:6d497500cdd7fe4a2d6b7b7c92de08bff5adb323f23ee41aa785fdd8dd2b2059"
       },
       "payment.charge.read": {
-        "operation": "sha256:79e69c48843b9e6ce4e3a23996d2fe130497a6a66cd1f3f127354cb87de6670f"
+        "operation": "sha256:49a992136fdc826ed47ed54fd12aa4c59657fc74cffb8cd6396ab8925233122c"
       },
       "payment.invoice.read": {
-        "operation": "sha256:96e9377969153cdae64282878f626539fd7005450fd069ccbdb57a7c8e5cbb16"
+        "operation": "sha256:5a4776bb449c0be79ff5c950ad26bb94ad5f335c890e57af18d7a7c38fde29aa"
       },
       "payment.invoice.settle": {
-        "operation": "sha256:1084fedf9e1312ddeaac2933bbf4082d1772e88cf4cfe0b86d8b41512485dcc6"
+        "operation": "sha256:cceaa808f2a567542b36526f12f77f243bea6b70cf9af9dc837b1999b4c08989"
       },
       "payment.refund": {
-        "operation": "sha256:93e39004f90a8a8eb97a6dc946b6f9ebece71c9a2375aaab3060243fd1a2c86c"
+        "operation": "sha256:9a9fe293cbc18d763436c38aff1ddb53328715a485cbcc31208d2576bc04046a"
       },
       "payment.refund.read": {
-        "operation": "sha256:907e4f7032a72ab28d1a74311aea436858d929da86ed641c8ca760dd634af168"
+        "operation": "sha256:a7af3719d83ad80610f098bb0580aa6becc171ccabe667f379144128babc085d"
       },
       "payment.spend": {
-        "operation": "sha256:dd2ccf8060611c522c53f276ef95349fa2cf67bbcf14489a27b41320c8e25df5"
+        "operation": "sha256:c02426f317e9b01791cfff79706e8549784ceac641b4a801c1961bcd7add09b0"
       },
       "payment.spend.read": {
-        "operation": "sha256:50b71fabdc9d0219052e986fe44ded64d4248df20d4a631fded8c4928dec5f30"
+        "operation": "sha256:debfd53dc46c4fd3caa5931e3b292bd99e737882cbf7d8a8d4b6ca9ebfd1151a"
       }
     },
     "manifest": {
@@ -3773,7 +3765,6 @@ export const officialConnectors: readonly OfficialConnector[] = [
             ],
             "type": "object"
           },
-          "readback": "payment.charge.read",
           "result_fields": [
             "charge_ref",
             "settlement_family",
@@ -3897,7 +3888,6 @@ export const officialConnectors: readonly OfficialConnector[] = [
             ],
             "type": "object"
           },
-          "readback": "payment.invoice.read",
           "result_fields": [
             "payment_ref",
             "invoice_ref",
@@ -3940,7 +3930,6 @@ export const officialConnectors: readonly OfficialConnector[] = [
             ],
             "type": "object"
           },
-          "readback": "payment.refund.read",
           "result_fields": [
             "refund_ref",
             "original_receipt_ref",
@@ -4034,7 +4023,6 @@ export const officialConnectors: readonly OfficialConnector[] = [
             ],
             "type": "object"
           },
-          "readback": "payment.spend.read",
           "result_fields": [
             "payment_ref",
             "rail",
@@ -4091,13 +4079,13 @@ export const officialConnectors: readonly OfficialConnector[] = [
       },
       "schema": "runx.connector.v1"
     },
-    "manifest_digest": "sha256:c21e4652abf74635f3f9fa34009374d1f9fc3fb6f8899b68b479755157930f4e"
+    "manifest_digest": "sha256:384d002a95605968ada8180ff3d1373ef66953d6637c1de3afe4fba09d50daa8"
   },
   {
     "digests": {
       "workflow.invoke": {
-        "implementation": "sha256:669bc72604da9283bedd449ef3b056a6cee34a3697e4fe627ea92105c412192a",
-        "operation": "sha256:8bf902aa42db9e3a64ab5312e449e85d6daf724dea831378ef641de885e76498"
+        "implementation": "sha256:775b9723ad8624b8983c5b639d686f83617c3440dcb60113ae623980a15a5c37",
+        "operation": "sha256:c75e8cb8976b4316a08182dcd822548cd68fc7ee450a2859ae0aed861339680d"
       }
     },
     "manifest": {
@@ -4141,7 +4129,7 @@ export const officialConnectors: readonly OfficialConnector[] = [
                       "$argument": "/delivery/handoff_scope"
                     }
                   },
-                  "id": "deliver",
+                  "id": "request",
                   "method": "POST",
                   "url": {
                     "$concat": [
@@ -4241,17 +4229,17 @@ export const officialConnectors: readonly OfficialConnector[] = [
       },
       "schema": "runx.connector.v1"
     },
-    "manifest_digest": "sha256:c906f2b75013e00826230f8a03da05d8e6b29c06528f02b74d898ff890d8145a"
+    "manifest_digest": "sha256:8d59773b35a7a7fe84efaeef72db94bca8205e6be64d3501ef6d1ba09f6194e9"
   },
   {
     "digests": {
       "forecast.read": {
-        "implementation": "sha256:7e9011a134a19a4e18038ab5ca87604084fbbb262d987e97820a2c37a7289a3d",
-        "operation": "sha256:bb3bbdc0b9d91c401082148c0051969bfaf1c6a9f375cf5cc8815c9fc397d6ab"
+        "implementation": "sha256:756236e6272048425af0dea42e5c626461c6c273a8c6d52b4174109946b84c2d",
+        "operation": "sha256:cc6bd3377964c82ce7929c9698ce0cbaf1ca4366f83f787307d261b37d9c46af"
       },
       "points.read": {
-        "implementation": "sha256:e434f3078b96bc87ac11b332f0405f4f7e912ef127acad1ba94b1db9b92f41d6",
-        "operation": "sha256:8560807c7d3e6d1cbef57abfa0529292a1da2930b80ed42272828fae0d7847c2"
+        "implementation": "sha256:8122bc139e053ffd1f097b751e64a102f09ffe50ac1bba5dc365621f26a90a09",
+        "operation": "sha256:066a190904eaf476e66549af62aaf171081627ca284785dbf4580ede4bcf9aa7"
       }
     },
     "manifest": {
@@ -4280,7 +4268,7 @@ export const officialConnectors: readonly OfficialConnector[] = [
                     "accept": "application/geo+json, application/json",
                     "user-agent": "runx-weather-catalog/0.1 (https://github.com/runxhq/runx)"
                   },
-                  "id": "forecast",
+                  "id": "request",
                   "method": "GET",
                   "url": {
                     "$concat": [
@@ -4358,7 +4346,7 @@ export const officialConnectors: readonly OfficialConnector[] = [
                     "accept": "application/geo+json, application/json",
                     "user-agent": "runx-weather-catalog/0.1 (https://github.com/runxhq/runx)"
                   },
-                  "id": "points",
+                  "id": "request",
                   "method": "GET",
                   "url": {
                     "$concat": [
@@ -4418,158 +4406,162 @@ export const officialConnectors: readonly OfficialConnector[] = [
       },
       "schema": "runx.connector.v1"
     },
-    "manifest_digest": "sha256:9daa7aad5ee0bb5f49594e4d46138273a0d0fa41e6a13a1e689eaebc6e5319e9"
+    "manifest_digest": "sha256:ccb40bc3c1ed3a3705b0a3eb1400c0b1fc172959ee1c7f3d588f9d44d392b850"
   },
   {
     "digests": {
       "billing.plans": {
         "implementation": "sha256:927638443aec67a8eca93b7f5b632ef6d7a08538ba906053bef9461de6554cd5",
-        "operation": "sha256:dd9315b0387bc1266c91811ffb4b7d5bd8eb95e8c8c7b4d5f6f8e14687fe6c0a"
+        "operation": "sha256:2a7c9f1035bee85dd06ea52afff12c51da8afed0d9fb47fe2306e27221aa31ac"
       },
       "billing.status": {
         "implementation": "sha256:11de96773b46ee5aad79c100352e4262998d36d007d1e78fa56f58fd054bb1d4",
-        "operation": "sha256:b98f4251a981326c3215de2a4aeedea36de48ae4f33a719df4821d9aa4510b17"
+        "operation": "sha256:d52207d635eb23d27de1875bfc5b2e3fd215be2642d29c791c685202a6c3188f"
       },
       "campaign.approve": {
         "implementation": "sha256:e9d52d32c18824736b5e24931f668858de30e97eea83d3a56c093d4199ccebdb",
-        "operation": "sha256:d0b09eb9db43ed52a1bad932513b44d8cdff0d2924ed26595a5b726cabd002c8"
+        "operation": "sha256:fb8168c47c1a9577650aa17871912be9d52ebc5d203013a91fc55f0c36468f28"
       },
       "campaign.composition.plan": {
         "implementation": "sha256:4c37e435e1f742ee548b6107605b099199b4d023f6dcc2361098625eb6ffb8b8",
-        "operation": "sha256:fb0ce55f890fce97d5a7865ae02982eec484857cca5569e40d85e06bbba1f680"
+        "operation": "sha256:e45e2a17dc35417ccaf1f7177ebf714994f3718912009f0e2f9fd18cf3210eb9"
       },
       "campaign.composition.validate": {
         "implementation": "sha256:4c37e435e1f742ee548b6107605b099199b4d023f6dcc2361098625eb6ffb8b8",
-        "operation": "sha256:dafd2ef3f23b320bf324d9eac42f6c53c2fce34dd3a11429135cf2b0353fd8c6"
+        "operation": "sha256:b029720cb19b3c5b01c14fbebf1d73c8a6bd6de052b94f57dbd6c52cf6afcc80"
       },
       "campaign.draft": {
         "implementation": "sha256:4c37e435e1f742ee548b6107605b099199b4d023f6dcc2361098625eb6ffb8b8",
-        "operation": "sha256:23b8725e5594c06a4923072b9b2fad88b60b69aa919f225ca5156a8089b157df"
+        "operation": "sha256:8b589865faa71a867587a4b99620ae05152983ce1c06e2dcecfe380519ea8b2e"
       },
       "campaign.schedule": {
         "implementation": "sha256:1d52c8418330cb84a2fc79ea4dcef32acaa920620ce4efbbb64a9603d9307d5e",
-        "operation": "sha256:6347f105f83a8ef3707b8eb58b340297291c88c843ebef50976a56b70b802564"
+        "operation": "sha256:c53806dd3004373da865028cccdba07d0a73b4cf250a739bdd08413b76ce1ed3"
       },
       "campaign.send": {
         "implementation": "sha256:4245676332c278b12bcbb307aa63088fa924dca8f359714375f486669ba26ee2",
-        "operation": "sha256:36ef1fa8407a34615a0059d05636f86d6fdf67f2794f6fa0eb69273949231803"
+        "operation": "sha256:41b62bb6ea40b6a200ea22293a23858f36b42a622ab7e7f6ea6347baada90eab"
       },
       "checkout.status": {
         "implementation": "sha256:acb7be693c9b94cf05a82f945a95d8d998570dee6b2fe52922a334400e3184c3",
-        "operation": "sha256:7eee6e70e4449e300a128e785814cf76c1ff4bde7735f8defa767a244bae835e"
+        "operation": "sha256:2a49479b5ea6714fc8f80b6db52866d43e5338cffadd6fc32ab2919bed3d13c1"
       },
       "contacts.import": {
         "implementation": "sha256:51fdcf688538b56541a233e3a0da98e3e04bf87eef7c6d13ba0768ec28783d36",
-        "operation": "sha256:39ee4523491dfa233ebecd9b880983f83d91d0d8de396ce075b4d0a3604eb6ec"
+        "operation": "sha256:16d9c91aa83389fcf3929fcb2e93006da9f3bd1a65b5f02408cf9b4503ac6741"
       },
       "contacts.import.preview": {
         "implementation": "sha256:51fdcf688538b56541a233e3a0da98e3e04bf87eef7c6d13ba0768ec28783d36",
-        "operation": "sha256:4dd4263678ea70f74e3639e60d3f709b515bde8deb85bf46264c23189bfed242"
+        "operation": "sha256:ead7b6c8a2b1c0e323b4c284a69a746675c32ae866243f68b849305c378365ab"
       },
       "contacts.records.import": {
         "implementation": "sha256:1dc3064f88878df4cb4ae43aa843ee8412a12d68d17d9a974ac806d33b8fcedd",
-        "operation": "sha256:2e6ba3aabe58693147d7b3bf39cd08beb3f7aa6626d79e7544545deee10f44d0"
+        "operation": "sha256:465f4799bae0400e3b0aa6689fbaa22665209207a4638d4532db7f9efe270056"
       },
       "contacts.records.preview": {
         "implementation": "sha256:c5ad5f74f5f2f7edf0567c548d14bc658f4098fe6ccea46d7217f7b48c29eb18",
-        "operation": "sha256:42398cbeefec3406884d8819771d150741d0e1e827d4ea7bcbf461864b2684a1"
+        "operation": "sha256:c5ad5a4a4d77f6a7bbae8f73e0d36c8a425a60a0a5924980caaf29ace1d91d12"
       },
       "content.review": {
-        "operation": "sha256:46c346dc5fb799981bf85efc8a68870fc03f57c103973e0459b37c38a5089b75"
+        "operation": "sha256:deeddc64f7dfb60ae2ad9135135437167afbe15a4339b5ba51aae924de5984b8"
       },
       "delivery.review": {
         "implementation": "sha256:d7fa290898a80b1aedc07ded3c2a6c6482f3286c868dd9cc01d0c5ddc156a9b3",
-        "operation": "sha256:798b69cf9abacde198ef97b70a6935ed7fbaf23b86a8a54a9cb2c97bec646926"
+        "operation": "sha256:668996b66199b2e813d82882850f3d02f9182d7a5297d086d2687510e915bb93"
       },
       "entities.query": {
         "implementation": "sha256:436071af8a0cfa6bed62297d08806dab2246d8fdda99a684594a34e60748108c",
-        "operation": "sha256:68796650b931fc41ac1820911cc92654e7b1fab585df7c84b8387d2933df89c1"
+        "operation": "sha256:2130846d4e9d16c3b6c65fb6e6d73e23ea3e6e215d27a64a7fe72f18cb5cdadd"
       },
       "flow.activate": {
         "implementation": "sha256:5b29f5bf8f940187579385cf81d2917b15a2491d3273e8ef39b07c3ef5167b01",
-        "operation": "sha256:c48f09bcff1f1353fac784e896c2ff532df8741e47fc7e1c2d26bda89038f44a"
+        "operation": "sha256:7283d68dc8ee00ef0443ba5d7fc5a6ebba97434bb6a30b8c970d2d14211f6edf"
       },
       "flow.approve": {
         "implementation": "sha256:b777cc733b52a29e48b428cb8727451df6d8ba2fb689e6ff18ae1cc2cd7af0e8",
-        "operation": "sha256:f5129bce0d1ebe62f8b3937de673e0eff1833163a65f029194890e52d598aca2"
+        "operation": "sha256:d13be9b2c59e6cec740104e0206d910d786efb3ca107f4ff3d22efcc728479e6"
       },
       "flow.composition.plan": {
         "implementation": "sha256:be5b5d5c3cd9f5f3e924734549a307d1a7b5c6c33bff4165b8f5a1b71025e001",
-        "operation": "sha256:0b8e787bca5aae36859685cb64228cde544e2994690a1dd6b06e70acd06b6e49"
+        "operation": "sha256:180b85a536a2056980617ed001f07b7748a0878029524d5cc08b2907e64e500c"
       },
       "flow.composition.validate": {
         "implementation": "sha256:be5b5d5c3cd9f5f3e924734549a307d1a7b5c6c33bff4165b8f5a1b71025e001",
-        "operation": "sha256:1ccd32cab1360483ba1c8bec44c061fcd1192a669d7d20542496147b913ebb73"
+        "operation": "sha256:4d222652ac30d5544bece9845b67c302be952d9a52f1cf29b7761340bb93c183"
       },
       "flow.draft": {
         "implementation": "sha256:be5b5d5c3cd9f5f3e924734549a307d1a7b5c6c33bff4165b8f5a1b71025e001",
-        "operation": "sha256:dcb623ea675380e9636cbeb0849d21524e998f83e46184bb769a8cc6cc745813"
+        "operation": "sha256:2c2e06c7f9baa18d00440a42abb3974de4e3566aea3e3cca5537185e1f4346fa"
       },
       "image.ingest": {
         "implementation": "sha256:68c8a04d6d6f3fbc5072d6b0fca397633b5906c024c750b58140870251f3d439",
-        "operation": "sha256:d9f8749982ebc7c0f345d433096acf2188fc7c73657defbd4f93fcd6e9574677"
+        "operation": "sha256:55420d230704da8ab71030c21a8562b7e803c2564433cf995d735ed8feebe57b"
       },
       "inbox.read": {
         "implementation": "sha256:975589f45aa04c4e4b264edb9f270f97eec94a55fe0ce32fdad66f6bc0439fbf",
-        "operation": "sha256:e30ab406128a434c005dcac7fcc9adf9670ee781bd2941b81ef11bb1840f9c57"
+        "operation": "sha256:aa556f7f62b52b0d5feb2f7aff5c0202887c48686afc121c3f18a322842a1b6b"
       },
       "insights.read": {
         "implementation": "sha256:29d2f9f68f1e7d13a2e4e4b284bb5f07563add15355aabe6fb923f8041b3d361",
-        "operation": "sha256:a3b183e79fddd3265bfe61c54d51707cb06465cc5aa076d293a545f71e148b51"
+        "operation": "sha256:0a43e05a3e22067714a0ec2bf5420eda276b004b666fca1c4b1ce9e46e5ba0d6"
       },
       "message.preview": {
         "implementation": "sha256:489fc10e3fbdb0e9734b1340a425863ad2717f287e01d138a89fad6020fc8821",
-        "operation": "sha256:851a0ce977f3a9b58eeba07cd703755030b2c99b17e73cf14d765ee0921ad31c"
+        "operation": "sha256:9b4a745a350e0e4cf3d75b186950e74a77a75cb3dc1901c645a0962224011d18"
       },
       "message.send": {
         "implementation": "sha256:0c88c5336582e2f9f06b416c428fb1d59e226ec741abaf7eb7bb02340a51bd23",
-        "operation": "sha256:e46b40e32e4057a50ec21425c5b885e0e0177a2b0eee7c4a55f146c4365bbe0c"
+        "operation": "sha256:956bc818e2ec89431cbdfbd21986e05869f4f09cb07f9b59e2a3fbf2dbd7b394"
       },
       "plan.checkout": {
         "implementation": "sha256:4b67a2db41bdc8af623c933d1234bbb2c3b3d5e4e0d2e10bf1fb4f3a4bb8a0c8",
-        "operation": "sha256:e2bedc8306d29bb8f9dc8ab7dbf282285a71fcce22488c026e3d4951ef3e8ed8"
+        "operation": "sha256:69b0d01d153b40a5c740649cee2abefe55fee5988dc1bac7af854472b6c906fa"
       },
       "segment.define": {
-        "implementation": "sha256:bdc4febc02b9f05524b6d34d9cace000993eef0f7d2b82e4faac15210c3846d6",
-        "operation": "sha256:5f249f493c3913cbf35bfd0009b0096d3ae31f6e30ba49a4975a16aba3ff7cf0"
+        "implementation": "sha256:ba678e636a89102362c91a60574528397d275b01c759c468ecbe38b22912ea14",
+        "operation": "sha256:f6d77308d609f93f42dce9454b33a0983d202f9fd7ec4729aeca2ecbb5f5a241"
+      },
+      "segment.preview": {
+        "implementation": "sha256:9a1c524e33989b0ffb3606aa8ff74744f9acb284a15d4d1a401eb7ae7d4eb1ef",
+        "operation": "sha256:7d8ac2d1627a308c8e21048344af25056072b6dabe3b6d82a5de453568f56db1"
       },
       "sender.configure": {
         "implementation": "sha256:64c74caf2ec9f076863fc7e2a9dbefa2db3565921d692740a090af1c926e8c59",
-        "operation": "sha256:e33cc9f512fef2f47492478df74c70cb1feca651e28f3c7ad8689e8a0f419ea5"
+        "operation": "sha256:3edfc3944ce63639a1203097189f503399cc964e98b6550d97e568b58859bfe3"
       },
       "sender.read": {
         "implementation": "sha256:8d3b8abc069f18345398e27973ea6d28b5fbe87e7cda53890984d5aa27d39c09",
-        "operation": "sha256:0ab7e4c0e7234d7acb78b8fc97f547ed267ec43172ea46f2bd64b09acafa6299"
+        "operation": "sha256:33d7be8a94038b6f7ac9f05d5f205df776402b1f87de4914acc7249c3dbc1350"
       },
       "status.read": {
         "implementation": "sha256:79e9824352614179744465388a762931022677c04435f3dc018bc022a738d88c",
-        "operation": "sha256:18104adb903f29859f31ab48f12990c1459fc608c9960a1ec7db20d7e96c34b5"
+        "operation": "sha256:87d0e712f948a74aaa3167cee78a72e47036150ceae7c6b40dde8bc6ad8deef6"
       },
       "template.composition.plan": {
         "implementation": "sha256:fe3dff2d8beb8c2ed5bf3ec8888a3fb73000824fb3cfbaabc8fa9fc671321726",
-        "operation": "sha256:d209b9ae91919d7ce8d4bc7a9c60d89fa6cf9979424643a8b295107f2fd85207"
+        "operation": "sha256:cf315b46acfc9ef0bcadf5d180846e63e318c8cafc75b93265bb664dcd0bd0c6"
       },
       "template.composition.validate": {
         "implementation": "sha256:fe3dff2d8beb8c2ed5bf3ec8888a3fb73000824fb3cfbaabc8fa9fc671321726",
-        "operation": "sha256:783e78e475fd1df946710f3a3b7fbbbc97e62363adcac08bdceb6bd85a19cecf"
+        "operation": "sha256:8051f37fa6926b583123fc0c47f4dbf7767ef09fbfe26d8501d385c2f94e3aad"
       },
       "template.draft": {
         "implementation": "sha256:fe3dff2d8beb8c2ed5bf3ec8888a3fb73000824fb3cfbaabc8fa9fc671321726",
-        "operation": "sha256:63fe29f6039e3813500226bff72dbb7262b4cafa91740472af84c5abbb8689ad"
+        "operation": "sha256:c5c4ca6a69aa01e890d635bddfdd7dbe9aa3e7832c9c9ba43c20caa54235725b"
       },
       "test_message.preview": {
         "implementation": "sha256:0a276213dc5c3269b9b0432b739e8a982a86e737995267c9f014bb96d165a456",
-        "operation": "sha256:3a103c10742e363ad12ce1f7e6cca15e9e80966936ddf8e9e42c012a847ad305"
+        "operation": "sha256:1864a72c4a7fa432694f783dd44d38b5b4b2650ba7c0592e389ddd1b94ab88cb"
       },
       "test_message.send": {
         "implementation": "sha256:832648155b8d44dd186f604a652f2f4e9084b2d74a2a11aaf49fcc0b8adf663a",
-        "operation": "sha256:178ffaedd99a3f126f6387119e880f580234cbb3b620abe9cb29774cd1772d7b"
+        "operation": "sha256:3e028d02cdad38be5f134700e094956ce832d7959b71b55af01acaab66c13acf"
       },
       "thread.reply": {
-        "operation": "sha256:915a7a48149ed0d2ab3abffa6156bdadf58f87dbacbd6149f6ac609291986185"
+        "operation": "sha256:72570d08757b0b65704fdd037dcfa4477982954544c6f06aa95820bcc1d1be05"
       },
       "thread.reply.read": {
-        "operation": "sha256:82f323f1687512942c2d89127c33cb88983f7a3065b9d95774d856b3031452a6"
+        "operation": "sha256:e2f3d8f2fa90b1bb5fb17099b2f905f036933d29cf8f0ed325dbaff757a1e98b"
       }
     },
     "manifest": {
@@ -6298,14 +6290,26 @@ export const officialConnectors: readonly OfficialConnector[] = [
           "credentials": [
             "api_key"
           ],
-          "description": "Define or preview one segment from filters.",
+          "description": "Define or update one segment from filters.",
           "guarantees": {
             "readback": "unavailable"
           },
           "implementation": {
             "mcp": {
               "arguments": {
-                "$argument": "/arguments"
+                "filters": {
+                  "$argument": "/filters"
+                },
+                "idempotency_key": {
+                  "$runx": "idempotency_key"
+                },
+                "name": {
+                  "$argument": "/name"
+                },
+                "preview_only": false,
+                "segment_id": {
+                  "$argument": "/segment_id"
+                }
               },
               "tool": "nitro_define_segment",
               "tool_digest": "sha256:63d6e6c15119e973577cdb8abe767e69ae6c1cefa3a300b810efae14e801367e"
@@ -6314,40 +6318,23 @@ export const officialConnectors: readonly OfficialConnector[] = [
           "input_schema": {
             "additionalProperties": false,
             "properties": {
-              "arguments": {
-                "additionalProperties": false,
-                "properties": {
-                  "filters": {},
-                  "idempotency_key": {
-                    "maxLength": 200,
-                    "minLength": 1,
-                    "type": "string"
-                  },
-                  "name": {
-                    "maxLength": 200,
-                    "minLength": 1,
-                    "type": "string"
-                  },
-                  "preview_only": {
-                    "type": "boolean"
-                  },
-                  "segment_id": {
-                    "minimum": 1,
-                    "type": "integer"
-                  }
-                },
-                "required": [
-                  "filters"
-                ],
-                "type": "object"
-              },
               "brand_sid": {
                 "pattern": "^[A-Za-z0-9_-]{1,64}$",
                 "type": "string"
+              },
+              "filters": {},
+              "name": {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              "segment_id": {
+                "minimum": 1,
+                "type": "integer"
               }
             },
             "required": [
-              "arguments"
+              "filters"
             ],
             "type": "object"
           },
@@ -6358,6 +6345,60 @@ export const officialConnectors: readonly OfficialConnector[] = [
             "template": "nitrosend://segments"
           },
           "verb": "write"
+        },
+        "segment.preview": {
+          "credentials": [
+            "api_key"
+          ],
+          "description": "Preview the contacts one segment's filters select, without saving the segment.",
+          "implementation": {
+            "mcp": {
+              "arguments": {
+                "filters": {
+                  "$argument": "/filters"
+                },
+                "name": {
+                  "$argument": "/name"
+                },
+                "preview_only": true,
+                "segment_id": {
+                  "$argument": "/segment_id"
+                }
+              },
+              "tool": "nitro_define_segment",
+              "tool_digest": "sha256:63d6e6c15119e973577cdb8abe767e69ae6c1cefa3a300b810efae14e801367e"
+            }
+          },
+          "input_schema": {
+            "additionalProperties": false,
+            "properties": {
+              "brand_sid": {
+                "pattern": "^[A-Za-z0-9_-]{1,64}$",
+                "type": "string"
+              },
+              "filters": {},
+              "name": {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              "segment_id": {
+                "minimum": 1,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "filters"
+            ],
+            "type": "object"
+          },
+          "scopes": [
+            "nitrosend:read"
+          ],
+          "target": {
+            "template": "nitrosend://segments"
+          },
+          "verb": "read"
         },
         "sender.configure": {
           "approval": "required",
@@ -6926,7 +6967,6 @@ export const officialConnectors: readonly OfficialConnector[] = [
             "api_key"
           ],
           "description": "Reply in one Nitrosend inbox conversation.",
-          "readback": "thread.reply.read",
           "scopes": [
             "thread.reply"
           ],
@@ -6981,21 +7021,21 @@ export const officialConnectors: readonly OfficialConnector[] = [
       },
       "schema": "runx.connector.v1"
     },
-    "manifest_digest": "sha256:dd505c0339e2a18d517271b23fe648a696729eefc608832634681dc6dcf404a3"
+    "manifest_digest": "sha256:5c7b72d7aebd5d8717b9d7e8277f4691743f7746d9eeb5d49d9800baf4bea3e2"
   },
   {
     "digests": {
       "air_quality.read": {
-        "implementation": "sha256:ca145a7efaf13c59c084e2b5f1b796f50a499112040727ff8dbb76895ada7e73",
-        "operation": "sha256:e01efec120c619e07d7dafd53651b61452dcb78f23899b6eaee5ffcd617bf7b2"
+        "implementation": "sha256:04336b2f676238df968090c2ce321dca30c5f02f09d8ee067cefc41c09f733ea",
+        "operation": "sha256:1d248e0c9858d5dd71ba54868ccfc15496154dd698dd684a6f9cdd69dbd59044"
       },
       "forecast.read": {
-        "implementation": "sha256:ccc57bdfd4a55de068a258539bd472f35b988be4ed71b15b4e41445cd321fb05",
-        "operation": "sha256:4c7375ea92a2dbb798d281cfe1666f6d26b4264cacfe9e4cede4920413784be3"
+        "implementation": "sha256:9588eeba4ff1b24943396076d40fa3af1fd672fdfd0ffc147fde77add0d046aa",
+        "operation": "sha256:fd8870799008c8ba5cf6e88c0e92f56845699ba48088e8fa0cee619d46620fcb"
       },
       "geocode.search": {
-        "implementation": "sha256:497da1ac5273fe86a40d4e5d1c53065ec51ffdf219515d000371a92442f19a6f",
-        "operation": "sha256:c33dd1a3c5d474849d4917d7c52e3954819478b88475f482e03f0bbcc29249e1"
+        "implementation": "sha256:65b466de75fc210eeeed0fdc248e9f71a17da9e5c93cf4937285df5f9ab775bf",
+        "operation": "sha256:432d8ca7618fdb852a510f46d939699326df8453c3339a4388868b989104b004"
       }
     },
     "manifest": {
@@ -7023,7 +7063,7 @@ export const officialConnectors: readonly OfficialConnector[] = [
                   "headers": {
                     "accept": "application/json"
                   },
-                  "id": "air_quality",
+                  "id": "request",
                   "method": "GET",
                   "query": {
                     "current": "pm10,pm2_5,carbon_monoxide,nitrogen_dioxide,sulphur_dioxide,ozone,european_aqi,us_aqi",
@@ -7089,7 +7129,7 @@ export const officialConnectors: readonly OfficialConnector[] = [
                   "headers": {
                     "accept": "application/json"
                   },
-                  "id": "forecast",
+                  "id": "request",
                   "method": "GET",
                   "query": {
                     "current": "temperature_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m",
@@ -7164,7 +7204,7 @@ export const officialConnectors: readonly OfficialConnector[] = [
                   "headers": {
                     "accept": "application/json"
                   },
-                  "id": "locate",
+                  "id": "request",
                   "method": "GET",
                   "query": {
                     "count": "5",
@@ -7217,17 +7257,17 @@ export const officialConnectors: readonly OfficialConnector[] = [
       },
       "schema": "runx.connector.v1"
     },
-    "manifest_digest": "sha256:a2bc5fb2f76ff76dc5219118acd04c4f155507675aa966b484fdf2094a828e86"
+    "manifest_digest": "sha256:6ec7384b35ade0da87c009ab3829a480a8d8ec5b3a1c79f1bf81553dbdb8e1c1"
   },
   {
     "digests": {
       "vulnerabilities.query": {
-        "implementation": "sha256:1cc941276cdcaacd06bb079a230db796486c947432bae87146b7693ac4134235",
-        "operation": "sha256:b479a8594d0c4bb5cee41bdcfbd1592a89efc08880df066d599d542de5bde5c6"
+        "implementation": "sha256:fd5aff1b308c98a5d5da561bcc3892b10499d1c2a4c43262042b7aa83f020bb2",
+        "operation": "sha256:2a51ac1c15dddb977fb83ec1847386283246a42f37ed5b6589fbd966bed144b4"
       },
       "vulnerabilities.read": {
-        "implementation": "sha256:9a70b6436f9a3654291564cf6119c7d23dde6ecb00735f53b41084e60819e84f",
-        "operation": "sha256:34846d8ac1158939dca09bf388aa903cc02e2e4544439516d4eb175c1de6b63f"
+        "implementation": "sha256:130bdcf6d159f454436de530f8d09390c6e8de15eed390d1cf2686c46742bc59",
+        "operation": "sha256:0736a08cea36468ce1789800636430b23e31cad68164c8c09da259928b39b18b"
       }
     },
     "manifest": {
@@ -7260,7 +7300,7 @@ export const officialConnectors: readonly OfficialConnector[] = [
                   "each": {
                     "$argument": "/batches"
                   },
-                  "id": "query",
+                  "id": "request",
                   "method": "POST",
                   "url": "https://api.osv.dev/v1/querybatch"
                 }
@@ -7361,7 +7401,7 @@ export const officialConnectors: readonly OfficialConnector[] = [
                   "each": {
                     "$argument": "/ids"
                   },
-                  "id": "advisory",
+                  "id": "request",
                   "method": "GET",
                   "url": {
                     "$concat": [
@@ -7417,45 +7457,45 @@ export const officialConnectors: readonly OfficialConnector[] = [
       },
       "schema": "runx.connector.v1"
     },
-    "manifest_digest": "sha256:edcdab1bd0aa55b8e5c85ab4be60f99480519d1cc19081b84f4a4e6d8d364176"
+    "manifest_digest": "sha256:3317b4bd791b6a644c5f9e98077d9158d810bd1f7a7eeeef466f4a529087d875"
   },
   {
     "digests": {
       "account.inspect": {
         "implementation": "sha256:ba8bc96f037320bba80d13064632d5e22676ad5b08ff5ac10ec1cda07f6340bf",
-        "operation": "sha256:a40f15ce27726a338bd790594ca4c550ebcb974917f473a39f90536c5d0dbf74"
+        "operation": "sha256:a8b9855c8b9f7eb8b00a69b329ec5c480814e6d49102f9a677b30169ad6be8cc"
       },
       "comment.readback": {
         "implementation": "sha256:ba8bc96f037320bba80d13064632d5e22676ad5b08ff5ac10ec1cda07f6340bf",
-        "operation": "sha256:03ee7f7f49951fd0848bf9c6a2531030fe08d3d5ca2f62ba4f6d6836010a343a"
+        "operation": "sha256:de256f343000866cce4d9220671529d117de5ae0bff31769434f0c69aede9c7e"
       },
       "composer.read": {
         "implementation": "sha256:ba8bc96f037320bba80d13064632d5e22676ad5b08ff5ac10ec1cda07f6340bf",
-        "operation": "sha256:0e564fdd9224d59af7f6f45bafbe183efe7b930de91b1b43d5b6eeba55664f40"
+        "operation": "sha256:1a6304c5bd7c3354c872c213a4c26d23ea699800647494262f61c54528fe92a7"
       },
       "feed.read": {
         "implementation": "sha256:ba8bc96f037320bba80d13064632d5e22676ad5b08ff5ac10ec1cda07f6340bf",
-        "operation": "sha256:74c9b2228d5e035301c35fce41c948093e914a9d0f856347de0ee525a98638fa"
+        "operation": "sha256:bcc93243e88b12ce7751aa5e961d9427a12516e34f376d344a9c7c3d3baf3ba1"
       },
       "page.navigate": {
         "implementation": "sha256:ba8bc96f037320bba80d13064632d5e22676ad5b08ff5ac10ec1cda07f6340bf",
-        "operation": "sha256:b563c1a92877e8a6f1eb68f2549b68a3ef76c3dabca4e81ca10b9f80b3175433"
+        "operation": "sha256:a7555bec5afe5d99f7fa75bef577d9df86e2be96b660d623ee5ba19fa6471ff5"
       },
       "rules.read": {
         "implementation": "sha256:ba8bc96f037320bba80d13064632d5e22676ad5b08ff5ac10ec1cda07f6340bf",
-        "operation": "sha256:e954ab77f1a693063027d5f37aff54138d123ccbb0b81373e0543c1e70cc6d13"
+        "operation": "sha256:1c4e31df7cc9c4c4bf69980c1bbc7413c6843abdd9f422f06de508be619e4e7d"
       },
       "tab.bind": {
         "implementation": "sha256:ba8bc96f037320bba80d13064632d5e22676ad5b08ff5ac10ec1cda07f6340bf",
-        "operation": "sha256:2f1fe5420a46a4e359cd12fc88b8289a22f6fb12633336945af06d7c047db34b"
+        "operation": "sha256:649f8b82ddcece3a2b87cccd69212b41e63705a727ee678df8b05d0dc4122077"
       },
       "tabs.list": {
         "implementation": "sha256:ba8bc96f037320bba80d13064632d5e22676ad5b08ff5ac10ec1cda07f6340bf",
-        "operation": "sha256:3c8ec5cc843f4ec86a01740c8a96a81815c20f6af5fdfc7b206ed9fa0287b670"
+        "operation": "sha256:c97988a837ed133ce48e544dc843748ab6496ca6e2b6dd096350f99d8965ff0d"
       },
       "thread.read": {
         "implementation": "sha256:ba8bc96f037320bba80d13064632d5e22676ad5b08ff5ac10ec1cda07f6340bf",
-        "operation": "sha256:029ee9e1fd85f92256d374ec7ef84a5bbec7bd38c9eb996cae2a6298756c6abf"
+        "operation": "sha256:8533d214e16031f6f03feb96b51fe56192f59bddddb4f7ad5964be08fda9e2ec"
       }
     },
     "manifest": {
@@ -7904,31 +7944,31 @@ export const officialConnectors: readonly OfficialConnector[] = [
   {
     "digests": {
       "channel.post": {
-        "operation": "sha256:6f676a00426e044296f67570d27c39ceb0fa78229db6080ea8f30527fd5a6d35"
+        "operation": "sha256:c68bd71a5a6cdb7a5da0e4b791a41bd48f94126e32b0f58bd10563a51e90a40f"
       },
       "channel.post.read": {
-        "operation": "sha256:07ff3eb1f96cc4141de29315473730f1b3234d560b5ce7fb25d3a60974f4fb36"
+        "operation": "sha256:a65af9edee4c2e0e292a5e31744429ed723cb96561692d9dfefbcb0c2198156c"
       },
       "file.read": {
-        "operation": "sha256:bd59ec7f2e50c9c0221a8cd8f18a9ad51d2d2658bc1105a6282cf5d2eec032d8"
+        "operation": "sha256:3f2db40d084087400b14e41827ba22546d6322a97b88743e134ec4e751888a8f"
       },
       "message.read": {
-        "operation": "sha256:f61f1d31eef2ea95871b43383a8d5c2068d1be0621d325ffd356fa6243b61e93"
+        "operation": "sha256:e8fbc7e15a32784bb6594752f608cbbd3a24e1729f565ec4d424de1d678983bb"
       },
       "message.send": {
-        "operation": "sha256:cba61b94eaef2a32f38c797c790f73aa337d55fc6bbbaef2aa00a1b03700aa15"
+        "operation": "sha256:26643ff69677d795b5b8e548597343c48549215a1e691557e08258bb986c8757"
       },
       "messages.search": {
-        "operation": "sha256:748680911d5b41010b2ca99e0fa40c9f0d0b787f04d07c54822b88b1ce248331"
+        "operation": "sha256:444f21ef6acd02abfc58c987a8ae508512e242ce3ab3dbb0e1e2a5f40dd5e41b"
       },
       "thread.read": {
-        "operation": "sha256:e6673aafc2d8b434d3aa341c3be4268100cbf924c3dc1fcc0c7bac00126cf5d2"
+        "operation": "sha256:a567e9408eb8eb902f271a816f456e91650a07afe176542290f83faaa2b33b77"
       },
       "thread.reply": {
-        "operation": "sha256:16cc97a512021b17eb015afb22dec812856583dfc4e2f039357656167e94c2f4"
+        "operation": "sha256:c674f4f5b080572cf2ad41c6d1aba390b9a598816bc7cf04f99f442ebbbdabc6"
       },
       "thread.reply.read": {
-        "operation": "sha256:c33ec37e54793d238a64f25435246badf85ab1c68256b12584b203420d355550"
+        "operation": "sha256:3f61828c9230a8ab40069c5cf2df33f3b2193066ae48b750b6d74188bc94bf21"
       }
     },
     "manifest": {
@@ -7999,7 +8039,6 @@ export const officialConnectors: readonly OfficialConnector[] = [
             ]
           },
           "idempotency_key_format": "uuid",
-          "readback": "channel.post.read",
           "result_fields": [
             "provider",
             "external_tenant_ref",
@@ -8157,7 +8196,6 @@ export const officialConnectors: readonly OfficialConnector[] = [
             ],
             "type": "object"
           },
-          "readback": "message.read",
           "result_fields": [
             "message_id",
             "principal_ref",
@@ -8237,7 +8275,6 @@ export const officialConnectors: readonly OfficialConnector[] = [
               "chat:write"
             ]
           },
-          "readback": "thread.reply.read",
           "result_fields": [
             "provider",
             "external_tenant_ref",
@@ -8303,25 +8340,25 @@ export const officialConnectors: readonly OfficialConnector[] = [
       ],
       "schema": "runx.connector.v1"
     },
-    "manifest_digest": "sha256:a6b6d7c89b0ee204f296f31b69dfe9b9c9eefaa9e639aaf87e1690b7b863bb3d"
+    "manifest_digest": "sha256:66707a9a849edac95f368f1fab16be186e9527e179829167fb65d377ecf25f86"
   },
   {
     "digests": {
       "events.append": {
         "implementation": "sha256:8cec63da8d52309f196c5bb814b1bc7ab21286306300efbfb0a096975c816527",
-        "operation": "sha256:119b64461ed02a4777e88755633b219563cc63c8bccc054b78f5418ce1c99e31"
+        "operation": "sha256:51bebffe951f2074d026ceba9954ae4b5b354245553416b4e4df80f79a8f417b"
       },
       "events.read": {
         "implementation": "sha256:8cec63da8d52309f196c5bb814b1bc7ab21286306300efbfb0a096975c816527",
-        "operation": "sha256:c86e2d6ccacbb20ab1c7c473867efd7cc1096c0032c01ef188241dac4353ce22"
+        "operation": "sha256:5899fb1cd88cd2f8067a510d07c4671724ee7e036a8bc78d1c1fc51e4662eed7"
       },
       "heads.list": {
         "implementation": "sha256:8cec63da8d52309f196c5bb814b1bc7ab21286306300efbfb0a096975c816527",
-        "operation": "sha256:826923a8e3ba8b3a8fd9d4e2ad2285f5f34f1c3610d86901526b7bad998a1627"
+        "operation": "sha256:25c0f2611484236f58aa816bfebb964eb55f272c5ed1a959eebca625cb8f6864"
       },
       "projection.read": {
         "implementation": "sha256:8cec63da8d52309f196c5bb814b1bc7ab21286306300efbfb0a096975c816527",
-        "operation": "sha256:edcf9534ef86f18ee18c012e09e1e61e3ac52ae293a2130b0eef48679905aa02"
+        "operation": "sha256:b3d2564d782004c2f0e417c27c47a9e2d457c8943727eeeb78553d20f8aa06d4"
       }
     },
     "manifest": {
@@ -8691,10 +8728,10 @@ export const officialConnectors: readonly OfficialConnector[] = [
   {
     "digests": {
       "dispute.file": {
-        "operation": "sha256:3a8c79f7154e46d6a9e1903ea9ecd179bf13cd90c594a2267fe0a76844e4ec45"
+        "operation": "sha256:b700f21bdeb4194a6466dc8fc6ae4fb69f8111754c499f80118ca1ebfc7e7a5e"
       },
       "dispute.read": {
-        "operation": "sha256:3a048bf7d31427f4370958d86017173b5b297dfdca38c4fcd1d094370a884eec"
+        "operation": "sha256:f10cafba7ee158dd3065dddd1060ea6a59f763e1a3d186ea5b4f578b20a074f5"
       }
     },
     "manifest": {
@@ -8737,7 +8774,6 @@ export const officialConnectors: readonly OfficialConnector[] = [
             ],
             "type": "object"
           },
-          "readback": "dispute.read",
           "result_fields": [
             "dispute_id",
             "filing_ref",
@@ -8792,15 +8828,15 @@ export const officialConnectors: readonly OfficialConnector[] = [
       },
       "schema": "runx.connector.v1"
     },
-    "manifest_digest": "sha256:b0839339a7dd53f45af04b2bdccc334380bdf9220ec7bb42df7f9d28cef5ec45"
+    "manifest_digest": "sha256:6a42d13fb3b0d0d82e8f58e6cf8956fa9371150cac2e9e54fb120bf893a7cfe8"
   },
   {
     "digests": {
       "payment.spend": {
-        "operation": "sha256:7b9541941d0c14b5ffd42adafc7eab7181bc85002974dcf1b4fbb9624d1d1465"
+        "operation": "sha256:1ec3223d1110d547060a85e96c3c12aa06bd79ada8306a67e33136cf9c00d098"
       },
       "payment.spend.read": {
-        "operation": "sha256:be97b3ccdd04bf834b4379eb039c58c1b1328a0d8e92d357f7ea9454e6e763a0"
+        "operation": "sha256:a2aa6f399bd97d477e3438ff8a17c7d49e888706a8aca81800d5ff240844e00a"
       }
     },
     "manifest": {
@@ -8851,7 +8887,6 @@ export const officialConnectors: readonly OfficialConnector[] = [
             ],
             "type": "object"
           },
-          "readback": "payment.spend.read",
           "result_fields": [
             "payment_ref",
             "rail",
@@ -8908,89 +8943,89 @@ export const officialConnectors: readonly OfficialConnector[] = [
       },
       "schema": "runx.connector.v1"
     },
-    "manifest_digest": "sha256:fafd46d1e56c95fc641538d20db4f8de7bba15244c71203f69032efb0af932f8"
+    "manifest_digest": "sha256:4a61289db43e2f0f5f0537ad36549139121a35893e784fbe090a35bc5044e193"
   },
   {
     "digests": {
       "account.followers.read": {
         "implementation": "sha256:bdb55907a98830e950ccd04bf82c2beef92379ad78bc9a53c6d389535196f964",
-        "operation": "sha256:9d33b486bbf049a96b8b12939308e76850976457a5989091c865d7a107ab16c7"
+        "operation": "sha256:94c8f253ab30631e3d1fffee709839fc8b1923597bf9751a801a83b0c2c2d5c1"
       },
       "account.following.read": {
         "implementation": "sha256:52b10d41e38c93ccfefd7bc592d436629afd65c4cd62133d8fdb5c86e39f327c",
-        "operation": "sha256:fc5af9611438482e33b9dcd22409ab17d4ada3ba5b59739ea7b88a88d9bcd27a"
+        "operation": "sha256:13d853cd4baeb60c72fbaad69c4afd4a4271eaeca56528f731ee0cff986c3757"
       },
       "account.mentions.read": {
         "implementation": "sha256:a7a38431746dbb63718711dafa1969e6dcca627005ed996995a2bb6ede9d7975",
-        "operation": "sha256:73e336dafd1bd22b7b979f379918e04817bfb9188fbd52e31ea58b82db254f10"
+        "operation": "sha256:a801bcdf216e1829b665e79941840237f5c1e530b2225c8be39a9e27ff0556db"
       },
       "account.posts.read": {
         "implementation": "sha256:e0a46f84b5ab53106d2129b1e2329b364dcca534e34d43bb36bbbe5e1e332923",
-        "operation": "sha256:43abb2fd16d903adb90e1135a3a188c9f106a0699ed2d9678eeef4597bb57c0b"
+        "operation": "sha256:0ecfedfdbd364f0ab296d8675c71f0ecbfd4c0049ee8f9b21935665308ed2f00"
       },
       "account.snapshot": {
-        "implementation": "sha256:b8404eb1fd9af6bbad6d8abad94acb7b8dad3522a3943a5e8a88bd6ff41b6c84",
-        "operation": "sha256:10a33fbc175a05a7382284ebdf925bfd999c0d10336a385737c2c40c1d4cc8af"
+        "implementation": "sha256:fbc997c03af79b452cd38ec9fe4da0cde762e5759f4ec9e39860a1329f63f732",
+        "operation": "sha256:5f1390e18fcc0e28b5693c8b819ba40839e945f2c21f457bc6302f158ba6f275"
       },
       "followers.read": {
-        "implementation": "sha256:4ec2c5cb1dc25ec0a68652c521656bfd9765a93b4337a5c8df0e6007d9d4e3f8",
-        "operation": "sha256:69cc51dbce57e5c1af4d70f308896834d6e39f4a8291eb25e02238202382cbbe"
+        "implementation": "sha256:6a53a93cb231dd73c67e8a24638a1dfa39ad8c3a2f1de282172d2e7eb5b8a53f",
+        "operation": "sha256:8756e16ad1a484a1c82fcddde4b47972fdd2012a64bc7458d6551e99d90f3938"
       },
       "following.read": {
-        "implementation": "sha256:fb4879b97e774b221c7eb45fd80cda74e9180d7ea468d8e6742e7f3a92a8eff8",
-        "operation": "sha256:a07bf1c5a868157395cf318a9b2d36625a0bd20459fd5ccdfafa1f462ac5e3a1"
+        "implementation": "sha256:c7ac333085e72095790439699f34767140fd6021b6f0ca16294e61e29db92eb1",
+        "operation": "sha256:bf178a2cebe42a2e223ec41440494044d0d91cfc6df8f621f54547ff15a4d39e"
       },
       "mentions.read": {
-        "implementation": "sha256:4cec85e394ddc4be76b9b96e77a346e14bdb9765fe1a114313954f21935a70bf",
-        "operation": "sha256:96f5d0d851db31c2ec3d1acb79dcd92f8d97cdb7cc614665d2f7d9d8f95c9902"
+        "implementation": "sha256:71dfcb8b6b64e6d4b8a5064c7f96ee420c25083bedb63fda07e14e9aa6bd552a",
+        "operation": "sha256:fcec56ced42e5ff77375ac35739f3bd27a14f19016fb280369e2948081c72b17"
       },
       "post.create": {
-        "implementation": "sha256:d041c97696eebca811788c286b6ac66bdad4ec797f8106095873b2739c44737b",
-        "operation": "sha256:2a7d8ecb7dc1bee57af5a62ffb4ee37b2aac6f852218c78c86734903e7eea4a9"
+        "implementation": "sha256:4693dd51c069bb0c4a9888c1951126de734397de9be2709d0f3c5d8d28b47601",
+        "operation": "sha256:5f30d1b0a5198fbeffdcad32edf93a3110190b6dba67d28c2de477a915a3acd9"
       },
       "post.quote": {
-        "implementation": "sha256:f7179dee8c3e21e3afb32bfcf45cb93862760d4adc21ee47ac1699ae0c11e5f0",
-        "operation": "sha256:3e7724c4c31a8d2b1e79c773ae51d6dbb5ea8f76e117afd8f29890c94a1c4577"
+        "implementation": "sha256:9a4edf4eeb313d358d8bba9c262b1db0e7032ec1b150b907e372a1fc0df6382a",
+        "operation": "sha256:e39c936e20ac44fe1d6ae5b2c524f49ae6306bda55e7e749c38ceb1f5de80ef2"
       },
       "post.reply": {
-        "implementation": "sha256:3de6b8635a53dca255e181f8a0e2735c8db280e9d9a6be16d696be73eeadc8f5",
-        "operation": "sha256:5ec12b61fa86a5d8ed6e16ae718c6d7b51d777ed59d232098b57a8aa5e415322"
+        "implementation": "sha256:ff864ee27760b3325bd9662417797058a60940996efc2729ea7667a604c42598",
+        "operation": "sha256:48d5d68987fcef99ae85c8e0e2f88ed2408ed3fdf3506fbc5598c926f5d439c9"
       },
       "posts.delete": {
-        "implementation": "sha256:ec1894a3aa124d4c32b0ebf7a1c1b4b3c1ee5c3d3879442ad743eb71df5005bd",
-        "operation": "sha256:c8c4503de547495d19af45146191cebd6fa198d8ebf19d1b6d3e709713e16422"
+        "implementation": "sha256:ea86fde6cacdab6efe12a4be687776a790c491be81080831961d3f37b76e7ad0",
+        "operation": "sha256:308846a35b5295f61db03067586a439936b7a062b78896bd246bbefb60192693"
       },
       "posts.like": {
-        "implementation": "sha256:136da7ae2c0ad0a431c02174753b905418d4ac1627fa5a00f771d849ecea6fdc",
-        "operation": "sha256:fe4f76557ae47d03c81a447c7b1659558e0609c604e32a3112790ee53672ac47"
+        "implementation": "sha256:0945e251f62a9503ad8fbb79ee3ab6d11a7bbf95a61a30216b3d7988233dd635",
+        "operation": "sha256:3bc7ccfa41aafd2405728c619ee916242ef83d3f50f55e5c034301b2367631ce"
       },
       "posts.read": {
-        "implementation": "sha256:e9541f57ac72903daf85b172333c3d8ec877553555e7e4dfd38e39facebf8807",
-        "operation": "sha256:50bf15acafd29fe14825048ec3aec2eb96b3d5fe971aeb8a2c66d7ff4c56d834"
+        "implementation": "sha256:39edd97d3e6e7731527927c98d8f4bd2f4281ca04093ee0b86adfde92a54905d",
+        "operation": "sha256:567bb49a2f74ab93d694e13c1e305f42e78a23c260e442a27d6706aab0942d00"
       },
       "posts.repost": {
-        "implementation": "sha256:4b87352769e0b5cca149a165f6b9b7a2782a6421bcd90c191820c28eb1f73244",
-        "operation": "sha256:9dda828a9aa221feb6e606cbaa13e5ebbe9ecc557d9ce288431e484951a2e82d"
+        "implementation": "sha256:e783f9c0258e06e45c98d08b3f291a0f8d47f6ecb9739e6310a5e7f3a7f4f503",
+        "operation": "sha256:2a08f22daab708391ef1dc97ceaaea753710474a63d62febb4d4b4996be280be"
       },
       "posts.search": {
-        "implementation": "sha256:d79f9391bc01b7cf73d07f5988d3c4c91c5eb76f4053cb1bbe07ee09c7c81f83",
-        "operation": "sha256:82a8f8b25a7361c1df2a6bc315a312fc16298ef8ca9dbee153db4861055afbe0"
+        "implementation": "sha256:4a181f6fc5d8a79f41636059955b252d2d1a310757b482a424fdadf4861ee64a",
+        "operation": "sha256:06e8a293c64cb45b898a36909ac0d87ee4798cf33cd18890257fb79eef8b0b96"
       },
       "users.block": {
-        "implementation": "sha256:7c431097666eda1f0c65ffa0e02fba3c5b02176d29f4827746ef184c681f58d2",
-        "operation": "sha256:d686a58693c36fc17466ac3b375e9905d047d44575e7d7cae6953f528c007d35"
+        "implementation": "sha256:c1487905f84e2cfe187adeada816994a918d39e4effb70c3561af6f336cc60aa",
+        "operation": "sha256:4637f0fbeb8c1684b2589be7d8f9ccfb4fd59ad278ff07c50887f3a4e1d6c478"
       },
       "users.follow": {
-        "implementation": "sha256:a64b157c3926ede407cc3d4c31a8f2a0c7b0131e14f52ab84761f730d1b103f0",
-        "operation": "sha256:b01fde1313a8def3f4b679afc30b1a9db7b845cade171058ba7a1f94c16e675c"
+        "implementation": "sha256:c3e2c7167ad7ad506158eb141b2251a51ba87b69d2f42da2aa32f98bc6d5bd58",
+        "operation": "sha256:47eb9537cce512c0120a59cf5c393b700bef1746bdadcdbbecd385d4d5934994"
       },
       "users.mute": {
-        "implementation": "sha256:2e0f188de868c43f18211438b57a0dad9a4b06771c328f748c7a967cc73b4cdd",
-        "operation": "sha256:6fae5cbda288d12e17bf1eeafdf81b1e71554fe5f5f3a174ae92653f741e406b"
+        "implementation": "sha256:9b7893904780ee32859cd503366f045c3d52b3f91fd677b2bd85603fe3dca1b4",
+        "operation": "sha256:c99722a62de94f326abbcf4eff8886fb1a5f4ada233b6bf10e6e9e99aff4cc32"
       },
       "users.unfollow": {
-        "implementation": "sha256:50e1f02307b450dd77f544ef1313632761b0c635af48540b8d8dc31276dbad32",
-        "operation": "sha256:a6f650ebabdfea0933bce48764921488845eefda2e3af19276a2c8c030d609f0"
+        "implementation": "sha256:8ea675e7779230595106c04235ce38fa5f81c66fb25f1a82818319bfbc8961cc",
+        "operation": "sha256:c0ba875d22de2a48167a7a1ae8c1f10e70c3a04de8b996a3b05095f1b9c987ec"
       }
     },
     "manifest": {
@@ -9465,7 +9500,7 @@ export const officialConnectors: readonly OfficialConnector[] = [
               ],
               "requests": [
                 {
-                  "id": "self",
+                  "id": "request",
                   "method": "GET",
                   "query": {
                     "user.fields": "created_at,description,public_metrics"
@@ -9520,7 +9555,7 @@ export const officialConnectors: readonly OfficialConnector[] = [
               ],
               "requests": [
                 {
-                  "id": "users",
+                  "id": "request",
                   "method": "GET",
                   "pages": {
                     "cursor": "meta.next_token",
@@ -9623,7 +9658,7 @@ export const officialConnectors: readonly OfficialConnector[] = [
               ],
               "requests": [
                 {
-                  "id": "users",
+                  "id": "request",
                   "method": "GET",
                   "pages": {
                     "cursor": "meta.next_token",
@@ -9726,7 +9761,7 @@ export const officialConnectors: readonly OfficialConnector[] = [
               ],
               "requests": [
                 {
-                  "id": "posts",
+                  "id": "request",
                   "method": "GET",
                   "pages": {
                     "cursor": "meta.next_token",
@@ -9856,7 +9891,7 @@ export const officialConnectors: readonly OfficialConnector[] = [
                       "$argument": "/text"
                     }
                   },
-                  "id": "post",
+                  "id": "request",
                   "method": "POST",
                   "url": "https://api.x.com/2/tweets"
                 }
@@ -9948,7 +9983,7 @@ export const officialConnectors: readonly OfficialConnector[] = [
                       "$argument": "/text"
                     }
                   },
-                  "id": "post",
+                  "id": "request",
                   "method": "POST",
                   "url": "https://api.x.com/2/tweets"
                 }
@@ -10054,7 +10089,7 @@ export const officialConnectors: readonly OfficialConnector[] = [
                       "$argument": "/text"
                     }
                   },
-                  "id": "post",
+                  "id": "request",
                   "method": "POST",
                   "url": "https://api.x.com/2/tweets"
                 }
@@ -10134,7 +10169,7 @@ export const officialConnectors: readonly OfficialConnector[] = [
                   "each": {
                     "$argument": "/post_ids"
                   },
-                  "id": "delete",
+                  "id": "request",
                   "method": "DELETE",
                   "url": {
                     "$concat": [
@@ -10219,7 +10254,7 @@ export const officialConnectors: readonly OfficialConnector[] = [
                   "each": {
                     "$argument": "/post_ids"
                   },
-                  "id": "like",
+                  "id": "request",
                   "method": "POST",
                   "url": {
                     "$concat": [
@@ -10307,7 +10342,7 @@ export const officialConnectors: readonly OfficialConnector[] = [
               ],
               "requests": [
                 {
-                  "id": "posts",
+                  "id": "request",
                   "method": "GET",
                   "pages": {
                     "cursor": "meta.next_token",
@@ -10421,7 +10456,7 @@ export const officialConnectors: readonly OfficialConnector[] = [
                   "each": {
                     "$argument": "/post_ids"
                   },
-                  "id": "repost",
+                  "id": "request",
                   "method": "POST",
                   "url": {
                     "$concat": [
@@ -10509,7 +10544,7 @@ export const officialConnectors: readonly OfficialConnector[] = [
               ],
               "requests": [
                 {
-                  "id": "posts",
+                  "id": "request",
                   "method": "GET",
                   "pages": {
                     "cursor": "meta.next_token",
@@ -10619,7 +10654,7 @@ export const officialConnectors: readonly OfficialConnector[] = [
                   "each": {
                     "$argument": "/user_ids"
                   },
-                  "id": "block",
+                  "id": "request",
                   "method": "POST",
                   "url": {
                     "$concat": [
@@ -10718,7 +10753,7 @@ export const officialConnectors: readonly OfficialConnector[] = [
                   "each": {
                     "$argument": "/user_ids"
                   },
-                  "id": "follow",
+                  "id": "request",
                   "method": "POST",
                   "url": {
                     "$concat": [
@@ -10817,7 +10852,7 @@ export const officialConnectors: readonly OfficialConnector[] = [
                   "each": {
                     "$argument": "/user_ids"
                   },
-                  "id": "mute",
+                  "id": "request",
                   "method": "POST",
                   "url": {
                     "$concat": [
@@ -10911,7 +10946,7 @@ export const officialConnectors: readonly OfficialConnector[] = [
                   "each": {
                     "$argument": "/user_ids"
                   },
-                  "id": "unfollow",
+                  "id": "request",
                   "method": "DELETE",
                   "url": {
                     "$concat": [
@@ -10985,15 +11020,15 @@ export const officialConnectors: readonly OfficialConnector[] = [
       },
       "schema": "runx.connector.v1"
     },
-    "manifest_digest": "sha256:5716e051eeda36b0bd9b203027db1ea06e20c12230b79c9cfdf4f76a104fbe79"
+    "manifest_digest": "sha256:4a7fe28b00fdc53efbbe9eea3ab5ce3fd9fa4a6592a990d75daa0bb377953aa2"
   },
   {
     "digests": {
       "handle.read": {
-        "operation": "sha256:b8461e6a98f07ef8a0025df59ca1a566e1e16f845f81bc06f5606b9244a56d14"
+        "operation": "sha256:94b5daa602d47fb315afb2ac8e8b476e4ffad8ebd41dafb77b25ca18cd965264"
       },
       "secret.unseal": {
-        "operation": "sha256:41b2634fee5ea3e5c11c249cb29af54c6b4fdadf3a2386b4c68e4d41584a3d1e"
+        "operation": "sha256:fed6956c3e80511c617805aae8ee0cf65240a62ee9f37b0aabbfc1828fae1ce6"
       }
     },
     "manifest": {
@@ -11068,7 +11103,6 @@ export const officialConnectors: readonly OfficialConnector[] = [
             ],
             "type": "object"
           },
-          "readback": "handle.read",
           "result_fields": [
             "handle_ref",
             "expires_at",
@@ -11092,13 +11126,13 @@ export const officialConnectors: readonly OfficialConnector[] = [
       },
       "schema": "runx.connector.v1"
     },
-    "manifest_digest": "sha256:32fa247aefca965f3546e23d529d5feb62ce41eca4d38fb6d06993619b403573"
+    "manifest_digest": "sha256:64a8ca81cdba05ef940d190adbb2b2f1ddf51d92c5a7f87dbd635ce8bdfa1786"
   },
   {
     "digests": {
       "page.read": {
         "implementation": "sha256:9922502703354e974352caf85c8bae4aba71b2d1eee76e1040856bcae3c60d17",
-        "operation": "sha256:bc195d65f2545363571091f59d8e6d913fb776391c7b4c424166bf57a30c30f4"
+        "operation": "sha256:f7a012bffe1d1a0675026610f3ba478022237feef34234aa182c039f89cf07bc"
       }
     },
     "manifest": {
@@ -11181,10 +11215,10 @@ export const officialConnectors: readonly OfficialConnector[] = [
   {
     "digests": {
       "payment.x402": {
-        "operation": "sha256:24b2dc80d9c7a1a2499d738a45dd54475954451f1d12f341b3363421e0d0036e"
+        "operation": "sha256:33e768bc5627977d78ec5c6aea0f02e384b83a302713ea617b0dda568481e8ed"
       },
       "payment.x402.read": {
-        "operation": "sha256:ba5ed1b7fbfe6692a35760e8fa91a08f80f3250b849b2f5a544db46bf60ecb91"
+        "operation": "sha256:238afe82560b8d4432a9721e1f668ba35ff521a28ae6fdb6b0c622490598e232"
       }
     },
     "manifest": {
@@ -11223,7 +11257,6 @@ export const officialConnectors: readonly OfficialConnector[] = [
             "provider_idempotency": "enforced"
           },
           "hosted": {},
-          "readback": "payment.x402.read",
           "result_fields": [
             "payment_ref",
             "challenge_id",
@@ -11319,13 +11352,13 @@ export const officialConnectors: readonly OfficialConnector[] = [
       },
       "schema": "runx.connector.v1"
     },
-    "manifest_digest": "sha256:b6ecbce1956d3cac9a3687806cb65c5c6cf34e762f6c9facbc1f65dd7d0d7c01"
+    "manifest_digest": "sha256:01ce1e170a9b35055ac859052f0bc071320df83520ae95ec8c4675e5684758da"
   },
   {
     "digests": {
       "hook.invoke": {
-        "implementation": "sha256:c2c7f1ecc63c42234a50fb8a0729be31eb95ccc1a9e4fe436a422a8cce1e9d78",
-        "operation": "sha256:2cbe7d0ee83aedb910340f993bcc9ff6fc34d2dd72d7ed254ddd627f66b367e7"
+        "implementation": "sha256:f35595a3e809b7188bdcfb6e0331c087c4a30ccd69e0eca9fe3a33d7782d755e",
+        "operation": "sha256:5ba05e7fb14f1fd7f09956446afb7200d770c7df59cd75fdb7f6e1a54d3cc96e"
       }
     },
     "manifest": {
@@ -11370,7 +11403,7 @@ export const officialConnectors: readonly OfficialConnector[] = [
                       "$argument": "/delivery/handoff_scope"
                     }
                   },
-                  "id": "deliver",
+                  "id": "request",
                   "method": "POST",
                   "url": {
                     "$concat": [
@@ -11473,6 +11506,6 @@ export const officialConnectors: readonly OfficialConnector[] = [
       },
       "schema": "runx.connector.v1"
     },
-    "manifest_digest": "sha256:845d2c4b9bf55ac1273abcc7baf1d1bf47ede616400e64739a30f3f644c28b54"
+    "manifest_digest": "sha256:41ccd04b5ab26b9e7ef2947b0f97599b24ee37ff3bd39855b644879536313e99"
   }
 ];

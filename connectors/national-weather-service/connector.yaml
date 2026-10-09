@@ -26,15 +26,11 @@ operations:
       http:
         allowed_hosts: [api.weather.gov]
         requests:
-          - id: points
-            method: GET
+          - method: GET
             url: {"$concat": ["https://api.weather.gov/points/", {"$argument": "/lat"}, ",", {"$argument": "/lon"}]}
             headers:
               user-agent: "runx-weather-catalog/0.1 (https://github.com/runxhq/runx)"
               accept: "application/geo+json, application/json"
-        decode: [{op: auto_json}]
-        result_paths:
-          points: acknowledgement
   forecast.read:
     description: Read the forecast for one NWS office gridpoint.
     verb: read
@@ -54,12 +50,8 @@ operations:
       http:
         allowed_hosts: [api.weather.gov]
         requests:
-          - id: forecast
-            method: GET
+          - method: GET
             url: {"$concat": ["https://api.weather.gov/gridpoints/", {"$argument": "/office"}, "/", {"$argument": "/grid_x"}, ",", {"$argument": "/grid_y"}, "/forecast"]}
             headers:
               user-agent: "runx-weather-catalog/0.1 (https://github.com/runxhq/runx)"
               accept: "application/geo+json, application/json"
-        decode: [{op: auto_json}]
-        result_paths:
-          forecast: acknowledgement

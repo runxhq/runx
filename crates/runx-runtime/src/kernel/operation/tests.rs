@@ -986,22 +986,46 @@ fn an_unauthenticated_write_is_acknowledged_once_behind_exact_approval() {
     let (_, outcome) = fixture
         .run("deliver", &inputs, Some(ResolutionResponseActor::Human))
         .expect("runs");
-    let packet = packet(&outcome);
+    let acknowledged = packet(&outcome);
     assert_eq!(
-        packet["finality"],
+        acknowledged["finality"],
         JsonValue::String("acknowledged".to_owned())
     );
+    let first = acknowledged["operation_id"].as_str().unwrap().to_owned();
     assert!(
-        packet["operation_id"]
-            .as_str()
-            .is_some_and(|id| id.starts_with("http:sha256:")),
-        "an acknowledgement without a provider id is identified by its answer"
+        first.starts_with("http:runx:sha256:"),
+        "an acknowledgement without a provider id is identified by the key it was sent with"
     );
     assert_eq!(
-        serde_json::to_value(&packet["result"]).unwrap()["acknowledgement"]["message"],
+        serde_json::to_value(&acknowledged["result"]).unwrap()["acknowledgement"]["message"],
         "Workflow was started"
     );
     assert_eq!(fixture.provider.calls(), 1, "no readback is sent");
+
+    // Another write the provider answers alike is still another operation.
+    let other: JsonObject = serde_json::from_value(serde_json::json!({
+        "input": {
+            "webhook_host": "acme.app.n8n.cloud",
+            "workflow_slug": "runx-effect",
+            "delivery": {
+                "event_id": "evt-2",
+                "handoff_scope": "orchestrator.n8n.workflow.invoke",
+                "handoff_audience": "n8n:workflow:runx-effect",
+                "idempotency_key": "evt-2",
+                "payload": {"hello": "workflow"},
+            },
+        },
+        "idempotency_key": "evt-2",
+    }))
+    .unwrap();
+    let (_, outcome) = fixture
+        .run("deliver", &other, Some(ResolutionResponseActor::Human))
+        .expect("runs");
+    let second = packet(&outcome)["operation_id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    assert_ne!(first, second);
 }
 
 /// A plugin connector whose MCP server is a process the runtime starts over

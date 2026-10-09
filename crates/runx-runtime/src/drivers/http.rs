@@ -212,17 +212,22 @@ impl Driver for Http<'_> {
             })
             .collect::<Result<JsonObject, _>>()?;
         // A write the provider gives no id, a batch or an acknowledgement
-        // without one, is identified by the answer it recorded.
+        // without one, is identified by the key it was sent with, which is
+        // stable for its intent. Its answer cannot identify it: two
+        // different writes may be answered alike.
         let operation_id = match self.spec.operation_id_path.as_deref() {
             None if self.call.mutation() => Some(format!(
                 "http:{}",
-                runx_contracts::connector::stable_digest(write)
-                    .map_err(|error| error.to_string())?
-                    .as_str()
+                self.call
+                    .idempotency_key
+                    .ok_or("a write is sent with an idempotency key")?
             )),
-            path => path
-                .and_then(|path| at_path(write, path))
-                .and_then(scalar_string),
+            Some(path) => Some(
+                at_path(write, path)
+                    .and_then(scalar_string)
+                    .ok_or_else(|| format!("operation id path {path:?} is missing"))?,
+            ),
+            None => None,
         };
         Ok((JsonValue::Object(result), operation_id))
     }

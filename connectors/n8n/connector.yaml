@@ -38,8 +38,7 @@ operations:
       http:
         allowed_hosts: ["*.app.n8n.cloud"]
         requests:
-          - id: deliver
-            method: POST
+          - method: POST
             url: {"$concat": ["https://", {"$argument": "/webhook_host"}, "/webhook/", {"$argument": "/workflow_slug"}]}
             headers:
               accept: application/json
@@ -47,6 +46,3 @@ operations:
               x-runx-handoff-audience: {"$argument": "/delivery/handoff_audience"}
               x-runx-handoff-scope: {"$argument": "/delivery/handoff_scope"}
             body: {"$argument": "/delivery"}
-        decode: [{op: auto_json}]
-        result_paths:
-          acknowledgement: acknowledgement

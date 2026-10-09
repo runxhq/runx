@@ -18,7 +18,6 @@ const SLACK: &str = r#"{
       "verb": "write",
       "scopes": ["channel.post"],
       "target": {"template": {"$argument": "/channel_locator"}, "pattern": "slack://[^/]+/[^/]+"},
-      "readback": "channel.post.read",
       "approval": "required",
       "standing": {"kind": "notification", "target_field": "channel_locator", "text_field": "text"},
       "idempotency_key_format": "uuid",

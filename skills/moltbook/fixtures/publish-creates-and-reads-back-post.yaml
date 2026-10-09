@@ -58,7 +58,7 @@ caller:
         headers: { content-type: application/json }
         body: '{"success":true,"post":{"id":"7d0c3a52-0002-4000-8000-000000000001","title":"How to move a Runx skill into a package root","content":"Package-rooted skills make inspection and harness verification explicit.","author":{"name":"runx-agent"},"submolt":{"name":"agents"},"created_at":"2026-07-17T12:00:00Z"}}'
   approvals:
-    "operation:sha256:a828ea5a1dac62f48b65038b037cf813f07ae538f088db16d1f80b387c5f862d": true
+    "operation:sha256:2f25893f51bee181180ff8b00488a50e560a655209829db27efb856aca55ff74": true
 expect:
   status: sealed
   steps: [validate, digest-payload, bind-payload, publish]

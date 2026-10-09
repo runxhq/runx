@@ -14977,7 +14977,6 @@ export const runxSchemaArtifacts = {
                                   "url": {}
                                 },
                                 "required": [
-                                  "id",
                                   "method",
                                   "url"
                                 ],
@@ -15268,7 +15267,6 @@ export const runxSchemaArtifacts = {
                                   "url": {}
                                 },
                                 "required": [
-                                  "id",
                                   "method",
                                   "url"
                                 ],
@@ -15337,7 +15335,6 @@ export const runxSchemaArtifacts = {
                               "url": {}
                             },
                             "required": [
-                              "id",
                               "method",
                               "url"
                             ],
@@ -15356,9 +15353,7 @@ export const runxSchemaArtifacts = {
                       },
                       "required": [
                         "allowed_hosts",
-                        "requests",
-                        "decode",
-                        "result_paths"
+                        "requests"
                       ],
                       "type": "object"
                     }
@@ -15671,11 +15666,6 @@ export const runxSchemaArtifacts = {
             "input_schema": {
               "additionalProperties": {},
               "type": "object"
-            },
-            "readback": {
-              "maxLength": 100,
-              "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$",
-              "type": "string"
             },
             "result_fields": {
               "items": {

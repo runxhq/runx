@@ -36,15 +36,13 @@ operations:
         allowed_hosts: [www.moltbook.com]
         auth: {api_key: {type: bearer, field: api_key}}
         requests:
-          - id: posts
-            method: GET
+          - method: GET
             url: "https://www.moltbook.com/api/v1/posts"
             query:
               sort: new
               limit: {"$argument": "/limit"}
               submolt: {"$argument": "/submolt"}
             headers: {accept: application/json}
-        decode: [{op: auto_json}]
         result_paths:
           posts: acknowledgement.posts
   post.create:
@@ -68,8 +66,7 @@ operations:
         allowed_hosts: [www.moltbook.com]
         auth: {api_key: {type: bearer, field: api_key}}
         requests:
-          - id: create
-            method: POST
+          - method: POST
             url: "https://www.moltbook.com/api/v1/posts"
             headers: {accept: application/json}
             body:
@@ -86,7 +83,6 @@ operations:
               - {expected: {source: acknowledgement, path: post.id}, observed: post.id}
               - {expected: {source: argument, path: title}, observed: post.title}
               - {expected: {source: argument, path: content}, observed: post.content}
-        decode: [{op: auto_json}]
         operation_id_path: post.id
         result_paths:
           post: readbacks.0.post

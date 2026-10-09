@@ -99,7 +99,6 @@ operations:
     credentials: [api_key]
     target:
       template: {"$argument": "/thread_locator"}
-    readback: thread.reply.read
   thread.reply.read:
     description: Read back one reply in a Nitrosend inbox conversation.
     verb: read
@@ -474,8 +473,29 @@ operations:
         tool: nitro_control_delivery
         arguments: {target_type: flow, operation: live, target_id: {"$argument": "/target_id"}, revision_id: {"$argument": "/revision_id"}}
         tool_digest: "sha256:b25bbef3a463c528a89b89f280786b45d132de8deca3d9073c1ae2c8f10a6813"
+  segment.preview:
+    description: Preview the contacts one segment's filters select, without saving the segment.
+    verb: read
+    scopes: ["nitrosend:read"]
+    credentials: [api_key]
+    target:
+      template: "nitrosend://segments"
+    input_schema:
+      type: object
+      required: [filters]
+      additionalProperties: false
+      properties:
+        brand_sid: {type: string, pattern: "^[A-Za-z0-9_-]{1,64}$"}
+        filters: {}
+        name: {type: string, minLength: 1, maxLength: 200}
+        segment_id: {type: integer, minimum: 1}
+    implementation:
+      mcp:
+        tool: nitro_define_segment
+        arguments: {filters: {"$argument": "/filters"}, name: {"$argument": "/name"}, segment_id: {"$argument": "/segment_id"}, preview_only: true}
+        tool_digest: "sha256:63d6e6c15119e973577cdb8abe767e69ae6c1cefa3a300b810efae14e801367e"
   segment.define:
-    description: Define or preview one segment from filters.
+    description: Define or update one segment from filters.
     verb: write
     scopes: ["nitrosend:write"]
     credentials: [api_key]
@@ -486,24 +506,17 @@ operations:
       readback: unavailable
     input_schema:
       type: object
-      required: [arguments]
+      required: [filters]
       additionalProperties: false
       properties:
         brand_sid: {type: string, pattern: "^[A-Za-z0-9_-]{1,64}$"}
-        arguments:
-          type: object
-          required: [filters]
-          additionalProperties: false
-          properties:
-            filters: {}
-            name: {type: string, minLength: 1, maxLength: 200}
-            preview_only: {type: boolean}
-            segment_id: {type: integer, minimum: 1}
-            idempotency_key: {type: string, minLength: 1, maxLength: 200}
+        filters: {}
+        name: {type: string, minLength: 1, maxLength: 200}
+        segment_id: {type: integer, minimum: 1}
     implementation:
       mcp:
         tool: nitro_define_segment
-        arguments: {"$argument": "/arguments"}
+        arguments: {filters: {"$argument": "/filters"}, name: {"$argument": "/name"}, segment_id: {"$argument": "/segment_id"}, idempotency_key: {"$runx": "idempotency_key"}, preview_only: false}
         tool_digest: "sha256:63d6e6c15119e973577cdb8abe767e69ae6c1cefa3a300b810efae14e801367e"
   test_message.preview:
     description: Validate one test of a template, flow step or campaign for its recipients without dispatching it.

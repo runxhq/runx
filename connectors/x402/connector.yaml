@@ -23,7 +23,6 @@ operations:
     scopes: [payment.x402]
     target:
       template: {"$argument": "/payment_signal/resource/url"}
-    readback: payment.x402.read
     guarantees:
       provider_idempotency: enforced
     amount: required

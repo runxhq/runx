@@ -45,6 +45,7 @@ pub fn parse_connector_manifest(yaml: &str) -> Result<ConnectorManifest, ParseEr
 pub fn validate_connector_manifest(
     manifest: ConnectorManifest,
 ) -> Result<ValidatedConnector, Vec<ValidationError>> {
+    let manifest = with_default_result_paths(manifest);
     let mut errors = Errors::default();
     validate_auth_and_placements(&manifest, &mut errors);
     validate_parameters(&manifest, &mut errors);
@@ -77,6 +78,25 @@ pub fn validate_connector_manifest(
         operation_digests,
         manifest,
     })
+}
+
+/// An HTTP operation with one result field takes the whole decoded answer
+/// unless it says where the field comes from. The default is written into
+/// the manifest, so every reader of it sees the same declaration.
+fn with_default_result_paths(mut manifest: ConnectorManifest) -> ConnectorManifest {
+    for operation in manifest.operations.values_mut() {
+        if let (Some(Implementation::Http(http)), [field]) = (
+            operation.implementation.as_mut(),
+            operation.result_fields.as_slice(),
+        ) && http.result_paths.is_empty()
+        {
+            http.result_paths.insert(
+                field.as_str().to_owned(),
+                NonEmptyString::from("acknowledgement"),
+            );
+        }
+    }
+    manifest
 }
 
 #[derive(Default)]
@@ -501,22 +521,6 @@ fn validate_operation(
         }
     }
 
-    if let Some(readback) = &operation.readback {
-        match manifest.operations.get(readback) {
-            Some(target) if target.access() == OperationAccess::Read => {}
-            Some(_) => errors.push(
-                &format!("{field}.readback"),
-                format!("readback {readback} must be a read"),
-            ),
-            None => errors.push(
-                &format!("{field}.readback"),
-                format!("readback {readback} is not an operation on this connector"),
-            ),
-        }
-        if read {
-            errors.push(&format!("{field}.readback"), "a read has no readback");
-        }
-    }
     if let Some(reconcile) = &operation.guarantees.reconcile {
         match manifest.operations.get(reconcile) {
             Some(target) if target.access() == OperationAccess::Read => {}
@@ -524,6 +528,12 @@ fn validate_operation(
                 &format!("{field}.guarantees.reconcile"),
                 format!("reconcile {reconcile} must name a read operation on this connector"),
             ),
+        }
+        if read {
+            errors.push(
+                &format!("{field}.guarantees.reconcile"),
+                "a read has nothing to reconcile",
+            );
         }
     }
     if read {
@@ -587,10 +597,10 @@ fn validate_operation(
             "only a write can be unavailable for readback",
         );
     }
-    if acknowledged && operation.readback.is_some() {
+    if acknowledged && operation.guarantees.reconcile.is_some() {
         errors.push(
-            &format!("{field}.readback"),
-            "an operation the provider cannot read back names no readback",
+            &format!("{field}.guarantees.reconcile"),
+            "an operation the provider cannot read back has no read to reconcile with",
         );
     }
 
@@ -935,10 +945,16 @@ fn validate_http(
             format!("at most {MAX_HTTP_HOSTS} hosts"),
         );
     }
-    if http.result_paths.is_empty() || http.result_paths.len() > MAX_HTTP_RESULT_PATHS {
+    if http.result_paths.is_empty() {
         errors.push(
             &format!("{field}.result_paths"),
-            format!("one to {MAX_HTTP_RESULT_PATHS} result paths"),
+            "say where each result field comes from; only an operation with one result field takes the whole answer",
+        );
+    }
+    if http.result_paths.len() > MAX_HTTP_RESULT_PATHS {
+        errors.push(
+            &format!("{field}.result_paths"),
+            format!("at most {MAX_HTTP_RESULT_PATHS} result paths"),
         );
     }
     let mut ids = BTreeSet::new();
@@ -963,7 +979,10 @@ fn validate_http(
         if !ids.insert(request.id.as_str()) {
             errors.push(
                 &format!("{field}.requests"),
-                format!("duplicate request id {}", request.id),
+                format!(
+                    "duplicate request id {}; name each request when an exchange has more than one",
+                    request.id
+                ),
             );
         }
         if read && !matches!(request.method, HttpMethod::Get | HttpMethod::Post) {
@@ -1108,7 +1127,10 @@ fn validate_http(
         if readback.request.id.as_str() == "write" || !ids.insert(readback.request.id.as_str()) {
             errors.push(
                 &format!("{field}.readbacks"),
-                format!("duplicate request id {}", readback.request.id),
+                format!(
+                    "duplicate request id {}; name each request when an exchange has more than one",
+                    readback.request.id
+                ),
             );
         }
     }

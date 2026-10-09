@@ -498,9 +498,6 @@ pub struct ConnectorOperation {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub credentials: Vec<CredentialName>,
     pub target: OperationTarget,
-    /// A read operation on the same connector that confirms this write.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub readback: Option<OperationName>,
     #[serde(default, skip_serializing_if = "ApprovalFloor::is_none")]
     pub approval: ApprovalFloor,
     /// Standing approval that may stand in for a per-call human approval.
@@ -782,9 +779,15 @@ pub struct HttpImplementation {
     pub preconditions: Vec<HttpReadback>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub readbacks: Vec<HttpReadback>,
+    /// How an answer is decoded; JSON unless declared.
+    #[serde(default = "default_decode")]
     pub decode: Vec<DecodeStep>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub operation_id_path: Option<NonEmptyString>,
+    /// Where each result field comes from. An operation with one result
+    /// field takes the whole decoded answer unless this says otherwise;
+    /// validation writes that default in.
+    #[serde(default)]
     pub result_paths: BTreeMap<String, NonEmptyString>,
     /// How the provider says when a rate limit lifts.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -846,8 +849,11 @@ pub enum HttpMethod {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub struct HttpRequest {
-    /// Unique within the exchange. Readbacks address what a write returned
-    /// as `{"$response": "write.<path>"}`; `write` is reserved for that.
+    /// Names the request, unique within the exchange, so a later request
+    /// reads its answer as `{"$response": "<id>.<path>"}`. A lone request
+    /// needs no name. Readbacks address what a write returned as
+    /// `{"$response": "write.<path>"}`; `write` is reserved for that.
+    #[serde(default = "default_request_id")]
     pub id: NonEmptyString,
     /// Send this request once per element of the array this renders to,
     /// binding the element as `{"$item": ...}`. A read decodes the answers
@@ -1024,6 +1030,14 @@ fn is_true(value: &bool) -> bool {
 
 fn default_token_field() -> CredentialName {
     CredentialName::token()
+}
+
+fn default_request_id() -> NonEmptyString {
+    NonEmptyString::from("request")
+}
+
+fn default_decode() -> Vec<DecodeStep> {
+    vec![DecodeStep::AutoJson]
 }
 
 #[cfg(test)]

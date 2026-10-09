@@ -326,6 +326,23 @@ test("maps consented inline imports without forwarding audit-only fields", () =>
   assert.equal(input.records[0].source, "product-signup");
 });
 
+test("previews a segment as a read and defines it as an approved write", () => {
+  const requested = {
+    name: "Active customers",
+    filters: { all: [{ field: "status", operator: "eq", value: "active" }] },
+  };
+  const preview = plan("act", "define_segment", { ...requested, preview_only: true }, "br_sourcey");
+  assert.equal(preview.connector_operation, "segment.preview");
+  assert.equal(preview.access, "read");
+  assert.deepEqual(preview.provider_input, { brand_sid: "br_sourcey", ...requested });
+
+  // runx supplies the write's provider key; the flag is the operation now.
+  const define = plan("act", "define_segment", { ...requested, preview_only: false, idempotency_key: "segment-1" }, "br_sourcey");
+  assert.equal(define.connector_operation, "segment.define");
+  assert.equal(define.access, "write");
+  assert.deepEqual(define.provider_input, { brand_sid: "br_sourcey", ...requested });
+});
+
 test("maps one reviewed remote image ingest and strips storage capability material", () => {
   const requested = {
     image_url: "https://vendor.example/hero.png",
