@@ -98,6 +98,7 @@ runx skill sourcey/sourcey@1.0.0 --registry https://runx.example.test --project 
 runx add sourcey/sourcey@1.0.0 --registry https://runx.example.test --to ./skills --json
 runx skill issue-to-pr --fixture /path/to/repo --task-id task-123
 runx resume <run-id> answers.json
+runx turn <run-id>
 runx history
 runx history <receipt-id> --detail --json
 runx mcp serve ./fixtures/skills/echo
@@ -140,6 +141,15 @@ consequential decision under `answers`; that section records agent or
 caller-supplied work and cannot resolve an approval gate. Runx rejects an agent
 response presented to an approval request. The pending run's `answers_template`
 contains the exact request ids to resolve.
+
+`runx turn <run-id>` serves the agent turn a paused run waits on as MCP tools
+over stdio: one tool per entry of the skill's limits (its `tools:`, `skills:`
+and connector operations), plus `ask_human`, `turn_status` and `turn_complete`.
+Each call is admitted against the turn's allowance and the run's authority,
+executed, and recorded in the run; the turn's receipt names every call it made.
+A write names its `idempotency_key`, which a retry reuses. A call that needs
+approval stays pending until `runx resume` answers it under `approvals`.
+`turn_complete` ends the turn with its output, and the run continues.
 
 Hosted and replay drivers may bind `runx skill` or `runx resume` with
 `--package-digest` and `--execution-closure-digest`. Runx recomputes both at the

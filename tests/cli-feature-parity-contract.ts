@@ -77,6 +77,7 @@ const commandAnnotations: Readonly<Record<string, CommandAnnotation>> = {
   dev: annotation("local-runtime", ["dev", "harness", "receipts"], ["dev.validate"]),
   export: annotation("filesystem", ["skill-export", "cli-presentation"], ["export.validate"]),
   mcp: annotation("adapter", ["mcp"], ["mcp.serve.validate"], "none"),
+  turn: annotation("local-runtime", ["mcp", "caller-mediated-resolution", "graph-runtime", "receipts"], ["turn.validate"], "none"),
   assistant: annotation("local-runtime", ["graph-runtime", "receipts", "cli-presentation"], ["assistant.validate"]),
   skill: annotation("local-runtime", ["skill-resolution", "graph-runtime", "receipts", "execution-boundary", "authority", "caller-mediated-resolution", "adapter-process-tool", "adapter-agent", "cli-presentation"], ["skill.run.validate", "skill.inspect.validate"]),
   add: annotation("external-stub", ["registry", "cli-presentation"], ["add.validate"]),

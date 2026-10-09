@@ -97,6 +97,9 @@ fn dispatch_command(action: RouterAction, workspace: &runx_runtime::WorkspaceEnv
         RouterAction::RunList(plan) => run_native_list(plan, workspace),
         RouterAction::RunLogin(plan) => runx_cli::login::run_native_login(plan, workspace),
         RouterAction::RunMcp(plan) => runx_cli::mcp::run_native_mcp_with_workspace(plan, workspace),
+        RouterAction::RunTurn(plan) => {
+            runx_cli::turn::run_native_turn_with_workspace(plan, workspace)
+        }
         RouterAction::RunHarness(plan) => run_native_harness(plan, workspace),
         RouterAction::RunKernel(plan) => runx_cli::kernel::run_native_kernel(plan, workspace),
         RouterAction::RunParser(plan) => runx_cli::parser::run_native_parser(plan, workspace),

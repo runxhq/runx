@@ -214,7 +214,7 @@ impl rmcp::ServerHandler for RmcpProofServer {
             self.state.options.package_name.clone(),
             self.state.options.package_version.clone(),
         );
-        rmcp::model::ServerInfo::new(
+        let info = rmcp::model::ServerInfo::new(
             rmcp::model::ServerCapabilities::builder()
                 .enable_tools()
                 .build(),
@@ -223,7 +223,11 @@ impl rmcp::ServerHandler for RmcpProofServer {
         .with_server_info(rmcp::model::Implementation::new(
             package_name,
             package_version,
-        ))
+        ));
+        match &self.state.options.instructions {
+            Some(instructions) => info.with_instructions(instructions.clone()),
+            None => info,
+        }
     }
 
     fn list_tools(
@@ -277,6 +281,12 @@ enum PreparedMcpToolCall {
         execution: Box<McpServerSkillExecution>,
         arguments: JsonObject,
         javascript: crate::adapters::javascript::JavaScriptAdapter,
+        effects: crate::effects::RuntimeEffectRegistry,
+    },
+    Turn {
+        tool: Box<super::types::McpTurnTool>,
+        arguments: JsonObject,
+        effects: crate::effects::RuntimeEffectRegistry,
     },
 }
 
@@ -307,8 +317,14 @@ fn prepare_rmcp_tool_call(
                 execution,
                 arguments,
                 javascript: state.javascript.clone(),
+                effects: state.options.effects.clone(),
             })
         }
+        McpServerToolBehavior::Turn(tool) => Ok(PreparedMcpToolCall::Turn {
+            tool,
+            arguments,
+            effects: state.options.effects.clone(),
+        }),
     }
 }
 
@@ -362,14 +378,27 @@ async fn execute_rmcp_tool_call(
 ) -> Result<rmcp::model::CallToolResponse, rmcp::ErrorData> {
     match prepared? {
         PreparedMcpToolCall::Fixed(result) => rmcp_call_tool_result(result).map(Into::into),
+        PreparedMcpToolCall::Turn {
+            tool,
+            arguments,
+            effects,
+        } => {
+            let result = tokio::task::spawn_blocking(move || {
+                super::server_turn::execute_mcp_turn_tool(*tool, arguments, effects)
+            })
+            .await
+            .map_err(|error| rmcp_internal_error(format!("MCP tool task failed: {error}")))?;
+            rmcp_call_tool_result(result).map(Into::into)
+        }
         PreparedMcpToolCall::Skill {
             run_id,
             execution,
             arguments,
             javascript,
+            effects,
         } => {
             let result = tokio::task::spawn_blocking(move || {
-                execute_mcp_server_skill(&run_id, *execution, arguments, javascript)
+                execute_mcp_server_skill(&run_id, *execution, arguments, javascript, effects)
             })
             .await
             .map_err(|error| rmcp_internal_error(format!("MCP tool task failed: {error}")))?;
@@ -653,6 +682,7 @@ mod tests {
                 )]
                 .into(),
                 state.javascript.clone(),
+                state.options.effects.clone(),
             )?;
             assert!(!result.is_error, "{result:?}");
             let content = result.structured_content.ok_or("missing native result")?;
@@ -683,6 +713,8 @@ mod tests {
             McpServerState::new(McpServerOptions {
                 package_name: "runx-test".to_owned(),
                 package_version: "0.0.0".to_owned(),
+                instructions: None,
+                effects: Default::default(),
                 tools: Vec::new(),
             })
             .map_err(|error| error.to_string())?,

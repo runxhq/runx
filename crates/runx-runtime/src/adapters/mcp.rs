@@ -5,12 +5,14 @@
 //!   with the connector driver's stdio client.
 //! - `server`: `serve_mcp_json_rpc` and host-result projections.
 //! - `server_skill`: server-side skill and graph execution.
+//! - `server_turn`: an open agent turn served as MCP tools.
 //! - `http_server`: the server over streamable HTTP.
 
 #[cfg(feature = "mcp-http-server")]
 mod http_server;
 mod server;
 mod server_skill;
+mod server_turn;
 mod stdio_transport;
 mod types;
 
@@ -24,5 +26,5 @@ pub use server::{mcp_tool_result_from_run_result, serve_mcp_json_rpc};
 pub(crate) use stdio_transport::{StdioJsonRpcTransport, TransportErrorState};
 pub use types::{
     McpContent, McpServerError, McpServerExecutionOptions, McpServerOptions,
-    McpServerSkillExecution, McpServerTool, McpServerToolBehavior, McpToolResult,
+    McpServerSkillExecution, McpServerTool, McpServerToolBehavior, McpToolResult, McpTurnTool,
 };

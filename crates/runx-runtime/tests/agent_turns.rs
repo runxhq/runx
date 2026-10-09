@@ -105,6 +105,7 @@ impl Turn {
     fn act(&self, action: TurnAction) -> TestResult<JsonObject> {
         let result = LocalOrchestrator::default().act_on_turn(&TurnRequest {
             run_id: self.run_id.clone(),
+            turn: Some("agent.answer.output".to_owned()),
             action,
             receipt_dir: Some(self.receipts.clone()),
             env: env(&self.root),
@@ -240,6 +241,7 @@ fn a_turn_action_needs_a_run_waiting_on_a_turn() -> TestResult {
     let error = LocalOrchestrator::default()
         .act_on_turn(&TurnRequest {
             run_id: turn.run_id.clone(),
+            turn: None,
             action: TurnAction::Status,
             receipt_dir: Some(turn.receipts.clone()),
             env: env(&turn.root),
@@ -248,6 +250,87 @@ fn a_turn_action_needs_a_run_waiting_on_a_turn() -> TestResult {
         .err()
         .ok_or("a sealed run has no open turn")?;
     assert!(error.to_string().contains("not paused"), "{error}");
+    Ok(())
+}
+
+#[test]
+fn a_turn_describes_its_tools_and_completes_with_its_output() -> TestResult {
+    let temp = tempdir()?;
+    let turn = Turn::open(temp.path())?;
+
+    let described = turn.act(TurnAction::Describe)?;
+    assert_eq!(text(&described, "schema"), Some("runx.turn.tools.v1"));
+    assert!(text(&described, "instructions").is_some_and(|text| text.contains("Turn demo")));
+    let tools = described
+        .get("tools")
+        .and_then(JsonValue::as_array)
+        .ok_or("missing tools")?;
+    let names = tools
+        .iter()
+        .filter_map(|tool| tool.as_object().and_then(|tool| text(tool, "name")))
+        .collect::<Vec<_>>();
+    assert_eq!(
+        names,
+        [
+            "data_digest",
+            "skill__digest-child",
+            "ask_human",
+            "turn_status",
+            "turn_complete"
+        ]
+    );
+    let digest_schema = serde_json::to_value(
+        tools[0]
+            .as_object()
+            .and_then(|tool| tool.get("input_schema"))
+            .ok_or("missing input schema")?,
+    )?;
+    assert!(
+        digest_schema["properties"]["value"].is_object(),
+        "{digest_schema}"
+    );
+    let complete_schema = serde_json::to_value(
+        tools[4]
+            .as_object()
+            .and_then(|tool| tool.get("input_schema"))
+            .ok_or("missing input schema")?,
+    )?;
+    assert!(
+        complete_schema["properties"]["answer"].is_object(),
+        "{complete_schema}"
+    );
+
+    let completed = LocalOrchestrator::default().act_on_turn(&TurnRequest {
+        run_id: turn.run_id.clone(),
+        turn: Some("agent.answer.output".to_owned()),
+        action: TurnAction::Complete(serde_json::from_value(
+            serde_json::json!({"answer": "complete"}),
+        )?),
+        receipt_dir: Some(turn.receipts.clone()),
+        env: env(&turn.root),
+        cwd: turn.root.clone(),
+    })?;
+    let output = object(&completed.output)?;
+    assert_eq!(text(output, "status"), Some("sealed"), "{output:?}");
+    Ok(())
+}
+
+#[test]
+fn a_turn_request_for_another_turn_is_refused() -> TestResult {
+    let temp = tempdir()?;
+    let turn = Turn::open(temp.path())?;
+    let error = LocalOrchestrator::default()
+        .act_on_turn(&TurnRequest {
+            run_id: turn.run_id.clone(),
+            turn: Some("agent.other.output".to_owned()),
+            action: TurnAction::Status,
+            receipt_dir: Some(turn.receipts.clone()),
+            env: env(&turn.root),
+            cwd: turn.root.clone(),
+        })
+        .err()
+        .ok_or("a stale turn is refused")?;
+    assert!(error.to_string().contains("now waits on"), "{error}");
     Ok(())
 }
 

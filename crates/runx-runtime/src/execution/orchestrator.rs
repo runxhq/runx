@@ -87,6 +87,9 @@ pub struct SkillRunRequest {
 #[derive(Clone, Debug, PartialEq)]
 pub struct TurnRequest {
     pub run_id: String,
+    /// The request id of the turn the caller acts on. When given, the run must
+    /// still wait on that turn.
+    pub turn: Option<String>,
     pub action: crate::execution::runner::turn::TurnAction,
     pub receipt_dir: Option<PathBuf>,
     pub env: BTreeMap<String, String>,
@@ -302,6 +305,15 @@ impl LocalOrchestrator {
                         request.run_id
                     ))
                 })?;
+        if let Some(turn) = request.turn.as_deref()
+            && paused.request.id != turn
+        {
+            return Err(super::skill_front::SkillRunError::Invalid(format!(
+                "run {} now waits on {}, not turn {turn}",
+                request.run_id, paused.request.id
+            ))
+            .into());
+        }
         let continuation = SkillRunRequest {
             current_context: Vec::new(),
             historical_context: Vec::new(),

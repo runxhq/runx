@@ -126,14 +126,30 @@ pub(super) fn execute_graph_skill_run(
             .map_err(|error| error.into_runtime_error())?;
     }
 
+    let turn = existing.as_ref().map(OpenTurn::of).transpose()?.flatten();
     // The host's answers for this pass. Each is recorded only by the step
     // that consumes it, so an answer the run refuses never enters its record.
-    let answers = match &overrides.seeded_answers {
-        Some(seeded) => seeded.clone(),
-        None => match &request.answers_path {
-            Some(path) => read_answers(path)?,
-            None => ResolutionAnswers::default(),
-        },
+    // Completing a turn answers its act.
+    let answers = match (
+        &overrides.turn,
+        &overrides.seeded_answers,
+        &request.answers_path,
+    ) {
+        (Some(TurnAction::Complete(output)), _, _) => {
+            let turn = turn.as_ref().ok_or_else(|| {
+                invalid(format!(
+                    "run {} is not waiting on an agent turn",
+                    log.run_id()
+                ))
+            })?;
+            ResolutionAnswers::agent(JsonObject::from([(
+                turn.request.id.clone(),
+                JsonValue::Object(output.clone()),
+            )]))
+        }
+        (_, Some(seeded), _) => seeded.clone(),
+        (_, None, Some(path)) => read_answers(path)?,
+        (_, None, None) => ResolutionAnswers::default(),
     };
     let answered = !answers.is_empty();
 
@@ -219,7 +235,6 @@ pub(super) fn execute_graph_skill_run(
         None => Runtime::new(ExecutableAdapter, options),
     };
     let graph = materialize_graph_parameter_inputs(runner.graph.clone(), &graph_inputs);
-    let turn = existing.as_ref().map(OpenTurn::of).transpose()?.flatten();
     let answered_calls = turn.as_ref().map_or_else(BTreeSet::new, |turn| {
         turn.calls
             .iter()
@@ -242,7 +257,11 @@ pub(super) fn execute_graph_skill_run(
         graph_name: &graph.name,
         manifest,
     };
-    if let Some(action) = &overrides.turn {
+    if let Some(action) = overrides
+        .turn
+        .as_ref()
+        .filter(|action| !matches!(action, TurnAction::Complete(_)))
+    {
         let turn = turn.ok_or_else(|| {
             invalid(format!(
                 "run {} is not waiting on an agent turn",
@@ -425,6 +444,12 @@ fn drive_turn(
             JsonValue::Object(output)
         }
         TurnAction::Status => turn::status(log.run_id(), turn)?,
+        TurnAction::Describe => {
+            turn::description(log.run_id(), turn, &turn::tools(turn_context, turn)?)?
+        }
+        TurnAction::Complete(_) => {
+            return Err(invalid("completing a turn continues the run"));
+        }
     };
     let mut result = needs_agent_output(
         context.manifest,

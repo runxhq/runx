@@ -25,6 +25,8 @@ impl McpServerOptions {
         Ok(Self {
             package_name: package_name.into(),
             package_version: package_version.into(),
+            instructions: None,
+            effects: execution.effects,
             tools,
         })
     }
@@ -99,6 +101,7 @@ pub(super) fn execute_mcp_server_skill(
     execution: McpServerSkillExecution,
     inputs: JsonObject,
     javascript: crate::adapters::javascript::JavaScriptAdapter,
+    effects: crate::effects::RuntimeEffectRegistry,
 ) -> Result<McpToolResult, RuntimeError> {
     let workspace =
         crate::WorkspaceEnv::from_admitted(execution.env.clone()).map_err(RuntimeError::from)?;
@@ -115,7 +118,7 @@ pub(super) fn execute_mcp_server_skill(
         cwd: workspace.cwd().to_path_buf(),
         managed_agent: Default::default(),
     };
-    let result = match crate::execution::orchestrator::LocalOrchestrator::default()
+    let result = match crate::execution::orchestrator::LocalOrchestrator::with_effects(effects)
         .run_skill_with_services(
             &request,
             &execution.runner,

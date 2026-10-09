@@ -29,6 +29,7 @@ pub mod router;
 pub mod runtime;
 pub mod skill;
 pub mod tool;
+pub mod turn;
 pub mod verify;
 
 pub use project::{run_native_init, run_native_new_with_workspace};

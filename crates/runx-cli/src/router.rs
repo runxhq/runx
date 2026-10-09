@@ -34,6 +34,7 @@ pub enum RouterAction {
     RunList(ListPlan),
     RunLogin(LoginPlan),
     RunMcp(McpPlan),
+    RunTurn(crate::turn::TurnPlan),
     RunParser(ParserPlan),
     RunNew(NewPlan),
     RunHistory(HistoryPlan),
@@ -322,6 +323,11 @@ fn route_args_with_optional_workspace(
 
     if first_arg_is(&args, "verify") {
         return RouterAction::RunVerify(VerifyPlan { args });
+    }
+
+    if first_arg_is(&args, "turn") {
+        return crate::turn::parse_turn_plan(&args)
+            .map_or_else(RouterAction::Error, RouterAction::RunTurn);
     }
 
     if first_arg_is(&args, "mcp") {

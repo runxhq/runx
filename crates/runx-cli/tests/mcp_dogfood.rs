@@ -408,6 +408,111 @@ runners:
     Ok(())
 }
 
+#[test]
+fn runx_turn_serves_an_open_agent_turn_and_completes_it() -> Result<(), Box<dyn std::error::Error>>
+{
+    let workspace = TestTempDir::new("runx-turn-workspace")?;
+    let skill_dir = workspace.path().join("turn-demo");
+    fs::create_dir_all(&skill_dir)?;
+    fs::write(
+        skill_dir.join("SKILL.md"),
+        "---\nname: turn-demo\ndescription: Answers with what it digested.\n---\n# Turn demo\n\nDigest what you need, then answer.\n",
+    )?;
+    fs::write(
+        skill_dir.join("run.yaml"),
+        "skill: turn-demo\ntools: [data.digest]\nrunners:\n  answer:\n    default: true\n    inputs:\n      question: { type: string, required: true }\n    outputs:\n      answer: string\n",
+    )?;
+    let receipts = workspace.path().join("receipts");
+    let mut start = isolated_runx_command_with_inherited_cwd("mcp-dogfood-test-key");
+    let started = start
+        .current_dir(workspace.path())
+        .env("RUNX_CWD", workspace.path())
+        .arg("skill")
+        .arg(&skill_dir)
+        .args(["--input", "question=what digests?", "--receipt-dir"])
+        .arg(&receipts)
+        .arg("--json")
+        .output()?;
+    let started: Value = serde_json::from_slice(&started.stdout)?;
+    assert_eq!(started["status"], "needs_agent", "{started}");
+    let run_id = started["run_id"]
+        .as_str()
+        .ok_or("missing run_id")?
+        .to_owned();
+
+    let mut server = spawn_runx_stdio(
+        &[
+            "turn".to_owned(),
+            run_id,
+            "--receipt-dir".to_owned(),
+            receipts.display().to_string(),
+        ],
+        workspace.path(),
+        Some(workspace.path()),
+    )?;
+    write_frame(server.stdin_mut()?, &initialize_request(1))?;
+    let initialize = server.read_response("initialize", MCP_INITIALIZE_TIMEOUT)?;
+    assert!(
+        path_text(&initialize, &["result", "instructions"])?.contains("Digest what you need"),
+        "{initialize}"
+    );
+    write_frame(server.stdin_mut()?, &initialized_notification())?;
+    write_frame(server.stdin_mut()?, &request(2, "tools/list", json!({})))?;
+    let tools = server.read_response("tools/list", MCP_REQUEST_TIMEOUT)?;
+    let names = tools["result"]["tools"]
+        .as_array()
+        .ok_or("missing tools")?
+        .iter()
+        .filter_map(|tool| tool["name"].as_str())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        names,
+        ["data_digest", "ask_human", "turn_status", "turn_complete"]
+    );
+
+    write_frame(
+        server.stdin_mut()?,
+        &request(
+            3,
+            "tools/call",
+            json!({"name": "data_digest", "arguments": {"value": "hello", "encoding": "utf8_text"}}),
+        ),
+    )?;
+    let digest = server.read_response("data_digest", MCP_REQUEST_TIMEOUT)?;
+    assert_eq!(
+        path_text(&digest, &["result", "structuredContent", "status"])?,
+        "completed",
+        "{digest}"
+    );
+
+    write_frame(
+        server.stdin_mut()?,
+        &request(
+            4,
+            "tools/call",
+            json!({"name": "turn_complete", "arguments": {"answer": "digested"}}),
+        ),
+    )?;
+    let completed = server.read_response("turn_complete", MCP_REQUEST_TIMEOUT)?;
+    assert_eq!(
+        path_text(
+            &completed,
+            &["result", "structuredContent", "runx", "status"]
+        )?,
+        "sealed",
+        "{completed}"
+    );
+
+    server.close_stdin();
+    let status = server.wait_timeout(Duration::from_secs(10))?;
+    assert!(
+        status.success(),
+        "runx turn exited with {status}; stderr: {}",
+        server.stderr_string()?
+    );
+    Ok(())
+}
+
 fn spawn_mcp_server(args: &[String]) -> Result<McpProcess, Box<dyn std::error::Error>> {
     let repo_root = repo_root()?;
     spawn_mcp_server_at(args, &repo_root, Some(&repo_root))
@@ -418,14 +523,23 @@ fn spawn_mcp_server_at(
     cwd: &Path,
     runx_cwd: Option<&Path>,
 ) -> Result<McpProcess, Box<dyn std::error::Error>> {
+    let mut command_args = vec!["mcp".to_owned(), "serve".to_owned()];
+    command_args.extend_from_slice(args);
+    spawn_runx_stdio(&command_args, cwd, runx_cwd)
+}
+
+/// A runx command that speaks MCP over its stdio.
+fn spawn_runx_stdio(
+    args: &[String],
+    cwd: &Path,
+    runx_cwd: Option<&Path>,
+) -> Result<McpProcess, Box<dyn std::error::Error>> {
     let mut command = isolated_runx_command_with_inherited_cwd("mcp-dogfood-test-key");
     command.current_dir(cwd);
     if let Some(runx_cwd) = runx_cwd {
         command.env("RUNX_CWD", runx_cwd);
     }
     let mut child = command
-        .arg("mcp")
-        .arg("serve")
         .args(args)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())

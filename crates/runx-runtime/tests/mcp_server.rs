@@ -509,6 +509,8 @@ fn mcp_server_reports_duplicate_tool_names() -> Result<(), Box<dyn std::error::E
     let options = McpServerOptions {
         package_name: "runx-cli".to_owned(),
         package_version: "0.0.0".to_owned(),
+        instructions: None,
+        effects: Default::default(),
         tools: vec![fixed_tool("dup"), fixed_tool("dup")],
     };
 
@@ -791,6 +793,7 @@ fn mcp_server_execution_options(
         runner: None,
         receipt_dir,
         env,
+        effects: runx_runtime::RuntimeEffectRegistry::local()?,
     })
 }
 
@@ -805,6 +808,8 @@ fn server_options() -> McpServerOptions {
     McpServerOptions {
         package_name: "runx-cli".to_owned(),
         package_version: "0.0.0".to_owned(),
+        instructions: None,
+        effects: Default::default(),
         tools: vec![fixed_tool("echo")],
     }
 }

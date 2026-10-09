@@ -48,8 +48,8 @@ pub enum TurnTarget {
 }
 
 /// One call: what it names and its input. An operation's input is its call
-/// fields: `input`, and `idempotency_key` for a write, and `amount` where the
-/// operation takes one.
+/// fields: `input`; `idempotency_key` for a write; `amount` where the
+/// operation takes one; and `connector` when the run chooses it.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct TurnCall {
@@ -58,13 +58,38 @@ pub struct TurnCall {
     pub input: JsonObject,
 }
 
-const OPERATION_CALL_FIELDS: &[&str] = &["input", "idempotency_key", "amount"];
+const OPERATION_CALL_FIELDS: &[&str] = &["connector", "input", "idempotency_key", "amount"];
 
-/// What a driver does with an open turn: make a call, or read where it stands.
+/// What a driver does with an open turn.
 #[derive(Clone, Debug, PartialEq)]
 pub enum TurnAction {
+    /// Make a call within the allowance.
     Call(TurnCall),
+    /// Read the turn: its request, allowance and calls.
     Status,
+    /// List the tools the turn offers, with their input schemas.
+    Describe,
+    /// End the turn with the act's output; the run continues.
+    Complete(JsonObject),
+}
+
+/// One tool an open turn offers its agent, named for MCP.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct TurnTool {
+    pub name: String,
+    pub description: String,
+    pub input_schema: JsonObject,
+    pub action: TurnToolAction,
+}
+
+/// What calling a turn tool does.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum TurnToolAction {
+    Call { target: TurnTarget },
+    Status,
+    Complete,
 }
 
 /// The agent act a run waits on, with the calls made in it so far.
@@ -306,7 +331,7 @@ fn call_step<A>(
                 .find(|field| !OPERATION_CALL_FIELDS.contains(&field.as_str()))
             {
                 return Err(format!(
-                    "an operation call takes input, idempotency_key and amount, not {field}"
+                    "an operation call takes connector, input, idempotency_key and amount, not {field}"
                 ));
             }
             let target = OperationStepTarget {
@@ -361,6 +386,326 @@ fn call_step<A>(
         idempotency_key: None,
         on_uncertain: None,
         duplicates: None,
+    })
+}
+
+/// The tools `turn` offers: one per allowance entry, an ask, its status, and
+/// its completion. Names are unique and fit the MCP tool-name grammar.
+pub(crate) fn tools<A>(
+    context: &TurnCallContext<'_, A>,
+    turn: &OpenTurn,
+) -> Result<Vec<TurnTool>, RuntimeError> {
+    let allowance = &turn.invocation.allowance;
+    let mut tools = Vec::new();
+    for tool in &allowance.tools {
+        let (description, input_schema) = catalog_tool_contract(context, tool.as_str())?;
+        tools.push(call_tool(
+            tool.as_str(),
+            description,
+            input_schema,
+            TurnTarget::Tool {
+                tool: tool.as_str().to_owned(),
+            },
+        ));
+    }
+    let scope = crate::kernel::connectors::ConnectorScope::for_skill(context.graph_dir).map_err(
+        |error| RuntimeError::effect_state("reading the skill's connectors", error.to_string()),
+    )?;
+    for allowed in &allowance.operations {
+        let target = TurnTarget::Operation {
+            requirement: allowed.requirement.as_str().to_owned(),
+            operation: allowed.operation.as_str().to_owned(),
+        };
+        let (description, input_schema) = operation_contract(context, &scope, allowed)?;
+        tools.push(call_tool(
+            &format!("{}__{}", allowed.requirement, allowed.operation),
+            description,
+            input_schema,
+            target,
+        ));
+    }
+    for skill in &allowance.skills {
+        let target = TurnTarget::Skill {
+            skill: skill.as_str().to_owned(),
+        };
+        let step = call_step(
+            context,
+            "describe",
+            0,
+            &TurnCall {
+                target: target.clone(),
+                input: JsonObject::new(),
+            },
+        )
+        .map_err(|reason| RuntimeError::effect_state("describing a child skill", reason))?;
+        let loaded = load_step_skill(
+            context.graph_dir,
+            &step,
+            StepSkillLoadOptions {
+                env: &context.runtime.options.env,
+            },
+        )?;
+        let description = crate::load_validated_skill_package(&loaded.directory)?
+            .package
+            .skill
+            .description
+            .unwrap_or_else(|| format!("Run the {} skill.", loaded.runner.name));
+        tools.push(call_tool(
+            &format!("skill__{}", skill.as_str().trim_start_matches(['.', '/'])),
+            description,
+            runx_contracts::input_contract_schema(&loaded.runner.inputs),
+            target,
+        ));
+    }
+    tools.push(call_tool(
+        "ask_human",
+        "Ask the human to approve something; the call stays pending until they answer.".to_owned(),
+        object_schema([("reason", string_schema())], &["reason"]),
+        TurnTarget::Ask,
+    ));
+    tools.push(TurnTool {
+        name: "turn_status".to_owned(),
+        description: "Read the turn: its request, what it may call, and how each call ended."
+            .to_owned(),
+        input_schema: object_schema([], &[]),
+        action: TurnToolAction::Status,
+    });
+    tools.push(TurnTool {
+        name: "turn_complete".to_owned(),
+        description: "End the turn with its output; the run continues.".to_owned(),
+        input_schema: match &turn.invocation.envelope.output_schema {
+            Some(JsonValue::Object(schema)) => schema.clone(),
+            _ => runx_contracts::output_value_schema(turn.invocation.envelope.output.as_ref())
+                .as_object()
+                .cloned()
+                .unwrap_or_default(),
+        },
+        action: TurnToolAction::Complete,
+    });
+    let mut seen = std::collections::BTreeSet::new();
+    for tool in &mut tools {
+        let base = tool.name.clone();
+        let mut suffix = 1;
+        while !seen.insert(tool.name.clone()) {
+            suffix += 1;
+            tool.name = mcp_name(&format!("{base}_{suffix}"));
+        }
+    }
+    Ok(tools)
+}
+
+fn call_tool(
+    name: &str,
+    description: String,
+    input_schema: JsonObject,
+    target: TurnTarget,
+) -> TurnTool {
+    TurnTool {
+        name: mcp_name(name),
+        description,
+        input_schema,
+        action: TurnToolAction::Call { target },
+    }
+}
+
+/// A name in the MCP tool-name grammar: `[A-Za-z0-9_-]`, at most 64 bytes.
+fn mcp_name(raw: &str) -> String {
+    let name = raw
+        .chars()
+        .map(|character| {
+            if character.is_ascii_alphanumeric() || matches!(character, '_' | '-') {
+                character
+            } else {
+                '_'
+            }
+        })
+        .collect::<String>();
+    name.get(..name.len().min(64)).unwrap_or(&name).to_owned()
+}
+
+fn string_schema() -> JsonValue {
+    JsonValue::Object(JsonObject::from([
+        ("type".to_owned(), JsonValue::String("string".to_owned())),
+        ("minLength".to_owned(), JsonValue::Number(1_u64.into())),
+    ]))
+}
+
+fn object_schema<const N: usize>(
+    properties: [(&str, JsonValue); N],
+    required: &[&str],
+) -> JsonObject {
+    JsonObject::from([
+        ("type".to_owned(), JsonValue::String("object".to_owned())),
+        ("additionalProperties".to_owned(), JsonValue::Bool(false)),
+        (
+            "properties".to_owned(),
+            JsonValue::Object(
+                properties
+                    .into_iter()
+                    .map(|(name, schema)| (name.to_owned(), schema))
+                    .collect(),
+            ),
+        ),
+        (
+            "required".to_owned(),
+            JsonValue::Array(
+                required
+                    .iter()
+                    .map(|name| JsonValue::String((*name).to_owned()))
+                    .collect(),
+            ),
+        ),
+    ])
+}
+
+/// An operation tool's input: the call fields the turn accepts, with the
+/// operation's own input schema when one connector serves it.
+fn operation_contract<A>(
+    context: &TurnCallContext<'_, A>,
+    scope: &crate::kernel::connectors::ConnectorScope,
+    allowed: &runx_contracts::AllowedOperation,
+) -> Result<(String, JsonObject), RuntimeError> {
+    let declared = context
+        .manifest
+        .connectors
+        .get(allowed.requirement.as_str())
+        .ok_or_else(|| {
+            RuntimeError::effect_state(
+                "describing an operation",
+                format!("requirement {} is not declared", allowed.requirement),
+            )
+        })?;
+    let connectors = if declared.connector_from.is_some() {
+        declared
+            .allowed_connectors
+            .iter()
+            .map(|id| id.as_str().to_owned())
+            .collect::<Vec<_>>()
+    } else {
+        vec![allowed.requirement.as_str().to_owned()]
+    };
+    let mut described = Vec::new();
+    for id in &connectors {
+        let connector = scope.connector(id).map_err(|error| {
+            RuntimeError::effect_state("describing an operation", error.to_string())
+        })?;
+        let operation = connector
+            .manifest
+            .operations
+            .iter()
+            .find(|(name, _)| name.as_str() == allowed.operation.as_str())
+            .map(|(_, operation)| operation.clone())
+            .ok_or_else(|| {
+                RuntimeError::effect_state(
+                    "describing an operation",
+                    format!("{id} has no operation {}", allowed.operation),
+                )
+            })?;
+        described.push((id.clone(), operation));
+    }
+    let writes = described.iter().any(|(_, operation)| {
+        operation.access() == runx_contracts::connector::OperationAccess::Mutate
+    });
+    let amount = described
+        .iter()
+        .any(|(_, operation)| operation.amount == runx_contracts::connector::AmountRule::Required);
+    let input = match described.as_slice() {
+        [(_, operation)] => operation.input_schema.clone().map_or_else(
+            || JsonValue::Object(object_schema([], &[])),
+            JsonValue::Object,
+        ),
+        _ => JsonValue::Object(JsonObject::from([(
+            "type".to_owned(),
+            JsonValue::String("object".to_owned()),
+        )])),
+    };
+    let mut properties = vec![("input", input)];
+    let mut required = vec!["input"];
+    if writes {
+        properties.push(("idempotency_key", string_schema()));
+        required.push("idempotency_key");
+    }
+    if amount {
+        properties.push((
+            "amount",
+            JsonValue::Object(object_schema(
+                [
+                    (
+                        "units",
+                        JsonValue::Object(JsonObject::from([
+                            ("type".to_owned(), JsonValue::String("integer".to_owned())),
+                            ("minimum".to_owned(), JsonValue::Number(0_u64.into())),
+                        ])),
+                    ),
+                    ("unit", string_schema()),
+                ],
+                &["units", "unit"],
+            )),
+        ));
+        required.push("amount");
+    }
+    if declared.connector_from.is_some() {
+        properties.push((
+            "connector",
+            JsonValue::Object(JsonObject::from([(
+                "enum".to_owned(),
+                JsonValue::Array(connectors.iter().cloned().map(JsonValue::String).collect()),
+            )])),
+        ));
+        required.push("connector");
+    }
+    let mut schema = object_schema([], &required);
+    schema.insert(
+        "properties".to_owned(),
+        JsonValue::Object(
+            properties
+                .into_iter()
+                .map(|(name, schema)| (name.to_owned(), schema))
+                .collect(),
+        ),
+    );
+    let description = described
+        .iter()
+        .map(|(id, operation)| format!("{id}/{}: {}", allowed.operation, operation.description))
+        .collect::<Vec<_>>()
+        .join("; ");
+    let description = if writes {
+        format!(
+            "{description} A write: name it with an idempotency_key you reuse when retrying it."
+        )
+    } else {
+        description
+    };
+    Ok((description, schema))
+}
+
+/// A catalog tool's description and input schema, as the catalog declares them.
+#[cfg(feature = "catalog")]
+fn catalog_tool_contract<A>(
+    context: &TurnCallContext<'_, A>,
+    tool: &str,
+) -> Result<(String, JsonObject), RuntimeError> {
+    let inspected = crate::tool_catalogs::dispatch::inspect_catalog_tool(
+        tool,
+        &context.runtime.options.env,
+        context.graph_dir,
+        &context.runtime.options.effects,
+    )?;
+    Ok((
+        inspected
+            .description
+            .unwrap_or_else(|| format!("Runx tool {tool}.")),
+        runx_contracts::input_contract_schema(&inspected.inputs),
+    ))
+}
+
+#[cfg(not(feature = "catalog"))]
+fn catalog_tool_contract<A>(
+    _: &TurnCallContext<'_, A>,
+    tool: &str,
+) -> Result<(String, JsonObject), RuntimeError> {
+    Err(RuntimeError::UnsupportedAdapter {
+        adapter_type: format!("catalog tool {tool}"),
     })
 }
 
@@ -425,6 +770,34 @@ pub(crate) fn outcome_value(
     outcome: &CallOutcome,
 ) -> Result<JsonValue, RuntimeError> {
     to_json(&CallView::of(index, target, outcome))
+}
+
+/// The tools the turn offers, for a host that serves them.
+pub(crate) fn description(
+    run_id: &str,
+    turn: &OpenTurn,
+    tools: &[TurnTool],
+) -> Result<JsonValue, RuntimeError> {
+    to_json(&TurnDescription {
+        schema: "runx.turn.tools.v1",
+        run_id,
+        step_id: &turn.step_id,
+        request_id: &turn.request.id,
+        instructions: turn.invocation.envelope.instructions.as_str(),
+        inputs: &turn.invocation.envelope.inputs,
+        tools,
+    })
+}
+
+#[derive(Serialize)]
+struct TurnDescription<'a> {
+    schema: &'static str,
+    run_id: &'a str,
+    step_id: &'a str,
+    request_id: &'a str,
+    instructions: &'a str,
+    inputs: &'a JsonObject,
+    tools: &'a [TurnTool],
 }
 
 #[derive(Serialize)]

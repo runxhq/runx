@@ -257,6 +257,8 @@ mod tests {
         McpServerOptions {
             package_name: "http-server-test".to_owned(),
             package_version: "0.0.0".to_owned(),
+            instructions: None,
+            effects: Default::default(),
             tools: Vec::new(),
         }
     }

@@ -90,6 +90,13 @@ pub fn parse_mcp_plan(args: &[OsString]) -> Result<McpPlan, String> {
 // Function rationale: native MCP startup owns one cohesive
 // stdio-vs-HTTP transport selection and error presentation boundary.
 pub fn run_native_mcp_with_workspace(plan: McpPlan, workspace: &WorkspaceEnv) -> ExitCode {
+    let effects = match crate::runtime::runtime_effect_registry() {
+        Ok(effects) => effects,
+        Err(error) => {
+            let _ignored = writeln!(std::io::stderr(), "runx: {error}");
+            return ExitCode::from(1);
+        }
+    };
     let options =
         match runx_runtime::adapters::mcp::McpServerOptions::from_skill_paths_with_execution(
             &plan.refs,
@@ -99,6 +106,7 @@ pub fn run_native_mcp_with_workspace(plan: McpPlan, workspace: &WorkspaceEnv) ->
                 runner: plan.runner,
                 receipt_dir: plan.receipt_dir,
                 env: workspace.env().clone(),
+                effects,
             },
         ) {
             Ok(options) => options,
