@@ -46,9 +46,9 @@ struct StepPlanTarget<'a, A> {
 /// The host a step runs against. Every answer the run's host gives during the
 /// step is kept, so the step is recorded with the answers it consumed and an
 /// answer the step refuses is never recorded.
-struct AnsweringHost<'a> {
-    host: &'a mut dyn Host,
-    answers: Vec<Answer>,
+pub(super) struct AnsweringHost<'a> {
+    pub(super) host: &'a mut dyn Host,
+    pub(super) answers: Vec<Answer>,
 }
 
 impl Host for AnsweringHost<'_> {

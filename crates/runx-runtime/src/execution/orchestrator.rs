@@ -83,6 +83,16 @@ pub struct SkillRunRequest {
     pub managed_agent: ManagedAgentPolicy,
 }
 
+/// An action on the agent turn a paused run waits on.
+#[derive(Clone, Debug, PartialEq)]
+pub struct TurnRequest {
+    pub run_id: String,
+    pub action: crate::execution::runner::turn::TurnAction,
+    pub receipt_dir: Option<PathBuf>,
+    pub env: BTreeMap<String, String>,
+    pub cwd: PathBuf,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct HarnessRunRequest {
     pub fixture_path: PathBuf,
@@ -277,6 +287,46 @@ impl LocalOrchestrator {
             expected_execution_closure_digest,
         )?;
         Ok(output)
+    }
+
+    /// Act on the agent turn a paused run waits on: make a call or read the
+    /// turn. The run continues under the skill, runner and digests it was
+    /// started with; it still waits on the turn afterwards.
+    pub fn act_on_turn(&self, request: &TurnRequest) -> Result<RunResult, OrchestratorError> {
+        let paused =
+            crate::execution::run_record::paused_run(&request.env, &request.cwd, &request.run_id)
+                .map_err(crate::RuntimeError::from)?
+                .ok_or_else(|| {
+                    super::skill_front::SkillRunError::Invalid(format!(
+                        "run {} is not paused",
+                        request.run_id
+                    ))
+                })?;
+        let continuation = SkillRunRequest {
+            current_context: Vec::new(),
+            historical_context: Vec::new(),
+            run_authority: None,
+            skill_path: PathBuf::from(&paused.skill_ref),
+            receipt_dir: request.receipt_dir.clone(),
+            run_id: Some(paused.run_id.clone()),
+            answers_path: None,
+            inputs: BTreeMap::new(),
+            env: request.env.clone(),
+            cwd: request.cwd.clone(),
+            managed_agent: ManagedAgentPolicy::HostDriven,
+        };
+        let overrides = super::skill_front::SkillRunOverrides {
+            runner: Some(paused.runner.clone()),
+            turn: Some(request.action.clone()),
+            ..Default::default()
+        };
+        Ok(super::skill_front::execute_bound_skill_run_with_overrides(
+            &continuation,
+            &overrides,
+            &self.effects,
+            Some(&paused.package_digest),
+            Some(&paused.execution_closure_digest),
+        )?)
     }
 
     pub fn prepare_skill(

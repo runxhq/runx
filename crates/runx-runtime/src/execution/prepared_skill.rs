@@ -330,12 +330,9 @@ pub(crate) fn prepare_skill_run_with_effects(
     if entry.execution_closure_digest.is_none() {
         entry.execution_closure_digest = execution_closure_digest.clone();
     }
-    if request.answers_path.is_some() {
-        let workspace =
-            crate::services::WorkspaceEnv::new(request.env.clone(), request.cwd.clone())
-                .map_err(RuntimeError::from)?;
-        super::skill_front::restore_continuation_inputs(&mut request, &workspace)?;
-    }
+    let workspace = crate::services::WorkspaceEnv::new(request.env.clone(), request.cwd.clone())
+        .map_err(RuntimeError::from)?;
+    super::skill_front::restore_continuation_inputs(&mut request, &workspace)?;
     crate::input_contract::apply_defaults(&runner.inputs, &mut request.inputs);
     let input_failure = match crate::input_contract::materialize_present_runner_inputs(
         &runner.inputs,

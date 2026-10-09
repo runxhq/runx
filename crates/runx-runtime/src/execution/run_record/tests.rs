@@ -319,3 +319,78 @@ fn the_run_listing_shows_top_level_runs_newest_first() {
         Err(RunRecordError::InvalidFilter { .. })
     ));
 }
+
+#[test]
+fn a_call_leaves_the_run_paused_at_its_turn() {
+    let workspace = tempfile::tempdir().unwrap();
+    let env = BTreeMap::from([(
+        crate::paths::RUNX_PROJECT_DIR_ENV.to_owned(),
+        workspace.path().join(".runx").display().to_string(),
+    )]);
+    let store = KernelStore::for_project(&crate::paths::RunxPaths::resolve(&env, workspace.path()))
+        .unwrap();
+    let log = RunLog::open(Arc::clone(&store), "run_turn_1").unwrap();
+    start(&log, &JsonObject::new());
+    let turn_request = approval("agent.answer.output");
+    log.record_request("answer", 1, &turn_request).unwrap();
+    let turn = pending_request(&store, "run_turn_1").unwrap().unwrap();
+    let target = TurnTarget::Tool {
+        tool: "data.digest".to_owned(),
+    };
+    let input = JsonObject::from([("value".to_owned(), JsonValue::String("a".to_owned()))]);
+    let completed = CallOutcome::Completed(Box::new(step("run_turn_1", "answer/0")));
+    let pending = CallOutcome::Pending(PendingRequest {
+        id: "answer/1".to_owned(),
+        value: serde_json::from_value(serde_json::to_value(approval("answer/1")).unwrap()).unwrap(),
+        digest: "sha256:ask".to_owned(),
+    });
+    for (index, outcome) in [(0, &completed), (1, &pending)] {
+        log.record_call(&CallRecord {
+            step_id: "answer",
+            attempt: 1,
+            turn: &turn,
+            index,
+            target: &target,
+            input: &input,
+            outcome,
+            answers: &[],
+        })
+        .unwrap();
+    }
+
+    assert_eq!(
+        pending_request(&store, "run_turn_1")
+            .unwrap()
+            .map(|request| request.id),
+        Some("agent.answer.output".to_owned())
+    );
+    let listing = list_runs(&env, workspace.path(), &RunFilter::default()).unwrap();
+    assert_eq!(listing.runs[0].state, RunState::Paused);
+    assert_eq!(
+        listing.runs[0].pending_request_id.as_deref(),
+        Some("agent.answer.output")
+    );
+    let record = log.load().unwrap().unwrap();
+    assert_eq!(
+        record.suspension.map(|held| held.step_id),
+        Some("answer".to_owned())
+    );
+    assert_eq!(record.calls.len(), 2);
+    assert_eq!(log.turn_calls("answer", 1).unwrap().len(), 1);
+
+    // A later event for the same index settles the pending call.
+    log.record_call(&CallRecord {
+        step_id: "answer",
+        attempt: 1,
+        turn: &turn,
+        index: 1,
+        target: &target,
+        input: &input,
+        outcome: &CallOutcome::Completed(Box::new(step("run_turn_1", "answer/1"))),
+        answers: &[],
+    })
+    .unwrap();
+    let record = log.load().unwrap().unwrap();
+    assert_eq!(record.calls.len(), 2);
+    assert_eq!(log.turn_calls("answer", 1).unwrap().len(), 2);
+}

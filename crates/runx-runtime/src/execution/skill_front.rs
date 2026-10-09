@@ -96,6 +96,8 @@ pub(crate) struct SkillRunOverrides {
     pub(crate) seeded_answers: Option<resolution_answers::ResolutionAnswers>,
     /// Native host services shared for the lifetime of a local server session.
     pub(crate) javascript: Option<crate::adapters::javascript::JavaScriptAdapter>,
+    /// Act on the agent turn the run waits on instead of continuing it.
+    pub(crate) turn: Option<crate::execution::runner::turn::TurnAction>,
 }
 
 pub(crate) struct ResolvedSkillRun<'a> {
@@ -334,27 +336,35 @@ fn prepare_skill_execution(
     Ok((request, workspace, receipts))
 }
 
-/// A continuation runs under the inputs its run was started with; the
-/// request may restate them but never replace them.
+/// A request that names a recorded run continues it, under the inputs the
+/// run was started with: the request may restate them but never replace them.
+/// Answers continue only a recorded run.
 pub(crate) fn restore_continuation_inputs(
     request: &mut SkillRunRequest,
     workspace: &WorkspaceEnv,
 ) -> Result<(), SkillRunError> {
-    if request.answers_path.is_none() {
-        return Ok(());
-    }
-    let run_id = request
-        .run_id
-        .as_deref()
-        .ok_or_else(|| invalid("graph continuation requires run_id"))?;
+    let answered = request.answers_path.is_some();
+    let Some(run_id) = request.run_id.as_deref() else {
+        return if answered {
+            Err(invalid("graph continuation requires run_id"))
+        } else {
+            Ok(())
+        };
+    };
     let store = crate::kernel::store::KernelStore::for_project(workspace.paths())
         .map_err(crate::execution::run_record::RunRecordError::from)?;
-    let record = crate::execution::run_record::RunLog::open(
+    let Some(record) = crate::execution::run_record::RunLog::open(
         store,
         crate::execution::run_record::validate_run_id(run_id)?,
     )?
     .load()?
-    .ok_or_else(|| invalid(format!("run {run_id} has no record to continue")))?;
+    else {
+        return if answered {
+            Err(invalid(format!("run {run_id} has no record to continue")))
+        } else {
+            Ok(())
+        };
+    };
     if request
         .inputs
         .iter()

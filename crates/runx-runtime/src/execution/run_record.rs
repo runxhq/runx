@@ -17,6 +17,10 @@
 //! A nested skill step is a child run: its own stream, keyed
 //! `<parent>/<step>`, that names its parent step. A harness evaluation is a
 //! run of its own that is never resumed or listed.
+//!
+//! While a run waits on an agent act, each call the agent makes is a `call`
+//! event naming the turn it belongs to. Calls never change where the run
+//! waits: a run whose latest event is a call is still paused at its turn.
 
 use std::sync::{Arc, Mutex};
 
@@ -27,6 +31,7 @@ use runx_core::state_machine::StepAdmissionWitness;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+use super::runner::turn::TurnTarget;
 use super::runner::{StepOutcome, StepRun};
 use crate::kernel::authority::RunAuthority;
 use crate::kernel::store::{
@@ -43,6 +48,7 @@ enum RunEvent {
     Step(Box<StepEvent>),
     Skipped(Skipped),
     Suspended(Box<SuspendedEvent>),
+    Call(Box<CallEvent>),
     Sealed(Box<SealedEvent>),
 }
 
@@ -57,6 +63,7 @@ impl StreamEvent for RunEvent {
             Self::Step(_) => "step",
             Self::Skipped(_) => "skipped",
             Self::Suspended(_) => "suspended",
+            Self::Call(_) => "call",
             Self::Sealed(_) => "sealed",
         }
     }
@@ -166,6 +173,57 @@ enum HoldEvent {
     },
 }
 
+/// A call an agent made during its turn. A later event with the same index
+/// settles a call that was pending.
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CallEvent {
+    step_id: String,
+    attempt: u32,
+    /// The request the turn answers, so the run's latest event still names
+    /// what it waits on.
+    turn: TurnRequestEvent,
+    index: u32,
+    target: TurnTarget,
+    /// Blob: the call's input.
+    input: String,
+    outcome: CallOutcomeEvent,
+    /// The answers the call consumed.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    answers: Vec<AnswerEvent>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct TurnRequestEvent {
+    request_id: String,
+    /// Blob: the agent act request.
+    request: String,
+    digest: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+enum CallOutcomeEvent {
+    /// The call ran as a step: blobs of its record and receipts.
+    Completed {
+        record: String,
+        receipt: String,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        nested: Vec<String>,
+    },
+    /// Admission refused the call; nothing ran.
+    Refused { reason: String },
+    /// The call could not run.
+    Failed { reason: String },
+    /// The call waits on a request only the host's human channel answers.
+    Pending {
+        request_id: String,
+        request: String,
+        digest: String,
+    },
+}
+
 /// An answer a step consumed, bound to the request it answered.
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -233,6 +291,37 @@ pub(crate) struct Suspension {
     pub hold: Hold,
 }
 
+/// A call an agent made during its turn, as its latest event settled it.
+#[derive(Clone, Debug)]
+pub(crate) struct RecordedCall {
+    pub step_id: String,
+    pub attempt: u32,
+    pub index: u32,
+    pub target: TurnTarget,
+    pub input: JsonObject,
+    pub outcome: CallOutcome,
+}
+
+#[derive(Clone, Debug)]
+pub(crate) enum CallOutcome {
+    Completed(Box<StepRun>),
+    Refused(String),
+    Failed(String),
+    Pending(PendingRequest),
+}
+
+/// What a call records: its turn, its place in it, and how it ended.
+pub(crate) struct CallRecord<'a> {
+    pub step_id: &'a str,
+    pub attempt: u32,
+    pub turn: &'a PendingRequest,
+    pub index: u32,
+    pub target: &'a TurnTarget,
+    pub input: &'a JsonObject,
+    pub outcome: &'a CallOutcome,
+    pub answers: &'a [Answer],
+}
+
 /// How a run began.
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum Origin {
@@ -267,8 +356,11 @@ pub(crate) struct RunRecord {
     /// Where the run waits now, when its last step-level event is a
     /// suspension no later step has settled.
     pub suspension: Option<Suspension>,
-    /// Every answer the run's steps consumed, in order.
+    /// Every answer the run's steps and calls consumed, in order.
     pub answers: Vec<Answer>,
+    /// Every call agents made during the run's turns, each as its latest
+    /// event settled it, in the order they were first made.
+    pub calls: Vec<RecordedCall>,
     /// How many times the run has waited for a bounded retry.
     pub retries: u32,
     pub sealed: Option<Sealed>,
@@ -374,6 +466,29 @@ impl RunLog {
             &self.0.run_id,
             events.into_iter().map(|event| event.event),
         )
+    }
+
+    /// The completed calls of one turn, in order: what its step's receipt
+    /// names as children.
+    pub(crate) fn turn_calls(
+        &self,
+        step_id: &str,
+        attempt: u32,
+    ) -> Result<Vec<StepRun>, RunRecordError> {
+        let Some(record) = self.load()? else {
+            return Ok(Vec::new());
+        };
+        let mut calls = record
+            .calls
+            .into_iter()
+            .filter(|call| call.step_id == step_id && call.attempt == attempt)
+            .filter_map(|call| match call.outcome {
+                CallOutcome::Completed(run) => Some((call.index, *run)),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        calls.sort_by_key(|(index, _)| *index);
+        Ok(calls.into_iter().map(|(_, run)| run).collect())
     }
 
     /// Start a top-level run. The stream must not exist yet: a run that does
@@ -566,6 +681,85 @@ impl RunLog {
             })),
             vec![blob],
         )
+    }
+
+    /// A call an agent made during its turn, with the answers it consumed.
+    pub(crate) fn record_call(&self, call: &CallRecord<'_>) -> Result<(), RunRecordError> {
+        let turn = Blob::json(&call.turn.value)?;
+        let input = Blob::json(call.input)?;
+        let mut blobs = vec![turn, input];
+        let outcome = match call.outcome {
+            CallOutcome::Completed(step) => {
+                let record = Blob::json(&RecordedStep {
+                    skill: step.skill.clone(),
+                    runner: step.runner.clone(),
+                    contract: step.contract.clone(),
+                    outcome: step.outcome.clone(),
+                    admission_witness: step.admission_witness.clone(),
+                })?;
+                let receipt = Blob::json(&step.receipt)?;
+                let nested = step
+                    .nested_receipts
+                    .iter()
+                    .map(Blob::json)
+                    .collect::<Result<Vec<_>, _>>()?;
+                let outcome = CallOutcomeEvent::Completed {
+                    record: record.digest().to_owned(),
+                    receipt: receipt.digest().to_owned(),
+                    nested: nested.iter().map(|blob| blob.digest().to_owned()).collect(),
+                };
+                blobs.extend([record, receipt]);
+                blobs.extend(nested);
+                outcome
+            }
+            CallOutcome::Refused(reason) => CallOutcomeEvent::Refused {
+                reason: reason.clone(),
+            },
+            CallOutcome::Failed(reason) => CallOutcomeEvent::Failed {
+                reason: reason.clone(),
+            },
+            CallOutcome::Pending(pending) => {
+                let request = Blob::json(&pending.value)?;
+                let outcome = CallOutcomeEvent::Pending {
+                    request_id: pending.id.clone(),
+                    request: request.digest().to_owned(),
+                    digest: pending.digest.clone(),
+                };
+                blobs.push(request);
+                outcome
+            }
+        };
+        let values = call
+            .answers
+            .iter()
+            .map(|answer| Blob::json(&answer.value))
+            .collect::<Result<Vec<_>, _>>()?;
+        let event = CallEvent {
+            step_id: call.step_id.to_owned(),
+            attempt: call.attempt,
+            turn: TurnRequestEvent {
+                request_id: call.turn.id.clone(),
+                request: blobs[0].digest().to_owned(),
+                digest: call.turn.digest.clone(),
+            },
+            index: call.index,
+            target: call.target.clone(),
+            input: blobs[1].digest().to_owned(),
+            outcome,
+            answers: call
+                .answers
+                .iter()
+                .zip(&values)
+                .map(|(answer, value)| AnswerEvent {
+                    request_id: answer.request_id.clone(),
+                    request_digest: answer.request_digest.clone(),
+                    value: value.digest().to_owned(),
+                    human: answer.human,
+                })
+                .collect(),
+        };
+        blobs.extend(values);
+        self.append(RunEvent::Call(Box::new(event)), blobs)
     }
 
     pub(crate) fn record_sealed(
@@ -788,6 +982,7 @@ fn replay(
         facts: Vec::new(),
         suspension: None,
         answers: Vec::new(),
+        calls: Vec::new(),
         retries: 0,
         sealed: None,
     };
@@ -848,6 +1043,33 @@ fn replay(
                     hold,
                 });
             }
+            RunEvent::Call(call) => {
+                let call = *call;
+                for answer in &call.answers {
+                    record.answers.push(Answer {
+                        request_id: answer.request_id.clone(),
+                        request_digest: answer.request_digest.clone(),
+                        value: store.blob_json(&answer.value)?,
+                        human: answer.human,
+                    });
+                }
+                let recorded = RecordedCall {
+                    outcome: call_outcome(store, &call)?,
+                    step_id: call.step_id,
+                    attempt: call.attempt,
+                    index: call.index,
+                    target: call.target,
+                    input: store.blob_json(&call.input)?,
+                };
+                match record.calls.iter_mut().find(|known| {
+                    known.step_id == recorded.step_id
+                        && known.attempt == recorded.attempt
+                        && known.index == recorded.index
+                }) {
+                    Some(known) => *known = recorded,
+                    None => record.calls.push(recorded),
+                }
+            }
             RunEvent::Sealed(sealed) => {
                 record.suspension = None;
                 record.sealed = Some(Sealed {
@@ -866,6 +1088,43 @@ fn replay(
         }
     }
     Ok(Some(record))
+}
+
+fn call_outcome(store: &KernelStore, call: &CallEvent) -> Result<CallOutcome, RunRecordError> {
+    Ok(match &call.outcome {
+        CallOutcomeEvent::Completed {
+            record,
+            receipt,
+            nested,
+        } => CallOutcome::Completed(Box::new(step_run(
+            store,
+            StepEvent {
+                step_id: call_step_id(&call.step_id, call.index),
+                attempt: 1,
+                record: record.clone(),
+                receipt: receipt.clone(),
+                nested: nested.clone(),
+                answers: Vec::new(),
+            },
+        )?)),
+        CallOutcomeEvent::Refused { reason } => CallOutcome::Refused(reason.clone()),
+        CallOutcomeEvent::Failed { reason } => CallOutcome::Failed(reason.clone()),
+        CallOutcomeEvent::Pending {
+            request_id,
+            request,
+            digest,
+        } => CallOutcome::Pending(PendingRequest {
+            id: request_id.clone(),
+            value: store.blob_json(request)?,
+            digest: digest.clone(),
+        }),
+    })
+}
+
+/// The step a call runs as: `<turn step>/<index>`, so a child run it starts
+/// is `<run>/<turn step>/<index>`.
+pub(crate) fn call_step_id(turn_step: &str, index: u32) -> String {
+    format!("{turn_step}/{index}")
 }
 
 fn step_run(store: &KernelStore, event: StepEvent) -> Result<StepRun, RunRecordError> {
@@ -900,8 +1159,17 @@ pub(crate) fn pending_request(
         let Some(latest) = store.latest::<RunEvent>(&current)? else {
             return Ok(None);
         };
-        let RunEvent::Suspended(suspended) = latest.event else {
-            return Ok(None);
+        let suspended = match latest.event {
+            RunEvent::Suspended(suspended) => suspended,
+            // A call leaves the run waiting on the turn it was made in.
+            RunEvent::Call(call) => {
+                return Ok(Some(PendingRequest {
+                    id: call.turn.request_id,
+                    value: store.blob_json(&call.turn.request)?,
+                    digest: call.turn.digest,
+                }));
+            }
+            _ => return Ok(None),
         };
         match suspended.hold {
             HoldEvent::Request {
@@ -1163,6 +1431,7 @@ fn summarize(store: &KernelStore, head: &Head) -> Result<Option<RunSummary>, Run
             None,
             pending_request(store, &head.key)?.map(|request| request.id),
         ),
+        RunEvent::Call(call) => (RunState::Paused, None, None, Some(call.turn.request_id)),
         _ => (RunState::Running, None, None, None),
     };
     Ok(Some(RunSummary {

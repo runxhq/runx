@@ -60,6 +60,7 @@ pub use execution::harness;
 pub use execution::orchestrator;
 pub use execution::run_record;
 pub use execution::runner;
+pub use execution::runner::turn::{TurnAction, TurnCall, TurnTarget};
 pub use execution::skill_front;
 pub use execution_environment::environment_requirement_statuses;
 #[cfg(feature = "catalog")]
@@ -168,7 +169,7 @@ pub use list::{
 pub use orchestrator::{
     DEFAULT_MANAGED_AGENT_MAX_ROUNDS, HarnessRunRequest, LocalOrchestrator,
     MANAGED_AGENT_MAX_ROUNDS_LIMIT, ManagedAgentPolicy, OrchestratorError, PackageHarnessRequest,
-    RunContinuation, RunRequest, RunResult, RunStatus, SkillRunRequest,
+    RunContinuation, RunRequest, RunResult, RunStatus, SkillRunRequest, TurnRequest,
 };
 pub use paths::{
     RUNX_CWD_ENV, RUNX_HOME_ENV, RUNX_PROJECT_DIR_ENV, RUNX_RECEIPT_DIR_ENV, RunxPaths,

@@ -6,7 +6,7 @@ use super::{
     SkillRunError, build_domain_act_frame, invalid, needs_agent_output, sealed_output,
 };
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 
 use runx_contracts::{
@@ -21,9 +21,11 @@ use crate::adapter::SkillInvocation;
 use crate::effects::RuntimeEffectRegistry;
 use crate::execution::graph::materialize_graph_parameter_inputs;
 use crate::execution::orchestrator::{RunResult, SkillRunRequest};
+use crate::execution::run_record::CallOutcome;
 use crate::execution::run_record::{
     Hold, Origin, RunContext, RunLog, RunRecord, StartRequest, pending_request,
 };
+use crate::execution::runner::turn::{self, OpenTurn, TurnAction, TurnCallContext};
 use crate::execution::runner::{
     GraphRun, RUNX_RUN_ID_ENV, Runtime, RuntimeOptions, graph_run_context, graph_run_result,
     graph_run_skill_output, graph_run_trace, sealed_graph_run,
@@ -166,7 +168,7 @@ pub(super) fn execute_graph_skill_run(
             // Nothing new to continue with: the run still waits on the same
             // request, which only an answer or a managed agent can settle.
             Hold::Request(_) | Hold::Child(_)
-                if !answered && !request.managed_agent.is_inline() =>
+                if !answered && !request.managed_agent.is_inline() && overrides.turn.is_none() =>
             {
                 if let Some(waiting) = &waiting_on {
                     return Ok(needs_agent_output(
@@ -217,11 +219,55 @@ pub(super) fn execute_graph_skill_run(
         None => Runtime::new(ExecutableAdapter, options),
     };
     let graph = materialize_graph_parameter_inputs(runner.graph.clone(), &graph_inputs);
+    let turn = existing.as_ref().map(OpenTurn::of).transpose()?.flatten();
+    let answered_calls = turn.as_ref().map_or_else(BTreeSet::new, |turn| {
+        turn.calls
+            .iter()
+            .filter_map(|call| match &call.outcome {
+                CallOutcome::Pending(pending) if answers.get(&pending.id).is_some() => {
+                    Some(pending.id.clone())
+                }
+                _ => None,
+            })
+            .collect::<BTreeSet<_>>()
+    });
     let mut host = SkillRunGraphHost::with_inline(answers, inline_resolver);
     host.expected_pending = waiting_on.map(|waiting| PendingSkillRequest {
         id: waiting.id,
         value: waiting.value,
     });
+    let turn_context = TurnCallContext {
+        runtime: &runtime,
+        graph_dir: &skill_dir,
+        graph_name: &graph.name,
+        manifest,
+    };
+    if let Some(action) = &overrides.turn {
+        let turn = turn.ok_or_else(|| {
+            invalid(format!(
+                "run {} is not waiting on an agent turn",
+                log.run_id()
+            ))
+        })?;
+        return drive_turn(context, &log, &turn_context, &turn, action, &mut host);
+    }
+    // Answers to the open turn's pending calls settle those calls; the run
+    // still waits on the turn.
+    if let Some(turn) = turn.filter(|_| !answered_calls.is_empty()) {
+        turn::settle_answered(
+            &turn_context,
+            &turn,
+            |id| answered_calls.contains(id),
+            &mut host,
+        )?;
+        return Ok(needs_agent_output(
+            manifest,
+            &runner.name,
+            log.run_id(),
+            &turn.request.id,
+            turn.request.value.clone(),
+        ));
+    }
     let run = Driven {
         context,
         log: &log,
@@ -347,6 +393,48 @@ pub(super) fn execute_graph_skill_run(
         }
         Err(error) => Err(error.into()),
     }
+}
+
+/// Act on the open turn: make a call, or report where the turn stands. The run
+/// still waits on the turn either way.
+fn drive_turn(
+    context: &SkillExecutionContext<'_>,
+    log: &RunLog,
+    turn_context: &TurnCallContext<'_, ExecutableAdapter>,
+    turn: &OpenTurn,
+    action: &TurnAction,
+    host: &mut dyn Host,
+) -> Result<RunResult, SkillRunError> {
+    let output = match action {
+        TurnAction::Call(call) => {
+            let (index, outcome) = turn::call(turn_context, turn, call, host)?;
+            let mut output = JsonObject::from([
+                (
+                    "schema".to_owned(),
+                    JsonValue::String("runx.turn.call.v1".to_owned()),
+                ),
+                (
+                    "run_id".to_owned(),
+                    JsonValue::String(log.run_id().to_owned()),
+                ),
+            ]);
+            output.insert(
+                "call".to_owned(),
+                turn::outcome_value(index, &call.target, &outcome)?,
+            );
+            JsonValue::Object(output)
+        }
+        TurnAction::Status => turn::status(log.run_id(), turn)?,
+    };
+    let mut result = needs_agent_output(
+        context.manifest,
+        &context.runner.name,
+        log.run_id(),
+        &turn.request.id,
+        turn.request.value.clone(),
+    );
+    result.output = output;
+    Ok(result)
 }
 
 /// The run a request names: its pinned id, or a new one.

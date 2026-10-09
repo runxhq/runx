@@ -671,6 +671,26 @@ fn seal_agent_act_step<A>(
         verification_metadata,
     } = request;
     let disposition = agent_answer_disposition_value(step, &response.payload)?;
+    // The turn's receipt names each call the agent made, in order; their
+    // receipts travel with the step.
+    let calls = runtime.options.run.turn_calls(&step.id, attempt)?;
+    let call_receipts = calls
+        .iter()
+        .map(|call| call.receipt.clone())
+        .collect::<Vec<_>>();
+    let nested_receipts = calls
+        .iter()
+        .flat_map(|call| {
+            call.nested_receipts
+                .iter()
+                .cloned()
+                .chain(std::iter::once(call.receipt.clone()))
+        })
+        .collect::<Vec<_>>();
+    let call_descendants = calls
+        .iter()
+        .flat_map(|call| call.nested_receipts.iter().cloned())
+        .collect::<Vec<_>>();
     // The answer was verified against its output contract whatever closure it
     // claims, so an act that declines or defers still returns its outputs.
     let answer = InvocationOutput::runtime_success(response.payload.clone(), 0, JsonObject::new());
@@ -692,8 +712,8 @@ fn seal_agent_act_step<A>(
             operator_refs: crate::execution::prepared_skill::prepared_receipt_references(
                 &runtime.options.env,
             ),
-            child_receipts: &[],
-            descendant_receipts: &[],
+            child_receipts: &call_receipts,
+            descendant_receipts: &call_descendants,
             closure: Some(StepSealClosure {
                 disposition,
                 reason_code: format!("agent_act_{disposition_label}"),
@@ -713,7 +733,7 @@ fn seal_agent_act_step<A>(
         ephemeral_contract: EphemeralValue::default(),
         outcome: output.into(),
         receipt,
-        nested_receipts: Vec::new(),
+        nested_receipts,
         admission_witness,
     })
 }

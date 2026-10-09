@@ -6,6 +6,7 @@
 //! in Cargo.toml keeps Cargo from building each file as its own binary.
 
 mod abnormal_seal;
+mod agent_turns;
 mod approval;
 mod config;
 mod credential_delivery;
