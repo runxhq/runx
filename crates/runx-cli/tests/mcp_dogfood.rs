@@ -480,9 +480,28 @@ fn runx_turn_serves_an_open_agent_turn_and_completes_it() -> Result<(), Box<dyn 
     )?;
     let digest = server.read_response("data_digest", MCP_REQUEST_TIMEOUT)?;
     assert_eq!(
-        path_text(&digest, &["result", "structuredContent", "status"])?,
+        path_text(
+            &digest,
+            &["result", "structuredContent", "outcome", "status"]
+        )?,
         "completed",
         "{digest}"
+    );
+    write_frame(
+        server.stdin_mut()?,
+        &request(
+            5,
+            "tools/call",
+            json!({"name": "turn_status", "arguments": {}}),
+        ),
+    )?;
+    let status = server.read_response("turn_status", MCP_REQUEST_TIMEOUT)?;
+    assert_eq!(
+        status["result"]["structuredContent"]["calls"]
+            .as_array()
+            .map(Vec::len),
+        Some(1),
+        "the turn reads back its recorded call: {status}"
     );
 
     write_frame(

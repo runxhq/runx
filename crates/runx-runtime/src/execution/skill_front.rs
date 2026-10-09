@@ -5,7 +5,7 @@
 //! which owns admit -> execute -> seal.
 
 use std::collections::BTreeMap;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use runx_contracts::{ClosureDisposition, JsonNumber, JsonObject, JsonValue};
 use runx_parser::{ActDeclaration, SkillRunnerDefinition, SkillRunnerManifest};
@@ -30,19 +30,14 @@ mod graph;
 mod inline_harness;
 mod resolution_answers;
 pub(crate) mod runner_manifest;
-
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
-pub struct PendingSkillRequest {
-    pub id: String,
-    pub value: JsonValue,
-}
+mod turn_session;
 
 pub(crate) use self::executable_adapter::ExecutableAdapter;
 pub(crate) use self::graph::graph_domain_act_receipt;
 #[cfg(feature = "process-tool")]
 pub(crate) use self::inline_harness::run_package_harness_with_effects;
+pub use self::turn_session::TurnSession;
 
-use self::graph::execute_graph_skill_run;
 use self::runner_manifest::selected_runner;
 
 pub use super::operator_context::{
@@ -91,13 +86,11 @@ pub(crate) struct SkillRunOverrides {
     /// Select a runner by name instead of the manifest default.
     pub(crate) runner: Option<String>,
     /// Resolution values seeded for a single fresh run, with human approvals
-    /// kept distinct from agent answers. `None` keeps the `answers_path`
-    /// (resume-from-checkpoint) behavior.
+    /// kept distinct from agent answers. `None` reads the request's
+    /// `answers_path`.
     pub(crate) seeded_answers: Option<resolution_answers::ResolutionAnswers>,
     /// Native host services shared for the lifetime of a local server session.
     pub(crate) javascript: Option<crate::adapters::javascript::JavaScriptAdapter>,
-    /// Act on the agent turn the run waits on instead of continuing it.
-    pub(crate) turn: Option<crate::execution::runner::turn::TurnAction>,
 }
 
 pub(crate) struct ResolvedSkillRun<'a> {
@@ -112,19 +105,20 @@ pub(crate) struct ResolvedSkillRun<'a> {
     pub(crate) execution_closure_digest: Option<&'a str>,
 }
 
-#[derive(Clone, Copy)]
-struct SkillExecutionContext<'a> {
-    request: &'a SkillRunRequest,
-    overrides: &'a SkillRunOverrides,
+/// A skill run bound to its verified package: everything a run of it needs
+/// before its record is opened. One binding serves every pass a driver makes.
+pub(crate) struct BoundRun {
+    request: SkillRunRequest,
+    overrides: SkillRunOverrides,
     /// The package directory, canonical as the loader resolved it.
-    skill_dir: &'a Path,
-    effects: &'a RuntimeEffectRegistry,
-    workspace: &'a WorkspaceEnv,
-    receipts: &'a ReceiptServices,
-    manifest: &'a SkillRunnerManifest,
-    runner: &'a SkillRunnerDefinition,
-    package_digest: &'a str,
-    execution_closure_digest: Option<&'a str>,
+    skill_dir: PathBuf,
+    effects: RuntimeEffectRegistry,
+    workspace: WorkspaceEnv,
+    receipts: ReceiptServices,
+    manifest: SkillRunnerManifest,
+    runner: SkillRunnerDefinition,
+    package_digest: String,
+    execution_closure_digest: Option<String>,
 }
 
 pub(crate) fn execute_skill_run_with_effects(
@@ -149,6 +143,25 @@ pub(crate) fn execute_bound_skill_run_with_overrides(
     expected_package_digest: Option<&str>,
     expected_execution_closure_digest: Option<&str>,
 ) -> Result<RunResult, SkillRunError> {
+    bind_skill_run(
+        request,
+        overrides,
+        effects,
+        expected_package_digest,
+        expected_execution_closure_digest,
+    )?
+    .execute()
+}
+
+/// Load the request's skill, verify it against the digests a caller pins,
+/// and bind the run to it.
+pub(crate) fn bind_skill_run(
+    request: &SkillRunRequest,
+    overrides: &SkillRunOverrides,
+    effects: &RuntimeEffectRegistry,
+    expected_package_digest: Option<&str>,
+    expected_execution_closure_digest: Option<&str>,
+) -> Result<BoundRun, SkillRunError> {
     let loaded = std::sync::Arc::new(crate::load_validated_skill_package(&request.skill_path)?);
     let skill_dir = loaded.directory.clone();
     let manifest = loaded.manifest().cloned().ok_or_else(|| {
@@ -167,7 +180,7 @@ pub(crate) fn execute_bound_skill_run_with_overrides(
         expected_execution_closure_digest,
     )
     .map_err(|error| invalid(error.to_string()))?;
-    execute_skill_run_with_resolved_trust(
+    bind_resolved(
         ResolvedSkillRun {
             loaded: &loaded,
             request,
@@ -183,16 +196,84 @@ pub(crate) fn execute_bound_skill_run_with_overrides(
     )
 }
 
+/// What continues a paused run: the run, where its receipts go, and what
+/// its host brings.
+pub(crate) struct Continuation<'a> {
+    pub(crate) run_id: &'a str,
+    pub(crate) receipt_dir: Option<&'a Path>,
+    pub(crate) env: &'a BTreeMap<String, String>,
+    pub(crate) cwd: &'a Path,
+    pub(crate) answers_path: Option<&'a Path>,
+    pub(crate) managed_agent: crate::execution::orchestrator::ManagedAgentPolicy,
+    /// Digests a caller pins; each must be the one the run started under.
+    pub(crate) package_digest: Option<&'a str>,
+    pub(crate) execution_closure_digest: Option<&'a str>,
+}
+
+/// Bind a paused run again: its skill, runner and digests come from its
+/// record, never from the caller.
+pub(crate) fn bind_paused_run(
+    continuation: Continuation<'_>,
+    effects: &RuntimeEffectRegistry,
+) -> Result<BoundRun, SkillRunError> {
+    let run_id = continuation.run_id;
+    let paused =
+        crate::execution::run_record::paused_run(continuation.env, continuation.cwd, run_id)?
+            .ok_or_else(|| invalid(format!("run {run_id} is not paused")))?;
+    for (label, pinned, recorded) in [
+        (
+            "package",
+            continuation.package_digest,
+            &paused.package_digest,
+        ),
+        (
+            "execution closure",
+            continuation.execution_closure_digest,
+            &paused.execution_closure_digest,
+        ),
+    ] {
+        if let Some(pinned) = pinned
+            && pinned != recorded
+        {
+            return Err(invalid(format!(
+                "the {label} digest {pinned} is not the one run {run_id} started under ({recorded})"
+            )));
+        }
+    }
+    bind_skill_run(
+        &SkillRunRequest {
+            current_context: Vec::new(),
+            historical_context: Vec::new(),
+            run_authority: None,
+            skill_path: PathBuf::from(&paused.skill_ref),
+            receipt_dir: continuation.receipt_dir.map(Path::to_path_buf),
+            run_id: Some(paused.run_id),
+            answers_path: continuation.answers_path.map(Path::to_path_buf),
+            inputs: BTreeMap::new(),
+            env: continuation.env.clone(),
+            cwd: continuation.cwd.to_path_buf(),
+            managed_agent: continuation.managed_agent,
+        },
+        &SkillRunOverrides {
+            runner: Some(paused.runner),
+            ..SkillRunOverrides::default()
+        },
+        effects,
+        Some(&paused.package_digest),
+        Some(&paused.execution_closure_digest),
+    )
+}
+
 pub(crate) fn execute_prepared_skill_run_with_resolved(
     resolved: ResolvedSkillRun<'_>,
 ) -> Result<RunResult, SkillRunError> {
-    execute_skill_run_with_resolved_trust(resolved, true)
+    bind_resolved(resolved, true)?.execute()
 }
 
-fn execute_skill_run_with_resolved_trust(
+fn bind_resolved(
     resolved: ResolvedSkillRun<'_>,
     trusted_prepared: bool,
-) -> Result<RunResult, SkillRunError> {
+) -> Result<BoundRun, SkillRunError> {
     let ResolvedSkillRun {
         loaded,
         request,
@@ -206,7 +287,6 @@ fn execute_skill_run_with_resolved_trust(
     } = resolved;
     let (request, workspace, receipts) =
         prepare_skill_execution(request, manifest, runner, trusted_prepared)?;
-    let request = &request;
     let skill_env = workspace.skill_env_for_skill(skill_dir);
     if !trusted_prepared {
         super::operator_context::load_skill_operator_context_chain_from_package(
@@ -223,19 +303,18 @@ fn execute_skill_run_with_resolved_trust(
         &manifest.execution_requirements(runner),
         &skill_env,
     )?;
-    let context = SkillExecutionContext {
+    Ok(BoundRun {
         request,
-        overrides,
-        skill_dir,
-        effects,
-        workspace: &workspace,
-        receipts: &receipts,
-        manifest,
-        runner,
-        package_digest,
-        execution_closure_digest,
-    };
-    execute_graph_skill_run(&context)
+        overrides: overrides.clone(),
+        skill_dir: skill_dir.to_path_buf(),
+        effects: effects.clone(),
+        workspace,
+        receipts,
+        manifest: manifest.clone(),
+        runner: runner.clone(),
+        package_digest: package_digest.to_owned(),
+        execution_closure_digest: execution_closure_digest.map(str::to_owned),
+    })
 }
 
 /// Seal the refusal of a run that never started: its request failed
@@ -408,40 +487,41 @@ impl PackageHarnessReport {
     }
 }
 
-fn needs_agent_output(
+/// A run that waits: the requests it waits on, each with its id.
+fn paused_output(
     manifest: &SkillRunnerManifest,
     runner: &str,
     run_id: &str,
-    request_id: &str,
-    request: JsonValue,
+    waiting: &[crate::execution::run_record::PendingRequest],
 ) -> RunResult {
-    let mut output = JsonObject::new();
-    output.insert(
-        "schema".to_owned(),
-        JsonValue::String(SKILL_RUN_SCHEMA.to_owned()),
-    );
-    output.insert(
-        "status".to_owned(),
-        JsonValue::String("needs_agent".to_owned()),
-    );
-    output.insert(
-        "skill_name".to_owned(),
-        JsonValue::String(manifest.skill.clone()),
-    );
-    output.insert("runner".to_owned(), JsonValue::String(runner.to_owned()));
-    output.insert("run_id".to_owned(), JsonValue::String(run_id.to_owned()));
-    let pending_requests = vec![request_for_public_loop(request_id, request)];
-    output.insert(
-        "requests".to_owned(),
-        JsonValue::Array(pending_requests.clone()),
-    );
+    let requests = waiting
+        .iter()
+        .map(|request| request_for_public_loop(&request.id, request.value.clone()))
+        .collect::<Vec<_>>();
+    let output = JsonObject::from([
+        (
+            "schema".to_owned(),
+            JsonValue::String(SKILL_RUN_SCHEMA.to_owned()),
+        ),
+        (
+            "status".to_owned(),
+            JsonValue::String("needs_agent".to_owned()),
+        ),
+        (
+            "skill_name".to_owned(),
+            JsonValue::String(manifest.skill.clone()),
+        ),
+        ("runner".to_owned(), JsonValue::String(runner.to_owned())),
+        ("run_id".to_owned(), JsonValue::String(run_id.to_owned())),
+        ("requests".to_owned(), JsonValue::Array(requests.clone())),
+    ]);
     RunResult {
         status: RunStatus::NeedsAgent,
         disposition: None,
         output: JsonValue::Object(output),
         receipt_refs: Vec::new(),
         child_receipt_refs: Vec::new(),
-        pending_requests,
+        pending_requests: requests,
         diagnostics: Vec::new(),
     }
 }

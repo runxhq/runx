@@ -13,7 +13,7 @@ use runx_parser::{ExecutionGraph, GraphStep, StepKind};
 
 use super::super::graph::{LoadedStepSkill, StepSkillCache, StepSkillLoadOptions};
 use super::super::graph_index::{ExecutionGraphIndex, PriorRunIndex};
-use super::super::run_record::{Answer, Hold, Replayed, RunRecord, request_digest};
+use super::super::run_record::{Answer, Hold, PendingRequest, Replayed, RunRecord, request_digest};
 use super::dispatch::{LoadedStepExecutionRequest, run_step_with_loaded_skill_index};
 use super::step_handlers::output_error;
 use super::{GraphRun, Runtime, StepRun};
@@ -32,6 +32,9 @@ pub(super) struct GraphExecution {
     /// The step a host suspension holds; it resumes its attempt rather than
     /// starting a new one.
     suspended_step: Option<String>,
+    /// What that step waited on. A step that suspends on it again still
+    /// waits; the run records nothing new.
+    suspended_hold: Option<Hold>,
 }
 
 /// What one step runs against, apart from its host.
@@ -45,10 +48,23 @@ struct StepPlanTarget<'a, A> {
 
 /// The host a step runs against. Every answer the run's host gives during the
 /// step is kept, so the step is recorded with the answers it consumed and an
-/// answer the step refuses is never recorded.
+/// answer the step refuses is never recorded. A step resumed on a request
+/// must ask it again unchanged.
 pub(super) struct AnsweringHost<'a> {
     pub(super) host: &'a mut dyn Host,
     pub(super) answers: Vec<Answer>,
+    /// The request the step waited on, when it resumes.
+    held: Option<&'a PendingRequest>,
+}
+
+impl<'a> AnsweringHost<'a> {
+    pub(super) fn new(host: &'a mut dyn Host, held: Option<&'a PendingRequest>) -> Self {
+        Self {
+            host,
+            answers: Vec::new(),
+            held,
+        }
+    }
 }
 
 impl Host for AnsweringHost<'_> {
@@ -67,6 +83,14 @@ impl Host for AnsweringHost<'_> {
             | runx_contracts::ResolutionRequest::AgentAct { id, .. }
             | runx_contracts::ResolutionRequest::Retry { id, .. } => id.to_string(),
         };
+        if self
+            .held
+            .is_some_and(|held| held.id == request_id && held.digest != request_digest)
+        {
+            return Err(RuntimeError::ContinuationRejected {
+                reason: format!("{request_id} is not the request the run waited on"),
+            });
+        }
         let response = self.host.resolve(request)?;
         if let Some(response) = &response {
             self.answers.push(Answer {
@@ -81,6 +105,12 @@ impl Host for AnsweringHost<'_> {
 
     fn log(&mut self, message: String) -> Result<(), RuntimeError> {
         self.host.log(message)
+    }
+
+    /// The turn's calls answer through the host itself: each call records
+    /// the answers it consumed, never the step that holds the turn.
+    fn drive_turn(&mut self, turn: &mut dyn super::turn::Turn) -> Result<(), RuntimeError> {
+        self.host.drive_turn(turn)
     }
 }
 
@@ -112,6 +142,7 @@ impl GraphExecution {
             runs: Vec::new(),
             run_positions: BTreeMap::new(),
             suspended_step: None,
+            suspended_hold: None,
         }
     }
 
@@ -168,6 +199,7 @@ impl GraphExecution {
                 .graph_index
                 .start_step(&mut execution.state, &suspension.step_id, at.clone());
             execution.suspended_step = Some(suspension.step_id.clone());
+            execution.suspended_hold = Some(suspension.hold.clone());
         }
         execution.planning_cursor =
             replay_planning_cursor(&execution.state, execution.suspended_step.as_deref())?;
@@ -336,24 +368,27 @@ impl GraphExecution {
         enforce_guards(context.graph, context.step, &self.runs)?;
         let policy_approval_refs =
             verified_approval_references(context.runtime, context.graph, context.step, &self.runs)?;
-        if let Some(pending) = self.suspended_step.take() {
+        let resumed_hold = if let Some(pending) = self.suspended_step.take() {
             if pending != context.plan.step_id {
                 return Err(RuntimeError::EngineInvariant {
                     context: "resuming a graph step",
                     message: "the suspended step is not the selected step".to_owned(),
                 });
             }
+            self.suspended_hold.take()
         } else {
             self.record_lifecycle(
                 context.host,
                 LifecycleEvent::step_started(context.plan.step_id),
             )?;
             self.start_step(context.runtime, context.plan.step_id);
-        }
-        let mut answering = AnsweringHost {
-            host: &mut *context.host,
-            answers: Vec::new(),
+            None
         };
+        let held = match &resumed_hold {
+            Some(Hold::Request(held)) => Some(held),
+            _ => None,
+        };
+        let mut answering = AnsweringHost::new(&mut *context.host, held);
         let result = self.execute_step_plan(
             StepPlanTarget {
                 runtime: context.runtime,
@@ -375,7 +410,13 @@ impl GraphExecution {
                 child,
             }) => {
                 let log = &context.runtime.options.run;
+                let still_waiting = match (&child, &resumed_hold) {
+                    (Some(child), Some(Hold::Child(held))) => child == held,
+                    (None, Some(Hold::Request(held))) => request_digest(&request)? == held.digest,
+                    _ => false,
+                };
                 match &child {
+                    _ if still_waiting => {}
                     Some(child) => {
                         log.record_child_hold(context.plan.step_id, context.plan.attempt, child)?;
                     }

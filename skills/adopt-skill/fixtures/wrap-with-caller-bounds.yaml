@@ -44,9 +44,6 @@ caller:
                   type: string
                   required: true
                   description: Text to summarize.
-              runx:
-                tags:
-                  - summarization
               steps:
                 - id: summarize
                   agent: { role: analyst, task: borrowed-summarize }

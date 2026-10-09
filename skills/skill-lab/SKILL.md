@@ -462,7 +462,7 @@ do not compensate with more fixtures, prose padding, or a bespoke wrapper.
 
 ### `skill-lab-architecture`
 
-Call `runx_final_result` with exactly one root field,
+Call `turn_complete` with exactly one root field,
 `{"architecture_decision": <decision>}`. The inner decision uses
 `runx.skill.architecture_decision.v1`. Choose `build`, `extend_existing`,
 `no_skill`, or `needs_core`. Explain the operator value and the manual's
@@ -473,7 +473,7 @@ and recovery. Assign every required behavior to exactly one real execution lane
 a domain module supplies a specific justification. Record inspected, selected,
 and genuinely missing native capabilities; use `needs_core` only for a runtime
 or security invariant or a primitive with two independent existing consumers.
-Before calling `runx_final_result`, call `runx.skill.plan` once with the exact
+Before calling `turn_complete`, call `runx.skill.plan` once with the exact
 `authoring_context.base_digest` and candidate `architecture_decision`. Repair
 any deterministic architecture error it returns, then submit the same validated
 decision. For every `native_capability` behavior, `reuse_ref` must be exactly one

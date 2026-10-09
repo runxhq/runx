@@ -25,8 +25,8 @@ use crate::{
     ReviewReceiptOutput, RunSummary, RunxListReport, RunxX402InvocationExtensionInfo,
     ScopeAdmission, Signal, SkillApplyResult, SkillArchitectureDecision, SkillArchitecturePlan,
     SkillChangeBundle, SkillChangeDraft, SkillValidationResult, SourcePacket, SuppressionRecord,
-    ToolManifest, Verification, WorkOutcome, X402PaymentPayload, X402PaymentRequired,
-    X402PaymentRequirements, X402ResourceInfo, X402SettleResponse,
+    ToolManifest, TurnCallResult, TurnStatus, Verification, WorkOutcome, X402PaymentPayload,
+    X402PaymentRequired, X402PaymentRequirements, X402ResourceInfo, X402SettleResponse,
 };
 
 #[derive(Clone, Debug, PartialEq)]
@@ -55,6 +55,8 @@ pub fn generated_schema_artifacts() -> Vec<SchemaArtifact> {
         schema_artifact::<AuthorityDerivation>("authority-derivation.schema.json"),
         schema_artifact::<AgentContextEnvelope>("agent-context-envelope.schema.json"),
         schema_artifact::<AgentActInvocation>("agent-act-invocation.schema.json"),
+        schema_artifact::<TurnCallResult>("turn-call.schema.json"),
+        schema_artifact::<TurnStatus>("turn-status.schema.json"),
         schema_artifact::<Question>("question.schema.json"),
         schema_artifact::<ApprovalGate>("approval-gate.schema.json"),
         schema_artifact::<ResolutionRequest>("resolution-request.schema.json"),

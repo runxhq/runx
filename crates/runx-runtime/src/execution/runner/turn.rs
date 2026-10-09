@@ -1,81 +1,69 @@
-//! Agent turns. While a run waits on an agent act, the agent calls back into
-//! the run within the act's allowance. A call runs as one step under the
-//! run's own runtime, so it is admitted, executed and sealed exactly as the
-//! step kind it names would be, and it is recorded in the run's stream before
-//! its outcome is returned. The agent ends the turn by answering the act.
+//! Agent turns. An agent step whose act is unanswered holds its turn open,
+//! and its host works the turn: the agent calls back into the run within the
+//! act's allowance. A call runs as one step under the agent step's own
+//! runtime, at whatever depth the step runs, so it is admitted, executed and
+//! sealed exactly as the step kind it names would be, and it is recorded in
+//! the run's stream before its outcome is returned. The turn ends when the
+//! host answers the act.
 
+use std::cell::OnceCell;
 use std::collections::BTreeMap;
 use std::path::Path;
 
-use runx_contracts::connector::OperationName;
-use runx_contracts::{AgentActInvocation, JsonObject, JsonValue, ResolutionRequest};
-use runx_parser::{
-    AskGate, GraphStep, OperationStepTarget, SkillRunnerManifest, SkillTarget, StepKind, ToolTarget,
+use runx_contracts::connector::{AmountRule, OperationAccess, OperationName};
+use runx_contracts::schema::NonEmptyString;
+use runx_contracts::{
+    AgentActInvocation, AllowedOperation, JsonObject, JsonValue, ResolutionRequest,
+    TurnCallOutcome, TurnCallResult, TurnStatus, TurnTarget,
 };
-use serde::{Deserialize, Serialize};
+use runx_parser::{
+    AgentTask, AskGate, GraphStep, OperationStepTarget, SkillTarget, StepKind, ToolTarget,
+};
 
 use super::super::graph::{StepSkillLoadOptions, load_step_skill};
 use super::super::run_record::{
-    CallOutcome, CallRecord, Hold, PendingRequest, RecordedCall, RunRecord, call_step_id,
-    request_digest,
+    Answer, CallOutcome, CallRecord, PendingRequest, RecordedCall, call_step_id, request_digest,
 };
-use super::Runtime;
 use super::graph_engine::AnsweringHost;
 use super::step_handlers::{
-    StepRunRequest, run_step_with_inputs, run_step_with_loaded_skill_inputs,
+    StepRunRequest, output_error, run_step_with_inputs, run_step_with_loaded_skill_inputs,
 };
+use super::{Runtime, StepRun};
 use crate::RuntimeError;
 use crate::adapter::SkillAdapter;
 use crate::host::Host;
 
-/// What a call names: one entry of the turn's allowance, or a question for
-/// the human, which needs none.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
-pub enum TurnTarget {
-    Tool {
-        tool: String,
-    },
-    Operation {
-        requirement: String,
-        operation: String,
-    },
-    Skill {
-        skill: String,
-    },
-    /// The call's input is `{reason}`; the human approves or declines it.
-    Ask,
+/// The turn an unanswered agent act holds open, as its host works it.
+pub trait Turn {
+    /// The act the turn answers.
+    fn invocation(&self) -> &AgentActInvocation;
+
+    /// The agent step that holds the turn.
+    fn step_id(&self) -> &str;
+
+    /// The tools the turn offers its agent, named for MCP: one per allowance
+    /// entry, then `ask_human`, `turn_status` and `turn_complete`.
+    fn tools(&self) -> Result<Vec<TurnTool>, RuntimeError>;
+
+    /// What the turn answers, what it may call, and how each call ended.
+    fn status(&self) -> Result<TurnStatus, RuntimeError>;
+
+    /// Make a new call. `host` answers what the call itself asks; a call it
+    /// cannot answer is pending until it can.
+    fn call(
+        &mut self,
+        host: &mut dyn Host,
+        target: TurnTarget,
+        input: JsonObject,
+    ) -> Result<TurnCallResult, RuntimeError>;
+
+    /// Run the pending call `index` again under `host`, which now answers
+    /// what it waits on.
+    fn settle(&mut self, host: &mut dyn Host, index: u32) -> Result<TurnCallResult, RuntimeError>;
 }
 
-/// One call: what it names and its input. An operation's input is its call
-/// fields: `input`; `idempotency_key` for a write; `amount` where the
-/// operation takes one; and `connector` when the run chooses it.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct TurnCall {
-    pub target: TurnTarget,
-    #[serde(default)]
-    pub input: JsonObject,
-}
-
-const OPERATION_CALL_FIELDS: &[&str] = &["connector", "input", "idempotency_key", "amount"];
-
-/// What a driver does with an open turn.
+/// One tool an open turn offers its agent.
 #[derive(Clone, Debug, PartialEq)]
-pub enum TurnAction {
-    /// Make a call within the allowance.
-    Call(TurnCall),
-    /// Read the turn: its request, allowance and calls.
-    Status,
-    /// List the tools the turn offers, with their input schemas.
-    Describe,
-    /// End the turn with the act's output; the run continues.
-    Complete(JsonObject),
-}
-
-/// One tool an open turn offers its agent, named for MCP.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub struct TurnTool {
     pub name: String,
     pub description: String,
@@ -84,365 +72,510 @@ pub struct TurnTool {
 }
 
 /// What calling a turn tool does.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum TurnToolAction {
-    Call { target: TurnTarget },
+    Call(TurnTarget),
     Status,
     Complete,
 }
 
-/// The agent act a run waits on, with the calls made in it so far.
-#[derive(Clone, Debug)]
-pub(crate) struct OpenTurn {
-    pub step_id: String,
-    pub attempt: u32,
-    pub request: PendingRequest,
-    pub invocation: AgentActInvocation,
-    pub calls: Vec<RecordedCall>,
+/// The tool that ends a turn with the act's output.
+pub(crate) const TURN_COMPLETE_TOOL: &str = "turn_complete";
+
+const OPERATION_CALL_FIELDS: &[&str] = &["connector", "input", "idempotency_key", "amount"];
+
+/// Where a turn runs: the agent step, its attempt, and its runtime.
+pub(super) struct TurnScope<'a, A> {
+    pub(super) runtime: &'a Runtime<A>,
+    pub(super) graph_dir: &'a Path,
+    pub(super) graph_name: &'a str,
+    pub(super) step_id: &'a str,
+    pub(super) attempt: u32,
+    pub(super) agent: &'a AgentTask,
 }
 
-impl OpenTurn {
-    /// The turn `record` waits on; `None` when it waits on anything else.
-    pub(crate) fn of(record: &RunRecord) -> Result<Option<Self>, RuntimeError> {
-        let Some(suspension) = &record.suspension else {
-            return Ok(None);
+/// The open turn of one agent step: where it runs, the act it answers, and
+/// the calls made in it so far.
+pub(super) struct OpenTurn<'a, A> {
+    scope: TurnScope<'a, A>,
+    invocation: &'a AgentActInvocation,
+    /// The act as the run records it.
+    request: PendingRequest,
+    /// The calls the run records for this turn, read when first needed.
+    calls: OnceCell<Vec<RecordedCall>>,
+}
+
+impl<'a, A> OpenTurn<'a, A>
+where
+    A: SkillAdapter,
+{
+    /// The turn `request` opens, with the calls the run records for it.
+    pub(super) fn open(
+        scope: TurnScope<'a, A>,
+        request: &'a ResolutionRequest,
+    ) -> Result<Self, RuntimeError> {
+        let ResolutionRequest::AgentAct { invocation, .. } = request else {
+            return Err(RuntimeError::EngineInvariant {
+                context: "opening an agent turn",
+                message: "an agent step asked for something other than its act".to_owned(),
+            });
         };
-        let Hold::Request(request) = &suspension.hold else {
-            return Ok(None);
-        };
-        let parsed: ResolutionRequest = serde_json::to_value(&request.value)
-            .and_then(serde_json::from_value)
-            .map_err(|source| RuntimeError::json("reading the run's pending request", source))?;
-        let ResolutionRequest::AgentAct { invocation, .. } = parsed else {
-            return Ok(None);
-        };
-        Ok(Some(Self {
-            calls: record
-                .calls
-                .iter()
-                .filter(|call| {
-                    call.step_id == suspension.step_id && call.attempt == suspension.attempt
-                })
-                .cloned()
-                .collect(),
-            step_id: suspension.step_id.clone(),
-            attempt: suspension.attempt,
-            request: request.clone(),
-            invocation: *invocation,
-        }))
+        Ok(Self {
+            scope,
+            invocation,
+            request: pending_request(request)?,
+            calls: OnceCell::new(),
+        })
     }
 
-    /// The index the next new call takes.
-    fn next_index(&self) -> u32 {
+    /// The turn's calls, in order.
+    fn calls(&self) -> Result<&[RecordedCall], RuntimeError> {
+        if let Some(calls) = self.calls.get() {
+            return Ok(calls);
+        }
+        let read = self
+            .scope
+            .runtime
+            .options
+            .run
+            .calls(self.scope.step_id, self.scope.attempt)?;
+        Ok(self.calls.get_or_init(|| read))
+    }
+
+    fn calls_mut(&mut self) -> Result<&mut Vec<RecordedCall>, RuntimeError> {
+        self.calls()?;
         self.calls
+            .get_mut()
+            .ok_or_else(|| RuntimeError::EngineInvariant {
+                context: "recording a turn call",
+                message: "the turn's calls were not read".to_owned(),
+            })
+    }
+
+    /// The runs of the turn's completed calls, in order.
+    pub(super) fn completed(&self) -> Result<Vec<&StepRun>, RuntimeError> {
+        Ok(self
+            .calls()?
             .iter()
-            .map(|call| call.index + 1)
-            .max()
-            .unwrap_or(0)
+            .filter_map(|call| match &call.outcome {
+                CallOutcome::Completed(run) => Some(run.as_ref()),
+                _ => None,
+            })
+            .collect())
+    }
+
+    /// The first call still waiting on an answer: its index and request.
+    pub(super) fn pending(&self) -> Result<Option<(u32, &str)>, RuntimeError> {
+        Ok(self.calls()?.iter().find_map(|call| match &call.outcome {
+            CallOutcome::Pending(request) => Some((call.index, request.id.as_str())),
+            _ => None,
+        }))
     }
 
     /// Why the turn's allowance refuses `target`, if it does.
     fn refusal(&self, target: &TurnTarget) -> Option<String> {
-        let allowance = &self.invocation.allowance;
+        let allowance = &self.scope.agent.allowance;
         let allowed = match target {
-            TurnTarget::Tool { tool } => allowance.tools.iter().any(|item| item == tool),
+            TurnTarget::Tool { tool } => allowance.tools.contains(tool),
             TurnTarget::Operation {
                 requirement,
                 operation,
-            } => allowance.operations.iter().any(|item| {
-                item.requirement == requirement.as_str() && item.operation == operation.as_str()
-            }),
-            TurnTarget::Skill { skill } => allowance.skills.iter().any(|item| item == skill),
+            } => allowance
+                .operations
+                .iter()
+                .any(|item| &item.requirement == requirement && &item.operation == operation),
+            TurnTarget::Skill { skill } => allowance.skills.contains(skill),
             TurnTarget::Ask => true,
         };
-        (!allowed).then(|| format!("{} is not in the turn's allowance", target.label()))
+        (!allowed).then(|| format!("{} is not in the turn's allowance", label(target)))
     }
-}
 
-impl TurnTarget {
-    #[must_use]
-    pub fn label(&self) -> String {
-        match self {
-            Self::Tool { tool } => format!("tool {tool}"),
-            Self::Operation {
+    /// Run the call at `index` through `host`, which carries what the call
+    /// already consumed. A call outside the allowance, or malformed, is
+    /// refused before it runs. Otherwise it is claimed first: its identity,
+    /// its input and what authorized it enter the run's record under the
+    /// version this driver last read, so a second driver of the turn is
+    /// refused before anything runs. A claimed call that does not settle,
+    /// because its effect is unconfirmed or its driver stopped, waits on its
+    /// own retry.
+    fn run(
+        &mut self,
+        mut host: AnsweringHost<'_>,
+        index: u32,
+        target: TurnTarget,
+        input: JsonObject,
+    ) -> Result<TurnCallResult, RuntimeError> {
+        let step = match self
+            .refusal(&target)
+            .map_or_else(|| self.call_step(index, &target, &input), Err)
+        {
+            Ok(step) => step,
+            Err(reason) => {
+                let refused = CallOutcome::Refused(reason);
+                return self.settled(index, target, input, refused, &host.answers);
+            }
+        };
+        let claim = CallOutcome::Pending(self.claim(index)?);
+        let authorized = std::mem::take(&mut host.answers);
+        self.record(
+            RecordedCall {
+                step_id: self.scope.step_id.to_owned(),
+                attempt: self.scope.attempt,
+                index,
+                target: target.clone(),
+                input: input.clone(),
+                outcome: claim.clone(),
+            },
+            &authorized,
+        )?;
+        match self.run_call_step(&step, &target, &input, &mut host)? {
+            Some(outcome) => self.settled(index, target, input, outcome, &host.answers),
+            None => call_result(index, &target, &claim),
+        }
+    }
+
+    /// The first call claimed but not settled.
+    fn unsettled(&self) -> Result<Option<u32>, RuntimeError> {
+        Ok(self.calls()?.iter().find_map(|call| match &call.outcome {
+            CallOutcome::Pending(request)
+                if request.id == retry_id(self.scope.step_id, call.index) =>
+            {
+                Some(call.index)
+            }
+            _ => None,
+        }))
+    }
+
+    /// What a claimed call waits on until it settles: the host's
+    /// acknowledgement to run it again with the same input.
+    fn claim(&self, index: u32) -> Result<PendingRequest, RuntimeError> {
+        pending_request(&ResolutionRequest::Retry {
+            id: retry_id(self.scope.step_id, index).into(),
+            reason: format!(
+                "call {index} has not settled and may have run; acknowledge with {{\"retry\": true}} to run it again with the same input"
+            )
+            .into(),
+            retry_after_seconds: 0,
+        })
+    }
+
+    /// Record how a call ended, and return it as its agent reads it.
+    fn settled(
+        &mut self,
+        index: u32,
+        target: TurnTarget,
+        input: JsonObject,
+        outcome: CallOutcome,
+        answers: &[Answer],
+    ) -> Result<TurnCallResult, RuntimeError> {
+        let result = call_result(index, &target, &outcome)?;
+        self.record(
+            RecordedCall {
+                step_id: self.scope.step_id.to_owned(),
+                attempt: self.scope.attempt,
+                index,
+                target,
+                input,
+                outcome,
+            },
+            answers,
+        )?;
+        Ok(result)
+    }
+
+    /// Record a call's latest word on its index.
+    fn record(&mut self, call: RecordedCall, answers: &[Answer]) -> Result<(), RuntimeError> {
+        self.scope.runtime.options.run.record_call(&CallRecord {
+            step_id: self.scope.step_id,
+            attempt: self.scope.attempt,
+            turn: &self.request,
+            index: call.index,
+            target: &call.target,
+            input: &call.input,
+            outcome: &call.outcome,
+            answers,
+        })?;
+        let calls = self.calls_mut()?;
+        match calls.iter_mut().find(|known| known.index == call.index) {
+            Some(known) => *known = call,
+            None => calls.push(call),
+        }
+        Ok(())
+    }
+
+    /// Run a call as its step. `None`: the call has not settled.
+    fn run_call_step(
+        &self,
+        step: &GraphStep,
+        target: &TurnTarget,
+        input: &JsonObject,
+        host: &mut dyn Host,
+    ) -> Result<Option<CallOutcome>, RuntimeError> {
+        let scope = &self.scope;
+        let request = StepRunRequest {
+            runtime: scope.runtime,
+            graph_dir: scope.graph_dir,
+            graph_name: scope.graph_name,
+            step,
+            attempt: 1,
+            inputs: input.clone(),
+            provenance: Vec::new(),
+            policy_approval_refs: Vec::new(),
+            host,
+        };
+        let result = match target {
+            TurnTarget::Skill { .. } => load_step_skill(
+                scope.graph_dir,
+                step,
+                StepSkillLoadOptions {
+                    env: &scope.runtime.options.env,
+                },
+            )
+            .and_then(|skill| run_step_with_loaded_skill_inputs(request, skill)),
+            _ => run_step_with_inputs(request),
+        };
+        Ok(Some(match result {
+            Ok(run) => CallOutcome::Completed(Box::new(run)),
+            Err(RuntimeError::ResolutionPending { request, .. }) => {
+                CallOutcome::Pending(pending_request(&request)?)
+            }
+            Err(RuntimeError::AuthorityDenied { reason, .. }) => CallOutcome::Refused(reason),
+            // The act may have reached its provider: its custody holds it, and
+            // the call stays claimed until a retry with the same input
+            // reconciles it.
+            Err(RuntimeError::ProviderEffectUnknown { .. })
+            | Err(RuntimeError::ProviderReadbackPending { .. }) => return Ok(None),
+            Err(error) if error.is_fatal_step_fault() => return Err(error),
+            Err(error) => CallOutcome::Failed(error.to_string()),
+        }))
+    }
+
+    /// The step a call runs as. A malformed call is refused before it runs.
+    fn call_step(
+        &self,
+        index: u32,
+        target: &TurnTarget,
+        input: &JsonObject,
+    ) -> Result<GraphStep, String> {
+        let step_id = call_step_id(self.scope.step_id, index);
+        let (kind, scopes) = match target {
+            TurnTarget::Tool { tool } => (
+                StepKind::Tool(ToolTarget::Catalog(tool.as_str().to_owned())),
+                self.declared_scopes(tool.as_str())?,
+            ),
+            TurnTarget::Operation {
                 requirement,
                 operation,
-            } => format!("operation {requirement}/{operation}"),
-            Self::Skill { skill } => format!("skill {skill}"),
-            Self::Ask => "ask".to_owned(),
-        }
-    }
-}
-
-/// What a call runs against: the run's runtime and its skill.
-pub(crate) struct TurnCallContext<'a, A> {
-    pub runtime: &'a Runtime<A>,
-    pub graph_dir: &'a Path,
-    pub graph_name: &'a str,
-    pub manifest: &'a SkillRunnerManifest,
-}
-
-/// Make a new call in `turn`, record it, and return how it ended.
-pub(crate) fn call<A>(
-    context: &TurnCallContext<'_, A>,
-    turn: &OpenTurn,
-    call: &TurnCall,
-    host: &mut dyn Host,
-) -> Result<(u32, CallOutcome), RuntimeError>
-where
-    A: SkillAdapter,
-{
-    let index = turn.next_index();
-    let outcome = run_and_record(context, turn, index, call, host)?;
-    Ok((index, outcome))
-}
-
-/// Run again each of `turn`'s pending calls whose request the host has now
-/// answered. Each is recorded under its own index, settling it.
-pub(crate) fn settle_answered<A>(
-    context: &TurnCallContext<'_, A>,
-    turn: &OpenTurn,
-    answered: impl Fn(&str) -> bool,
-    host: &mut dyn Host,
-) -> Result<Vec<(u32, CallOutcome)>, RuntimeError>
-where
-    A: SkillAdapter,
-{
-    let mut settled = Vec::new();
-    for recorded in &turn.calls {
-        let CallOutcome::Pending(request) = &recorded.outcome else {
-            continue;
-        };
-        if !answered(&request.id) {
-            continue;
-        }
-        let call = TurnCall {
-            target: recorded.target.clone(),
-            input: recorded.input.clone(),
-        };
-        let outcome = run_and_record(context, turn, recorded.index, &call, host)?;
-        settled.push((recorded.index, outcome));
-    }
-    Ok(settled)
-}
-
-fn run_and_record<A>(
-    context: &TurnCallContext<'_, A>,
-    turn: &OpenTurn,
-    index: u32,
-    call: &TurnCall,
-    host: &mut dyn Host,
-) -> Result<CallOutcome, RuntimeError>
-where
-    A: SkillAdapter,
-{
-    let mut answering = AnsweringHost {
-        host,
-        answers: Vec::new(),
-    };
-    let outcome = match turn.refusal(&call.target) {
-        Some(reason) => CallOutcome::Refused(reason),
-        None => match call_step(context, &turn.step_id, index, call) {
-            Ok(step) => run_call_step(context, &step, call, &mut answering)?,
-            Err(reason) => CallOutcome::Refused(reason),
-        },
-    };
-    context.runtime.options.run.record_call(&CallRecord {
-        step_id: &turn.step_id,
-        attempt: turn.attempt,
-        turn: &turn.request,
-        index,
-        target: &call.target,
-        input: &call.input,
-        outcome: &outcome,
-        answers: &answering.answers,
-    })?;
-    Ok(outcome)
-}
-
-fn run_call_step<A>(
-    context: &TurnCallContext<'_, A>,
-    step: &GraphStep,
-    call: &TurnCall,
-    host: &mut dyn Host,
-) -> Result<CallOutcome, RuntimeError>
-where
-    A: SkillAdapter,
-{
-    let request = StepRunRequest {
-        runtime: context.runtime,
-        graph_dir: context.graph_dir,
-        graph_name: context.graph_name,
-        step,
-        attempt: 1,
-        inputs: call.input.clone(),
-        provenance: Vec::new(),
-        policy_approval_refs: Vec::new(),
-        host,
-    };
-    let result = match &call.target {
-        TurnTarget::Skill { .. } => load_step_skill(
-            context.graph_dir,
-            step,
-            StepSkillLoadOptions {
-                env: &context.runtime.options.env,
-            },
-        )
-        .and_then(|skill| run_step_with_loaded_skill_inputs(request, skill)),
-        _ => run_step_with_inputs(request),
-    };
-    Ok(match result {
-        Ok(run) => CallOutcome::Completed(Box::new(run)),
-        Err(RuntimeError::ResolutionPending { request, .. }) => {
-            CallOutcome::Pending(pending_request(&request)?)
-        }
-        Err(RuntimeError::AuthorityDenied { reason, .. }) => CallOutcome::Refused(reason),
-        // The act may have reached its provider: its custody holds it, and
-        // the call says so instead of failing the turn.
-        Err(error @ RuntimeError::ProviderEffectUnknown { .. })
-        | Err(error @ RuntimeError::ProviderReadbackPending { .. }) => {
-            CallOutcome::Failed(error.to_string())
-        }
-        Err(error) if error.is_fatal_step_fault() => return Err(error),
-        Err(error) => CallOutcome::Failed(error.to_string()),
-    })
-}
-
-/// The step a call runs as. A malformed call is refused before it runs.
-fn call_step<A>(
-    context: &TurnCallContext<'_, A>,
-    turn_step: &str,
-    index: u32,
-    call: &TurnCall,
-) -> Result<GraphStep, String> {
-    let (kind, scopes) = match &call.target {
-        TurnTarget::Tool { tool } => (
-            StepKind::Tool(ToolTarget::Catalog(tool.clone())),
-            declared_scopes(context, tool)?,
-        ),
-        TurnTarget::Operation {
-            requirement,
-            operation,
-        } => {
-            if let Some(field) = call
-                .input
-                .keys()
-                .find(|field| !OPERATION_CALL_FIELDS.contains(&field.as_str()))
-            {
-                return Err(format!(
-                    "an operation call takes connector, input, idempotency_key and amount, not {field}"
-                ));
+            } => {
+                if let Some(field) = input
+                    .keys()
+                    .find(|field| !OPERATION_CALL_FIELDS.contains(&field.as_str()))
+                {
+                    return Err(format!(
+                        "an operation call takes connector, input, idempotency_key and amount, not {field}"
+                    ));
+                }
+                let target = OperationStepTarget {
+                    requirement: requirement.as_str().to_owned(),
+                    operation: Some(
+                        OperationName::new(operation.as_str().to_owned())
+                            .ok_or_else(|| format!("{operation} is not an operation name"))?,
+                    ),
+                    declared: self
+                        .scope
+                        .agent
+                        .connectors
+                        .get(requirement.as_str())
+                        .cloned(),
+                };
+                (StepKind::Operation(target), Vec::new())
             }
-            let target = OperationStepTarget {
-                requirement: requirement.clone(),
-                operation: Some(
-                    OperationName::new(operation.clone())
-                        .ok_or_else(|| format!("{operation} is not an operation name"))?,
-                ),
-                declared: context.manifest.connectors.get(requirement).cloned(),
-            };
-            (StepKind::Operation(target), Vec::new())
-        }
-        TurnTarget::Skill { skill } => (
-            StepKind::Skill(SkillTarget {
-                reference: skill.clone(),
-                runner: None,
-            }),
-            Vec::new(),
-        ),
-        TurnTarget::Ask => {
-            let reason = call
-                .input
-                .get("reason")
-                .and_then(JsonValue::as_str)
-                .filter(|reason| !reason.trim().is_empty())
-                .ok_or("an ask names its reason")?;
-            if call.input.len() > 1 {
-                return Err("an ask takes only its reason".to_owned());
-            }
-            (
-                StepKind::Ask(AskGate {
-                    gate: call_step_id(turn_step, index),
-                    reason: reason.to_owned(),
-                    gate_type: None,
+            TurnTarget::Skill { skill } => (
+                StepKind::Skill(SkillTarget {
+                    reference: skill.as_str().to_owned(),
+                    runner: None,
                 }),
                 Vec::new(),
-            )
-        }
-    };
-    Ok(GraphStep {
-        id: call_step_id(turn_step, index),
-        label: Some(call.target.label()),
-        kind,
-        artifacts: None,
-        outputs: None,
-        inputs: call.input.clone(),
-        context: BTreeMap::new(),
-        context_edges: Vec::new(),
-        context_skills: Vec::new(),
-        scopes,
-        when: None,
-        idempotency_key: None,
-        on_uncertain: None,
-        duplicates: None,
-    })
-}
-
-/// The tools `turn` offers: one per allowance entry, an ask, its status, and
-/// its completion. Names are unique and fit the MCP tool-name grammar.
-pub(crate) fn tools<A>(
-    context: &TurnCallContext<'_, A>,
-    turn: &OpenTurn,
-) -> Result<Vec<TurnTool>, RuntimeError> {
-    let allowance = &turn.invocation.allowance;
-    let mut tools = Vec::new();
-    for tool in &allowance.tools {
-        let (description, input_schema) = catalog_tool_contract(context, tool.as_str())?;
-        tools.push(call_tool(
-            tool.as_str(),
-            description,
-            input_schema,
-            TurnTarget::Tool {
-                tool: tool.as_str().to_owned(),
-            },
-        ));
-    }
-    let scope = crate::kernel::connectors::ConnectorScope::for_skill(context.graph_dir).map_err(
-        |error| RuntimeError::effect_state("reading the skill's connectors", error.to_string()),
-    )?;
-    for allowed in &allowance.operations {
-        let target = TurnTarget::Operation {
-            requirement: allowed.requirement.as_str().to_owned(),
-            operation: allowed.operation.as_str().to_owned(),
+            ),
+            TurnTarget::Ask => {
+                let reason = input
+                    .get("reason")
+                    .and_then(JsonValue::as_str)
+                    .filter(|reason| !reason.trim().is_empty())
+                    .ok_or("an ask names its reason")?;
+                if input.len() > 1 {
+                    return Err("an ask takes only its reason".to_owned());
+                }
+                (
+                    StepKind::Ask(AskGate {
+                        gate: step_id.clone(),
+                        reason: reason.to_owned(),
+                        gate_type: None,
+                    }),
+                    Vec::new(),
+                )
+            }
         };
-        let (description, input_schema) = operation_contract(context, &scope, allowed)?;
-        tools.push(call_tool(
+        Ok(GraphStep {
+            id: step_id,
+            label: Some(label(target)),
+            kind,
+            artifacts: None,
+            outputs: None,
+            inputs: input.clone(),
+            context: BTreeMap::new(),
+            context_edges: Vec::new(),
+            context_skills: Vec::new(),
+            scopes,
+            when: None,
+            idempotency_key: None,
+            on_uncertain: None,
+            duplicates: None,
+        })
+    }
+
+    /// An operation's tool: the call fields the turn accepts, with the
+    /// operation's own input schema when one connector serves it.
+    fn operation_tool(
+        &self,
+        scope: &crate::kernel::connectors::ConnectorScope,
+        allowed: &AllowedOperation,
+    ) -> Result<TurnTool, RuntimeError> {
+        let describing =
+            |message: String| RuntimeError::effect_state("describing an operation", message);
+        let declared = self
+            .scope
+            .agent
+            .connectors
+            .get(allowed.requirement.as_str())
+            .ok_or_else(|| {
+                describing(format!(
+                    "requirement {} is not declared",
+                    allowed.requirement
+                ))
+            })?;
+        let connectors = if declared.connector_from.is_some() {
+            declared
+                .allowed_connectors
+                .iter()
+                .map(|id| id.as_str().to_owned())
+                .collect::<Vec<_>>()
+        } else {
+            vec![allowed.requirement.as_str().to_owned()]
+        };
+        let mut described = Vec::new();
+        for id in &connectors {
+            let connector = scope
+                .connector(id)
+                .map_err(|error| describing(error.to_string()))?;
+            let operation = connector
+                .manifest
+                .operations
+                .iter()
+                .find(|(name, _)| name.as_str() == allowed.operation.as_str())
+                .map(|(_, operation)| operation.clone())
+                .ok_or_else(|| {
+                    describing(format!("{id} has no operation {}", allowed.operation))
+                })?;
+            described.push((id.clone(), operation));
+        }
+        let writes = described
+            .iter()
+            .any(|(_, operation)| operation.access() == OperationAccess::Mutate);
+        let amount = described
+            .iter()
+            .any(|(_, operation)| operation.amount == AmountRule::Required);
+        let input = match described.as_slice() {
+            [(_, operation)] => operation.input_schema.clone().map_or_else(
+                || JsonValue::Object(object_schema([], &[])),
+                JsonValue::Object,
+            ),
+            _ => JsonValue::Object(JsonObject::from([(
+                "type".to_owned(),
+                JsonValue::String("object".to_owned()),
+            )])),
+        };
+        let mut properties = vec![("input", input)];
+        let mut required = vec!["input"];
+        if writes {
+            properties.push(("idempotency_key", string_schema()));
+            required.push("idempotency_key");
+        }
+        if amount {
+            properties.push((
+                "amount",
+                JsonValue::Object(object_schema(
+                    [
+                        (
+                            "units",
+                            JsonValue::Object(JsonObject::from([
+                                ("type".to_owned(), JsonValue::String("integer".to_owned())),
+                                ("minimum".to_owned(), JsonValue::Number(0_u64.into())),
+                            ])),
+                        ),
+                        ("unit", string_schema()),
+                    ],
+                    &["units", "unit"],
+                )),
+            ));
+            required.push("amount");
+        }
+        if declared.connector_from.is_some() {
+            properties.push((
+                "connector",
+                JsonValue::Object(JsonObject::from([(
+                    "enum".to_owned(),
+                    JsonValue::Array(connectors.iter().cloned().map(JsonValue::String).collect()),
+                )])),
+            ));
+            required.push("connector");
+        }
+        let mut input_schema = object_schema([], &required);
+        input_schema.insert(
+            "properties".to_owned(),
+            JsonValue::Object(
+                properties
+                    .into_iter()
+                    .map(|(name, schema)| (name.to_owned(), schema))
+                    .collect(),
+            ),
+        );
+        let description = described
+            .iter()
+            .map(|(id, operation)| format!("{id}/{}: {}", allowed.operation, operation.description))
+            .collect::<Vec<_>>()
+            .join("; ");
+        let description = if writes {
+            format!(
+                "{description} A write: name it with an idempotency_key you reuse when retrying it."
+            )
+        } else {
+            description
+        };
+        Ok(call_tool(
             &format!("{}__{}", allowed.requirement, allowed.operation),
             description,
             input_schema,
-            target,
-        ));
-    }
-    for skill in &allowance.skills {
-        let target = TurnTarget::Skill {
-            skill: skill.as_str().to_owned(),
-        };
-        let step = call_step(
-            context,
-            "describe",
-            0,
-            &TurnCall {
-                target: target.clone(),
-                input: JsonObject::new(),
+            TurnTarget::Operation {
+                requirement: allowed.requirement.clone(),
+                operation: allowed.operation.clone(),
             },
-        )
-        .map_err(|reason| RuntimeError::effect_state("describing a child skill", reason))?;
+        ))
+    }
+
+    /// A child skill's tool: its description and its runner's inputs.
+    fn skill_tool(&self, skill: &NonEmptyString) -> Result<TurnTool, RuntimeError> {
+        let target = TurnTarget::Skill {
+            skill: skill.clone(),
+        };
+        let step = self
+            .call_step(0, &target, &JsonObject::new())
+            .map_err(|reason| RuntimeError::effect_state("describing a child skill", reason))?;
         let loaded = load_step_skill(
-            context.graph_dir,
+            self.scope.graph_dir,
             &step,
             StepSkillLoadOptions {
-                env: &context.runtime.options.env,
+                env: &self.scope.runtime.options.env,
             },
         )?;
         let description = crate::load_validated_skill_package(&loaded.directory)?
@@ -450,48 +583,263 @@ pub(crate) fn tools<A>(
             .skill
             .description
             .unwrap_or_else(|| format!("Run the {} skill.", loaded.runner.name));
-        tools.push(call_tool(
+        Ok(call_tool(
             &format!("skill__{}", skill.as_str().trim_start_matches(['.', '/'])),
             description,
             runx_contracts::input_contract_schema(&loaded.runner.inputs),
             target,
-        ));
+        ))
     }
-    tools.push(call_tool(
-        "ask_human",
-        "Ask the human to approve something; the call stays pending until they answer.".to_owned(),
-        object_schema([("reason", string_schema())], &["reason"]),
-        TurnTarget::Ask,
-    ));
-    tools.push(TurnTool {
-        name: "turn_status".to_owned(),
-        description: "Read the turn: its request, what it may call, and how each call ended."
-            .to_owned(),
-        input_schema: object_schema([], &[]),
-        action: TurnToolAction::Status,
-    });
-    tools.push(TurnTool {
-        name: "turn_complete".to_owned(),
-        description: "End the turn with its output; the run continues.".to_owned(),
-        input_schema: match &turn.invocation.envelope.output_schema {
-            Some(JsonValue::Object(schema)) => schema.clone(),
-            _ => runx_contracts::output_value_schema(turn.invocation.envelope.output.as_ref())
-                .as_object()
-                .cloned()
-                .unwrap_or_default(),
-        },
-        action: TurnToolAction::Complete,
-    });
-    let mut seen = std::collections::BTreeSet::new();
-    for tool in &mut tools {
-        let base = tool.name.clone();
-        let mut suffix = 1;
-        while !seen.insert(tool.name.clone()) {
-            suffix += 1;
-            tool.name = mcp_name(&format!("{base}_{suffix}"));
+
+    /// A catalog tool's tool: its description and inputs as the catalog
+    /// declares them.
+    #[cfg(feature = "catalog")]
+    fn catalog_tool(&self, tool: &NonEmptyString) -> Result<TurnTool, RuntimeError> {
+        let inspected = crate::tool_catalogs::dispatch::inspect_catalog_tool(
+            tool.as_str(),
+            &self.scope.runtime.options.env,
+            self.scope.graph_dir,
+            &self.scope.runtime.options.effects,
+        )?;
+        Ok(call_tool(
+            tool.as_str(),
+            inspected
+                .description
+                .unwrap_or_else(|| format!("Runx tool {tool}.")),
+            runx_contracts::input_contract_schema(&inspected.inputs),
+            TurnTarget::Tool { tool: tool.clone() },
+        ))
+    }
+
+    #[cfg(not(feature = "catalog"))]
+    fn catalog_tool(&self, tool: &NonEmptyString) -> Result<TurnTool, RuntimeError> {
+        Err(RuntimeError::UnsupportedAdapter {
+            adapter_type: format!("catalog tool {tool}"),
+        })
+    }
+
+    /// Listing a tool grants it the scopes it declares.
+    #[cfg(feature = "catalog")]
+    fn declared_scopes(&self, tool: &str) -> Result<Vec<String>, String> {
+        crate::tool_catalogs::dispatch::inspect_catalog_tool(
+            tool,
+            &self.scope.runtime.options.env,
+            self.scope.graph_dir,
+            &self.scope.runtime.options.effects,
+        )
+        .map(|inspected| inspected.scopes)
+        .map_err(|error| format!("tool {tool} could not be resolved: {error}"))
+    }
+
+    #[cfg(not(feature = "catalog"))]
+    fn declared_scopes(&self, tool: &str) -> Result<Vec<String>, String> {
+        Err(format!(
+            "tool {tool} needs the tool catalog, which this runtime does not include"
+        ))
+    }
+}
+
+impl<A> Turn for OpenTurn<'_, A>
+where
+    A: SkillAdapter,
+{
+    fn invocation(&self) -> &AgentActInvocation {
+        self.invocation
+    }
+
+    fn step_id(&self) -> &str {
+        self.scope.step_id
+    }
+
+    fn tools(&self) -> Result<Vec<TurnTool>, RuntimeError> {
+        let allowance = &self.scope.agent.allowance;
+        let mut tools = Vec::new();
+        for tool in &allowance.tools {
+            tools.push(self.catalog_tool(tool)?);
         }
+        if !allowance.operations.is_empty() {
+            let connectors =
+                crate::kernel::connectors::ConnectorScope::for_skill(self.scope.graph_dir)
+                    .map_err(|error| {
+                        RuntimeError::effect_state(
+                            "reading the skill's connectors",
+                            error.to_string(),
+                        )
+                    })?;
+            for allowed in &allowance.operations {
+                tools.push(self.operation_tool(&connectors, allowed)?);
+            }
+        }
+        for skill in &allowance.skills {
+            tools.push(self.skill_tool(skill)?);
+        }
+        tools.push(call_tool(
+            "ask_human",
+            "Ask the human to approve something; the call stays pending until they answer."
+                .to_owned(),
+            object_schema([("reason", string_schema())], &["reason"]),
+            TurnTarget::Ask,
+        ));
+        tools.push(TurnTool {
+            name: "turn_status".to_owned(),
+            description: "Read the turn: its request, what it may call, and how each call ended."
+                .to_owned(),
+            input_schema: object_schema([], &[]),
+            action: TurnToolAction::Status,
+        });
+        let envelope = &self.invocation.envelope;
+        tools.push(TurnTool {
+            name: TURN_COMPLETE_TOOL.to_owned(),
+            description: "End the turn with its output; the run continues.".to_owned(),
+            input_schema: match &envelope.output_schema {
+                Some(JsonValue::Object(schema)) => schema.clone(),
+                _ => runx_contracts::output_value_schema(envelope.output.as_ref())
+                    .as_object()
+                    .cloned()
+                    .unwrap_or_default(),
+            },
+            action: TurnToolAction::Complete,
+        });
+        distinct_names(&mut tools);
+        Ok(tools)
     }
-    Ok(tools)
+
+    fn status(&self) -> Result<TurnStatus, RuntimeError> {
+        Ok(TurnStatus {
+            step_id: self.scope.step_id.into(),
+            request_id: self.request.id.as_str().into(),
+            allowance: self.scope.agent.allowance.clone(),
+            calls: self
+                .calls()?
+                .iter()
+                .map(|call| call_result(call.index, &call.target, &call.outcome))
+                .collect::<Result<_, _>>()?,
+        })
+    }
+
+    fn call(
+        &mut self,
+        host: &mut dyn Host,
+        target: TurnTarget,
+        input: JsonObject,
+    ) -> Result<TurnCallResult, RuntimeError> {
+        // A call that may have run settles before the turn goes on, so no
+        // effect is made twice behind an unconfirmed one.
+        if let Some(unsettled) = self.unsettled()? {
+            return Err(RuntimeError::ContinuationRejected {
+                reason: format!(
+                    "call {unsettled} has not settled; it waits on {}",
+                    retry_id(self.scope.step_id, unsettled)
+                ),
+            });
+        }
+        let index = self
+            .calls()?
+            .iter()
+            .map(|call| call.index + 1)
+            .max()
+            .unwrap_or(0);
+        self.run(AnsweringHost::new(host, None), index, target, input)
+    }
+
+    fn settle(&mut self, host: &mut dyn Host, index: u32) -> Result<TurnCallResult, RuntimeError> {
+        let Some(call) = self
+            .calls()?
+            .iter()
+            .find(|call| call.index == index)
+            .cloned()
+        else {
+            return Err(RuntimeError::ContinuationRejected {
+                reason: format!("the turn has no call {index}"),
+            });
+        };
+        let CallOutcome::Pending(waiting) = &call.outcome else {
+            return call_result(index, &call.target, &call.outcome);
+        };
+        // The call asks again what it waits on, unchanged. A claimed call
+        // runs again only on the host's exact acknowledgement, which its new
+        // claim records.
+        let mut answering = AnsweringHost::new(host, Some(waiting));
+        if waiting.id == retry_id(self.scope.step_id, index) {
+            let request = serde_json::to_value(&waiting.value)
+                .and_then(serde_json::from_value)
+                .map_err(|source| RuntimeError::json("reading a claimed call", source))?;
+            let acknowledged = answering
+                .resolve(request)?
+                .is_some_and(|response| response.payload == retry_acknowledgement());
+            if !acknowledged {
+                return Err(RuntimeError::ContinuationRejected {
+                    reason: format!(
+                        "call {index} runs again only on the acknowledgement {{\"retry\": true}}"
+                    ),
+                });
+            }
+        }
+        self.run(answering, index, call.target.clone(), call.input.clone())
+    }
+}
+
+/// How a call ended, as its agent reads it.
+fn call_result(
+    index: u32,
+    target: &TurnTarget,
+    outcome: &CallOutcome,
+) -> Result<TurnCallResult, RuntimeError> {
+    let outcome = match outcome {
+        CallOutcome::Completed(run) if run.outcome.succeeded() => TurnCallOutcome::Completed {
+            output: run.contract.clone(),
+            receipt_id: run.receipt.id.to_string().into(),
+        },
+        CallOutcome::Completed(run) => TurnCallOutcome::Failed {
+            reason: reason(output_error(run)),
+            receipt_id: Some(run.receipt.id.to_string().into()),
+        },
+        CallOutcome::Refused(why) => TurnCallOutcome::Refused {
+            reason: reason(why.clone()),
+        },
+        CallOutcome::Failed(why) => TurnCallOutcome::Failed {
+            reason: reason(why.clone()),
+            receipt_id: None,
+        },
+        CallOutcome::Pending(request) => TurnCallOutcome::Pending {
+            request: serde_json::to_value(&request.value)
+                .and_then(serde_json::from_value)
+                .map_err(|source| RuntimeError::json("reading a call's pending request", source))?,
+        },
+    };
+    Ok(TurnCallResult {
+        index,
+        target: target.clone(),
+        outcome,
+    })
+}
+
+/// The request a claimed call waits on: `<step>/<index>/retry`.
+fn retry_id(step_id: &str, index: u32) -> String {
+    format!("{}/retry", call_step_id(step_id, index))
+}
+
+fn retry_acknowledgement() -> JsonValue {
+    JsonValue::Object(JsonObject::from([(
+        "retry".to_owned(),
+        JsonValue::Bool(true),
+    )]))
+}
+
+fn reason(text: String) -> NonEmptyString {
+    NonEmptyString::new(text).unwrap_or_else(|| "the call gave no reason".into())
+}
+
+fn label(target: &TurnTarget) -> String {
+    match target {
+        TurnTarget::Tool { tool } => format!("tool {tool}"),
+        TurnTarget::Operation {
+            requirement,
+            operation,
+        } => format!("operation {requirement}/{operation}"),
+        TurnTarget::Skill { skill } => format!("skill {skill}"),
+        TurnTarget::Ask => "ask".to_owned(),
+    }
 }
 
 fn call_tool(
@@ -504,9 +852,28 @@ fn call_tool(
         name: mcp_name(name),
         description,
         input_schema,
-        action: TurnToolAction::Call { target },
+        action: TurnToolAction::Call(target),
     }
 }
+
+/// Give each tool a distinct name: a repeat takes the first free `_<n>`
+/// suffix, shortening the name to keep it within the grammar.
+fn distinct_names(tools: &mut [TurnTool]) {
+    let mut seen = std::collections::BTreeSet::new();
+    for tool in tools {
+        let base = tool.name.clone();
+        let mut suffix = 1;
+        while !seen.insert(tool.name.clone()) {
+            suffix += 1;
+            let tail = format!("_{suffix}");
+            let head = base.get(..base.len().min(MCP_NAME_BYTES - tail.len()));
+            tool.name = format!("{}{tail}", head.unwrap_or_default());
+        }
+    }
+}
+
+/// The longest MCP tool name.
+const MCP_NAME_BYTES: usize = 64;
 
 /// A name in the MCP tool-name grammar: `[A-Za-z0-9_-]`, at most 64 bytes.
 fn mcp_name(raw: &str) -> String {
@@ -520,7 +887,9 @@ fn mcp_name(raw: &str) -> String {
             }
         })
         .collect::<String>();
-    name.get(..name.len().min(64)).unwrap_or(&name).to_owned()
+    name.get(..name.len().min(MCP_NAME_BYTES))
+        .unwrap_or(&name)
+        .to_owned()
 }
 
 fn string_schema() -> JsonValue {
@@ -558,181 +927,10 @@ fn object_schema<const N: usize>(
     ])
 }
 
-/// An operation tool's input: the call fields the turn accepts, with the
-/// operation's own input schema when one connector serves it.
-fn operation_contract<A>(
-    context: &TurnCallContext<'_, A>,
-    scope: &crate::kernel::connectors::ConnectorScope,
-    allowed: &runx_contracts::AllowedOperation,
-) -> Result<(String, JsonObject), RuntimeError> {
-    let declared = context
-        .manifest
-        .connectors
-        .get(allowed.requirement.as_str())
-        .ok_or_else(|| {
-            RuntimeError::effect_state(
-                "describing an operation",
-                format!("requirement {} is not declared", allowed.requirement),
-            )
-        })?;
-    let connectors = if declared.connector_from.is_some() {
-        declared
-            .allowed_connectors
-            .iter()
-            .map(|id| id.as_str().to_owned())
-            .collect::<Vec<_>>()
-    } else {
-        vec![allowed.requirement.as_str().to_owned()]
-    };
-    let mut described = Vec::new();
-    for id in &connectors {
-        let connector = scope.connector(id).map_err(|error| {
-            RuntimeError::effect_state("describing an operation", error.to_string())
-        })?;
-        let operation = connector
-            .manifest
-            .operations
-            .iter()
-            .find(|(name, _)| name.as_str() == allowed.operation.as_str())
-            .map(|(_, operation)| operation.clone())
-            .ok_or_else(|| {
-                RuntimeError::effect_state(
-                    "describing an operation",
-                    format!("{id} has no operation {}", allowed.operation),
-                )
-            })?;
-        described.push((id.clone(), operation));
-    }
-    let writes = described.iter().any(|(_, operation)| {
-        operation.access() == runx_contracts::connector::OperationAccess::Mutate
-    });
-    let amount = described
-        .iter()
-        .any(|(_, operation)| operation.amount == runx_contracts::connector::AmountRule::Required);
-    let input = match described.as_slice() {
-        [(_, operation)] => operation.input_schema.clone().map_or_else(
-            || JsonValue::Object(object_schema([], &[])),
-            JsonValue::Object,
-        ),
-        _ => JsonValue::Object(JsonObject::from([(
-            "type".to_owned(),
-            JsonValue::String("object".to_owned()),
-        )])),
-    };
-    let mut properties = vec![("input", input)];
-    let mut required = vec!["input"];
-    if writes {
-        properties.push(("idempotency_key", string_schema()));
-        required.push("idempotency_key");
-    }
-    if amount {
-        properties.push((
-            "amount",
-            JsonValue::Object(object_schema(
-                [
-                    (
-                        "units",
-                        JsonValue::Object(JsonObject::from([
-                            ("type".to_owned(), JsonValue::String("integer".to_owned())),
-                            ("minimum".to_owned(), JsonValue::Number(0_u64.into())),
-                        ])),
-                    ),
-                    ("unit", string_schema()),
-                ],
-                &["units", "unit"],
-            )),
-        ));
-        required.push("amount");
-    }
-    if declared.connector_from.is_some() {
-        properties.push((
-            "connector",
-            JsonValue::Object(JsonObject::from([(
-                "enum".to_owned(),
-                JsonValue::Array(connectors.iter().cloned().map(JsonValue::String).collect()),
-            )])),
-        ));
-        required.push("connector");
-    }
-    let mut schema = object_schema([], &required);
-    schema.insert(
-        "properties".to_owned(),
-        JsonValue::Object(
-            properties
-                .into_iter()
-                .map(|(name, schema)| (name.to_owned(), schema))
-                .collect(),
-        ),
-    );
-    let description = described
-        .iter()
-        .map(|(id, operation)| format!("{id}/{}: {}", allowed.operation, operation.description))
-        .collect::<Vec<_>>()
-        .join("; ");
-    let description = if writes {
-        format!(
-            "{description} A write: name it with an idempotency_key you reuse when retrying it."
-        )
-    } else {
-        description
-    };
-    Ok((description, schema))
-}
-
-/// A catalog tool's description and input schema, as the catalog declares them.
-#[cfg(feature = "catalog")]
-fn catalog_tool_contract<A>(
-    context: &TurnCallContext<'_, A>,
-    tool: &str,
-) -> Result<(String, JsonObject), RuntimeError> {
-    let inspected = crate::tool_catalogs::dispatch::inspect_catalog_tool(
-        tool,
-        &context.runtime.options.env,
-        context.graph_dir,
-        &context.runtime.options.effects,
-    )?;
-    Ok((
-        inspected
-            .description
-            .unwrap_or_else(|| format!("Runx tool {tool}.")),
-        runx_contracts::input_contract_schema(&inspected.inputs),
-    ))
-}
-
-#[cfg(not(feature = "catalog"))]
-fn catalog_tool_contract<A>(
-    _: &TurnCallContext<'_, A>,
-    tool: &str,
-) -> Result<(String, JsonObject), RuntimeError> {
-    Err(RuntimeError::UnsupportedAdapter {
-        adapter_type: format!("catalog tool {tool}"),
-    })
-}
-
-/// Listing a tool grants it the scopes it declares.
-#[cfg(feature = "catalog")]
-fn declared_scopes<A>(context: &TurnCallContext<'_, A>, tool: &str) -> Result<Vec<String>, String> {
-    crate::tool_catalogs::dispatch::inspect_catalog_tool(
-        tool,
-        &context.runtime.options.env,
-        context.graph_dir,
-        &context.runtime.options.effects,
-    )
-    .map(|inspected| inspected.scopes)
-    .map_err(|error| format!("tool {tool} could not be resolved: {error}"))
-}
-
-#[cfg(not(feature = "catalog"))]
-fn declared_scopes<A>(_: &TurnCallContext<'_, A>, tool: &str) -> Result<Vec<String>, String> {
-    Err(format!(
-        "tool {tool} needs the tool catalog, which this runtime does not include"
-    ))
-}
-
 fn pending_request(request: &ResolutionRequest) -> Result<PendingRequest, RuntimeError> {
     let value = serde_json::to_value(request)
         .and_then(serde_json::from_value::<JsonValue>)
-        .map_err(|source| RuntimeError::json("encoding a call's pending request", source))?;
+        .map_err(|source| RuntimeError::json("encoding a pending request", source))?;
     let id = match request {
         ResolutionRequest::Input { id, .. }
         | ResolutionRequest::Approval { id, .. }
@@ -746,133 +944,38 @@ fn pending_request(request: &ResolutionRequest) -> Result<PendingRequest, Runtim
     })
 }
 
-/// The turn as the agent sees it: what it answers, what it may call, and how
-/// each call it made ended.
-pub(crate) fn status(run_id: &str, turn: &OpenTurn) -> Result<JsonValue, RuntimeError> {
-    to_json(&TurnStatus {
-        schema: "runx.turn.status.v1",
-        run_id,
-        step_id: &turn.step_id,
-        request_id: &turn.request.id,
-        allowance: &turn.invocation.allowance,
-        calls: turn
-            .calls
-            .iter()
-            .map(|call| CallView::of(call.index, &call.target, &call.outcome))
-            .collect(),
-    })
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-/// One call's outcome as the agent sees it.
-pub(crate) fn outcome_value(
-    index: u32,
-    target: &TurnTarget,
-    outcome: &CallOutcome,
-) -> Result<JsonValue, RuntimeError> {
-    to_json(&CallView::of(index, target, outcome))
-}
-
-/// The tools the turn offers, for a host that serves them.
-pub(crate) fn description(
-    run_id: &str,
-    turn: &OpenTurn,
-    tools: &[TurnTool],
-) -> Result<JsonValue, RuntimeError> {
-    to_json(&TurnDescription {
-        schema: "runx.turn.tools.v1",
-        run_id,
-        step_id: &turn.step_id,
-        request_id: &turn.request.id,
-        instructions: turn.invocation.envelope.instructions.as_str(),
-        inputs: &turn.invocation.envelope.inputs,
-        tools,
-    })
-}
-
-#[derive(Serialize)]
-struct TurnDescription<'a> {
-    schema: &'static str,
-    run_id: &'a str,
-    step_id: &'a str,
-    request_id: &'a str,
-    instructions: &'a str,
-    inputs: &'a JsonObject,
-    tools: &'a [TurnTool],
-}
-
-#[derive(Serialize)]
-struct TurnStatus<'a> {
-    schema: &'static str,
-    run_id: &'a str,
-    step_id: &'a str,
-    request_id: &'a str,
-    allowance: &'a runx_contracts::TurnAllowance,
-    calls: Vec<CallView<'a>>,
-}
-
-#[derive(Serialize)]
-struct CallView<'a> {
-    index: u32,
-    target: &'a TurnTarget,
-    #[serde(flatten)]
-    outcome: OutcomeView<'a>,
-}
-
-#[derive(Serialize)]
-#[serde(tag = "status", rename_all = "snake_case")]
-enum OutcomeView<'a> {
-    /// The call ran; a step that ran and failed reports `failed` with its
-    /// receipt.
-    Completed {
-        output: &'a JsonObject,
-        receipt_id: String,
-    },
-    Failed {
-        #[serde(skip_serializing_if = "Option::is_none")]
-        reason: Option<&'a str>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        receipt_id: Option<String>,
-    },
-    Refused {
-        reason: &'a str,
-    },
-    Pending {
-        request_id: &'a str,
-        request: &'a JsonValue,
-    },
-}
-
-impl<'a> CallView<'a> {
-    fn of(index: u32, target: &'a TurnTarget, outcome: &'a CallOutcome) -> Self {
-        let outcome = match outcome {
-            CallOutcome::Completed(run) if run.outcome.succeeded() => OutcomeView::Completed {
-                output: &run.contract,
-                receipt_id: run.receipt.id.to_string(),
-            },
-            CallOutcome::Completed(run) => OutcomeView::Failed {
-                reason: None,
-                receipt_id: Some(run.receipt.id.to_string()),
-            },
-            CallOutcome::Refused(reason) => OutcomeView::Refused { reason },
-            CallOutcome::Failed(reason) => OutcomeView::Failed {
-                reason: Some(reason),
-                receipt_id: None,
-            },
-            CallOutcome::Pending(request) => OutcomeView::Pending {
-                request_id: &request.id,
-                request: &request.value,
-            },
-        };
-        Self {
-            index,
-            target,
-            outcome,
+    fn tool(name: &str) -> TurnTool {
+        TurnTool {
+            name: mcp_name(name),
+            description: String::new(),
+            input_schema: JsonObject::new(),
+            action: TurnToolAction::Status,
         }
     }
-}
 
-fn to_json(value: &impl Serialize) -> Result<JsonValue, RuntimeError> {
-    serde_json::to_value(value)
-        .and_then(serde_json::from_value)
-        .map_err(|source| RuntimeError::json("encoding a turn", source))
+    #[test]
+    fn names_stay_distinct_and_within_the_grammar() {
+        let long = "x".repeat(80);
+        let mut tools = [
+            tool(&long),
+            tool(&long),
+            tool(&long),
+            tool("a.b"),
+            tool("a_b"),
+        ];
+        distinct_names(&mut tools);
+        let names = tools
+            .iter()
+            .map(|tool| tool.name.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(names[0], "x".repeat(64));
+        assert_eq!(names[1], format!("{}_2", "x".repeat(62)));
+        assert_eq!(names[2], format!("{}_3", "x".repeat(62)));
+        assert_eq!(&names[3..], ["a_b", "a_b_2"]);
+        assert!(names.iter().all(|name| name.len() <= MCP_NAME_BYTES));
+    }
 }

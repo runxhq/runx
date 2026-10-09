@@ -12,8 +12,6 @@ use runx_contracts::{
     ResolutionResponse, ResolutionResponseActor,
 };
 use runx_parser::{ExecutionGraph, PROFILE_FILE, WorkerTool, parse_graph_yaml, validate_graph};
-use runx_runtime::adapters::agent_loop::ToolExecutor;
-use runx_runtime::adapters::agent_tools::RuntimeToolExecutor;
 use runx_runtime::adapters::javascript::JavaScriptAdapter;
 use runx_runtime::{
     CredentialDelivery, Executable, HOSTED_API_BASE_URL_ENV, HOSTED_API_TOKEN_ENV, Host,
@@ -39,11 +37,17 @@ pub(super) fn register(c: &mut Criterion) {
         .expect("runtime-path benchmark resource metrics must be recorded");
 
     c.bench_function("native_capability_dispatch", |b| {
-        b.iter(|| {
-            fixtures
-                .native_executor
-                .execute("data.digest", black_box(&fixtures.native_input))
-        })
+        b.iter_batched(
+            || fixtures.native_graph.clone(),
+            |graph| {
+                run_graph(
+                    &fixtures.next_run(&fixtures.context_runtime),
+                    fixtures.root(),
+                    graph,
+                )
+            },
+            BatchSize::SmallInput,
+        )
     });
 
     c.bench_function("graph_context_to_module", |b| {
@@ -110,8 +114,7 @@ struct RuntimePathFixtures {
     directory: TempDir,
     store: Arc<KernelStore>,
     runs: AtomicU64,
-    native_executor: RuntimeToolExecutor,
-    native_input: JsonValue,
+    native_graph: ExecutionGraph,
     context_runtime: Runtime<JavaScriptAdapter>,
     context_graph: ExecutionGraph,
     module_invocation: SkillInvocation,
@@ -137,20 +140,7 @@ impl RuntimePathFixtures {
             )
         };
 
-        let native_executor = RuntimeToolExecutor::new(
-            BTreeMap::new(),
-            directory.path().to_path_buf(),
-            RuntimeEffectRegistry::default(),
-            CREATED_AT,
-            BTreeMap::from([("data.digest".to_owned(), Vec::new())]),
-        );
-        let native_input = JsonValue::Object(JsonObject::from([(
-            "value".to_owned(),
-            JsonValue::Object(JsonObject::from([(
-                "subject".to_owned(),
-                JsonValue::String("native-dispatch".to_owned()),
-            )])),
-        )]));
+        let native_graph = graph(NATIVE_GRAPH)?;
         let context_runtime = Runtime::new(
             JavaScriptAdapter::default(),
             runtime_options(evaluation("run_context_smoke")?),
@@ -215,8 +205,7 @@ impl RuntimePathFixtures {
             directory,
             store,
             runs: AtomicU64::new(0),
-            native_executor,
-            native_input,
+            native_graph,
             context_runtime,
             context_graph,
             module_invocation,
@@ -249,9 +238,10 @@ impl RuntimePathFixtures {
     }
 
     fn smoke(&self) -> Result<JsonObject, Box<dyn Error>> {
-        require_success(
-            self.native_executor
-                .execute("data.digest", &self.native_input)?,
+        run_graph(
+            &self.next_run(&self.context_runtime),
+            self.root(),
+            self.native_graph.clone(),
         )?;
         let cold = JavaScriptAdapter::new_session();
         require_success(cold.invoke(self.module_invocation.clone())?)?;
@@ -546,6 +536,18 @@ fn javascript_invocation(root: &Path, inputs: JsonObject) -> SkillInvocation {
         credential_delivery: CredentialDelivery::none(),
     }
 }
+
+/// A native capability as every caller reaches it: one tool step, admitted,
+/// dispatched and sealed.
+const NATIVE_GRAPH: &str = r#"
+name: runtime-native-dispatch
+steps:
+  - id: digest
+    tool: data.digest
+    inputs:
+      value:
+        subject: native-dispatch
+"#;
 
 const CONTEXT_GRAPH: &str = r#"
 name: runtime-context-to-module

@@ -156,7 +156,8 @@ pub use host_protocol::{
     HostNeedsAgentState, HostRunApproval, HostRunApprovalDecision, HostRunKind, HostRunLineage,
     HostRunLineageKind, HostRunResult, HostRunState, HostRunVerification,
     HostRunVerificationStatus, HostTerminalState, Question, ResolutionRequest, ResolutionResponse,
-    ResolutionResponseActor, TurnAllowance,
+    ResolutionResponseActor, TurnAllowance, TurnCallOutcome, TurnCallResult, TurnStatus,
+    TurnTarget,
 };
 pub use json::{
     JsonNumber, JsonObject, JsonValue, MAX_PORTABLE_INTEGER, json_bool_field, json_object,

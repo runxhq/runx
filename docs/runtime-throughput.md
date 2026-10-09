@@ -41,12 +41,12 @@ Rust runtime workloads live in
 - `twitter_archive_selection`
 
 The runtime-path workloads invoke production APIs rather than benchmark-only
-reimplementations. `native_capability_dispatch` executes the managed-agent
-executor against `data.digest`; that executor and graph tool steps share the
-same canonical dispatcher. The workloads also cover graph context flowing
-from a native output into a deterministic module; fresh and reused module
-adapters; a near-4 MiB JSON input; and provider-permission admission through
-receipt sealing without contacting a live provider.
+reimplementations. `native_capability_dispatch` runs `data.digest` as a
+one-step graph: the path every graph tool step and agent turn call takes,
+through admission, dispatch and receipt sealing. The workloads also cover
+graph context flowing from a native output into a deterministic module; fresh
+and reused module adapters; a near-4 MiB JSON input; and provider-permission
+admission through receipt sealing without contacting a live provider.
 
 `provider_effect_finality` is the production authority-to-finality workload. It
 executes a connector write that explicitly asks for human approval,

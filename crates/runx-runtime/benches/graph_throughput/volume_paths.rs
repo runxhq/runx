@@ -30,8 +30,8 @@ fn output_object(output: InvocationOutput) -> Result<JsonObject, Box<dyn Error>>
     }
 }
 
-fn wrapped_data(output: InvocationOutput, name: &str) -> Result<JsonObject, Box<dyn Error>> {
-    output_object(output)?
+fn wrapped_data(mut output: JsonObject, name: &str) -> Result<JsonObject, Box<dyn Error>> {
+    output
         .remove(name)
         .and_then(|value| match value {
             JsonValue::Object(mut wrapper) => wrapper.remove("data"),

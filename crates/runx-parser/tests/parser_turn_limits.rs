@@ -68,6 +68,10 @@ runners:
             return Err("expected agent steps".to_owned());
         };
         assert_eq!(agent.allowance, expected);
+        assert_eq!(
+            agent.connectors, manifest.connectors,
+            "each turn admits its operations under the skill's declarations"
+        );
     }
     Ok(())
 }

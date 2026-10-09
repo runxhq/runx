@@ -2431,6 +2431,119 @@ fn agent_context_envelope() -> Value {
     })
 }
 
+fn turn_call() -> Value {
+    json!({
+        "index": 0,
+        "target": { "kind": "tool", "tool": "data.digest" },
+        "outcome": {
+            "status": "completed",
+            "output": { "digest": "sha256:abc" },
+            "receipt_id": "rx_call",
+        },
+    })
+}
+
+pub(super) fn turn_call_corpus() -> Vec<(&'static str, Value)> {
+    let valid = turn_call();
+    vec![
+        ("valid completed tool call", valid.clone()),
+        (
+            "valid refused operation call",
+            json!({
+                "index": 1,
+                "target": { "kind": "operation", "requirement": "mail", "operation": "send" },
+                "outcome": { "status": "refused", "reason": "not in the turn's allowance" },
+            }),
+        ),
+        (
+            "valid failed skill call without receipt",
+            json!({
+                "index": 2,
+                "target": { "kind": "skill", "skill": "./triage" },
+                "outcome": { "status": "failed", "reason": "the child skill failed" },
+            }),
+        ),
+        (
+            "valid pending ask",
+            json!({
+                "index": 3,
+                "target": { "kind": "ask" },
+                "outcome": {
+                    "status": "pending",
+                    "request": {
+                        "kind": "approval",
+                        "id": "answer/3",
+                        "gate": { "id": "answer/3", "reason": "Send it?" },
+                    },
+                },
+            }),
+        ),
+        ("missing outcome", drop_field(valid.clone(), "outcome")),
+        (
+            "unknown target kind",
+            set_field(valid.clone(), "target", json!({ "kind": "shell" })),
+        ),
+        (
+            "tool target without its tool",
+            set_field(valid.clone(), "target", json!({ "kind": "tool" })),
+        ),
+        (
+            "completed without receipt",
+            set_field(
+                valid.clone(),
+                "outcome",
+                json!({ "status": "completed", "output": {} }),
+            ),
+        ),
+        (
+            "refused with empty reason",
+            set_field(
+                valid.clone(),
+                "outcome",
+                json!({ "status": "refused", "reason": "" }),
+            ),
+        ),
+        (
+            "pending without its request",
+            set_field(valid.clone(), "outcome", json!({ "status": "pending" })),
+        ),
+        (
+            "additional property",
+            set_field(valid.clone(), "bogus", json!(true)),
+        ),
+    ]
+}
+
+pub(super) fn turn_status_corpus() -> Vec<(&'static str, Value)> {
+    let valid = json!({
+        "step_id": "answer",
+        "request_id": "agent.answer.output",
+        "allowance": { "tools": ["data.digest"] },
+        "calls": [turn_call()],
+    });
+    vec![
+        ("valid status", valid.clone()),
+        (
+            "valid status without calls",
+            set_field(valid.clone(), "calls", json!([])),
+        ),
+        ("missing allowance", drop_field(valid.clone(), "allowance")),
+        ("missing calls", drop_field(valid.clone(), "calls")),
+        (
+            "empty request id",
+            set_field(valid.clone(), "request_id", json!("")),
+        ),
+        (
+            "invalid call",
+            set_field(valid.clone(), "calls", json!([{ "index": 0 }])),
+        ),
+        (
+            "additional property",
+            set_field(valid.clone(), "run_id", json!("rx_1")),
+        ),
+    ]
+}
+
 pub(super) fn resolution_request_corpus() -> Vec<(&'static str, Value)> {
     let input = json!({
         "kind": "input",

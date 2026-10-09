@@ -1,10 +1,12 @@
 use std::collections::BTreeMap;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use runx_contracts::JsonObject;
 
 use crate::effects::RuntimeEffectRegistry;
 use crate::execution::runner::turn::TurnToolAction;
+use crate::execution::skill_front::TurnSession;
 
 #[derive(Clone, Debug)]
 pub struct McpServerOptions {
@@ -38,19 +40,20 @@ pub struct McpServerTool {
 pub enum McpServerToolBehavior {
     Fixed(McpToolResult),
     Skill(Box<McpServerSkillExecution>),
-    Turn(Box<McpTurnTool>),
+    Turn(McpTurnTool),
 }
 
 /// A tool of an open agent turn: what calling it does, on which turn.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub struct McpTurnTool {
-    pub run_id: String,
-    /// The request id of the turn the tool belongs to.
-    pub turn: String,
+    pub turn: Arc<TurnSession>,
     pub action: TurnToolAction,
-    pub receipt_dir: Option<PathBuf>,
-    pub env: BTreeMap<String, String>,
-    pub cwd: PathBuf,
+}
+
+impl PartialEq for McpTurnTool {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.turn, &other.turn) && self.action == other.action
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]

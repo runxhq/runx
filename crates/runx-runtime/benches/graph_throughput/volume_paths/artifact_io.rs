@@ -2,12 +2,14 @@ use std::collections::BTreeMap;
 use std::error::Error;
 use std::fs;
 use std::hint::black_box;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use criterion::Criterion;
 use runx_contracts::{JsonNumber, JsonObject, JsonValue};
-use runx_runtime::RuntimeEffectRegistry;
-use runx_runtime::adapters::agent_loop::ToolExecutor;
-use runx_runtime::adapters::agent_tools::RuntimeToolExecutor;
+use runx_parser::{parse_graph_yaml, validate_graph};
+use runx_runtime::adapters::javascript::JavaScriptAdapter;
+use runx_runtime::{KernelStore, NoopHost, RunLog, Runtime, RuntimeOptions};
 use tempfile::TempDir;
 
 use super::{bool_field, u64_field, wrapped_data};
@@ -55,31 +57,17 @@ fn register_continuation(c: &mut Criterion, name: &'static str, bytes: usize) {
 }
 
 struct ArtifactFixture {
-    _directory: TempDir,
-    executor: RuntimeToolExecutor,
-    admit_input: JsonValue,
+    calls: ToolCalls,
+    admit_input: JsonObject,
     artifact_ref: String,
     bytes: u64,
 }
 
 impl ArtifactFixture {
     fn new(bytes: usize) -> Result<Self, Box<dyn Error>> {
-        let directory = TempDir::new()?;
-        fs::write(directory.path().join("artifact.txt"), vec![b'x'; bytes])?;
-        let executor = RuntimeToolExecutor::new(
-            BTreeMap::from([(
-                "RUNX_CWD".to_owned(),
-                directory.path().to_string_lossy().into_owned(),
-            )]),
-            directory.path().to_path_buf(),
-            RuntimeEffectRegistry::default(),
-            "2026-07-20T00:00:00Z",
-            BTreeMap::from([
-                ("artifact.admit".to_owned(), Vec::new()),
-                ("artifact.read".to_owned(), Vec::new()),
-            ]),
-        );
-        let admit_input = JsonValue::Object(JsonObject::from([
+        let calls = ToolCalls::new()?;
+        fs::write(calls.root().join("artifact.txt"), vec![b'x'; bytes])?;
+        let admit_input = JsonObject::from([
             (
                 "path".to_owned(),
                 JsonValue::String("artifact.txt".to_owned()),
@@ -88,11 +76,10 @@ impl ArtifactFixture {
                 "media_type".to_owned(),
                 JsonValue::String("text/plain".to_owned()),
             ),
-        ]));
-        let artifact_ref = admit(&executor, &admit_input)?;
+        ]);
+        let artifact_ref = admit(&calls, &admit_input)?;
         Ok(Self {
-            _directory: directory,
-            executor,
+            calls,
             admit_input,
             artifact_ref,
             bytes: bytes as u64,
@@ -100,7 +87,7 @@ impl ArtifactFixture {
     }
 
     fn admit(&self) -> Result<String, Box<dyn Error>> {
-        admit(&self.executor, &self.admit_input)
+        admit(&self.calls, &self.admit_input)
     }
 
     fn read_all(&self) -> Result<u64, Box<dyn Error>> {
@@ -108,9 +95,9 @@ impl ArtifactFixture {
         let mut pages = 0_u64;
         loop {
             let page = wrapped_data(
-                self.executor.execute(
+                self.calls.call(
                     "artifact.read",
-                    &JsonValue::Object(JsonObject::from([
+                    JsonObject::from([
                         (
                             "artifact_ref".to_owned(),
                             JsonValue::String(self.artifact_ref.clone()),
@@ -124,7 +111,7 @@ impl ArtifactFixture {
                             JsonValue::Number(JsonNumber::U64(PAGE_BYTES)),
                         ),
                         ("encoding".to_owned(), JsonValue::String("utf8".to_owned())),
-                    ])),
+                    ]),
                 )?,
                 "artifact_page",
             )?;
@@ -149,12 +136,87 @@ impl ArtifactFixture {
     }
 }
 
-fn admit(executor: &RuntimeToolExecutor, input: &JsonValue) -> Result<String, Box<dyn Error>> {
-    wrapped_data(executor.execute("artifact.admit", input)?, "local_artifact")?
-        .remove("artifact_ref")
-        .and_then(|value| match value {
-            JsonValue::String(value) => Some(value),
-            _ => None,
+/// Native tool calls as every caller makes them: each a one-step graph on a
+/// run of its own, admitted, dispatched and sealed.
+struct ToolCalls {
+    directory: TempDir,
+    store: Arc<KernelStore>,
+    runtime: Runtime<JavaScriptAdapter>,
+    runs: AtomicU64,
+}
+
+impl ToolCalls {
+    fn new() -> Result<Self, Box<dyn Error>> {
+        let directory = TempDir::new()?;
+        let store = KernelStore::open(&directory.path().join(".runx"))?;
+        let env = BTreeMap::from([(
+            "RUNX_CWD".to_owned(),
+            directory.path().to_string_lossy().into_owned(),
+        )]);
+        let runtime = Runtime::new(
+            JavaScriptAdapter::default(),
+            RuntimeOptions::local_development(env, Self::evaluation(&store, "run_artifact_io")?),
+        );
+        Ok(Self {
+            directory,
+            store,
+            runtime,
+            runs: AtomicU64::new(0),
         })
-        .ok_or_else(|| std::io::Error::other("artifact admission omitted its reference").into())
+    }
+
+    fn root(&self) -> &std::path::Path {
+        self.directory.path()
+    }
+
+    fn evaluation(store: &Arc<KernelStore>, run_id: &str) -> Result<RunLog, Box<dyn Error>> {
+        Ok(RunLog::evaluation(
+            Arc::clone(store),
+            run_id,
+            "artifact-io",
+            run_id,
+            "2026-07-20T00:00:00Z",
+        )?)
+    }
+
+    /// The step contract `tool` produced from `inputs`.
+    fn call(&self, tool: &str, inputs: JsonObject) -> Result<JsonObject, Box<dyn Error>> {
+        let run_id = format!("run_artifact_{}", self.runs.fetch_add(1, Ordering::Relaxed));
+        let graph = validate_graph(parse_graph_yaml(&serde_json::to_string(
+            &serde_json::json!({
+                "name": "artifact-io",
+                "steps": [{"id": "call", "tool": tool, "inputs": inputs}],
+            }),
+        )?)?)?;
+        let mut run = self
+            .runtime
+            .for_run(Self::evaluation(&self.store, &run_id)?)
+            .run_graph_with_host(self.root(), graph, &mut NoopHost)?;
+        let step = run
+            .steps
+            .pop()
+            .ok_or_else(|| std::io::Error::other("the tool step did not run"))?;
+        if !step.outcome.succeeded() {
+            return Err(std::io::Error::other(
+                step.outcome
+                    .failure_message()
+                    .unwrap_or_else(|| format!("{tool} failed")),
+            )
+            .into());
+        }
+        Ok(step.contract)
+    }
+}
+
+fn admit(calls: &ToolCalls, input: &JsonObject) -> Result<String, Box<dyn Error>> {
+    wrapped_data(
+        calls.call("artifact.admit", input.clone())?,
+        "local_artifact",
+    )?
+    .remove("artifact_ref")
+    .and_then(|value| match value {
+        JsonValue::String(value) => Some(value),
+        _ => None,
+    })
+    .ok_or_else(|| std::io::Error::other("artifact admission omitted its reference").into())
 }

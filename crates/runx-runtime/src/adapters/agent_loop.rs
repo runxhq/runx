@@ -12,10 +12,9 @@
 //! cap is enforced by the governed tool execution path; duplicating that
 //! accounting here would be a second source of truth.
 //!
-//! Output and telemetry reuse the existing agent contracts ([`AgentResolution`],
-//! [`AgentExecutionTelemetry`], [`AgentToolExecutionTrace`]) and tool execution
-//! reuses the runtime's universal [`InvocationOutput`]; this module only adds the two
-//! seams that did not exist before (the per-turn model call and tool execution).
+//! Telemetry reuses the agent contracts ([`AgentExecutionTelemetry`],
+//! [`AgentToolExecutionTrace`]). A tool call can wait on a human; the pass
+//! then ends, and a later pass continues from what the turn recorded.
 //!
 // Module rationale: the governed agent loop, its provider and
 // executor seams, the transcript contracts, and the loop-coverage tests belong in
@@ -26,9 +25,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use runx_contracts::{JsonValue, OutputField, validate_output_value};
 
-use super::agent::{AgentExecutionTelemetry, AgentResolution, AgentToolExecutionTrace};
+use super::agent::{AgentExecutionTelemetry, AgentToolExecutionTrace};
 use crate::RuntimeError;
-use crate::adapter::{InvocationOutput, InvocationStatus};
 
 pub(crate) const UNRECOGNIZED_MODEL_TOOL: &str = "unrecognized_tool";
 
@@ -127,16 +125,33 @@ pub trait ModelCaller {
     fn next_tool_uses(&self, transcript: &[AgentTurn]) -> Result<Vec<AgentToolUse>, RuntimeError>;
 }
 
-/// Executes one chosen tool through the governed runtime, returning the standard
-/// [`InvocationOutput`]. Production implementations delegate to skill execution (which
-/// passes through authority admission); tests supply a fake.
+/// Executes one chosen tool through the governed runtime. Production
+/// executors make each call through the agent's turn, which admits and
+/// records it; tests supply a fake.
 pub trait ToolExecutor {
     /// Return the canonical name this executor would admit for execution.
     /// Model-authored names that were not offered must return `None`; the loop
     /// records only a fixed sentinel for those attempts.
     fn admitted_tool_name(&self, tool: &str) -> Option<String>;
 
-    fn execute(&self, tool: &str, input: &JsonValue) -> Result<InvocationOutput, RuntimeError>;
+    fn execute(&mut self, tool: &str, input: &JsonValue) -> Result<ToolOutcome, RuntimeError>;
+}
+
+/// How one tool call ended for the loop.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ToolOutcome {
+    /// What the model reads back, and whether the call failed.
+    Result { content: String, is_error: bool },
+    /// The call waits on a human; the pass ends here.
+    Paused,
+}
+
+/// How a pass of the loop ended without failing.
+#[derive(Clone, Debug, PartialEq)]
+pub struct AgentLoopEnd {
+    /// The final result; `None` when a call paused the pass.
+    pub answer: Option<JsonValue>,
+    pub telemetry: AgentExecutionTelemetry,
 }
 
 /// Loop bounds and the name of the tool the model calls to finalize.
@@ -156,16 +171,6 @@ pub struct AgentLoopConfig {
     pub final_result_output: Option<BTreeMap<String, OutputField>>,
     /// Exact root schema when packet contracts refine or wrap the field map.
     pub final_result_schema: Option<JsonValue>,
-}
-
-fn tool_result_content(output: &InvocationOutput, is_error: bool) -> String {
-    if is_error {
-        output
-            .failure_message()
-            .unwrap_or_else(|| output.rendered_value())
-    } else {
-        output.rendered_value()
-    }
 }
 
 /// Ask the model for the next tool uses, tolerating a transient empty turn by
@@ -193,7 +198,8 @@ where
     Err(AgentLoopFailureReason::EmptyTurnBudgetExhausted)
 }
 
-fn failure_telemetry(
+/// The loop's accounting so far.
+fn telemetry(
     rounds: u32,
     model_calls: u32,
     tool_calls: u32,
@@ -209,30 +215,27 @@ fn failure_telemetry(
     }
 }
 
-/// Run the bounded tool-use loop, returning the existing [`AgentResolution`] when
-/// the model finalizes. Fails closed on an empty turn or on exhausting the round
-/// budget without a final result.
+/// Run the bounded tool-use loop: it ends with the model's final result, or
+/// paused when a call waits on a human. Fails closed on an empty turn or on
+/// exhausting the round budget without a final result.
 // Function rationale: this is one bounded round loop whose
 // turn sequencing (model call, fail-closed checks, per-tool execution, transcript
 // append, telemetry accumulation) must stay linear to remain auditable.
 pub fn run_agent_loop<M, T>(
     config: &AgentLoopConfig,
     model: &M,
-    executor: &T,
+    executor: &mut T,
     prompt: String,
-) -> Result<AgentResolution, AgentLoopFailure>
+) -> Result<AgentLoopEnd, AgentLoopFailure>
 where
     M: ModelCaller + ?Sized,
-    T: ToolExecutor,
+    T: ToolExecutor + ?Sized,
 {
     let mut transcript = vec![AgentTurn::User(prompt)];
     let mut model_calls: u32 = 0;
     let mut tool_calls: u32 = 0;
     let mut tools: Vec<String> = Vec::new();
     let mut tool_executions: Vec<AgentToolExecutionTrace> = Vec::new();
-    // The real result of the last successful governed tool call, captured from the
-    // tool output so a domain receipt records the effect, not the model's retelling.
-    let mut last_effect: Option<JsonValue> = None;
     let mut seen_tool_call_ids = BTreeSet::new();
 
     for round in 1..=config.max_rounds {
@@ -247,7 +250,7 @@ where
                 return Err(AgentLoopFailure::new(
                     AgentLoopFailureReason::ProviderFailed,
                     "Managed agent provider request failed.",
-                    failure_telemetry(round, model_calls, tool_calls, tools, tool_executions),
+                    telemetry(round, model_calls, tool_calls, tools, tool_executions),
                 ));
             }
             Err(AgentLoopFailureReason::EmptyTurnBudgetExhausted) => {
@@ -257,14 +260,14 @@ where
                         "Managed agent returned no tool use after {} attempts.",
                         config.max_empty_turn_resamples + 1
                     ),
-                    failure_telemetry(round, model_calls, tool_calls, tools, tool_executions),
+                    telemetry(round, model_calls, tool_calls, tools, tool_executions),
                 ));
             }
             Err(reason) => {
                 return Err(AgentLoopFailure::new(
                     reason,
                     "Managed agent failed.",
-                    failure_telemetry(round, model_calls, tool_calls, tools, tool_executions),
+                    telemetry(round, model_calls, tool_calls, tools, tool_executions),
                 ));
             }
         };
@@ -284,7 +287,7 @@ where
             return Err(AgentLoopFailure::new(
                 AgentLoopFailureReason::ToolExecutionFailed,
                 "Managed agent emitted an invalid tool-call batch.",
-                failure_telemetry(round, model_calls, tool_calls, tools, tool_executions),
+                telemetry(round, model_calls, tool_calls, tools, tool_executions),
             ));
         }
         // Admit the entire model batch before executing any tool. A late
@@ -313,7 +316,7 @@ where
             return Err(AgentLoopFailure::new(
                 AgentLoopFailureReason::ToolExecutionFailed,
                 "Managed agent tool execution failed.",
-                failure_telemetry(round, model_calls, tool_calls, tools, tool_executions),
+                telemetry(round, model_calls, tool_calls, tools, tool_executions),
             ));
         }
         let admitted_names = admitted_names.into_iter().flatten();
@@ -340,18 +343,10 @@ where
                     });
                     continue;
                 }
-                let telemetry = AgentExecutionTelemetry {
-                    rounds: Some(u64::from(round)),
-                    model_calls: Some(u64::from(model_calls)),
-                    tool_calls: Some(u64::from(tool_calls)),
-                    tools: Some(tools),
-                    tool_executions: Some(tool_executions),
-                };
-                return Ok(AgentResolution::agent_with_effect(
-                    use_.input.clone(),
-                    Some(telemetry),
-                    last_effect,
-                ));
+                return Ok(AgentLoopEnd {
+                    answer: Some(use_.input.clone()),
+                    telemetry: telemetry(round, model_calls, tool_calls, tools, tool_executions),
+                });
             }
 
             tool_calls = tool_calls.saturating_add(1);
@@ -360,8 +355,26 @@ where
                 tools.push(tool_name.clone());
             }
 
-            let output = match executor.execute(&tool_name, &use_.input) {
-                Ok(output) => output,
+            let (content, is_error) = match executor.execute(&tool_name, &use_.input) {
+                Ok(ToolOutcome::Result { content, is_error }) => (content, is_error),
+                Ok(ToolOutcome::Paused) => {
+                    tool_executions.push(AgentToolExecutionTrace {
+                        tool: tool_name,
+                        status: "pending".to_owned(),
+                        receipt_id: None,
+                        resolution_kind: None,
+                    });
+                    return Ok(AgentLoopEnd {
+                        answer: None,
+                        telemetry: telemetry(
+                            round,
+                            model_calls,
+                            tool_calls,
+                            tools,
+                            tool_executions,
+                        ),
+                    });
+                }
                 Err(_) => {
                     tool_executions.push(AgentToolExecutionTrace {
                         tool: tool_name.clone(),
@@ -372,15 +385,10 @@ where
                     return Err(AgentLoopFailure::new(
                         AgentLoopFailureReason::ToolExecutionFailed,
                         "Managed agent tool execution failed.",
-                        failure_telemetry(round, model_calls, tool_calls, tools, tool_executions),
+                        telemetry(round, model_calls, tool_calls, tools, tool_executions),
                     ));
                 }
             };
-            let is_error = !matches!(output.status, InvocationStatus::Success);
-            if !is_error {
-                last_effect = Some(output.value.clone());
-            }
-            let content = tool_result_content(&output, is_error);
             tool_executions.push(AgentToolExecutionTrace {
                 tool: tool_name,
                 status: (if is_error { "failure" } else { "success" }).to_owned(),
@@ -402,7 +410,7 @@ where
             "Managed agent exceeded {} tool-call rounds without finalizing.",
             config.max_rounds
         ),
-        failure_telemetry(
+        telemetry(
             config.max_rounds,
             model_calls,
             tool_calls,
@@ -449,7 +457,6 @@ mod tests {
     use std::cell::Cell;
 
     use super::*;
-    use crate::adapter::InvocationOutput;
     use runx_contracts::{JsonObject, JsonValue, OutputField, OutputType};
 
     #[test]
@@ -484,10 +491,11 @@ mod tests {
 
     const FINAL: &str = "runx_final_result";
 
-    fn skill_output(stdout: &str) -> InvocationOutput {
-        let value =
-            serde_json::from_str(stdout).unwrap_or_else(|_| JsonValue::String(stdout.to_owned()));
-        InvocationOutput::runtime_success(value, 0, JsonObject::new())
+    fn tool_result(content: &str) -> ToolOutcome {
+        ToolOutcome::Result {
+            content: content.to_owned(),
+            is_error: false,
+        }
     }
 
     fn done_payload() -> JsonValue {
@@ -516,12 +524,12 @@ mod tests {
         }
 
         fn execute(
-            &self,
+            &mut self,
             _tool: &str,
             _input: &JsonValue,
-        ) -> Result<InvocationOutput, RuntimeError> {
+        ) -> Result<ToolOutcome, RuntimeError> {
             self.0.set(self.0.get() + 1);
-            Ok(skill_output("ok"))
+            Ok(tool_result("ok"))
         }
     }
 
@@ -567,8 +575,8 @@ mod tests {
             ],
         ];
         for calls in cases {
-            let executor = CountingExecutor(Cell::new(0));
-            let error = run_agent_loop(&config, &OneBatch(calls), &executor, "go".to_owned())
+            let mut executor = CountingExecutor(Cell::new(0));
+            let error = run_agent_loop(&config, &OneBatch(calls), &mut executor, "go".to_owned())
                 .err()
                 .ok_or_else(|| "invalid batch must be refused".to_owned())?;
             assert_eq!(error.reason(), AgentLoopFailureReason::ToolExecutionFailed);
@@ -584,11 +592,11 @@ mod tests {
         }
 
         fn execute(
-            &self,
+            &mut self,
             _tool: &str,
             _input: &JsonValue,
-        ) -> Result<InvocationOutput, RuntimeError> {
-            Ok(skill_output("charged"))
+        ) -> Result<ToolOutcome, RuntimeError> {
+            Ok(tool_result("charged"))
         }
     }
 
@@ -631,20 +639,53 @@ mod tests {
         let result = run_agent_loop(
             &config,
             &ScriptedModel,
-            &OkExecutor,
+            &mut OkExecutor,
             "buy a quota".to_owned(),
         );
         assert!(
             matches!(
                 &result,
-                Ok(resolution)
-                    if resolution.response.payload == done_payload()
-                    && resolution.telemetry.as_ref().and_then(|t| t.tool_calls) == Some(1)
-                    && resolution.telemetry.as_ref().and_then(|t| t.rounds) == Some(2)
-                    && resolution.telemetry.as_ref().and_then(|t| t.model_calls) == Some(2)
+                Ok(end)
+                    if end.answer == Some(done_payload())
+                    && end.telemetry.tool_calls == Some(1)
+                    && end.telemetry.rounds == Some(2)
+                    && end.telemetry.model_calls == Some(2)
             ),
             "loop should execute the tool then finalize; got: {result:?}"
         );
+    }
+
+    #[test]
+    fn a_call_waiting_on_a_human_ends_the_pass_without_an_answer() -> Result<(), String> {
+        struct Waits(u32);
+        impl ToolExecutor for Waits {
+            fn admitted_tool_name(&self, tool: &str) -> Option<String> {
+                Some(tool.to_owned())
+            }
+
+            fn execute(
+                &mut self,
+                _tool: &str,
+                _input: &JsonValue,
+            ) -> Result<ToolOutcome, RuntimeError> {
+                self.0 += 1;
+                Ok(ToolOutcome::Paused)
+            }
+        }
+        let config = AgentLoopConfig {
+            max_rounds: 8,
+            max_empty_turn_resamples: 0,
+            final_result_tool: FINAL.to_owned(),
+            final_result_output: None,
+            final_result_schema: None,
+        };
+        let mut executor = Waits(0);
+        let end = run_agent_loop(&config, &ScriptedModel, &mut executor, "go".to_owned())
+            .map_err(|error| error.to_string())?;
+        assert_eq!(end.answer, None);
+        assert_eq!(executor.0, 1, "the pass ends at the call that waits");
+        assert_eq!(end.telemetry.model_calls, Some(1));
+        Ok(())
     }
 
     #[test]
@@ -702,24 +743,21 @@ mod tests {
             )])),
             final_result_schema: None,
         };
-        let resolution = run_agent_loop(&config, &model, &OkExecutor, "design".to_owned())
+        let resolution = run_agent_loop(&config, &model, &mut OkExecutor, "design".to_owned())
             .map_err(|error| error.to_string())?;
 
         assert!(model.saw_contract_error.get());
         assert_eq!(
-            resolution.response.payload,
-            JsonValue::Object(JsonObject::from([(
+            resolution.answer,
+            Some(JsonValue::Object(JsonObject::from([(
                 "architecture_decision".to_owned(),
                 JsonValue::Object(JsonObject::from([(
                     "schema".to_owned(),
                     JsonValue::String("runx.skill.architecture_decision.v1".to_owned()),
                 )])),
-            )]))
+            )])))
         );
-        let telemetry = resolution
-            .telemetry
-            .as_ref()
-            .ok_or_else(|| "managed-agent telemetry missing".to_owned())?;
+        let telemetry = &resolution.telemetry;
         assert_eq!(telemetry.rounds, Some(2));
         let final_attempts = telemetry.tool_executions.as_deref().unwrap_or_default();
         assert!(final_attempts.iter().any(|attempt| {
@@ -752,7 +790,7 @@ mod tests {
             final_result_output: None,
             final_result_schema: None,
         };
-        let result = run_agent_loop(&config, &NeverFinal, &OkExecutor, "go".to_owned());
+        let result = run_agent_loop(&config, &NeverFinal, &mut OkExecutor, "go".to_owned());
         assert!(
             matches!(
                 &result,
@@ -788,7 +826,7 @@ mod tests {
             final_result_output: None,
             final_result_schema: None,
         };
-        let result = run_agent_loop(&config, &Silent, &OkExecutor, "go".to_owned());
+        let result = run_agent_loop(&config, &Silent, &mut OkExecutor, "go".to_owned());
         assert!(
             matches!(
                 &result,
@@ -850,16 +888,16 @@ mod tests {
             &EmptyOnceThenScripted {
                 empties: std::cell::Cell::new(0),
             },
-            &OkExecutor,
+            &mut OkExecutor,
             "buy a quota".to_owned(),
         );
         assert!(
             matches!(
                 &result,
-                Ok(resolution)
-                    if resolution.response.payload == done_payload()
-                    && resolution.telemetry.as_ref().and_then(|t| t.rounds) == Some(2)
-                    && resolution.telemetry.as_ref().and_then(|t| t.model_calls) == Some(3)
+                Ok(end)
+                    if end.answer == Some(done_payload())
+                    && end.telemetry.rounds == Some(2)
+                    && end.telemetry.model_calls == Some(3)
             ),
             "a transient empty turn should be resampled and recovered, finalizing normally; got: {result:?}"
         );
@@ -874,10 +912,10 @@ mod tests {
         }
 
         fn execute(
-            &self,
+            &mut self,
             _tool: &str,
             _input: &JsonValue,
-        ) -> Result<InvocationOutput, RuntimeError> {
+        ) -> Result<ToolOutcome, RuntimeError> {
             self.calls.set(self.calls.get() + 1);
             Err(RuntimeError::SkillFailed {
                 skill_name: "managed-tool".to_owned(),
@@ -892,7 +930,7 @@ mod tests {
         // actually invoke the executor and surface its error rather than swallow it
         // or finalize. The call counter proves the error originates in the executor,
         // not the model.
-        let executor = ErrExecutor {
+        let mut executor = ErrExecutor {
             calls: std::cell::Cell::new(0),
         };
         let config = AgentLoopConfig {
@@ -902,7 +940,7 @@ mod tests {
             final_result_output: None,
             final_result_schema: None,
         };
-        let result = run_agent_loop(&config, &ScriptedModel, &executor, "go".to_owned());
+        let result = run_agent_loop(&config, &ScriptedModel, &mut executor, "go".to_owned());
         assert_eq!(
             executor.calls.get(),
             1,
@@ -949,7 +987,7 @@ mod tests {
         let result = run_agent_loop(
             &config,
             &FailingModel,
-            &OkExecutor,
+            &mut OkExecutor,
             "private prompt".to_owned(),
         );
 
@@ -995,11 +1033,11 @@ mod tests {
             }
 
             fn execute(
-                &self,
+                &mut self,
                 _tool: &str,
                 _input: &JsonValue,
-            ) -> Result<InvocationOutput, RuntimeError> {
-                Ok(skill_output("paid"))
+            ) -> Result<ToolOutcome, RuntimeError> {
+                Ok(tool_result("paid"))
             }
         }
 
@@ -1012,7 +1050,7 @@ mod tests {
                 final_result_schema: None,
             },
             &UnknownToolModel,
-            &PayOnlyExecutor,
+            &mut PayOnlyExecutor,
             "go".to_owned(),
         );
         let Err(error) = result else {
@@ -1034,16 +1072,14 @@ mod tests {
         }
 
         fn execute(
-            &self,
+            &mut self,
             _tool: &str,
             _input: &JsonValue,
-        ) -> Result<InvocationOutput, RuntimeError> {
-            Ok(InvocationOutput::runtime_failure(
-                JsonValue::Null,
-                "insufficient funds",
-                0,
-                JsonObject::new(),
-            ))
+        ) -> Result<ToolOutcome, RuntimeError> {
+            Ok(ToolOutcome::Result {
+                content: "insufficient funds".to_owned(),
+                is_error: true,
+            })
         }
     }
 
@@ -1058,11 +1094,14 @@ mod tests {
             final_result_output: None,
             final_result_schema: None,
         };
-        let resolution = run_agent_loop(&config, &ScriptedModel, &FailingExecutor, "go".to_owned())
-            .map_err(|error| format!("a failing tool should not abort the loop: {error}"))?;
-        let telemetry = resolution
-            .telemetry
-            .ok_or_else(|| "telemetry present".to_owned())?;
+        let resolution = run_agent_loop(
+            &config,
+            &ScriptedModel,
+            &mut FailingExecutor,
+            "go".to_owned(),
+        )
+        .map_err(|error| format!("a failing tool should not abort the loop: {error}"))?;
+        let telemetry = resolution.telemetry;
         let executions = telemetry
             .tool_executions
             .ok_or_else(|| "tool executions present".to_owned())?;
@@ -1127,11 +1166,14 @@ mod tests {
             final_result_output: None,
             final_result_schema: None,
         };
-        let resolution = run_agent_loop(&config, &DistinctThenRepeat, &OkExecutor, "go".to_owned())
-            .map_err(|error| format!("should finalize after three calls: {error}"))?;
-        let telemetry = resolution
-            .telemetry
-            .ok_or_else(|| "telemetry present".to_owned())?;
+        let resolution = run_agent_loop(
+            &config,
+            &DistinctThenRepeat,
+            &mut OkExecutor,
+            "go".to_owned(),
+        )
+        .map_err(|error| format!("should finalize after three calls: {error}"))?;
+        let telemetry = resolution.telemetry;
         assert_eq!(
             telemetry.tool_calls,
             Some(3),

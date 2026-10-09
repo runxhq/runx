@@ -136,6 +136,7 @@ fn an_agent_step_names_its_role_and_task() -> Result<(), String> {
             role: "reviewer".to_owned(),
             task: "decide-release".to_owned(),
             allowance: Default::default(),
+            connectors: Default::default(),
         })
     );
     assert!(only_step(&runner).outputs.is_some());

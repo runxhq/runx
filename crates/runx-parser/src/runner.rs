@@ -145,7 +145,11 @@ pub fn validate_runner_manifest(
         (!admission.allowed).then(|| admission.reason.to_owned())
     })?;
     let skills = validate_limit_refs(raw.document.get("skills"), "skills", |_| None)?;
-    bind_turn_allowance(&mut runners, &turn_allowance(&connectors, &tools, &skills));
+    bind_turn_allowance(
+        &mut runners,
+        &turn_allowance(&connectors, &tools, &skills),
+        &connectors,
+    );
     let marketplace = validate_marketplace(raw.document.get("marketplace"), &runners)?;
 
     let harness = validate_harness_manifest(
@@ -226,10 +230,12 @@ fn turn_allowance(
     }
 }
 
-/// Every agent step of every runner may call the whole of the skill's limits.
+/// Every agent step of every runner may call the whole of the skill's
+/// limits, admitted under the skill's own declarations.
 fn bind_turn_allowance(
     runners: &mut BTreeMap<String, SkillRunnerDefinition>,
     allowance: &TurnAllowance,
+    connectors: &BTreeMap<String, ConnectorRequirement>,
 ) {
     for step in runners
         .values_mut()
@@ -237,6 +243,7 @@ fn bind_turn_allowance(
     {
         if let crate::StepKind::Agent(agent) = &mut step.kind {
             agent.allowance = allowance.clone();
+            agent.connectors = connectors.clone();
         }
     }
 }

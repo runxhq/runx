@@ -94,6 +94,10 @@ pub struct AgentTask {
     /// skill is parsed. A graph outside a skill allows nothing.
     #[serde(default, skip_serializing_if = "TurnAllowance::is_empty")]
     pub allowance: TurnAllowance,
+    /// The skill's declarations of the requirements the allowance's
+    /// operations name, bound with it: what admits each operation call.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub connectors: BTreeMap<String, crate::ConnectorRequirement>,
 }
 
 /// A tool step's target.

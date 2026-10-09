@@ -7,11 +7,12 @@ use std::{collections::BTreeMap, fs};
 
 use runx_contracts::{JsonObject, JsonValue};
 use runx_runtime::adapters::agent_chat_completions::ChatCompletionsCaller;
-use runx_runtime::adapters::agent_loop::{AgentLoopConfig, ToolExecutor, run_agent_loop};
+use runx_runtime::adapters::agent_loop::{
+    AgentLoopConfig, ToolExecutor, ToolOutcome, run_agent_loop,
+};
 use runx_runtime::adapters::agent_tool_definitions::{AgentToolDefinition, AgentToolNameMap};
 use runx_runtime::{
-    InvocationOutput, LocalOrchestrator, ManagedAgentPolicy, ReqwestHttpTransport, RuntimeError,
-    SkillRunRequest,
+    LocalOrchestrator, ManagedAgentPolicy, ReqwestHttpTransport, RuntimeError, SkillRunRequest,
 };
 use serde_json::{Value, json};
 use tempfile::tempdir;
@@ -23,7 +24,7 @@ impl ToolExecutor for ReadExecutor {
         (tool == "fixture.read").then(|| tool.to_owned())
     }
 
-    fn execute(&self, tool: &str, input: &JsonValue) -> Result<InvocationOutput, RuntimeError> {
+    fn execute(&mut self, tool: &str, input: &JsonValue) -> Result<ToolOutcome, RuntimeError> {
         assert_eq!(tool, "fixture.read");
         assert_eq!(
             input
@@ -33,14 +34,14 @@ impl ToolExecutor for ReadExecutor {
             Some("proof")
         );
         self.0.set(self.0.get() + 1);
-        Ok(InvocationOutput::runtime_success(
-            JsonValue::Object(JsonObject::from([(
+        Ok(ToolOutcome::Result {
+            content: serde_json::to_string(&JsonValue::Object(JsonObject::from([(
                 "proof".to_owned(),
                 JsonValue::String("verified".to_owned()),
-            )])),
-            0,
-            JsonObject::new(),
-        ))
+            )])))
+            .unwrap_or_default(),
+            is_error: false,
+        })
     }
 }
 
@@ -75,7 +76,10 @@ fn read_request(stream: &mut TcpStream) -> io::Result<Value> {
         .map_err(io::Error::other)
 }
 
-fn serve_responses(listener: TcpListener, responses: [Value; 2]) -> io::Result<Vec<Value>> {
+fn serve_responses<const N: usize>(
+    listener: TcpListener,
+    responses: [Value; N],
+) -> io::Result<Vec<Value>> {
     let mut requests = Vec::new();
     for response in responses {
         let (mut stream, _) = listener.accept()?;
@@ -134,7 +138,7 @@ fn exact_local_transport_replays_tool_result_before_schema_valid_final_result()
     ])?;
     let model =
         ChatCompletionsCaller::new(transport, endpoint, None, "fixture-model".to_owned(), tools);
-    let executor = ReadExecutor(Cell::new(0));
+    let mut executor = ReadExecutor(Cell::new(0));
     let config = AgentLoopConfig {
         max_rounds: 3,
         max_empty_turn_resamples: 0,
@@ -147,15 +151,15 @@ fn exact_local_transport_replays_tool_result_before_schema_valid_final_result()
     let result = run_agent_loop(
         &config,
         &model,
-        &executor,
+        &mut executor,
         "Read the fixture then finish.".to_owned(),
     )?;
     assert_eq!(executor.0.get(), 1);
     assert_eq!(
         result
-            .response
-            .payload
-            .as_object()
+            .answer
+            .as_ref()
+            .and_then(JsonValue::as_object)
             .and_then(|object| object.get("status"))
             .and_then(JsonValue::as_str),
         Some("done")
@@ -204,7 +208,7 @@ fn openai_batch_with_late_unknown_tool_executes_nothing() -> Result<(), Box<dyn 
         "fixture-model".to_owned(),
         tools,
     );
-    let executor = ReadExecutor(Cell::new(0));
+    let mut executor = ReadExecutor(Cell::new(0));
     let Err(error) = run_agent_loop(
         &AgentLoopConfig {
             max_rounds: 2,
@@ -214,7 +218,7 @@ fn openai_batch_with_late_unknown_tool_executes_nothing() -> Result<(), Box<dyn 
             final_result_schema: None,
         },
         &model,
-        &executor,
+        &mut executor,
         "go".to_owned(),
     ) else {
         return Err("unknown tool should reject the entire batch".into());
@@ -247,7 +251,7 @@ fn managed_agent_step_executes_governed_tool_round_trip() -> Result<(), Box<dyn 
             listener,
             [
                 json!({"choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[{"id":"call-digest","type":"function","function":{"name":"data_digest","arguments":"{\"value\":\"proof\",\"encoding\":\"utf8_text\"}"}}]}}]}),
-                json!({"choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[{"id":"call-final","type":"function","function":{"name":"runx_final_result","arguments":"{\"status\":\"done\"}"}}]}}]}),
+                json!({"choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[{"id":"call-final","type":"function","function":{"name":"turn_complete","arguments":"{\"status\":\"done\"}"}}]}}]}),
             ],
         )
     });
@@ -279,6 +283,18 @@ fn managed_agent_step_executes_governed_tool_round_trip() -> Result<(), Box<dyn 
     let output = serde_json::to_value(&result.output)?;
     assert_eq!(output["status"], "sealed", "{output}");
     assert_eq!(output["result"]["status"], "done", "{output}");
+    let receipt_id = output["receipt_id"].as_str().ok_or("missing receipt_id")?;
+    let receipts = temp.path().join("receipts");
+    let graph = crate::support::read_test_signed_receipt(&receipts, receipt_id)?;
+    let step = crate::support::read_test_first_step_receipt(&receipts, &graph)?;
+    assert_eq!(
+        step.lineage
+            .as_ref()
+            .map(|lineage| lineage.children.len())
+            .unwrap_or_default(),
+        1,
+        "the managed agent's call is recorded and sealed under its turn"
+    );
     let requests = finish_server(server)?;
     assert_eq!(requests.len(), 2);
     assert_eq!(requests[0]["tools"][0]["function"]["name"], "data_digest");
@@ -295,6 +311,160 @@ fn managed_agent_step_executes_governed_tool_round_trip() -> Result<(), Box<dyn 
                         )))
             ),
         "the step must replay the actual native digest result"
+    );
+    Ok(())
+}
+
+#[test]
+fn a_managed_turn_that_fails_still_names_the_calls_it_made()
+-> Result<(), Box<dyn std::error::Error>> {
+    let temp = tempdir()?;
+    let skill_dir = temp.path().join("skill");
+    fs::create_dir_all(&skill_dir)?;
+    fs::write(
+        skill_dir.join("SKILL.md"),
+        "---\nname: fixture-agent\ndescription: fixture-agent fixture.\n---\n# Fixture\n\nCall data.digest, then finish.\n",
+    )?;
+    fs::write(
+        skill_dir.join("run.yaml"),
+        "skill: fixture-agent\ntools: [data.digest]\nrunners:\n  proof:\n    default: true\n    steps:\n      - id: verify\n        agent: { role: fixture, task: proof }\n        outputs:\n          status: string\n",
+    )?;
+    // The model digests once, then stops calling tools; the provider is gone
+    // before the loop's resamples run out.
+    let listener = TcpListener::bind("127.0.0.1:0")?;
+    let endpoint = format!("http://{}/v1/chat/completions", listener.local_addr()?);
+    let server = std::thread::spawn(move || {
+        serve_responses(
+            listener,
+            [
+                json!({"choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[{"id":"call-digest","type":"function","function":{"name":"data_digest","arguments":"{\"value\":\"proof\",\"encoding\":\"utf8_text\"}"}}]}}]}),
+                json!({"choices":[{"finish_reason":"stop","message":{"content":"done"}}]}),
+            ],
+        )
+    });
+    let mut env = BTreeMap::from([
+        (
+            "RUNX_HOME".to_owned(),
+            temp.path().join("home").to_string_lossy().into_owned(),
+        ),
+        ("RUNX_AGENT_PROVIDER".to_owned(), "openai".to_owned()),
+        ("RUNX_AGENT_MODEL".to_owned(), "fixture-model".to_owned()),
+        ("RUNX_AGENT_AUTH_MODE".to_owned(), "local_none".to_owned()),
+        ("RUNX_AGENT_ENDPOINT_URL".to_owned(), endpoint),
+    ]);
+    crate::support::insert_test_signing_env(&mut env);
+    let result = LocalOrchestrator::default().run_skill(&SkillRunRequest {
+        current_context: Vec::new(),
+        historical_context: Vec::new(),
+        run_authority: None,
+        skill_path: skill_dir,
+        receipt_dir: Some(temp.path().join("receipts")),
+        run_id: None,
+        answers_path: None,
+        inputs: BTreeMap::new(),
+        env,
+        cwd: temp.path().to_path_buf(),
+        managed_agent: ManagedAgentPolicy::inline(3)?,
+    })?;
+    finish_server(server)?;
+    let output = serde_json::to_value(&result.output)?;
+    assert_eq!(output["closure"]["disposition"], "failed", "{output}");
+    let receipt_id = output["receipt_id"].as_str().ok_or("missing receipt_id")?;
+    let receipts = temp.path().join("receipts");
+    let graph = crate::support::read_test_signed_receipt(&receipts, receipt_id)?;
+    let step = crate::support::read_test_first_step_receipt(&receipts, &graph)?;
+    assert_eq!(
+        step.lineage
+            .as_ref()
+            .map(|lineage| lineage.children.len())
+            .unwrap_or_default(),
+        1,
+        "the failed turn's receipt names the call it made"
+    );
+    Ok(())
+}
+
+#[test]
+fn the_managed_agent_works_the_turn_its_own_call_opens_in_a_child_skill()
+-> Result<(), Box<dyn std::error::Error>> {
+    let temp = tempdir()?;
+    let child_dir = temp.path().join("child");
+    fs::create_dir_all(&child_dir)?;
+    fs::write(
+        child_dir.join("SKILL.md"),
+        "---\nname: child\ndescription: Reports a status.\n---\n# Child\n\nFinish with a status.\n",
+    )?;
+    fs::write(
+        child_dir.join("run.yaml"),
+        "skill: child\nrunners:\n  report:\n    default: true\n    outputs:\n      status: string\n",
+    )?;
+    let skill_dir = temp.path().join("parent");
+    fs::create_dir_all(&skill_dir)?;
+    fs::write(
+        skill_dir.join("SKILL.md"),
+        "---\nname: parent\ndescription: Asks its child.\n---\n# Parent\n\nRun the child, then finish.\n",
+    )?;
+    fs::write(
+        skill_dir.join("run.yaml"),
+        "skill: parent\nskills: [../child]\nrunners:\n  proof:\n    default: true\n    outputs:\n      status: string\n",
+    )?;
+    // The parent's turn calls the child; the child's turn, opened by that
+    // call, completes; then the parent's turn completes.
+    let listener = TcpListener::bind("127.0.0.1:0")?;
+    let endpoint = format!("http://{}/v1/chat/completions", listener.local_addr()?);
+    let server = std::thread::spawn(move || {
+        serve_responses(
+            listener,
+            [
+                json!({"choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[{"id":"call-child","type":"function","function":{"name":"skill__child","arguments":"{}"}}]}}]}),
+                json!({"choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[{"id":"child-final","type":"function","function":{"name":"turn_complete","arguments":"{\"status\":\"child done\"}"}}]}}]}),
+                json!({"choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[{"id":"call-final","type":"function","function":{"name":"turn_complete","arguments":"{\"status\":\"done\"}"}}]}}]}),
+            ],
+        )
+    });
+    let mut env = BTreeMap::from([
+        (
+            "RUNX_HOME".to_owned(),
+            temp.path().join("home").to_string_lossy().into_owned(),
+        ),
+        ("RUNX_AGENT_PROVIDER".to_owned(), "openai".to_owned()),
+        ("RUNX_AGENT_MODEL".to_owned(), "fixture-model".to_owned()),
+        ("RUNX_AGENT_AUTH_MODE".to_owned(), "local_none".to_owned()),
+        ("RUNX_AGENT_ENDPOINT_URL".to_owned(), endpoint),
+    ]);
+    crate::support::insert_test_signing_env(&mut env);
+    let result = LocalOrchestrator::default().run_skill(&SkillRunRequest {
+        current_context: Vec::new(),
+        historical_context: Vec::new(),
+        run_authority: None,
+        skill_path: skill_dir,
+        receipt_dir: Some(temp.path().join("receipts")),
+        run_id: None,
+        answers_path: None,
+        inputs: BTreeMap::new(),
+        env,
+        cwd: temp.path().to_path_buf(),
+        managed_agent: ManagedAgentPolicy::inline(3)?,
+    })?;
+    let output = serde_json::to_value(&result.output)?;
+    assert_eq!(output["status"], "sealed", "{output}");
+    assert_eq!(output["result"]["status"], "done", "{output}");
+    let requests = finish_server(server)?;
+    let tools = |request: &Value| -> Vec<String> {
+        request["tools"]
+            .as_array()
+            .map(|tools| {
+                tools
+                    .iter()
+                    .filter_map(|tool| tool["function"]["name"].as_str().map(str::to_owned))
+                    .collect()
+            })
+            .unwrap_or_default()
+    };
+    assert!(tools(&requests[0]).contains(&"skill__child".to_owned()));
+    assert!(
+        !tools(&requests[1]).contains(&"skill__child".to_owned()),
+        "the second request works the child's own turn"
     );
     Ok(())
 }

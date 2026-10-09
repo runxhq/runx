@@ -49,6 +49,16 @@ impl ResolutionAnswers {
         Ok(resolved)
     }
 
+    /// Hold an agent's answer to `request_id`, given while the run is driven.
+    pub(super) fn answer(&mut self, request_id: &str, value: JsonValue) {
+        self.values.insert(request_id.to_owned(), value);
+    }
+
+    /// Spend the answer to `request_id`: it answers one ask.
+    pub(super) fn consume(&mut self, request_id: &str) {
+        self.values.remove(request_id);
+    }
+
     pub(super) fn get(&self, request_id: &str) -> Option<&JsonValue> {
         self.values.get(request_id)
     }

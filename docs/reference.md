@@ -147,9 +147,13 @@ over stdio: one tool per entry of the skill's limits (its `tools:`, `skills:`
 and connector operations), plus `ask_human`, `turn_status` and `turn_complete`.
 Each call is admitted against the turn's allowance and the run's authority,
 executed, and recorded in the run; the turn's receipt names every call it made.
-A write names its `idempotency_key`, which a retry reuses. A call that needs
-approval stays pending until `runx resume` answers it under `approvals`.
-`turn_complete` ends the turn with its output, and the run continues.
+A write names its `idempotency_key`, which a retry reuses. A call whose outcome
+runx cannot confirm stays pending on its own retry request, and the turn makes
+no other call until `runx resume` answers that request with `{"retry": true}`,
+which runs the call again with the same input. A call that needs approval stays
+pending until `runx resume` answers it under `approvals`. The paused run lists
+each pending call's request beside the turn's own. `turn_complete` ends the
+turn with its output once no call is pending, and the run continues.
 
 Hosted and replay drivers may bind `runx skill` or `runx resume` with
 `--package-digest` and `--execution-closure-digest`. Runx recomputes both at the

@@ -213,6 +213,7 @@ fn validate_kind(
                 role: non_empty(agent.get("role"), &format!("{qualified}.role"))?,
                 task: non_empty(agent.get("task"), &format!("{qualified}.task"))?,
                 allowance: TurnAllowance::default(),
+                connectors: Default::default(),
             }))
         }
         "tool" => validate_tool_target(

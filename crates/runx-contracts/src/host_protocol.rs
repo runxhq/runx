@@ -171,6 +171,70 @@ pub struct AllowedOperation {
     pub operation: NonEmptyString,
 }
 
+/// What a turn call names: one entry of the turn's allowance, or a question
+/// for the human, which needs none.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum TurnTarget {
+    Tool {
+        tool: NonEmptyString,
+    },
+    Operation {
+        requirement: NonEmptyString,
+        operation: NonEmptyString,
+    },
+    Skill {
+        skill: NonEmptyString,
+    },
+    /// The call's input is `{reason}`; the human approves or declines it.
+    Ask,
+}
+
+/// One call an agent made in its turn, and how it ended.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
+#[serde(deny_unknown_fields)]
+#[runx_schema(spec_id = "https://runx.ai/spec/turn-call.schema.json")]
+pub struct TurnCallResult {
+    /// The call's place in the turn, from 0.
+    pub index: u32,
+    pub target: TurnTarget,
+    pub outcome: TurnCallOutcome,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
+#[serde(tag = "status", rename_all = "snake_case", deny_unknown_fields)]
+pub enum TurnCallOutcome {
+    /// The call ran and succeeded.
+    Completed {
+        output: JsonObject,
+        receipt_id: NonEmptyString,
+    },
+    /// The call ran and failed, with its receipt; or it failed before it
+    /// could run.
+    Failed {
+        reason: NonEmptyString,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        receipt_id: Option<NonEmptyString>,
+    },
+    /// Admission refused the call; nothing ran.
+    Refused { reason: NonEmptyString },
+    /// The call waits on the human's answer to `request`. The turn stays
+    /// open; the call settles when the host answers.
+    Pending { request: ResolutionRequest },
+}
+
+/// An open turn as its agent reads it: the act it answers, what it may call,
+/// and how each call it made so far ended.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
+#[serde(deny_unknown_fields)]
+#[runx_schema(spec_id = "https://runx.ai/spec/turn-status.schema.json")]
+pub struct TurnStatus {
+    pub step_id: NonEmptyString,
+    pub request_id: NonEmptyString,
+    pub allowance: TurnAllowance,
+    pub calls: Vec<TurnCallResult>,
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 #[runx_schema(spec_id = "https://runx.ai/spec/resolution-response.schema.json")]

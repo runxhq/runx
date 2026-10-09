@@ -4,7 +4,7 @@ use runx_contracts::{
     ExecutionEvent, JsonValue, ResolutionRequest, canonical_stable_json, sha256_prefixed,
 };
 #[cfg(feature = "agent")]
-use runx_runtime::adapters::agent::{AgentExecutionTelemetry, AgentResolverError};
+use runx_runtime::adapters::agent::{AgentExecutionTelemetry, ManagedAgentError};
 use runx_runtime::{
     Host, InvocationOutput, Runtime, RuntimeError, RuntimeOptions, SkillAdapter, SkillInvocation,
 };
@@ -65,7 +65,7 @@ impl Host for MisidentifiedManagedFailureHost {
         Err(RuntimeError::ManagedAgentResolution {
             step_id: "referenced-agent-runner".to_owned(),
             request_id,
-            source: Box::new(AgentResolverError::bounded_failure(
+            source: Box::new(ManagedAgentError::bounded_failure(
                 "round_budget_exhausted",
                 "Managed agent exhausted its bounded run.",
                 AgentExecutionTelemetry::default(),

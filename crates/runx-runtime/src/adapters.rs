@@ -19,10 +19,7 @@ pub mod agent_chat_completions;
 pub mod agent_tool_definitions;
 
 #[cfg(feature = "agent")]
-pub mod agent_tools;
-
-#[cfg(feature = "agent")]
-pub mod agent_resolver;
+pub(crate) mod managed_agent;
 
 #[cfg(feature = "mcp")]
 pub mod mcp;

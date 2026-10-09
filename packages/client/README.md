@@ -57,10 +57,13 @@ call. `turns.server` returns the command, arguments, environment and working
 directory an MCP stdio client starts to serve that turn. Its tools are the
 allowance, `ask_human`, `turn_status` and `turn_complete`; the act's
 instructions and inputs arrive as the server's instructions. Runx admits,
-executes and records every call under the run's authority. A write names its
-`idempotency_key`. A call that needs approval stays pending until the host
-answers it through `runs.resume` under `approvals`. `turn_complete` ends the
-turn with its output and the run continues.
+executes and records every call under the run's authority. Each call's
+structured result is a `TurnCallContract` and `turn_status` returns a
+`TurnStatusContract`, both from `@runxhq/contracts`. A write names its
+`idempotency_key`. A call that needs approval stays pending, and the paused
+run lists its request, until the host answers it through `runs.resume` under
+`approvals`. `turn_complete` ends the turn with its output once no call is
+pending, and the run continues.
 
 Inspection is uncached. An immutable deployment may cache at its owning host.
 An execution binding pins runner, package and execution closure, and native

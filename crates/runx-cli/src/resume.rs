@@ -1,16 +1,14 @@
-use std::collections::BTreeMap;
 use std::ffi::OsString;
 use std::fs;
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
-use runx_runtime::{ManagedAgentPolicy, WorkspaceEnv};
+use runx_runtime::{ManagedAgentPolicy, ResumeRequest, WorkspaceEnv};
 
 const MAX_STDIN_ANSWERS_BYTES: u64 = 4 * 1024 * 1024;
 
 use crate::managed_agent::{managed_agent_policy, parse_boolean_flag, parse_managed_agent_rounds};
-use crate::skill::{SkillAction, SkillPlan};
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct ResumePlan {
@@ -166,46 +164,9 @@ pub fn parse_resume_plan(args: &[OsString]) -> Result<ResumePlan, String> {
     })
 }
 
-// Function rationale: resume reconstructs one guarded continuation
-// request and keeps its path, receipt, and output error handling in one transaction.
+/// Continue a paused run with the host's answers. The run's skill, runner
+/// and digests come from its record; pinned digests must match them.
 pub fn run_native_resume_with_workspace(plan: ResumePlan, workspace: &WorkspaceEnv) -> ExitCode {
-    let paused = match runx_runtime::run_record::paused_run(
-        workspace.env(),
-        workspace.cwd(),
-        &plan.run_id,
-    ) {
-        Ok(Some(paused)) => paused,
-        Ok(None) => {
-            return write_resume_failure(
-                &format!("no paused run found for {}", plan.run_id),
-                plan.json,
-                1,
-            );
-        }
-        Err(error) => {
-            return write_resume_failure(
-                &format!("could not read run {}: {error}", plan.run_id),
-                plan.json,
-                1,
-            );
-        }
-    };
-    let expected_package_digest = match resume_binding(
-        "package",
-        plan.expected_package_digest.as_deref(),
-        &paused.package_digest,
-    ) {
-        Ok(digest) => digest,
-        Err(error) => return write_resume_failure(&error, plan.json, 1),
-    };
-    let expected_execution_closure_digest = match resume_binding(
-        "execution closure",
-        plan.expected_execution_closure_digest.as_deref(),
-        &paused.execution_closure_digest,
-    ) {
-        Ok(digest) => digest,
-        Err(error) => return write_resume_failure(&error, plan.json, 1),
-    };
     let answers_path = if plan.answers_path == Path::new("-") {
         match materialize_stdin_answers(workspace, &plan.run_id) {
             Ok(path) => path,
@@ -214,26 +175,39 @@ pub fn run_native_resume_with_workspace(plan: ResumePlan, workspace: &WorkspaceE
     } else {
         plan.answers_path
     };
-    let skill_plan = SkillPlan {
-        action: SkillAction::Run,
-        skill_path: PathBuf::from(&paused.skill_ref),
-        runner: Some(paused.runner.clone()),
-        receipt_dir: plan.receipt_dir,
-        run_id: Some(plan.run_id),
-        answers: Some(answers_path),
-        registry: None,
-        expected_digest: None,
-        expected_package_digest: Some(expected_package_digest),
-        expected_execution_closure_digest: Some(expected_execution_closure_digest),
-        json: plan.json,
-        diagnostics: plan.diagnostics,
-        trusted_command_execution: false,
-        full_operator_context: false,
-        inputs: BTreeMap::new(),
-        input_document: None,
-        managed_agent: plan.managed_agent,
+    let orchestrator = match crate::runtime::local_orchestrator(workspace.env()) {
+        Ok(orchestrator) => orchestrator,
+        Err(error) => {
+            return write_resume_failure(
+                &format!("failed to initialize runtime effects: {error}"),
+                plan.json,
+                1,
+            );
+        }
     };
-    crate::skill::run_native_skill_with_workspace(skill_plan, workspace)
+    let result = orchestrator.resume(&ResumeRequest {
+        run_id: plan.run_id,
+        answers_path: answers_path.clone(),
+        receipt_dir: plan.receipt_dir.clone(),
+        env: workspace.env().clone(),
+        cwd: workspace.cwd().to_path_buf(),
+        managed_agent: plan.managed_agent,
+        package_digest: plan.expected_package_digest,
+        execution_closure_digest: plan.expected_execution_closure_digest,
+    });
+    match result {
+        Ok(result) => crate::skill::write_run_result(
+            &result,
+            crate::skill::RunOutput {
+                json: plan.json,
+                diagnostics: plan.diagnostics,
+                receipt_dir: plan.receipt_dir.as_deref(),
+                answers_path: Some(&answers_path),
+                artifacts: &workspace.paths().artifacts(),
+            },
+        ),
+        Err(error) => write_resume_failure(&error.to_string(), plan.json, 1),
+    }
 }
 
 fn materialize_stdin_answers(workspace: &WorkspaceEnv, run_id: &str) -> Result<PathBuf, String> {
@@ -308,18 +282,6 @@ fn binding_flag_value(flag: &str, value: &str) -> Result<String, String> {
         return Err(format!("{flag} requires a non-empty value"));
     }
     Ok(value.to_owned())
-}
-
-/// A digest the caller pins must be the one the run was started under.
-fn resume_binding(label: &str, requested: Option<&str>, recorded: &str) -> Result<String, String> {
-    if let Some(requested) = requested
-        && requested != recorded
-    {
-        return Err(format!(
-            "resume {label} binding mismatch: requested {requested}, the run was started under {recorded}"
-        ));
-    }
-    Ok(recorded.to_owned())
 }
 
 pub(crate) fn render_skill_resume_command(command: SkillResumeCommand<'_>) -> String {
@@ -414,20 +376,6 @@ mod tests {
             plan.expected_execution_closure_digest.as_deref(),
             Some("sha256:closure")
         );
-        Ok(())
-    }
-
-    #[test]
-    fn resume_rejects_a_binding_that_disagrees_with_its_run() -> Result<(), String> {
-        let error = match super::resume_binding(
-            "execution closure",
-            Some("sha256:requested"),
-            "sha256:recorded",
-        ) {
-            Err(error) => error,
-            Ok(_) => return Err("resume replaced its durable execution binding".to_owned()),
-        };
-        assert!(error.contains("resume execution closure binding mismatch"));
         Ok(())
     }
 

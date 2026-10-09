@@ -1,36 +1,34 @@
 // Module rationale: the skill front's run driver keeps the run record,
 // host resolution and sealing in one path: a run starts or continues from its
-// record, takes the host's answers, runs, and seals.
+// record, takes what its host brings, runs, and seals.
 use super::{
-    ExecutableAdapter, PendingSkillRequest, SkillExecutionContext, SkillOutputDiagnostics,
-    SkillRunError, build_domain_act_frame, invalid, needs_agent_output, sealed_output,
+    BoundRun, ExecutableAdapter, SkillOutputDiagnostics, SkillRunError, build_domain_act_frame,
+    invalid, paused_output, sealed_output,
 };
 
-use std::collections::{BTreeMap, BTreeSet};
-use std::path::PathBuf;
-
 use runx_contracts::{
-    ClosureDisposition, JsonObject, JsonValue, ResolutionRequest, ResolutionResponse,
-    ResolutionResponseActor,
+    AgentActInvocation, ClosureDisposition, JsonObject, JsonValue, ResolutionRequest,
+    ResolutionResponse, ResolutionResponseActor, TurnCallOutcome, TurnCallResult, TurnStatus,
+    TurnTarget,
 };
 use runx_parser::{ExecutionGraph, SkillRunnerDefinition};
 
 use crate::RuntimeError;
 #[cfg(test)]
 use crate::adapter::SkillInvocation;
-use crate::effects::RuntimeEffectRegistry;
 use crate::execution::graph::materialize_graph_parameter_inputs;
 use crate::execution::orchestrator::{RunResult, SkillRunRequest};
-use crate::execution::run_record::CallOutcome;
 use crate::execution::run_record::{
-    Hold, Origin, RunContext, RunLog, RunRecord, StartRequest, pending_request,
+    Hold, Origin, PendingRequest, RunContext, RunLog, RunRecord, StartRequest, pending_request,
+    waiting_requests,
 };
-use crate::execution::runner::turn::{self, OpenTurn, TurnAction, TurnCallContext};
+use crate::execution::runner::turn::{Turn, TurnTool};
 use crate::execution::runner::{
     GraphRun, RUNX_RUN_ID_ENV, Runtime, RuntimeOptions, graph_run_context, graph_run_result,
     graph_run_skill_output, graph_run_trace, sealed_graph_run,
 };
 use crate::host::Host;
+use crate::kernel::authority::RunAuthority;
 use crate::kernel::store::KernelStore;
 use crate::receipts::{
     DomainActReceiptRequest, RunScope, RuntimeReceiptSignatureConfig, domain_act_receipt,
@@ -44,422 +42,329 @@ use super::runner_manifest::write_skill_receipt;
 /// it is sealed deferred.
 const MAX_READBACK_RETRIES: u32 = 24;
 
-// Function rationale: one run driver: open the record, bind the host's
-// answers, run or continue, and seal; each outcome branch seals exactly once.
-pub(super) fn execute_graph_skill_run(
-    context: &SkillExecutionContext<'_>,
-) -> Result<RunResult, SkillRunError> {
-    let SkillExecutionContext {
-        request,
-        overrides,
-        effects,
-        workspace,
-        receipts,
-        manifest,
-        runner,
-        package_digest,
-        execution_closure_digest,
-        ..
-    } = *context;
-    let execution_closure_digest = execution_closure_digest
-        .ok_or_else(|| invalid("graph execution requires an execution-closure digest"))?;
-    let log = run_log(request, workspace, &manifest.skill)?;
-    let existing = log.load()?;
-    let request_context = RunContext {
-        current: request.current_context.clone(),
-        historical: request.historical_context.clone(),
-    };
-    let (created_at, graph_inputs, run_context, run_authority) = match &existing {
-        Some(record) => {
-            let started = continuation_identity(
-                record,
-                request,
-                &request_context,
-                runner,
-                package_digest,
-                execution_closure_digest,
-            )?;
-            (
-                record.created_at.clone(),
-                record.inputs.clone(),
-                record.context.clone(),
-                started.run_authority.clone(),
-            )
-        }
-        None if request.answers_path.is_some() => {
-            return Err(invalid(format!(
-                "run {} has no record to continue",
-                log.run_id()
-            )));
-        }
-        None => {
-            let created_at = crate::time::now_iso8601();
-            let inputs = request
-                .inputs
-                .iter()
-                .map(|(key, value)| (key.clone(), value.clone()))
-                .collect::<JsonObject>();
-            log.begin(StartRequest {
-                skill: &manifest.skill,
-                skill_ref: &request.skill_path.to_string_lossy(),
-                runner: &runner.name,
-                package_digest,
-                execution_closure_digest,
-                inputs: &inputs,
-                context: &request_context,
-                run_authority: request.run_authority.as_ref(),
-                created_at: &created_at,
-            })?;
-            (
-                created_at,
-                inputs,
-                request_context,
-                request.run_authority.clone(),
-            )
-        }
-    };
-    if let Some(record) = existing.as_ref().filter(|record| record.sealed.is_some()) {
-        return restore_sealed_run(context, &log, record.clone());
-    }
-    if existing.is_some() {
-        crate::input_contract::materialize_complete_runner_inputs(&runner.inputs, &graph_inputs)
-            .map_err(|error| error.into_runtime_error())?;
-    }
-
-    let turn = existing.as_ref().map(OpenTurn::of).transpose()?.flatten();
-    // The host's answers for this pass. Each is recorded only by the step
-    // that consumes it, so an answer the run refuses never enters its record.
-    // Completing a turn answers its act.
-    let answers = match (
-        &overrides.turn,
-        &overrides.seeded_answers,
-        &request.answers_path,
-    ) {
-        (Some(TurnAction::Complete(output)), _, _) => {
-            let turn = turn.as_ref().ok_or_else(|| {
-                invalid(format!(
-                    "run {} is not waiting on an agent turn",
-                    log.run_id()
-                ))
-            })?;
-            ResolutionAnswers::agent(JsonObject::from([(
-                turn.request.id.clone(),
-                JsonValue::Object(output.clone()),
-            )]))
-        }
-        (_, Some(seeded), _) => seeded.clone(),
-        (_, None, Some(path)) => read_answers(path)?,
-        (_, None, None) => ResolutionAnswers::default(),
-    };
-    let answered = !answers.is_empty();
-
-    let suspension = existing
-        .as_ref()
-        .and_then(|record| record.suspension.clone());
-    let waiting_on = pending_request(log.store(), log.run_id())?;
-    if let Some(suspension) = &suspension {
-        match &suspension.hold {
-            Hold::Retry(retry) => {
-                let Some(answer) = answers.get(&retry.id) else {
-                    return Ok(needs_agent_output(
-                        manifest,
-                        &runner.name,
-                        log.run_id(),
-                        &retry.id,
-                        retry.value.clone(),
-                    ));
-                };
-                if answers.request_digest(&retry.id) != Some(retry.digest.as_str())
-                    || answer
-                        != &JsonValue::Object(JsonObject::from([(
-                            "retry".to_owned(),
-                            JsonValue::Bool(true),
-                        )]))
-                {
-                    return Err(invalid(
-                        "native retry requires the exact digest-bound acknowledgement",
-                    ));
-                }
-            }
-            // Nothing new to continue with: the run still waits on the same
-            // request, which only an answer or a managed agent can settle.
-            Hold::Request(_) | Hold::Child(_)
-                if !answered && !request.managed_agent.is_inline() && overrides.turn.is_none() =>
-            {
-                if let Some(waiting) = &waiting_on {
-                    return Ok(needs_agent_output(
-                        manifest,
-                        &runner.name,
-                        log.run_id(),
-                        &waiting.id,
-                        waiting.value.clone(),
-                    ));
-                }
-            }
-            Hold::Request(_) | Hold::Child(_) => {}
-        }
-    }
-
-    let skill_dir = context.skill_dir.to_path_buf();
-    let mut env = workspace.skill_env_for_skill(&skill_dir);
-    env.insert(RUNX_RUN_ID_ENV.to_owned(), log.run_id().to_owned());
-    let receipt_path = workspace.receipt_path(request.receipt_dir.as_deref());
-    env.insert(
-        crate::paths::RUNX_RECEIPT_DIR_ENV.to_owned(),
-        receipt_path.path.to_string_lossy().into_owned(),
-    );
-    let inline_resolver = InlineResolver {
-        skill_directory: skill_dir.clone(),
-        env: env.clone(),
-        effects: effects.clone(),
-        observed_at: created_at.clone(),
-        policy: request.managed_agent.clone(),
-    };
-    let options = RuntimeOptions {
-        current_context: run_context.current,
-        historical_context: run_context.historical,
-        run_authority,
-        created_at: created_at.clone(),
-        env,
-        receipt_signature: receipts.signature_config().clone(),
-        effects: effects.clone(),
-        run: log.clone(),
-    };
-    let runtime = match &overrides.javascript {
-        Some(javascript) => Runtime::with_native_services(
-            ExecutableAdapter,
-            options,
-            javascript.clone(),
-            crate::services::LocalArtifactService::default(),
-        ),
-        None => Runtime::new(ExecutableAdapter, options),
-    };
-    let graph = materialize_graph_parameter_inputs(runner.graph.clone(), &graph_inputs);
-    let answered_calls = turn.as_ref().map_or_else(BTreeSet::new, |turn| {
-        turn.calls
-            .iter()
-            .filter_map(|call| match &call.outcome {
-                CallOutcome::Pending(pending) if answers.get(&pending.id).is_some() => {
-                    Some(pending.id.clone())
-                }
-                _ => None,
-            })
-            .collect::<BTreeSet<_>>()
-    });
-    let mut host = SkillRunGraphHost::with_inline(answers, inline_resolver);
-    host.expected_pending = waiting_on.map(|waiting| PendingSkillRequest {
-        id: waiting.id,
-        value: waiting.value,
-    });
-    let turn_context = TurnCallContext {
-        runtime: &runtime,
-        graph_dir: &skill_dir,
-        graph_name: &graph.name,
-        manifest,
-    };
-    if let Some(action) = overrides
-        .turn
-        .as_ref()
-        .filter(|action| !matches!(action, TurnAction::Complete(_)))
-    {
-        let turn = turn.ok_or_else(|| {
-            invalid(format!(
-                "run {} is not waiting on an agent turn",
-                log.run_id()
-            ))
-        })?;
-        return drive_turn(context, &log, &turn_context, &turn, action, &mut host);
-    }
-    // Answers to the open turn's pending calls settle those calls; the run
-    // still waits on the turn.
-    if let Some(turn) = turn.filter(|_| !answered_calls.is_empty()) {
-        turn::settle_answered(
-            &turn_context,
-            &turn,
-            |id| answered_calls.contains(id),
-            &mut host,
-        )?;
-        return Ok(needs_agent_output(
-            manifest,
-            &runner.name,
-            log.run_id(),
-            &turn.request.id,
-            turn.request.value.clone(),
-        ));
-    }
-    let run = Driven {
-        context,
-        log: &log,
-        runtime: &runtime,
-        graph: &graph,
-        graph_inputs: &graph_inputs,
-        created_at: &created_at,
-    };
-    match runtime.run_graph_with_host(&skill_dir, graph.clone(), &mut host) {
-        Ok(completed) => run.seal_completed(completed),
-        Err(RuntimeError::ResolutionPending { request, .. }) => {
-            let value = serde_json::to_value(request.as_ref())
-                .and_then(serde_json::from_value::<JsonValue>)
-                .map_err(|source| RuntimeError::json("encoding a pending request", source))?;
-            let id = resolution_request_id(&request).to_owned();
-            Ok(needs_agent_output(
-                manifest,
-                &runner.name,
-                log.run_id(),
-                &id,
-                value,
-            ))
-        }
-        Err(RuntimeError::StepClosed {
-            step_id,
-            disposition,
-            reason_code,
-            summary,
-        }) => {
-            let summary = format!(
-                "graph {} {} at {step_id}: {summary}",
-                graph.name,
-                disposition.label()
-            );
-            run.seal_stopped(&step_id, &reason_code, summary, Stop::Closed(disposition))
-        }
-        Err(RuntimeError::GraphBlocked { step_id, reason }) => run.seal_stopped(
-            &step_id,
-            "graph_blocked",
-            format!("graph {} blocked at {step_id}: {reason}", graph.name),
-            Stop::Blocked,
-        ),
-        Err(RuntimeError::AuthorityDenied {
-            verb,
-            step_id,
-            reason,
-        }) => run.seal_stopped(
-            &step_id,
-            "authority_denied",
-            format!(
-                "graph {} denied {verb:?} at {step_id}: {reason}",
-                graph.name
-            ),
-            Stop::Blocked,
-        ),
-        Err(error @ RuntimeError::ProviderReadbackPending { .. }) => {
-            let step_id = error
-                .graph_step_id()
-                .unwrap_or("provider-readback")
-                .to_owned();
-            let retries = existing.as_ref().map_or(0, |record| record.retries) + 1;
-            if retries <= MAX_READBACK_RETRIES {
-                let id = format!("provider-readback-{step_id}-{retries}");
-                let retry = ResolutionRequest::Retry {
-                    id: id.clone().into(),
-                    reason: "Independent provider readback is pending".into(),
-                    retry_after_seconds: 300,
-                };
-                log.record_retry(&step_id, &retry)?;
-                let value = serde_json::to_value(&retry)
-                    .and_then(serde_json::from_value::<JsonValue>)
-                    .map_err(|source| {
-                        RuntimeError::json("encoding native readback retry", source)
-                    })?;
-                return Ok(needs_agent_output(
-                    manifest,
-                    &runner.name,
-                    log.run_id(),
-                    &id,
-                    value,
-                ));
-            }
-            let summary = format!(
-                "graph {} deferred at {step_id}: the provider mutation may be applied, but independent readback is unavailable; reconcile before retrying",
-                graph.name
-            );
-            run.seal_stopped(
-                &step_id,
-                "provider_readback_pending",
-                summary,
-                Stop::Deferred(error),
-            )
-        }
+impl BoundRun {
+    /// Start the run, or continue it with the answers its request brings, and
+    /// drive it as far as it goes.
+    pub(crate) fn execute(&self) -> Result<RunResult, SkillRunError> {
+        let answers = match (&self.overrides.seeded_answers, &self.request.answers_path) {
+            (Some(seeded), _) => seeded.clone(),
+            (None, Some(path)) => read_answers(path)?,
+            (None, None) => ResolutionAnswers::default(),
+        };
+        let mut host = RunHost::new(answers);
         #[cfg(feature = "agent")]
-        Err(RuntimeError::ManagedAgentResolution {
-            step_id,
-            request_id,
-            source,
-        }) => {
-            let reason_code = format!("managed_agent_{}", source.reason_code());
-            let summary = format!(
-                "graph {} managed agent failed at {step_id} ({})",
-                graph.name,
-                source.reason_code()
-            );
-            let error = RuntimeError::ManagedAgentResolution {
-                step_id: step_id.clone(),
+        {
+            host.managed = self.request.managed_agent.max_rounds().map(|max_rounds| {
+                std::rc::Rc::new(crate::adapters::managed_agent::ManagedAgent::new(
+                    self.workspace.skill_env_for_skill(&self.skill_dir),
+                    self.skill_dir.clone(),
+                    max_rounds,
+                ))
+            });
+        }
+        self.advance(&mut host)
+    }
+
+    // Function rationale: one run driver: open the record, bind what the host
+    // brings, run or continue, and seal; each outcome branch seals exactly
+    // once.
+    /// Drive the run as far as it goes with what `host` brings: answers, an
+    /// action on the turn the run waits on, or a managed agent.
+    pub(super) fn advance(&self, host: &mut RunHost) -> Result<RunResult, SkillRunError> {
+        let request = &self.request;
+        let execution_closure_digest = self
+            .execution_closure_digest
+            .as_deref()
+            .ok_or_else(|| invalid("graph execution requires an execution-closure digest"))?;
+        let log = run_log(request, &self.workspace, &self.manifest.skill)?;
+        let existing = log.load()?;
+        let waiting_on = pending_request(log.store(), log.run_id())?;
+        host.check_turn(log.run_id(), waiting_on.as_ref())?;
+        let request_context = RunContext {
+            current: request.current_context.clone(),
+            historical: request.historical_context.clone(),
+        };
+        let (created_at, graph_inputs, run_context, run_authority) = match &existing {
+            Some(record) => {
+                let started = continuation_identity(
+                    record,
+                    request,
+                    &request_context,
+                    &self.runner,
+                    &self.package_digest,
+                    execution_closure_digest,
+                )?;
+                (
+                    record.created_at.clone(),
+                    record.inputs.clone(),
+                    record.context.clone(),
+                    started.run_authority.clone(),
+                )
+            }
+            None if request.answers_path.is_some() => {
+                return Err(invalid(format!(
+                    "run {} has no record to continue",
+                    log.run_id()
+                )));
+            }
+            None => {
+                let created_at = crate::time::now_iso8601();
+                let inputs = request
+                    .inputs
+                    .iter()
+                    .map(|(key, value)| (key.clone(), value.clone()))
+                    .collect::<JsonObject>();
+                log.begin(StartRequest {
+                    skill: &self.manifest.skill,
+                    skill_ref: &request.skill_path.to_string_lossy(),
+                    runner: &self.runner.name,
+                    package_digest: &self.package_digest,
+                    execution_closure_digest,
+                    inputs: &inputs,
+                    context: &request_context,
+                    run_authority: request.run_authority.as_ref(),
+                    created_at: &created_at,
+                })?;
+                (
+                    created_at,
+                    inputs,
+                    request_context,
+                    request.run_authority.clone(),
+                )
+            }
+        };
+        if let Some(record) = existing.as_ref().filter(|record| record.sealed.is_some()) {
+            return self.restore_sealed_run(&log, record.clone());
+        }
+        if existing.is_some() {
+            crate::input_contract::materialize_complete_runner_inputs(
+                &self.runner.inputs,
+                &graph_inputs,
+            )
+            .map_err(|error| error.into_runtime_error())?;
+        }
+        if let Some(suspension) = existing
+            .as_ref()
+            .and_then(|record| record.suspension.as_ref())
+        {
+            match &suspension.hold {
+                Hold::Retry(retry) => {
+                    let Some(answer) = host.answers.get(&retry.id) else {
+                        return self.paused(&log);
+                    };
+                    if host.answers.request_digest(&retry.id) != Some(retry.digest.as_str())
+                        || answer
+                            != &JsonValue::Object(JsonObject::from([(
+                                "retry".to_owned(),
+                                JsonValue::Bool(true),
+                            )]))
+                    {
+                        return Err(invalid(
+                            "native retry requires the exact digest-bound acknowledgement",
+                        ));
+                    }
+                }
+                // Nothing new to continue with: the run still waits on the
+                // same request.
+                Hold::Request(_) | Hold::Child(_) if host.is_idle() => return self.paused(&log),
+                Hold::Request(_) | Hold::Child(_) => {}
+            }
+        }
+        let runtime = self.runtime(&log, &created_at, run_context, run_authority);
+        let graph = materialize_graph_parameter_inputs(self.runner.graph.clone(), &graph_inputs);
+        let run = Driven {
+            bound: self,
+            log: &log,
+            runtime: &runtime,
+            graph: &graph,
+            graph_inputs: &graph_inputs,
+            created_at: &created_at,
+        };
+        match runtime.run_graph_with_host(&self.skill_dir, graph.clone(), host) {
+            Ok(completed) => run.seal_completed(completed),
+            Err(RuntimeError::ResolutionPending { .. }) => self.paused(&log),
+            Err(RuntimeError::StepClosed {
+                step_id,
+                disposition,
+                reason_code,
+                summary,
+            }) => {
+                let summary = format!(
+                    "graph {} {} at {step_id}: {summary}",
+                    graph.name,
+                    disposition.label()
+                );
+                run.seal_stopped(&step_id, &reason_code, summary, Stop::Closed(disposition))
+            }
+            Err(RuntimeError::GraphBlocked { step_id, reason }) => run.seal_stopped(
+                &step_id,
+                "graph_blocked",
+                format!("graph {} blocked at {step_id}: {reason}", graph.name),
+                Stop::Blocked,
+            ),
+            Err(RuntimeError::AuthorityDenied {
+                verb,
+                step_id,
+                reason,
+            }) => run.seal_stopped(
+                &step_id,
+                "authority_denied",
+                format!(
+                    "graph {} denied {verb:?} at {step_id}: {reason}",
+                    graph.name
+                ),
+                Stop::Blocked,
+            ),
+            Err(error @ RuntimeError::ProviderReadbackPending { .. }) => {
+                let step_id = error
+                    .graph_step_id()
+                    .unwrap_or("provider-readback")
+                    .to_owned();
+                let retries = existing.as_ref().map_or(0, |record| record.retries) + 1;
+                if retries <= MAX_READBACK_RETRIES {
+                    log.record_retry(
+                        &step_id,
+                        &ResolutionRequest::Retry {
+                            id: format!("provider-readback-{step_id}-{retries}").into(),
+                            reason: "Independent provider readback is pending".into(),
+                            retry_after_seconds: 300,
+                        },
+                    )?;
+                    return self.paused(&log);
+                }
+                let summary = format!(
+                    "graph {} deferred at {step_id}: the provider mutation may be applied, but independent readback is unavailable; reconcile before retrying",
+                    graph.name
+                );
+                run.seal_stopped(
+                    &step_id,
+                    "provider_readback_pending",
+                    summary,
+                    Stop::Deferred(error),
+                )
+            }
+            #[cfg(feature = "agent")]
+            Err(RuntimeError::ManagedAgentResolution {
+                step_id,
                 request_id,
                 source,
-            };
-            run.seal_stopped(&step_id, &reason_code, summary, Stop::Failed(error))
+            }) => {
+                let reason_code = format!("managed_agent_{}", source.reason_code());
+                let summary = format!(
+                    "graph {} managed agent failed at {step_id} ({})",
+                    graph.name,
+                    source.reason_code()
+                );
+                let error = RuntimeError::ManagedAgentResolution {
+                    step_id: step_id.clone(),
+                    request_id,
+                    source,
+                };
+                run.seal_stopped(&step_id, &reason_code, summary, Stop::Failed(error))
+            }
+            Err(error) if !error.is_fatal_step_fault() => {
+                let step_id =
+                    crate::execution::runner::failed_step_id(&graph, &error).ok_or_else(|| {
+                        RuntimeError::EngineInvariant {
+                            context: "sealing graph step failure",
+                            message: format!(
+                                "sealable graph error has no authoritative step: {error}"
+                            ),
+                        }
+                    })?;
+                let summary = format!("graph {} failed at {step_id}: {error}", graph.name);
+                run.seal_stopped(&step_id, "graph_step_failed", summary, Stop::Failed(error))
+            }
+            Err(error) => Err(error.into()),
         }
-        Err(error) if !error.is_fatal_step_fault() => {
-            let step_id =
-                crate::execution::runner::failed_step_id(&graph, &error).ok_or_else(|| {
-                    RuntimeError::EngineInvariant {
-                        context: "sealing graph step failure",
-                        message: format!("sealable graph error has no authoritative step: {error}"),
-                    }
-                })?;
-            let summary = format!("graph {} failed at {step_id}: {error}", graph.name);
-            run.seal_stopped(&step_id, "graph_step_failed", summary, Stop::Failed(error))
-        }
-        Err(error) => Err(error.into()),
     }
-}
 
-/// Act on the open turn: make a call, or report where the turn stands. The run
-/// still waits on the turn either way.
-fn drive_turn(
-    context: &SkillExecutionContext<'_>,
-    log: &RunLog,
-    turn_context: &TurnCallContext<'_, ExecutableAdapter>,
-    turn: &OpenTurn,
-    action: &TurnAction,
-    host: &mut dyn Host,
-) -> Result<RunResult, SkillRunError> {
-    let output = match action {
-        TurnAction::Call(call) => {
-            let (index, outcome) = turn::call(turn_context, turn, call, host)?;
-            let mut output = JsonObject::from([
-                (
-                    "schema".to_owned(),
-                    JsonValue::String("runx.turn.call.v1".to_owned()),
-                ),
-                (
-                    "run_id".to_owned(),
-                    JsonValue::String(log.run_id().to_owned()),
-                ),
-            ]);
-            output.insert(
-                "call".to_owned(),
-                turn::outcome_value(index, &call.target, &outcome)?,
-            );
-            JsonValue::Object(output)
+    /// The run's runtime for one pass: the skill's environment, the run's
+    /// identity and authority, and its log.
+    fn runtime(
+        &self,
+        log: &RunLog,
+        created_at: &str,
+        context: RunContext,
+        run_authority: Option<RunAuthority>,
+    ) -> Runtime<ExecutableAdapter> {
+        let mut env = self.workspace.skill_env_for_skill(&self.skill_dir);
+        env.insert(RUNX_RUN_ID_ENV.to_owned(), log.run_id().to_owned());
+        env.insert(
+            crate::paths::RUNX_RECEIPT_DIR_ENV.to_owned(),
+            self.workspace
+                .receipt_path(self.request.receipt_dir.as_deref())
+                .path
+                .to_string_lossy()
+                .into_owned(),
+        );
+        let options = RuntimeOptions {
+            current_context: context.current,
+            historical_context: context.historical,
+            run_authority,
+            created_at: created_at.to_owned(),
+            env,
+            receipt_signature: self.receipts.signature_config().clone(),
+            effects: self.effects.clone(),
+            run: log.clone(),
+        };
+        match &self.overrides.javascript {
+            Some(javascript) => Runtime::with_native_services(
+                ExecutableAdapter,
+                options,
+                javascript.clone(),
+                crate::services::LocalArtifactService::default(),
+            ),
+            None => Runtime::new(ExecutableAdapter, options),
         }
-        TurnAction::Status => turn::status(log.run_id(), turn)?,
-        TurnAction::Describe => {
-            turn::description(log.run_id(), turn, &turn::tools(turn_context, turn)?)?
+    }
+
+    /// The run waits: on what its step asked, and on what its open turn's
+    /// calls ask.
+    fn paused(&self, log: &RunLog) -> Result<RunResult, SkillRunError> {
+        let waiting = waiting_requests(log.store(), log.run_id())?;
+        Ok(paused_output(
+            &self.manifest,
+            &self.runner.name,
+            log.run_id(),
+            &waiting,
+        ))
+    }
+
+    /// A sealed run returns what it sealed, from its record alone.
+    fn restore_sealed_run(
+        &self,
+        log: &RunLog,
+        record: RunRecord,
+    ) -> Result<RunResult, SkillRunError> {
+        let sealed = record
+            .sealed
+            .clone()
+            .ok_or_else(|| invalid("the run has no seal"))?;
+        let graph = materialize_graph_parameter_inputs(self.runner.graph.clone(), &record.inputs);
+        let run = sealed_graph_run(graph, record)?;
+        write_graph_receipts(&self.request, &self.workspace, &self.receipts, &run)?;
+        if let Some(primary) = &sealed.primary {
+            write_skill_receipt(&self.request, &self.workspace, &self.receipts, primary)?;
         }
-        TurnAction::Complete(_) => {
-            return Err(invalid("completing a turn continues the run"));
-        }
-    };
-    let mut result = needs_agent_output(
-        context.manifest,
-        &context.runner.name,
-        log.run_id(),
-        &turn.request.id,
-        turn.request.value.clone(),
-    );
-    result.output = output;
-    Ok(result)
+        let result = match sealed.terminal_result {
+            Some(result) => result,
+            None => graph_run_result(&run)?,
+        };
+        let output = graph_run_skill_output(&result, &run)?;
+        Ok(sealed_output(
+            &self.manifest,
+            &self.runner.name,
+            log.run_id(),
+            &output,
+            &result,
+            SkillOutputDiagnostics {
+                context: Some(graph_run_context(&run)),
+                trace: Some(graph_run_trace(&run)),
+            },
+            sealed.primary.as_ref().unwrap_or(&run.receipt),
+        ))
+    }
 }
 
 /// The run a request names: its pinned id, or a new one.
@@ -533,46 +438,6 @@ fn continuation_identity<'a>(
     Ok(started)
 }
 
-/// A sealed run returns what it sealed, from its record alone.
-fn restore_sealed_run(
-    context: &SkillExecutionContext<'_>,
-    log: &RunLog,
-    record: RunRecord,
-) -> Result<RunResult, SkillRunError> {
-    let sealed = record
-        .sealed
-        .clone()
-        .ok_or_else(|| invalid("the run has no seal"))?;
-    let graph = materialize_graph_parameter_inputs(context.runner.graph.clone(), &record.inputs);
-    let run = sealed_graph_run(graph, record)?;
-    write_graph_receipts(context.request, context.workspace, context.receipts, &run)?;
-    if let Some(primary) = &sealed.primary {
-        write_skill_receipt(
-            context.request,
-            context.workspace,
-            context.receipts,
-            primary,
-        )?;
-    }
-    let result = match sealed.terminal_result {
-        Some(result) => result,
-        None => graph_run_result(&run)?,
-    };
-    let output = graph_run_skill_output(&result, &run)?;
-    Ok(sealed_output(
-        context.manifest,
-        &context.runner.name,
-        log.run_id(),
-        &output,
-        &result,
-        SkillOutputDiagnostics {
-            context: Some(graph_run_context(&run)),
-            trace: Some(graph_run_trace(&run)),
-        },
-        sealed.primary.as_ref().unwrap_or(&run.receipt),
-    ))
-}
-
 /// Why a run stopped short of completion.
 enum Stop {
     Blocked,
@@ -586,7 +451,7 @@ enum Stop {
 
 /// A run being driven, and what sealing it needs.
 struct Driven<'a> {
-    context: &'a SkillExecutionContext<'a>,
+    bound: &'a BoundRun,
     log: &'a RunLog,
     runtime: &'a Runtime<ExecutableAdapter>,
     graph: &'a ExecutionGraph,
@@ -596,28 +461,28 @@ struct Driven<'a> {
 
 impl Driven<'_> {
     fn seal_completed(&self, run: GraphRun) -> Result<RunResult, SkillRunError> {
-        let context = self.context;
+        let bound = self.bound;
         let result = graph_run_result(&run)?;
         // A runner that declares an `act:` block presents a clean domain-act
         // receipt; the step receipts remain as its execution trace.
         let domain = graph_domain_act_receipt(
-            context.runner,
+            &bound.runner,
             self.graph_inputs,
             &run,
             self.log.run_id(),
             self.created_at,
-            context.receipts.signature_config(),
+            bound.receipts.signature_config(),
         )?;
         self.log
             .record_sealed(&run.receipt, domain.as_ref(), None)?;
-        write_graph_receipts(context.request, context.workspace, context.receipts, &run)?;
+        write_graph_receipts(&bound.request, &bound.workspace, &bound.receipts, &run)?;
         if let Some(domain) = &domain {
-            write_skill_receipt(context.request, context.workspace, context.receipts, domain)?;
+            write_skill_receipt(&bound.request, &bound.workspace, &bound.receipts, domain)?;
         }
         let output = graph_run_skill_output(&result, &run)?;
         Ok(sealed_output(
-            context.manifest,
-            &context.runner.name,
+            &bound.manifest,
+            &bound.runner.name,
             self.log.run_id(),
             &output,
             &result,
@@ -636,8 +501,8 @@ impl Driven<'_> {
         summary: String,
         stop: Stop,
     ) -> Result<RunResult, SkillRunError> {
-        let context = self.context;
-        let mut host = SkillRunGraphHost::new(ResolutionAnswers::default());
+        let bound = self.bound;
+        let mut host = RunHost::new(ResolutionAnswers::default());
         let failure_result = match &stop {
             Stop::Deferred(error) | Stop::Failed(error) => {
                 Some(JsonValue::Object(error.public_failure_projection()))
@@ -675,11 +540,11 @@ impl Driven<'_> {
             None => crate::execution::runner::graph_terminal_result(&run)?,
         };
         self.log.record_sealed(&run.receipt, None, Some(&result))?;
-        write_graph_receipts(context.request, context.workspace, context.receipts, &run)?;
+        write_graph_receipts(&bound.request, &bound.workspace, &bound.receipts, &run)?;
         let output = graph_run_skill_output(&result, &run)?;
         Ok(sealed_output(
-            context.manifest,
-            &context.runner.name,
+            &bound.manifest,
+            &bound.runner.name,
             self.log.run_id(),
             &output,
             &result,
@@ -692,105 +557,133 @@ impl Driven<'_> {
     }
 }
 
-#[derive(Default)]
-/// In-process managed-agent resolver for graph agent steps. An agent step inside
-/// a graph that has no seeded answer would otherwise host-drive (yield
-/// `needs_agent`); explicit per-run consent plus a configured provider resolves
-/// it inline. Provider configuration alone never enables managed execution.
-struct InlineResolver {
-    // Both fields feed the agent resolver path in `try_resolve` under the `agent`
-    // feature; without it `try_resolve` is a no-op, so they are written at
-    // construction but never read.
-    #[cfg_attr(not(feature = "agent"), allow(dead_code))]
-    skill_directory: PathBuf,
-    #[cfg_attr(not(feature = "agent"), allow(dead_code))]
-    env: BTreeMap<String, String>,
-    #[cfg_attr(not(feature = "agent"), allow(dead_code))]
-    effects: RuntimeEffectRegistry,
-    #[cfg_attr(not(feature = "agent"), allow(dead_code))]
-    observed_at: String,
-    #[cfg_attr(not(feature = "agent"), allow(dead_code))]
-    policy: crate::execution::orchestrator::ManagedAgentPolicy,
+/// An action on the turn a paused run waits on, bound to that turn.
+pub(super) struct TurnAct {
+    /// The turn's request id; `None` acts on whichever turn the run waits on.
+    pub(super) turn: Option<String>,
+    pub(super) action: TurnAction,
 }
 
-impl InlineResolver {
-    #[cfg(feature = "agent")]
-    fn try_resolve(&self, request: &ResolutionRequest) -> Result<Option<JsonValue>, RuntimeError> {
-        use crate::adapters::agent::AgentResolver;
-        use crate::adapters::agent_resolver::{ManagedAgentResolver, ManagedAgentResolverOptions};
-
-        let Some(max_rounds) = self.policy.max_rounds() else {
-            return Ok(None);
-        };
-        let fail = |message: String| RuntimeError::SkillFailed {
-            skill_name: "managed-agent".to_owned(),
-            message,
-        };
-        let Some(config) =
-            crate::config::load_managed_agent_config(&self.env, &self.skill_directory)
-                .map_err(|error| fail(format!("managed agent config error: {error}")))?
-        else {
-            return Ok(None);
-        };
-        let resolver = ManagedAgentResolver::new(
-            config,
-            ManagedAgentResolverOptions {
-                env: self.env.clone(),
-                skill_directory: self.skill_directory.clone(),
-                effects: self.effects.clone(),
-                observed_at: self.observed_at.clone(),
-                max_rounds,
-            },
-        );
-        let request_id = resolution_request_id(request).to_owned();
-        let step_id = match request {
-            ResolutionRequest::AgentAct { invocation, .. } => {
-                invocation.envelope.skill.as_ref().to_owned()
-            }
-            _ => "managed-agent".to_owned(),
-        };
-        let resolution = resolver
-            .resolve(request.clone())
-            .map_err(|error| RuntimeError::managed_agent_resolution(step_id, request_id, error))?;
-        Ok(Some(resolution.response.payload))
-    }
-
-    #[cfg(not(feature = "agent"))]
-    fn try_resolve(&self, _request: &ResolutionRequest) -> Result<Option<JsonValue>, RuntimeError> {
-        Ok(None)
-    }
+pub(super) enum TurnAction {
+    /// Read the turn: its act and its tools.
+    Open,
+    Status,
+    Call(TurnTarget, JsonObject),
+    /// Answer the act; the run continues.
+    Complete(JsonObject),
 }
 
-/// The host a skill run answers its requests through: the answers the run
-/// holds, then the managed agent when the run consents to one. Anything else
-/// suspends the run on the request.
-struct SkillRunGraphHost {
-    /// The request the run was waiting on; a continuation must ask it again
-    /// unchanged.
-    expected_pending: Option<PendingSkillRequest>,
+/// What an action on a turn did.
+pub(super) enum TurnActed {
+    Opened {
+        invocation: Box<AgentActInvocation>,
+        tools: Vec<TurnTool>,
+    },
+    Status(TurnStatus),
+    Call(TurnCallResult),
+    Completed,
+}
+
+/// The host a run's driver works it through: the answers the caller
+/// brought, an action on the turn the run waits on, and the managed agent
+/// the run consents to. Anything else suspends the run where it asks.
+pub(super) struct RunHost {
     answers: ResolutionAnswers,
-    inline: Option<InlineResolver>,
+    act: Option<TurnAct>,
+    /// What the act did, once the run reached its turn.
+    acted: Option<TurnActed>,
+    #[cfg(feature = "agent")]
+    managed: Option<std::rc::Rc<crate::adapters::managed_agent::ManagedAgent>>,
 }
 
-impl SkillRunGraphHost {
+impl RunHost {
     fn new(answers: ResolutionAnswers) -> Self {
         Self {
             answers,
-            expected_pending: None,
-            inline: None,
+            act: None,
+            acted: None,
+            #[cfg(feature = "agent")]
+            managed: None,
         }
     }
 
-    fn with_inline(answers: ResolutionAnswers, inline: InlineResolver) -> Self {
+    /// A host that does one thing on a paused run's turn.
+    pub(super) fn acting(act: TurnAct) -> Self {
         Self {
-            answers,
-            expected_pending: None,
-            inline: Some(inline),
+            act: Some(act),
+            ..Self::new(ResolutionAnswers::default())
         }
+    }
+
+    /// What the act did; `None` when the run never reached its turn.
+    pub(super) fn acted(&mut self) -> Option<TurnActed> {
+        self.acted.take()
+    }
+
+    /// Whether the host brings nothing a paused run could continue with.
+    fn is_idle(&self) -> bool {
+        #[cfg(feature = "agent")]
+        if self.managed.is_some() {
+            return false;
+        }
+        self.answers.is_empty() && self.act.is_none()
+    }
+
+    /// An action on a turn needs the run paused at that turn.
+    fn check_turn(
+        &self,
+        run_id: &str,
+        waiting: Option<&PendingRequest>,
+    ) -> Result<(), SkillRunError> {
+        let Some(act) = &self.act else {
+            return Ok(());
+        };
+        let Some(waiting) = waiting.filter(|waiting| {
+            waiting
+                .value
+                .as_object()
+                .and_then(|value| value.get("kind"))
+                == Some(&JsonValue::String("agent_act".to_owned()))
+        }) else {
+            return Err(invalid(format!(
+                "run {run_id} is not waiting on an agent turn"
+            )));
+        };
+        match &act.turn {
+            Some(turn) if turn != &waiting.id => Err(invalid(format!(
+                "run {run_id} now waits on {}, not turn {turn}",
+                waiting.id
+            ))),
+            _ => Ok(()),
+        }
+    }
+
+    /// Run again each pending call of `turn` this host now answers.
+    fn settle(&mut self, turn: &mut dyn Turn) -> Result<(), RuntimeError> {
+        if self.answers.is_empty() {
+            return Ok(());
+        }
+        let answered = turn
+            .status()?
+            .calls
+            .into_iter()
+            .filter_map(|call| match &call.outcome {
+                TurnCallOutcome::Pending { request }
+                    if self.answers.get(resolution_request_id(request)).is_some() =>
+                {
+                    Some(call.index)
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        for index in answered {
+            turn.settle(self, index)?;
+        }
+        Ok(())
     }
 }
 
-impl Host for SkillRunGraphHost {
+impl Host for RunHost {
     fn report(&mut self, _event: runx_contracts::ExecutionEvent) -> Result<(), RuntimeError> {
         Ok(())
     }
@@ -800,63 +693,72 @@ impl Host for SkillRunGraphHost {
         request: ResolutionRequest,
     ) -> Result<Option<ResolutionResponse>, RuntimeError> {
         let request_id = resolution_request_id(&request).to_owned();
-        if let Some(expected) = &self.expected_pending
-            && expected.id == request_id
-        {
-            let value = serde_json::to_value(&request)
-                .and_then(serde_json::from_value::<JsonValue>)
-                .map_err(|source| RuntimeError::json("binding resumed request", source))?;
-            if value != expected.value {
+        let Some(answer) = self.answers.get(&request_id).cloned() else {
+            return Ok(None);
+        };
+        if self.answers.requires_request_digest(&request_id) {
+            let supplied = self.answers.request_digest(&request_id).ok_or_else(|| {
+                RuntimeError::ContinuationRejected {
+                    reason: format!("request_digests did not include pending request {request_id}"),
+                }
+            })?;
+            let current = crate::execution::run_record::request_digest(&request)?;
+            if supplied != current {
                 return Err(RuntimeError::ContinuationRejected {
-                    reason: "continuation cannot replace the pending request or its context"
-                        .to_owned(),
+                    reason: format!(
+                        "request digest mismatch for {request_id}: supplied {supplied}, current {current}"
+                    ),
                 });
             }
         }
-        if let Some(answer) = self.answers.get(&request_id) {
-            if self.answers.requires_request_digest(&request_id) {
-                let supplied = self.answers.request_digest(&request_id).ok_or_else(|| {
-                    RuntimeError::ContinuationRejected {
-                        reason: format!(
-                            "request_digests did not include pending request {request_id}"
-                        ),
-                    }
-                })?;
-                let current = crate::execution::run_record::request_digest(&request)?;
-                if supplied != current {
-                    return Err(RuntimeError::ContinuationRejected {
-                        reason: format!(
-                            "request digest mismatch for {request_id}: supplied {supplied}, current {current}"
-                        ),
-                    });
-                }
-            }
-            return Ok(Some(ResolutionResponse {
-                actor: if self.answers.is_human_approval(&request_id) {
-                    ResolutionResponseActor::Human
-                } else {
-                    ResolutionResponseActor::Agent
-                },
-                payload: answer.clone(),
-            }));
-        }
-        // An agent step with no seeded answer runs the configured provider inline
-        // rather than host-driving, so a graph turn (agent step -> governed action
-        // step) completes in one pass. No provider configured -> falls through to
-        // the host as before.
-        if matches!(request, ResolutionRequest::AgentAct { .. })
-            && let Some(inline) = &self.inline
-            && let Some(payload) = inline.try_resolve(&request)?
-        {
-            return Ok(Some(ResolutionResponse {
-                actor: ResolutionResponseActor::Agent,
-                payload,
-            }));
-        }
-        Ok(None)
+        let actor = if self.answers.is_human_approval(&request_id) {
+            ResolutionResponseActor::Human
+        } else {
+            ResolutionResponseActor::Agent
+        };
+        // An answer answers one ask: a later request with the same id waits.
+        self.answers.consume(&request_id);
+        Ok(Some(ResolutionResponse {
+            actor,
+            payload: answer,
+        }))
     }
 
     fn log(&mut self, _message: String) -> Result<(), RuntimeError> {
+        Ok(())
+    }
+
+    /// The calls this host now answers settle first. Then the host does what
+    /// it came to do on this turn, or its managed agent works it.
+    fn drive_turn(&mut self, turn: &mut dyn Turn) -> Result<(), RuntimeError> {
+        self.settle(turn)?;
+        let request_id = turn.invocation().id.as_str().to_owned();
+        if let Some(act) = self
+            .act
+            .take_if(|act| act.turn.as_ref().is_none_or(|turn| turn == &request_id))
+        {
+            self.acted = Some(match act.action {
+                TurnAction::Open => TurnActed::Opened {
+                    invocation: Box::new(turn.invocation().clone()),
+                    tools: turn.tools()?,
+                },
+                TurnAction::Status => TurnActed::Status(turn.status()?),
+                TurnAction::Call(target, input) => TurnActed::Call(turn.call(self, target, input)?),
+                TurnAction::Complete(output) => {
+                    self.answers.answer(&request_id, JsonValue::Object(output));
+                    TurnActed::Completed
+                }
+            });
+            return Ok(());
+        }
+        // The managed agent works every turn of the run, including one a
+        // call of its own opens in a child skill.
+        #[cfg(feature = "agent")]
+        if let Some(managed) = self.managed.clone()
+            && let Some(output) = managed.drive(turn, self)?
+        {
+            self.answers.answer(&request_id, output);
+        }
         Ok(())
     }
 }
@@ -1030,6 +932,7 @@ mod tests {
                 role: "reviewer".to_owned(),
                 task: "review".to_owned(),
                 allowance: Default::default(),
+                connectors: Default::default(),
             }),
             outputs: None,
             inputs: JsonObject::new(),
@@ -1057,7 +960,7 @@ mod tests {
     -> Result<(), Box<dyn std::error::Error>> {
         use crate::LocalReceiptStore;
         use crate::adapters::agent::{
-            AgentExecutionTelemetry, AgentResolverError, AgentToolExecutionTrace,
+            AgentExecutionTelemetry, AgentToolExecutionTrace, ManagedAgentError,
         };
         use crate::execution::run_record::{RunFilter, RunState, list_runs};
         use crate::receipts::archive::{ReceiptFilter, list_receipts};
@@ -1107,7 +1010,7 @@ steps:
             let mut options = RuntimeOptions::local_development(env.clone(), log.clone());
             options.created_at = "2026-07-24T00:00:00Z".to_owned();
             let runtime = Runtime::new(ExecutableAdapter, options);
-            let error = AgentResolverError::bounded_failure(
+            let error = ManagedAgentError::bounded_failure(
                 "round_budget_exhausted",
                 "Managed agent exceeded 3 tool-call rounds without finalizing.",
                 AgentExecutionTelemetry {
@@ -1129,7 +1032,7 @@ steps:
                 error,
             )
             .at_graph_step("compose");
-            let mut host = SkillRunGraphHost::new(ResolutionAnswers::default());
+            let mut host = RunHost::new(ResolutionAnswers::default());
             let run = runtime.seal_failed_with_host(
                 graph,
                 "compose",

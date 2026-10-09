@@ -68,6 +68,44 @@ fn step(run_id: &str, step_id: &str) -> StepRun {
     }
 }
 
+/// The act an agent step asks for: what opens its turn.
+fn agent_act(id: &str) -> ResolutionRequest {
+    let envelope = runx_contracts::AgentContextEnvelope {
+        run_id: "run_turn_1".into(),
+        step_id: Some("answer".into()),
+        skill: "turn-demo".into(),
+        instructions_sha256: "sha256:instructions".into(),
+        instructions: "Answer.".into(),
+        inputs: JsonObject::new(),
+        requirements: runx_contracts::AgentExecutionRequirements {
+            declaration: runx_contracts::ExecutionRequirements::default(),
+            environment: Vec::new(),
+            execution_boundary: runx_contracts::ExecutionBoundaryObservation {
+                kind: runx_contracts::ExecutionBoundaryKind::RemoteProvider,
+            },
+        },
+        current_context: Vec::new(),
+        historical_context: Vec::new(),
+        provenance: Vec::new(),
+        context: None,
+        voice_profile: None,
+        execution_location: None,
+        output: None,
+        output_schema: None,
+        trust_boundary: "runtime-governed".into(),
+    };
+    ResolutionRequest::AgentAct {
+        id: id.into(),
+        invocation: Box::new(runx_contracts::AgentActInvocation {
+            id: id.into(),
+            role: "agent".into(),
+            task: "answer".into(),
+            envelope,
+            allowance: Default::default(),
+        }),
+    }
+}
+
 fn approval(id: &str) -> ResolutionRequest {
     ResolutionRequest::Approval {
         id: id.into(),
@@ -331,11 +369,11 @@ fn a_call_leaves_the_run_paused_at_its_turn() {
         .unwrap();
     let log = RunLog::open(Arc::clone(&store), "run_turn_1").unwrap();
     start(&log, &JsonObject::new());
-    let turn_request = approval("agent.answer.output");
+    let turn_request = agent_act("agent.answer.output");
     log.record_request("answer", 1, &turn_request).unwrap();
     let turn = pending_request(&store, "run_turn_1").unwrap().unwrap();
     let target = TurnTarget::Tool {
-        tool: "data.digest".to_owned(),
+        tool: "data.digest".into(),
     };
     let input = JsonObject::from([("value".to_owned(), JsonValue::String("a".to_owned()))]);
     let completed = CallOutcome::Completed(Box::new(step("run_turn_1", "answer/0")));
@@ -376,7 +414,16 @@ fn a_call_leaves_the_run_paused_at_its_turn() {
         Some("answer".to_owned())
     );
     assert_eq!(record.calls.len(), 2);
-    assert_eq!(log.turn_calls("answer", 1).unwrap().len(), 1);
+    assert_eq!(log.calls("answer", 1).unwrap().len(), 2);
+    assert_eq!(
+        waiting_requests(&store, "run_turn_1")
+            .unwrap()
+            .into_iter()
+            .map(|request| request.id)
+            .collect::<Vec<_>>(),
+        ["agent.answer.output", "answer/1"],
+        "a paused turn waits on its act and on each pending call"
+    );
 
     // A later event for the same index settles the pending call.
     log.record_call(&CallRecord {
@@ -390,7 +437,37 @@ fn a_call_leaves_the_run_paused_at_its_turn() {
         answers: &[],
     })
     .unwrap();
-    let record = log.load().unwrap().unwrap();
-    assert_eq!(record.calls.len(), 2);
-    assert_eq!(log.turn_calls("answer", 1).unwrap().len(), 2);
+    let calls = log.calls("answer", 1).unwrap();
+    assert_eq!(calls.len(), 2);
+    assert!(
+        calls
+            .iter()
+            .all(|call| matches!(call.outcome, CallOutcome::Completed(_)))
+    );
+    assert_eq!(
+        waiting_requests(&store, "run_turn_1")
+            .unwrap()
+            .into_iter()
+            .map(|request| request.id)
+            .collect::<Vec<_>>(),
+        ["agent.answer.output"]
+    );
+
+    // A reader that has not seen the run's latest event is contended.
+    let stale = RunLog::open(Arc::clone(&store), "run_turn_1").unwrap();
+    log.record_call(&CallRecord {
+        step_id: "answer",
+        attempt: 1,
+        turn: &turn,
+        index: 2,
+        target: &target,
+        input: &input,
+        outcome: &CallOutcome::Refused("not in the turn's allowance".to_owned()),
+        answers: &[],
+    })
+    .unwrap();
+    assert!(matches!(
+        stale.calls("answer", 1),
+        Err(RunRecordError::Contended { .. })
+    ));
 }

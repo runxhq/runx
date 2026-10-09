@@ -1,10 +1,6 @@
-//! The managed agent's resolution contract: what a resolver returns for an
-//! agent turn, its telemetry, and its sanitized failures.
+//! The managed agent's telemetry and its sanitized failures.
 
-use runx_contracts::{
-    JsonNumber, JsonObject, JsonValue, ResolutionRequest, ResolutionResponse,
-    ResolutionResponseActor,
-};
+use runx_contracts::{JsonNumber, JsonObject, JsonValue};
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct AgentExecutionTelemetry {
@@ -66,48 +62,14 @@ pub struct AgentToolExecutionTrace {
     pub resolution_kind: Option<String>,
 }
 
-#[derive(Clone, Debug, PartialEq)]
-pub struct AgentResolution {
-    pub response: ResolutionResponse,
-    pub telemetry: Option<AgentExecutionTelemetry>,
-    /// The last successful governed tool result of this turn (the real effect,
-    /// e.g. the `/v1` response carrying the venue id). Captured from the tool
-    /// output, never the model's restatement, so a domain receipt can record an
-    /// effect ref that can be reconciled against the venue's own record.
-    pub governed_effect: Option<JsonValue>,
-}
-
-impl AgentResolution {
-    #[must_use]
-    pub fn agent(payload: JsonValue, telemetry: Option<AgentExecutionTelemetry>) -> Self {
-        Self::agent_with_effect(payload, telemetry, None)
-    }
-
-    #[must_use]
-    pub fn agent_with_effect(
-        payload: JsonValue,
-        telemetry: Option<AgentExecutionTelemetry>,
-        governed_effect: Option<JsonValue>,
-    ) -> Self {
-        Self {
-            response: ResolutionResponse {
-                actor: ResolutionResponseActor::Agent,
-                payload,
-            },
-            telemetry,
-            governed_effect,
-        }
-    }
-}
-
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct AgentResolverError {
+pub struct ManagedAgentError {
     reason_code: String,
     sanitized_message: String,
     telemetry: Option<Box<AgentExecutionTelemetry>>,
 }
 
-impl AgentResolverError {
+impl ManagedAgentError {
     #[must_use]
     pub fn provider_error(_message: impl Into<String>) -> Self {
         Self {
@@ -189,17 +151,13 @@ impl AgentResolverError {
     }
 }
 
-impl std::fmt::Display for AgentResolverError {
+impl std::fmt::Display for ManagedAgentError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         formatter.write_str(&self.sanitized_message)
     }
 }
 
-impl std::error::Error for AgentResolverError {}
-
-pub trait AgentResolver {
-    fn resolve(&self, request: ResolutionRequest) -> Result<AgentResolution, AgentResolverError>;
-}
+impl std::error::Error for ManagedAgentError {}
 
 fn tool_execution_trace(trace: &AgentToolExecutionTrace) -> JsonValue {
     let mut object = JsonObject::new();

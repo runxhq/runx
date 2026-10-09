@@ -86,7 +86,7 @@ pub enum RuntimeError {
         step_id: String,
         request_id: String,
         #[source]
-        source: Box<crate::adapters::agent::AgentResolverError>,
+        source: Box<crate::adapters::agent::ManagedAgentError>,
     },
     #[error(
         "provider mutation was applied but independent readback is unavailable at graph step '{step_id}': {reason}"
@@ -365,7 +365,7 @@ impl RuntimeError {
     pub(crate) fn managed_agent_resolution(
         step_id: impl Into<String>,
         request_id: impl Into<String>,
-        source: crate::adapters::agent::AgentResolverError,
+        source: crate::adapters::agent::ManagedAgentError,
     ) -> Self {
         Self::ManagedAgentResolution {
             step_id: step_id.into(),

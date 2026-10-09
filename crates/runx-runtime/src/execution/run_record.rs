@@ -25,13 +25,12 @@
 use std::sync::{Arc, Mutex};
 
 use runx_contracts::{
-    ClosureDisposition, ContextEntry, JsonObject, JsonValue, Receipt, ResolutionRequest,
+    ClosureDisposition, ContextEntry, JsonObject, JsonValue, Receipt, ResolutionRequest, TurnTarget,
 };
 use runx_core::state_machine::StepAdmissionWitness;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use super::runner::turn::TurnTarget;
 use super::runner::{StepOutcome, StepRun};
 use crate::kernel::authority::RunAuthority;
 use crate::kernel::store::{
@@ -216,7 +215,8 @@ enum CallOutcomeEvent {
     Refused { reason: String },
     /// The call could not run.
     Failed { reason: String },
-    /// The call waits on a request only the host's human channel answers.
+    /// The call waits on a request: what it asked, or, while it has not
+    /// settled, its own retry.
     Pending {
         request_id: String,
         request: String,
@@ -468,27 +468,25 @@ impl RunLog {
         )
     }
 
-    /// The completed calls of one turn, in order: what its step's receipt
-    /// names as children.
-    pub(crate) fn turn_calls(
+    /// The calls of one turn, in order, as this driver last saw the run. A
+    /// run another driver has advanced since is contended.
+    pub(crate) fn calls(
         &self,
         step_id: &str,
         attempt: u32,
-    ) -> Result<Vec<StepRun>, RunRecordError> {
-        let Some(record) = self.load()? else {
-            return Ok(Vec::new());
-        };
-        let mut calls = record
-            .calls
-            .into_iter()
-            .filter(|call| call.step_id == step_id && call.attempt == attempt)
-            .filter_map(|call| match call.outcome {
-                CallOutcome::Completed(run) => Some((call.index, *run)),
-                _ => None,
-            })
-            .collect::<Vec<_>>();
-        calls.sort_by_key(|(index, _)| *index);
-        Ok(calls.into_iter().map(|(_, run)| run).collect())
+    ) -> Result<Vec<RecordedCall>, RunRecordError> {
+        let events = self.0.store.read::<RunEvent>(&self.0.run_id)?;
+        if events.last().map_or(0, |event| event.version) != *self.version() {
+            return Err(RunRecordError::Contended {
+                run_id: self.0.run_id.clone(),
+            });
+        }
+        turn_calls(
+            &self.0.store,
+            events.into_iter().map(|event| event.event),
+            step_id,
+            attempt,
+        )
     }
 
     /// Start a top-level run. The stream must not exist yet: a run that does
@@ -1053,22 +1051,7 @@ fn replay(
                         human: answer.human,
                     });
                 }
-                let recorded = RecordedCall {
-                    outcome: call_outcome(store, &call)?,
-                    step_id: call.step_id,
-                    attempt: call.attempt,
-                    index: call.index,
-                    target: call.target,
-                    input: store.blob_json(&call.input)?,
-                };
-                match record.calls.iter_mut().find(|known| {
-                    known.step_id == recorded.step_id
-                        && known.attempt == recorded.attempt
-                        && known.index == recorded.index
-                }) {
-                    Some(known) => *known = recorded,
-                    None => record.calls.push(recorded),
-                }
+                settle_call(&mut record.calls, recorded_call(store, call)?);
             }
             RunEvent::Sealed(sealed) => {
                 record.suspension = None;
@@ -1088,6 +1071,49 @@ fn replay(
         }
     }
     Ok(Some(record))
+}
+
+/// One turn's calls, each as its latest event settled it, in order.
+fn turn_calls(
+    store: &KernelStore,
+    events: impl IntoIterator<Item = RunEvent>,
+    step_id: &str,
+    attempt: u32,
+) -> Result<Vec<RecordedCall>, RunRecordError> {
+    let mut calls = Vec::new();
+    for event in events {
+        if let RunEvent::Call(call) = event
+            && call.step_id == step_id
+            && call.attempt == attempt
+        {
+            settle_call(&mut calls, recorded_call(store, *call)?);
+        }
+    }
+    calls.sort_by_key(|call| call.index);
+    Ok(calls)
+}
+
+/// A later event for a call's index settles the call.
+fn settle_call(calls: &mut Vec<RecordedCall>, recorded: RecordedCall) {
+    match calls.iter_mut().find(|known| {
+        known.step_id == recorded.step_id
+            && known.attempt == recorded.attempt
+            && known.index == recorded.index
+    }) {
+        Some(known) => *known = recorded,
+        None => calls.push(recorded),
+    }
+}
+
+fn recorded_call(store: &KernelStore, call: CallEvent) -> Result<RecordedCall, RunRecordError> {
+    Ok(RecordedCall {
+        outcome: call_outcome(store, &call)?,
+        input: store.blob_json(&call.input)?,
+        step_id: call.step_id,
+        attempt: call.attempt,
+        index: call.index,
+        target: call.target,
+    })
 }
 
 fn call_outcome(store: &KernelStore, call: &CallEvent) -> Result<CallOutcome, RunRecordError> {
@@ -1154,6 +1180,55 @@ pub(crate) fn pending_request(
     store: &KernelStore,
     run_id: &str,
 ) -> Result<Option<PendingRequest>, RunRecordError> {
+    Ok(holder(store, run_id)?.map(|holder| holder.request))
+}
+
+/// Every request a paused run waits on: the one its step asked, then those
+/// its open turn's calls wait on.
+pub(crate) fn waiting_requests(
+    store: &KernelStore,
+    run_id: &str,
+) -> Result<Vec<PendingRequest>, RunRecordError> {
+    let Some(holder) = holder(store, run_id)? else {
+        return Ok(Vec::new());
+    };
+    // Only an agent turn makes calls of its own.
+    if holder
+        .request
+        .value
+        .as_object()
+        .and_then(|value| value.get("kind"))
+        != Some(&JsonValue::String("agent_act".to_owned()))
+    {
+        return Ok(vec![holder.request]);
+    }
+    let calls = turn_calls(
+        store,
+        store
+            .read::<RunEvent>(&holder.run_id)?
+            .into_iter()
+            .map(|event| event.event),
+        &holder.step_id,
+        holder.attempt,
+    )?;
+    let mut waiting = vec![holder.request];
+    waiting.extend(calls.into_iter().filter_map(|call| match call.outcome {
+        CallOutcome::Pending(request) => Some(request),
+        _ => None,
+    }));
+    Ok(waiting)
+}
+
+/// Where a run's wait is held: the run and step that asked, and the request.
+struct Holder {
+    run_id: String,
+    step_id: String,
+    attempt: u32,
+    request: PendingRequest,
+}
+
+/// What `run_id` waits on, following child runs down to the step that asked.
+fn holder(store: &KernelStore, run_id: &str) -> Result<Option<Holder>, RunRecordError> {
     let mut current = run_id.to_owned();
     loop {
         let Some(latest) = store.latest::<RunEvent>(&current)? else {
@@ -1163,10 +1238,15 @@ pub(crate) fn pending_request(
             RunEvent::Suspended(suspended) => suspended,
             // A call leaves the run waiting on the turn it was made in.
             RunEvent::Call(call) => {
-                return Ok(Some(PendingRequest {
-                    id: call.turn.request_id,
-                    value: store.blob_json(&call.turn.request)?,
-                    digest: call.turn.digest,
+                return Ok(Some(Holder {
+                    run_id: current,
+                    request: PendingRequest {
+                        id: call.turn.request_id,
+                        value: store.blob_json(&call.turn.request)?,
+                        digest: call.turn.digest,
+                    },
+                    step_id: call.step_id,
+                    attempt: call.attempt,
                 }));
             }
             _ => return Ok(None),
@@ -1182,10 +1262,15 @@ pub(crate) fn pending_request(
                 request,
                 digest,
             } => {
-                return Ok(Some(PendingRequest {
-                    id: request_id,
-                    value: store.blob_json(&request)?,
-                    digest,
+                return Ok(Some(Holder {
+                    run_id: current,
+                    request: PendingRequest {
+                        id: request_id,
+                        value: store.blob_json(&request)?,
+                        digest,
+                    },
+                    step_id: suspended.step_id,
+                    attempt: suspended.attempt,
                 }));
             }
             HoldEvent::Child { run_id } => current = run_id,

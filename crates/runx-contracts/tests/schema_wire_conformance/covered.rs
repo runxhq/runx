@@ -15,6 +15,7 @@ use runx_contracts::fixture::Fixture;
 use runx_contracts::handoff::{HandoffSignal, HandoffState};
 use runx_contracts::host_protocol::{
     AgentActInvocation, ApprovalGate, Question, ResolutionRequest, ResolutionResponse,
+    TurnCallResult, TurnStatus,
 };
 use runx_contracts::ledger::LedgerEntry;
 use runx_contracts::list::RunxListReport;
@@ -225,6 +226,16 @@ pub(super) fn covered() -> Vec<Covered> {
             file_name: "agent-act-invocation.schema.json",
             emitted: AgentActInvocation::json_schema(),
             corpus: agent_act_invocation_corpus(),
+        },
+        Covered {
+            file_name: "turn-call.schema.json",
+            emitted: TurnCallResult::json_schema(),
+            corpus: turn_call_corpus(),
+        },
+        Covered {
+            file_name: "turn-status.schema.json",
+            emitted: TurnStatus::json_schema(),
+            corpus: turn_status_corpus(),
         },
         Covered {
             file_name: "act-result.schema.json",

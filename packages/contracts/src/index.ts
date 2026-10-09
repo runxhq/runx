@@ -224,6 +224,17 @@ export {
 } from "./schemas/agent-act.js";
 
 export {
+  turnCallSchema,
+  turnStatusSchema,
+  validateTurnCallContract,
+  validateTurnStatusContract,
+  type TurnTargetContract,
+  type TurnCallOutcomeContract,
+  type TurnCallContract,
+  type TurnStatusContract,
+} from "./schemas/turn.js";
+
+export {
   resolutionRequestSchema,
   resolutionResponseSchema,
   actResultEnvelopeSchema,
@@ -744,6 +755,8 @@ export const runxContractSchemas = {
   output: runxSchemaArtifacts["output.schema.json"],
   agentContextEnvelope: runxSchemaArtifacts["agent-context-envelope.schema.json"],
   agentActInvocation: runxSchemaArtifacts["agent-act-invocation.schema.json"],
+  turnCall: runxSchemaArtifacts["turn-call.schema.json"],
+  turnStatus: runxSchemaArtifacts["turn-status.schema.json"],
   question: runxSchemaArtifacts["question.schema.json"],
   approvalGate: runxSchemaArtifacts["approval-gate.schema.json"],
   resolutionRequest: runxSchemaArtifacts["resolution-request.schema.json"],

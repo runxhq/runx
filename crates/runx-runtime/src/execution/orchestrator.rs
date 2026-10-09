@@ -18,7 +18,7 @@ use super::prepared_skill::{
 };
 #[cfg(feature = "process-tool")]
 use super::skill_front::PackageHarnessReport;
-use super::skill_front::SkillRunError;
+use super::skill_front::{SkillRunError, TurnSession};
 use crate::effects::RuntimeEffectRegistry;
 
 pub const DEFAULT_MANAGED_AGENT_MAX_ROUNDS: u32 = 4;
@@ -83,14 +83,27 @@ pub struct SkillRunRequest {
     pub managed_agent: ManagedAgentPolicy,
 }
 
-/// An action on the agent turn a paused run waits on.
+/// Continue a paused run with the answers its host brings. The run's skill,
+/// runner and digests come from its record.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ResumeRequest {
+    pub run_id: String,
+    pub answers_path: PathBuf,
+    pub receipt_dir: Option<PathBuf>,
+    pub env: BTreeMap<String, String>,
+    pub cwd: PathBuf,
+    /// Explicit consent for an in-process managed agent to work the turns
+    /// the run opens from here.
+    pub managed_agent: ManagedAgentPolicy,
+    /// Digests a caller pins; each must be the one the run started under.
+    pub package_digest: Option<String>,
+    pub execution_closure_digest: Option<String>,
+}
+
+/// The agent turn a paused run waits on.
 #[derive(Clone, Debug, PartialEq)]
 pub struct TurnRequest {
     pub run_id: String,
-    /// The request id of the turn the caller acts on. When given, the run must
-    /// still wait on that turn.
-    pub turn: Option<String>,
-    pub action: crate::execution::runner::turn::TurnAction,
     pub receipt_dir: Option<PathBuf>,
     pub env: BTreeMap<String, String>,
     pub cwd: PathBuf,
@@ -109,12 +122,6 @@ pub struct HarnessRunRequest {
 pub struct PackageHarnessRequest {
     pub skill_path: PathBuf,
     pub receipt_dir: Option<PathBuf>,
-}
-
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct RunContinuation {
-    pub run_id: Option<String>,
-    pub answers_path: Option<PathBuf>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -237,7 +244,6 @@ impl LocalOrchestrator {
     ) -> Result<RunResult, OrchestratorError> {
         let overrides = super::skill_front::SkillRunOverrides {
             runner: Some(runner.to_owned()),
-            seeded_answers: None,
             ..Default::default()
         };
         let output = super::skill_front::execute_skill_run_with_overrides(
@@ -279,7 +285,6 @@ impl LocalOrchestrator {
     ) -> Result<RunResult, OrchestratorError> {
         let overrides = super::skill_front::SkillRunOverrides {
             runner: runner.map(str::to_owned),
-            seeded_answers: None,
             ..Default::default()
         };
         let output = super::skill_front::execute_bound_skill_run_with_overrides(
@@ -292,53 +297,41 @@ impl LocalOrchestrator {
         Ok(output)
     }
 
-    /// Act on the agent turn a paused run waits on: make a call or read the
-    /// turn. The run continues under the skill, runner and digests it was
-    /// started with; it still waits on the turn afterwards.
-    pub fn act_on_turn(&self, request: &TurnRequest) -> Result<RunResult, OrchestratorError> {
-        let paused =
-            crate::execution::run_record::paused_run(&request.env, &request.cwd, &request.run_id)
-                .map_err(crate::RuntimeError::from)?
-                .ok_or_else(|| {
-                    super::skill_front::SkillRunError::Invalid(format!(
-                        "run {} is not paused",
-                        request.run_id
-                    ))
-                })?;
-        if let Some(turn) = request.turn.as_deref()
-            && paused.request.id != turn
-        {
-            return Err(super::skill_front::SkillRunError::Invalid(format!(
-                "run {} now waits on {}, not turn {turn}",
-                request.run_id, paused.request.id
-            ))
-            .into());
-        }
-        let continuation = SkillRunRequest {
-            current_context: Vec::new(),
-            historical_context: Vec::new(),
-            run_authority: None,
-            skill_path: PathBuf::from(&paused.skill_ref),
-            receipt_dir: request.receipt_dir.clone(),
-            run_id: Some(paused.run_id.clone()),
-            answers_path: None,
-            inputs: BTreeMap::new(),
-            env: request.env.clone(),
-            cwd: request.cwd.clone(),
-            managed_agent: ManagedAgentPolicy::HostDriven,
-        };
-        let overrides = super::skill_front::SkillRunOverrides {
-            runner: Some(paused.runner.clone()),
-            turn: Some(request.action.clone()),
-            ..Default::default()
-        };
-        Ok(super::skill_front::execute_bound_skill_run_with_overrides(
-            &continuation,
-            &overrides,
+    /// Continue a paused run with the answers its host brings.
+    pub fn resume(&self, request: &ResumeRequest) -> Result<RunResult, OrchestratorError> {
+        let run = super::skill_front::bind_paused_run(
+            super::skill_front::Continuation {
+                run_id: &request.run_id,
+                receipt_dir: request.receipt_dir.as_deref(),
+                env: &request.env,
+                cwd: &request.cwd,
+                answers_path: Some(&request.answers_path),
+                managed_agent: request.managed_agent.clone(),
+                package_digest: request.package_digest.as_deref(),
+                execution_closure_digest: request.execution_closure_digest.as_deref(),
+            },
             &self.effects,
-            Some(&paused.package_digest),
-            Some(&paused.execution_closure_digest),
-        )?)
+        )?;
+        Ok(run.execute()?)
+    }
+
+    /// Open the agent turn a paused run waits on, for an agent that works it
+    /// from outside the run.
+    pub fn open_turn(&self, request: &TurnRequest) -> Result<TurnSession, OrchestratorError> {
+        let run = super::skill_front::bind_paused_run(
+            super::skill_front::Continuation {
+                run_id: &request.run_id,
+                receipt_dir: request.receipt_dir.as_deref(),
+                env: &request.env,
+                cwd: &request.cwd,
+                answers_path: None,
+                managed_agent: ManagedAgentPolicy::HostDriven,
+                package_digest: None,
+                execution_closure_digest: None,
+            },
+            &self.effects,
+        )?;
+        Ok(TurnSession::open(run)?)
     }
 
     pub fn prepare_skill(
@@ -378,7 +371,6 @@ impl LocalOrchestrator {
         let loaded = prepared.verify_artifacts()?;
         let overrides = super::skill_front::SkillRunOverrides {
             runner: Some(prepared.selected_runner().to_owned()),
-            seeded_answers: None,
             ..Default::default()
         };
         let output = super::skill_front::execute_prepared_skill_run_with_resolved(

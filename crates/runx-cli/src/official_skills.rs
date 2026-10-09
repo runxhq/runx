@@ -12,8 +12,8 @@ pub(crate) struct OfficialSkillLockEntry {
 pub(crate) const OFFICIAL_SKILLS: &[OfficialSkillLockEntry] = &[
     OfficialSkillLockEntry {
         skill_id: "runx/adopt-skill",
-        version: "sha-57c9cff95f93",
-        digest: "bf96bd9059ddd35d79208d1b897c657b637d6193dc7d80bc7a91678d9cff13bd",
+        version: "sha-66ee86446c07",
+        digest: "b77c5cec2b8f1ba7213dcfbbfd48747d0d57ec50e768c226c170bf04ff7d56b3",
     },
     OfficialSkillLockEntry {
         skill_id: "runx/agency",
@@ -27,8 +27,8 @@ pub(crate) const OFFICIAL_SKILLS: &[OfficialSkillLockEntry] = &[
     },
     OfficialSkillLockEntry {
         skill_id: "runx/attention-review",
-        version: "sha-de03bcae644c",
-        digest: "e2384d2955187e0ac2934c6ceb01f75f441e33f629a80c6930e7f63e680dee23",
+        version: "sha-4298b623c55b",
+        digest: "6d43e9ead2783dfffe0a7ddd4de9de4fd797407a3e6ca5620bf3745391763860",
     },
     OfficialSkillLockEntry {
         skill_id: "runx/audit-receipt",
@@ -362,8 +362,8 @@ pub(crate) const OFFICIAL_SKILLS: &[OfficialSkillLockEntry] = &[
     },
     OfficialSkillLockEntry {
         skill_id: "runx/skill-lab",
-        version: "sha-7b8420ea8cca",
-        digest: "30dcfaca9b53c0625a68b5f67d7ef911353544491deab11a663167da71730674",
+        version: "sha-435b3212c25e",
+        digest: "224454b75de87588703c3e7a7a9b52b03c3dd334c7e0a05e3ddd0e1a887bcce9",
     },
     OfficialSkillLockEntry {
         skill_id: "runx/slack",

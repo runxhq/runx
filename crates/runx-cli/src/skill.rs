@@ -246,14 +246,15 @@ pub fn run_native_skill_with_workspace(plan: SkillPlan, workspace: &WorkspaceEnv
     match result {
         Ok(mut result) => {
             attach_registry_provenance(&mut result.output, &resolved);
-            let exit_code = run_result_exit_code(&result);
-            write_skill_output(
-                &result.output,
-                plan.json,
-                exit_code,
-                resume,
-                &artifacts,
-                plan.diagnostics,
+            write_run_result(
+                &result,
+                RunOutput {
+                    json: plan.json,
+                    diagnostics: plan.diagnostics,
+                    receipt_dir: resume.receipt_dir,
+                    answers_path: resume.answers_path,
+                    artifacts: &artifacts,
+                },
             )
         }
         Err(error) => write_orchestrator_failure(
@@ -264,6 +265,34 @@ pub fn run_native_skill_with_workspace(plan: SkillPlan, workspace: &WorkspaceEnv
             registry_provenance(&resolved),
         ),
     }
+}
+
+/// How a run's result is written.
+pub(crate) struct RunOutput<'a> {
+    pub(crate) json: bool,
+    pub(crate) diagnostics: bool,
+    pub(crate) receipt_dir: Option<&'a Path>,
+    pub(crate) answers_path: Option<&'a Path>,
+    pub(crate) artifacts: &'a Path,
+}
+
+/// Write a run's result: sealed, or the requests it waits on and how to
+/// resume it.
+pub(crate) fn write_run_result(
+    result: &runx_runtime::RunResult,
+    output: RunOutput<'_>,
+) -> ExitCode {
+    write_skill_output(
+        &result.output,
+        output.json,
+        run_result_exit_code(result),
+        ResumeHint {
+            receipt_dir: output.receipt_dir,
+            answers_path: output.answers_path,
+        },
+        output.artifacts,
+        output.diagnostics,
+    )
 }
 
 fn prepared_entry_provenance(

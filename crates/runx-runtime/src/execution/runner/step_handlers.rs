@@ -29,6 +29,7 @@ use super::admission::{
     finalize_effect_output_before_success, persist_effect_state_for_step, prepare_effect_execution,
     prepare_effect_output_before_gate,
 };
+use super::turn::{OpenTurn, TurnScope};
 use super::{
     GraphRun, Runtime, StepRun, graph_run_ephemeral_result, graph_run_result,
     graph_run_skill_output,
@@ -74,6 +75,18 @@ impl StepReceiptLineage {
         Self {
             direct_children: vec![receipt],
             descendants,
+        }
+    }
+
+    /// An agent turn's lineage: each completed call's receipt is a child,
+    /// in order, and the receipts it carried travel with the step.
+    fn of_turn(calls: &[&StepRun]) -> Self {
+        Self {
+            direct_children: calls.iter().map(|call| call.receipt.clone()).collect(),
+            descendants: calls
+                .iter()
+                .flat_map(|call| call.nested_receipts.iter().cloned())
+                .collect(),
         }
     }
 
@@ -654,6 +667,8 @@ struct AgentActStepSeal<'a> {
     extra_outputs: Option<&'a JsonObject>,
     extra_artifacts: Option<&'a SkillArtifactContract>,
     verification_metadata: JsonObject,
+    /// The turn's completed calls, in order.
+    calls: Vec<&'a StepRun>,
 }
 
 fn seal_agent_act_step<A>(
@@ -669,28 +684,11 @@ fn seal_agent_act_step<A>(
         extra_outputs,
         extra_artifacts,
         verification_metadata,
+        calls,
     } = request;
     let disposition = agent_answer_disposition_value(step, &response.payload)?;
-    // The turn's receipt names each call the agent made, in order; their
-    // receipts travel with the step.
-    let calls = runtime.options.run.turn_calls(&step.id, attempt)?;
-    let call_receipts = calls
-        .iter()
-        .map(|call| call.receipt.clone())
-        .collect::<Vec<_>>();
-    let nested_receipts = calls
-        .iter()
-        .flat_map(|call| {
-            call.nested_receipts
-                .iter()
-                .cloned()
-                .chain(std::iter::once(call.receipt.clone()))
-        })
-        .collect::<Vec<_>>();
-    let call_descendants = calls
-        .iter()
-        .flat_map(|call| call.nested_receipts.iter().cloned())
-        .collect::<Vec<_>>();
+    // The turn's receipt names each call the agent made, in order.
+    let lineage = StepReceiptLineage::of_turn(&calls);
     // The answer was verified against its output contract whatever closure it
     // claims, so an act that declines or defers still returns its outputs.
     let answer = InvocationOutput::runtime_success(response.payload.clone(), 0, JsonObject::new());
@@ -712,8 +710,8 @@ fn seal_agent_act_step<A>(
             operator_refs: crate::execution::prepared_skill::prepared_receipt_references(
                 &runtime.options.env,
             ),
-            child_receipts: &call_receipts,
-            descendant_receipts: &call_descendants,
+            child_receipts: &lineage.direct_children,
+            descendant_receipts: &lineage.descendants,
             closure: Some(StepSealClosure {
                 disposition,
                 reason_code: format!("agent_act_{disposition_label}"),
@@ -733,7 +731,7 @@ fn seal_agent_act_step<A>(
         ephemeral_contract: EphemeralValue::default(),
         outcome: output.into(),
         receipt,
-        nested_receipts,
+        nested_receipts: lineage.into_nested_receipts(),
         admission_witness,
     })
 }
@@ -794,23 +792,44 @@ where
     invocation.historical_context = runtime.options.historical_context.clone();
     let request_id = agent_act_invocation_id(&invocation)?;
     let request = agent_act_resolution_request(&invocation)?;
-    let verification_request = request.clone();
     host.report(ExecutionEvent::ResolutionRequested {
         message: format!("agent step '{}' requested resolution", step.id),
         data: Some(resolution_event_data(step, &request)?),
     })?;
-    let Some(response) = host.resolve(request)? else {
+    // The act's turn is open until it is answered; the host works it here,
+    // in this step's own runtime.
+    let mut turn = OpenTurn::open(
+        TurnScope {
+            runtime,
+            graph_dir,
+            graph_name,
+            step_id: &step.id,
+            attempt,
+            agent,
+        },
+        &request,
+    )?;
+    host.drive_turn(&mut turn)?;
+    let Some(response) = host.resolve(request.clone())? else {
         return Err(RuntimeError::ResolutionPending {
             step_id: step.id.clone(),
             reason: format!("agent act {request_id} requires resolution"),
-            request: Box::new(verification_request),
+            request: Box::new(request.clone()),
             child: None,
         });
     };
+    // A turn ends only once each of its calls has settled.
+    if let Some((index, waiting)) = turn.pending()? {
+        return Err(RuntimeError::ContinuationRejected {
+            reason: format!(
+                "agent answer {request_id} was refused: call {index} of its turn still waits on {waiting}"
+            ),
+        });
+    }
     // An answer that breaks the act's output contract is refused, not sealed:
     // the turn stays open for a corrected answer.
     let verification_metadata = verified_agent_metadata_with_artifacts(
-        &verification_request,
+        &request,
         &response.payload,
         step.artifacts.as_ref(),
         graph_dir,
@@ -833,6 +852,7 @@ where
             extra_outputs: None,
             extra_artifacts: None,
             verification_metadata,
+            calls: turn.completed()?,
         },
     )
 }
@@ -1437,6 +1457,20 @@ where
         0,
         metadata,
     );
+    // An agent step that fails still names the calls its turn completed.
+    let calls = match &step.kind {
+        StepKind::Agent(_) => runtime.options.run.calls(&step.id, attempt)?,
+        _ => Vec::new(),
+    };
+    let lineage = StepReceiptLineage::of_turn(
+        &calls
+            .iter()
+            .filter_map(|call| match &call.outcome {
+                crate::execution::run_record::CallOutcome::Completed(run) => Some(run.as_ref()),
+                _ => None,
+            })
+            .collect::<Vec<_>>(),
+    );
     let mut projection = project_step_claim(JsonObject::new());
     let receipt = seal_step(
         StepSeal {
@@ -1451,8 +1485,8 @@ where
             operator_refs: crate::execution::prepared_skill::prepared_receipt_references(
                 &runtime.options.env,
             ),
-            child_receipts: &[],
-            descendant_receipts: &[],
+            child_receipts: &lineage.direct_children,
+            descendant_receipts: &lineage.descendants,
             closure: None,
             receipt_metadata,
         },
@@ -1471,7 +1505,7 @@ where
         ephemeral_contract: EphemeralValue::default(),
         outcome: output.into(),
         receipt,
-        nested_receipts: Vec::new(),
+        nested_receipts: lineage.into_nested_receipts(),
         admission_witness,
     })
 }

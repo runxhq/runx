@@ -284,9 +284,8 @@ enum PreparedMcpToolCall {
         effects: crate::effects::RuntimeEffectRegistry,
     },
     Turn {
-        tool: Box<super::types::McpTurnTool>,
+        tool: super::types::McpTurnTool,
         arguments: JsonObject,
-        effects: crate::effects::RuntimeEffectRegistry,
     },
 }
 
@@ -320,11 +319,7 @@ fn prepare_rmcp_tool_call(
                 effects: state.options.effects.clone(),
             })
         }
-        McpServerToolBehavior::Turn(tool) => Ok(PreparedMcpToolCall::Turn {
-            tool,
-            arguments,
-            effects: state.options.effects.clone(),
-        }),
+        McpServerToolBehavior::Turn(tool) => Ok(PreparedMcpToolCall::Turn { tool, arguments }),
     }
 }
 
@@ -378,13 +373,9 @@ async fn execute_rmcp_tool_call(
 ) -> Result<rmcp::model::CallToolResponse, rmcp::ErrorData> {
     match prepared? {
         PreparedMcpToolCall::Fixed(result) => rmcp_call_tool_result(result).map(Into::into),
-        PreparedMcpToolCall::Turn {
-            tool,
-            arguments,
-            effects,
-        } => {
+        PreparedMcpToolCall::Turn { tool, arguments } => {
             let result = tokio::task::spawn_blocking(move || {
-                super::server_turn::execute_mcp_turn_tool(*tool, arguments, effects)
+                super::server_turn::execute_mcp_turn_tool(&tool, arguments)
             })
             .await
             .map_err(|error| rmcp_internal_error(format!("MCP tool task failed: {error}")))?;
