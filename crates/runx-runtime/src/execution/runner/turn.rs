@@ -8,7 +8,6 @@
 //! turn ends when the host answers the act.
 
 use std::cell::OnceCell;
-use std::collections::BTreeMap;
 use std::path::Path;
 
 use runx_contracts::connector::{AmountRule, OperationAccess, OperationName};
@@ -586,13 +585,12 @@ where
             kind,
             artifacts: None,
             outputs: None,
+            // An agent's call carries values, never references.
             inputs: input.clone(),
-            context: BTreeMap::new(),
-            context_edges: Vec::new(),
+            bindings: Vec::new(),
             context_skills: Vec::new(),
             scopes,
             when: None,
-            idempotency_key: None,
             on_uncertain: None,
             duplicates: None,
         })

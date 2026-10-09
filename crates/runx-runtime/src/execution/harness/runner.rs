@@ -13,7 +13,7 @@ use runx_contracts::{
 use runx_parser::{SkillRunnerDefinition, SkillRunnerManifest};
 use thiserror::Error;
 
-use super::super::graph::materialize_graph_parameter_inputs;
+use super::super::graph::bind_run_inputs;
 use super::assertions::{assert_expectations, status_from_disposition};
 use super::fixtures::{
     HarnessExpectedStatus, HarnessFixture, HarnessFixtureError, HarnessFixtureKind,
@@ -548,7 +548,7 @@ fn run_graph_skill_fixture<A>(
 where
     A: SkillAdapter,
 {
-    let graph = materialize_graph_parameter_inputs(target.runner.graph.clone(), &inputs);
+    let graph = bind_run_inputs(target.runner.graph.clone(), &inputs)?;
     overlay_harness_env(&mut options, &target.env);
     let run_id = options
         .env

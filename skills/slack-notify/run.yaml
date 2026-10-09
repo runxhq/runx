@@ -1,5 +1,5 @@
 skill: slack-notify
-version: "0.4.4"
+version: "0.4.5"
 catalog:
   kind: graph
   audience: public
@@ -71,8 +71,7 @@ runners:
           channel_locator: $input.channel_locator
           text: $input.text
           idempotency_key: $input.idempotency_key
-        context:
-          notification_plan: plan.notify_plan.data
+          notification_plan: $steps.plan.notify_plan.data
 
   plan_exact:
     inputs:
@@ -106,12 +105,11 @@ runners:
         tool: data.digest
         inputs:
           encoding: utf8_text
-        context:
-          value: prepare.digest_input
+          value: $steps.prepare.digest_input
       - id: bind-content
-        context:
-          notification_admission: prepare.notification_admission
-          digest_result: digest-content.digest_result.data
+        inputs:
+          notification_admission: $steps.prepare.notification_admission
+          digest_result: $steps.digest-content.digest_result.data
         tool: { module: slack-notify.mjs, export: bindNotification }
         outputs:
           slack_context: object
@@ -119,8 +117,8 @@ runners:
           named_emits:
             slack_context: slack_context
       - id: finalize
-        context:
-          slack_context: bind-content.slack_context.data
+        inputs:
+          slack_context: $steps.bind-content.slack_context.data
         tool: { module: slack-notify.mjs, export: finalizeExactNotification }
         outputs:
           notify_plan: object
@@ -166,12 +164,11 @@ runners:
         tool: data.digest
         inputs:
           encoding: utf8_text
-        context:
-          value: prepare.digest_input
+          value: $steps.prepare.digest_input
       - id: bind-content
-        context:
-          notification_admission: prepare.notification_admission
-          digest_result: digest-content.digest_result.data
+        inputs:
+          notification_admission: $steps.prepare.notification_admission
+          digest_result: $steps.digest-content.digest_result.data
         tool: { module: slack-notify.mjs, export: bindNotification }
         outputs:
           slack_context: object
@@ -180,7 +177,7 @@ runners:
             slack_context: slack_context
       - id: authorize
         when:
-          field: bind-content.slack_context.data.decision
+          value: $steps.bind-content.slack_context.data.decision
           equals: ready
         skill: ../send-as
         runner: plan
@@ -189,15 +186,14 @@ runners:
           principal: $input.principal
           audience: $input.channel
           provider_context: $input.provider_context
-        context:
-          slack_context: bind-content.slack_context.data
+          slack_context: $steps.bind-content.slack_context.data
       - id: finalize
         when:
-          field: bind-content.slack_context.data.decision
+          value: $steps.bind-content.slack_context.data.decision
           equals: ready
-        context:
-          slack_context: bind-content.slack_context.data
-          send_plan: authorize.send_plan.data
+        inputs:
+          slack_context: $steps.bind-content.slack_context.data
+          send_plan: $steps.authorize.send_plan.data
         tool: { module: slack-notify.mjs, export: finalizeNotification }
         outputs:
           notify_plan: object
@@ -208,10 +204,10 @@ runners:
             notify_plan: runx.notify.v1
       - id: reject
         when:
-          field: bind-content.slack_context.data.decision
+          value: $steps.bind-content.slack_context.data.decision
           equals: blocked
-        context:
-          slack_context: bind-content.slack_context.data
+        inputs:
+          slack_context: $steps.bind-content.slack_context.data
         tool: { module: slack-notify.mjs, export: finalizeNotification }
         outputs:
           notify_plan: object
@@ -281,17 +277,16 @@ runners:
       - id: bind-content
         tool: data.compare
         when:
-          field: bind-plan.comparison.data.equal
+          value: $steps.bind-plan.comparison.data.equal
           equals: true
         inputs:
           expected: $input.notification_plan.content_digest
-        context:
-          actual: digest.digest_result.data.digest
+          actual: $steps.digest.digest_result.data.digest
       - id: deliver
         operation: slack/channel.post
         idempotency_key: $input.idempotency_key
         when:
-          field: bind-content.comparison.data.equal
+          value: $steps.bind-content.comparison.data.equal
           equals: true
         approval:
           reason: Approve posting this exact digest-bound Slack notification.
@@ -306,21 +301,21 @@ runners:
 
       - id: prepare-readback
         when:
-          field: bind-content.comparison.data.equal
+          value: $steps.bind-content.comparison.data.equal
           equals: true
-        inputs: { text: $input.text }
-        context: { delivery: deliver.provider_operation.data }
+        inputs:
+          text: $input.text
+          delivery: $steps.deliver.provider_operation.data
         tool: { module: slack-notify.mjs, export: prepareNotificationReadback }
         outputs: { read_request: object }
       - id: readback
         when:
-          field: bind-content.comparison.data.equal
+          value: $steps.bind-content.comparison.data.equal
           equals: true
         operation: slack/channel.post.read
         result_fields: [message_locator, conversation_locator, content_digest, occurred_at]
-        context:
-          expected_result: deliver.provider_operation.data.result
-          input: prepare-readback.read_request
+        expected_result: $steps.deliver.provider_operation.data.result
+        input: $steps.prepare-readback.read_request
   reconcile_exact:
     inputs:
       notification_plan: { type: json, packet: runx.notify.v1, required: true }
@@ -346,9 +341,8 @@ runners:
           text: $input.text
           message_locator: $input.message_locator
           failed_at: $input.failed_at
-        context:
-          provider_operation: read.provider_operation.data
-          digest_result: digest.digest_result.data
+          provider_operation: $steps.read.provider_operation.data
+          digest_result: $steps.digest.digest_result.data
         tool: { module: slack-notify.mjs, export: reconcileExactNotification }
         outputs: { provider_operation: object }
         artifacts:

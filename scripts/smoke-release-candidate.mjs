@@ -296,7 +296,7 @@ runners:
     policy:
       guards:
         - step: apply
-          field: approve.approval_decision.data.approved
+          value: $steps.approve.approval_decision.data.approved
           equals: true
 `,
   );

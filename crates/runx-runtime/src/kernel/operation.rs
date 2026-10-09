@@ -402,7 +402,6 @@ impl RuntimeEffect for OperationEffect {
         let admitted = admission::admit(&Evaluation {
             step: target,
             call: &call,
-            step_idempotency_key: request.step.idempotency_key.as_deref(),
             on_uncertain: request.step.on_uncertain,
             duplicates: request.step.duplicates,
             fixture_stand_in: self.fixture_stand_in,

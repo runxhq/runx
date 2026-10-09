@@ -1,5 +1,5 @@
 skill: agency
-version: "0.1.7"
+version: "0.1.8"
 
 catalog:
   kind: graph
@@ -51,26 +51,23 @@ runners:
         inputs:
           case_id: "$input.case_id"
           member_result: "$input.member_result"
-        context:
-          events: read.data_operation_result.data.events
+          events: $steps.read.data_operation_result.data.events
       - id: decide
         skill: ../ops-desk
         runner: advance
         inputs:
           scope_ref: "$input.case_id"
-        context:
-          mandate: reduce.reduction.data.mandate
-          case_state: reduce.reduction.data.case_state
-          candidate_roster: reduce.reduction.data.roster
+          mandate: $steps.reduce.reduction.data.mandate
+          case_state: $steps.reduce.reduction.data.case_state
+          candidate_roster: $steps.reduce.reduction.data.roster
       - id: plan
         skill: ./graph/plan
         inputs:
           driver_id: "$input.driver_id"
           case_id: "$input.case_id"
           member_result: "$input.member_result"
-        context:
-          decision: decide.dispatch_decision.data
-          reduction: reduce.reduction.data
+          decision: $steps.decide.dispatch_decision.data
+          reduction: $steps.reduce.reduction.data
         artifacts:
           wrap_as: turn_plan
           packet: runx.agency.turn.v1
@@ -81,10 +78,9 @@ runners:
           data_source_ref: "$input.data_source_ref"
           resource: agency_cases
           aggregate_id: "$input.case_id"
-        context:
-          event: plan.turn_plan.data.turn_event
-          expected_version: plan.turn_plan.data.expected_version
-          idempotency_key: plan.turn_plan.data.idempotency_key
+          event: $steps.plan.turn_plan.data.turn_event
+          expected_version: $steps.plan.turn_plan.data.expected_version
+          idempotency_key: $steps.plan.turn_plan.data.idempotency_key
 
   open:
     inputs:
@@ -161,8 +157,7 @@ runners:
         skill: ./graph/reduce
         inputs:
           case_id: "$input.case_id"
-        context:
-          events: read.data_operation_result.data.events
+          events: $steps.read.data_operation_result.data.events
 
 harness:
   files: [fixtures/support/open-advance-status.graph]

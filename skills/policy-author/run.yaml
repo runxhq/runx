@@ -1,5 +1,5 @@
 skill: policy-author
-version: "0.2.1"
+version: "0.2.2"
 catalog:
   kind: graph
   audience: operator
@@ -67,10 +67,9 @@ runners:
             policy_proposal: policy_proposal
       - id: prepare
         label: enforce the attenuation boundary
-        context:
-          policy_proposal: draft.policy_proposal.data
         inputs:
           existing_policy: $input.existing_policy
+          policy_proposal: $steps.draft.policy_proposal.data
         tool: { module: policy-author.mjs, export: preparePolicy }
         outputs:
           policy_context: object
@@ -80,15 +79,15 @@ runners:
       - id: lint
         label: lint the exact policy with the native contract engine
         when:
-          field: prepare.policy_context.data.path
+          value: $steps.prepare.policy_context.data.path
           equals: lint
         tool: policy.lint
-        context:
-          policy: prepare.policy_context.data.policy
+        inputs:
+          policy: $steps.prepare.policy_context.data.policy
       - id: finalize-lint
         label: finalize the native lint verdict
         when:
-          field: prepare.policy_context.data.path
+          value: $steps.prepare.policy_context.data.path
           equals: lint
         tool: { module: policy-author.mjs, export: finalizePolicy }
         outputs:
@@ -133,16 +132,16 @@ runners:
                     milestone: { type: string }
                     description: { type: string }
                   additionalProperties: true
-        context:
-          policy_context: prepare.policy_context.data
-          policy_lint: lint.policy_lint.data
+        inputs:
+          policy_context: $steps.prepare.policy_context.data
+          policy_lint: $steps.lint.policy_lint.data
         artifacts:
           wrap_as: policy_proposal_packet
           packet: runx.policy_proposal.v1
       - id: finalize-stop
         label: seal missing-input or attenuation refusal
         when:
-          field: prepare.policy_context.data.path
+          value: $steps.prepare.policy_context.data.path
           equals: stop
         tool: { module: policy-author.mjs, export: finalizePolicy }
         outputs:
@@ -187,8 +186,8 @@ runners:
                     milestone: { type: string }
                     description: { type: string }
                   additionalProperties: true
-        context:
-          policy_context: prepare.policy_context.data
+        inputs:
+          policy_context: $steps.prepare.policy_context.data
         artifacts:
           wrap_as: policy_proposal_packet
           packet: runx.policy_proposal.v1

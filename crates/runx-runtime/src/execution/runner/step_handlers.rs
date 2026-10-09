@@ -19,7 +19,7 @@ use runx_parser::{AskGate, GraphStep, SkillArtifactContract, StepKind, ToolTarge
 
 use self::host_resolution::resolve_step_approval;
 use super::super::graph::{
-    LoadedStepSkill, StepSkillLoadOptions, load_step_skill, materialize_graph_parameter_inputs,
+    LoadedStepSkill, StepSkillLoadOptions, bind_run_inputs, load_step_skill,
 };
 use super::super::skill_context::load_context_skills;
 use super::admission::{
@@ -322,12 +322,9 @@ fn execute_nested_graph<A>(
 where
     A: SkillAdapter,
 {
-    let inherited = crate::execution::graph::inherited_step_provenance(
-        &nested.graph,
-        nested.inputs,
-        nested.provenance,
-    );
-    let graph = materialize_graph_parameter_inputs(nested.graph, nested.inputs);
+    let inherited =
+        crate::execution::graph::inherited_step_provenance(&nested.graph, nested.provenance);
+    let graph = bind_run_inputs(nested.graph, nested.inputs)?;
     let log = runtime.options.run.child(nested.step_id)?;
     if log.load()?.is_none()
         && let Some(reason) = super::child_depth_refusal(&runtime.options)

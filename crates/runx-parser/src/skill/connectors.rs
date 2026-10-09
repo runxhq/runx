@@ -151,7 +151,7 @@ fn bind_graph_operations(
             ));
         }
         if let Some(from) = &requirement.connector_from {
-            if step.inputs.contains_key("connector") || step.context.contains_key("connector") {
+            if step.inputs.contains_key("connector") {
                 return Err(invalid(
                     &field,
                     format!(
@@ -160,8 +160,19 @@ fn bind_graph_operations(
                     ),
                 ));
             }
+            // Validated above as `$input.<path>`.
+            let path = from
+                .strip_prefix("$input.")
+                .unwrap_or_default()
+                .split('.')
+                .map(str::to_owned)
+                .collect();
             step.inputs
                 .insert("connector".to_owned(), JsonValue::String(from.clone()));
+            step.bindings.push(crate::graph::Binding {
+                at: vec!["connector".to_owned()],
+                source: crate::graph::Source::Input { path },
+            });
         }
         target.declared = Some(requirement.clone());
     }

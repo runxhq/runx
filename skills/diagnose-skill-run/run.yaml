@@ -1,5 +1,5 @@
 skill: diagnose-skill-run
-version: "0.4.2"
+version: "0.4.3"
 
 catalog:
   kind: graph
@@ -202,8 +202,14 @@ runners:
           failure_summary: string
           improvement_proposals: array
           next_harness_checks: array
-        context:
-          receipt_evidence: evidence.ledger_answer_packet.data
+        inputs:
+          receipt_evidence: $steps.evidence.ledger_answer_packet.data
+          receipt_id: $input.receipt_id
+          receipt_summary: $input.receipt_summary
+          receipt_details: $input.receipt_details
+          harness_output: $input.harness_output
+          skill_path: $input.skill_path
+          receipt_rows: $input.receipt_rows
         artifacts:
           wrap_as: failure_packet
           packet: runx.review.receipt.v1

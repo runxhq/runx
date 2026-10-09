@@ -7,5 +7,5 @@ steps:
       message: hello from graph
   - id: second
     skill: ../../skills/echo
-    context:
-      message: first.result.data.message
+    inputs:
+      message: $steps.first.result.data.message

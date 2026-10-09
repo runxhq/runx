@@ -1,17 +1,18 @@
 // Module rationale: graph step validation is kept together so
 // field-level diagnostics stay consistent across the five step kinds.
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 
 use runx_contracts::{JsonObject, JsonValue, TurnAllowance};
 
+use super::binding::{parse_operand, parse_values, parse_whole};
 use super::helpers::{
     gate_id, optional_non_empty_string, optional_object, optional_string, optional_string_array,
-    optional_string_object, required_object, required_string, step_id, validation_error,
+    required_object, required_string, step_id, validation_error,
 };
 use super::tool::validate_tool_target;
 use super::types::{
-    AgentTask, AskGate, DuplicatePolicy, GraphContextEdge, GraphStep, GraphWhen,
-    OperationStepTarget, SkillTarget, StepKind, UncertainOutcome,
+    AgentTask, AskGate, DuplicatePolicy, GraphStep, GraphWhen, OperationStepTarget, SkillTarget,
+    StepKind, UncertainOutcome,
 };
 use crate::{ValidationError, skill::validate_skill_artifact_contract};
 use runx_contracts::connector::{OperationName, is_connector_id};
@@ -20,10 +21,11 @@ use runx_contracts::connector::{OperationName, is_connector_id};
 const KIND_FIELDS: &[&str] = &["agent", "tool", "operation", "ask", "skill"];
 
 /// Keys every step may carry.
-const COMMON_FIELDS: &[&str] = &["id", "label", "when", "context"];
+const COMMON_FIELDS: &[&str] = &["id", "label", "when"];
 
 /// The operation call's fields, written on the step itself.
 const OPERATION_CALL_FIELDS: &[&str] = &[
+    "operation_name",
     "input",
     "approval",
     "amount",
@@ -41,23 +43,12 @@ const APPROVAL_DECISION_PACKET: &str = "runx.approval.decision.v1";
 
 fn kind_fields(kind: &str) -> &'static [&'static str] {
     match kind {
-        "agent" => &[
-            "inputs",
-            "outputs",
-            "artifacts",
-            "context_skills",
-            "idempotency_key",
-        ],
-        "tool" => &[
-            "inputs",
-            "outputs",
-            "artifacts",
-            "scopes",
-            "idempotency_key",
-        ],
-        "skill" => &["runner", "inputs", "artifacts", "scopes", "idempotency_key"],
+        "agent" => &["inputs", "outputs", "artifacts", "context_skills"],
+        "tool" => &["inputs", "outputs", "artifacts", "scopes"],
+        "skill" => &["runner", "inputs", "artifacts", "scopes"],
         "ask" => &["inputs"],
         "operation" => &[
+            "operation_name",
             "input",
             "approval",
             "amount",
@@ -87,35 +78,20 @@ pub fn validate_step(
 
     let id = validate_step_id(raw_step, field, previous_step_ids)?;
     let kind = validate_kind(raw_step, field, kind_name)?;
-    let context = optional_string_object(raw_step.get("context"), &format!("{field}.context"))?
-        .unwrap_or_default();
 
-    let (inputs, idempotency_key) = match &kind {
+    // A step receives exactly what it binds: its literals, and the run's
+    // input and earlier steps' results it references.
+    let (inputs, bindings) = match &kind {
         StepKind::Operation(target) => {
-            let call = operation_call(raw_step);
-            validate_operation_binding(field, target, &call, &context)?;
-            (call, None)
+            let parsed = parse_values(&operation_call(raw_step), previous_step_ids, field)?;
+            validate_operation_binding(field, target, &parsed.0)?;
+            parsed
         }
-        _ => (
-            optional_object(raw_step.get("inputs"), &format!("{field}.inputs"))?
-                .unwrap_or_default(),
-            optional_non_empty_string(
-                raw_step.get("idempotency_key"),
-                &format!("{field}.idempotency_key"),
-            )?,
-        ),
+        _ => match raw_step.get("inputs") {
+            Some(value) => parse_whole(value, previous_step_ids, &format!("{field}.inputs"))?,
+            None => (JsonObject::new(), Vec::new()),
+        },
     };
-    reject_step_output_refs_in_inputs(&inputs, previous_step_ids, &format!("{field}.inputs"))?;
-    reject_static_context_input_collisions(&inputs, &context, field)?;
-    if let StepKind::Operation(_) = &kind
-        && let Some(key) = context.keys().find(|key| {
-            !OPERATION_CALL_FIELDS.contains(&key.as_str()) && key.as_str() != "operation"
-        })
-    {
-        return Err(validation_error(format!(
-            "{field}.context.{key} is not an operation call field."
-        )));
-    }
 
     let scopes = optional_string_array(raw_step.get("scopes"), &format!("{field}.scopes"))?
         .unwrap_or_default();
@@ -145,16 +121,18 @@ pub fn validate_step(
         artifacts,
         outputs,
         inputs,
-        context_edges: context_edges(&context, previous_step_ids, field)?,
-        context,
+        bindings,
         context_skills: optional_string_array(
             raw_step.get("context_skills"),
             &format!("{field}.context_skills"),
         )?
         .unwrap_or_default(),
         scopes,
-        when: validate_when(raw_step.get("when"), &format!("{field}.when"))?,
-        idempotency_key,
+        when: validate_when(
+            raw_step.get("when"),
+            previous_step_ids,
+            &format!("{field}.when"),
+        )?,
         on_uncertain,
         duplicates,
     })
@@ -232,12 +210,23 @@ fn validate_kind(
                     "{qualified}.{key} is not a field of an ask."
                 )));
             }
+            // The reason is the text a person reads; the values they need
+            // to decide are the ask's inputs, shown beside it.
+            let reason = non_empty(ask.get("reason"), &format!("{qualified}.reason"))?;
+            if reason.starts_with('$') && !reason.starts_with("$$") {
+                return Err(validation_error(format!(
+                    "{qualified}.reason is text, not a reference; bind the values a person needs in the ask's inputs."
+                )));
+            }
             Ok(StepKind::Ask(AskGate {
                 gate: gate_id(
                     non_empty(ask.get("gate"), &format!("{qualified}.gate"))?,
                     &format!("{qualified}.gate"),
                 )?,
-                reason: non_empty(ask.get("reason"), &format!("{qualified}.reason"))?,
+                reason: reason
+                    .strip_prefix('$')
+                    .filter(|rest| rest.starts_with('$'))
+                    .map_or(reason.clone(), str::to_owned),
                 gate_type: optional_non_empty_string(
                     ask.get("type"),
                     &format!("{qualified}.type"),
@@ -266,7 +255,7 @@ fn operation_call(raw_step: &JsonObject) -> JsonObject {
 }
 
 /// `operation: <requirement>/<operation>`, or `operation: <requirement>` with
-/// the operation name wired in through `context.operation`.
+/// the operation chosen at run time by the step's `operation_name`.
 fn parse_operation_target(
     value: Option<&JsonValue>,
     field: &str,
@@ -301,15 +290,13 @@ fn validate_operation_binding(
     field: &str,
     operation: &OperationStepTarget,
     call: &JsonObject,
-    context: &BTreeMap<String, String>,
 ) -> Result<(), ValidationError> {
-    let binds_operation = call.contains_key("operation") || context.contains_key("operation");
-    match (&operation.operation, binds_operation) {
+    match (&operation.operation, call.contains_key("operation_name")) {
         (Some(_), true) => Err(validation_error(format!(
-            "{field} names its operation and also wires an operation name."
+            "{field} names its operation and also an operation_name."
         ))),
         (None, false) => Err(validation_error(format!(
-            "{field}.operation names only a requirement; wire the operation name through context.operation."
+            "{field}.operation names only a requirement; choose the operation with operation_name."
         ))),
         _ => Ok(()),
     }
@@ -355,91 +342,22 @@ fn validate_tolerance(
     Ok((on_uncertain, duplicates))
 }
 
-fn reject_static_context_input_collisions(
-    inputs: &JsonObject,
-    context: &BTreeMap<String, String>,
-    field: &str,
-) -> Result<(), ValidationError> {
-    let collisions = inputs
-        .keys()
-        .filter(|key| context.contains_key(*key))
-        .cloned()
-        .collect::<Vec<_>>();
-    if collisions.is_empty() {
-        return Ok(());
-    }
-    Err(validation_error(format!(
-        "{field} binds the same input through both inputs and context: {}.",
-        collisions.join(", ")
-    )))
-}
-
-fn reject_step_output_refs_in_inputs(
-    inputs: &JsonObject,
-    previous_step_ids: &BTreeSet<String>,
-    field: &str,
-) -> Result<(), ValidationError> {
-    for (key, value) in inputs {
-        reject_step_output_refs_in_input_value(
-            value,
-            previous_step_ids,
-            &format!("{field}.{key}"),
-        )?;
-    }
-    Ok(())
-}
-
-fn reject_step_output_refs_in_input_value(
-    value: &JsonValue,
-    previous_step_ids: &BTreeSet<String>,
-    field: &str,
-) -> Result<(), ValidationError> {
-    match value {
-        JsonValue::String(value)
-            if looks_like_previous_step_output_ref(value, previous_step_ids) =>
-        {
-            return Err(validation_error(format!(
-                "{field} looks like step output reference {value:?}; move it to context if you meant to read a previous step output."
-            )));
-        }
-        JsonValue::String(_) => {}
-        JsonValue::Object(object) => {
-            for (key, value) in object {
-                reject_step_output_refs_in_input_value(
-                    value,
-                    previous_step_ids,
-                    &format!("{field}.{key}"),
-                )?;
-            }
-        }
-        JsonValue::Array(values) => {
-            for (index, value) in values.iter().enumerate() {
-                reject_step_output_refs_in_input_value(
-                    value,
-                    previous_step_ids,
-                    &format!("{field}.{index}"),
-                )?;
-            }
-        }
-        _ => {}
-    }
-    Ok(())
-}
-
-fn looks_like_previous_step_output_ref(value: &str, previous_step_ids: &BTreeSet<String>) -> bool {
-    let Some((from_step, output)) = value.split_once('.') else {
-        return false;
-    };
-    !output.is_empty() && previous_step_ids.contains(from_step)
-}
-
 fn validate_when(
     value: Option<&JsonValue>,
+    previous_step_ids: &BTreeSet<String>,
     field: &str,
 ) -> Result<Option<GraphWhen>, ValidationError> {
     let Some(record) = optional_object(value, field)? else {
         return Ok(None);
     };
+    if let Some(key) = record
+        .keys()
+        .find(|key| !matches!(key.as_str(), "value" | "equals" | "not_equals"))
+    {
+        return Err(validation_error(format!(
+            "{field}.{key} is not a field of a condition; it takes value and equals or not_equals."
+        )));
+    }
     let equals = record.get("equals").cloned();
     let not_equals = record.get("not_equals").cloned();
     if equals.is_some() && not_equals.is_some() {
@@ -452,8 +370,11 @@ fn validate_when(
             "{field} must declare equals or not_equals."
         )));
     }
+    let value = record
+        .get("value")
+        .ok_or_else(|| validation_error(format!("{field}.value is required.")))?;
     Ok(Some(GraphWhen {
-        field: required_string(record.get("field"), &format!("{field}.field"))?,
+        value: parse_operand(value, previous_step_ids, &format!("{field}.value"))?,
         equals,
         not_equals,
     }))
@@ -474,54 +395,4 @@ fn validate_step_id(
         )));
     }
     Ok(id)
-}
-
-fn context_edges(
-    context: &BTreeMap<String, String>,
-    previous_step_ids: &BTreeSet<String>,
-    field: &str,
-) -> Result<Vec<GraphContextEdge>, ValidationError> {
-    context
-        .iter()
-        .map(|(input, reference)| {
-            parse_context_reference(
-                input,
-                reference,
-                previous_step_ids,
-                &format!("{field}.context.{input}"),
-            )
-        })
-        .collect()
-}
-
-fn parse_context_reference(
-    input: &str,
-    reference: &str,
-    previous_step_ids: &BTreeSet<String>,
-    field: &str,
-) -> Result<GraphContextEdge, ValidationError> {
-    let Some(dot_index) = reference.find('.') else {
-        return Err(context_reference_error(field));
-    };
-    if dot_index == 0 || dot_index == reference.len() - 1 {
-        return Err(context_reference_error(field));
-    }
-    let from_step = &reference[..dot_index];
-    if !previous_step_ids.contains(from_step) {
-        return Err(validation_error(format!(
-            "{field} references unknown or later step '{from_step}'."
-        )));
-    }
-    let output = &reference[dot_index + 1..];
-    Ok(GraphContextEdge {
-        input: input.to_owned(),
-        from_step: from_step.to_owned(),
-        output: output.to_owned(),
-    })
-}
-
-fn context_reference_error(field: &str) -> ValidationError {
-    validation_error(format!(
-        "{field} must use '<step-id>.<output-field>' syntax."
-    ))
 }

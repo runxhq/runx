@@ -1,5 +1,5 @@
 skill: conversation-reply
-version: "0.1.1"
+version: "0.1.2"
 
 catalog:
   kind: graph
@@ -100,45 +100,44 @@ runners:
           thread_locator: $input.thread_locator
           draft_message: $input.draft_message
           delivery_route: $input.delivery_route
-        context: { digest: digest.digest_result.data }
+          digest: $steps.digest.digest_result.data
         tool: { module: conversation-reply.mjs, export: prepareReply }
         outputs: { reply_plan: object }
       - id: held
-        when: { field: prepare.reply_plan.ready, equals: false }
-        context: { reply_plan: prepare.reply_plan }
+        when: { value: $steps.prepare.reply_plan.ready, equals: false }
+        inputs:
+          reply_plan: $steps.prepare.reply_plan
         tool: { module: conversation-reply.mjs, export: holdReply }
         outputs: { work_result: object }
         artifacts:
           named_emits: { work_result: work_result }
           packets: { work_result: runx.work_outcome.v1 }
       - id: deliver
-        when: { field: prepare.reply_plan.ready, equals: true }
+        when: { value: $steps.prepare.reply_plan.ready, equals: true }
         operation: reply/thread.reply
         approval:
           reason: Approve sending this exact reply to the bound conversation.
           type: message_delivery
-        context:
-          idempotency_key: prepare.reply_plan.idempotency_key
-          input: prepare.reply_plan.request
+        idempotency_key: $steps.prepare.reply_plan.idempotency_key
+        input: $steps.prepare.reply_plan.request
       - id: prepare_readback
-        when: { field: prepare.reply_plan.ready, equals: true }
-        context:
-          reply_plan: prepare.reply_plan
-          mutation: deliver.provider_operation.data
+        when: { value: $steps.prepare.reply_plan.ready, equals: true }
+        inputs:
+          reply_plan: $steps.prepare.reply_plan
+          mutation: $steps.deliver.provider_operation.data
         tool: { module: conversation-reply.mjs, export: prepareReadback }
         outputs: { read_request: object }
       - id: readback
-        when: { field: prepare.reply_plan.ready, equals: true }
+        when: { value: $steps.prepare.reply_plan.ready, equals: true }
         operation: reply/thread.reply.read
-        context:
-          readback_of: deliver.provider_operation.data
-          input: prepare_readback.read_request
+        readback_of: $steps.deliver.provider_operation.data
+        input: $steps.prepare_readback.read_request
       - id: finish
-        when: { field: prepare.reply_plan.ready, equals: true }
-        context:
-          reply_plan: prepare.reply_plan
-          mutation: deliver.provider_operation.data
-          readback: readback.provider_operation.data
+        when: { value: $steps.prepare.reply_plan.ready, equals: true }
+        inputs:
+          reply_plan: $steps.prepare.reply_plan
+          mutation: $steps.deliver.provider_operation.data
+          readback: $steps.readback.provider_operation.data
         tool: { module: conversation-reply.mjs, export: finishReply }
         outputs: { work_result: object }
         artifacts:
@@ -164,8 +163,7 @@ runners:
         outputs: { read_request: object }
       - id: readback
         operation: reply/thread.reply.read
-        context:
-          input: prepare_check.read_request
+        input: $steps.prepare_check.read_request
       - id: finish
         inputs:
           expected_provider: $input.expected_provider
@@ -175,7 +173,7 @@ runners:
           content_digest: $input.content_digest
           attempt: $input.attempt
           delivery_route: $input.delivery_route
-        context: { readback: readback.provider_operation.data }
+          readback: $steps.readback.provider_operation.data
         tool: { module: conversation-reply.mjs, export: finishDeliveryCheck }
         outputs: { work_result: object }
         artifacts:

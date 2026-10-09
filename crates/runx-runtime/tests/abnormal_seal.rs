@@ -165,7 +165,7 @@ steps:
 policy:
   guards:
     - step: closure
-      field: act.approved
+      value: $steps.act.approved
       equals: true
 "#,
         )

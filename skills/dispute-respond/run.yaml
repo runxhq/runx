@@ -1,5 +1,5 @@
 skill: dispute-respond
-version: "0.5.3"
+version: "0.5.4"
 
 catalog:
   kind: graph
@@ -90,15 +90,14 @@ runners:
           operator_posture: $input.operator_posture
       - id: file
         when:
-          field: respond.dispute_packet.data.decision
+          value: $steps.respond.dispute_packet.data.decision
           equals: ready_for_review
         skill: .
         runner: file
         inputs:
           provider: $input.dispute_event.provider
           idempotency_key: $input.dispute_event.dispute_id
-        context:
-          dispute_packet: respond.dispute_packet.data
+          dispute_packet: $steps.respond.dispute_packet.data
 
   respond:
     inputs:
@@ -149,36 +148,41 @@ runners:
 
       - id: evidence
         when:
-          field: admit.dispute_context.data.path
+          value: $steps.admit.dispute_context.data.path
           equals: review
         tool: receipt.prove
         scopes:
           - receipt.read
-        context:
-          receipt_ids: admit.dispute_context.data.receipt_ids
+        inputs:
+          receipt_ids: $steps.admit.dispute_context.data.receipt_ids
 
       - id: draft
         when:
-          field: admit.dispute_context.data.path
+          value: $steps.admit.dispute_context.data.path
           equals: review
         agent: { role: operator, task: dispute-response-draft }
         outputs:
           response_draft: object
-        context:
-          dispute_context: admit.dispute_context.data
-          receipt_proof: evidence.receipt_proof.data
+        inputs:
+          dispute_context: $steps.admit.dispute_context.data
+          receipt_proof: $steps.evidence.receipt_proof.data
+          dispute_event: $input.dispute_event
+          original_receipt_id: $input.original_receipt_id
+          prior_refund_receipt_ids: $input.prior_refund_receipt_ids
+          evidence_refs: $input.evidence_refs
+          operator_posture: $input.operator_posture
         artifacts:
           named_emits:
             response_draft: response_draft
 
       - id: finalize
         when:
-          field: admit.dispute_context.data.path
+          value: $steps.admit.dispute_context.data.path
           equals: review
-        context:
-          dispute_context: admit.dispute_context.data
-          receipt_proof: evidence.receipt_proof.data
-          response_draft: draft.response_draft.data
+        inputs:
+          dispute_context: $steps.admit.dispute_context.data
+          receipt_proof: $steps.evidence.receipt_proof.data
+          response_draft: $steps.draft.response_draft.data
         tool: { module: dispute-respond.mjs, export: finalizeResponse }
         outputs:
           dispute_packet:
@@ -274,10 +278,10 @@ runners:
 
       - id: stop
         when:
-          field: admit.dispute_context.data.path
+          value: $steps.admit.dispute_context.data.path
           equals: stop
-        context:
-          dispute_context: admit.dispute_context.data
+        inputs:
+          dispute_context: $steps.admit.dispute_context.data
         tool: { module: dispute-respond.mjs, export: finalizeResponse }
         outputs:
           dispute_packet: object
@@ -361,7 +365,7 @@ runners:
 
       - id: digest-request
         when:
-          field: validate.comparison.data.equal
+          value: $steps.validate.comparison.data.equal
           equals: true
         tool: data.digest
         inputs:
@@ -369,7 +373,7 @@ runners:
 
       - id: file-response
         when:
-          field: validate.comparison.data.equal
+          value: $steps.validate.comparison.data.equal
           equals: true
         operation: dispute/dispute.file
         idempotency_key: $input.idempotency_key
@@ -384,19 +388,18 @@ runners:
 
       - id: bind-request
         when:
-          field: validate.comparison.data.equal
+          value: $steps.validate.comparison.data.equal
           equals: true
         tool: data.compare
-        context:
-          expected: digest-request.digest_result.data.digest
-          actual: file-response.provider_operation.data.result.request_digest
+        inputs:
+          expected: $steps.digest-request.digest_result.data.digest
+          actual: $steps.file-response.provider_operation.data.result.request_digest
 
       - id: readback
         when:
-          field: bind-request.comparison.data.equal
+          value: $steps.bind-request.comparison.data.equal
           equals: true
         operation: dispute/dispute.read
         result_fields: [dispute_id, filing_ref, request_digest, status]
-        context:
-          expected_result: file-response.provider_operation.data.result
-          input: file-response.provider_operation.data.result
+        expected_result: $steps.file-response.provider_operation.data.result
+        input: $steps.file-response.provider_operation.data.result

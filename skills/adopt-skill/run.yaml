@@ -1,5 +1,5 @@
 skill: adopt-skill
-version: "0.4.2"
+version: "0.4.3"
 
 catalog:
   kind: graph
@@ -81,7 +81,7 @@ runners:
       - id: reject-input
         label: stop on an invalid source request
         when:
-          field: plan-source.source_request.data.decision
+          value: $steps.plan-source.source_request.data.decision
           equals: reject
         tool: { module: overlay-binding.mjs, export: finalizeBinding }
         outputs:
@@ -125,8 +125,8 @@ runners:
                   properties:
                     milestone: { type: string, enum: [binding_bundle_ready, binding_blocked] }
                     description: { type: string, minLength: 1, maxLength: 4000 }
-        context:
-          source_request: plan-source.source_request.data
+        inputs:
+          source_request: $steps.plan-source.source_request.data
         artifacts:
           named_emits:
             binding_bundle: binding_bundle
@@ -136,38 +136,37 @@ runners:
       - id: read-source
         label: read the bounded upstream skill
         when:
-          field: plan-source.source_request.data.decision
+          value: $steps.plan-source.source_request.data.decision
           equals: read
         tool: fs.read
         scopes:
           - fs.read
         inputs:
           max_bytes: 524288
-        context:
-          path_scope: plan-source.source_request.data.base
-          path: plan-source.source_request.data.path
+          path_scope: $steps.plan-source.source_request.data.base
+          path: $steps.plan-source.source_request.data.path
 
       - id: digest-source
         label: bind source bytes to the canonical Git blob identity
         when:
-          field: plan-source.source_request.data.decision
+          value: $steps.plan-source.source_request.data.decision
           equals: read
         tool: git.blob_digest
-        context:
-          contents: read-source.file_read.data.contents
+        inputs:
+          contents: $steps.read-source.file_read.data.contents
 
       - id: inspect-source
         label: verify source identity and immutable pins
         when:
-          field: plan-source.source_request.data.decision
+          value: $steps.plan-source.source_request.data.decision
           equals: read
         tool: { module: overlay-source.mjs, export: inspectSource }
         outputs:
           source_evidence: object
-        context:
-          source_request: plan-source.source_request.data
-          file_read: read-source.file_read.data
-          git_blob_digest: digest-source.git_blob_digest.data
+        inputs:
+          source_request: $steps.plan-source.source_request.data
+          file_read: $steps.read-source.file_read.data
+          git_blob_digest: $steps.digest-source.git_blob_digest.data
         artifacts:
           named_emits:
             source_evidence: source_evidence
@@ -175,13 +174,13 @@ runners:
       - id: reject-source
         label: stop on source or pin drift
         when:
-          field: inspect-source.source_evidence.data.decision
+          value: $steps.inspect-source.source_evidence.data.decision
           equals: reject
         tool: { module: overlay-binding.mjs, export: finalizeBinding }
         outputs:
           binding_bundle: object
-        context:
-          source_evidence: inspect-source.source_evidence.data
+        inputs:
+          source_evidence: $steps.inspect-source.source_evidence.data
         artifacts:
           named_emits:
             binding_bundle: binding_bundle
@@ -191,7 +190,7 @@ runners:
       - id: profile
         label: design the least-authority binding profile
         when:
-          field: inspect-source.source_evidence.data.decision
+          value: $steps.inspect-source.source_evidence.data.decision
           equals: ready
         agent: { role: builder, task: overlay-binding-profile }
         outputs:
@@ -200,9 +199,13 @@ runners:
           objective: $input.objective
           scope_intent: $input.scope_intent
           bounds: $input.bounds
-        context:
-          source_evidence: inspect-source.source_evidence.data
-          upstream_skill: read-source.file_read.data.contents
+          source_evidence: $steps.inspect-source.source_evidence.data
+          upstream_skill: $steps.read-source.file_read.data.contents
+          skill_path: $input.skill_path
+          upstream: $input.upstream
+          registry: $input.registry
+          tags: $input.tags
+          publication: $input.publication
         artifacts:
           named_emits:
             profile_draft: profile_draft
@@ -210,15 +213,15 @@ runners:
       - id: prepare-binding
         label: build the exact standalone candidate
         when:
-          field: inspect-source.source_evidence.data.decision
+          value: $steps.inspect-source.source_evidence.data.decision
           equals: ready
         tool: { module: overlay-binding.mjs, export: prepareBinding }
         outputs:
           binding_candidate: object
-        context:
-          source_evidence: inspect-source.source_evidence.data
-          profile_draft: profile.profile_draft.data
-          skill_markdown: read-source.file_read.data.contents
+        inputs:
+          source_evidence: $steps.inspect-source.source_evidence.data
+          profile_draft: $steps.profile.profile_draft.data
+          skill_markdown: $steps.read-source.file_read.data.contents
         artifacts:
           named_emits:
             binding_candidate: binding_candidate
@@ -226,13 +229,13 @@ runners:
       - id: reject-profile
         label: stop on an invalid binding profile
         when:
-          field: prepare-binding.binding_candidate.data.decision
+          value: $steps.prepare-binding.binding_candidate.data.decision
           equals: reject
         tool: { module: overlay-binding.mjs, export: finalizeBinding }
         outputs:
           binding_bundle: object
-        context:
-          binding_candidate: prepare-binding.binding_candidate.data
+        inputs:
+          binding_candidate: $steps.prepare-binding.binding_candidate.data
         artifacts:
           named_emits:
             binding_bundle: binding_bundle
@@ -242,27 +245,26 @@ runners:
       - id: validate
         label: inspect and harness the exact candidate natively
         when:
-          field: prepare-binding.binding_candidate.data.decision
+          value: $steps.prepare-binding.binding_candidate.data.decision
           equals: ready
         tool: runx.skill.validate
         scopes:
           - fs.read
         inputs:
           allow_execute_harness: false
-        context:
-          candidate_files: prepare-binding.binding_candidate.data.candidate_files
+          candidate_files: $steps.prepare-binding.binding_candidate.data.candidate_files
 
       - id: assemble
         label: bind native validation evidence into exact documents
         when:
-          field: prepare-binding.binding_candidate.data.decision
+          value: $steps.prepare-binding.binding_candidate.data.decision
           equals: ready
         tool: { module: overlay-binding.mjs, export: assembleBinding }
         outputs:
           binding_documents: object
-        context:
-          binding_candidate: prepare-binding.binding_candidate.data
-          skill_validation: validate.skill_validation.data
+        inputs:
+          binding_candidate: $steps.prepare-binding.binding_candidate.data
+          skill_validation: $steps.validate.skill_validation.data
         artifacts:
           named_emits:
             binding_documents: binding_documents
@@ -270,14 +272,14 @@ runners:
       - id: reject-validation
         label: stop when native candidate proof fails
         when:
-          field: assemble.binding_documents.data.decision
+          value: $steps.assemble.binding_documents.data.decision
           equals: reject
         tool: { module: overlay-binding.mjs, export: finalizeBinding }
         outputs:
           binding_bundle: object
-        context:
-          binding_candidate: prepare-binding.binding_candidate.data
-          binding_documents: assemble.binding_documents.data
+        inputs:
+          binding_candidate: $steps.prepare-binding.binding_candidate.data
+          binding_documents: $steps.assemble.binding_documents.data
         artifacts:
           named_emits:
             binding_bundle: binding_bundle
@@ -287,37 +289,35 @@ runners:
       - id: digest-profile
         label: digest the exact native profile
         when:
-          field: assemble.binding_documents.data.decision
+          value: $steps.assemble.binding_documents.data.decision
           equals: ready
         tool: data.digest
         inputs:
           encoding: utf8_text
-        context:
-          value: assemble.binding_documents.data.profile_document
+          value: $steps.assemble.binding_documents.data.profile_document
 
       - id: digest-binding
         label: digest the exact registry binding
         when:
-          field: assemble.binding_documents.data.decision
+          value: $steps.assemble.binding_documents.data.decision
           equals: ready
         tool: data.digest
         inputs:
           encoding: utf8_text
-        context:
-          value: assemble.binding_documents.data.binding_document
+          value: $steps.assemble.binding_documents.data.binding_document
 
       - id: finalize
         label: release the proven binding bundle
         when:
-          field: assemble.binding_documents.data.decision
+          value: $steps.assemble.binding_documents.data.decision
           equals: ready
         tool: { module: overlay-binding.mjs, export: finalizeBinding }
         outputs:
           binding_bundle: object
-        context:
-          binding_documents: assemble.binding_documents.data
-          profile_digest: digest-profile.digest_result.data
-          binding_digest: digest-binding.digest_result.data
+        inputs:
+          binding_documents: $steps.assemble.binding_documents.data
+          profile_digest: $steps.digest-profile.digest_result.data
+          binding_digest: $steps.digest-binding.digest_result.data
         artifacts:
           named_emits:
             binding_bundle: binding_bundle

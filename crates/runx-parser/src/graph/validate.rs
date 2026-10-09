@@ -36,7 +36,6 @@ pub fn validate_graph_document(
     let result_from =
         optional_string_array(document.get("result_from"), "result_from")?.unwrap_or_default();
     let raw_steps = required_array(document.get("steps"), "steps")?;
-    let policy = validate_graph_policy(document.get("policy"), "policy")?;
     let mut seen_step_ids = BTreeSet::new();
     let mut steps = Vec::new();
 
@@ -50,6 +49,11 @@ pub fn validate_graph_document(
 
     validate_result_producers(&result_from, &seen_step_ids)?;
     validate_gated_context(&steps)?;
+    let order = steps
+        .iter()
+        .map(|step| step.id.as_str())
+        .collect::<Vec<_>>();
+    let policy = validate_graph_policy(document.get("policy"), &order, "policy")?;
     validate_ask_addresses(&steps, &seen_step_ids)?;
 
     Ok(ExecutionGraph {
@@ -119,14 +123,14 @@ fn validate_gated_context(steps: &[crate::GraphStep]) -> Result<(), ValidationEr
         if step.when.is_some() {
             continue;
         }
-        if let Some(edge) = step
-            .context_edges
-            .iter()
-            .find(|edge| gated.contains(edge.from_step.as_str()))
+        if let Some(source) = step
+            .reads()
+            .into_iter()
+            .find(|source| gated.contains(source))
         {
             return Err(validation_error(format!(
-                "steps.{index} ({}) reads context from gated step '{}' but has no when of its own; it would block whenever that step is skipped.",
-                step.id, edge.from_step
+                "steps.{index} ({}) reads gated step '{source}' but has no when of its own; it would block whenever that step is skipped.",
+                step.id
             )));
         }
     }
@@ -151,45 +155,70 @@ mod tests {
     use super::{parse_graph_yaml, validate_graph};
 
     #[test]
-    fn inputs_reject_previous_step_output_references() -> Result<(), String> {
-        let raw = parse_graph_yaml(
+    fn a_step_reads_earlier_steps_and_the_run_input_by_reference() -> Result<(), String> {
+        let graph = validate_yaml(
             r#"
-name: bad-input-ref
+name: references
 steps:
   - id: select
     agent: {role: reviewer, task: review}
   - id: review
     agent: {role: reviewer, task: review}
     inputs:
-      bounty: select.result
+      bounty: $steps.select.result
+      claim: $input.claim
+      literal: select.result
+      url: https://example.com/a.b
 "#,
-        )
-        .map_err(|error| error.to_string())?;
-        let error = validate_graph(raw)
-            .err()
-            .ok_or_else(|| "graph unexpectedly validated".to_owned())?;
-        let message = error.to_string();
-        assert!(message.contains("steps.1.inputs.bounty"));
-        assert!(message.contains("move it to context"));
-        Ok(())
-    }
-
-    #[test]
-    fn inputs_allow_literals_that_are_not_previous_step_refs() -> Result<(), String> {
-        let raw = parse_graph_yaml(
+        )?;
+        let review = &graph.steps[1];
+        assert_eq!(review.reads(), ["select"]);
+        assert_eq!(review.bindings.len(), 2);
+        assert_eq!(
+            review
+                .inputs
+                .get("literal")
+                .and_then(|value| value.as_str()),
+            Some("select.result"),
+            "a bare step.field string is a literal"
+        );
+        let message = validate_err(
             r#"
-name: literal-input
+name: forward
 steps:
   - id: review
     agent: {role: reviewer, task: review}
     inputs:
-      literal: select.result
-      variable: $input.claim
-      url: https://example.com/a.b
+      bounty: $steps.select.result
+  - id: select
+    agent: {role: reviewer, task: review}
 "#,
-        )
-        .map_err(|error| error.to_string())?;
-        validate_graph(raw).map_err(|error| error.to_string())?;
+        )?;
+        assert!(
+            message.contains("unknown or later step 'select'"),
+            "{message}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn a_step_has_no_context_or_key_outside_an_operation() -> Result<(), String> {
+        for (fragment, expected) in [
+            (
+                "    context: {readme: scan.result}\n",
+                "context does not apply to this agent step",
+            ),
+            (
+                "    idempotency_key: review-1\n",
+                "idempotency_key does not apply to this agent step",
+            ),
+        ] {
+            let source = format!(
+                "name: review\nsteps:\n  - id: scan\n    tool: data.digest\n  - id: review\n    agent: {{role: reviewer, task: review}}\n{fragment}"
+            );
+            let message = validate_err(&source)?;
+            assert!(message.contains(expected), "{fragment}: {message}");
+        }
         Ok(())
     }
 
@@ -258,22 +287,22 @@ steps:
   - id: admit
     agent: {{role: reviewer, task: review}}
   - id: draft
-    when: {{field: admit.result.decision, equals: ready}}
+    when: {{value: $steps.admit.result.decision, equals: ready}}
     agent: {{role: reviewer, task: review}}
   - id: finalize{consumer_when}
-    context:
-      draft: draft.result
+    inputs:
+      draft: $steps.draft.result
     agent: {{role: reviewer, task: review}}
 "#
             )
         };
         let error = validate_err(&graph(""))?;
         assert!(
-            error.contains("steps.2 (finalize) reads context from gated step 'draft'"),
+            error.contains("steps.2 (finalize) reads gated step 'draft'"),
             "{error}"
         );
         validate_yaml(&graph(
-            "\n    when: {field: admit.result.decision, equals: ready}",
+            "\n    when: {value: $steps.admit.result.decision, equals: ready}",
         ))?;
         Ok(())
     }
@@ -317,6 +346,26 @@ steps:
             "{error}"
         );
         validate_yaml(&graph("send.approval"))?;
+        Ok(())
+    }
+
+    #[test]
+    fn an_ask_reason_is_text_and_its_values_are_its_inputs() -> Result<(), String> {
+        let message = validate_err(
+            "name: ask\nsteps:\n  - id: approve\n    ask: {gate: approve.send, reason: $input.title}\n",
+        )?;
+        assert!(
+            message.contains("reason is text, not a reference"),
+            "{message}"
+        );
+        let graph = validate_yaml(
+            "name: ask\nsteps:\n  - id: approve\n    ask: {gate: approve.send, reason: $$5 to send}\n    inputs: {title: $input.title}\n",
+        )?;
+        let crate::StepKind::Ask(ask) = &graph.steps[0].kind else {
+            return Err("an ask step".to_owned());
+        };
+        assert_eq!(ask.reason, "$5 to send");
+        assert_eq!(graph.steps[0].bindings.len(), 1);
         Ok(())
     }
 
@@ -365,7 +414,7 @@ steps:
     }
 
     #[test]
-    fn an_operation_chosen_at_run_time_is_bound_as_an_input() -> Result<(), String> {
+    fn an_operation_chosen_at_run_time_is_its_operation_name() -> Result<(), String> {
         let graph = validate_yaml(
             r#"
 name: sync
@@ -374,8 +423,7 @@ steps:
     tool: data.digest
   - id: push
     operation: github
-    context:
-      operation: plan.sync_plan.data.provider_operation
+    operation_name: $steps.plan.sync_plan.data.provider_operation
 "#,
         )?;
         assert_eq!(
@@ -384,6 +432,7 @@ steps:
                 .map(|target| target.operation.is_none()),
             Some(true)
         );
+        assert_eq!(graph.steps[1].reads(), ["plan"]);
         let message = validate_err(
             r#"
 name: sync
@@ -392,7 +441,7 @@ steps:
     operation: github
 "#,
         )?;
-        assert!(message.contains("wire the operation name"));
+        assert!(message.contains("choose the operation with operation_name"));
         Ok(())
     }
 
@@ -408,8 +457,8 @@ steps:
                 "does not apply to this operation step",
             ),
             (
-                "    context: {operation: plan.digest}\n",
-                "also wires an operation name",
+                "    operation_name: $steps.plan.digest\n",
+                "names its operation and also an operation_name",
             ),
         ] {
             let source = format!(

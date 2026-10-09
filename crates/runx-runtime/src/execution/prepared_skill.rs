@@ -691,8 +691,13 @@ fn summarize_node(node: &SkillOperatorContextNode, summary: &mut PreparedGoverna
             StepKind::Agent(_) => summary.managed_agent_acts += 1,
             _ => {}
         }
-        if let Some(idempotency_key) = &definition.idempotency_key {
-            summary.idempotency_keys.push(idempotency_key.clone());
+        // An operation call's key, as its step writes it.
+        if let Some(idempotency_key) = definition
+            .operation()
+            .and(definition.inputs.get("idempotency_key"))
+            .and_then(JsonValue::as_str)
+        {
+            summary.idempotency_keys.push(idempotency_key.to_owned());
         }
         if let Some(child) = &step.child {
             summarize_node(child, summary);
@@ -1198,7 +1203,7 @@ mod tests {
         )?;
         fs::write(
             temp.path().join("run.yaml"),
-            "skill: prepared\nrunners:\n  main:\n    default: true\n    result_from: [record]\n    steps:\n      - id: record\n        tool: example.record\n        idempotency_key: record-1\n",
+            "skill: prepared\nrunners:\n  main:\n    default: true\n    result_from: [record]\n    steps:\n      - id: record\n        tool: example.record\n",
         )?;
 
         let prepared = prepare_skill_run(
@@ -1226,6 +1231,9 @@ mod tests {
         fs::write(
             temp.path().join("run.yaml"),
             r#"skill: prepared
+connectors:
+  github:
+    operations: [branch.push]
 runners:
   main:
     default: true
@@ -1234,13 +1242,16 @@ runners:
       - id: approve-publish
         ask: { gate: release.publish.approval, reason: Approve the exact release. }
         when:
-          field: input.ready
+          value: $input.ready
           equals: true
+      - id: push
+        operation: github/branch.push
+        idempotency_key: release-publish-1
+        input: {repository: acme/app, branch: main, commit: "0123456789abcdef0123456789abcdef01234567"}
       - id: publish
         tool: { command: node }
         scopes:
           - release:publish
-        idempotency_key: release-publish-1
         outputs:
           result: object
 "#,
@@ -1253,7 +1264,7 @@ runners:
         )?;
         let governance = &prepared.report().governance;
 
-        assert_eq!(governance.declared_steps, 1);
+        assert_eq!(governance.declared_steps, 2);
         assert_eq!(governance.conditional_steps, 1);
         assert_eq!(governance.authority_scopes, ["release:publish"]);
         assert_eq!(governance.gates, ["release.publish.approval"]);

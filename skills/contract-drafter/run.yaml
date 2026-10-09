@@ -1,5 +1,5 @@
 skill: contract-drafter
-version: "0.1.0"
+version: "0.1.1"
 
 catalog:
   kind: graph
@@ -228,10 +228,13 @@ runners:
 
       - id: stop
         when:
-          field: admit.draft_context.path
+          value: $steps.admit.draft_context.path
           equals: stop
-        context:
-          draft_context: admit.draft_context
+        inputs:
+          draft_context: $steps.admit.draft_context
+          template: $input.template
+          parties: $input.parties
+          terms: $input.terms
         tool: { module: contract-drafter.mjs, export: finalizeDraft }
         outputs:
           contract_draft: object
@@ -241,7 +244,7 @@ runners:
 
       - id: digest-template
         when:
-          field: admit.draft_context.path
+          value: $steps.admit.draft_context.path
           equals: draft
         tool: data.digest
         inputs:
@@ -249,7 +252,7 @@ runners:
 
       - id: digest-parties
         when:
-          field: admit.draft_context.path
+          value: $steps.admit.draft_context.path
           equals: draft
         tool: data.digest
         inputs:
@@ -257,7 +260,7 @@ runners:
 
       - id: digest-terms
         when:
-          field: admit.draft_context.path
+          value: $steps.admit.draft_context.path
           equals: draft
         tool: data.digest
         inputs:
@@ -266,7 +269,7 @@ runners:
       - id: assemble
         label: draft clauses from the template under declared-deviation rules
         when:
-          field: admit.draft_context.path
+          value: $steps.admit.draft_context.path
           equals: draft
         agent: { role: reviewer, task: contract-drafter-assemble }
         outputs:
@@ -282,18 +285,17 @@ runners:
       - id: finalize
         label: reconcile the draft against the rendered template deterministically
         when:
-          field: admit.draft_context.path
+          value: $steps.admit.draft_context.path
           equals: draft
         inputs:
           template: $input.template
           parties: $input.parties
           terms: $input.terms
-        context:
-          draft_context: admit.draft_context
-          draft_doc: assemble.draft_doc.data
-          template_digest: digest-template.digest_result.data.digest
-          parties_digest: digest-parties.digest_result.data.digest
-          terms_digest: digest-terms.digest_result.data.digest
+          draft_context: $steps.admit.draft_context
+          draft_doc: $steps.assemble.draft_doc.data
+          template_digest: $steps.digest-template.digest_result.data.digest
+          parties_digest: $steps.digest-parties.digest_result.data.digest
+          terms_digest: $steps.digest-terms.digest_result.data.digest
         tool: { module: contract-drafter.mjs, export: finalizeDraft }
         outputs:
           contract_draft:

@@ -238,35 +238,6 @@ fn skill_package_rejects_cross_file_ambiguity_and_unsafe_sources() {
 }
 
 #[test]
-fn skill_package_rejects_static_context_input_collisions() {
-    let source = package([
-        ("SKILL.md", manual("demo")),
-        (
-            "run.yaml",
-            r#"skill: demo
-runners:
-  run:
-    steps:
-      - id: first
-        agent: { role: operator, task: first }
-        inputs:
-          objective: static
-      - id: second
-        agent: { role: operator, task: second }
-        inputs:
-          objective: static
-        context:
-          objective: first.objective
-"#
-            .to_owned(),
-        ),
-    ]);
-
-    let error = validate_skill_package(source).expect_err("collision must fail");
-    assert!(error.to_string().contains("both inputs and context"));
-}
-
-#[test]
 fn skill_package_validates_local_context_manuals() {
     let source = package([
         ("SKILL.md", manual("demo")),

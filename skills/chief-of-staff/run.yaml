@@ -1,5 +1,5 @@
 skill: chief-of-staff
-version: "0.3.2"
+version: "0.3.3"
 
 catalog:
   kind: graph
@@ -251,10 +251,10 @@ runners:
 
       - id: reject
         when:
-          field: index.context_index.data.decision
+          value: $steps.index.context_index.data.decision
           equals: needs_context
-        context:
-          context_index: index.context_index.data
+        inputs:
+          context_index: $steps.index.context_index.data
         tool: { module: chief-of-staff.mjs, export: finalizeActions }
         outputs:
           action_packet:
@@ -338,7 +338,7 @@ runners:
 
       - id: synthesize
         when:
-          field: index.context_index.data.decision
+          value: $steps.index.context_index.data.decision
           equals: ready
         agent: { role: operator, task: chief-of-staff-synthesize }
         outputs:
@@ -346,19 +346,22 @@ runners:
         inputs:
           objective: $input.objective
           constraints: $input.constraints
-        context:
-          context_index: index.context_index.data
+          context_index: $steps.index.context_index.data
+          as_of: $input.as_of
+          max_age_days: $input.max_age_days
+          mail_context: $input.mail_context
+          calendar_context: $input.calendar_context
         artifacts:
           named_emits:
             action_draft: action_draft
 
       - id: finalize
         when:
-          field: index.context_index.data.decision
+          value: $steps.index.context_index.data.decision
           equals: ready
-        context:
-          context_index: index.context_index.data
-          action_draft: synthesize.action_draft.data
+        inputs:
+          context_index: $steps.index.context_index.data
+          action_draft: $steps.synthesize.action_draft.data
         tool: { module: chief-of-staff.mjs, export: finalizeActions }
         outputs:
           action_packet: object

@@ -66,19 +66,18 @@ runners:
           operation_plan: object
       - id: request
         when:
-          field: prepare.operation_plan.access
+          value: $steps.prepare.operation_plan.access
           equals: read
         operation: nitrosend
-        context:
-          operation: prepare.operation_plan.connector_operation
-          input: prepare.operation_plan.provider_input
+        operation_name: $steps.prepare.operation_plan.connector_operation
+        input: $steps.prepare.operation_plan.provider_input
       - id: normalize
         when:
-          field: prepare.operation_plan.access
+          value: $steps.prepare.operation_plan.access
           equals: read
-        context:
-          operation_plan: prepare.operation_plan
-          provider_operation: request.provider_operation.data
+        inputs:
+          operation_plan: $steps.prepare.operation_plan
+          provider_operation: $steps.request.provider_operation.data
         tool: { module: nitrosend-operation.mjs, export: normalizeOperation }
         outputs:
           provider_evidence:
@@ -118,10 +117,10 @@ runners:
             provider_evidence: nitrosend.provider_evidence.v1
       - id: blocked
         when:
-          field: prepare.operation_plan.decision
+          value: $steps.prepare.operation_plan.decision
           not_equals: ready
-        context:
-          operation_plan: prepare.operation_plan
+        inputs:
+          operation_plan: $steps.prepare.operation_plan
         tool: { module: nitrosend-operation.mjs, export: blockedOperation }
         outputs:
           provider_evidence: object
@@ -166,29 +165,27 @@ runners:
           operation_plan: object
       - id: preview
         when:
-          field: prepare.operation_plan.access
+          value: $steps.prepare.operation_plan.access
           equals: read
         operation: nitrosend
-        context:
-          operation: prepare.operation_plan.connector_operation
-          input: prepare.operation_plan.provider_input
+        operation_name: $steps.prepare.operation_plan.connector_operation
+        input: $steps.prepare.operation_plan.provider_input
       - id: request
         when:
-          field: prepare.operation_plan.access
+          value: $steps.prepare.operation_plan.access
           equals: write
         operation: nitrosend
         idempotency_key: $input.idempotency_key
         approval: $input.approval
-        context:
-          operation: prepare.operation_plan.connector_operation
-          input: prepare.operation_plan.provider_input
+        operation_name: $steps.prepare.operation_plan.connector_operation
+        input: $steps.prepare.operation_plan.provider_input
       - id: normalize_preview
         when:
-          field: prepare.operation_plan.access
+          value: $steps.prepare.operation_plan.access
           equals: read
-        context:
-          operation_plan: prepare.operation_plan
-          provider_operation: preview.provider_operation.data
+        inputs:
+          operation_plan: $steps.prepare.operation_plan
+          provider_operation: $steps.preview.provider_operation.data
         tool: { module: nitrosend-operation.mjs, export: normalizeOperation }
         outputs:
           provider_evidence:
@@ -228,11 +225,11 @@ runners:
             provider_evidence: nitrosend.provider_evidence.v1
       - id: normalize
         when:
-          field: prepare.operation_plan.access
+          value: $steps.prepare.operation_plan.access
           equals: write
-        context:
-          operation_plan: prepare.operation_plan
-          provider_operation: request.provider_operation.data
+        inputs:
+          operation_plan: $steps.prepare.operation_plan
+          provider_operation: $steps.request.provider_operation.data
         tool: { module: nitrosend-operation.mjs, export: normalizeOperation }
         outputs:
           provider_evidence:
@@ -272,10 +269,10 @@ runners:
             provider_evidence: nitrosend.provider_evidence.v1
       - id: blocked
         when:
-          field: prepare.operation_plan.decision
+          value: $steps.prepare.operation_plan.decision
           not_equals: ready
-        context:
-          operation_plan: prepare.operation_plan
+        inputs:
+          operation_plan: $steps.prepare.operation_plan
         tool: { module: nitrosend-operation.mjs, export: blockedOperation }
         outputs:
           provider_evidence: object

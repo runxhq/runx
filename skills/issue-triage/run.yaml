@@ -1,5 +1,5 @@
 skill: issue-triage
-version: "0.4.3"
+version: "0.4.4"
 
 catalog:
   kind: graph
@@ -91,16 +91,15 @@ runners:
 
       - id: digest-snapshot
         tool: data.digest
-        context:
-          value: read-issue.provider_operation.data.result.issue
+        inputs:
+          value: $steps.read-issue.provider_operation.data.result.issue
 
       - id: admit
         inputs:
           repository: $input.repository
-        context:
-          issue_snapshot: read-issue.provider_operation.data.result.issue
-          provider_operation: read-issue.provider_operation.data
-          snapshot_digest: digest-snapshot.digest_result.data.digest
+          issue_snapshot: $steps.read-issue.provider_operation.data.result.issue
+          provider_operation: $steps.read-issue.provider_operation.data
+          snapshot_digest: $steps.digest-snapshot.digest_result.data.digest
         tool: { module: issue-triage.mjs, export: admitIssue }
         outputs:
           issue_evidence: object
@@ -118,16 +117,17 @@ runners:
         inputs:
           objective: $input.objective
           maintainer_context: $input.maintainer_context
-        context:
-          issue_evidence: admit.issue_evidence.data
+          issue_evidence: $steps.admit.issue_evidence.data
+          repository: $input.repository
+          issue_number: $input.issue_number
 
       - id: finalize
-        context:
-          issue_evidence: admit.issue_evidence.data
-          issue_profile: draft.issue_profile
-          response_strategy: draft.response_strategy
-          response_draft: draft.response_draft
-          follow_up_actions: draft.follow_up_actions
+        inputs:
+          issue_evidence: $steps.admit.issue_evidence.data
+          issue_profile: $steps.draft.issue_profile
+          response_strategy: $steps.draft.response_strategy
+          response_draft: $steps.draft.response_draft
+          follow_up_actions: $steps.draft.follow_up_actions
         tool: { module: issue-triage.mjs, export: finalizeResponse }
         outputs:
           issue_triage_packet: object
@@ -166,8 +166,7 @@ runners:
         inputs:
           issue_snapshots: $input.issue_snapshots
           query: $input.query
-        context:
-          snapshot_digest: digest-snapshots.digest_result.data.digest
+          snapshot_digest: $steps.digest-snapshots.digest_result.data.digest
         tool: { module: issue-triage.mjs, export: indexIssues }
         outputs:
           issue_index: object
@@ -182,14 +181,15 @@ runners:
           selection_rationale: object
         inputs:
           maintainer_context: $input.maintainer_context
-        context:
-          issue_index: index.issue_index.data
+          issue_index: $steps.index.issue_index.data
+          issue_snapshots: $input.issue_snapshots
+          query: $input.query
 
       - id: finalize
-        context:
-          issue_index: index.issue_index.data
-          issue_candidates: select.issue_candidates
-          selection_rationale: select.selection_rationale
+        inputs:
+          issue_index: $steps.index.issue_index.data
+          issue_candidates: $steps.select.issue_candidates
+          selection_rationale: $steps.select.selection_rationale
         tool: { module: issue-triage.mjs, export: finalizeDiscovery }
         outputs:
           issue_triage_queue: object
@@ -223,8 +223,7 @@ runners:
       - id: admit
         inputs:
           issue_snapshot: $input.issue_snapshot
-        context:
-          snapshot_digest: digest-snapshot.digest_result.data.digest
+          snapshot_digest: $steps.digest-snapshot.digest_result.data.digest
         tool: { module: issue-triage.mjs, export: admitIssue }
         outputs:
           issue_evidence: object
@@ -242,16 +241,16 @@ runners:
         inputs:
           objective: $input.objective
           maintainer_context: $input.maintainer_context
-        context:
-          issue_evidence: admit.issue_evidence.data
+          issue_evidence: $steps.admit.issue_evidence.data
+          issue_snapshot: $input.issue_snapshot
 
       - id: finalize
-        context:
-          issue_evidence: admit.issue_evidence.data
-          issue_profile: draft.issue_profile
-          response_strategy: draft.response_strategy
-          response_draft: draft.response_draft
-          follow_up_actions: draft.follow_up_actions
+        inputs:
+          issue_evidence: $steps.admit.issue_evidence.data
+          issue_profile: $steps.draft.issue_profile
+          response_strategy: $steps.draft.response_strategy
+          response_draft: $steps.draft.response_draft
+          follow_up_actions: $steps.draft.follow_up_actions
         tool: { module: issue-triage.mjs, export: finalizeResponse }
         outputs:
           issue_triage_packet: object
@@ -288,7 +287,7 @@ runners:
             delivery_status: not_sent
             channel: github_issue_comment
       - id: post-comment
-        when: { field: validate.comparison.data.equal, equals: true }
+        when: { value: $steps.validate.comparison.data.equal, equals: true }
         operation: github/comments.create
         idempotency_key: $input.idempotency_key
         input:

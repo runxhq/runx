@@ -1,5 +1,5 @@
 skill: work-plan
-version: "0.2.5"
+version: "0.2.6"
 catalog:
   kind: graph
   audience: builder
@@ -374,8 +374,9 @@ runners:
           thread_locator: $input.thread_locator
           thread: $input.thread
           change_set: $input.change_set
-        context:
-          catalog_skills: inspect.authoring_context.data.catalog_skills
+          catalog_skills: $steps.inspect.authoring_context.data.catalog_skills
+          harness_context: $input.harness_context
+          repo_root: $input.repo_root
         artifacts:
           named_emits:
             work_plan_draft: work_plan_draft
@@ -388,9 +389,8 @@ runners:
           project_context: $input.project_context
           change_set: $input.change_set
           harness_context: $input.harness_context
-        context:
-          work_plan_draft: draft.work_plan_draft.data
-          catalog_skills: inspect.authoring_context.data.catalog_skills
+          work_plan_draft: $steps.draft.work_plan_draft.data
+          catalog_skills: $steps.inspect.authoring_context.data.catalog_skills
         tool: { module: work-plan.mjs }
         outputs:
           decision: string

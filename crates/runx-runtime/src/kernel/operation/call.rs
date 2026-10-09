@@ -20,9 +20,10 @@ pub(crate) struct OperationCall {
     /// the requirement's `connector_from`; never written by an author.
     #[serde(default)]
     pub connector: Option<ConnectorId>,
-    /// The operation, when the step names only its requirement.
+    /// The operation chosen at run time, when the step names only its
+    /// requirement.
     #[serde(default)]
-    pub operation: Option<OperationName>,
+    pub operation_name: Option<OperationName>,
     /// The operation's arguments: the payload the intent digests.
     #[serde(default)]
     pub input: JsonObject,

@@ -1,5 +1,5 @@
 skill: sql-analyst
-version: "0.4.0"
+version: "0.4.1"
 
 catalog:
   kind: graph
@@ -235,82 +235,100 @@ runners:
 
       - id: read-projection
         when:
-          field: plan.sql_analysis_plan.data.execution.handoff.runner
+          value: $steps.plan.sql_analysis_plan.data.execution.handoff.runner
           equals: read_projection
         skill: ../data-store
         runner: read_projection
-        context:
-          data_source_ref: plan.sql_analysis_plan.data.execution.handoff.inputs.data_source_ref
-          resource: plan.sql_analysis_plan.data.execution.handoff.inputs.resource
-          aggregate_id: plan.sql_analysis_plan.data.execution.handoff.inputs.aggregate_id
+        inputs:
+          data_source_ref: $steps.plan.sql_analysis_plan.data.execution.handoff.inputs.data_source_ref
+          resource: $steps.plan.sql_analysis_plan.data.execution.handoff.inputs.resource
+          aggregate_id: $steps.plan.sql_analysis_plan.data.execution.handoff.inputs.aggregate_id
 
       - id: read-events
         when:
-          field: plan.sql_analysis_plan.data.execution.handoff.runner
+          value: $steps.plan.sql_analysis_plan.data.execution.handoff.runner
           equals: read_events
         skill: ../data-store
         runner: read_events
-        context:
-          data_source_ref: plan.sql_analysis_plan.data.execution.handoff.inputs.data_source_ref
-          resource: plan.sql_analysis_plan.data.execution.handoff.inputs.resource
-          aggregate_id: plan.sql_analysis_plan.data.execution.handoff.inputs.aggregate_id
-          limit: plan.sql_analysis_plan.data.execution.handoff.inputs.limit
+        inputs:
+          data_source_ref: $steps.plan.sql_analysis_plan.data.execution.handoff.inputs.data_source_ref
+          resource: $steps.plan.sql_analysis_plan.data.execution.handoff.inputs.resource
+          aggregate_id: $steps.plan.sql_analysis_plan.data.execution.handoff.inputs.aggregate_id
+          limit: $steps.plan.sql_analysis_plan.data.execution.handoff.inputs.limit
 
       - id: read-heads
         when:
-          field: plan.sql_analysis_plan.data.execution.handoff.runner
+          value: $steps.plan.sql_analysis_plan.data.execution.handoff.runner
           equals: list_stream_heads
         skill: ../data-store
         runner: list_stream_heads
-        context:
-          data_source_ref: plan.sql_analysis_plan.data.execution.handoff.inputs.data_source_ref
-          resource: plan.sql_analysis_plan.data.execution.handoff.inputs.resource
-          limit: plan.sql_analysis_plan.data.execution.handoff.inputs.limit
+        inputs:
+          data_source_ref: $steps.plan.sql_analysis_plan.data.execution.handoff.inputs.data_source_ref
+          resource: $steps.plan.sql_analysis_plan.data.execution.handoff.inputs.resource
+          limit: $steps.plan.sql_analysis_plan.data.execution.handoff.inputs.limit
 
       - id: interpret-projection
         when:
-          field: plan.sql_analysis_plan.data.execution.handoff.runner
+          value: $steps.plan.sql_analysis_plan.data.execution.handoff.runner
           equals: read_projection
         agent: { role: analyst, task: sql-interpret }
         outputs:
           analysis_result: object
         inputs:
           question: $input.question
-        context:
-          validated_plan: plan.sql_analysis_plan.data
-          governed_data: read-projection.data_operation_result.data
+          validated_plan: $steps.plan.sql_analysis_plan.data
+          governed_data: $steps.read-projection.data_operation_result.data
+          schema_summary: $input.schema_summary
+          dialect: $input.dialect
+          as_of: $input.as_of
+          max_schema_age_days: $input.max_schema_age_days
+          sample_rows: $input.sample_rows
+          constraints: $input.constraints
+          execution_context: $input.execution_context
         artifacts:
           named_emits:
             analysis_result: analysis_result
 
       - id: interpret-events
         when:
-          field: plan.sql_analysis_plan.data.execution.handoff.runner
+          value: $steps.plan.sql_analysis_plan.data.execution.handoff.runner
           equals: read_events
         agent: { role: analyst, task: sql-interpret }
         outputs:
           analysis_result: object
         inputs:
           question: $input.question
-        context:
-          validated_plan: plan.sql_analysis_plan.data
-          governed_data: read-events.data_operation_result.data
+          validated_plan: $steps.plan.sql_analysis_plan.data
+          governed_data: $steps.read-events.data_operation_result.data
+          schema_summary: $input.schema_summary
+          dialect: $input.dialect
+          as_of: $input.as_of
+          max_schema_age_days: $input.max_schema_age_days
+          sample_rows: $input.sample_rows
+          constraints: $input.constraints
+          execution_context: $input.execution_context
         artifacts:
           named_emits:
             analysis_result: analysis_result
 
       - id: interpret-heads
         when:
-          field: plan.sql_analysis_plan.data.execution.handoff.runner
+          value: $steps.plan.sql_analysis_plan.data.execution.handoff.runner
           equals: list_stream_heads
         agent: { role: analyst, task: sql-interpret }
         outputs:
           analysis_result: object
         inputs:
           question: $input.question
-        context:
-          validated_plan: plan.sql_analysis_plan.data
-          governed_data: read-heads.data_operation_result.data
+          validated_plan: $steps.plan.sql_analysis_plan.data
+          governed_data: $steps.read-heads.data_operation_result.data
+          schema_summary: $input.schema_summary
+          dialect: $input.dialect
+          as_of: $input.as_of
+          max_schema_age_days: $input.max_schema_age_days
+          sample_rows: $input.sample_rows
+          constraints: $input.constraints
+          execution_context: $input.execution_context
         artifacts:
           named_emits:
             analysis_result: analysis_result
@@ -372,10 +390,10 @@ runners:
 
       - id: reject
         when:
-          field: prepare.analysis_context.data.decision
+          value: $steps.prepare.analysis_context.data.decision
           equals: stop
-        context:
-          analysis_context: prepare.analysis_context.data
+        inputs:
+          analysis_context: $steps.prepare.analysis_context.data
         tool: { module: sql-analyst.mjs, export: finalizePlan }
         outputs:
           sql_analysis_plan:
@@ -501,24 +519,32 @@ runners:
 
       - id: plan
         when:
-          field: prepare.analysis_context.data.decision
+          value: $steps.prepare.analysis_context.data.decision
           equals: ready
         agent: { role: analyst, task: sql-plan }
         outputs:
           sql_plan_draft: object
-        context:
-          analysis_context: prepare.analysis_context.data
+        inputs:
+          analysis_context: $steps.prepare.analysis_context.data
+          question: $input.question
+          schema_summary: $input.schema_summary
+          dialect: $input.dialect
+          as_of: $input.as_of
+          max_schema_age_days: $input.max_schema_age_days
+          sample_rows: $input.sample_rows
+          constraints: $input.constraints
+          execution_context: $input.execution_context
         artifacts:
           named_emits:
             sql_plan_draft: sql_plan_draft
 
       - id: finalize
         when:
-          field: prepare.analysis_context.data.decision
+          value: $steps.prepare.analysis_context.data.decision
           equals: ready
-        context:
-          analysis_context: prepare.analysis_context.data
-          sql_plan_draft: plan.sql_plan_draft.data
+        inputs:
+          analysis_context: $steps.prepare.analysis_context.data
+          sql_plan_draft: $steps.plan.sql_plan_draft.data
         tool: { module: sql-analyst.mjs, export: finalizePlan }
         outputs:
           sql_analysis_plan: object

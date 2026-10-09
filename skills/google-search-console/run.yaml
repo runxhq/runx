@@ -1,5 +1,5 @@
 skill: google-search-console
-version: "0.1.8"
+version: "0.1.9"
 
 catalog:
   kind: graph
@@ -502,19 +502,18 @@ runners:
             data_state: $input.data_state
             row_limit: $input.row_limit
             start_row: $input.start_row
-        context:
-          provider_result: read.provider_operation.data.result
+          provider_result: $steps.read.provider_operation.data.result
         tool: { module: gsc/performance.mjs, export: normalizePerformance }
         outputs:
           performance_draft: object
       - id: digest
         tool: data.digest
-        context:
-          value: normalize.performance_draft
+        inputs:
+          value: $steps.normalize.performance_draft
       - id: finalize
-        context:
-          performance_draft: normalize.performance_draft
-          digest_result: digest.digest_result.data
+        inputs:
+          performance_draft: $steps.normalize.performance_draft
+          digest_result: $steps.digest.digest_result.data
         tool: { module: gsc/performance.mjs, export: finalizePerformance }
         outputs:
           performance_evidence: object
@@ -560,12 +559,12 @@ runners:
           performance_draft: object
       - id: digest
         tool: data.digest
-        context:
-          value: normalize.performance_draft
+        inputs:
+          value: $steps.normalize.performance_draft
       - id: finalize
-        context:
-          performance_draft: normalize.performance_draft
-          digest_result: digest.digest_result.data
+        inputs:
+          performance_draft: $steps.normalize.performance_draft
+          digest_result: $steps.digest.digest_result.data
         tool: { module: gsc/performance.mjs, export: finalizePerformance }
         outputs:
           performance_evidence: object
@@ -613,19 +612,18 @@ runners:
             property: $input.property
             inspection_url: $input.inspection_url
             language_code: $input.language_code
-        context:
-          provider_result: read.provider_operation.data.result
+          provider_result: $steps.read.provider_operation.data.result
         tool: { module: gsc/inspection.mjs, export: normalizeInspection }
         outputs:
           inspection_draft: object
       - id: digest
         tool: data.digest
-        context:
-          value: normalize.inspection_draft
+        inputs:
+          value: $steps.normalize.inspection_draft
       - id: finalize
-        context:
-          inspection_draft: normalize.inspection_draft
-          digest_result: digest.digest_result.data
+        inputs:
+          inspection_draft: $steps.normalize.inspection_draft
+          digest_result: $steps.digest.digest_result.data
         tool: { module: gsc/inspection.mjs, export: finalizeInspection }
         outputs:
           inspection_evidence: object
@@ -668,12 +666,12 @@ runners:
           digest_subject: object
       - id: digest
         tool: data.digest
-        context:
-          value: prepare.digest_subject
+        inputs:
+          value: $steps.prepare.digest_subject
       - id: bind
-        context:
-          sitemap_plan_draft: prepare.sitemap_plan_draft
-          digest_result: digest.digest_result.data
+        inputs:
+          sitemap_plan_draft: $steps.prepare.sitemap_plan_draft
+          digest_result: $steps.digest.digest_result.data
         tool: { module: gsc/sitemap.mjs, export: bindSitemapPlan }
         outputs:
           sitemap_plan: object
@@ -714,14 +712,13 @@ runners:
       - id: admit
         inputs:
           sitemap_plan: $input.sitemap_plan
-        context:
-          digest_result: digest.digest_result.data
+          digest_result: $steps.digest.digest_result.data
         tool: { module: gsc/sitemap.mjs, export: admitSitemapSubmission }
         outputs:
           submission_admission: object
       - id: submit
         when:
-          field: admit.submission_admission.decision
+          value: $steps.admit.submission_admission.decision
           equals: ready
         operation: google-search-console/sitemaps.submit
         idempotency_key: $input.idempotency_key
@@ -734,12 +731,11 @@ runners:
           sitemap_url: $input.sitemap_plan.sitemap_url
       - id: refuse
         when:
-          field: admit.submission_admission.decision
+          value: $steps.admit.submission_admission.decision
           equals: blocked
         inputs:
           idempotency_key: $input.idempotency_key
-        context:
-          submission_admission: admit.submission_admission
+          submission_admission: $steps.admit.submission_admission
         tool: { module: gsc/sitemap.mjs, export: refuseSitemapSubmission }
         outputs:
           sitemap_submission: object
@@ -747,25 +743,23 @@ runners:
           named_emits: { sitemap_submission: sitemap_submission }
       - id: readback
         when:
-          field: admit.submission_admission.decision
+          value: $steps.admit.submission_admission.decision
           equals: ready
         operation: google-search-console/sitemaps.get
         result_fields: [property, sitemap_url, status, last_submitted, last_downloaded, error_count, warning_count]
         input:
           property: $input.sitemap_plan.property
           sitemap_url: $input.sitemap_plan.sitemap_url
-        context:
-          expected_result: submit.provider_operation.data.result
+        expected_result: $steps.submit.provider_operation.data.result
       - id: finalize
         when:
-          field: admit.submission_admission.decision
+          value: $steps.admit.submission_admission.decision
           equals: ready
         inputs:
           idempotency_key: $input.idempotency_key
           sitemap_plan: $input.sitemap_plan
-        context:
-          mutation_result: submit.provider_operation.data.result
-          readback_result: readback.provider_operation.data.result
+          mutation_result: $steps.submit.provider_operation.data.result
+          readback_result: $steps.readback.provider_operation.data.result
         tool: { module: gsc/sitemap.mjs, export: finalizeSitemapSubmission }
         outputs:
           sitemap_submission: object

@@ -1,5 +1,5 @@
 skill: incident-commander
-version: "0.3.0"
+version: "0.3.1"
 
 catalog:
   kind: graph
@@ -102,7 +102,7 @@ runners:
 
       - id: decide
         when:
-          field: admit.incident_context.path
+          value: $steps.admit.incident_context.path
           equals: decide
         skill: ../ops-desk
         runner: advance
@@ -116,10 +116,10 @@ runners:
 
       - id: stop
         when:
-          field: admit.incident_context.path
+          value: $steps.admit.incident_context.path
           equals: stop
-        context:
-          incident_context: admit.incident_context
+        inputs:
+          incident_context: $steps.admit.incident_context
         tool: { module: incident-turn.mjs, export: finalizeIncident }
         outputs:
           incident_turn:
@@ -171,11 +171,11 @@ runners:
 
       - id: finalize
         when:
-          field: admit.incident_context.path
+          value: $steps.admit.incident_context.path
           equals: decide
-        context:
-          incident_context: admit.incident_context
-          decision: decide.dispatch_decision.data
+        inputs:
+          incident_context: $steps.admit.incident_context
+          decision: $steps.decide.dispatch_decision.data
         tool: { module: incident-turn.mjs, export: finalizeIncident }
         outputs:
           incident_turn:

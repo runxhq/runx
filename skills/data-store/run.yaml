@@ -1,5 +1,5 @@
 skill: data-store
-version: "0.4.1"
+version: "0.4.2"
 
 catalog:
   kind: skill
@@ -65,7 +65,8 @@ runners:
           event: $input.event
           observed_at: $input.observed_at
       - id: append
-        context: { result: store-append.provider_operation.data.result }
+        inputs:
+          result: $steps.store-append.provider_operation.data.result
         tool: { module: data-store.mjs, export: dataOperationResult }
         artifacts:
           wrap_as: data_operation_result
@@ -105,7 +106,8 @@ runners:
           limit: $input.limit
           after_version: $input.after_version
       - id: read
-        context: { result: store-read.provider_operation.data.result }
+        inputs:
+          result: $steps.store-read.provider_operation.data.result
         tool: { module: data-store.mjs, export: dataOperationResult }
         artifacts:
           wrap_as: data_operation_result
@@ -134,7 +136,8 @@ runners:
           resource: $input.resource
           aggregate_id: $input.aggregate_id
       - id: read
-        context: { result: store-read.provider_operation.data.result }
+        inputs:
+          result: $steps.store-read.provider_operation.data.result
         tool: { module: data-store.mjs, export: dataOperationResult }
         artifacts:
           wrap_as: data_operation_result
@@ -174,7 +177,8 @@ runners:
           limit: $input.limit
           cursor: $input.cursor
       - id: read
-        context: { result: store-read.provider_operation.data.result }
+        inputs:
+          result: $steps.store-read.provider_operation.data.result
         tool: { module: data-store.mjs, export: dataOperationResult }
         artifacts:
           wrap_as: data_operation_result
@@ -224,7 +228,8 @@ runners:
           event: $input.event
           observed_at: $input.observed_at
       - id: append
-        context: { result: store-append.provider_operation.data.result }
+        inputs:
+          result: $steps.store-append.provider_operation.data.result
         tool: { module: data-store.mjs, export: dataOperationResult }
         artifacts:
           wrap_as: data_operation_result
@@ -236,7 +241,8 @@ runners:
           resource: $input.resource
           aggregate_id: $input.aggregate_id
       - id: readback
-        context: { result: store-readback.provider_operation.data.result }
+        inputs:
+          result: $steps.store-readback.provider_operation.data.result
         tool: { module: data-store.mjs, export: dataOperationResult }
         artifacts:
           wrap_as: data_operation_result

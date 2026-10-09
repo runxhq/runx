@@ -147,10 +147,15 @@ fn native_skill_resolves_bare_local_skill_and_documented_input_flags()
     let profile = fs::read_to_string(&profile_path)?;
     fs::write(
         &profile_path,
-        profile.replace(
-            "      thread_title:\n        type: string\n        required: false\n",
-            "      thread_title:\n        type: string\n        required: false\n      severity:\n        type: string\n        required: false\n",
-        ),
+        profile
+            .replace(
+                "      thread_title:\n        type: string\n        required: false\n",
+                "      thread_title:\n        type: string\n        required: false\n      severity:\n        type: string\n        required: false\n",
+            )
+            .replace(
+                "          thread_title: $input.thread_title\n",
+                "          thread_title: $input.thread_title\n          severity: $input.severity\n",
+            ),
     )?;
     let receipt_dir = root.join("receipts");
 
@@ -1039,8 +1044,8 @@ runners:
           - ./context/review-rubric
       - id: record
         tool: example.record
-        context:
-          decision: verdict.decision
+        inputs:
+          decision: $steps.verdict.decision
 "#,
     )?;
     Ok(skill_dir)

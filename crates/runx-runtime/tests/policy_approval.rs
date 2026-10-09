@@ -116,7 +116,7 @@ steps:
 policy:
   guards:
     - step: child
-      field: approve.approval_decision.data.approved
+      value: $steps.approve.approval_decision.data.approved
       equals: true
 "#,
     )?)?;
@@ -182,7 +182,7 @@ fn policy_write_graph(
         r#"policy:
   guards:
     - step: write
-      field: approve.approval_decision.data.approved
+      value: $steps.approve.approval_decision.data.approved
       equals: true
 "#
     } else {

@@ -17,7 +17,7 @@ use runx_parser::{ExecutionGraph, SkillRunnerDefinition};
 use crate::RuntimeError;
 #[cfg(test)]
 use crate::adapter::SkillInvocation;
-use crate::execution::graph::materialize_graph_parameter_inputs;
+use crate::execution::graph::bind_run_inputs;
 use crate::execution::orchestrator::{RunResult, SkillRunRequest};
 use crate::execution::run_record::{
     Driver, Hold, Origin, PendingRequest, RunContext, RunLog, RunRecord, StartRequest,
@@ -189,7 +189,7 @@ impl BoundRun {
             }
         }
         let runtime = self.runtime(&log, &created_at, run_context, run_authority);
-        let graph = materialize_graph_parameter_inputs(self.runner.graph.clone(), &graph_inputs);
+        let graph = bind_run_inputs(self.runner.graph.clone(), &graph_inputs)?;
         let run = Driven {
             bound: self,
             log: &log,
@@ -364,7 +364,7 @@ impl BoundRun {
             .sealed
             .clone()
             .ok_or_else(|| invalid("the run has no seal"))?;
-        let graph = materialize_graph_parameter_inputs(self.runner.graph.clone(), &record.inputs);
+        let graph = bind_run_inputs(self.runner.graph.clone(), &record.inputs)?;
         let run = sealed_graph_run(graph, record)?;
         write_graph_receipts(&self.request, &self.workspace, &self.receipts, &run)?;
         if let Some(primary) = &sealed.primary {

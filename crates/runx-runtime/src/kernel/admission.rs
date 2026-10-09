@@ -53,7 +53,6 @@ pub(crate) struct Evaluation<'a> {
     pub step: &'a OperationStepTarget,
     pub call: &'a OperationCall,
     /// The step-level request key, used when the call carries none.
-    pub step_idempotency_key: Option<&'a str>,
     pub on_uncertain: Option<UncertainOutcome>,
     pub duplicates: Option<DuplicatePolicy>,
     /// The harness's provider fixture stands in for a declared operation's
@@ -810,13 +809,13 @@ fn requirement(
             chosen.as_str()
         }
     };
-    let operation = match (&step.operation, &call.operation) {
+    let operation = match (&step.operation, &call.operation_name) {
         (Some(operation), None) => operation.clone(),
         (None, Some(operation)) => operation.clone(),
         (Some(_), Some(_)) => {
-            return Err("the step names its operation and also binds one".to_owned());
+            return Err("the step names its operation and also an operation_name".to_owned());
         }
-        (None, None) => return Err("the step binds no operation".to_owned()),
+        (None, None) => return Err("the step chooses no operation_name".to_owned()),
     };
     if !declared.lists(operation.as_str()) {
         return Err(format!(
@@ -928,10 +927,7 @@ fn call_shape(
     if target.trim().is_empty() || target.len() > 512 || target.chars().any(char::is_control) {
         return Err("the rendered target must be a safe non-empty value".to_owned());
     }
-    let request_key = call
-        .idempotency_key
-        .as_deref()
-        .or(evaluation.step_idempotency_key);
+    let request_key = call.idempotency_key.as_deref();
     let request_key = match access {
         OperationAccess::Mutate => Some(
             request_key

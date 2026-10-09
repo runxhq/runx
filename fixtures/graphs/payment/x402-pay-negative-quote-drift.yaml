@@ -13,8 +13,8 @@ steps:
         operation: paid.echo
   - id: reserve
     skill: ../../skills/x402-pay-negative-quote-drift-reserve
-    context:
-      payment_quote_packet: quote.payment_quote_packet.data
+    inputs:
+      payment_quote_packet: $steps.quote.payment_quote_packet.data
   - id: approve-spend
     ask: { gate: spend-approval, reason: Approve quote-drift payment fixture., type: payment }
     inputs:
@@ -24,13 +24,12 @@ steps:
     skill: ../../skills/x402-pay-paid-echo-fulfill
     scopes:
       - payment:spend
-    idempotency_key: paid-echo-quote-drift-fulfill
-    context:
-      reserved_payment_authority: reserve.payment_reservation_packet.data.reserved_payment_authority
-      spend_capability_ref: reserve.payment_reservation_packet.data.spend_capability_ref
-      idempotency: reserve.payment_reservation_packet.data.idempotency
+    inputs:
+      reserved_payment_authority: $steps.reserve.payment_reservation_packet.data.reserved_payment_authority
+      spend_capability_ref: $steps.reserve.payment_reservation_packet.data.spend_capability_ref
+      idempotency: $steps.reserve.payment_reservation_packet.data.idempotency
 policy:
   guards:
     - step: fulfill
-      field: approve-spend.approval_decision.data.approved
+      value: $steps.approve-spend.approval_decision.data.approved
       equals: true

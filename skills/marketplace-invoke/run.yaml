@@ -1,5 +1,5 @@
 skill: marketplace-invoke
-version: "0.4.0"
+version: "0.4.1"
 catalog:
   kind: graph
   audience: operator
@@ -125,8 +125,7 @@ runners:
         inputs:
           marketplace_offer: $input.marketplace_offer
           resource_url: $input.marketplace_offer.endpoint_url
-        context:
-          settlement: x402.provider_operation.data.result
+          settlement: $steps.x402.provider_operation.data.result
         tool: { module: readback.mjs, export: scheduleMarketplaceReadback, timeout_seconds: 5 }
         outputs: { schedule_intent: { type: object } }
         artifacts:
@@ -149,21 +148,22 @@ runners:
       - id: readback
         skill: ../x402-pay
         runner: readback
-        context:
-          resource_url: plan.readback_input.resource_url
-          payment_ref: plan.readback_input.payment_ref
+        inputs:
+          resource_url: $steps.plan.readback_input.resource_url
+          payment_ref: $steps.plan.readback_input.payment_ref
 
       - id: interpret
-        context:
-          checkpoint: plan.checkpoint
-          provider_job_ref: plan.provider_job_ref
-          readback: readback.provider_operation.data.result
+        inputs:
+          checkpoint: $steps.plan.checkpoint
+          provider_job_ref: $steps.plan.provider_job_ref
+          readback: $steps.readback.provider_operation.data.result
         tool: { module: readback.mjs, export: interpretMarketplaceReadback, timeout_seconds: 5 }
         outputs: { action: object }
 
       - id: waiting-result
-        when: { field: interpret.action.kind, equals: waiting }
-        context: { action: interpret.action }
+        when: { value: $steps.interpret.action.kind, equals: waiting }
+        inputs:
+          action: $steps.interpret.action
         tool: { module: readback.mjs, export: finishMarketplaceWaiting, timeout_seconds: 5 }
         outputs: { stage_result: { type: object } }
         artifacts:
@@ -171,15 +171,16 @@ runners:
           packets: { stage_result: runx.external_job_stage.result.v1 }
 
       - id: digest-failure
-        when: { field: interpret.action.kind, equals: failed }
+        when: { value: $steps.interpret.action.kind, equals: failed }
         tool: data.digest
-        context: { value: interpret.action.evidence }
+        inputs:
+          value: $steps.interpret.action.evidence
 
       - id: failed-result
-        when: { field: interpret.action.kind, equals: failed }
-        context:
-          action: interpret.action
-          digest_result: digest-failure.digest_result.data
+        when: { value: $steps.interpret.action.kind, equals: failed }
+        inputs:
+          action: $steps.interpret.action
+          digest_result: $steps.digest-failure.digest_result.data
         tool: { module: readback.mjs, export: finishMarketplaceFailure, timeout_seconds: 5 }
         outputs: { stage_result: { type: object } }
         artifacts:
@@ -187,25 +188,26 @@ runners:
           packets: { stage_result: runx.external_job_stage.result.v1 }
 
       - id: allocate-result
-        when: { field: interpret.action.kind, equals: ready }
+        when: { value: $steps.interpret.action.kind, equals: ready }
         tool: artifact.allocate
         scopes: [runx:artifact:write]
         inputs:
           media_type: application/json
           idempotency_scope: runx.marketplace.vendor-result.v1
-        context: { value: interpret.action.result }
+          value: $steps.interpret.action.result
 
       - id: digest-completion
-        when: { field: interpret.action.kind, equals: ready }
+        when: { value: $steps.interpret.action.kind, equals: ready }
         tool: data.digest
-        context: { value: interpret.action.evidence }
+        inputs:
+          value: $steps.interpret.action.evidence
 
       - id: ready-result
-        when: { field: interpret.action.kind, equals: ready }
-        context:
-          action: interpret.action
-          artifact_result: allocate-result.artifact_operation.data.result
-          digest_result: digest-completion.digest_result.data
+        when: { value: $steps.interpret.action.kind, equals: ready }
+        inputs:
+          action: $steps.interpret.action
+          artifact_result: $steps.allocate-result.artifact_operation.data.result
+          digest_result: $steps.digest-completion.digest_result.data
         tool: { module: readback.mjs, export: finishMarketplaceReady, timeout_seconds: 5 }
         outputs: { stage_result: { type: object } }
         artifacts:

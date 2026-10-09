@@ -1,5 +1,3 @@
-use std::collections::BTreeMap;
-
 use runx_contracts::{JsonObject, JsonValue};
 
 use crate::ValidationError;
@@ -122,23 +120,6 @@ pub fn optional_object(
         Some(JsonValue::Object(value)) => Ok(Some(value.clone())),
         Some(_) => Err(validation_error(format!("{field} must be an object."))),
     }
-}
-
-pub fn optional_string_object(
-    value: Option<&JsonValue>,
-    field: &str,
-) -> Result<Option<BTreeMap<String, String>>, ValidationError> {
-    let Some(object) = optional_object(value, field)? else {
-        return Ok(None);
-    };
-    let mut output = BTreeMap::new();
-    for (key, value) in object {
-        let JsonValue::String(value) = value else {
-            return Err(validation_error(format!("{field}.{key} must be a string.")));
-        };
-        output.insert(key.clone(), value.clone());
-    }
-    Ok(Some(output))
 }
 
 pub fn required_array<'a>(

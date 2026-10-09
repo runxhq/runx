@@ -1,5 +1,5 @@
 skill: attention-review
-version: "0.4.3"
+version: "0.4.4"
 
 catalog:
   kind: graph
@@ -407,12 +407,12 @@ runners:
           allowed_action_ids: $input.allowed_action_ids
           work_routes: $input.work_routes
           work_results: $input.work_results
+          min_check_minutes: $input.min_check_minutes
+          max_check_minutes: $input.max_check_minutes
         artifacts:
           named_emits:
             draft: draft
       - id: finalize
-        context:
-          draft: judge.draft.data
         inputs:
           as_of: $input.as_of
           evidence: $input.evidence
@@ -421,6 +421,7 @@ runners:
           work_routes: $input.work_routes
           min_check_minutes: $input.min_check_minutes
           max_check_minutes: $input.max_check_minutes
+          draft: $steps.judge.draft.data
         tool: { module: attention-review.mjs, export: finalizeAttention }
         outputs:
           attention_packet: object

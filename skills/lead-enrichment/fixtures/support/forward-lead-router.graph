@@ -18,5 +18,4 @@ steps:
       principal: account:growth-bot
       objective: Offer a deliverability review.
       provider_context: { name: example-email, account_ref: provider-account:growth, runtime_path: email.send }
-    context:
-      enrichment_packet: enrich.lead_enrichment_packet.data
+      enrichment_packet: $steps.enrich.lead_enrichment_packet.data

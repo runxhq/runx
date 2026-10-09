@@ -17,12 +17,12 @@ steps:
       message: hello from graph
   - id: second
     skill: ../hello-world
-    context:
-      message: first.message
+    inputs:
+      message: $steps.first.message
 ```
 
 The first step runs the skill with an explicit input. The second step reads the
-first step's `message` output and passes it as the next `message` input. The graph
+first step's `message` output and passes it as its own `message` input. The graph
 receipt links both step receipts, so inspection can show what ran and how the
 steps connected.
 
@@ -251,8 +251,7 @@ steps:
       aggregate_id: "$input.posting_id"
       expected_version: "$input.expected_version"
       idempotency_key: "$input.idempotency_key"
-    context:
-      event: decide.claim_packet.data
+      event: $steps.decide.claim_packet.data
 ```
 
 The store can be SQLite, Postgres or Redis. The graph calls the store
@@ -271,20 +270,42 @@ store. Domain skills own meaning; the store owns bounded reads, idempotent
 appends and projection evidence. See
 [the governed data plane](./governed-data-plane.md).
 
-Use `inputs` for literals, `$input.*` values, and static configuration. Use
-`context` when a step needs an earlier step's output:
+## Values And References
+
+A step receives exactly what it binds. Its `inputs`, and an operation step's
+call fields (`input`, `idempotency_key`, `operation_name`, ...), hold
+literals and references:
+
+- `$input` or `$input.<path>`: the run's input, or a field of it;
+- `$steps.<id>` or `$steps.<id>.<path>`: an earlier step's result, or a field
+  of it.
+
+Paths are dotted, and a numeric segment indexes a list. References may sit at
+any depth, so one input can be assembled from several steps:
 
 ```yaml
 steps:
   - id: select
     agent: { role: scout, task: select }
-    outputs: { result: object }
+    outputs: { selection: object }
   - id: review
-    agent: { role: reviewer, task: review }
-    outputs: { verdict: object }
-    context:
-      bounty: select.result
+    operation: example-crm/claim.read
+    input:
+      claim_id: $steps.select.selection.data.claim_id
+      audience: $input.audience
 ```
 
-`inputs: { bounty: select.result }` is rejected because it looks like a step
-output reference placed in the wrong field.
+`inputs: $input` passes the whole run input. No run input reaches a step it
+does not bind. An absent optional run input leaves itself out of the object
+or list that holds it; a step reference must resolve, and one that does not
+fails the step with the keys that were available. A literal string that
+begins with `$` is written `$$`. A bare `select.result` is an ordinary string.
+
+Conditions and guards read the same way:
+
+```yaml
+when: { value: $steps.select.selection.data.decision, equals: ready }
+```
+
+An ask's `reason` is the text a person reads; the values they need to decide
+belong in its `inputs`, which are shown beside it.

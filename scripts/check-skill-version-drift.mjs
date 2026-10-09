@@ -161,23 +161,20 @@ function compareSemver(left, right) {
   return 0;
 }
 
+// The base version is read from the base file's own version line, never by
+// validating the base with the current parser: a base the current parser no
+// longer accepts must still be compared, or a syntax change would pass
+// unversioned.
 function loadBaseProfiles(base, skills) {
-  const documents = skills.flatMap((skill) => {
+  return new Map(skills.flatMap((skill) => {
+    let source;
     try {
-      return [{ skill, source: git(["show", `${base}:skills/${skill}/run.yaml`]) }];
+      source = git(["show", `${base}:skills/${skill}/run.yaml`]);
     } catch {
       return [];
     }
-  });
-  const results = evaluateParserRequestResults(documents.map(({ source }) => ({
-    kind: "parser.validateRunnerManifestYaml",
-    yaml: source,
-  })));
-  return new Map(documents.flatMap((document, index) => {
-    const result = results[index];
-    return result?.status === "success"
-      ? [[document.skill, result.value]]
-      : [];
+    const version = /^version: "(\d+\.\d+\.\d+)"$/mu.exec(source)?.[1];
+    return version ? [[skill, { version }]] : [];
   }));
 }
 

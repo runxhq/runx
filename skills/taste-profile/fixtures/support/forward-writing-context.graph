@@ -40,13 +40,11 @@ steps:
             provenance: { admitted_by: harness }
         index_digest: sha256:1111111111111111111111111111111111111111111111111111111111111111
         validation: { status: pass, findings: [] }
-    context:
-      taste_context: taste.taste_profile_packet.data
+      taste_context: $steps.taste.taste_profile_packet.data
   - id: social-plan
     skill: ../../../twitter
     runner: plan
     inputs:
       objective: Prepare one exact public update about governed receipts.
       principal: account:@runx
-    context:
-      brand_context: taste.taste_profile_packet.data
+      brand_context: $steps.taste.taste_profile_packet.data

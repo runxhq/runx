@@ -1,5 +1,5 @@
 skill: schema-guard
-version: "0.1.0"
+version: "0.1.1"
 
 catalog:
   kind: graph
@@ -214,10 +214,9 @@ runners:
           proposed_schema: $input.proposed_schema
           sample_payloads: $input.sample_payloads
           compatibility_policy: $input.compatibility_policy
-        context:
-          current_digest: digest-current.digest_result.data.digest
-          proposed_digest: digest-proposed.digest_result.data.digest
-          samples_digest: digest-samples.digest_result.data.digest
+          current_digest: $steps.digest-current.digest_result.data.digest
+          proposed_digest: $steps.digest-proposed.digest_result.data.digest
+          samples_digest: $steps.digest-samples.digest_result.data.digest
         tool: { module: schema-guard.mjs, export: checkSchemaChange }
         outputs:
           schema_check:

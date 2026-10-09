@@ -1,5 +1,5 @@
 skill: lead-enrichment
-version: "0.3.2"
+version: "0.3.3"
 
 catalog:
   kind: graph
@@ -181,10 +181,10 @@ runners:
 
       - id: reject
         when:
-          field: admit.signal_index.data.path
+          value: $steps.admit.signal_index.data.path
           equals: stop
-        context:
-          signal_index: admit.signal_index.data
+        inputs:
+          signal_index: $steps.admit.signal_index.data
         tool: { module: lead-enrichment.mjs, export: finalizeEnrichment }
         outputs:
           lead_enrichment_packet:
@@ -272,24 +272,29 @@ runners:
 
       - id: synthesize
         when:
-          field: admit.signal_index.data.path
+          value: $steps.admit.signal_index.data.path
           equals: synthesize
         agent: { role: growth, task: lead-enrichment-synthesize }
         outputs:
           enrichment_draft: object
-        context:
-          signal_index: admit.signal_index.data
+        inputs:
+          signal_index: $steps.admit.signal_index.data
+          lead: $input.lead
+          signals: $input.signals
+          as_of: $input.as_of
+          max_age_days: $input.max_age_days
+          constraints: $input.constraints
         artifacts:
           named_emits:
             enrichment_draft: enrichment_draft
 
       - id: finalize
         when:
-          field: admit.signal_index.data.path
+          value: $steps.admit.signal_index.data.path
           equals: synthesize
-        context:
-          signal_index: admit.signal_index.data
-          enrichment_draft: synthesize.enrichment_draft.data
+        inputs:
+          signal_index: $steps.admit.signal_index.data
+          enrichment_draft: $steps.synthesize.enrichment_draft.data
         tool: { module: lead-enrichment.mjs, export: finalizeEnrichment }
         outputs:
           lead_enrichment_packet: object

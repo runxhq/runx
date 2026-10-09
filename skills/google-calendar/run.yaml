@@ -1,5 +1,5 @@
 skill: google-calendar
-version: "0.1.1"
+version: "0.1.2"
 catalog:
   kind: graph
   audience: public
@@ -128,15 +128,16 @@ runners:
       - id: read
         skill: .
         runner: events
-        context:
-          calendar_id: window.calendar_window.calendar_id
-          time_min: window.calendar_window.time_min
-          time_max: window.calendar_window.time_max
+        inputs:
+          calendar_id: $steps.window.calendar_window.calendar_id
+          time_min: $steps.window.calendar_window.time_min
+          time_max: $steps.window.calendar_window.time_max
       - id: finish
-        inputs: { calendar_id: $input.calendar_id, occurrence_ref: $input.occurrence_ref }
-        context:
-          window: window.calendar_window
-          calendar_context: read.calendar_context.data
+        inputs:
+          calendar_id: $input.calendar_id
+          occurrence_ref: $input.occurrence_ref
+          window: $steps.window.calendar_window
+          calendar_context: $steps.read.calendar_context.data
         tool: { module: google-calendar.mjs, export: finishAssistantBrief }
         outputs: { work_result: object }
         artifacts:
@@ -160,8 +161,13 @@ runners:
           time_min: $input.time_min
           time_max: $input.time_max
       - id: normalize
-        inputs: { kind: events, source_status: provider_readback, calendar_id: $input.calendar_id, time_min: $input.time_min, time_max: $input.time_max }
-        context: { provider_result: read.provider_operation.data.result }
+        inputs:
+          kind: events
+          source_status: provider_readback
+          calendar_id: $input.calendar_id
+          time_min: $input.time_min
+          time_max: $input.time_max
+          provider_result: $steps.read.provider_operation.data.result
         tool: { module: google-calendar.mjs, export: normalizeCalendar }
         outputs: { calendar_context: object }
         artifacts:
@@ -181,8 +187,13 @@ runners:
           time_min: $input.time_min
           time_max: $input.time_max
       - id: normalize
-        inputs: { kind: freebusy, source_status: provider_readback, calendar_id: $input.calendar_id, time_min: $input.time_min, time_max: $input.time_max }
-        context: { provider_result: read.provider_operation.data.result }
+        inputs:
+          kind: freebusy
+          source_status: provider_readback
+          calendar_id: $input.calendar_id
+          time_min: $input.time_min
+          time_max: $input.time_max
+          provider_result: $steps.read.provider_operation.data.result
         tool: { module: google-calendar.mjs, export: normalizeCalendar }
         outputs: { calendar_context: object }
         artifacts:

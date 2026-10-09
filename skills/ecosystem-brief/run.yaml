@@ -1,5 +1,5 @@
 skill: ecosystem-brief
-version: "0.2.5"
+version: "0.2.6"
 
 catalog:
   kind: graph
@@ -274,12 +274,11 @@ runners:
           deliverable: ecosystem brief
           operator_context: $input.operator_context
           target_entities: $input.target_entities
-        context:
-          source_packets: freshness.freshness_report.data.source_packets
+          source_packets: $steps.freshness.freshness_report.data.source_packets
 
       - id: draft-brief
         when:
-          field: research-topic.research_packet.data.decision
+          value: $steps.research-topic.research_packet.data.decision
           equals: ready
         skill: ../ghostwrite
         scopes:
@@ -289,5 +288,4 @@ runners:
           audience: $input.audience
           channel: $input.channel
           voice_guide: Lead with what changed and its operational implication; distinguish verified change, inference, uncertainty, and recommended posture.
-        context:
-          evidence_pack: research-topic.research_packet.data
+          evidence_pack: $steps.research-topic.research_packet.data

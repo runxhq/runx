@@ -1,5 +1,5 @@
 skill: zapier-handoff
-version: "0.2.2"
+version: "0.2.3"
 catalog:
   kind: graph
   audience: operator
@@ -181,8 +181,7 @@ runners:
         inputs:
           zapier_account_id: $input.zapier_account_id
           hook_id: $input.zapier_hook_id
-        context:
-          delivery: build-handoff-context.handoff_context.data.delivery
+          delivery: $steps.build-handoff-context.handoff_context.data.delivery
         tool: { module: hook.mjs, export: hookRequest }
         outputs:
           hook_request: object
@@ -194,5 +193,4 @@ runners:
           reason: Approve delivering this exact handoff to the Zapier Catch Hook.
           type: workflow_handoff
         result_fields: [acknowledgement]
-        context:
-          input: address.hook_request
+        input: $steps.address.hook_request

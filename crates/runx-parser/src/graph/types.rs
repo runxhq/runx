@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use runx_contracts::EnvironmentRequirements;
 
+use super::binding::{Binding, Operand};
 use crate::skill::{ArtifactPageSource, InputMode, SkillArtifactContract};
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -14,19 +15,13 @@ pub struct RawGraphIr {
     pub document: JsonObject,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct GraphContextEdge {
-    pub input: String,
-    pub from_step: String,
-    pub output: String,
-}
-
+/// A condition the run must meet before `step` runs: a guard blocks the run
+/// when `value` does not hold.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct GraphGuard {
     pub step: String,
-    pub field: String,
+    pub value: Operand,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub equals: Option<JsonValue>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -46,7 +41,7 @@ pub struct GraphPolicy {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct GraphWhen {
-    pub field: String,
+    pub value: Operand,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub equals: Option<JsonValue>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -190,21 +185,18 @@ pub struct GraphStep {
     /// not have to reparse the raw manifest.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub outputs: Option<JsonObject>,
-    /// The values the step is invoked with. For an operation step these are
-    /// the call's fields (`input`, `approval`, `idempotency_key`, ...); for an
-    /// ask step the gate and reason.
+    /// The values the step is invoked with, as written: literals, with each
+    /// reference left in place for `bindings` to fill. For an operation step
+    /// these are the call's fields (`input`, `idempotency_key`, ...).
     pub inputs: JsonObject,
-    pub context: BTreeMap<String, String>,
-    pub context_edges: Vec<GraphContextEdge>,
+    /// Where `inputs` reads the run's input and earlier steps' results.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub bindings: Vec<Binding>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub context_skills: Vec<String>,
     pub scopes: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub when: Option<GraphWhen>,
-    /// A tool or skill step's request key. An operation step's key is one of
-    /// its call fields in `inputs`.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub idempotency_key: Option<String>,
     /// What this use accepts when an operation's outcome is unknown.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub on_uncertain: Option<UncertainOutcome>,
@@ -238,10 +230,28 @@ impl GraphStep {
             _ => None,
         }
     }
+
+    /// The earlier steps whose results this step's values read, in order and
+    /// once each. Its condition is not among them: a condition selects the
+    /// step, it is not its input.
+    #[must_use]
+    pub fn reads(&self) -> Vec<&str> {
+        let mut steps = Vec::new();
+        for step in self
+            .bindings
+            .iter()
+            .filter_map(|binding| binding.source.step())
+        {
+            if !steps.contains(&step) {
+                steps.push(step);
+            }
+        }
+        steps
+    }
 }
 
 /// An operation step's target: a key of the skill's `connectors:` block and,
-/// unless the step binds it as its `operation` input, one operation on it.
+/// unless the step binds its `operation_name` at run time, one operation on it.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct OperationStepTarget {

@@ -1,5 +1,5 @@
 skill: refund
-version: "0.6.2"
+version: "0.6.3"
 catalog: { kind: graph, audience: operator, visibility: public, role: canonical, runtime_path: hosted, execution: execute, completion: provider_readback, requires_adapter: true, approval: required, category: payments }
 connectors:
   payment:
@@ -29,4 +29,5 @@ runners:
       - id: readback
         operation: payment/payment.refund.read
         result_fields: [refund_ref, original_receipt_ref, amount_minor, currency, status]
-        context: { input: refund.provider_operation.data.result, expected_result: refund.provider_operation.data.result }
+        input: $steps.refund.provider_operation.data.result
+        expected_result: $steps.refund.provider_operation.data.result

@@ -181,7 +181,11 @@ fn an_operation_step_carries_its_call_on_the_step() -> Result<(), String> {
             .and_then(|value| value.as_str()),
         Some("$input.key")
     );
-    assert_eq!(step.idempotency_key, None);
+    assert!(
+        step.bindings
+            .iter()
+            .any(|binding| binding.at == ["idempotency_key"])
+    );
 
     let wrapped = yaml.replace(
         "        input: {channel_locator: $input.channel}\n",

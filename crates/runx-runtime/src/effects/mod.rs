@@ -372,12 +372,10 @@ mod tests {
             artifacts: None,
             outputs: None,
             inputs: JsonObject::new(),
-            context: BTreeMap::new(),
-            context_edges: Vec::new(),
+            bindings: Vec::new(),
             context_skills: Vec::new(),
             scopes: Vec::new(),
             when: None,
-            idempotency_key: None,
             on_uncertain: None,
             duplicates: None,
         }

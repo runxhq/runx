@@ -16,8 +16,7 @@ steps:
       aggregate_id: launch-readiness-replay
       expected_version: 0
       idempotency_key: launch-readiness-replay:classify:v1
-    context:
-      event: classify.lane_packet.data
+      event: $steps.classify.lane_packet.data
   - id: replay-route
     skill: ../../../data-store
     runner: append_event
@@ -27,8 +26,7 @@ steps:
       aggregate_id: launch-readiness-replay
       expected_version: 0
       idempotency_key: launch-readiness-replay:classify:v1
-    context:
-      event: classify.lane_packet.data
+      event: $steps.classify.lane_packet.data
   - id: readback
     skill: ../../../data-store
     runner: read_projection

@@ -1125,7 +1125,7 @@ runners:
         )?;
         write_file(
             &entry.join("run.yaml"),
-            "skill: entry\nrunners:\n  main:\n    default: true\n    result_from: [record]\n    steps:\n      - id: record\n        tool: example.record\n        idempotency_key: record-1\n",
+            "skill: entry\nrunners:\n  main:\n    default: true\n    result_from: [record]\n    steps:\n      - id: record\n        tool: example.record\n",
         )?;
 
         let chain = load_skill_operator_context_chain(
@@ -1173,7 +1173,7 @@ runners:
         )?;
         write_file(
             &entry.join("run.yaml"),
-            "skill: entry\nrunners:\n  main:\n    default: true\n    result_from: [record]\n    steps:\n      - id: record\n        tool: example.record\n        idempotency_key: record-1\n",
+            "skill: entry\nrunners:\n  main:\n    default: true\n    result_from: [record]\n    steps:\n      - id: record\n        tool: example.record\n",
         )?;
 
         let error = operator_context_error(
@@ -1202,7 +1202,7 @@ runners:
         write_skill(&entry, "entry", "# Entry")?;
         write_file(
             &entry.join("run.yaml"),
-            "skill: entry\nrunners:\n  main:\n    default: true\n    result_from: [apply]\n    steps:\n      - id: apply\n        tool: runx.skill.apply\n        idempotency_key: apply-1\n",
+            "skill: entry\nrunners:\n  main:\n    default: true\n    result_from: [apply]\n    steps:\n      - id: apply\n        tool: runx.skill.apply\n",
         )?;
 
         let chain = load_skill_operator_context_chain(

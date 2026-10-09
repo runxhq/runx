@@ -1,5 +1,5 @@
 skill: skill-lab
-version: "0.9.9"
+version: "0.9.10"
 
 catalog:
   kind: graph
@@ -164,12 +164,13 @@ runners:
         agent: { role: builder, task: skill-lab-architecture }
         outputs:
           architecture_decision: object
-        context:
-          authoring_context: inspect.authoring_context.data
         inputs:
           objective: $input.objective
           project_context: $input.project_context
           authoring_mode: design
+          authoring_context: $steps.inspect.authoring_context.data
+          repo_root: $input.repo_root
+          target_dir: $input.target_dir
         artifacts:
           named_emits:
             architecture_decision: architecture_decision
@@ -178,9 +179,9 @@ runners:
       - id: plan
         label: validate and bind the architecture decision
         tool: runx.skill.plan
-        context:
-          base_digest: inspect.authoring_context.data.base_digest
-          architecture: architect.architecture_decision.data
+        inputs:
+          base_digest: $steps.inspect.authoring_context.data.base_digest
+          architecture: $steps.architect.architecture_decision.data
 
   build:
     default: true
@@ -226,13 +227,14 @@ runners:
         agent: { role: builder, task: skill-lab-architecture }
         outputs:
           architecture_decision: object
-        context:
-          authoring_context: inspect.authoring_context.data
         inputs:
           objective: $input.objective
           package_name: $input.package_name
           project_context: $input.project_context
           authoring_mode: build
+          authoring_context: $steps.inspect.authoring_context.data
+          repo_root: $input.repo_root
+          target_dir: $input.target_dir
         artifacts:
           named_emits:
             architecture_decision: architecture_decision
@@ -241,22 +243,23 @@ runners:
       - id: plan
         label: validate and bind the architecture decision
         tool: runx.skill.plan
-        context:
-          base_digest: inspect.authoring_context.data.base_digest
-          architecture: architect.architecture_decision.data
+        inputs:
+          base_digest: $steps.inspect.authoring_context.data.base_digest
+          architecture: $steps.architect.architecture_decision.data
       - id: author
         label: author only the planned package bytes
         agent: { role: builder, task: skill-lab-author }
         outputs:
           change_draft: object
-        context:
-          authoring_context: inspect.authoring_context.data
-          architecture_plan: plan.architecture_plan.data
         inputs:
           objective: $input.objective
           package_name: $input.package_name
           project_context: $input.project_context
           authoring_mode: build
+          authoring_context: $steps.inspect.authoring_context.data
+          architecture_plan: $steps.plan.architecture_plan.data
+          repo_root: $input.repo_root
+          target_dir: $input.target_dir
         artifacts:
           named_emits:
             change_draft: change_draft
@@ -265,9 +268,9 @@ runners:
       - id: bind
         label: bind the draft to the inspected package state
         tool: runx.skill.bind
-        context:
-          architecture_plan: plan.architecture_plan.data
-          change_draft: author.change_draft.data
+        inputs:
+          architecture_plan: $steps.plan.architecture_plan.data
+          change_draft: $steps.author.change_draft.data
       - id: apply
         label: validate and apply one package transaction
         tool: runx.skill.apply
@@ -278,8 +281,7 @@ runners:
           target_dir: $input.target_dir
           repo_root: $input.repo_root
           mode: build
-        context:
-          change_bundle: bind.change_bundle.data
+          change_bundle: $steps.bind.change_bundle.data
 
   improve:
     inputs:
@@ -337,8 +339,6 @@ runners:
         agent: { role: builder, task: skill-lab-architecture }
         outputs:
           architecture_decision: object
-        context:
-          authoring_context: inspect.authoring_context.data
         inputs:
           objective: $input.objective
           project_context: $input.project_context
@@ -347,6 +347,9 @@ runners:
           harness_output: $input.harness_output
           failure_packet: $input.failure_packet
           authoring_mode: improve
+          authoring_context: $steps.inspect.authoring_context.data
+          repo_root: $input.repo_root
+          target_dir: $input.target_dir
         artifacts:
           named_emits:
             architecture_decision: architecture_decision
@@ -355,17 +358,14 @@ runners:
       - id: plan
         label: validate and bind the correction architecture
         tool: runx.skill.plan
-        context:
-          base_digest: inspect.authoring_context.data.base_digest
-          architecture: architect.architecture_decision.data
+        inputs:
+          base_digest: $steps.inspect.authoring_context.data.base_digest
+          architecture: $steps.architect.architecture_decision.data
       - id: author
         label: author the evidence-bound correction
         agent: { role: builder, task: skill-lab-author }
         outputs:
           change_draft: object
-        context:
-          authoring_context: inspect.authoring_context.data
-          architecture_plan: plan.architecture_plan.data
         inputs:
           objective: $input.objective
           project_context: $input.project_context
@@ -374,6 +374,10 @@ runners:
           harness_output: $input.harness_output
           failure_packet: $input.failure_packet
           authoring_mode: improve
+          authoring_context: $steps.inspect.authoring_context.data
+          architecture_plan: $steps.plan.architecture_plan.data
+          repo_root: $input.repo_root
+          target_dir: $input.target_dir
         artifacts:
           named_emits:
             change_draft: change_draft
@@ -382,9 +386,9 @@ runners:
       - id: bind
         label: bind the correction to the inspected package state
         tool: runx.skill.bind
-        context:
-          architecture_plan: plan.architecture_plan.data
-          change_draft: author.change_draft.data
+        inputs:
+          architecture_plan: $steps.plan.architecture_plan.data
+          change_draft: $steps.author.change_draft.data
       - id: apply
         label: validate and apply one package transaction
         tool: runx.skill.apply
@@ -395,8 +399,7 @@ runners:
           target_dir: $input.target_dir
           repo_root: $input.repo_root
           mode: improve
-        context:
-          change_bundle: bind.change_bundle.data
+          change_bundle: $steps.bind.change_bundle.data
 
   harness:
     inputs:
@@ -441,13 +444,14 @@ runners:
         agent: { role: builder, task: skill-lab-architecture }
         outputs:
           architecture_decision: object
-        context:
-          authoring_context: inspect.authoring_context.data
         inputs:
           objective: $input.objective
           project_context: $input.project_context
           harness_output: $input.harness_output
           authoring_mode: harness
+          authoring_context: $steps.inspect.authoring_context.data
+          repo_root: $input.repo_root
+          target_dir: $input.target_dir
         artifacts:
           named_emits:
             architecture_decision: architecture_decision
@@ -456,22 +460,23 @@ runners:
       - id: plan
         label: validate and bind the fixture architecture
         tool: runx.skill.plan
-        context:
-          base_digest: inspect.authoring_context.data.base_digest
-          architecture: architect.architecture_decision.data
+        inputs:
+          base_digest: $steps.inspect.authoring_context.data.base_digest
+          architecture: $steps.architect.architecture_decision.data
       - id: author
         label: author only the planned fixtures
         agent: { role: builder, task: skill-lab-author }
         outputs:
           change_draft: object
-        context:
-          authoring_context: inspect.authoring_context.data
-          architecture_plan: plan.architecture_plan.data
         inputs:
           objective: $input.objective
           project_context: $input.project_context
           harness_output: $input.harness_output
           authoring_mode: harness
+          authoring_context: $steps.inspect.authoring_context.data
+          architecture_plan: $steps.plan.architecture_plan.data
+          repo_root: $input.repo_root
+          target_dir: $input.target_dir
         artifacts:
           named_emits:
             change_draft: change_draft
@@ -480,9 +485,9 @@ runners:
       - id: bind
         label: bind the fixtures to the inspected package state
         tool: runx.skill.bind
-        context:
-          architecture_plan: plan.architecture_plan.data
-          change_draft: author.change_draft.data
+        inputs:
+          architecture_plan: $steps.plan.architecture_plan.data
+          change_draft: $steps.author.change_draft.data
       - id: apply
         label: validate and apply one fixture transaction
         tool: runx.skill.apply
@@ -493,5 +498,4 @@ runners:
           target_dir: $input.target_dir
           repo_root: $input.repo_root
           mode: harness
-        context:
-          change_bundle: bind.change_bundle.data
+          change_bundle: $steps.bind.change_bundle.data

@@ -1,5 +1,5 @@
 skill: research
-version: "0.3.3"
+version: "0.3.4"
 
 catalog:
   kind: graph
@@ -142,8 +142,7 @@ runners:
           deliverable: $input.deliverable
           operator_context: $input.operator_context
           target_entities: $input.target_entities
-        context:
-          source_index: index.source_index.data
+          source_index: $steps.index.source_index.data
 
   local-files:
     inputs:
@@ -202,8 +201,7 @@ runners:
         scopes: [runx:evidence:read]
         inputs:
           objective: $input.objective
-        context:
-          source_packets: read-local.file_read_bundle.data.files
+          source_packets: $steps.read-local.file_read_bundle.data.files
         artifacts:
           named_emits: { source_index: source_index }
 
@@ -216,5 +214,4 @@ runners:
           deliverable: $input.deliverable
           operator_context: $input.operator_context
           target_entities: $input.target_entities
-        context:
-          source_index: index.source_index.data
+          source_index: $steps.index.source_index.data

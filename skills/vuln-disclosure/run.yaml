@@ -1,5 +1,5 @@
 skill: vuln-disclosure
-version: "0.4.4"
+version: "0.4.5"
 
 catalog:
   kind: graph
@@ -59,15 +59,14 @@ runners:
           disclosure_context: $input.disclosure_context
       - id: publish
         when:
-          field: prepare.disclosure_packet.data.decision
+          value: $steps.prepare.disclosure_packet.data.decision
           equals: ready_for_publication_approval
         skill: .
         runner: publish
         inputs:
           provider: $input.provider
           idempotency_key: $input.idempotency_key
-        context:
-          disclosure_packet: prepare.disclosure_packet.data
+          disclosure_packet: $steps.prepare.disclosure_packet.data
 
   vuln-disclosure:
     inputs:
@@ -131,30 +130,33 @@ runners:
 
       - id: digest-payload
         tool: data.digest
-        context:
-          value: admit.disclosure_context.data.payload
+        inputs:
+          value: $steps.admit.disclosure_context.data.payload
 
       - id: review
         when:
-          field: admit.disclosure_context.data.path
+          value: $steps.admit.disclosure_context.data.path
           equals: review
         agent: { role: reviewer, task: vuln-disclosure-review }
         outputs:
           disclosure_review_draft: object
-        context:
-          disclosure_context: admit.disclosure_context.data
+        inputs:
+          disclosure_context: $steps.admit.disclosure_context.data
+          advisory_packet: $input.advisory_packet
+          channel: $input.channel
+          target: $input.target
         artifacts:
           named_emits:
             disclosure_review_draft: disclosure_review_draft
 
       - id: finalize
         when:
-          field: admit.disclosure_context.data.path
+          value: $steps.admit.disclosure_context.data.path
           equals: review
-        context:
-          disclosure_context: admit.disclosure_context.data
-          payload_digest: digest-payload.digest_result.data.digest
-          disclosure_review_draft: review.disclosure_review_draft.data
+        inputs:
+          disclosure_context: $steps.admit.disclosure_context.data
+          payload_digest: $steps.digest-payload.digest_result.data.digest
+          disclosure_review_draft: $steps.review.disclosure_review_draft.data
         tool: { module: vuln-disclosure.mjs, export: finalizeDisclosure }
         outputs:
           disclosure_packet:
@@ -227,11 +229,11 @@ runners:
 
       - id: stop
         when:
-          field: admit.disclosure_context.data.path
+          value: $steps.admit.disclosure_context.data.path
           equals: stop
-        context:
-          disclosure_context: admit.disclosure_context.data
-          payload_digest: digest-payload.digest_result.data.digest
+        inputs:
+          disclosure_context: $steps.admit.disclosure_context.data
+          payload_digest: $steps.digest-payload.digest_result.data.digest
         tool: { module: vuln-disclosure.mjs, export: finalizeDisclosure }
         outputs:
           disclosure_packet: object
@@ -303,7 +305,7 @@ runners:
 
       - id: digest-payload
         when:
-          field: validate.comparison.data.equal
+          value: $steps.validate.comparison.data.equal
           equals: true
         tool: data.digest
         inputs:
@@ -311,17 +313,16 @@ runners:
 
       - id: bind-payload
         when:
-          field: validate.comparison.data.equal
+          value: $steps.validate.comparison.data.equal
           equals: true
         tool: data.compare
         inputs:
           expected: $input.disclosure_packet.payload_digest
-        context:
-          actual: digest-payload.digest_result.data.digest
+          actual: $steps.digest-payload.digest_result.data.digest
 
       - id: publish
         when:
-          field: bind-payload.comparison.data.equal
+          value: $steps.bind-payload.comparison.data.equal
           equals: true
         operation: advisory/advisory.publish
         idempotency_key: $input.idempotency_key
@@ -340,10 +341,9 @@ runners:
 
       - id: readback
         when:
-          field: bind-payload.comparison.data.equal
+          value: $steps.bind-payload.comparison.data.equal
           equals: true
         operation: advisory/advisory.read
         result_fields: [advisory_ref, payload_digest, status]
-        context:
-          expected_result: publish.provider_operation.data.result
-          input: publish.provider_operation.data.result
+        expected_result: $steps.publish.provider_operation.data.result
+        input: $steps.publish.provider_operation.data.result

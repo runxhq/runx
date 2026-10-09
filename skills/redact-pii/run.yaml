@@ -1,5 +1,5 @@
 skill: redact-pii
-version: "0.2.1"
+version: "0.2.2"
 catalog:
   kind: graph
   audience: public
@@ -62,8 +62,7 @@ runners:
           classes: $input.classes
           mode: $input.mode
           locale: $input.locale
-        context:
-          redaction_draft: detect.redaction_draft.data
+          redaction_draft: $steps.detect.redaction_draft.data
         tool: { module: redact-pii.mjs, export: scrubRedaction }
         outputs:
           redaction_candidate: object
@@ -75,15 +74,14 @@ runners:
         tool: data.digest
         inputs:
           encoding: utf8_text
-        context:
-          value: scrub.redaction_candidate.data.redacted_content
+          value: $steps.scrub.redaction_candidate.data.redacted_content
 
       - id: finalize
         label: bind native content digests and release the report
-        context:
-          redaction_candidate: scrub.redaction_candidate.data
-          source_digest: digest-source.digest_result.data.digest
-          redacted_digest: digest-redacted.digest_result.data.digest
+        inputs:
+          redaction_candidate: $steps.scrub.redaction_candidate.data
+          source_digest: $steps.digest-source.digest_result.data.digest
+          redacted_digest: $steps.digest-redacted.digest_result.data.digest
         tool: { module: redact-pii.mjs, export: finalizeRedaction }
         outputs:
           redaction_report: object

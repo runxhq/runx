@@ -271,7 +271,9 @@ runners:
     result_from: [approve]
     steps:
       - id: approve
-        ask: { gate: approval, reason: $input.thread_title }
+        ask: { gate: approval, reason: Approve this thread. }
+        inputs:
+          thread_title: $input.thread_title
 "#,
             )?;
             path

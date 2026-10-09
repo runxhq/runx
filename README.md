@@ -221,8 +221,8 @@ steps:
       message: hello from graph
   - id: second
     skill: ../hello-world
-    context:
-      message: first.message
+    inputs:
+      message: $steps.first.message
 ```
 
 The boundary is not how many model calls happened. The boundary is what must be

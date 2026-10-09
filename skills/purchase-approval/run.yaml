@@ -1,5 +1,5 @@
 skill: purchase-approval
-version: "0.1.0"
+version: "0.1.1"
 
 catalog:
   kind: graph
@@ -190,9 +190,8 @@ runners:
         inputs:
           purchase_request: $input.purchase_request
           procurement_policy: $input.procurement_policy
-        context:
-          request_digest: digest-request.digest_result.data.digest
-          policy_digest: digest-policy.digest_result.data.digest
+          request_digest: $steps.digest-request.digest_result.data.digest
+          policy_digest: $steps.digest-policy.digest_result.data.digest
         tool: { module: purchase-approval.mjs, export: decidePurchase }
         outputs:
           purchase_approval:

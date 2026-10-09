@@ -1,5 +1,5 @@
 skill: google-analytics
-version: "0.1.3"
+version: "0.1.4"
 
 catalog:
   kind: graph
@@ -327,19 +327,18 @@ runners:
             currency_code: $input.currency_code
             limit: $input.limit
             offset: $input.offset
-        context:
-          provider_result: read.provider_operation.data.result
+          provider_result: $steps.read.provider_operation.data.result
         tool: { module: google-analytics.mjs, export: normalizeReport }
         outputs:
           report_draft: object
       - id: digest
         tool: data.digest
-        context:
-          value: normalize.report_draft
+        inputs:
+          value: $steps.normalize.report_draft
       - id: finalize
-        context:
-          report_draft: normalize.report_draft
-          digest_result: digest.digest_result.data
+        inputs:
+          report_draft: $steps.normalize.report_draft
+          digest_result: $steps.digest.digest_result.data
         tool: { module: google-analytics.mjs, export: finalizeReport }
         outputs:
           report_evidence: object
@@ -379,12 +378,12 @@ runners:
           report_draft: object
       - id: digest
         tool: data.digest
-        context:
-          value: normalize.report_draft
+        inputs:
+          value: $steps.normalize.report_draft
       - id: finalize
-        context:
-          report_draft: normalize.report_draft
-          digest_result: digest.digest_result.data
+        inputs:
+          report_draft: $steps.normalize.report_draft
+          digest_result: $steps.digest.digest_result.data
         tool: { module: google-analytics.mjs, export: finalizeReport }
         outputs:
           report_evidence: object
@@ -440,19 +439,18 @@ runners:
             metric_filter: $input.metric_filter
             minute_ranges: $input.minute_ranges
             limit: $input.limit
-        context:
-          provider_result: read.provider_operation.data.result
+          provider_result: $steps.read.provider_operation.data.result
         tool: { module: google-analytics.mjs, export: normalizeReport }
         outputs:
           report_draft: object
       - id: digest
         tool: data.digest
-        context:
-          value: normalize.report_draft
+        inputs:
+          value: $steps.normalize.report_draft
       - id: finalize
-        context:
-          report_draft: normalize.report_draft
-          digest_result: digest.digest_result.data
+        inputs:
+          report_draft: $steps.normalize.report_draft
+          digest_result: $steps.digest.digest_result.data
         tool: { module: google-analytics.mjs, export: finalizeReport }
         outputs:
           report_evidence: object

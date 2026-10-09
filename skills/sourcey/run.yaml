@@ -1,5 +1,5 @@
 skill: sourcey
-version: "0.1.8"
+version: "0.1.9"
 
 catalog:
   kind: skill
@@ -62,6 +62,7 @@ runners:
       - id: discover
         label: inspect repo
         agent: { role: builder, task: sourcey-discover }
+        inputs: $input
         outputs:
           discovery_report: object
         artifacts:
@@ -74,8 +75,16 @@ runners:
         agent: { role: builder, task: sourcey-author }
         outputs:
           doc_bundle: object
-        context:
-          discovery_report: discover.discovery_report.data
+        inputs:
+          discovery_report: $steps.discover.discovery_report.data
+          project: $input.project
+          repo_root: $input.repo_root
+          homepage_url: $input.homepage_url
+          brand_name: $input.brand_name
+          docs_inputs: $input.docs_inputs
+          project_brief: $input.project_brief
+          output_dir: $input.output_dir
+          sourcey_bin: $input.sourcey_bin
         artifacts:
           named_emits:
             doc_bundle: doc_bundle
@@ -89,8 +98,7 @@ runners:
           - fs.write
         inputs:
           repo_root: $input.repo_root
-        context:
-          writes: author.doc_bundle.data.files
+          writes: $steps.author.doc_bundle.data.files
       - id: build
         label: build docs site
         tool: sourcey.build
@@ -100,19 +108,26 @@ runners:
           project: $input.project
           sourcey_bin: $input.sourcey_bin
           output_dir: $input.output_dir
-        context:
-          homepage_url: discover.discovery_report.data.discovered.homepage_url
-          brand_name: discover.discovery_report.data.discovered.brand_name
-          docs_inputs: discover.discovery_report.data.discovered.docs_inputs
+          homepage_url: $steps.discover.discovery_report.data.discovered.homepage_url
+          brand_name: $steps.discover.discovery_report.data.discovered.brand_name
+          docs_inputs: $steps.discover.discovery_report.data.discovered.docs_inputs
       - id: critique
         label: review built site
         agent: { role: reviewer, task: sourcey-critique }
         outputs:
           evaluation_report: object
-        context:
-          discovery_report: discover.discovery_report.data
-          doc_bundle: author.doc_bundle.data
-          build_report: build.sourcey_build_report.data
+        inputs:
+          discovery_report: $steps.discover.discovery_report.data
+          doc_bundle: $steps.author.doc_bundle.data
+          build_report: $steps.build.sourcey_build_report.data
+          project: $input.project
+          repo_root: $input.repo_root
+          homepage_url: $input.homepage_url
+          brand_name: $input.brand_name
+          docs_inputs: $input.docs_inputs
+          project_brief: $input.project_brief
+          output_dir: $input.output_dir
+          sourcey_bin: $input.sourcey_bin
         artifacts:
           named_emits:
             evaluation_report: evaluation_report
@@ -123,11 +138,19 @@ runners:
         agent: { role: builder, task: sourcey-revise }
         outputs:
           revision_bundle: object
-        context:
-          discovery_report: discover.discovery_report.data
-          doc_bundle: author.doc_bundle.data
-          build_report: build.sourcey_build_report.data
-          evaluation_report: critique.evaluation_report.data
+        inputs:
+          discovery_report: $steps.discover.discovery_report.data
+          doc_bundle: $steps.author.doc_bundle.data
+          build_report: $steps.build.sourcey_build_report.data
+          evaluation_report: $steps.critique.evaluation_report.data
+          project: $input.project
+          repo_root: $input.repo_root
+          homepage_url: $input.homepage_url
+          brand_name: $input.brand_name
+          docs_inputs: $input.docs_inputs
+          project_brief: $input.project_brief
+          output_dir: $input.output_dir
+          sourcey_bin: $input.sourcey_bin
         artifacts:
           named_emits:
             revision_bundle: revision_bundle
@@ -141,8 +164,7 @@ runners:
           - fs.write
         inputs:
           repo_root: $input.repo_root
-        context:
-          writes: revise.revision_bundle.data.files
+          writes: $steps.revise.revision_bundle.data.files
       - id: rebuild
         label: rebuild docs site
         tool: sourcey.build
@@ -152,19 +174,18 @@ runners:
           project: $input.project
           sourcey_bin: $input.sourcey_bin
           output_dir: $input.output_dir
-        context:
-          homepage_url: discover.discovery_report.data.discovered.homepage_url
-          brand_name: discover.discovery_report.data.discovered.brand_name
-          docs_inputs: discover.discovery_report.data.discovered.docs_inputs
+          homepage_url: $steps.discover.discovery_report.data.discovered.homepage_url
+          brand_name: $steps.discover.discovery_report.data.discovered.brand_name
+          docs_inputs: $steps.discover.discovery_report.data.discovered.docs_inputs
       - id: verify
         label: verify docs site
         tool: sourcey.verify
         scopes:
           - sourcey.verify
-        context:
-          output_dir: rebuild.sourcey_build_report.data.output_dir
-          index_path: rebuild.sourcey_build_report.data.index_path
-          sourcey_build_report: rebuild.sourcey_build_report.data
+        inputs:
+          output_dir: $steps.rebuild.sourcey_build_report.data.output_dir
+          index_path: $steps.rebuild.sourcey_build_report.data.index_path
+          sourcey_build_report: $steps.rebuild.sourcey_build_report.data
       - id: package
         label: package sourcey run
         tool: sourcey.package
@@ -172,26 +193,25 @@ runners:
           - sourcey.verify
         inputs:
           project_brief: $input.project_brief
-        context:
-          discovery_report: discover.discovery_report.data
-          doc_bundle: author.doc_bundle.data
-          sourcey_build_report: rebuild.sourcey_build_report.data
-          evaluation_report: critique.evaluation_report.data
-          revision_bundle: revise.revision_bundle.data
-          sourcey_verification_proof: verify.sourcey_verification_proof.data
+          discovery_report: $steps.discover.discovery_report.data
+          doc_bundle: $steps.author.doc_bundle.data
+          sourcey_build_report: $steps.rebuild.sourcey_build_report.data
+          evaluation_report: $steps.critique.evaluation_report.data
+          revision_bundle: $steps.revise.revision_bundle.data
+          sourcey_verification_proof: $steps.verify.sourcey_verification_proof.data
     policy:
       guards:
         - step: critique
-          field: build.sourcey_build_report.data.generated
+          value: $steps.build.sourcey_build_report.data.generated
           equals: true
         - step: revise
-          field: build.sourcey_build_report.data.generated
+          value: $steps.build.sourcey_build_report.data.generated
           equals: true
         - step: rebuild
-          field: build.sourcey_build_report.data.generated
+          value: $steps.build.sourcey_build_report.data.generated
           equals: true
         - step: verify
-          field: rebuild.sourcey_build_report.data.generated
+          value: $steps.rebuild.sourcey_build_report.data.generated
           equals: true
 
 harness:

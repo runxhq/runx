@@ -1,5 +1,5 @@
 skill: run-history
-version: "0.2.5"
+version: "0.2.6"
 
 catalog:
   kind: skill
@@ -158,21 +158,21 @@ runners:
       - id: history
         label: list the workspace's runs
         when:
-          field: prepare.history_context.data.path
+          value: $steps.prepare.history_context.data.path
           equals: live
         tool: run.list
         scopes:
           - run.read
-        context:
-          skill: prepare.history_context.data.skill_filter
-          since: prepare.history_context.data.since
-          period: prepare.history_context.data.lookback
-          as_of: prepare.history_context.data.as_of
-          limit: prepare.history_context.data.limit
+        inputs:
+          skill: $steps.prepare.history_context.data.skill_filter
+          since: $steps.prepare.history_context.data.since
+          period: $steps.prepare.history_context.data.lookback
+          as_of: $steps.prepare.history_context.data.as_of
+          limit: $steps.prepare.history_context.data.limit
       - id: catalog
         label: inspect native skill coverage
         when:
-          field: prepare.history_context.data.path
+          value: $steps.prepare.history_context.data.path
           equals: live
         tool: runx.skill.inspect
         scopes:
@@ -182,7 +182,7 @@ runners:
       - id: finalize-live
         label: calculate the live history report
         when:
-          field: prepare.history_context.data.path
+          value: $steps.prepare.history_context.data.path
           equals: live
         tool: { module: run-history.mjs, export: finalizeHistory }
         outputs:
@@ -250,21 +250,24 @@ runners:
                       action: { type: string }
                     additionalProperties: false
                 limitations: { type: array, items: { type: string } }
-        context:
-          history_context: prepare.history_context.data
-          run_list: history.run_list.data
-          authoring_context: catalog.authoring_context.data
+        inputs:
+          history_context: $steps.prepare.history_context.data
+          run_list: $steps.history.run_list.data
+          authoring_context: $steps.catalog.authoring_context.data
+          runs: $input.runs
+          catalog_items: $input.catalog_items
         artifacts:
           wrap_as: history_report_packet
           packet: runx.history_report.v1
       - id: finalize-replay
         label: calculate the supplied replay report
         when:
-          field: prepare.history_context.data.path
+          value: $steps.prepare.history_context.data.path
           equals: replay
         inputs:
           runs: $input.runs
           catalog_items: $input.catalog_items
+          history_context: $steps.prepare.history_context.data
         tool: { module: run-history.mjs, export: finalizeHistory }
         outputs:
           history_report:
@@ -331,8 +334,6 @@ runners:
                       action: { type: string }
                     additionalProperties: false
                 limitations: { type: array, items: { type: string } }
-        context:
-          history_context: prepare.history_context.data
         artifacts:
           wrap_as: history_report_packet
           packet: runx.history_report.v1

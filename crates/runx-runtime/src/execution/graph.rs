@@ -7,8 +7,8 @@ use std::sync::Arc;
 use runx_contracts::{JsonObject, JsonValue, sha256_prefixed};
 use runx_core::state_machine::SequentialGraphStepDefinition;
 use runx_parser::{
-    ExecutionGraph, GraphStep, SkillRunnerDefinition, SkillRunnerManifest, parse_graph_yaml,
-    validate_graph,
+    Binding, ExecutionGraph, GraphStep, Operand, SkillRunnerDefinition, SkillRunnerManifest,
+    Source, parse_graph_yaml, validate_graph,
 };
 
 use crate::RuntimeError;
@@ -87,12 +87,11 @@ pub(crate) fn load_graph(graph_path: &Path) -> Result<ExecutionGraph, RuntimeErr
 }
 
 /// The parent step's provenance, carried to the nested graph's steps that
-/// receive the same values: an input passed ambiently under its runner-input
-/// name, or bound from `$input.<name>` (renamed to the binding's key). Context
-/// edges inside the nested graph keep their own provenance.
+/// read the same values from the run's input, under the name each binds it
+/// to. Values a nested step reads from its own graph's steps keep their own
+/// provenance.
 pub(crate) fn inherited_step_provenance(
     graph: &ExecutionGraph,
-    graph_inputs: &JsonObject,
     parent: &[runx_contracts::ProvenanceEntry],
 ) -> BTreeMap<String, Vec<runx_contracts::ProvenanceEntry>> {
     if parent.is_empty() {
@@ -103,22 +102,24 @@ pub(crate) fn inherited_step_provenance(
         .iter()
         .map(|step| {
             let mut entries = Vec::new();
-            if step.operation().is_none() {
-                for name in graph_inputs.keys() {
-                    let overridden = step.inputs.contains_key(name)
-                        || step.context_edges.iter().any(|edge| edge.input == *name);
-                    if !overridden {
-                        inherit_provenance(parent, name, name, &mut entries);
+            for binding in &step.bindings {
+                let Source::Input { path } = &binding.source else {
+                    continue;
+                };
+                match (path.first(), binding.at.first()) {
+                    (Some(runner_input), Some(key)) => {
+                        inherit_provenance(parent, runner_input, key, &mut entries);
                     }
-                }
-            }
-            for (key, value) in &step.inputs {
-                if let Some(path) = value
-                    .as_str()
-                    .and_then(|value| value.strip_prefix("$input."))
-                {
-                    let runner_input = path.split('.').next().unwrap_or(path);
-                    inherit_provenance(parent, runner_input, key, &mut entries);
+                    (Some(runner_input), None) => {
+                        inherit_provenance(parent, runner_input, runner_input, &mut entries);
+                    }
+                    (None, key) => {
+                        entries.extend(parent.iter().map(|entry| runx_contracts::ProvenanceEntry {
+                            input:
+                                key.map_or_else(|| entry.input.clone(), |key| key.as_str().into()),
+                            ..entry.clone()
+                        }))
+                    }
                 }
             }
             (step.id.clone(), entries)
@@ -144,94 +145,144 @@ fn inherit_provenance(
     );
 }
 
-pub(crate) fn materialize_graph_parameter_inputs(
+/// Bind the run's input into every step: each reference to it takes its
+/// value, and an absent optional input leaves itself out of the object or
+/// list that holds it. References to earlier steps stay for the step to bind
+/// when it runs.
+pub(crate) fn bind_run_inputs(
     mut graph: ExecutionGraph,
     graph_inputs: &JsonObject,
-) -> ExecutionGraph {
+) -> Result<ExecutionGraph, RuntimeError> {
+    let run_input = JsonValue::Object(graph_inputs.clone());
     for step in &mut graph.steps {
-        let declared_inputs = std::mem::take(&mut step.inputs);
-        // An operation call is exactly what its step declares; graph
-        // parameters reach it only through `$input` references.
-        let mut inputs = if step.operation().is_some() {
-            JsonObject::new()
-        } else {
-            graph_inputs.clone()
-        };
-        // Graph inputs are ambient graph parameters, but a context edge is the
-        // explicit producer for its input name. Remove only that ambient value
-        // here. The parser separately rejects a real collision between the
-        // step's declared `inputs` and `context`.
-        for edge in &step.context_edges {
-            inputs.remove(&edge.input);
+        let bindings = std::mem::take(&mut step.bindings);
+        let mut later = Vec::new();
+        // Last first, so a list item left out never moves one still to bind.
+        for binding in bindings.into_iter().rev() {
+            let Source::Input { path } = &binding.source else {
+                later.push(binding);
+                continue;
+            };
+            let value = value_at(&run_input, path).cloned();
+            place(&step.id, &mut step.inputs, &binding, value)?;
         }
-        for (key, value) in &declared_inputs {
-            if let Some(value) = materialize_graph_input_value(value, graph_inputs) {
-                inputs.insert(key.clone(), value);
-            } else {
-                inputs.remove(key);
-            }
+        later.reverse();
+        step.bindings = later;
+        if let Some(when) = &mut step.when {
+            bind_operand(&mut when.value, &run_input);
         }
-        step.inputs = inputs;
-        step.idempotency_key = step.idempotency_key.as_deref().and_then(|value| {
-            value.strip_prefix("$input.").map_or_else(
-                || Some(value.to_owned()),
-                |path| {
-                    resolve_graph_input_path(graph_inputs, path)
-                        .and_then(JsonValue::as_str)
-                        .map(str::to_owned)
-                        // Context edges are materialized only when their producer
-                        // has run. Preserve a reference that is not an ambient
-                        // graph input so the effect boundary can resolve it from
-                        // the complete step invocation instead of silently
-                        // discarding the idempotency contract.
-                        .or_else(|| Some(value.to_owned()))
-                },
-            )
-        });
     }
-    graph
+    if let Some(policy) = &mut graph.policy {
+        for guard in &mut policy.guards {
+            bind_operand(&mut guard.value, &run_input);
+        }
+    }
+    Ok(graph)
 }
 
-fn materialize_graph_input_value(
-    value: &JsonValue,
-    graph_inputs: &JsonObject,
-) -> Option<JsonValue> {
-    match value {
-        JsonValue::String(value) => {
-            if let Some(path) = value.strip_prefix("$input.") {
-                return resolve_graph_input_path(graph_inputs, path).cloned();
-            }
-            Some(JsonValue::String(value.clone()))
-        }
-        JsonValue::Array(values) => Some(JsonValue::Array(
-            values
-                .iter()
-                .filter_map(|value| materialize_graph_input_value(value, graph_inputs))
-                .collect(),
-        )),
-        JsonValue::Object(object) => Some(JsonValue::Object(
-            object
-                .iter()
-                .filter_map(|(key, value)| {
-                    materialize_graph_input_value(value, graph_inputs)
-                        .map(|value| (key.clone(), value))
-                })
-                .collect(),
-        )),
-        JsonValue::Null | JsonValue::Bool(_) | JsonValue::Number(_) => Some(value.clone()),
+fn bind_operand(operand: &mut Operand, run_input: &JsonValue) {
+    if let Operand::Reference(Source::Input { path }) = operand {
+        *operand = Operand::Literal(
+            value_at(run_input, path)
+                .cloned()
+                .unwrap_or(JsonValue::Null),
+        );
     }
 }
 
-fn resolve_graph_input_path<'a>(value: &'a JsonObject, path: &str) -> Option<&'a JsonValue> {
-    let mut current: Option<&JsonValue> = None;
-    for segment in path.split('.') {
-        current = match current {
-            None => value.get(segment),
-            Some(JsonValue::Object(object)) => object.get(segment),
-            Some(_) => return None,
+/// The value at `path` inside `value`: object keys, and list indexes.
+pub(crate) fn value_at<'a>(value: &'a JsonValue, path: &[String]) -> Option<&'a JsonValue> {
+    path.iter().try_fold(value, |value, segment| match value {
+        JsonValue::Object(object) => object.get(segment),
+        JsonValue::Array(items) => items.get(segment.parse::<usize>().ok()?),
+        _ => None,
+    })
+}
+
+/// Put a bound `value` where `binding` sits in a step's values. Nothing to
+/// put leaves the member or item out; the whole input must resolve.
+fn place(
+    step_id: &str,
+    inputs: &mut JsonObject,
+    binding: &Binding,
+    value: Option<JsonValue>,
+) -> Result<(), RuntimeError> {
+    let refused = |reason: String| RuntimeError::InvalidRunStep {
+        step_id: step_id.to_owned(),
+        reason,
+    };
+    if binding.at.is_empty() {
+        *inputs = match value {
+            Some(JsonValue::Object(object)) => object,
+            Some(_) => {
+                return Err(refused(format!(
+                    "{} is the step's whole input, so it must be an object",
+                    binding.source.reference()
+                )));
+            }
+            None => {
+                return Err(refused(format!(
+                    "{} is the step's whole input and resolves to nothing",
+                    binding.source.reference()
+                )));
+            }
+        };
+        return Ok(());
+    }
+    let mut root = JsonValue::Object(std::mem::take(inputs));
+    let placed = put(&mut root, &binding.at, value);
+    if let JsonValue::Object(object) = root {
+        *inputs = object;
+    }
+    if placed {
+        Ok(())
+    } else {
+        Err(refused(format!(
+            "{} resolves to nothing, and '{}' cannot be left out",
+            binding.source.reference(),
+            binding.at.join(".")
+        )))
+    }
+}
+
+fn put(value: &mut JsonValue, path: &[String], new: Option<JsonValue>) -> bool {
+    let Some((head, rest)) = path.split_first() else {
+        return false;
+    };
+    if rest.is_empty() {
+        return match (value, new) {
+            (JsonValue::Object(object), Some(new)) => {
+                object.insert(head.clone(), new);
+                true
+            }
+            (JsonValue::Object(object), None) => {
+                object.remove(head);
+                true
+            }
+            (JsonValue::Array(items), new) => match head.parse::<usize>().ok() {
+                Some(index) if index < items.len() => {
+                    match new {
+                        Some(new) => items[index] = new,
+                        None => {
+                            items.remove(index);
+                        }
+                    }
+                    true
+                }
+                _ => false,
+            },
+            _ => false,
         };
     }
-    current
+    let child = match value {
+        JsonValue::Object(object) => object.get_mut(head),
+        JsonValue::Array(items) => head
+            .parse::<usize>()
+            .ok()
+            .and_then(|index| items.get_mut(index)),
+        _ => None,
+    };
+    child.is_some_and(|child| put(child, rest, new))
 }
 
 pub(crate) fn load_step_skill(
@@ -526,22 +577,19 @@ fn is_registry_step_ref(reference: &str) -> bool {
         || reference.starts_with("runx://skill/")
 }
 
+/// A step's values when it runs: each reference to an earlier step takes
+/// that step's result.
 pub(crate) fn materialize_step_invocation_inputs_with_index(
     step: &GraphStep,
     prior_run_index: &PriorRunIndex<'_>,
 ) -> Result<JsonObject, RuntimeError> {
     let mut inputs = step.inputs.clone();
-    for edge in &step.context_edges {
-        let value = prior_run_index.output(&step.id, &edge.input, &edge.from_step, &edge.output)?;
-        if inputs.insert(edge.input.clone(), value).is_some() {
-            return Err(RuntimeError::InvalidRunStep {
-                step_id: step.id.clone(),
-                reason: format!(
-                    "input '{}' is declared by both static inputs and context",
-                    edge.input
-                ),
-            });
-        }
+    for binding in &step.bindings {
+        let Source::Step { step: from, path } = &binding.source else {
+            continue;
+        };
+        let value = prior_run_index.output(&step.id, &binding_label(binding), from, path)?;
+        place(&step.id, &mut inputs, binding, Some(value))?;
     }
     Ok(inputs)
 }
@@ -550,136 +598,139 @@ pub(crate) fn materialize_step_invocation_provenance_with_index(
     step: &GraphStep,
     prior_run_index: &PriorRunIndex<'_>,
 ) -> Result<Vec<runx_contracts::ProvenanceEntry>, RuntimeError> {
-    step.context_edges
+    step.bindings
         .iter()
-        .map(|edge| {
-            prior_run_index.provenance(&step.id, &edge.input, &edge.from_step, &edge.output)
+        .filter_map(|binding| match &binding.source {
+            Source::Step { step: from, path } => {
+                Some(prior_run_index.provenance(&step.id, &binding_label(binding), from, path))
+            }
+            Source::Input { .. } => None,
         })
         .collect()
 }
 
+/// Where a binding sits, as a name for diagnostics and provenance.
+fn binding_label(binding: &Binding) -> String {
+    if binding.at.is_empty() {
+        "inputs".to_owned()
+    } else {
+        binding.at.join(".")
+    }
+}
+
 fn context_from(step: &GraphStep) -> Option<Vec<String>> {
-    let refs = step
-        .context_edges
-        .iter()
-        .map(|edge| edge.from_step.clone())
-        .collect::<Vec<_>>();
-    (!refs.is_empty()).then_some(refs)
+    let reads = step.reads();
+    (!reads.is_empty()).then(|| reads.into_iter().map(str::to_owned).collect())
 }
 
 #[cfg(test)]
 mod tests {
     use runx_contracts::{JsonObject, JsonValue};
-    use runx_parser::{ExecutionGraph, RawGraphIr, parse_graph_yaml, validate_graph};
+    use runx_parser::{ExecutionGraph, Operand, parse_graph_yaml, validate_graph};
 
-    use super::materialize_graph_parameter_inputs;
+    use super::bind_run_inputs;
 
-    fn graph_with_idempotency_key(value: &str) -> Result<ExecutionGraph, String> {
-        let step = JsonObject::from([
-            ("id".to_owned(), JsonValue::String("mutate".to_owned())),
-            (
-                "tool".to_owned(),
-                JsonValue::String("acme.publish".to_owned()),
-            ),
-            (
-                "idempotency_key".to_owned(),
-                JsonValue::String(value.to_owned()),
-            ),
-        ]);
-        let raw = RawGraphIr {
-            document: JsonObject::from([
-                ("name".to_owned(), JsonValue::String("example".to_owned())),
-                (
-                    "steps".to_owned(),
-                    JsonValue::Array(vec![JsonValue::Object(step)]),
-                ),
-            ]),
-        };
-        validate_graph(raw).map_err(|error| error.to_string())
+    fn graph(source: &str) -> Result<ExecutionGraph, String> {
+        validate_graph(parse_graph_yaml(source).map_err(|error| error.to_string())?)
+            .map_err(|error| error.to_string())
     }
 
-    #[test]
-    fn graph_input_materialization_resolves_step_idempotency_key() -> Result<(), String> {
-        let graph = graph_with_idempotency_key("$input.retry.key")?;
-        let inputs = JsonObject::from([(
-            "retry".to_owned(),
-            JsonValue::Object(JsonObject::from([(
-                "key".to_owned(),
-                JsonValue::String("campaign-42".to_owned()),
-            )])),
-        )]);
-
-        let materialized = materialize_graph_parameter_inputs(graph, &inputs);
-        let step = materialized
-            .steps
-            .first()
-            .ok_or_else(|| "graph should have one step".to_owned())?;
-
-        assert_eq!(step.idempotency_key.as_deref(), Some("campaign-42"));
-        Ok(())
+    fn object(json: serde_json::Value) -> JsonObject {
+        serde_json::from_value(json).unwrap_or_default()
     }
 
-    #[test]
-    fn graph_input_materialization_preserves_static_step_idempotency_key() -> Result<(), String> {
-        let graph = graph_with_idempotency_key("fixed-key")?;
-
-        let materialized = materialize_graph_parameter_inputs(graph, &JsonObject::new());
-        let step = materialized
-            .steps
-            .first()
-            .ok_or_else(|| "graph should have one step".to_owned())?;
-
-        assert_eq!(step.idempotency_key.as_deref(), Some("fixed-key"));
-        Ok(())
-    }
-
-    #[test]
-    fn graph_input_materialization_preserves_context_bound_idempotency_reference()
-    -> Result<(), String> {
-        let graph = graph_with_idempotency_key("$input.idempotency_key")?;
-
-        let materialized = materialize_graph_parameter_inputs(graph, &JsonObject::new());
-        let step = materialized
-            .steps
-            .first()
-            .ok_or_else(|| "graph should have one step".to_owned())?;
-
-        assert_eq!(
-            step.idempotency_key.as_deref(),
-            Some("$input.idempotency_key")
-        );
-        Ok(())
-    }
-
-    #[test]
-    fn graph_context_replaces_only_ambient_runner_input() -> Result<(), String> {
-        let raw = parse_graph_yaml(
-            r#"
-name: context-precedence
+    const BINDINGS: &str = r#"
+name: bindings
 steps:
   - id: produce
     tool: { module: produce.mjs }
     outputs: { value: string }
   - id: consume
     tool: { module: consume.mjs }
-    context:
-      value: produce.value
-"#,
+    when: {value: $input.mode, equals: apply}
+    inputs:
+      value: $steps.produce.value
+      key: $input.retry.key
+      label: $input.label
+      fixed: kept
+"#;
+
+    #[test]
+    fn a_step_receives_only_what_it_binds() -> Result<(), String> {
+        let bound = bind_run_inputs(
+            graph(BINDINGS)?,
+            &object(serde_json::json!({
+                "mode": "apply",
+                "retry": {"key": "campaign-42"},
+                "unrelated": "never reaches a step",
+            })),
         )
         .map_err(|error| error.to_string())?;
-        let graph = validate_graph(raw).map_err(|error| error.to_string())?;
-        let inputs =
-            JsonObject::from([("value".to_owned(), JsonValue::String("ambient".to_owned()))]);
+        let consume = &bound.steps[1];
+        assert_eq!(
+            consume.inputs,
+            object(serde_json::json!({
+                "value": "$steps.produce.value",
+                "key": "campaign-42",
+                "fixed": "kept",
+            })),
+            "the run's input binds in place, an absent optional input is left out, and nothing else arrives"
+        );
+        assert_eq!(
+            consume.reads(),
+            ["produce"],
+            "the step reference binds when the step runs"
+        );
+        assert_eq!(
+            consume.when.as_ref().map(|when| &when.value),
+            Some(&Operand::Literal(JsonValue::String("apply".to_owned())))
+        );
+        assert!(bound.steps[0].inputs.is_empty());
+        Ok(())
+    }
 
-        let materialized = materialize_graph_parameter_inputs(graph, &inputs);
-        let consume = materialized
-            .steps
-            .iter()
-            .find(|step| step.id == "consume")
-            .ok_or_else(|| "graph should contain consume".to_owned())?;
+    #[test]
+    fn a_whole_input_must_be_an_object_and_an_absent_item_leaves_itself_out() -> Result<(), String>
+    {
+        let whole = graph(
+            "name: whole\nsteps:\n  - id: take\n    tool: { module: take.mjs }\n    inputs: $input.payload\n",
+        )?;
+        let error = bind_run_inputs(whole, &object(serde_json::json!({"payload": "text"})))
+            .err()
+            .ok_or("a whole input that is not an object binds nothing")?;
+        assert!(error.to_string().contains("must be an object"), "{error}");
 
-        assert!(!consume.inputs.contains_key("value"));
-        assert_eq!(consume.context_edges.len(), 1);
+        let list = graph(
+            "name: list\nsteps:\n  - id: take\n    tool: { module: take.mjs }\n    inputs: {ids: [$input.first, $input.second, $input.third]}\n",
+        )?;
+        let bound = bind_run_inputs(list, &object(serde_json::json!({"first": 1, "third": 3})))
+            .map_err(|error| error.to_string())?;
+        assert_eq!(
+            bound.steps[0].inputs.get("ids"),
+            serde_json::from_value::<JsonValue>(serde_json::json!([1, 3]))
+                .ok()
+                .as_ref(),
+            "an absent item leaves itself out and the rest keep their order"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn a_bound_value_is_never_read_again_as_a_reference() -> Result<(), String> {
+        let bound = bind_run_inputs(
+            graph(BINDINGS)?,
+            &object(serde_json::json!({"mode": "apply", "label": "$steps.produce.value"})),
+        )
+        .map_err(|error| error.to_string())?;
+        assert_eq!(
+            bound.steps[1].inputs.get("label"),
+            Some(&JsonValue::String("$steps.produce.value".to_owned()))
+        );
+        assert_eq!(
+            bound.steps[1].bindings.len(),
+            1,
+            "only the step reference remains"
+        );
         Ok(())
     }
 }

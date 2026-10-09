@@ -9,7 +9,7 @@ use runx_parser::{
 
 const GRAPH_FIXTURES: &[&str] = &[
     include_str!("../../../fixtures/parser/graphs/parse-malformed-yaml.json"),
-    include_str!("../../../fixtures/parser/graphs/sequential-context.json"),
+    include_str!("../../../fixtures/parser/graphs/sequential-references.json"),
     include_str!("../../../fixtures/parser/graphs/step-kinds.json"),
     include_str!("../../../fixtures/parser/graphs/tool-and-policy.json"),
     include_str!("../../../fixtures/parser/graphs/validation-missing-step-id.json"),

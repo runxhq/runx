@@ -1,5 +1,5 @@
 skill: deep-research
-version: "0.2.5"
+version: "0.2.6"
 
 catalog:
   kind: graph
@@ -288,7 +288,7 @@ runners:
 
       - id: draft-brief
         when:
-          field: research-topic.research_packet.data.decision
+          value: $steps.research-topic.research_packet.data.decision
           equals: ready
         skill: ../ghostwrite
         scopes:
@@ -298,8 +298,7 @@ runners:
           audience: $input.audience
           channel: $input.channel
           voice_guide: Lead with the decision, distinguish verified evidence from inference, and preserve open questions.
-        context:
-          evidence_pack: research-topic.research_packet.data
+          evidence_pack: $steps.research-topic.research_packet.data
 
   local-files:
     inputs:
@@ -359,7 +358,7 @@ runners:
           target_entities: $input.target_entities
 
       - id: draft-brief
-        when: { field: research-topic.research_packet.data.decision, equals: ready }
+        when: { value: $steps.research-topic.research_packet.data.decision, equals: ready }
         skill: ../ghostwrite
         scopes: [runx:content:draft]
         inputs:
@@ -367,5 +366,4 @@ runners:
           audience: $input.audience
           channel: $input.channel
           voice_guide: Lead with the decision, distinguish verified evidence from inference, and preserve open questions.
-        context:
-          evidence_pack: research-topic.research_packet.data
+          evidence_pack: $steps.research-topic.research_packet.data

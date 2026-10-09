@@ -1,5 +1,5 @@
 skill: issue-to-pr
-version: "0.4.3"
+version: "0.4.4"
 
 catalog:
   kind: graph
@@ -68,8 +68,7 @@ runners:
         inputs:
           requested_repository: $input.repository
           requested_issue_number: $input.issue_number
-        context:
-          provider_operation: read-issue.provider_operation.data
+          provider_operation: $steps.read-issue.provider_operation.data
         tool: { module: issue-to-pr.mjs, export: normalizeIssueEvidence }
         outputs:
           issue_evidence: object
@@ -82,8 +81,7 @@ runners:
         runner: host
         inputs:
           objective: $input.objective
-        context:
-          issue_evidence: bind-issue-evidence.issue_evidence.data
+          issue_evidence: $steps.bind-issue-evidence.issue_evidence.data
 
   from-evidence:
     inputs:
@@ -118,40 +116,39 @@ runners:
       - id: admit-host-result
         inputs:
           issue_evidence: $input.issue_evidence
-        context:
-          host_result: host-work.host_result.data
+          host_result: $steps.host-work.host_result.data
         tool: { module: issue-to-pr.mjs, export: admitHostResult }
         outputs:
           host_admission: object
 
       - id: verify-publication
         when:
-          field: admit-host-result.host_admission.path
+          value: $steps.admit-host-result.host_admission.path
           equals: publish
         tool: external_receipt.verify
         scopes: [receipt.read]
-        context:
-          receipt_path: host-work.host_result.data.finalization.receipt_path
-          target: host-work.host_result.data.commit
-          contract_digest: host-work.host_result.data.finalization.contract_digest
-          repo_root: host-work.host_result.data.repo_root
+        inputs:
+          receipt_path: $steps.host-work.host_result.data.finalization.receipt_path
+          target: $steps.host-work.host_result.data.commit
+          contract_digest: $steps.host-work.host_result.data.finalization.contract_digest
+          repo_root: $steps.host-work.host_result.data.repo_root
 
       - id: publish-pr
         when:
-          field: admit-host-result.host_admission.path
+          value: $steps.admit-host-result.host_admission.path
           equals: publish
         skill: .
         runner: pull-request
-        context:
-          host_result: host-work.host_result.data
+        inputs:
+          host_result: $steps.host-work.host_result.data
       - id: finalize-published
         when:
-          field: admit-host-result.host_admission.path
+          value: $steps.admit-host-result.host_admission.path
           equals: publish
-        context:
-          host_result: host-work.host_result.data
-          receipt_verification: verify-publication.external_receipt_verification.data
-          publication_result: publish-pr.publication.data
+        inputs:
+          host_result: $steps.host-work.host_result.data
+          receipt_verification: $steps.verify-publication.external_receipt_verification.data
+          publication_result: $steps.publish-pr.publication.data
         tool: { module: issue-to-pr.mjs, export: finalizeIssueToPr }
         outputs:
           issue_to_pr_result: object
@@ -161,27 +158,26 @@ runners:
 
       - id: verify-local
         when:
-          field: admit-host-result.host_admission.path
+          value: $steps.admit-host-result.host_admission.path
           equals: finalized_local
         tool: external_receipt.verify
         scopes: [receipt.read]
-        context:
-          receipt_path: host-work.host_result.data.finalization.receipt_path
-          target: host-work.host_result.data.commit
-          contract_digest: host-work.host_result.data.finalization.contract_digest
-          repo_root: host-work.host_result.data.repo_root
+        inputs:
+          receipt_path: $steps.host-work.host_result.data.finalization.receipt_path
+          target: $steps.host-work.host_result.data.commit
+          contract_digest: $steps.host-work.host_result.data.finalization.contract_digest
+          repo_root: $steps.host-work.host_result.data.repo_root
 
       - id: finalize-local
         when:
-          field: admit-host-result.host_admission.path
+          value: $steps.admit-host-result.host_admission.path
           equals: finalized_local
         inputs:
           host_admission:
             path: finalized_local
             errors: []
-        context:
-          host_result: host-work.host_result.data
-          receipt_verification: verify-local.external_receipt_verification.data
+          host_result: $steps.host-work.host_result.data
+          receipt_verification: $steps.verify-local.external_receipt_verification.data
         tool: { module: issue-to-pr.mjs, export: finalizeIssueToPr }
         outputs:
           issue_to_pr_result: object
@@ -191,11 +187,11 @@ runners:
 
       - id: finalize-blocked
         when:
-          field: admit-host-result.host_admission.path
+          value: $steps.admit-host-result.host_admission.path
           equals: blocked
-        context:
-          host_result: host-work.host_result.data
-          host_admission: admit-host-result.host_admission
+        inputs:
+          host_result: $steps.host-work.host_result.data
+          host_admission: $steps.admit-host-result.host_admission
         tool: { module: issue-to-pr.mjs, export: finalizeIssueToPr }
         outputs:
           issue_to_pr_result: object
@@ -219,7 +215,7 @@ runners:
 
       - id: verify-publication
         when:
-          field: admit-host-result.host_admission.path
+          value: $steps.admit-host-result.host_admission.path
           equals: publish
         tool: external_receipt.verify
         scopes: [receipt.read]
@@ -231,7 +227,7 @@ runners:
 
       - id: publish-pr
         when:
-          field: admit-host-result.host_admission.path
+          value: $steps.admit-host-result.host_admission.path
           equals: publish
         skill: .
         runner: pull-request
@@ -239,13 +235,12 @@ runners:
           host_result: $input.host_result
       - id: finalize-published
         when:
-          field: admit-host-result.host_admission.path
+          value: $steps.admit-host-result.host_admission.path
           equals: publish
         inputs:
           host_result: $input.host_result
-        context:
-          receipt_verification: verify-publication.external_receipt_verification.data
-          publication_result: publish-pr.publication.data
+          receipt_verification: $steps.verify-publication.external_receipt_verification.data
+          publication_result: $steps.publish-pr.publication.data
         tool: { module: issue-to-pr.mjs, export: finalizeIssueToPr }
         outputs:
           issue_to_pr_result: object
@@ -255,7 +250,7 @@ runners:
 
       - id: verify-local
         when:
-          field: admit-host-result.host_admission.path
+          value: $steps.admit-host-result.host_admission.path
           equals: finalized_local
         tool: external_receipt.verify
         scopes: [receipt.read]
@@ -267,15 +262,14 @@ runners:
 
       - id: finalize-local
         when:
-          field: admit-host-result.host_admission.path
+          value: $steps.admit-host-result.host_admission.path
           equals: finalized_local
         inputs:
           host_result: $input.host_result
           host_admission:
             path: finalized_local
             errors: []
-        context:
-          receipt_verification: verify-local.external_receipt_verification.data
+          receipt_verification: $steps.verify-local.external_receipt_verification.data
         tool: { module: issue-to-pr.mjs, export: finalizeIssueToPr }
         outputs:
           issue_to_pr_result: object
@@ -285,12 +279,11 @@ runners:
 
       - id: finalize-blocked
         when:
-          field: admit-host-result.host_admission.path
+          value: $steps.admit-host-result.host_admission.path
           equals: blocked
         inputs:
           host_result: $input.host_result
-        context:
-          host_admission: admit-host-result.host_admission
+          host_admission: $steps.admit-host-result.host_admission
         tool: { module: issue-to-pr.mjs, export: finalizeIssueToPr }
         outputs:
           issue_to_pr_result: object
@@ -329,8 +322,7 @@ runners:
           host_admission:
             path: finalized_local
             errors: []
-        context:
-          receipt_verification: verify.external_receipt_verification.data
+          receipt_verification: $steps.verify.external_receipt_verification.data
         tool: { module: issue-to-pr.mjs, export: finalizeIssueToPr }
         outputs:
           issue_to_pr_result: object
@@ -357,9 +349,8 @@ runners:
       - id: finalize
         inputs:
           host_result: $input.host_result
-        context:
-          receipt_verification: verify.external_receipt_verification.data
-          publication_result: publish-pr.publication.data
+          receipt_verification: $steps.verify.external_receipt_verification.data
+          publication_result: $steps.publish-pr.publication.data
         tool: { module: issue-to-pr.mjs, export: finalizeIssueToPr }
         outputs:
           issue_to_pr_result: object
@@ -389,37 +380,33 @@ runners:
 
       - id: find
         operation: github/pullrequests.list
-        context:
-          input: plan.pull_request_plan.find
+        input: $steps.plan.pull_request_plan.find
 
       - id: choose
         inputs:
           host_result: $input.host_result
-        context:
-          found: find.provider_operation.data
+          found: $steps.find.provider_operation.data
         tool: { module: issue-to-pr.mjs, export: choosePullRequest }
         outputs:
           pull_request_choice: object
 
       - id: open
         when:
-          field: choose.pull_request_choice.action
+          value: $steps.choose.pull_request_choice.action
           equals: open
         operation: github/pullrequest.open
         idempotency_key: $input.host_result.publication.idempotency_key
-        context:
-          input: choose.pull_request_choice.open
+        input: $steps.choose.pull_request_choice.open
 
       - id: settle-opened
         when:
-          field: choose.pull_request_choice.action
+          value: $steps.choose.pull_request_choice.action
           equals: open
         inputs:
           host_result: $input.host_result
-        context:
-          pushed: push.provider_operation.data
-          choice: choose.pull_request_choice
-          opened: open.provider_operation.data
+          pushed: $steps.push.provider_operation.data
+          choice: $steps.choose.pull_request_choice
+          opened: $steps.open.provider_operation.data
         tool: { module: issue-to-pr.mjs, export: settlePullRequest }
         outputs:
           publication: object
@@ -428,13 +415,12 @@ runners:
 
       - id: settle-existing
         when:
-          field: choose.pull_request_choice.action
+          value: $steps.choose.pull_request_choice.action
           not_equals: open
         inputs:
           host_result: $input.host_result
-        context:
-          pushed: push.provider_operation.data
-          choice: choose.pull_request_choice
+          pushed: $steps.push.provider_operation.data
+          choice: $steps.choose.pull_request_choice
         tool: { module: issue-to-pr.mjs, export: settlePullRequest }
         outputs:
           publication: object

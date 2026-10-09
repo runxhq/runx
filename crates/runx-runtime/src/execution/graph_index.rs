@@ -144,20 +144,20 @@ impl<'a> PriorRunIndex<'a> {
         to_step: &str,
         input: &str,
         from_step: &str,
-        output: &str,
+        path: &[String],
     ) -> Result<JsonValue, RuntimeError> {
         let Some(run) = self.runs.get(from_step) else {
             return Err(RuntimeError::GraphBlocked {
                 step_id: from_step.to_owned(),
-                reason: "context source step has not run".to_owned(),
+                reason: "the step it reads has not run".to_owned(),
             });
         };
-        resolve_output_path(&run.contract, output).map_err(|break_at| {
+        resolve_output_path(&run.contract, path).map_err(|break_at| {
             RuntimeError::context_edge_unresolved(
                 to_step,
                 input,
                 from_step,
-                output,
+                path.join("."),
                 break_at.missing_segment,
                 break_at.available_keys,
             )
@@ -169,8 +169,14 @@ impl<'a> PriorRunIndex<'a> {
         to_step: &str,
         input: &str,
         from_step: &str,
-        output: &str,
+        path: &[String],
     ) -> Result<ProvenanceEntry, RuntimeError> {
+        // A read of the whole result names it as the step's result.
+        let output = if path.is_empty() {
+            "result".to_owned()
+        } else {
+            path.join(".")
+        };
         let run = self
             .runs
             .get(from_step)
@@ -183,11 +189,10 @@ impl<'a> PriorRunIndex<'a> {
                 step_id: to_step.to_owned(),
                 reason: "context edge input must not be empty".to_owned(),
             })?;
-        let output =
-            NonEmptyString::new(output.to_owned()).ok_or_else(|| RuntimeError::InvalidRunStep {
-                step_id: to_step.to_owned(),
-                reason: "context edge output must not be empty".to_owned(),
-            })?;
+        let output = NonEmptyString::new(output).ok_or_else(|| RuntimeError::InvalidRunStep {
+            step_id: to_step.to_owned(),
+            reason: "context edge output must not be empty".to_owned(),
+        })?;
         Ok(ProvenanceEntry {
             input,
             output,
@@ -207,30 +212,36 @@ pub(crate) struct ContextPathBreak {
 
 pub(crate) fn resolve_output_path(
     outputs: &JsonObject,
-    output: &str,
+    path: &[String],
 ) -> Result<JsonValue, ContextPathBreak> {
-    let mut segments = output.split('.');
-    let Some(first) = segments.next() else {
-        return Err(ContextPathBreak {
-            missing_segment: String::new(),
-            available_keys: outputs.keys().cloned().collect(),
-        });
+    let Some((first, rest)) = path.split_first() else {
+        return Ok(JsonValue::Object(outputs.clone()));
     };
     let mut value = outputs.get(first).ok_or_else(|| ContextPathBreak {
-        missing_segment: first.to_owned(),
+        missing_segment: first.clone(),
         available_keys: outputs.keys().cloned().collect(),
     })?;
-    for segment in segments {
-        let JsonValue::Object(object) = value else {
-            return Err(ContextPathBreak {
-                missing_segment: segment.to_owned(),
-                available_keys: Vec::new(),
-            });
+    for segment in rest {
+        value = match value {
+            JsonValue::Object(object) => object.get(segment).ok_or_else(|| ContextPathBreak {
+                missing_segment: segment.clone(),
+                available_keys: object.keys().cloned().collect(),
+            })?,
+            JsonValue::Array(items) => segment
+                .parse::<usize>()
+                .ok()
+                .and_then(|index| items.get(index))
+                .ok_or_else(|| ContextPathBreak {
+                    missing_segment: segment.clone(),
+                    available_keys: (0..items.len()).map(|index| index.to_string()).collect(),
+                })?,
+            _ => {
+                return Err(ContextPathBreak {
+                    missing_segment: segment.clone(),
+                    available_keys: Vec::new(),
+                });
+            }
         };
-        value = object.get(segment).ok_or_else(|| ContextPathBreak {
-            missing_segment: segment.to_owned(),
-            available_keys: object.keys().cloned().collect(),
-        })?;
     }
     Ok(value.clone())
 }

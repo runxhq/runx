@@ -673,7 +673,8 @@ runners:
       - id: first-review
         agent: { role: reviewer, task: first-review }
         outputs: { decision: object }
-        context: { written: first-write.file_write.data }
+        inputs:
+          written: $steps.first-write.file_write.data
       - id: second-write
         tool: fs.write
         scopes: [fs.write]
@@ -683,9 +684,9 @@ runners:
       - id: second-review
         agent: { role: reviewer, task: second-review }
         outputs: { decision: object }
-        context:
-          written: second-write.file_write.data
-          prior: first-review.decision
+        inputs:
+          written: $steps.second-write.file_write.data
+          prior: $steps.first-review.decision
 "#
         .to_owned();
         if topology == "deep" {
@@ -779,8 +780,8 @@ runners:
         outputs:
           intermediate: object
       - id: finish
-        context:
-          intermediate: expand.intermediate
+        inputs:
+          intermediate: $steps.expand.intermediate
         tool: { module: compact-output.mjs, export: finish }
         outputs:
           result: object

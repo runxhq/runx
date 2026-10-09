@@ -1,5 +1,5 @@
 skill: answer-from-docs
-version: "0.2.2"
+version: "0.2.3"
 
 catalog:
   kind: graph
@@ -158,8 +158,7 @@ runners:
         inputs:
           question: $input.question
           corpus: $input.corpus
-        context:
-          corpus_digest: digest.digest_result.data.digest
+          corpus_digest: $steps.digest.digest_result.data.digest
         agent: { role: researcher, task: answer-from-docs-synthesize }
         outputs:
           answer_draft: object
@@ -172,9 +171,8 @@ runners:
         inputs:
           question: $input.question
           corpus: $input.corpus
-        context:
-          corpus_digest: digest.digest_result.data.digest
-          answer_draft: synthesize.answer_draft.data
+          corpus_digest: $steps.digest.digest_result.data.digest
+          answer_draft: $steps.synthesize.answer_draft.data
         tool: { module: answer-from-docs.mjs, export: finalizeGroundedAnswer }
         outputs:
           grounded_answer: object

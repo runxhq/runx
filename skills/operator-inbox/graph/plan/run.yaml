@@ -68,8 +68,7 @@ runners:
         tool: data.digest
         inputs:
           encoding: utf8_text
-        context:
-          value: subjects.action_id_subject
+          value: $steps.subjects.action_id_subject
       - id: prepare
         inputs:
           operation: $input.operation
@@ -82,8 +81,7 @@ runners:
           triage: $input.triage
           disposition: $input.disposition
           action: $input.action
-        context:
-          action_id_digest: digest-action-id.digest_result.data.digest
+          action_id_digest: $steps.digest-action-id.digest_result.data.digest
         tool: { module: plan.mjs, export: prepare }
         outputs:
           transition_draft: object
@@ -92,13 +90,12 @@ runners:
         tool: data.digest
         inputs:
           encoding: utf8_text
-        context:
-          value: prepare.idempotency_binding.subject
+          value: $steps.prepare.idempotency_binding.subject
       - id: finalize
-        context:
-          transition_draft: prepare.transition_draft
-          idempotency_binding: prepare.idempotency_binding
-          idempotency_digest: digest-idempotency.digest_result.data.digest
+        inputs:
+          transition_draft: $steps.prepare.transition_draft
+          idempotency_binding: $steps.prepare.idempotency_binding
+          idempotency_digest: $steps.digest-idempotency.digest_result.data.digest
         tool: { module: plan.mjs, export: finalize }
         outputs:
           transition: object

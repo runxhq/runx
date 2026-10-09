@@ -12,10 +12,10 @@ steps:
         operation: paid.echo
   - id: reserve
     skill: ../../skills/x402-pay-paid-echo-reserve
-    context:
-      payment_quote_packet: quote.payment_quote_packet.data
+    inputs:
+      payment_quote_packet: $steps.quote.payment_quote_packet.data
 policy:
   guards:
     - step: reserve
-      field: quote.payment_quote_packet.data.payment_quote.quote_id
+      value: $steps.quote.payment_quote_packet.data.payment_quote.quote_id
       equals: quote_paid_echo_001

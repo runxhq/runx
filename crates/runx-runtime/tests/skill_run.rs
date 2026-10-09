@@ -1331,7 +1331,7 @@ fn native_graph_guard_rejects_skill_claim_as_fact() -> Result<(), Box<dyn std::e
     assert!(
         string_field(closure, "summary")
             .unwrap_or_default()
-            .contains("guard 'decide.skill_claim.approved' is unresolved"),
+            .contains("guard '$steps.decide.skill_claim.approved' is unresolved"),
         "unexpected closure: {closure:?}"
     );
 
@@ -3176,6 +3176,8 @@ runners:
     steps:
       - id: decide
         agent: { role: builder, task: graph-decide }
+        inputs:
+          thread_title: $input.thread_title
         outputs:
           result: object
 "#,
@@ -3252,7 +3254,7 @@ runners:
     policy:
       guards:
         - step: gated
-          field: {gate_field}
+          value: $steps.{gate_field}
           equals: true
             "#
         ),
@@ -3460,8 +3462,8 @@ runners:
       - id: echo
         tool: test.echo
         scopes: [test.echo]
-        context:
-          message: author.fix_bundle.data.message
+        inputs:
+          message: $steps.author.fix_bundle.data.message
 "#,
     )?;
     Ok(skill_dir)
@@ -4075,14 +4077,14 @@ runners:
           verdict: string
       - id: branch_go
         when:
-          field: decide.verdict
+          value: $steps.decide.verdict
           equals: go
         agent: { role: builder, task: when-go }
         outputs:
           result: object
       - id: branch_stop
         when:
-          field: decide.verdict
+          value: $steps.decide.verdict
           equals: stop
         agent: { role: builder, task: when-stop }
         outputs:

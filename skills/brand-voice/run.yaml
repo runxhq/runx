@@ -1,5 +1,5 @@
 skill: brand-voice
-version: "0.2.0"
+version: "0.2.1"
 
 catalog:
   kind: graph
@@ -51,20 +51,19 @@ runners:
 
       - id: digest
         tool: data.digest
-        context:
-          value: index.source_index.data.sources
+        inputs:
+          value: $steps.index.source_index.data.sources
 
       - id: reject
         when:
-          field: index.source_index.data.decision
+          value: $steps.index.source_index.data.decision
           equals: needs_more_evidence
         inputs:
           brand: $input.brand
           channel: $input.channel
           audience: $input.audience
-        context:
-          source_index: index.source_index.data
-          evidence_digest: digest.digest_result.data.digest
+          source_index: $steps.index.source_index.data
+          evidence_digest: $steps.digest.digest_result.data.digest
         tool: { module: brand-voice.mjs, export: finalizeVoice }
         outputs:
           brand_voice_packet:
@@ -166,7 +165,7 @@ runners:
 
       - id: synthesize
         when:
-          field: index.source_index.data.decision
+          value: $steps.index.source_index.data.decision
           equals: ready
         agent: { role: editor, task: brand-voice-synthesize }
         outputs:
@@ -176,25 +175,24 @@ runners:
           channel: $input.channel
           audience: $input.audience
           constraints: $input.constraints
-        context:
-          source_index: index.source_index.data
-          evidence_digest: digest.digest_result.data.digest
+          source_index: $steps.index.source_index.data
+          evidence_digest: $steps.digest.digest_result.data.digest
+          source_material: $input.source_material
         artifacts:
           named_emits:
             brand_voice_draft: brand_voice_draft
 
       - id: finalize
         when:
-          field: index.source_index.data.decision
+          value: $steps.index.source_index.data.decision
           equals: ready
         inputs:
           brand: $input.brand
           channel: $input.channel
           audience: $input.audience
-        context:
-          source_index: index.source_index.data
-          evidence_digest: digest.digest_result.data.digest
-          brand_voice_draft: synthesize.brand_voice_draft.data
+          source_index: $steps.index.source_index.data
+          evidence_digest: $steps.digest.digest_result.data.digest
+          brand_voice_draft: $steps.synthesize.brand_voice_draft.data
         tool: { module: brand-voice.mjs, export: finalizeVoice }
         outputs:
           brand_voice_packet: object

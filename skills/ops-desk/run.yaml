@@ -1,5 +1,5 @@
 skill: ops-desk
-version: "0.3.2"
+version: "0.3.3"
 
 catalog:
   kind: skill
@@ -373,8 +373,7 @@ runners:
           operator_policy: "$input.operator_policy"
           project_profile: "$input.project_profile"
           requested_action: "$input.requested_action"
-        context:
-          dashboard_snapshot: read-state.data_operation_result.data.projection
+          dashboard_snapshot: $steps.read-state.data_operation_result.data.projection
         artifacts:
           wrap_as: ops_desk_packet
           packet: runx.ops_desk.packet.v1

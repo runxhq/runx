@@ -22,10 +22,10 @@ steps:
   - id: send-plan
     skill: ../../../send-as
     runner: plan
-    context:
-      principal: route.lead_route_packet.data.downstream_handoff.inputs.principal
-      objective: route.lead_route_packet.data.downstream_handoff.inputs.objective
-      provider_context: route.lead_route_packet.data.downstream_handoff.inputs.provider_context
-      audience: route.lead_route_packet.data.downstream_handoff.inputs.audience
-      consent_basis: route.lead_route_packet.data.downstream_handoff.inputs.consent_basis
-      operator_context: route.lead_route_packet.data.downstream_handoff.inputs.operator_context
+    inputs:
+      principal: $steps.route.lead_route_packet.data.downstream_handoff.inputs.principal
+      objective: $steps.route.lead_route_packet.data.downstream_handoff.inputs.objective
+      provider_context: $steps.route.lead_route_packet.data.downstream_handoff.inputs.provider_context
+      audience: $steps.route.lead_route_packet.data.downstream_handoff.inputs.audience
+      consent_basis: $steps.route.lead_route_packet.data.downstream_handoff.inputs.consent_basis
+      operator_context: $steps.route.lead_route_packet.data.downstream_handoff.inputs.operator_context

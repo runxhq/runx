@@ -9,7 +9,7 @@ use runx_core::state_machine::{
     GraphStepStatus, SequentialGraphEvent, SequentialGraphPlan, SequentialGraphState,
     create_sequential_graph_state,
 };
-use runx_parser::{ExecutionGraph, GraphStep, StepKind};
+use runx_parser::{ExecutionGraph, GraphStep, Operand, Source, StepKind};
 
 use super::super::graph::{LoadedStepSkill, StepSkillCache, StepSkillLoadOptions};
 use super::super::graph_index::{ExecutionGraphIndex, PriorRunIndex};
@@ -752,10 +752,11 @@ pub(super) fn enforce_guards(
         return Ok(());
     };
     for gate in policy.guards.iter().filter(|gate| gate.step == step.id) {
-        let Some(value) = transition_field_value(&gate.field, runs) else {
+        let shown = operand_text(&gate.value);
+        let Some(value) = operand_value(&gate.value, runs) else {
             return Err(RuntimeError::GraphBlocked {
                 step_id: step.id.clone(),
-                reason: format!("guard '{}' is unresolved", gate.field),
+                reason: format!("guard '{shown}' is unresolved"),
             });
         };
         if let Some(expected) = &gate.equals
@@ -763,17 +764,17 @@ pub(super) fn enforce_guards(
         {
             if expected == &JsonValue::Bool(true)
                 && value == &JsonValue::Bool(false)
-                && gate.field.ends_with(".approval_decision.data.approved")
+                && approval_decision_of(&gate.value).is_some()
             {
                 return Err(crate::RuntimeError::AuthorityDenied {
                     verb: runx_contracts::AuthorityVerb::Execute,
                     step_id: step.id.clone(),
-                    reason: format!("approval guard '{}' was denied", gate.field),
+                    reason: format!("approval guard '{shown}' was denied"),
                 });
             }
             return Err(RuntimeError::GraphBlocked {
                 step_id: step.id.clone(),
-                reason: format!("guard '{}' expected {}", gate.field, display_json(expected)),
+                reason: format!("guard '{shown}' expected {}", display_json(expected)),
             });
         }
         if let Some(disallowed) = &gate.not_equals
@@ -782,8 +783,7 @@ pub(super) fn enforce_guards(
             return Err(RuntimeError::GraphBlocked {
                 step_id: step.id.clone(),
                 reason: format!(
-                    "guard '{}' must not equal {}",
-                    gate.field,
+                    "guard '{shown}' must not equal {}",
                     display_json(disallowed)
                 ),
             });
@@ -791,11 +791,24 @@ pub(super) fn enforce_guards(
         if gate.equals.is_none() && gate.not_equals.is_none() {
             return Err(RuntimeError::GraphBlocked {
                 step_id: step.id.clone(),
-                reason: format!("guard '{}' has no comparison", gate.field),
+                reason: format!("guard '{shown}' has no comparison"),
             });
         }
     }
     Ok(())
+}
+
+/// The step whose recorded approval decision `operand` reads, when it reads
+/// one: `$steps.<ask>.approval_decision.data.approved`.
+fn approval_decision_of(operand: &Operand) -> Option<&str> {
+    match operand {
+        Operand::Reference(Source::Step { step, path })
+            if path == &["approval_decision", "data", "approved"] =>
+        {
+            Some(step)
+        }
+        _ => None,
+    }
 }
 
 fn verified_approval_references<A>(
@@ -813,13 +826,11 @@ where
         .iter()
         .flat_map(|policy| &policy.guards)
         .filter(|guard| guard.step == step.id)
-        .filter(|guard| {
-            guard.equals == Some(JsonValue::Bool(true))
-                && guard.not_equals.is_none()
-                && guard.field.ends_with(".approval_decision.data.approved")
-        })
+        .filter(|guard| guard.equals == Some(JsonValue::Bool(true)) && guard.not_equals.is_none())
     {
-        let approval_step_id = guard.field.split('.').next().unwrap_or_default();
+        let Some(approval_step_id) = approval_decision_of(&guard.value) else {
+            continue;
+        };
         let Some(approval_step) = graph
             .steps
             .iter()
@@ -839,7 +850,7 @@ where
         };
         if approval_run.skill != "ask"
             || !approval_run.outcome.succeeded()
-            || transition_field_value(&guard.field, runs) != Some(&JsonValue::Bool(true))
+            || operand_value(&guard.value, runs) != Some(&JsonValue::Bool(true))
         {
             continue;
         }
@@ -869,25 +880,31 @@ where
     Ok(references)
 }
 
-pub(super) fn transition_field_value<'a>(
-    field: &str,
+/// The value an operand holds now: a literal, or a field of a step's
+/// declared result once that step has run. Guards and conditions read the
+/// same declared result as step values do; runtime diagnostics live on
+/// `StepOutcome`, never in it, so there is no second control-flow surface.
+pub(super) fn operand_value<'a>(
+    operand: &'a Operand,
     runs: &'a [StepRun],
 ) -> Option<&'a JsonValue> {
-    let mut segments = field.split('.');
-    let step_id = segments.next()?;
-    let run = runs.iter().rev().find(|run| run.step_id == step_id)?;
-    let first = segments.next()?;
-    // Guards and `when` conditions resolve against the same declared contract
-    // as context edges. Runtime diagnostics live on `StepOutcome`, never in
-    // this map, so there is no second implicit control-flow surface.
-    let mut value = run.contract.get(first)?;
-    for segment in segments {
-        let JsonValue::Object(object) = value else {
-            return None;
-        };
-        value = object.get(segment)?;
+    match operand {
+        Operand::Literal(value) => Some(value),
+        Operand::Reference(Source::Step { step, path }) => {
+            let run = runs.iter().rev().find(|run| run.step_id == *step)?;
+            let (first, rest) = path.split_first()?;
+            crate::execution::graph::value_at(run.contract.get(first)?, rest)
+        }
+        // The run's input is bound before the graph runs.
+        Operand::Reference(Source::Input { .. }) => None,
     }
-    Some(value)
+}
+
+fn operand_text(operand: &Operand) -> String {
+    match operand {
+        Operand::Literal(value) => display_json(value),
+        Operand::Reference(source) => source.reference(),
+    }
 }
 
 pub(super) fn display_json(value: &JsonValue) -> String {
@@ -910,12 +927,15 @@ pub(super) fn when_skipped_steps(
             let Some(when) = &step.when else {
                 continue;
             };
-            let predicate_step = when.field.split('.').next().unwrap_or_default();
-            if skipped.contains(predicate_step) {
+            if when
+                .value
+                .step()
+                .is_some_and(|source| skipped.contains(source))
+            {
                 skipped.insert(step.id.clone());
                 continue;
             }
-            let Some(value) = transition_field_value(&when.field, runs) else {
+            let Some(value) = operand_value(&when.value, runs) else {
                 continue;
             };
             let satisfied = match (&when.equals, &when.not_equals) {
@@ -1001,11 +1021,11 @@ steps:
     agent: { role: test, task: source }
     outputs: { decision: string }
   - id: inspect
-    when: { field: source.decision, equals: ready }
+    when: { value: $steps.source.decision, equals: ready }
     agent: { role: test, task: inspect }
     outputs: { decision: string }
   - id: reject
-    when: { field: inspect.decision, equals: reject }
+    when: { value: $steps.inspect.decision, equals: reject }
     agent: { role: test, task: reject }
     outputs: { decision: string }
 "#,
@@ -1016,5 +1036,34 @@ steps:
         let skipped = when_skipped_steps(&graph, &[], &BTreeSet::from(["inspect".to_owned()]));
 
         assert!(skipped.contains("reject"));
+    }
+
+    #[test]
+    fn a_branch_on_the_run_input_is_decided_before_any_step_runs() {
+        let graph = validate_graph(
+            parse_graph_yaml(
+                r#"
+name: input-branch
+steps:
+  - id: apply
+    when: { value: $input.mode, equals: apply }
+    agent: { role: test, task: apply }
+  - id: preview
+    when: { value: $input.mode, not_equals: apply }
+    agent: { role: test, task: preview }
+"#,
+            )
+            .expect("fixture graph should parse"),
+        )
+        .expect("fixture graph should validate");
+        let inputs = runx_contracts::JsonObject::from([(
+            "mode".to_owned(),
+            runx_contracts::JsonValue::String("preview".to_owned()),
+        )]);
+        let graph =
+            crate::execution::graph::bind_run_inputs(graph, &inputs).expect("the run input binds");
+        let skipped = when_skipped_steps(&graph, &[], &BTreeSet::new());
+
+        assert_eq!(skipped, BTreeSet::from(["apply".to_owned()]));
     }
 }

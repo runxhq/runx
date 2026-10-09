@@ -1,5 +1,5 @@
 skill: conversation-review
-version: "0.1.1"
+version: "0.1.2"
 
 catalog:
   kind: graph
@@ -203,12 +203,13 @@ runners:
           body: $input.body
           thread: $input.thread
           source_complete: $input.source_complete
+          source_ref: $input.source_ref
+          source_digest: $input.source_digest
+          thread_locator: $input.thread_locator
         artifacts:
           named_emits:
             draft: draft
       - id: finalize
-        context:
-          draft: judge.draft.data
         inputs:
           source_ref: $input.source_ref
           source_digest: $input.source_digest
@@ -217,6 +218,7 @@ runners:
           body: $input.body
           thread: $input.thread
           source_complete: $input.source_complete
+          draft: $steps.judge.draft.data
         tool: { module: conversation-review.mjs, export: finalizeConversation }
         outputs:
           conversation_packet:
@@ -274,19 +276,18 @@ runners:
       - id: review
         skill: .
         runner: review
-        context:
-          source_ref: prepare.review_inputs.source_ref
-          source_digest: prepare.review_inputs.source_digest
-          thread_locator: prepare.review_inputs.thread_locator
-          title: prepare.review_inputs.title
-          body: prepare.review_inputs.body
-          thread: prepare.review_inputs.thread
-          source_complete: prepare.review_inputs.source_complete
+        inputs:
+          source_ref: $steps.prepare.review_inputs.source_ref
+          source_digest: $steps.prepare.review_inputs.source_digest
+          thread_locator: $steps.prepare.review_inputs.thread_locator
+          title: $steps.prepare.review_inputs.title
+          body: $steps.prepare.review_inputs.body
+          thread: $steps.prepare.review_inputs.thread
+          source_complete: $steps.prepare.review_inputs.source_complete
       - id: finish
-        context:
-          conversation_packet: review.conversation_packet.data
         inputs:
           handoff_routes: $input.handoff_routes
+          conversation_packet: $steps.review.conversation_packet.data
         tool: { module: conversation-review.mjs, export: finishWork }
         outputs: { work_result: object }
         artifacts:

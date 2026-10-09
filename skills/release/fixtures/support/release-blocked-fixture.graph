@@ -12,6 +12,5 @@ steps:
     inputs:
       channel: fixture
       version: 1.2.3
-    context:
-      project_root: setup.project_root
-      profile_ref: setup.profile_ref
+      project_root: $steps.setup.project_root
+      profile_ref: $steps.setup.profile_ref

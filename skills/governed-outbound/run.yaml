@@ -1,5 +1,5 @@
 skill: governed-outbound
-version: "0.3.5"
+version: "0.3.6"
 catalog:
   kind: graph
   audience: public
@@ -187,11 +187,11 @@ runners:
         scopes: [runx:content:read]
         inputs:
           mode: redact
-        context:
-          content: fetch-source.provider_operation.data.result.extracted
+          content: $steps.fetch-source.provider_operation.data.result.extracted
+          operator_context: $input.operator_context
       - id: send
         when:
-          field: scrub-content.redaction_report.data.decision
+          value: $steps.scrub-content.redaction_report.data.decision
           equals: ready
         skill: ../send-as
         runner: send
@@ -201,8 +201,7 @@ runners:
           audience: $input.channel
           operator_context: $input.operator_context
           connector: $input.connector
-        context:
-          content_ref: scrub-content.redaction_report.data
+          content_ref: $steps.scrub-content.redaction_report.data
 
   plan:
     inputs:
@@ -246,8 +245,8 @@ runners:
           - runx:content:read
         inputs:
           mode: redact
-        context:
-          content: fetch-source.provider_operation.data.result.extracted
+          content: $steps.fetch-source.provider_operation.data.result.extracted
+          operator_context: $input.operator_context
       - id: plan-notice
         label: prepare the governed notification plan
         skill: ../send-as
@@ -257,17 +256,16 @@ runners:
           principal: $input.principal
           audience: $input.channel
           provider_context: $input.operator_context
-        context:
-          content_ref: scrub-content.redaction_report.data
+          content_ref: $steps.scrub-content.redaction_report.data
+          operator_context: $input.operator_context
       - id: finalize
         label: validate and seal the plan-only handoff
         inputs:
           principal: $input.principal
           channel: $input.channel
-        context:
-          source: fetch-source.provider_operation.data.result
-          redaction: scrub-content.redaction_report.data
-          send_plan: plan-notice.send_plan.data
+          source: $steps.fetch-source.provider_operation.data.result
+          redaction: $steps.scrub-content.redaction_report.data
+          send_plan: $steps.plan-notice.send_plan.data
         tool: { module: governed-outbound.mjs }
         outputs:
           outbound_plan:
@@ -325,8 +323,8 @@ runners:
     policy:
       guards:
         - step: plan-notice
-          field: scrub-content.redaction_report.data.decision
+          value: $steps.scrub-content.redaction_report.data.decision
           equals: ready
         - step: finalize
-          field: scrub-content.redaction_report.data.decision
+          value: $steps.scrub-content.redaction_report.data.decision
           equals: ready

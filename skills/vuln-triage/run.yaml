@@ -1,5 +1,5 @@
 skill: vuln-triage
-version: "0.3.1"
+version: "0.3.2"
 
 catalog:
   kind: skill
@@ -44,8 +44,7 @@ runners:
           target: $input.target
           cve_evidence: $input.cve_evidence
           scan_context: $input.scan_context
-        context:
-          evidence_digest: digest-evidence.digest_result.data.digest
+          evidence_digest: $steps.digest-evidence.digest_result.data.digest
         tool: { module: vuln-triage.mjs, export: admitScan }
         outputs:
           triage_context: object
@@ -55,26 +54,28 @@ runners:
 
       - id: assess
         when:
-          field: admit.triage_context.data.path
+          value: $steps.admit.triage_context.data.path
           equals: assess
         agent: { role: reviewer, task: vuln-triage-assess }
         outputs:
           risk_assessment_draft: object
         inputs:
           objective: $input.objective
-        context:
-          triage_context: admit.triage_context.data
+          triage_context: $steps.admit.triage_context.data
+          target: $input.target
+          cve_evidence: $input.cve_evidence
+          scan_context: $input.scan_context
         artifacts:
           named_emits:
             risk_assessment_draft: risk_assessment_draft
 
       - id: finalize
         when:
-          field: admit.triage_context.data.path
+          value: $steps.admit.triage_context.data.path
           equals: assess
-        context:
-          triage_context: admit.triage_context.data
-          risk_assessment_draft: assess.risk_assessment_draft.data
+        inputs:
+          triage_context: $steps.admit.triage_context.data
+          risk_assessment_draft: $steps.assess.risk_assessment_draft.data
         tool: { module: vuln-triage.mjs, export: finalizeScan }
         outputs:
           vulnerability_scan_packet: object
@@ -86,10 +87,10 @@ runners:
 
       - id: finalize-clean
         when:
-          field: admit.triage_context.data.path
+          value: $steps.admit.triage_context.data.path
           equals: complete
-        context:
-          triage_context: admit.triage_context.data
+        inputs:
+          triage_context: $steps.admit.triage_context.data
         tool: { module: vuln-triage.mjs, export: finalizeScan }
         outputs:
           vulnerability_scan_packet: object
@@ -101,10 +102,10 @@ runners:
 
       - id: stop
         when:
-          field: admit.triage_context.data.path
+          value: $steps.admit.triage_context.data.path
           equals: stop
-        context:
-          triage_context: admit.triage_context.data
+        inputs:
+          triage_context: $steps.admit.triage_context.data
         tool: { module: vuln-triage.mjs, export: finalizeScan }
         outputs:
           vulnerability_scan_packet: object
@@ -141,24 +142,26 @@ runners:
 
       - id: draft
         when:
-          field: admit.advisory_context.data.path
+          value: $steps.admit.advisory_context.data.path
           equals: draft
         agent: { role: builder, task: vuln-triage-advisory }
         outputs:
           advisory_draft: object
-        context:
-          advisory_context: admit.advisory_context.data
+        inputs:
+          advisory_context: $steps.admit.advisory_context.data
+          triage_packet: $input.triage_packet
+          audience: $input.audience
         artifacts:
           named_emits:
             advisory_draft: advisory_draft
 
       - id: finalize
         when:
-          field: admit.advisory_context.data.path
+          value: $steps.admit.advisory_context.data.path
           equals: draft
-        context:
-          advisory_context: admit.advisory_context.data
-          advisory_draft: draft.advisory_draft.data
+        inputs:
+          advisory_context: $steps.admit.advisory_context.data
+          advisory_draft: $steps.draft.advisory_draft.data
         tool: { module: vuln-triage.mjs, export: finalizeAdvisory }
         outputs:
           vulnerability_advisory_packet: object
@@ -170,10 +173,10 @@ runners:
 
       - id: stop
         when:
-          field: admit.advisory_context.data.path
+          value: $steps.admit.advisory_context.data.path
           equals: stop
-        context:
-          advisory_context: admit.advisory_context.data
+        inputs:
+          advisory_context: $steps.admit.advisory_context.data
         tool: { module: vuln-triage.mjs, export: finalizeAdvisory }
         outputs:
           vulnerability_advisory_packet: object

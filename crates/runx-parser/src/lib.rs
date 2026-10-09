@@ -26,10 +26,10 @@ pub use dev_fixture::{
 pub use error::{ParseError, ParseErrorKind, ValidationError, ValidationErrorKind};
 pub use eval::{ParserEvalError, ParserEvalOutput, evaluate_parser_document_str};
 pub use graph::{
-    AgentTask, AskGate, DuplicatePolicy, ExecutionGraph, GraphContextEdge, GraphGuard, GraphPolicy,
-    GraphStep, OperationStepTarget, ProcessTool, RawGraphIr, SkillTarget, StepKind, ToolTarget,
-    UncertainOutcome, WorkerTool, parse_graph_yaml, validate_graph, validate_graph_document,
-    validate_process_tool,
+    AgentTask, AskGate, Binding, DuplicatePolicy, ExecutionGraph, GraphGuard, GraphPolicy,
+    GraphStep, GraphWhen, Operand, OperationStepTarget, ProcessTool, RawGraphIr, SkillTarget,
+    Source, StepKind, ToolTarget, UncertainOutcome, WorkerTool, parse_graph_yaml, validate_graph,
+    validate_graph_document, validate_process_tool,
 };
 pub use harness_fixture::{
     HarnessProviderAccess, HarnessProviderGrantFixture, HarnessProviderOperationFixture,

@@ -1,5 +1,5 @@
 skill: reddit
-version: "0.1.0"
+version: "0.1.1"
 catalog: { kind: graph, audience: operator, visibility: public, role: canonical, execution: read, completion: runtime_receipt, requires_adapter: true, approval: conditional }
 input_definitions:
   account_id:
@@ -97,8 +97,10 @@ runners:
             type: string
             schema:
               enum: [idle, held]
-        context: { account_state: account-state.data_operation_result.data, writer_state: writer-state.data_operation_result.data }
-        inputs: { account_id: $input.account_id }
+        inputs:
+          account_id: $input.account_id
+          account_state: $steps.account-state.data_operation_result.data
+          writer_state: $steps.writer-state.data_operation_result.data
       - id: research
         agent: { role: operator, task: reddit-research }
         outputs:
@@ -200,8 +202,12 @@ runners:
                   items: { type: string, minLength: 1, maxLength: 1000 }
                 next_step: { type: string, minLength: 1, maxLength: 2000 }
                 effect_status: { type: string, const: not_submitted }
-        context: { account: load.account, writer_status: load.writer_status }
-        inputs: { objective: $input.objective, prior_evidence: $input.prior_evidence }
+        inputs:
+          objective: $input.objective
+          prior_evidence: $input.prior_evidence
+          account: $steps.load.account
+          writer_status: $steps.load.writer_status
+          account_id: $input.account_id
       - id: target-check
         tool: { module: reddit.mjs, export: validateResearch }
         outputs:
@@ -313,7 +319,9 @@ runners:
                 reason: { type: string, minLength: 0, maxLength: 1000 }
                 candidate_count: { type: integer, minimum: 0 }
                 draft_count: { type: integer, minimum: 0 }
-        context: { research: research.research, account: load.account }
+        inputs:
+          research: $steps.research.research
+          account: $steps.load.account
     default: true
   configure:
     inputs:
@@ -472,16 +480,24 @@ runners:
                           type: array
                           maxItems: 5
                           items: { type: string, minLength: 1, maxLength: 1200 }
-        context: {}
-        inputs: { account_id: $input.account_id, config: $input.config, expected_version: $input.expected_version }
+        inputs:
+          account_id: $input.account_id
+          config: $input.config
+          expected_version: $input.expected_version
       - id: digest
         tool: data.digest
-        context: { value: prepare.configuration }
+        inputs:
+          value: $steps.prepare.configuration
       - id: save
         skill: ../data-store
         runner: append_event
-        inputs: { data_source_ref: 'local://reddit', resource: reddit_accounts, aggregate_id: $input.account_id, expected_version: $input.expected_version }
-        context: { event: prepare.event, idempotency_key: digest.digest_result.data.digest }
+        inputs:
+          data_source_ref: local://reddit
+          resource: reddit_accounts
+          aggregate_id: $input.account_id
+          expected_version: $input.expected_version
+          event: $steps.prepare.event
+          idempotency_key: $steps.digest.digest_result.data.digest
   accounts:
     inputs:
       cursor:
@@ -546,16 +562,21 @@ runners:
                 target: { type: string, minLength: 1, maxLength: 2048 }
                 title: { type: string, minLength: 0, maxLength: 300 }
                 body: { type: string, minLength: 0, maxLength: 10000 }
-        context: {}
-        inputs: { account_id: $input.account_id, action: $input.action }
+        inputs:
+          account_id: $input.account_id
+          action: $input.action
       - id: action-digest
         tool: data.digest
-        context: { value: identify.identity }
+        inputs:
+          value: $steps.identify.identity
       - id: attempt-state
         skill: ../data-store
         runner: read_events
-        inputs: { data_source_ref: 'local://reddit', resource: reddit_attempts, limit: 1 }
-        context: { aggregate_id: action-digest.digest_result.data.digest }
+        inputs:
+          data_source_ref: local://reddit
+          resource: reddit_attempts
+          limit: 1
+          aggregate_id: $steps.action-digest.digest_result.data.digest
       - id: prepare
         tool: { module: reddit.mjs, export: prepare }
         outputs:
@@ -634,16 +655,26 @@ runners:
                     - { type: 'null' }
                 admitted: { type: boolean }
                 reason: { type: string, minLength: 0, maxLength: 3000 }
-        context: { account_state: account-state.data_operation_result.data, writer_state: writer-state.data_operation_result.data, attempt_id: action-digest.digest_result.data.digest, attempt_state: attempt-state.data_operation_result.data }
-        inputs: { account_id: $input.account_id, action: $input.action }
+        inputs:
+          account_id: $input.account_id
+          action: $input.action
+          account_state: $steps.account-state.data_operation_result.data
+          writer_state: $steps.writer-state.data_operation_result.data
+          attempt_id: $steps.action-digest.digest_result.data.digest
+          attempt_state: $steps.attempt-state.data_operation_result.data
       - id: digest
         tool: data.digest
-        context: { value: prepare.admission.prepared }
-        when: { field: prepare.admission.admitted, equals: true }
+        inputs:
+          value: $steps.prepare.admission.prepared
+        when: { value: $steps.prepare.admission.admitted, equals: true }
       - id: approve
         ask: { gate: reddit.publish, reason: 'Approve this exact Reddit account, profile, target, title and plain-text body for one browser submission.' }
-        context: { exact_action: prepare.admission.prepared, plan_digest: digest.digest_result.data.digest }
-        when: { field: prepare.admission.admitted, equals: true }
+        inputs:
+          exact_action: $steps.prepare.admission.prepared
+          plan_digest: $steps.digest.digest_result.data.digest
+          account_id: $input.account_id
+          action: $input.action
+        when: { value: $steps.prepare.admission.admitted, equals: true }
       - id: reserve
         tool: { module: reddit.mjs, export: reserve }
         outputs:
@@ -789,20 +820,32 @@ runners:
           idempotency_key:
             type: string
             schema: { minLength: 1, maxLength: 200 }
-        context: { prepared: prepare.admission.prepared, digest: digest.digest_result.data.digest }
-        when: { field: prepare.admission.admitted, equals: true }
+        inputs:
+          prepared: $steps.prepare.admission.prepared
+          digest: $steps.digest.digest_result.data.digest
+        when: { value: $steps.prepare.admission.admitted, equals: true }
       - id: claim
         skill: ../data-store
         runner: append_event
-        inputs: { data_source_ref: 'local://reddit', resource: reddit_browser, aggregate_id: writer }
-        context: { event: reserve.reservation, idempotency_key: reserve.idempotency_key, expected_version: reserve.expected_version }
-        when: { field: prepare.admission.admitted, equals: true }
+        inputs:
+          data_source_ref: local://reddit
+          resource: reddit_browser
+          aggregate_id: writer
+          event: $steps.reserve.reservation
+          idempotency_key: $steps.reserve.idempotency_key
+          expected_version: $steps.reserve.expected_version
+        when: { value: $steps.prepare.admission.admitted, equals: true }
       - id: attempt-claim
         skill: ../data-store
         runner: append_event
-        inputs: { data_source_ref: 'local://reddit', resource: reddit_attempts }
-        context: { event: reserve.reservation, idempotency_key: reserve.idempotency_key, expected_version: prepare.admission.prepared.attempt_version, aggregate_id: reserve.reservation.attempt_id }
-        when: { field: prepare.admission.admitted, equals: true }
+        inputs:
+          data_source_ref: local://reddit
+          resource: reddit_attempts
+          event: $steps.reserve.reservation
+          idempotency_key: $steps.reserve.idempotency_key
+          expected_version: $steps.prepare.admission.prepared.attempt_version
+          aggregate_id: $steps.reserve.reservation.attempt_id
+        when: { value: $steps.prepare.admission.admitted, equals: true }
       - id: submit
         agent: { role: operator, task: reddit-submit }
         outputs:
@@ -837,8 +880,12 @@ runners:
                   type: string
                   enum: [up, none, unknown]
                 effect_attempted: { type: boolean }
-        context: { reservation: reserve.reservation, claim: claim.data_operation_result.data }
-        when: { field: prepare.admission.admitted, equals: true }
+        inputs:
+          reservation: $steps.reserve.reservation
+          claim: $steps.claim.data_operation_result.data
+          account_id: $input.account_id
+          action: $input.action
+        when: { value: $steps.prepare.admission.admitted, equals: true }
       - id: finish
         tool: { module: reddit.mjs, export: finish }
         outputs:
@@ -981,20 +1028,32 @@ runners:
           idempotency_key:
             type: string
             schema: { minLength: 1, maxLength: 200 }
-        context: { reservation: reserve.reservation, observation: submit.observation }
-        when: { field: prepare.admission.admitted, equals: true }
+        inputs:
+          reservation: $steps.reserve.reservation
+          observation: $steps.submit.observation
+        when: { value: $steps.prepare.admission.admitted, equals: true }
       - id: attempt-record
         skill: ../data-store
         runner: append_event
-        inputs: { data_source_ref: 'local://reddit', resource: reddit_attempts }
-        context: { event: finish.transition, idempotency_key: finish.idempotency_key, expected_version: attempt-claim.data_operation_result.data.after_version, aggregate_id: reserve.reservation.attempt_id }
-        when: { field: prepare.admission.admitted, equals: true }
+        inputs:
+          data_source_ref: local://reddit
+          resource: reddit_attempts
+          event: $steps.finish.transition
+          idempotency_key: $steps.finish.idempotency_key
+          expected_version: $steps.attempt-claim.data_operation_result.data.after_version
+          aggregate_id: $steps.reserve.reservation.attempt_id
+        when: { value: $steps.prepare.admission.admitted, equals: true }
       - id: record
         skill: ../data-store
         runner: append_event
-        inputs: { data_source_ref: 'local://reddit', resource: reddit_browser, aggregate_id: writer }
-        context: { event: finish.transition, idempotency_key: finish.idempotency_key, expected_version: claim.data_operation_result.data.after_version }
-        when: { field: prepare.admission.admitted, equals: true }
+        inputs:
+          data_source_ref: local://reddit
+          resource: reddit_browser
+          aggregate_id: writer
+          event: $steps.finish.transition
+          idempotency_key: $steps.finish.idempotency_key
+          expected_version: $steps.claim.data_operation_result.data.after_version
+        when: { value: $steps.prepare.admission.admitted, equals: true }
       - id: finalize
         tool: { module: reddit.mjs, export: recordOutcome }
         outputs:
@@ -1060,8 +1119,10 @@ runners:
                 state_version: { type: integer, minimum: 0 }
                 event_ref: { type: string, minLength: 0, maxLength: 2048 }
                 reason: { type: string, minLength: 0, maxLength: 8000 }
-        context: { transition: finish.transition, record: record.data_operation_result.data }
-        when: { field: prepare.admission.admitted, equals: true }
+        inputs:
+          transition: $steps.finish.transition
+          record: $steps.record.data_operation_result.data
+        when: { value: $steps.prepare.admission.admitted, equals: true }
       - id: refused
         tool: { module: reddit.mjs, export: refuse }
         outputs:
@@ -1127,17 +1188,19 @@ runners:
                 state_version: { type: integer, minimum: 0 }
                 event_ref: { type: string, minLength: 0, maxLength: 2048 }
                 reason: { type: string, minLength: 0, maxLength: 8000 }
-        context: { reason: prepare.admission.reason }
-        inputs: { account_id: $input.account_id, action: $input.action }
-        when: { field: prepare.admission.admitted, equals: false }
+        inputs:
+          account_id: $input.account_id
+          action: $input.action
+          reason: $steps.prepare.admission.reason
+        when: { value: $steps.prepare.admission.admitted, equals: false }
     policy:
       guards:
-        - { step: reserve, field: approve.approval_decision.data.approved, equals: true }
-        - { step: claim, field: approve.approval_decision.data.approved, equals: true }
-        - { step: submit, field: claim.data_operation_result.data.status, equals: committed }
-        - { step: attempt-claim, field: claim.data_operation_result.data.status, equals: committed }
-        - { step: submit, field: attempt-claim.data_operation_result.data.status, equals: committed }
-        - { step: record, field: attempt-record.data_operation_result.data.status, equals: committed }
+        - { step: reserve, value: $steps.approve.approval_decision.data.approved, equals: true }
+        - { step: claim, value: $steps.approve.approval_decision.data.approved, equals: true }
+        - { step: submit, value: $steps.claim.data_operation_result.data.status, equals: committed }
+        - { step: attempt-claim, value: $steps.claim.data_operation_result.data.status, equals: committed }
+        - { step: submit, value: $steps.attempt-claim.data_operation_result.data.status, equals: committed }
+        - { step: record, value: $steps.attempt-record.data_operation_result.data.status, equals: committed }
   vote:
     inputs:
       account_id: { definition: account_id }
@@ -1191,16 +1254,21 @@ runners:
                 target: { type: string, minLength: 1, maxLength: 2048 }
                 title: { type: string, minLength: 0, maxLength: 300 }
                 body: { type: string, minLength: 0, maxLength: 10000 }
-        context: {}
-        inputs: { account_id: $input.account_id, action: $input.action }
+        inputs:
+          account_id: $input.account_id
+          action: $input.action
       - id: action-digest
         tool: data.digest
-        context: { value: identify.identity }
+        inputs:
+          value: $steps.identify.identity
       - id: attempt-state
         skill: ../data-store
         runner: read_events
-        inputs: { data_source_ref: 'local://reddit', resource: reddit_attempts, limit: 1 }
-        context: { aggregate_id: action-digest.digest_result.data.digest }
+        inputs:
+          data_source_ref: local://reddit
+          resource: reddit_attempts
+          limit: 1
+          aggregate_id: $steps.action-digest.digest_result.data.digest
       - id: prepare
         tool: { module: reddit.mjs, export: prepare }
         outputs:
@@ -1279,16 +1347,27 @@ runners:
                     - { type: 'null' }
                 admitted: { type: boolean }
                 reason: { type: string, minLength: 0, maxLength: 3000 }
-        context: { account_state: account-state.data_operation_result.data, writer_state: writer-state.data_operation_result.data, target_account_state: target-account.data_operation_result.data, attempt_id: action-digest.digest_result.data.digest, attempt_state: attempt-state.data_operation_result.data }
-        inputs: { account_id: $input.account_id, action: $input.action }
+        inputs:
+          account_id: $input.account_id
+          action: $input.action
+          account_state: $steps.account-state.data_operation_result.data
+          writer_state: $steps.writer-state.data_operation_result.data
+          target_account_state: $steps.target-account.data_operation_result.data
+          attempt_id: $steps.action-digest.digest_result.data.digest
+          attempt_state: $steps.attempt-state.data_operation_result.data
       - id: digest
         tool: data.digest
-        context: { value: prepare.admission.prepared }
-        when: { field: prepare.admission.admitted, equals: true }
+        inputs:
+          value: $steps.prepare.admission.prepared
+        when: { value: $steps.prepare.admission.admitted, equals: true }
       - id: approve
         ask: { gate: reddit.vote, reason: Approve one upvote of this exact target and author with the selected account. No coordinated voting. }
-        context: { exact_action: prepare.admission.prepared, plan_digest: digest.digest_result.data.digest }
-        when: { field: prepare.admission.admitted, equals: true }
+        inputs:
+          exact_action: $steps.prepare.admission.prepared
+          plan_digest: $steps.digest.digest_result.data.digest
+          account_id: $input.account_id
+          action: $input.action
+        when: { value: $steps.prepare.admission.admitted, equals: true }
       - id: reserve
         tool: { module: reddit.mjs, export: reserve }
         outputs:
@@ -1434,20 +1513,32 @@ runners:
           idempotency_key:
             type: string
             schema: { minLength: 1, maxLength: 200 }
-        context: { prepared: prepare.admission.prepared, digest: digest.digest_result.data.digest }
-        when: { field: prepare.admission.admitted, equals: true }
+        inputs:
+          prepared: $steps.prepare.admission.prepared
+          digest: $steps.digest.digest_result.data.digest
+        when: { value: $steps.prepare.admission.admitted, equals: true }
       - id: claim
         skill: ../data-store
         runner: append_event
-        inputs: { data_source_ref: 'local://reddit', resource: reddit_browser, aggregate_id: writer }
-        context: { event: reserve.reservation, idempotency_key: reserve.idempotency_key, expected_version: reserve.expected_version }
-        when: { field: prepare.admission.admitted, equals: true }
+        inputs:
+          data_source_ref: local://reddit
+          resource: reddit_browser
+          aggregate_id: writer
+          event: $steps.reserve.reservation
+          idempotency_key: $steps.reserve.idempotency_key
+          expected_version: $steps.reserve.expected_version
+        when: { value: $steps.prepare.admission.admitted, equals: true }
       - id: attempt-claim
         skill: ../data-store
         runner: append_event
-        inputs: { data_source_ref: 'local://reddit', resource: reddit_attempts }
-        context: { event: reserve.reservation, idempotency_key: reserve.idempotency_key, expected_version: prepare.admission.prepared.attempt_version, aggregate_id: reserve.reservation.attempt_id }
-        when: { field: prepare.admission.admitted, equals: true }
+        inputs:
+          data_source_ref: local://reddit
+          resource: reddit_attempts
+          event: $steps.reserve.reservation
+          idempotency_key: $steps.reserve.idempotency_key
+          expected_version: $steps.prepare.admission.prepared.attempt_version
+          aggregate_id: $steps.reserve.reservation.attempt_id
+        when: { value: $steps.prepare.admission.admitted, equals: true }
       - id: submit
         agent: { role: operator, task: reddit-vote }
         outputs:
@@ -1482,8 +1573,12 @@ runners:
                   type: string
                   enum: [up, none, unknown]
                 effect_attempted: { type: boolean }
-        context: { reservation: reserve.reservation, claim: claim.data_operation_result.data }
-        when: { field: prepare.admission.admitted, equals: true }
+        inputs:
+          reservation: $steps.reserve.reservation
+          claim: $steps.claim.data_operation_result.data
+          account_id: $input.account_id
+          action: $input.action
+        when: { value: $steps.prepare.admission.admitted, equals: true }
       - id: finish
         tool: { module: reddit.mjs, export: finish }
         outputs:
@@ -1626,20 +1721,32 @@ runners:
           idempotency_key:
             type: string
             schema: { minLength: 1, maxLength: 200 }
-        context: { reservation: reserve.reservation, observation: submit.observation }
-        when: { field: prepare.admission.admitted, equals: true }
+        inputs:
+          reservation: $steps.reserve.reservation
+          observation: $steps.submit.observation
+        when: { value: $steps.prepare.admission.admitted, equals: true }
       - id: attempt-record
         skill: ../data-store
         runner: append_event
-        inputs: { data_source_ref: 'local://reddit', resource: reddit_attempts }
-        context: { event: finish.transition, idempotency_key: finish.idempotency_key, expected_version: attempt-claim.data_operation_result.data.after_version, aggregate_id: reserve.reservation.attempt_id }
-        when: { field: prepare.admission.admitted, equals: true }
+        inputs:
+          data_source_ref: local://reddit
+          resource: reddit_attempts
+          event: $steps.finish.transition
+          idempotency_key: $steps.finish.idempotency_key
+          expected_version: $steps.attempt-claim.data_operation_result.data.after_version
+          aggregate_id: $steps.reserve.reservation.attempt_id
+        when: { value: $steps.prepare.admission.admitted, equals: true }
       - id: record
         skill: ../data-store
         runner: append_event
-        inputs: { data_source_ref: 'local://reddit', resource: reddit_browser, aggregate_id: writer }
-        context: { event: finish.transition, idempotency_key: finish.idempotency_key, expected_version: claim.data_operation_result.data.after_version }
-        when: { field: prepare.admission.admitted, equals: true }
+        inputs:
+          data_source_ref: local://reddit
+          resource: reddit_browser
+          aggregate_id: writer
+          event: $steps.finish.transition
+          idempotency_key: $steps.finish.idempotency_key
+          expected_version: $steps.claim.data_operation_result.data.after_version
+        when: { value: $steps.prepare.admission.admitted, equals: true }
       - id: finalize
         tool: { module: reddit.mjs, export: recordOutcome }
         outputs:
@@ -1705,8 +1812,10 @@ runners:
                 state_version: { type: integer, minimum: 0 }
                 event_ref: { type: string, minLength: 0, maxLength: 2048 }
                 reason: { type: string, minLength: 0, maxLength: 8000 }
-        context: { transition: finish.transition, record: record.data_operation_result.data }
-        when: { field: prepare.admission.admitted, equals: true }
+        inputs:
+          transition: $steps.finish.transition
+          record: $steps.record.data_operation_result.data
+        when: { value: $steps.prepare.admission.admitted, equals: true }
       - id: refused
         tool: { module: reddit.mjs, export: refuse }
         outputs:
@@ -1772,17 +1881,19 @@ runners:
                 state_version: { type: integer, minimum: 0 }
                 event_ref: { type: string, minLength: 0, maxLength: 2048 }
                 reason: { type: string, minLength: 0, maxLength: 8000 }
-        context: { reason: prepare.admission.reason }
-        inputs: { account_id: $input.account_id, action: $input.action }
-        when: { field: prepare.admission.admitted, equals: false }
+        inputs:
+          account_id: $input.account_id
+          action: $input.action
+          reason: $steps.prepare.admission.reason
+        when: { value: $steps.prepare.admission.admitted, equals: false }
     policy:
       guards:
-        - { step: reserve, field: approve.approval_decision.data.approved, equals: true }
-        - { step: claim, field: approve.approval_decision.data.approved, equals: true }
-        - { step: submit, field: claim.data_operation_result.data.status, equals: committed }
-        - { step: attempt-claim, field: claim.data_operation_result.data.status, equals: committed }
-        - { step: submit, field: attempt-claim.data_operation_result.data.status, equals: committed }
-        - { step: record, field: attempt-record.data_operation_result.data.status, equals: committed }
+        - { step: reserve, value: $steps.approve.approval_decision.data.approved, equals: true }
+        - { step: claim, value: $steps.approve.approval_decision.data.approved, equals: true }
+        - { step: submit, value: $steps.claim.data_operation_result.data.status, equals: committed }
+        - { step: attempt-claim, value: $steps.claim.data_operation_result.data.status, equals: committed }
+        - { step: submit, value: $steps.attempt-claim.data_operation_result.data.status, equals: committed }
+        - { step: record, value: $steps.attempt-record.data_operation_result.data.status, equals: committed }
   reconcile:
     inputs:
       account_id: { definition: account_id }
@@ -1952,13 +2063,17 @@ runners:
                     effect_possible: { type: boolean }
                     assessment: { type: string, minLength: 0, maxLength: 8000 }
                 version: { type: integer, minimum: 0 }
-        context: { writer_state: writer-state.data_operation_result.data }
-        inputs: { account_id: $input.account_id }
+        inputs:
+          account_id: $input.account_id
+          writer_state: $steps.writer-state.data_operation_result.data
       - id: attempt-state
         skill: ../data-store
         runner: read_events
-        inputs: { data_source_ref: 'local://reddit', resource: reddit_attempts, limit: 1 }
-        context: { aggregate_id: pending.pending.reservation.attempt_id }
+        inputs:
+          data_source_ref: local://reddit
+          resource: reddit_attempts
+          limit: 1
+          aggregate_id: $steps.pending.pending.reservation.attempt_id
       - id: observe
         agent: { role: operator, task: reddit-reconcile }
         outputs:
@@ -1993,7 +2108,11 @@ runners:
                   type: string
                   enum: [up, none, unknown]
                 effect_attempted: { type: boolean }
-        context: { pending: pending.pending }
+        inputs:
+          pending: $steps.pending.pending
+          account_id: $input.account_id
+          disposition: $input.disposition
+          closure_reason: $input.closure_reason
       - id: resolve
         tool: { module: reddit.mjs, export: resolve }
         outputs:
@@ -2139,21 +2258,40 @@ runners:
           idempotency_key:
             type: string
             schema: { minLength: 1, maxLength: 200 }
-        context: { pending: pending.pending, observation: observe.observation }
-        inputs: { disposition: $input.disposition, closure_reason: $input.closure_reason }
+        inputs:
+          disposition: $input.disposition
+          closure_reason: $input.closure_reason
+          pending: $steps.pending.pending
+          observation: $steps.observe.observation
       - id: approve
         ask: { gate: reddit.reconcile, reason: Approve this exact reconciliation disposition. A closed_by_operator disposition records no success and never retries; confirm the original host work has stopped before releasing the hold. }
-        context: { resolution: resolve.resolution, prior_attempt: pending.pending.reservation, state_version: resolve.expected_version }
+        inputs:
+          resolution: $steps.resolve.resolution
+          prior_attempt: $steps.pending.pending.reservation
+          state_version: $steps.resolve.expected_version
+          account_id: $input.account_id
+          disposition: $input.disposition
+          closure_reason: $input.closure_reason
       - id: attempt-record
         skill: ../data-store
         runner: append_event
-        inputs: { data_source_ref: 'local://reddit', resource: reddit_attempts }
-        context: { event: resolve.resolution, idempotency_key: resolve.idempotency_key, expected_version: attempt-state.data_operation_result.data.after_version, aggregate_id: pending.pending.reservation.attempt_id }
+        inputs:
+          data_source_ref: local://reddit
+          resource: reddit_attempts
+          event: $steps.resolve.resolution
+          idempotency_key: $steps.resolve.idempotency_key
+          expected_version: $steps.attempt-state.data_operation_result.data.after_version
+          aggregate_id: $steps.pending.pending.reservation.attempt_id
       - id: record
         skill: ../data-store
         runner: append_event
-        inputs: { data_source_ref: 'local://reddit', resource: reddit_browser, aggregate_id: writer }
-        context: { event: resolve.resolution, idempotency_key: resolve.idempotency_key, expected_version: resolve.expected_version }
+        inputs:
+          data_source_ref: local://reddit
+          resource: reddit_browser
+          aggregate_id: writer
+          event: $steps.resolve.resolution
+          idempotency_key: $steps.resolve.idempotency_key
+          expected_version: $steps.resolve.expected_version
       - id: finalize
         tool: { module: reddit.mjs, export: recordOutcome }
         outputs:
@@ -2219,12 +2357,14 @@ runners:
                 state_version: { type: integer, minimum: 0 }
                 event_ref: { type: string, minLength: 0, maxLength: 2048 }
                 reason: { type: string, minLength: 0, maxLength: 8000 }
-        context: { transition: resolve.resolution, record: record.data_operation_result.data }
+        inputs:
+          transition: $steps.resolve.resolution
+          record: $steps.record.data_operation_result.data
     policy:
       guards:
-        - { step: record, field: approve.approval_decision.data.approved, equals: true }
-        - { step: attempt-record, field: approve.approval_decision.data.approved, equals: true }
-        - { step: record, field: attempt-record.data_operation_result.data.status, equals: committed }
+        - { step: record, value: $steps.approve.approval_decision.data.approved, equals: true }
+        - { step: attempt-record, value: $steps.approve.approval_decision.data.approved, equals: true }
+        - { step: record, value: $steps.attempt-record.data_operation_result.data.status, equals: committed }
 harness:
   files: [fixtures/support/discovery.graph, fixtures/support/close.graph, fixtures/support/close_continue.graph, fixtures/support/close_intervening_retry.graph, fixtures/support/close_retry.graph, fixtures/support/malformed_close.graph, fixtures/support/published_intervening_retry.graph, fixtures/support/recover.graph, fixtures/support/reddit-managed-account-vote-refused.graph, fixtures/support/reddit-markdown-link-refused.graph, fixtures/support/reddit-mixed-case-vote-readback.graph, fixtures/support/reddit-post-readback.graph, fixtures/support/reddit-self-vote-refused.graph, fixtures/support/reddit-upvote-readback.graph, fixtures/support/reddit-upvote-real-title.graph, fixtures/support/released_retry.graph, fixtures/support/rereconcile_retry.graph, fixtures/support/retry.graph, fixtures/support/session.graph]
   cases: []

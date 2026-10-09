@@ -1,5 +1,5 @@
 skill: github-sync
-version: "0.5.5"
+version: "0.5.6"
 
 catalog:
   kind: skill
@@ -345,16 +345,15 @@ runners:
 
       - id: pull
         when:
-          field: plan.sync_plan.data.decision
+          value: $steps.plan.sync_plan.data.decision
           equals: ready
         operation: github
-        context:
-          operation: plan.sync_plan.data.provider_operation
-          input: plan.sync_plan.data.provider_input
+        operation_name: $steps.plan.sync_plan.data.provider_operation
+        input: $steps.plan.sync_plan.data.provider_input
 
       - id: push
         when:
-          field: plan.sync_plan.data.decision
+          value: $steps.plan.sync_plan.data.decision
           equals: ready_for_execution
         skill: .
         runner: push
@@ -416,12 +415,11 @@ runners:
 
       - id: pull
         when:
-          field: plan.sync_plan.data.decision
+          value: $steps.plan.sync_plan.data.decision
           equals: ready
         operation: github
-        context:
-          operation: plan.sync_plan.data.provider_operation
-          input: plan.sync_plan.data.provider_input
+        operation_name: $steps.plan.sync_plan.data.provider_operation
+        input: $steps.plan.sync_plan.data.provider_input
 
   push:
     inputs:
@@ -457,13 +455,12 @@ runners:
 
       - id: apply
         when:
-          field: plan.sync_plan.data.decision
+          value: $steps.plan.sync_plan.data.decision
           equals: ready_for_execution
         operation: github
         idempotency_key: $input.idempotency_key
-        context:
-          operation: plan.sync_plan.data.provider_operation
-          input: plan.sync_plan.data.provider_input
+        operation_name: $steps.plan.sync_plan.data.provider_operation
+        input: $steps.plan.sync_plan.data.provider_input
 
   plan_and_append_cursor:
     inputs:
@@ -535,8 +532,7 @@ runners:
           aggregate_id: $input.aggregate_id
           expected_version: $input.expected_version
           idempotency_key: $input.idempotency_key
-        context:
-          event: plan.sync_plan.data
+          event: $steps.plan.sync_plan.data
 
       - id: readback
         skill: ../data-store

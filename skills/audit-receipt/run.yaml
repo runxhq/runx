@@ -1,5 +1,5 @@
 skill: audit-receipt
-version: "0.3.5"
+version: "0.3.6"
 catalog:
   kind: graph
   audience: operator
@@ -87,8 +87,14 @@ runners:
                   properties:
                     milestone: { type: string, minLength: 1 }
                     description: { type: string, minLength: 1 }
-        context:
-          receipt_evidence: evidence.ledger_answer_packet.data
+        inputs:
+          receipt_evidence: $steps.evidence.ledger_answer_packet.data
+          receipt_id: $input.receipt_id
+          receipt_summary: $input.receipt_summary
+          granted_scopes: $input.granted_scopes
+          objective: $input.objective
+          receipt_rows: $input.receipt_rows
+          receipt_details: $input.receipt_details
         artifacts:
           wrap_as: receipt_audit_packet
           packet: runx.receipt_audit.v1

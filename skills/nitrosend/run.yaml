@@ -1,5 +1,5 @@
 skill: nitrosend
-version: "0.4.10"
+version: "0.4.11"
 catalog:
   kind: skill
   audience: public
@@ -36,9 +36,9 @@ runners:
           operation: billing_plans
           arguments: {}
       - id: present
-        context:
-          status_evidence: status.provider_evidence.data
-          plans_evidence: plans.provider_evidence.data
+        inputs:
+          status_evidence: $steps.status.provider_evidence.data
+          plans_evidence: $steps.plans.provider_evidence.data
         tool: { module: graph/provider-operation/nitrosend-operation.mjs, export: presentEvidence }
         outputs:
           status_evidence: object
@@ -84,7 +84,6 @@ runners:
       - id: checkout
         skill: graph/provider-operation
         runner: act
-        idempotency_key: "$input.idempotency_key"
         inputs:
           approval:
             reason: Create the Nitrosend hosted checkout or confirmed plan change for this exact selected plan.
@@ -102,9 +101,11 @@ runners:
           operation: billing_status
           arguments: {}
       - id: present
-        context:
-          checkout_evidence: checkout.provider_evidence.data
-          status_evidence: readback.provider_evidence.data
+        inputs:
+          checkout_evidence: $steps.checkout.provider_evidence.data
+          status_evidence: $steps.readback.provider_evidence.data
+          plan_id: $input.plan_id
+          idempotency_key: $input.idempotency_key
         tool: { module: graph/provider-operation/nitrosend-operation.mjs, export: presentEvidence }
         outputs:
           checkout_evidence: object
@@ -119,13 +120,13 @@ runners:
     policy:
       guards:
         - step: checkout
-          field: status.provider_evidence.data.decision
+          value: $steps.status.provider_evidence.data.decision
           equals: ok
         - step: checkout
-          field: plans.provider_evidence.data.decision
+          value: $steps.plans.provider_evidence.data.decision
           equals: ok
         - step: readback
-          field: checkout.provider_evidence.data.decision
+          value: $steps.checkout.provider_evidence.data.decision
           equals: ok
   plan-checkout-status:
     inputs:
@@ -145,8 +146,9 @@ runners:
           operation: plan_checkout_status
           purchase_id: "$input.purchase_id"
       - id: present
-        context:
-          purchase_evidence: status.provider_evidence.data
+        inputs:
+          purchase_evidence: $steps.status.provider_evidence.data
+          purchase_id: $input.purchase_id
         tool: { module: graph/provider-operation/nitrosend-operation.mjs, export: presentEvidence }
         outputs:
           purchase_evidence: object
@@ -273,13 +275,15 @@ runners:
       - id: scan
         skill: graph/provider-operation
         runner: read
-        inputs: { operation: inbox }
-        context:
-          arguments: prepare.scan_request.arguments
-          brand_sid: prepare.scan_request.brand_sid
+        inputs:
+          operation: inbox
+          arguments: $steps.prepare.scan_request.arguments
+          brand_sid: $steps.prepare.scan_request.brand_sid
       - id: finish
-        inputs: { page_limit: "$input.page_limit", cursor: "$input.cursor" }
-        context: { provider_evidence: scan.provider_evidence.data }
+        inputs:
+          page_limit: $input.page_limit
+          cursor: $input.cursor
+          provider_evidence: $steps.scan.provider_evidence.data
         tool: { module: assistant-source.mjs, export: finishAssistantScan }
         outputs: { assistant_page: object }
         artifacts:
@@ -298,13 +302,15 @@ runners:
       - id: thread
         skill: graph/provider-operation
         runner: read
-        inputs: { operation: inbox }
-        context:
-          arguments: prepare.observe_request.arguments
-          brand_sid: prepare.observe_request.brand_sid
+        inputs:
+          operation: inbox
+          arguments: $steps.prepare.observe_request.arguments
+          brand_sid: $steps.prepare.observe_request.brand_sid
       - id: finish
-        inputs: { config: "$input.config", item: "$input.item" }
-        context: { provider_evidence: thread.provider_evidence.data }
+        inputs:
+          config: $input.config
+          item: $input.item
+          provider_evidence: $steps.thread.provider_evidence.data
         tool: { module: assistant-source.mjs, export: finishAssistantObserve }
         outputs: { assistant_observation: object }
         artifacts:
@@ -331,10 +337,10 @@ runners:
       - id: thread
         skill: graph/provider-operation
         runner: read
-        inputs: { operation: inbox }
-        context:
-          arguments: prepare.hydrate_request.arguments
-          brand_sid: prepare.hydrate_request.brand_sid
+        inputs:
+          operation: inbox
+          arguments: $steps.prepare.hydrate_request.arguments
+          brand_sid: $steps.prepare.hydrate_request.brand_sid
       - id: finish
         inputs:
           config: "$input.config"
@@ -342,7 +348,7 @@ runners:
           source_digest: "$input.source_digest"
           thread_locator: "$input.thread_locator"
           action: "$input.action"
-        context: { provider_evidence: thread.provider_evidence.data }
+          provider_evidence: $steps.thread.provider_evidence.data
         tool: { module: assistant-source.mjs, export: finishAssistantHydrate }
         outputs: { assistant_context: object }
         artifacts:
@@ -400,12 +406,10 @@ runners:
         tool: data.compare
         inputs:
           expected: "$input.brand_sid"
-        context:
-          actual: current.provider_evidence.data.result.sender_settings.brand_sid
+          actual: $steps.current.provider_evidence.data.result.sender_settings.brand_sid
       - id: apply
         skill: graph/provider-operation
         runner: act
-        idempotency_key: $input.idempotency_key
         inputs:
           approval:
             reason: Replace the selected Nitrosend brand's sender defaults with these exact values.
@@ -417,6 +421,7 @@ runners:
             reply_to: "$input.reply_to"
             test_email_recipients: "$input.test_email_recipients"
           brand_sid: "$input.brand_sid"
+          idempotency_key: $input.idempotency_key
       - id: readback
         skill: graph/provider-operation
         runner: read
@@ -433,18 +438,17 @@ runners:
             from_email: "$input.from_email"
             reply_to: "$input.reply_to"
             test_email_recipients: "$input.test_email_recipients"
-        context:
-          actual: readback.provider_evidence.data.result.sender_settings
+          actual: $steps.readback.provider_evidence.data.result.sender_settings
     policy:
       guards:
         - step: apply
-          field: verify-current-brand.comparison.data.equal
+          value: $steps.verify-current-brand.comparison.data.equal
           equals: true
         - step: readback
-          field: apply.provider_evidence.data.decision
+          value: $steps.apply.provider_evidence.data.decision
           equals: ok
         - step: verify
-          field: readback.provider_evidence.data.decision
+          value: $steps.readback.provider_evidence.data.decision
           equals: ok
   review-delivery:
     inputs:
@@ -569,7 +573,6 @@ runners:
       - id: send
         skill: graph/provider-operation
         runner: act
-        idempotency_key: "$input.idempotency_key"
         inputs:
           approval:
             reason: Send this exact reviewed test message to the named recipients.
@@ -587,10 +590,11 @@ runners:
             dry_run: "$input.dry_run"
             idempotency_key: "$input.idempotency_key"
           brand_sid: "$input.brand_sid"
+          idempotency_key: $input.idempotency_key
     policy:
       guards:
         - step: send
-          field: review.provider_evidence.data.decision
+          value: $steps.review.provider_evidence.data.decision
           equals: ok
   review-content:
     inputs:
@@ -624,9 +628,8 @@ runners:
         inputs:
           subject: "$input.subject"
           html: "$input.html"
-        context:
-          expected_html_digest: digest-html.digest_result.data.digest
-          provider_result: review.provider_operation.data.result
+          expected_html_digest: $steps.digest-html.digest_result.data.digest
+          provider_result: $steps.review.provider_operation.data.result
         tool: { module: review-content.mjs, export: projectContentReview }
         outputs:
           subject: string
@@ -701,7 +704,6 @@ runners:
       - id: apply
         skill: graph/provider-operation
         runner: act
-        idempotency_key: nitrosend-approve-delivery
         inputs:
           approval:
             reason: Approve this reviewed delivery configuration. This does not send or activate it.
@@ -764,7 +766,6 @@ runners:
       - id: deliver
         skill: graph/provider-operation
         runner: act
-        idempotency_key: nitrosend-send-campaign
         inputs:
           approval:
             reason: Deliver this reviewed campaign to its configured live audience.
@@ -778,10 +779,11 @@ runners:
             confirm_send_to_all: "$input.confirm_send_to_all"
             idempotency_key: "$input.idempotency_key"
           brand_sid: "$input.brand_sid"
+          idempotency_key: $input.idempotency_key
     policy:
       guards:
         - step: deliver
-          field: review.provider_evidence.data.decision
+          value: $steps.review.provider_evidence.data.decision
           equals: ok
   activate-flow:
     act:
@@ -818,7 +820,6 @@ runners:
       - id: activate
         skill: graph/provider-operation
         runner: act
-        idempotency_key: nitrosend-activate-flow
         inputs:
           approval:
             reason: Activate this reviewed automation flow for live contacts.
@@ -833,7 +834,7 @@ runners:
     policy:
       guards:
         - step: activate
-          field: review.provider_evidence.data.decision
+          value: $steps.review.provider_evidence.data.decision
           equals: ok
   apply-draft:
     act:
@@ -873,10 +874,10 @@ runners:
           operation_plan: object
       - id: blocked
         when:
-          field: preflight.operation_plan.decision
+          value: $steps.preflight.operation_plan.decision
           not_equals: ready
-        context:
-          operation_plan: preflight.operation_plan
+        inputs:
+          operation_plan: $steps.preflight.operation_plan
         tool: { module: graph/provider-operation/nitrosend-operation.mjs, export: blockedOperation }
         outputs:
           provider_evidence: object
@@ -887,11 +888,10 @@ runners:
             provider_evidence: nitrosend.provider_evidence.v1
       - id: apply
         when:
-          field: preflight.operation_plan.decision
+          value: $steps.preflight.operation_plan.decision
           equals: ready
         skill: graph/provider-operation
         runner: act
-        idempotency_key: "$input.arguments.idempotency_key"
         inputs:
           approval:
             reason: Apply this reviewed draft or image ingest to the live Nitrosend account. This does not deliver to recipients or activate a flow.
@@ -1202,7 +1202,6 @@ runners:
       - id: send
         skill: graph/provider-operation
         runner: act
-        idempotency_key: nitrosend-send-transactional
         inputs:
           operation: send_transactional
           arguments:
@@ -1215,6 +1214,7 @@ runners:
             dry_run: "$input.dry_run"
             idempotency_key: "$input.idempotency_key"
           brand_sid: "$input.brand_sid"
+          idempotency_key: $input.idempotency_key
   compose-email:
     inputs:
       target_type:
@@ -1452,7 +1452,6 @@ runners:
       - id: import
         skill: graph/provider-operation
         runner: act
-        idempotency_key: nitrosend-import-contacts
         inputs:
           approval:
             reason: Import this consented contact batch into Nitrosend.
@@ -1467,6 +1466,7 @@ runners:
             dry_run: "$input.dry_run"
             idempotency_key: "$input.idempotency_key"
           brand_sid: "$input.brand_sid"
+          idempotency_key: $input.idempotency_key
   import-contacts-csv:
     act:
       purpose: Upload and start one consented CSV contact import without putting file bytes or signed URLs in the agent packet.
@@ -1535,28 +1535,26 @@ runners:
           csv_import: object
       - id: preview
         when:
-          field: plan.csv_import.mode
+          value: $steps.plan.csv_import.mode
           equals: preview
         operation: nitrosend/contacts.import.preview
-        context:
-          input: plan.csv_import.input
+        input: $steps.plan.csv_import.input
       - id: import
         when:
-          field: plan.csv_import.mode
+          value: $steps.plan.csv_import.mode
           equals: import
         operation: nitrosend/contacts.import
         idempotency_key: "$input.idempotency_key"
         approval:
           reason: Upload and import this consented local CSV.
           type: nitrosend_import_contacts_csv
-        context:
-          input: plan.csv_import.input
+        input: $steps.plan.csv_import.input
       - id: present-preview
         when:
-          field: plan.csv_import.mode
+          value: $steps.plan.csv_import.mode
           equals: preview
-        context:
-          provider_operation: preview.provider_operation.data
+        inputs:
+          provider_operation: $steps.preview.provider_operation.data
         tool: { module: csv-import.mjs, export: presentCsvImport }
         outputs:
           provider_evidence: object
@@ -1565,10 +1563,10 @@ runners:
           packets: { provider_evidence: nitrosend.provider_evidence.v1 }
       - id: present-import
         when:
-          field: plan.csv_import.mode
+          value: $steps.plan.csv_import.mode
           equals: import
-        context:
-          provider_operation: import.provider_operation.data
+        inputs:
+          provider_operation: $steps.import.provider_operation.data
         tool: { module: csv-import.mjs, export: presentCsvImport }
         outputs:
           provider_evidence: object
