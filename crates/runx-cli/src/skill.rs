@@ -45,6 +45,8 @@ pub struct SkillPlan {
     pub full_operator_context: bool,
     pub inputs: BTreeMap<String, JsonValue>,
     pub input_document: Option<crate::document_input::DocumentInputSource>,
+    /// The act the invoker states for the run (`--act`).
+    pub act: Option<runx_contracts::CallAct>,
     pub managed_agent: ManagedAgentPolicy,
 }
 
@@ -142,6 +144,7 @@ pub fn run_native_skill_with_workspace(plan: SkillPlan, workspace: &WorkspaceEnv
         current_context: Vec::new(),
         historical_context: Vec::new(),
         run_authority: None,
+        act: plan.act.clone(),
         skill_path,
         receipt_dir: plan.receipt_dir.clone(),
         run_id: plan.run_id.clone(),

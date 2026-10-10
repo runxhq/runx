@@ -2,8 +2,8 @@
 // host resolution and sealing in one path: a run starts or continues from its
 // record, takes what its host brings, runs, and seals.
 use super::{
-    BoundRun, ExecutableAdapter, SkillOutputDiagnostics, SkillRunError, build_domain_act_frame,
-    invalid, paused_output, sealed_output,
+    BoundRun, ExecutableAdapter, SkillOutputDiagnostics, SkillRunError, invalid, paused_output,
+    sealed_output,
 };
 
 use std::collections::BTreeMap;
@@ -31,9 +31,6 @@ use crate::execution::runner::{
 use crate::host::Host;
 use crate::kernel::authority::RunAuthority;
 use crate::kernel::store::KernelStore;
-use crate::receipts::{
-    DomainActReceiptRequest, RunScope, RuntimeReceiptSignatureConfig, domain_act_receipt,
-};
 use crate::services::{ReceiptServices, WorkspaceEnv};
 
 use super::resolution_answers::{ResolutionAnswers, read_answers};
@@ -93,7 +90,7 @@ impl BoundRun {
             current: request.current_context.clone(),
             historical: request.historical_context.clone(),
         };
-        let (created_at, graph_inputs, run_context, run_authority) = match &existing {
+        let (created_at, graph_inputs, run_act, run_context, run_authority) = match &existing {
             Some(record) => {
                 let started = continuation_identity(
                     record,
@@ -107,6 +104,7 @@ impl BoundRun {
                 (
                     record.created_at.clone(),
                     record.inputs.clone(),
+                    record.act.clone(),
                     record.context.clone(),
                     started.run_authority.clone(),
                 )
@@ -133,6 +131,7 @@ impl BoundRun {
                     inputs: &inputs,
                     context: &request_context,
                     run_authority: request.run_authority.as_ref(),
+                    act: request.act.as_ref(),
                     driver: if request.managed_agent.max_rounds().is_some() {
                         Driver::Managed
                     } else {
@@ -143,6 +142,7 @@ impl BoundRun {
                 (
                     created_at,
                     inputs,
+                    request.act.clone(),
                     request_context,
                     request.run_authority.clone(),
                 )
@@ -189,14 +189,12 @@ impl BoundRun {
             }
         }
         let runtime = self.runtime(&log, &created_at, run_context, run_authority);
-        let graph = bind_run_inputs(self.runner.graph.clone(), &graph_inputs)?;
+        let graph = bind_run_inputs(self.runner.graph.clone(), &graph_inputs, run_act.as_ref())?;
         let run = Driven {
             bound: self,
             log: &log,
             runtime: &runtime,
             graph: &graph,
-            graph_inputs: &graph_inputs,
-            created_at: &created_at,
         };
         match runtime.run_graph_with_host(&self.skill_dir, graph.clone(), host) {
             Ok(completed) => run.seal_completed(completed),
@@ -364,12 +362,13 @@ impl BoundRun {
             .sealed
             .clone()
             .ok_or_else(|| invalid("the run has no seal"))?;
-        let graph = bind_run_inputs(self.runner.graph.clone(), &record.inputs)?;
+        let graph = bind_run_inputs(
+            self.runner.graph.clone(),
+            &record.inputs,
+            record.act.as_ref(),
+        )?;
         let run = sealed_graph_run(graph, record)?;
         write_graph_receipts(&self.request, &self.workspace, &self.receipts, &run)?;
-        if let Some(primary) = &sealed.primary {
-            write_skill_receipt(&self.request, &self.workspace, &self.receipts, primary)?;
-        }
         let result = match sealed.terminal_result {
             Some(result) => result,
             None => graph_run_result(&run)?,
@@ -385,7 +384,7 @@ impl BoundRun {
                 context: Some(graph_run_context(&run)),
                 trace: Some(graph_run_trace(&run)),
             },
-            sealed.primary.as_ref().unwrap_or(&run.receipt),
+            &run.receipt,
         ))
     }
 }
@@ -458,6 +457,9 @@ fn continuation_identity<'a>(
     if request.run_authority.is_some() && request.run_authority != started.run_authority {
         return Err(refuse("run authority"));
     }
+    if request.act.is_some() && request.act != started.act {
+        return Err(refuse("act"));
+    }
     Ok(started)
 }
 
@@ -478,30 +480,14 @@ struct Driven<'a> {
     log: &'a RunLog,
     runtime: &'a Runtime<ExecutableAdapter>,
     graph: &'a ExecutionGraph,
-    graph_inputs: &'a JsonObject,
-    created_at: &'a str,
 }
 
 impl Driven<'_> {
     fn seal_completed(&self, run: GraphRun) -> Result<RunResult, SkillRunError> {
         let bound = self.bound;
         let result = graph_run_result(&run)?;
-        // A runner that declares an `act:` block presents a clean domain-act
-        // receipt; the step receipts remain as its execution trace.
-        let domain = graph_domain_act_receipt(
-            &bound.runner,
-            self.graph_inputs,
-            &run,
-            self.log.run_id(),
-            self.created_at,
-            bound.receipts.signature_config(),
-        )?;
-        self.log
-            .record_sealed(&run.receipt, domain.as_ref(), None)?;
+        self.log.record_sealed(&run.receipt, None)?;
         write_graph_receipts(&bound.request, &bound.workspace, &bound.receipts, &run)?;
-        if let Some(domain) = &domain {
-            write_skill_receipt(&bound.request, &bound.workspace, &bound.receipts, domain)?;
-        }
         let output = graph_run_skill_output(&result, &run)?;
         Ok(sealed_output(
             &bound.manifest,
@@ -513,7 +499,7 @@ impl Driven<'_> {
                 context: Some(graph_run_context(&run)),
                 trace: Some(graph_run_trace(&run)),
             },
-            domain.as_ref().unwrap_or(&run.receipt),
+            &run.receipt,
         ))
     }
 
@@ -562,7 +548,7 @@ impl Driven<'_> {
             Some(result) => result,
             None => crate::execution::runner::graph_terminal_result(&run)?,
         };
-        self.log.record_sealed(&run.receipt, None, Some(&result))?;
+        self.log.record_sealed(&run.receipt, Some(&result))?;
         write_graph_receipts(&bound.request, &bound.workspace, &bound.receipts, &run)?;
         let output = graph_run_skill_output(&result, &run)?;
         Ok(sealed_output(
@@ -856,105 +842,6 @@ fn write_graph_receipts(
     write_skill_receipt(request, workspace, receipts, &run.receipt)
 }
 
-/// When a graph runner declares an `act:` block, seal the turn's primary receipt
-/// as its domain act: the reason comes from the agent voice step's output, the
-/// effect from the deterministic action step's real `/v1` response, and the
-/// structure/authority from the declared `act:` block plus the trusted graph
-/// inputs. The graph's per-step receipts remain as the execution trace; this
-/// standalone domain receipt is what the turn presents and what chains by
-/// lineage. Transport (the http step, status, token) never enters it.
-// Function rationale: assembling the domain-act receipt is one frame
-// build-and-seal sequence.
-pub(crate) fn graph_domain_act_receipt(
-    runner: &SkillRunnerDefinition,
-    graph_inputs: &JsonObject,
-    run: &GraphRun,
-    run_id: &str,
-    created_at: &str,
-    signature_config: &RuntimeReceiptSignatureConfig,
-) -> Result<Option<runx_contracts::Receipt>, SkillRunError> {
-    let Some(act) = runner.act.as_ref() else {
-        return Ok(None);
-    };
-    let step_output = |step_id: Option<&str>| {
-        step_id.and_then(|id| run.steps.iter().find(|step| step.step_id == id))
-    };
-    // Reason: the agent voice step's structured output (e.g. {line: "..."}).
-    let reason_source = step_output(act.reason_step.as_deref())
-        .map(|step| JsonValue::Object(step.contract.clone()))
-        .unwrap_or(JsonValue::Null);
-    // Effect: the action step's declared contract. Adapter transport is not a
-    // second semantic surface and is discarded after receipt sealing.
-    let governed_effect = step_output(act.effect_step.as_deref())
-        .filter(|step| step.outcome.succeeded())
-        .map(|step| JsonValue::Object(step.contract.clone()));
-    let authority_grant_refs = graph_credential_grant_refs(run);
-    let Some(mut frame) = build_domain_act_frame(
-        act,
-        graph_inputs,
-        &reason_source,
-        governed_effect.as_ref(),
-        authority_grant_refs,
-    ) else {
-        return Ok(None);
-    };
-    for reference in run
-        .steps
-        .iter()
-        .flat_map(|step| step.receipt.acts.iter())
-        .flat_map(|receipt_act| receipt_act.artifact_refs.iter())
-        .filter(|reference| reference.uri.as_str().contains("operator_context"))
-    {
-        if !frame
-            .artifact_refs
-            .iter()
-            .any(|existing| existing.uri == reference.uri)
-        {
-            frame.artifact_refs.push(reference.clone());
-        }
-    }
-    let verification_metadata = step_output(act.reason_step.as_deref())
-        .map(|step| step.outcome.metadata.clone())
-        .unwrap_or_default();
-    let receipt = domain_act_receipt(DomainActReceiptRequest {
-        scope: RunScope {
-            run_id,
-            graph_name: &run.graph.name,
-        },
-        succeeded: run.state.status == runx_core::state_machine::GraphStatus::Succeeded,
-        created_at,
-        disposition: ClosureDisposition::Closed,
-        reason_code: "agent_act_closed".to_owned(),
-        seal_summary: "governed graph turn sealed".to_owned(),
-        frame,
-        verification_metadata,
-        signature_policy: signature_config.signature_policy(),
-    })?;
-    Ok(Some(receipt))
-}
-
-/// Gather the credential grant refs the turn actually held, read from the
-/// `Credential` verification refs sealed on each step receipt. These become the
-/// domain act's `authority.grant_refs`, so the receipt records the authority it
-/// carried, not only the declared scope.
-pub(crate) fn graph_credential_grant_refs(run: &GraphRun) -> Vec<runx_contracts::Reference> {
-    let mut refs: Vec<runx_contracts::Reference> = Vec::new();
-    for step in &run.steps {
-        for act in &step.receipt.acts {
-            for binding in &act.criterion_bindings {
-                for reference in &binding.verification_refs {
-                    if reference.reference_type == runx_contracts::ReferenceType::Credential
-                        && !refs.contains(reference)
-                    {
-                        refs.push(reference.clone());
-                    }
-                }
-            }
-        }
-    }
-    refs
-}
-
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeMap;
@@ -1092,6 +979,7 @@ steps:
                 inputs: &JsonObject::new(),
                 context: &RunContext::default(),
                 run_authority: None,
+                act: None,
                 driver: crate::execution::run_record::Driver::Managed,
                 created_at: "2026-07-24T00:00:00Z",
             })?;
@@ -1164,7 +1052,7 @@ steps:
             assert!(!encoded.contains("credential"));
             assert!(!encoded.contains("raw_output"));
 
-            log.record_sealed(&run.receipt, None, None)?;
+            log.record_sealed(&run.receipt, None)?;
             let runs = list_runs(&env, temp.path(), &RunFilter::default())?;
             assert_eq!(runs.runs.len(), 1);
             assert_eq!(runs.runs[0].state, RunState::Sealed);
@@ -1175,6 +1063,7 @@ steps:
                 current_context: Vec::new(),
                 historical_context: Vec::new(),
                 run_authority: None,
+                act: None,
                 skill_path: temp.path().join("skill"),
                 receipt_dir: Some(receipt_dir.clone()),
                 run_id: None,
@@ -1286,7 +1175,7 @@ steps:
         assert!(!metadata.contains(MARKER));
 
         let receipt = crate::receipts::step_receipt(
-            RunScope {
+            crate::receipts::RunScope {
                 run_id: "run_credential",
                 graph_name: "credential_graph",
             },

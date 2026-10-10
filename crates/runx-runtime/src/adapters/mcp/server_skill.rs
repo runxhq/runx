@@ -8,7 +8,8 @@ use super::types::{
     McpServerToolBehavior, McpToolResult,
 };
 use crate::RuntimeError;
-use runx_contracts::JsonObject;
+use runx_contracts::schema::RunxSchema;
+use runx_contracts::{CallAct, JsonObject, JsonValue};
 use runx_parser::SkillInput;
 
 impl McpServerOptions {
@@ -71,7 +72,7 @@ pub(super) fn load_mcp_server_tool(
             .description
             .clone()
             .unwrap_or_else(|| format!("runx skill {}", skill.name)),
-        input_schema: skill_inputs_to_json_schema(&runner.inputs),
+        input_schema: skill_inputs_to_json_schema(&runner.inputs)?,
         required_scopes,
         result: McpServerToolBehavior::Skill(Box::new(McpServerSkillExecution {
             skill_path,
@@ -92,23 +93,52 @@ fn mcp_runner_error(skill_name: &str, error: impl std::fmt::Display) -> RuntimeE
     }
 }
 
-fn skill_inputs_to_json_schema(inputs: &BTreeMap<String, SkillInput>) -> JsonObject {
-    runx_contracts::input_contract_schema(inputs)
+/// A skill tool takes the runner's inputs, and the act its caller states
+/// beside them.
+fn skill_inputs_to_json_schema(
+    inputs: &BTreeMap<String, SkillInput>,
+) -> Result<JsonObject, RuntimeError> {
+    let mut schema = runx_contracts::input_contract_schema(inputs);
+    let act = JsonValue::from_serialize(&CallAct::json_schema()).map_err(|error| {
+        RuntimeError::EngineInvariant {
+            context: "describing a skill tool",
+            message: error.to_string(),
+        }
+    })?;
+    if let Some(JsonValue::Object(properties)) = schema.get_mut("properties") {
+        properties.insert("act".to_owned(), act);
+    }
+    Ok(schema)
 }
 
 pub(super) fn execute_mcp_server_skill(
     run_id: &str,
     execution: McpServerSkillExecution,
-    inputs: JsonObject,
+    mut inputs: JsonObject,
     javascript: crate::adapters::javascript::JavaScriptAdapter,
     effects: crate::effects::RuntimeEffectRegistry,
 ) -> Result<McpToolResult, RuntimeError> {
+    let act = match inputs
+        .remove("act")
+        .map(|act| CallAct::parse(&act))
+        .transpose()
+    {
+        Ok(act) => act,
+        Err(reason) => {
+            return Ok(McpToolResult {
+                content: vec![super::types::McpContent { text: reason }],
+                structured_content: None,
+                is_error: true,
+            });
+        }
+    };
     let workspace =
         crate::WorkspaceEnv::from_admitted(execution.env.clone()).map_err(RuntimeError::from)?;
     let request = crate::execution::orchestrator::SkillRunRequest {
         current_context: Vec::new(),
         historical_context: Vec::new(),
         run_authority: None,
+        act,
         skill_path: execution.skill_path,
         receipt_dir: execution.receipt_dir.clone(),
         run_id: Some(run_id.to_owned()),

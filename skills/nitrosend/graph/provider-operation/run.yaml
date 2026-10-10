@@ -1,5 +1,5 @@
 skill: nitrosend-provider-operation
-version: "0.2.6"
+version: "0.2.7"
 catalog:
   kind: graph
   audience: operator
@@ -177,6 +177,7 @@ runners:
         operation: nitrosend
         idempotency_key: $input.idempotency_key
         approval: $input.approval
+        act: $act
         operation_name: $steps.prepare.operation_plan.connector_operation
         input: $steps.prepare.operation_plan.provider_input
       - id: normalize_preview

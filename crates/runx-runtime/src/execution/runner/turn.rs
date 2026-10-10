@@ -11,7 +11,7 @@ use std::cell::OnceCell;
 use std::path::Path;
 
 use runx_contracts::connector::{AmountRule, OperationAccess, OperationName};
-use runx_contracts::schema::NonEmptyString;
+use runx_contracts::schema::{NonEmptyString, RunxSchema};
 use runx_contracts::{
     AgentActInvocation, AllowedOperation, JsonObject, JsonValue, ResolutionRequest,
     TurnCallOutcome, TurnCallResult, TurnStatus, TurnTarget, TurnTool,
@@ -98,7 +98,7 @@ pub(crate) fn call_tool(
 pub(crate) const TURN_STATUS_TOOL: &str = "turn_status";
 pub(crate) const TURN_COMPLETE_TOOL: &str = "turn_complete";
 
-const OPERATION_CALL_FIELDS: &[&str] = &["connector", "input", "idempotency_key", "amount"];
+const OPERATION_CALL_FIELDS: &[&str] = &["connector", "input", "idempotency_key", "amount", "act"];
 
 /// Where a turn runs: the agent step, its attempt, and its runtime.
 pub(super) struct TurnScope<'a, A> {
@@ -482,6 +482,7 @@ where
             step,
             attempt: 1,
             inputs: input.clone(),
+            child_act: None,
             provenance: Vec::new(),
             policy_approval_refs: Vec::new(),
             host,
@@ -535,7 +536,7 @@ where
                     .find(|field| !OPERATION_CALL_FIELDS.contains(&field.as_str()))
                 {
                     return Err(format!(
-                        "an operation call takes connector, input, idempotency_key and amount, not {field}"
+                        "an operation call takes connector, input, idempotency_key, amount and act, not {field}"
                     ));
                 }
                 let target = OperationStepTarget {
@@ -585,9 +586,11 @@ where
             kind,
             artifacts: None,
             outputs: None,
-            // An agent's call carries values, never references.
+            // An agent's call carries values, never references. An operation
+            // call's act is one of its fields.
             inputs: input.clone(),
             bindings: Vec::new(),
+            act: None,
             context_skills: Vec::new(),
             scopes,
             when: None,
@@ -682,6 +685,10 @@ where
             ));
             required.push("amount");
         }
+        // The act the call performs, as the agent states it: why it is made.
+        let act = JsonValue::from_serialize(&runx_contracts::CallAct::json_schema())
+            .map_err(|error| describing(error.to_string()))?;
+        properties.push(("act", act));
         if declared.connector_from.is_some() {
             properties.push((
                 "connector",

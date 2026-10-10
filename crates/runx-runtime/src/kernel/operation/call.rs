@@ -5,7 +5,7 @@
 use std::collections::BTreeSet;
 
 use runx_contracts::connector::{ConnectorId, OperationName};
-use runx_contracts::{JsonObject, OperationAmount};
+use runx_contracts::{CallAct, JsonObject, OperationAmount};
 use serde::Deserialize;
 
 const MAX_PROJECTED: usize = 50;
@@ -50,6 +50,11 @@ pub(crate) struct OperationCall {
     /// mutation for reconciliation instead of failing it.
     #[serde(default)]
     pub readback_of: Option<JsonObject>,
+    /// The act the call performs, as its caller states it. Bound into the
+    /// admitted intent and sealed in the call's receipt; never sent to the
+    /// provider.
+    #[serde(default)]
+    pub act: Option<CallAct>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, Deserialize)]
@@ -84,6 +89,9 @@ impl OperationCall {
         }
         if let Some(key) = &call.idempotency_key {
             bounded_text(key, "idempotency_key")?;
+        }
+        if let Some(act) = &call.act {
+            act.check()?;
         }
         if call.input.contains_key("idempotency_key") {
             return Err(

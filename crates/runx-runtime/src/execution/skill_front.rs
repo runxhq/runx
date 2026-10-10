@@ -1,5 +1,5 @@
-// Module rationale: the skill front owns run preparation, domain-act frame
-// construction, and shared sealed-output projection for every runner.
+// Module rationale: the skill front owns run preparation and the shared
+// sealed-output projection for every runner.
 //! The skill front: compiles a skill-run request into a run of the runner's
 //! graph and seals it through the shared act engine (`execution::runner`),
 //! which owns admit -> execute -> seal.
@@ -8,7 +8,7 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use runx_contracts::{ClosureDisposition, JsonNumber, JsonObject, JsonValue};
-use runx_parser::{ActDeclaration, SkillRunnerDefinition, SkillRunnerManifest};
+use runx_parser::{SkillRunnerDefinition, SkillRunnerManifest};
 use serde::Serialize;
 use thiserror::Error;
 
@@ -20,7 +20,7 @@ use crate::paths::RUNX_RECEIPT_DIR_ENV;
 use crate::receipts::signing::strip_receipt_signing_env;
 use crate::receipts::store::ReceiptStoreError;
 use crate::receipts::{
-    DomainActFrame, RunScope, RuntimeReceiptSignatureConfig, StepSeal, StepSealClosure, seal_step,
+    RunScope, RuntimeReceiptSignatureConfig, StepSeal, StepSealClosure, seal_step,
 };
 use crate::services::{ReceiptServices, WorkspaceEnv};
 
@@ -32,7 +32,6 @@ pub(crate) mod runner_manifest;
 mod turn_session;
 
 pub(crate) use self::executable_adapter::ExecutableAdapter;
-pub(crate) use self::graph::graph_domain_act_receipt;
 pub(crate) use self::inline_harness::run_package_harness_with_effects;
 pub use self::turn_session::TurnSession;
 
@@ -246,6 +245,7 @@ pub(crate) fn bind_paused_run(
             current_context: Vec::new(),
             historical_context: Vec::new(),
             run_authority: None,
+            act: None,
             skill_path: PathBuf::from(&paused.skill_ref),
             receipt_dir: continuation.receipt_dir.map(Path::to_path_buf),
             run_id: Some(paused.run_id),
@@ -538,166 +538,6 @@ fn request_for_public_loop(request_id: &str, request: JsonValue) -> JsonValue {
     JsonValue::Object(object)
 }
 
-/// Build the domain act frame from a declared `act:` block, the trusted run
-/// inputs, the model's authored reason source, and the real governed effect.
-// Function rationale: act-frame construction is intentionally one
-// branch table so each declared field, input fallback, and governed-effect
-// reference is visible in one receipt-shaping pass.
-fn build_domain_act_frame(
-    act: &ActDeclaration,
-    inputs: &runx_contracts::JsonObject,
-    reason_source: &JsonValue,
-    governed_effect: Option<&JsonValue>,
-    authority_grant_refs: Vec<runx_contracts::Reference>,
-) -> Option<DomainActFrame> {
-    use runx_contracts::{ActForm, DecisionChoice, Reference, ReferenceType};
-
-    // A declared field may be a static literal (`form: review`) or driver-pinned
-    // from an input (`form_from: act_form` names the input key). The driver-pinned
-    // input wins, so one generic skill serves every beat.
-    let resolve = |from_key: Option<&str>, literal: Option<&str>| -> Option<String> {
-        from_key
-            .and_then(|key| inputs.get(key))
-            .and_then(JsonValue::as_str)
-            .or(literal)
-            .map(str::trim)
-            .filter(|value| !value.is_empty())
-            .map(str::to_owned)
-    };
-
-    let form = match resolve(act.form_from.as_deref(), act.form.as_deref())
-        .as_deref()
-        .unwrap_or("observation")
-    {
-        "revision" => ActForm::Revision,
-        "reply" => ActForm::Reply,
-        "review" => ActForm::Review,
-        "verification" => ActForm::Verification,
-        _ => ActForm::Observation,
-    };
-    let purpose = resolve(act.purpose_from.as_deref(), act.purpose.as_deref())?;
-    let legitimacy = resolve(act.legitimacy_from.as_deref(), act.legitimacy.as_deref())
-        .unwrap_or_else(|| "Held the declared authority for this act".to_owned());
-
-    // The human reason text. `reason_from_input` seals the calling operator's own
-    // line from a trusted input (the operator holds the context and voice);
-    // `reason_from` reads a declared step's authored output. The parser holds the
-    // two mutually exclusive.
-    let reason = act
-        .reason_from_input
-        .as_deref()
-        .and_then(|key| inputs.get(key))
-        .and_then(JsonValue::as_str)
-        .or_else(|| {
-            act.reason_from
-                .as_deref()
-                .and_then(|key| reason_source.as_object().and_then(|object| object.get(key)))
-                .and_then(JsonValue::as_str)
-        })
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .map_or_else(|| purpose.clone(), str::to_owned);
-
-    // Resolve a trusted input value (a uri) named by the act mapping into a ref.
-    let input_ref = |map_key: Option<&str>, reference_type: ReferenceType| -> Option<Reference> {
-        let uri = inputs.get(map_key?).and_then(JsonValue::as_str)?.trim();
-        (!uri.is_empty()).then(|| Reference::with_uri(reference_type, uri.to_owned()))
-    };
-
-    let decision_choice = act
-        .decision_from
-        .as_deref()
-        .and_then(|key| inputs.get(key))
-        .and_then(JsonValue::as_str)
-        .and_then(map_decision_choice)
-        .unwrap_or(DecisionChoice::Close);
-
-    let reference_type = match act.effect_type.as_deref().unwrap_or("artifact") {
-        "act" => ReferenceType::Act,
-        "tracking_item" => ReferenceType::TrackingItem,
-        "receipt" => ReferenceType::Receipt,
-        "event" => ReferenceType::Event,
-        "thread" => ReferenceType::Thread,
-        "comment" => ReferenceType::Comment,
-        "change_request" => ReferenceType::ChangeRequest,
-        "repository" => ReferenceType::Repository,
-        "external_url" => ReferenceType::ExternalUrl,
-        _ => ReferenceType::Artifact,
-    };
-    let prefix = resolve(
-        act.effect_prefix_from.as_deref(),
-        act.effect_prefix.as_deref(),
-    )
-    .unwrap_or_default();
-    let effect_ref = |id: &str| {
-        let id = id.trim();
-        (!id.is_empty())
-            .then(|| Reference::with_uri(reference_type.clone(), format!("{prefix}{id}")))
-    };
-    let mut artifact_refs = Vec::new();
-    if let Some(reference) = act
-        .effect_from_input
-        .as_deref()
-        .and_then(|key| inputs.get(key))
-        .and_then(JsonValue::as_str)
-        .and_then(effect_ref)
-    {
-        artifact_refs.push(reference);
-    }
-    if let Some(reference) = governed_effect
-        .and_then(|effect| {
-            let field = resolve(act.effect_field_from.as_deref(), act.effect_from.as_deref())?;
-            effect
-                .as_object()
-                .and_then(|object| object.get(field.as_str()))
-                .and_then(JsonValue::as_str)
-                .and_then(effect_ref)
-        })
-        .filter(|reference| !artifact_refs.contains(reference))
-    {
-        artifact_refs.push(reference);
-    }
-
-    Some(DomainActFrame {
-        form,
-        purpose: purpose.into(),
-        legitimacy: legitimacy.into(),
-        summary: reason.clone().into(),
-        target_refs: input_ref(act.target_from.as_deref(), ReferenceType::TrackingItem)
-            .into_iter()
-            .collect(),
-        artifact_refs,
-        decision_choice,
-        decision_summary: reason.into(),
-        actor_ref: input_ref(act.actor_from.as_deref(), ReferenceType::Principal)
-            .unwrap_or_else(|| Reference::runx(ReferenceType::Principal, "local_runtime")),
-        authority_grant_refs,
-        authority_scope_refs: input_ref(act.authority_from.as_deref(), ReferenceType::Grant)
-            .into_iter()
-            .collect(),
-        authority_terms: Vec::new(),
-        authority_attenuation: None,
-        previous: input_ref(act.previous_from.as_deref(), ReferenceType::Receipt),
-    })
-}
-
-/// Map a driver-pinned decision word onto the receipt's `DecisionChoice`.
-fn map_decision_choice(value: &str) -> Option<runx_contracts::DecisionChoice> {
-    use runx_contracts::DecisionChoice;
-    match value.trim().to_ascii_lowercase().as_str() {
-        "decline" | "reject" | "rejected" | "deny" | "denied" => Some(DecisionChoice::Decline),
-        "close" | "accept" | "accepted" | "approve" | "approved" | "paid" | "settle"
-        | "settled" => Some(DecisionChoice::Close),
-        "continue" | "claim" | "claimed" | "deliver" | "delivered" => {
-            Some(DecisionChoice::Continue)
-        }
-        "defer" | "deferred" => Some(DecisionChoice::Defer),
-        "escalate" | "escalated" => Some(DecisionChoice::Escalate),
-        "monitor" | "monitored" => Some(DecisionChoice::Monitor),
-        _ => None,
-    }
-}
-
 /// Seal a run that was refused before any step ran.
 fn seal_refusal(
     scope: RunScope<'_>,
@@ -718,7 +558,9 @@ fn seal_refusal(
             projection_refs: Default::default(),
             created_at: &crate::time::now_iso8601(),
             authority: crate::receipts::SealAuthority::default(),
-            operator_refs: super::prepared_skill::prepared_receipt_references(env),
+            call: None,
+            context_ref: super::prepared_skill::prepared_context_ref(env),
+            approval_refs: Vec::new(),
             child_receipts: &[],
             descendant_receipts: &[],
             closure: Some(closure),
@@ -827,59 +669,4 @@ fn closure_output(seal: &runx_contracts::Seal) -> JsonObject {
 
 fn invalid(message: impl Into<String>) -> SkillRunError {
     SkillRunError::Invalid(message.into())
-}
-
-#[cfg(test)]
-mod domain_act_frame_tests {
-    use super::*;
-
-    fn act(value: serde_json::Value) -> Result<ActDeclaration, serde_json::Error> {
-        serde_json::from_value(value)
-    }
-
-    fn inputs(value: serde_json::Value) -> Result<JsonObject, serde_json::Error> {
-        serde_json::from_value(value)
-    }
-
-    #[test]
-    fn operator_reason_input_seals_the_operator_line() -> Result<(), Box<dyn std::error::Error>> {
-        let frame = build_domain_act_frame(
-            &act(serde_json::json!({
-                "purpose_from": "act_purpose",
-                "reason_from_input": "line",
-            }))?,
-            &inputs(serde_json::json!({
-                "act_purpose": "settle the accepted claim",
-                "line": "Paid @worker for the accepted delivery on #120.",
-            }))?,
-            &JsonValue::Null,
-            None,
-            Vec::new(),
-        )
-        .ok_or_else(|| std::io::Error::other("frame"))?;
-        assert_eq!(
-            frame.summary.as_str(),
-            "Paid @worker for the accepted delivery on #120."
-        );
-        Ok(())
-    }
-
-    #[test]
-    fn absent_operator_line_falls_back_to_purpose() -> Result<(), Box<dyn std::error::Error>> {
-        let frame = build_domain_act_frame(
-            &act(serde_json::json!({
-                "purpose_from": "act_purpose",
-                "reason_from_input": "line",
-            }))?,
-            &inputs(serde_json::json!({
-                "act_purpose": "settle the accepted claim",
-            }))?,
-            &JsonValue::Null,
-            None,
-            Vec::new(),
-        )
-        .ok_or_else(|| std::io::Error::other("frame"))?;
-        assert_eq!(frame.summary.as_str(), "settle the accepted claim");
-        Ok(())
-    }
 }

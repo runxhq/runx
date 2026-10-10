@@ -7,7 +7,10 @@
 //! - `{"$response": "<request id>.<path>"}`: a value from an earlier response
 //!   in the same exchange (readbacks reading what a write returned).
 //! - `{"$item": "/pointer"}`: a value from the element a request is sent for,
-//!   when the request repeats over an input array (`each`).
+//!   when the request repeats over an input array (`each`), or an effect is
+//!   rendered for, when it repeats over a result array.
+//! - `{"$result": "/pointer"}`: a value from the call's decoded result, which
+//!   only an operation's effect reads.
 //! - `{"$runx": "idempotency_key"}`: the key the kernel derived for the call.
 //! - `{"$concat": [part, ...]}`: one to eight scalar parts joined into a string.
 //!
@@ -32,6 +35,7 @@ const ARGUMENT: &str = "$argument";
 const PARAMETER: &str = "$parameter";
 const RESPONSE: &str = "$response";
 const ITEM: &str = "$item";
+const RESULT: &str = "$result";
 const RUNX: &str = "$runx";
 const CONCAT: &str = "$concat";
 
@@ -45,8 +49,11 @@ pub struct TemplateInputs<'a> {
     pub arguments: Option<&'a JsonValue>,
     pub parameters: Option<&'a JsonObject>,
     pub responses: Option<&'a BTreeMap<String, JsonObject>>,
-    /// The element a repeated request is sent for.
+    /// The element a repeated request is sent for, or an effect rendered
+    /// for.
     pub item: Option<&'a JsonValue>,
+    /// The call's decoded result, once it has one.
+    pub result: Option<&'a JsonValue>,
     pub idempotency_key: Option<&'a str>,
 }
 
@@ -112,6 +119,25 @@ impl Template {
     #[must_use]
     pub fn binds_exchange(&self) -> bool {
         binds(&self.0, RESPONSE) || binds(&self.0, ITEM)
+    }
+
+    /// Whether the template binds `$result`, which only an effect reads.
+    #[must_use]
+    pub fn binds_result(&self) -> bool {
+        binds(&self.0, RESULT)
+    }
+
+    /// The result pointer when the whole template is one `$result` binding,
+    /// as an effect's `each` is.
+    #[must_use]
+    pub fn result_pointer(&self) -> Option<&str> {
+        match &self.0 {
+            JsonValue::Object(object) => match binding(object) {
+                Some((RESULT, JsonValue::String(pointer))) => Some(pointer),
+                _ => None,
+            },
+            _ => None,
+        }
     }
 
     /// Whether the template binds `$parameter`, a value of the connector
@@ -191,7 +217,7 @@ fn binding(object: &JsonObject) -> Option<(&str, &JsonValue)> {
     let (key, value) = object.iter().next()?;
     matches!(
         key.as_str(),
-        ARGUMENT | PARAMETER | RESPONSE | ITEM | RUNX | CONCAT
+        ARGUMENT | PARAMETER | RESPONSE | ITEM | RESULT | RUNX | CONCAT
     )
     .then_some((key.as_str(), value))
 }
@@ -224,7 +250,7 @@ fn validate(value: &JsonValue, depth: usize) -> Result<(), TemplateError> {
 
 fn validate_binding(key: &str, argument: &JsonValue, depth: usize) -> Result<(), TemplateError> {
     match key {
-        ARGUMENT | PARAMETER | ITEM => match argument.as_str() {
+        ARGUMENT | PARAMETER | ITEM | RESULT => match argument.as_str() {
             Some(pointer) if pointer.is_empty() || pointer.starts_with('/') => Ok(()),
             _ => Err(TemplateError::Malformed {
                 binding: static_key(key),
@@ -336,6 +362,11 @@ fn render_binding(
         ITEM => inputs
             .item
             .and_then(|item| pointer(item, reference))
+            .cloned()
+            .ok_or_else(unavailable),
+        RESULT => inputs
+            .result
+            .and_then(|result| pointer(result, reference))
             .cloned()
             .ok_or_else(unavailable),
         RUNX => inputs
@@ -465,6 +496,7 @@ fn static_key(key: &str) -> &'static str {
         PARAMETER => PARAMETER,
         RESPONSE => RESPONSE,
         ITEM => ITEM,
+        RESULT => RESULT,
         RUNX => RUNX,
         _ => CONCAT,
     }

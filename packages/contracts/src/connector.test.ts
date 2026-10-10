@@ -8,6 +8,7 @@ import {
   type JsonValue,
   referenceKind,
   renderDeclaredRequest,
+  renderTemplate,
 } from "./index.js";
 
 interface Case {
@@ -60,3 +61,17 @@ describe("reference kinds", () => {
   });
 });
 
+
+// The kernel renders an effect with the same bindings
+// (crates/runx-contracts/src/connector/tests.rs).
+describe("effect locators", () => {
+  it("read the call's result as $result and a repeated element as $item", () => {
+    const locator = {
+      $concat: ["github://", { $argument: "/repository" }, "/issues/", { $item: "/number" }],
+    };
+    expect(renderTemplate(locator, { arguments: { repository: "acme/app" }, item: { number: 7 } }))
+      .toBe("github://acme/app/issues/7");
+    expect(renderTemplate({ $result: "/post/id" }, { result: { post: { id: "19" } } })).toBe("19");
+    expect(() => renderTemplate({ $result: "/post/id" }, {})).toThrow();
+  });
+});

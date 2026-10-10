@@ -11,8 +11,9 @@ use std::time::Instant;
 use output::{build_ephemeral_step_output, build_step_output_projection, contract_output_claim};
 
 use runx_contracts::{
-    ApprovalGate, ClosureDisposition, ExecutionEvent, JsonObject, JsonValue, ProvenanceEntry,
-    Receipt, Reference, ResolutionRequest, ResolutionResponse, ResolutionResponseActor,
+    ApprovalGate, CallAct, ClosureDisposition, ExecutionEvent, JsonObject, JsonValue,
+    ProvenanceEntry, Receipt, Reference, ResolutionRequest, ResolutionResponse,
+    ResolutionResponseActor,
 };
 use runx_core::state_machine::StepAdmissionWitness;
 use runx_parser::{AskGate, GraphStep, SkillArtifactContract, StepKind, ToolTarget};
@@ -101,6 +102,9 @@ pub(super) struct StepRunRequest<'a, A> {
     pub(super) step: &'a GraphStep,
     pub(super) attempt: u32,
     pub(super) inputs: JsonObject,
+    /// The act a skill step gives its child run, which the child reads as
+    /// `$act`.
+    pub(super) child_act: Option<CallAct>,
     pub(super) provenance: Vec<ProvenanceEntry>,
     pub(super) policy_approval_refs: Vec<Reference>,
     pub(super) host: &'a mut dyn Host,
@@ -113,6 +117,7 @@ struct StepHandlerCtx<'a, A> {
     step: &'a GraphStep,
     attempt: u32,
     inputs: JsonObject,
+    child_act: Option<CallAct>,
     provenance: Vec<ProvenanceEntry>,
     policy_approval_refs: Vec<Reference>,
     host: &'a mut dyn Host,
@@ -174,6 +179,7 @@ where
         step,
         attempt,
         inputs,
+        child_act,
         provenance,
         policy_approval_refs,
         host,
@@ -199,6 +205,7 @@ where
         step,
         attempt,
         inputs,
+        child_act,
         provenance,
         policy_approval_refs,
         host,
@@ -245,6 +252,7 @@ where
             skill: &skill_name,
             graph: skill.runner.graph,
             inputs: &request.inputs,
+            act: request.child_act.as_ref(),
             provenance: &request.provenance,
             env: &env,
             skill_directory: &skill.directory,
@@ -304,6 +312,8 @@ struct NestedGraph<'a> {
     skill: &'a str,
     graph: runx_parser::ExecutionGraph,
     inputs: &'a JsonObject,
+    /// The act the parent step gives the child.
+    act: Option<&'a CallAct>,
     /// The parent step's provenance, carried to the steps that receive the
     /// same inputs.
     provenance: &'a [ProvenanceEntry],
@@ -324,7 +334,7 @@ where
 {
     let inherited =
         crate::execution::graph::inherited_step_provenance(&nested.graph, nested.provenance);
-    let graph = bind_run_inputs(nested.graph, nested.inputs)?;
+    let graph = bind_run_inputs(nested.graph, nested.inputs, nested.act)?;
     let log = runtime.options.run.child(nested.step_id)?;
     if log.load()?.is_none()
         && let Some(reason) = super::child_depth_refusal(&runtime.options)
@@ -340,6 +350,7 @@ where
         nested.step_id,
         nested.skill,
         nested.inputs,
+        nested.act,
         &runtime.options.created_at,
     )?;
     if let Some(record) = existing.filter(|record| record.sealed.is_some()) {
@@ -359,7 +370,7 @@ where
     .with_inherited_provenance(inherited);
     match child_runtime.run_graph_with_host(nested.skill_directory, graph, host) {
         Ok(run) => {
-            log.record_sealed(&run.receipt, None, None)?;
+            log.record_sealed(&run.receipt, None)?;
             Ok(run)
         }
         Err(RuntimeError::ResolutionPending {
@@ -478,10 +489,11 @@ where
             projection_refs,
             created_at: &context.runtime.options.created_at,
             authority: seal_authority,
-            operator_refs: tool_operator_references(
+            call: None,
+            context_ref: crate::execution::prepared_skill::prepared_context_ref(
                 &context.runtime.options.env,
-                context.policy_approval_refs,
             ),
+            approval_refs: context.policy_approval_refs,
             child_receipts: &receipt_lineage.direct_children,
             descendant_receipts: &receipt_lineage.descendants,
             closure: None,
@@ -611,6 +623,7 @@ where
         step,
         attempt,
         inputs,
+        child_act: _,
         provenance,
         host: _,
         authority,
@@ -711,9 +724,11 @@ fn seal_agent_act_step<A>(
             projection_refs: std::mem::take(&mut projection.refs),
             created_at: &runtime.options.created_at,
             authority: crate::receipts::SealAuthority::default(),
-            operator_refs: crate::execution::prepared_skill::prepared_receipt_references(
+            call: None,
+            context_ref: crate::execution::prepared_skill::prepared_context_ref(
                 &runtime.options.env,
             ),
+            approval_refs: Vec::new(),
             child_receipts: &lineage.direct_children,
             descendant_receipts: &lineage.descendants,
             closure: Some(StepSealClosure {
@@ -753,6 +768,7 @@ where
         step,
         attempt,
         inputs,
+        child_act: _,
         provenance,
         host,
         authority: _,
@@ -892,6 +908,7 @@ where
         step,
         attempt,
         inputs,
+        child_act: _,
         provenance: _,
         policy_approval_refs,
         host: _,
@@ -940,6 +957,7 @@ where
             policy_approval_refs,
             authority: authority.as_ref(),
             skill: format!("tool:{tool_ref}"),
+            call: None,
         },
         output,
         tool_artifacts.as_ref(),
@@ -956,6 +974,8 @@ struct EffectStepSeal<'a, A> {
     policy_approval_refs: Vec<Reference>,
     authority: Option<&'a StepAuthorityContext>,
     skill: String,
+    /// The governed call an operation step made.
+    call: Option<crate::receipts::SealedCall>,
 }
 
 /// Project, gate, seal, finalize and persist a step whose output an effect
@@ -977,6 +997,7 @@ where
         policy_approval_refs,
         authority,
         skill,
+        call,
     } = seal;
     let provisional_projection = build_step_output_projection(step, &output, None, artifacts)?;
     let provisional_claim = contract_output_claim(&provisional_projection);
@@ -1005,7 +1026,11 @@ where
             projection_refs,
             created_at: &runtime.options.created_at,
             authority: seal_authority,
-            operator_refs: tool_operator_references(&runtime.options.env, policy_approval_refs),
+            call,
+            context_ref: crate::execution::prepared_skill::prepared_context_ref(
+                &runtime.options.env,
+            ),
+            approval_refs: policy_approval_refs,
             child_receipts: &[],
             descendant_receipts: &[],
             closure: None,
@@ -1132,8 +1157,10 @@ where
         graph_dir,
         &tools,
     );
+    let mut effects = Vec::new();
     let mut output = match outcome {
         Ok(outcome) => {
+            effects = outcome.effects;
             let mut output = crate::adapter_pipeline::AdapterProjection::from_started(started)
                 .runtime_output(
                     crate::adapter::InvocationStatus::Success,
@@ -1167,6 +1194,7 @@ where
         }
     }
     let skill = context.skill_label();
+    let call = context.sealed_call(effects)?;
     seal_effect_step(
         EffectStepSeal {
             runtime,
@@ -1177,19 +1205,11 @@ where
             policy_approval_refs,
             authority: Some(&authority),
             skill,
+            call: Some(call),
         },
         output,
         Some(&artifacts),
     )
-}
-
-fn tool_operator_references(
-    env: &std::collections::BTreeMap<String, String>,
-    policy_approval_refs: Vec<Reference>,
-) -> Vec<Reference> {
-    let mut references = crate::execution::prepared_skill::prepared_receipt_references(env);
-    references.extend(policy_approval_refs);
-    references
 }
 
 fn agent_task_output(
@@ -1270,9 +1290,11 @@ where
             projection_refs: std::mem::take(&mut projection.refs),
             created_at: &runtime.options.created_at,
             authority: crate::receipts::SealAuthority::default(),
-            operator_refs: crate::execution::prepared_skill::prepared_receipt_references(
+            call: None,
+            context_ref: crate::execution::prepared_skill::prepared_context_ref(
                 &runtime.options.env,
             ),
+            approval_refs: Vec::new(),
             child_receipts: &[],
             descendant_receipts: &[],
             closure: None,
@@ -1454,9 +1476,11 @@ where
             projection_refs: std::mem::take(&mut projection.refs),
             created_at: &runtime.options.created_at,
             authority: crate::receipts::SealAuthority::default(),
-            operator_refs: crate::execution::prepared_skill::prepared_receipt_references(
+            call: None,
+            context_ref: crate::execution::prepared_skill::prepared_context_ref(
                 &runtime.options.env,
             ),
+            approval_refs: Vec::new(),
             child_receipts: &lineage.direct_children,
             descendant_receipts: &lineage.descendants,
             closure: None,

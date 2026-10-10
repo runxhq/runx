@@ -76,6 +76,9 @@ pub(crate) struct Admitted {
     pub operation: OperationName,
     pub instance: ResolvedInstance,
     pub capability: Capability,
+    /// Who makes the call: the capability's principal for a direct call, the
+    /// delegated actor under a run authority.
+    pub actor_ref: Reference,
     pub delegations: Vec<AuthorityTerm>,
     pub mandate_ref: Option<Reference>,
     /// The act's custody, kept for a mutation or a bounded call.
@@ -339,6 +342,9 @@ pub(crate) fn admit(evaluation: &Evaluation<'_>) -> Result<Admitted, AdmitError>
     }
     let digests = digest(&call.input).and_then(|payload_digest| {
         let approval_digest = approval.as_ref().map(digest).transpose()?;
+        // The act is bound into the intent, so its approval and custody are
+        // the act's: a changed act is another call.
+        let act_digest = call.act.as_ref().map(digest).transpose()?;
         let intent = OperationIntent {
             connector: manifest.id.clone(),
             operation: operation_name.clone(),
@@ -349,6 +355,7 @@ pub(crate) fn admit(evaluation: &Evaluation<'_>) -> Result<Admitted, AdmitError>
             request_key_digest: request_key.as_deref().map(|key| Digest::of(key.as_bytes())),
             amount: call.amount.clone(),
             approval_digest,
+            act_digest,
         };
         let intent_digest = digest(&intent)?;
         Ok((intent, intent_digest))
@@ -370,7 +377,7 @@ pub(crate) fn admit(evaluation: &Evaluation<'_>) -> Result<Admitted, AdmitError>
     });
     let term_request = term_request(
         &instance,
-        actor_ref,
+        actor_ref.clone(),
         manifest.id.as_str(),
         &operation_name,
         operation_spec,
@@ -526,6 +533,7 @@ pub(crate) fn admit(evaluation: &Evaluation<'_>) -> Result<Admitted, AdmitError>
         operation: operation_name,
         instance,
         capability,
+        actor_ref,
         delegations,
         mandate_ref,
         custody,

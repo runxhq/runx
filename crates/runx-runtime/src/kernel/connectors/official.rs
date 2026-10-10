@@ -448,6 +448,10 @@ operations:
                   assignees: {type: array, maxItems: 10, items: {type: string}}
                   milestone: {type: [integer, "null"]}
     result_fields: [updates]
+    effect:
+      kind: thread
+      each: {"$result": "/updates"}
+      locator: {"$concat": ["github://", {"$argument": "/repository"}, "/issues/", {"$item": "/number"}]}
     hosted: {provider_scopes: [repo]}
     implementation:
       http:
@@ -503,6 +507,10 @@ operations:
               assignees: {type: array, maxItems: 10, items: {type: string}}
               milestone: {type: integer, minimum: 1}
     result_fields: [issues]
+    effect:
+      kind: thread
+      each: {"$result": "/issues"}
+      locator: {"$concat": ["github://", {"$argument": "/repository"}, "/issues/", {"$item": "/number"}]}
     hosted: {provider_scopes: [repo]}
     implementation:
       http:
@@ -654,6 +662,10 @@ operations:
                   base: {type: string, minLength: 1, maxLength: 255}
                   maintainer_can_modify: {type: boolean}
     result_fields: [updates]
+    effect:
+      kind: change_request
+      each: {"$result": "/updates"}
+      locator: {"$concat": ["github://", {"$argument": "/repository"}, "/pulls/", {"$item": "/number"}]}
     hosted: {provider_scopes: [repo]}
     implementation:
       http:
@@ -698,6 +710,9 @@ operations:
         base: {type: string, minLength: 1, maxLength: 255}
         draft: {type: boolean}
     result_fields: [pull]
+    effect:
+      kind: change_request
+      locator: {"$concat": ["github://", {"$argument": "/repository"}, "/pulls/", {"$result": "/pull/number"}]}
     hosted: {provider_scopes: [repo]}
     implementation:
       http:
@@ -808,6 +823,10 @@ operations:
               number: {type: [integer, string], minimum: 1, pattern: "^[1-9][0-9]{0,9}$"}
               body: {type: string, minLength: 1, maxLength: 65536}
     result_fields: [comments]
+    effect:
+      kind: comment
+      each: {"$result": "/comments"}
+      locator: {"$concat": ["github://", {"$argument": "/repository"}, "/issues/comments/", {"$item": "/id"}]}
     hosted: {provider_scopes: [repo]}
     implementation:
       http:
@@ -857,6 +876,10 @@ operations:
               comment_id: {type: [integer, string], minimum: 1, pattern: "^[1-9][0-9]{0,9}$"}
               body: {type: string, minLength: 1, maxLength: 65536}
     result_fields: [comments]
+    effect:
+      kind: comment
+      each: {"$result": "/comments"}
+      locator: {"$concat": ["github://", {"$argument": "/repository"}, "/issues/comments/", {"$item": "/id"}]}
     hosted: {provider_scopes: [repo]}
     implementation:
       http:
@@ -2859,6 +2882,9 @@ operations:
       text_field: text
     idempotency_key_format: uuid
     result_fields: [provider, external_tenant_ref, connected_subject_ref, conversation_locator, message_locator, occurred_at, content_digest, idempotency_key]
+    effect:
+      kind: thread
+      locator: {"$result": "/message_locator"}
     hosted:
       provider_scopes: ["chat:write"]
   channel.post.read:
@@ -2957,6 +2983,9 @@ operations:
         event: {type: object}
         observed_at: {type: string, minLength: 1, maxLength: 64}
     result_fields: [schema, data_source_ref, provider, operation, resource, aggregate_id, status, before_version, after_version, idempotency_key, event_ref, event_digest, result_digest, projection_digest, projection, events, rows, redactions, stop_conditions, provider_evidence]
+    effect:
+      kind: event
+      locator: {"$result": "/event_ref"}
     implementation:
       store: {}
   events.read:
@@ -3530,6 +3559,9 @@ operations:
       properties:
         text: {type: string, minLength: 1, maxLength: 4000}
     result_fields: [post]
+    effect:
+      kind: thread
+      locator: {"$concat": ["https://x.com/i/web/status/", {"$result": "/post/id"}]}
     implementation:
       http:
         allowed_hosts: [api.x.com]
@@ -3564,6 +3596,9 @@ operations:
         text: {type: string, minLength: 1, maxLength: 4000}
         in_reply_to: {type: string, pattern: "^[0-9]{1,19}$"}
     result_fields: [post]
+    effect:
+      kind: comment
+      locator: {"$concat": ["https://x.com/i/web/status/", {"$result": "/post/id"}]}
     implementation:
       http:
         allowed_hosts: [api.x.com]
@@ -3600,6 +3635,9 @@ operations:
         text: {type: string, minLength: 1, maxLength: 4000}
         quote_of: {type: string, pattern: "^[0-9]{1,19}$"}
     result_fields: [post]
+    effect:
+      kind: thread
+      locator: {"$concat": ["https://x.com/i/web/status/", {"$result": "/post/id"}]}
     implementation:
       http:
         allowed_hosts: [api.x.com]

@@ -373,6 +373,7 @@ mod tests {
             outputs: None,
             inputs: JsonObject::new(),
             bindings: Vec::new(),
+            act: None,
             context_skills: Vec::new(),
             scopes: Vec::new(),
             when: None,

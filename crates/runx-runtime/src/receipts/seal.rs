@@ -13,13 +13,12 @@ use crate::{RuntimeError, StepRun};
 use runx_contracts::fingerprint::sha256_hex;
 use runx_contracts::schema::NonEmptyString;
 use runx_contracts::{
-    ActForm, AuthorityAttenuation, AuthoritySubsetResult, AuthorityTerm, Closure,
-    ClosureDisposition, CredentialDeliveryObservation, CriterionBinding, CriterionStatus, Decision,
-    DecisionChoice, DecisionInputs, DecisionJustification, Intent, JsonObject, JsonValue, Lineage,
-    RECEIPT_CANONICALIZATION, Receipt, ReceiptAct, ReceiptAuthority, ReceiptClass,
-    ReceiptEnforcement, ReceiptIdempotency, ReceiptIssuer, ReceiptSchema, Reference, ReferenceType,
-    Seal, SignatureAlgorithm, Subject, SuccessCriterion, canonical_stable_json, json_string_field,
-    receipt_subject_kind,
+    AuthorityAttenuation, AuthoritySubsetResult, ClosureDisposition, CredentialDeliveryObservation,
+    CriterionBinding, CriterionStatus, Decision, DecisionChoice, DecisionInputs,
+    DecisionJustification, Intent, JsonObject, JsonValue, Lineage, RECEIPT_CANONICALIZATION,
+    Receipt, ReceiptAct, ReceiptAuthority, ReceiptClass, ReceiptEnforcement, ReceiptIdempotency,
+    ReceiptIssuer, ReceiptSchema, Reference, ReferenceType, Seal, SignatureAlgorithm, Subject,
+    SuccessCriterion, canonical_stable_json, json_string_field, receipt_subject_kind,
 };
 use runx_receipts::{
     ReceiptProofContext, ReceiptProofContextProvider, ReceiptSignature, ReceiptTreeConfig,
@@ -27,7 +26,7 @@ use runx_receipts::{
     content_addressed_receipt_id,
 };
 
-use super::act::{ActOutcome, RuntimeAct};
+use super::act::{ActOutcome, RuntimeAct, SealedCall};
 use super::local_runtime_issuer;
 use super::signing::{
     RuntimeReceiptSigner, RuntimeReceiptSigningError, is_local_pseudo_signature,
@@ -92,6 +91,8 @@ pub fn step_receipt_with_authority_grant_refs(
             grant_refs: authority_grant_refs,
             ..SealAuthority::default()
         },
+        call: None,
+        context_ref: None,
         receipt_metadata: None,
         signature_policy: RuntimeReceiptSignaturePolicy::local_development(),
     })
@@ -115,6 +116,8 @@ struct StepReceiptSeal<'a> {
     child_receipts: &'a [Receipt],
     descendant_receipts: &'a [Receipt],
     authority: SealAuthority,
+    call: Option<SealedCall>,
+    context_ref: Option<Reference>,
     receipt_metadata: Option<JsonObject>,
     signature_policy: RuntimeReceiptSignaturePolicy<'a>,
 }
@@ -162,6 +165,8 @@ pub(crate) fn step_receipt_with_declared_claim_and_policy(
         child_receipts: &[],
         descendant_receipts: &[],
         authority: SealAuthority::default(),
+        call: None,
+        context_ref: None,
         receipt_metadata: None,
         signature_policy,
     })
@@ -177,6 +182,8 @@ fn step_receipt_with_disposition_projection_authority_and_policy(
         child_receipts,
         descendant_receipts,
         authority,
+        call,
+        context_ref,
         receipt_metadata,
         signature_policy,
     } = request;
@@ -192,8 +199,9 @@ fn step_receipt_with_disposition_projection_authority_and_policy(
     } = params;
     let output_refs = output_refs(output, projection_refs)?;
     let verification = contract_verification_criteria(&output.metadata)?;
-    let act = RuntimeAct::observation(step_id)
+    let act = RuntimeAct::open(step_id, call.as_ref())
         .with_verified_criteria(verification.criteria.clone(), verification.bindings.clone())
+        .with_context(context_ref)
         .close(ActOutcome {
             disposition: disposition.clone(),
             succeeded: output.succeeded(),
@@ -208,6 +216,7 @@ fn step_receipt_with_disposition_projection_authority_and_policy(
     let decisions = decisions(
         step_id,
         &act,
+        call.as_ref(),
         &output_refs.signal_refs,
         &output_refs.artifact_refs,
     );
@@ -223,8 +232,7 @@ fn step_receipt_with_disposition_projection_authority_and_policy(
         children: child_receipts.iter().map(child_receipt_reference).collect(),
         signals: output_refs.signal_refs,
         authority,
-        authority_override: None,
-        previous: None,
+        previous: call.as_ref().and_then(SealedCall::previous),
     });
     bind_step_identity(receipt.as_mut(), output, claim)?;
     bind_execution_boundary(receipt.as_mut(), output)?;
@@ -293,7 +301,12 @@ pub(crate) struct StepSeal<'a> {
     pub(crate) projection_refs: StepOutputRefs,
     pub(crate) created_at: &'a str,
     pub(crate) authority: SealAuthority,
-    pub(crate) operator_refs: Vec<Reference>,
+    /// The governed call the step made, for an operation step.
+    pub(crate) call: Option<SealedCall>,
+    /// The operator context the run was prepared with.
+    pub(crate) context_ref: Option<Reference>,
+    /// Evidence of the policy approvals that let the step run.
+    pub(crate) approval_refs: Vec<Reference>,
     /// Direct child receipts for a composed step such as a nested graph. The
     /// step receipt commits their ids and digests; their descendants remain
     /// reachable through the child receipt tree.
@@ -342,7 +355,9 @@ pub(crate) fn seal_step(
         mut projection_refs,
         created_at,
         authority,
-        operator_refs,
+        call,
+        context_ref,
+        approval_refs,
         child_receipts,
         descendant_receipts,
         closure,
@@ -353,13 +368,9 @@ pub(crate) fn seal_step(
         reason_code,
         summary,
     } = closure.unwrap_or_else(|| StepSealClosure::default_for(output, step_id));
-    for reference in operator_refs {
-        if reference.reference_type == ReferenceType::Artifact {
-            projection_refs.artifact_refs.push(reference.clone());
-        } else {
-            projection_refs.artifact_refs.push(reference.clone());
-            projection_refs.verification_refs.push(reference.clone());
-        }
+    for reference in approval_refs {
+        projection_refs.artifact_refs.push(reference.clone());
+        projection_refs.verification_refs.push(reference.clone());
         projection_refs.evidence_refs.push(reference);
     }
     step_receipt_with_disposition_projection_authority_and_policy(StepReceiptSeal {
@@ -378,6 +389,8 @@ pub(crate) fn seal_step(
         child_receipts,
         descendant_receipts,
         authority,
+        call,
+        context_ref,
         receipt_metadata,
         signature_policy,
     })
@@ -651,9 +664,8 @@ pub(crate) fn graph_receipt_with_closure(
     // A receipt graph is a DAG: the parent commits each active child's exact
     // id and signed-body digest. Children stay immutable and reusable instead
     // of acquiring one post-hoc parent link.
-    let mut receipt = build_graph_receipt(scope, child_refs, created_at, &closure);
-    bind_graph_operator_refs(receipt.as_mut(), steps);
-    let receipt = receipt.seal(signature_policy)?;
+    let receipt =
+        build_graph_receipt(scope, child_refs, created_at, &closure).seal(signature_policy)?;
 
     validate_receipt_tree_with_policy(
         &receipt,
@@ -666,53 +678,6 @@ pub(crate) fn graph_receipt_with_closure(
         signature_policy,
     )?;
     Ok(receipt)
-}
-
-fn bind_graph_operator_refs(receipt: &mut Receipt, steps: &[StepRun]) {
-    let mut refs = Vec::<Reference>::new();
-    for reference in steps
-        .iter()
-        .flat_map(|step| step.receipt.acts.iter())
-        .flat_map(|act| act.artifact_refs.iter())
-        .filter(|reference| reference.uri.as_str().contains("operator_context"))
-    {
-        if !refs.iter().any(|existing| existing.uri == reference.uri) {
-            refs.push(reference.clone());
-        }
-    }
-    let artifacts = refs
-        .iter()
-        .filter(|reference| reference.reference_type == ReferenceType::Artifact)
-        .cloned()
-        .collect::<Vec<_>>();
-    let decisions = refs
-        .iter()
-        .filter(|reference| reference.reference_type == ReferenceType::Decision)
-        .cloned()
-        .collect::<Vec<_>>();
-    for act in &mut receipt.acts {
-        act.artifact_refs.extend(artifacts.iter().cloned());
-        act.artifact_refs.extend(decisions.iter().cloned());
-        for criterion in &mut act.criterion_bindings {
-            criterion.evidence_refs.extend(refs.iter().cloned());
-            criterion
-                .verification_refs
-                .extend(decisions.iter().cloned());
-        }
-    }
-    for decision in &mut receipt.decisions {
-        decision.artifact_refs.extend(artifacts.iter().cloned());
-        decision
-            .justification
-            .evidence_refs
-            .extend(refs.iter().cloned());
-    }
-    for criterion in &mut receipt.seal.criteria {
-        criterion.evidence_refs.extend(refs.iter().cloned());
-        criterion
-            .verification_refs
-            .extend(decisions.iter().cloned());
-    }
 }
 
 fn build_graph_receipt(
@@ -740,7 +705,6 @@ fn build_graph_receipt(
         children,
         signals: Vec::new(),
         authority: SealAuthority::default(),
-        authority_override: None,
         previous: None,
     });
     let receipt_body = receipt.as_mut();
@@ -869,13 +833,11 @@ enum Node<'a> {
     Graph,
     /// One step's attempt.
     Step { step_id: &'a str, attempt: u32 },
-    /// The run's domain act.
-    Act,
 }
 
 impl Node<'_> {
-    /// `runx:run:<id>`, `runx:run:<id>#<step>` (`#<step>@<attempt>` after the
-    /// first attempt) or `runx:run:<id>#act`.
+    /// `runx:run:<id>`, or `runx:run:<id>#<step>` (`#<step>@<attempt>` after
+    /// the first attempt).
     fn uri(self, run_id: &str) -> String {
         match self {
             Self::Graph => format!("runx:run:{run_id}"),
@@ -883,7 +845,6 @@ impl Node<'_> {
                 format!("runx:run:{run_id}#{step_id}")
             }
             Self::Step { step_id, attempt } => format!("runx:run:{run_id}#{step_id}@{attempt}"),
-            Self::Act => format!("runx:run:{run_id}#act"),
         }
     }
 }
@@ -900,11 +861,8 @@ struct BuildReceipt<'a> {
     children: Vec<Reference>,
     signals: Vec<Reference>,
     authority: SealAuthority,
-    /// Fully-built authority for a domain act seal. When `None`, the generic
-    /// `local_runtime` authority is used.
-    authority_override: Option<ReceiptAuthority>,
-    /// The predecessor receipt this one chains from (`lineage.previous`), e.g. a
-    /// judgment chaining from the delivery it judged. `None` for generic seals.
+    /// The receipt this one follows (`lineage.previous`): the act its call's
+    /// caller says it follows.
     previous: Option<Reference>,
 }
 
@@ -947,7 +905,6 @@ fn build_unsealed_receipt(parts: BuildReceipt<'_>) -> UnsealedReceipt {
         children,
         signals,
         authority,
-        authority_override,
         previous,
     } = parts;
     let lineage = Lineage {
@@ -969,7 +926,7 @@ fn build_unsealed_receipt(parts: BuildReceipt<'_>) -> UnsealedReceipt {
         idempotency: idempotency(&subject_uri, &signals),
         class,
         subject: subject(scope, subject_uri, kind),
-        authority: authority_override.unwrap_or_else(|| local_authority(authority)),
+        authority: local_authority(authority),
         signals,
         decisions,
         acts,
@@ -980,32 +937,43 @@ fn build_unsealed_receipt(parts: BuildReceipt<'_>) -> UnsealedReceipt {
     })
 }
 
-/// The planner deliberation, inline in `decisions[]`. The `selected_act_id`
+/// The decision behind the act, inline in `decisions[]`: the one its call's
+/// caller states, or the planner opening the node. The `selected_act_id`
 /// integrity property is checked against the inline `acts[]` at verify time.
 fn decisions(
     node_id: &str,
     act: &ReceiptAct,
+    call: Option<&SealedCall>,
     signal_refs: &[Reference],
     artifact_refs: &[Reference],
 ) -> Vec<Decision> {
+    let (choice, proposed_intent, summary) = match call.and_then(SealedCall::decision) {
+        Some(choice) => (choice, act.intent.clone(), act.summary.clone()),
+        None => (
+            DecisionChoice::Open,
+            Intent {
+                purpose: format!("Open runtime node {node_id}").into(),
+                legitimacy: "Local graph execution requested this node".into(),
+                success_criteria: Vec::new(),
+                constraints: Vec::new(),
+                derived_from: Vec::new(),
+            },
+            "runtime graph planner selected this node".into(),
+        ),
+    };
     vec![Decision {
         decision_id: format!("dec_{node_id}").into(),
-        choice: DecisionChoice::Open,
+        choice,
         inputs: DecisionInputs {
             signal_refs: signal_refs.to_vec(),
+            target_ref: act.target_refs.first().cloned(),
             ..DecisionInputs::default()
         },
-        proposed_intent: Intent {
-            purpose: format!("Open runtime node {node_id}").into(),
-            legitimacy: "Local graph execution requested this node".into(),
-            success_criteria: Vec::new(),
-            constraints: Vec::new(),
-            derived_from: Vec::new(),
-        },
+        proposed_intent,
         selected_act_id: Some(act.id.clone()),
         selected_harness_ref: None,
         justification: DecisionJustification {
-            summary: "runtime graph planner selected this node".into(),
+            summary,
             evidence_refs: signal_refs.to_vec(),
         },
         closure: None,
@@ -1049,9 +1017,7 @@ fn subject(scope: RunScope<'_>, uri: String, kind: NonEmptyString) -> Subject {
 const RUNTIME_ENFORCEMENT_PROFILE_ID: &str = "runx.runtime.enforcement.profile.v1";
 
 /// Content-address an enforcement profile as `sha256:<digest>` over its stable
-/// id plus its redaction/setup/teardown ref inputs in deterministic order. Both
-/// runtime `ReceiptEnforcement` build sites (the generic `authority()` helper and
-/// the domain-act seal) call this so the profile hash has one source of truth.
+/// id plus its redaction/setup/teardown ref inputs in deterministic order.
 fn enforcement_profile_hash(
     redaction_refs: &[Reference],
     setup_refs: &[Reference],
@@ -1067,20 +1033,26 @@ fn enforcement_profile_hash(
     format!("sha256:{}", sha256_hex(&canonical)).into()
 }
 
-/// The authority a step receipt seals: the grants and scopes that admitted
-/// the step, and the execution terms derived for it with their proofs.
+/// The authority a step receipt seals: who acted, the grants and scopes that
+/// admitted the step, the mandate a delegated actor acted under, and the
+/// execution terms derived for it with their proofs. A step no admission
+/// names an actor for is the local runtime's.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct SealAuthority {
+    pub actor_ref: Option<Reference>,
     pub grant_refs: Vec<Reference>,
     pub scope_refs: Vec<Reference>,
+    pub mandate_ref: Option<Reference>,
     pub terms: Vec<runx_contracts::AuthorityTerm>,
     pub derivations: Vec<runx_contracts::AuthorityDerivation>,
 }
 
 fn local_authority(authority: SealAuthority) -> ReceiptAuthority {
     let SealAuthority {
+        actor_ref,
         grant_refs,
         scope_refs,
+        mandate_ref,
         terms,
         derivations,
     } = authority;
@@ -1088,7 +1060,8 @@ fn local_authority(authority: SealAuthority) -> ReceiptAuthority {
     let setup_refs = Vec::new();
     let teardown_refs = Vec::new();
     ReceiptAuthority {
-        actor_ref: Reference::runx(ReferenceType::Principal, "local_runtime"),
+        actor_ref: actor_ref
+            .unwrap_or_else(|| Reference::runx(ReferenceType::Principal, "local_runtime")),
         authority_proof_refs: Vec::new(),
         grant_refs,
         scope_refs,
@@ -1098,7 +1071,7 @@ fn local_authority(authority: SealAuthority) -> ReceiptAuthority {
             parent_authority_ref: None,
             subset_proof: None,
         },
-        mandate_ref: None,
+        mandate_ref,
         enforcement: ReceiptEnforcement {
             profile_hash: enforcement_profile_hash(&redaction_refs, &setup_refs, &teardown_refs),
             execution_boundary: None,
@@ -1107,185 +1080,6 @@ fn local_authority(authority: SealAuthority) -> ReceiptAuthority {
             teardown_refs,
         },
     }
-}
-
-/// A governed turn's domain act, assembled from trusted sources (the skill's act
-/// declaration, the driver's pinned beat inputs, the delivered credential) plus
-/// the model's reason text. This is what makes a receipt read as "operator judged
-/// claim c-4417, rejected" instead of "a turn ran". The model never sets the
-/// form, target, choice, or authority; it supplies only the reason prose.
-pub(crate) struct DomainActFrame {
-    pub form: ActForm,
-    pub purpose: NonEmptyString,
-    pub legitimacy: NonEmptyString,
-    pub summary: NonEmptyString,
-    pub target_refs: Vec<Reference>,
-    pub artifact_refs: Vec<Reference>,
-    pub decision_choice: DecisionChoice,
-    pub decision_summary: NonEmptyString,
-    pub actor_ref: Reference,
-    pub authority_grant_refs: Vec<Reference>,
-    pub authority_scope_refs: Vec<Reference>,
-    /// The member's own authority term (the child grant minted from the charter).
-    /// Empty for an unattenuated turn.
-    pub authority_terms: Vec<AuthorityTerm>,
-    /// The charter attenuation: the parent authority and the subset proof that the
-    /// child term is no broader. `None` for a root (unattenuated) turn.
-    pub authority_attenuation: Option<AuthorityAttenuation>,
-    pub previous: Option<Reference>,
-}
-
-pub(crate) struct DomainActReceiptRequest<'a> {
-    pub scope: RunScope<'a>,
-    pub succeeded: bool,
-    pub created_at: &'a str,
-    pub disposition: ClosureDisposition,
-    pub reason_code: String,
-    pub seal_summary: String,
-    pub frame: DomainActFrame,
-    pub verification_metadata: JsonObject,
-    pub signature_policy: RuntimeReceiptSignaturePolicy<'a>,
-}
-
-/// Seal a governed turn as its domain act. Reuses the generic receipt assembly
-/// (`build_unsealed_receipt`/`UnsealedReceipt::seal`) but fills the act,
-/// decision, and authority from the
-/// trusted `DomainActFrame`. Transport (tool names, urls, status codes, tokens)
-/// never enters the receipt.
-// Function rationale: domain-act receipt assembly binds act,
-// decision, authority, and signature policy in one auditable receipt boundary.
-pub(crate) fn domain_act_receipt(
-    request: DomainActReceiptRequest<'_>,
-) -> Result<Receipt, RuntimeError> {
-    let DomainActReceiptRequest {
-        scope,
-        succeeded,
-        created_at,
-        disposition,
-        reason_code,
-        seal_summary,
-        frame,
-        verification_metadata,
-        signature_policy,
-    } = request;
-    let verification = contract_verification_criteria(&verification_metadata)?;
-    let status = if succeeded {
-        CriterionStatus::Verified
-    } else {
-        CriterionStatus::Failed
-    };
-    let closure = Closure {
-        disposition: disposition.clone(),
-        reason_code: reason_code.clone().into(),
-        summary: frame.summary.clone(),
-        closed_at: created_at.into(),
-    };
-    let criterion = CriterionBinding {
-        criterion_id: "act_closed".into(),
-        status,
-        evidence_refs: Vec::new(),
-        verification_refs: Vec::new(),
-        summary: Some(frame.summary.clone()),
-    };
-    let intent = Intent {
-        purpose: frame.purpose.clone(),
-        legitimacy: frame.legitimacy.clone(),
-        success_criteria: verification.criteria,
-        constraints: Vec::new(),
-        derived_from: Vec::new(),
-    };
-    let mut criterion_bindings = vec![criterion.clone()];
-    criterion_bindings.extend(verification.bindings.iter().cloned());
-    let act = ReceiptAct {
-        id: "act_run".into(),
-        form: frame.form,
-        intent: intent.clone(),
-        summary: frame.summary.clone(),
-        criterion_bindings,
-        by: None,
-        source_refs: Vec::new(),
-        target_refs: frame.target_refs.clone(),
-        artifact_refs: frame.artifact_refs.clone(),
-        context_ref: None,
-        closure: closure.clone(),
-        revision: None,
-        verification: None,
-    };
-    let decision = Decision {
-        decision_id: "dec_run".into(),
-        choice: frame.decision_choice,
-        inputs: DecisionInputs {
-            target_ref: frame.target_refs.first().cloned(),
-            ..DecisionInputs::default()
-        },
-        proposed_intent: intent,
-        selected_act_id: Some(act.id.clone()),
-        selected_harness_ref: None,
-        justification: DecisionJustification {
-            summary: frame.decision_summary,
-            evidence_refs: Vec::new(),
-        },
-        closure: Some(closure),
-        artifact_refs: frame.artifact_refs.clone(),
-    };
-    let redaction_refs = Vec::new();
-    let setup_refs = Vec::new();
-    let teardown_refs = Vec::new();
-    let authority = ReceiptAuthority {
-        actor_ref: frame.actor_ref,
-        authority_proof_refs: Vec::new(),
-        grant_refs: frame.authority_grant_refs,
-        scope_refs: frame.authority_scope_refs,
-        terms: frame.authority_terms,
-        derivations: Vec::new(),
-        attenuation: frame.authority_attenuation.unwrap_or(AuthorityAttenuation {
-            parent_authority_ref: None,
-            subset_proof: None,
-        }),
-        mandate_ref: None,
-        enforcement: ReceiptEnforcement {
-            profile_hash: enforcement_profile_hash(&redaction_refs, &setup_refs, &teardown_refs),
-            execution_boundary: None,
-            redaction_refs,
-            setup_refs,
-            teardown_refs,
-        },
-    };
-    let mut seal_criteria = vec![criterion];
-    seal_criteria.extend(verification.bindings);
-    let seal = seal(
-        disposition,
-        reason_code,
-        seal_summary,
-        created_at,
-        seal_criteria,
-    );
-    let mut receipt = build_unsealed_receipt(BuildReceipt {
-        class: ReceiptClass::Executed,
-        scope,
-        node: Node::Act,
-        kind: receipt_subject_kind::SKILL.into(),
-        created_at,
-        decisions: vec![decision],
-        acts: vec![act],
-        seal,
-        children: Vec::new(),
-        signals: Vec::new(),
-        authority: SealAuthority::default(),
-        authority_override: Some(authority),
-        previous: frame.previous,
-    });
-    let acts = canonical_stable_json(&JsonValue::from_serialize(&receipt.as_mut().acts).map_err(
-        |error| RuntimeError::ReceiptInvalid {
-            message: error.to_string(),
-        },
-    )?)
-    .map_err(|error| RuntimeError::ReceiptInvalid {
-        message: error.to_string(),
-    })?;
-    receipt.as_mut().idempotency.content_hash =
-        format!("sha256:{}", sha256_hex(acts.as_bytes())).into();
-    receipt.seal(signature_policy)
 }
 
 /// What the receipt is for (its run and node), what triggered it (its signal
@@ -1971,6 +1765,8 @@ mod tests {
                 child_receipts: &[],
                 descendant_receipts: &[],
                 authority: SealAuthority::default(),
+                call: None,
+                context_ref: None,
                 receipt_metadata: None,
                 signature_policy: RuntimeReceiptSignaturePolicy::local_development(),
             })?,
@@ -2043,6 +1839,8 @@ mod tests {
                 child_receipts: std::slice::from_ref(child),
                 descendant_receipts: &[],
                 authority: SealAuthority::default(),
+                call: None,
+                context_ref: None,
                 receipt_metadata: None,
                 signature_policy: RuntimeReceiptSignaturePolicy::local_development(),
             })

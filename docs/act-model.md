@@ -20,37 +20,36 @@ The act model lives in `crates/runx-contracts`:
   (`runx-runtime/src/journal.rs::project_receipt_journal`), not a separately
   persisted artifact.
 
-## Skills, runs, and acts
+## Calls and acts
 
-A skill is a definition; a run is an act. The relationship is fixed:
+Every governed call seals its own receipt, and the act sits in that receipt.
 
-- **Each run is an act by default.** Every governed run seals at least one act.
-  When a skill declares nothing, that act is a generic `observation`: it ran, it
-  was admitted by the harness, it succeeded or failed. Nothing executes
-  ungoverned; the only open question is how richly the act is described. In the
-  runtime this default is `RuntimeAct::observation`
-  (`crates/runx-runtime/src/receipts/act.rs`).
-- **A skill describes the act it performs.** A skill may declare its act in an
-  `act:` block: the `ActForm` (`review`/`reply`/`revision`/`verification`/
-  `observation`), the purpose, and how the target, decision, and effect are read
-  from trusted, driver-pinned inputs. The runtime fills the structure from those
-  inputs; the model authors only the reason prose. That trust boundary is the
-  point: the skill and its inputs declare what act this is and what it targets,
-  so a receipt reads "operator reviewed claim c-4417, rejected" with the model
-  unable to forge the structure, only to narrate it. A declared act seals a
-  domain act (`receipts::seal::domain_act_receipt`); an undeclared one seals the
-  observation.
-- **Acts chain.** An act records the authority it held (`Receipt.authority`,
-  including the credentials it carried, as `grant_refs`) and chains by lineage:
-  `lineage.previous` (this act follows the one it acts on, e.g. a review follows
-  the delivery it reviewed), `lineage.children` (a graph receipt commits the
-  identity and body digest of each immutable step receipt), and
-  `Intent.derived_from` (the acts an act reasoned from). Runtime children do not
-  carry a single `lineage.parent`: the same content-addressed receipt may be
-  reused by more than one graph, so rebinding it would change its signed body.
-  A graph is therefore a composition of chained acts, not a separate kind of
-  thing.
-- **One act per run.** The discipline that keeps a receipt honest: a run
-  produces one declared (or default) act, composed into chains by lineage, never
-  a loose bag of acts. A standalone skill is a one-act run; a graph is a chain
-  of acts. Pausing for the host is a `needs_agent` side channel, not an act.
+- **A call is an act by default.** Every step receipt carries one act. When
+  nothing describes it, that act is a generic `observation`: the step ran, it
+  was admitted, it succeeded or failed. In the runtime this default is
+  `RuntimeAct::open` (`crates/runx-runtime/src/receipts/act.rs`).
+- **A call's caller says what act it is.** An operation call may carry an act
+  (`CallAct`, `crates/runx-contracts/src/act/call.rs`): its form
+  (`observation`, `reply` or `review`), purpose, reason, target, decision and
+  the receipt it follows. Revision and verification acts carry details one
+  call does not have, so a call is never one. The act is bound into the
+  call's admitted intent, so its approval covers it, and it never reaches the
+  provider.
+- **Admission says who and under what right.** The receipt's authority holds
+  the actor admission derived for the call (the capability's principal, or
+  the delegated actor under a run authority), its grant, mandate and
+  execution term. The act's legitimacy names that term
+  (`runx:authority_term:<id>`); no author writes it.
+- **The operation says what it produced.** An operation that produces
+  something declares its `effect`, a locator rendered from its arguments and
+  result; the act carries each one as an artifact ref of the declared kind.
+- **Acts chain.** An act chains by lineage: `lineage.previous` (the receipt of
+  the act this one follows, as the caller names it), `lineage.children` (a
+  graph receipt commits the identity and body digest of each immutable step
+  receipt), and `Intent.derived_from`. Runtime children do not carry a single
+  `lineage.parent`: the same content-addressed receipt may be reused by more
+  than one graph, so rebinding it would change its signed body.
+- **A run is a composition of calls.** Nothing seals an act for a run as a
+  whole. The operator context a run was prepared with is each act's
+  `context_ref`. Pausing for the host is a `needs_agent` side channel, not an
+  act.

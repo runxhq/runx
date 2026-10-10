@@ -84,6 +84,9 @@ operations:
       text_field: text
     idempotency_key_format: uuid
     result_fields: [provider, external_tenant_ref, connected_subject_ref, conversation_locator, message_locator, occurred_at, content_digest, idempotency_key]
+    effect:
+      kind: thread
+      locator: {"$result": "/message_locator"}
     hosted:
       provider_scopes: ["chat:write"]
   channel.post.read:

@@ -27,6 +27,7 @@ fn start(log: &RunLog, inputs: &JsonObject) {
         inputs,
         context: &RunContext::default(),
         run_authority: None,
+        act: None,
         driver: Driver::Attached,
         created_at: "2026-10-09T00:00:00.000Z",
     })
@@ -200,6 +201,7 @@ fn a_second_driver_of_the_same_run_is_refused() {
                 inputs: &JsonObject::new(),
                 context: &RunContext::default(),
                 run_authority: None,
+                act: None,
                 driver: Driver::Attached,
                 created_at: "2026-10-09T00:00:00.000Z",
             }),
@@ -223,7 +225,7 @@ fn a_sealed_run_holds_its_receipt_and_waits_on_nothing() {
         "2026-10-09T00:00:00.000Z",
     )
     .unwrap();
-    log.record_sealed(&receipt, None, None).unwrap();
+    log.record_sealed(&receipt, None).unwrap();
 
     let record = log.load().unwrap().unwrap();
     let sealed = record.sealed.expect("sealed");
@@ -249,6 +251,7 @@ fn a_child_run_holds_the_request_its_parent_step_waits_on() {
                 "review",
                 "review",
                 &JsonObject::new(),
+                None,
                 "2026-10-09T00:00:00.000Z"
             )
             .unwrap()
@@ -269,6 +272,7 @@ fn a_child_run_holds_the_request_its_parent_step_waits_on() {
             "other",
             "review",
             &JsonObject::new(),
+            None,
             "2026-10-09T00:00:00.000Z"
         ),
         Err(RunRecordError::IdentityMismatch { .. })
@@ -317,6 +321,7 @@ fn the_run_listing_shows_top_level_runs_newest_first() {
             "review",
             "review",
             &JsonObject::new(),
+            None,
             "2026-10-09T00:00:00.000Z",
         )
         .unwrap();
@@ -481,6 +486,7 @@ fn a_paused_run_waits_on_every_open_request_in_its_tree() {
             "answer/0",
             "report",
             &JsonObject::new(),
+            None,
             "2026-10-09T00:00:00.000Z",
         )
         .unwrap();
@@ -552,6 +558,7 @@ fn a_run_whose_child_sealed_before_its_step_was_recorded_stays_paused() {
             "review",
             "review",
             &JsonObject::new(),
+            None,
             "2026-10-09T00:00:00.000Z",
         )
         .unwrap();
@@ -578,7 +585,7 @@ fn a_run_whose_child_sealed_before_its_step_was_recorded_stays_paused() {
         "2026-10-09T00:00:00.000Z",
     )
     .unwrap();
-    child.record_sealed(&receipt, None, None).unwrap();
+    child.record_sealed(&receipt, None).unwrap();
 
     assert!(waiting_ids(&store, "run_held_1").is_empty());
     let paused = paused_run(&env, workspace.path(), "run_held_1")

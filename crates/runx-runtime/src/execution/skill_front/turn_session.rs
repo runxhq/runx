@@ -175,6 +175,7 @@ mod tests {
             current_context: Vec::new(),
             historical_context: Vec::new(),
             run_authority: None,
+            act: None,
             skill_path: skill,
             receipt_dir: Some(root.join("receipts")),
             run_id: None,

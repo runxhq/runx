@@ -2378,6 +2378,11 @@
     "intent": {
       "additionalProperties": false,
       "properties": {
+        "act_digest": {
+          "maxLength": 71,
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
         "amount": {
           "additionalProperties": false,
           "properties": {

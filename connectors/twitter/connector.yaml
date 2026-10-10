@@ -407,6 +407,9 @@ operations:
       properties:
         text: {type: string, minLength: 1, maxLength: 4000}
     result_fields: [post]
+    effect:
+      kind: thread
+      locator: {"$concat": ["https://x.com/i/web/status/", {"$result": "/post/id"}]}
     implementation:
       http:
         allowed_hosts: [api.x.com]
@@ -441,6 +444,9 @@ operations:
         text: {type: string, minLength: 1, maxLength: 4000}
         in_reply_to: {type: string, pattern: "^[0-9]{1,19}$"}
     result_fields: [post]
+    effect:
+      kind: comment
+      locator: {"$concat": ["https://x.com/i/web/status/", {"$result": "/post/id"}]}
     implementation:
       http:
         allowed_hosts: [api.x.com]
@@ -477,6 +483,9 @@ operations:
         text: {type: string, minLength: 1, maxLength: 4000}
         quote_of: {type: string, pattern: "^[0-9]{1,19}$"}
     result_fields: [post]
+    effect:
+      kind: thread
+      locator: {"$concat": ["https://x.com/i/web/status/", {"$result": "/post/id"}]}
     implementation:
       http:
         allowed_hosts: [api.x.com]

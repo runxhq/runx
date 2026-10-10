@@ -4,7 +4,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use runx_contracts::{JsonObject, JsonValue, sha256_prefixed};
+use runx_contracts::{CallAct, JsonObject, JsonValue, sha256_prefixed};
 use runx_core::state_machine::SequentialGraphStepDefinition;
 use runx_parser::{
     Binding, ExecutionGraph, GraphStep, Operand, SkillRunnerDefinition, SkillRunnerManifest,
@@ -145,29 +145,57 @@ fn inherit_provenance(
     );
 }
 
-/// Bind the run's input into every step: each reference to it takes its
-/// value, and an absent optional input leaves itself out of the object or
-/// list that holds it. References to earlier steps stay for the step to bind
-/// when it runs.
+/// Bind what the run was invoked with into every step: each reference to the
+/// run's input, and each `$act` inside an `act:`, takes its value, and an
+/// absent one leaves itself out of the object or list that holds it; an act
+/// that is wholly absent leaves the step without one. References to earlier
+/// steps stay for the step to bind when it runs.
 pub(crate) fn bind_run_inputs(
     mut graph: ExecutionGraph,
     graph_inputs: &JsonObject,
+    act: Option<&CallAct>,
 ) -> Result<ExecutionGraph, RuntimeError> {
     let run_input = JsonValue::Object(graph_inputs.clone());
+    let run_act = act
+        .map(JsonValue::from_serialize)
+        .transpose()
+        .map_err(|error| RuntimeError::EngineInvariant {
+            context: "binding the run's act",
+            message: error.to_string(),
+        })?;
+    let invoked = |source: &Source| match source {
+        Source::Input { path } => Some(value_at(&run_input, path).cloned()),
+        Source::Act { path } => Some(
+            run_act
+                .as_ref()
+                .and_then(|act| value_at(act, path))
+                .cloned(),
+        ),
+        Source::Step { .. } => None,
+    };
     for step in &mut graph.steps {
-        let bindings = std::mem::take(&mut step.bindings);
-        let mut later = Vec::new();
-        // Last first, so a list item left out never moves one still to bind.
-        for binding in bindings.into_iter().rev() {
-            let Source::Input { path } = &binding.source else {
-                later.push(binding);
-                continue;
-            };
-            let value = value_at(&run_input, path).cloned();
-            place(&step.id, &mut step.inputs, &binding, value)?;
+        step.bindings = bind_invoked(
+            &step.id,
+            &mut step.inputs,
+            step.bindings.split_off(0),
+            &invoked,
+        )?;
+        if let Some(act) = &mut step.act {
+            let whole_absent = act.bindings.iter().any(|binding| {
+                binding.at.is_empty()
+                    && invoked(&binding.source).is_some_and(|value| value.is_none())
+            });
+            if whole_absent {
+                step.act = None;
+            } else {
+                act.bindings = bind_invoked(
+                    &step.id,
+                    &mut act.values,
+                    act.bindings.split_off(0),
+                    &invoked,
+                )?;
+            }
         }
-        later.reverse();
-        step.bindings = later;
         if let Some(when) = &mut step.when {
             bind_operand(&mut when.value, &run_input);
         }
@@ -178,6 +206,26 @@ pub(crate) fn bind_run_inputs(
         }
     }
     Ok(graph)
+}
+
+/// Place every binding `invoked` resolves, last first so a list item left out
+/// never moves one still to bind, and return the rest for the step to bind
+/// when it runs.
+fn bind_invoked(
+    step_id: &str,
+    values: &mut JsonObject,
+    bindings: Vec<Binding>,
+    invoked: &dyn Fn(&Source) -> Option<Option<JsonValue>>,
+) -> Result<Vec<Binding>, RuntimeError> {
+    let mut later = Vec::new();
+    for binding in bindings.into_iter().rev() {
+        match invoked(&binding.source) {
+            Some(value) => place(step_id, values, &binding, value)?,
+            None => later.push(binding),
+        }
+    }
+    later.reverse();
+    Ok(later)
 }
 
 fn bind_operand(operand: &mut Operand, run_input: &JsonValue) {
@@ -578,20 +626,53 @@ fn is_registry_step_ref(reference: &str) -> bool {
 }
 
 /// A step's values when it runs: each reference to an earlier step takes
-/// that step's result.
+/// that step's result. An operation step's act is one of its call's fields.
 pub(crate) fn materialize_step_invocation_inputs_with_index(
     step: &GraphStep,
     prior_run_index: &PriorRunIndex<'_>,
 ) -> Result<JsonObject, RuntimeError> {
-    let mut inputs = step.inputs.clone();
-    for binding in &step.bindings {
+    let mut inputs = bind_earlier_steps(step, &step.inputs, &step.bindings, "", prior_run_index)?;
+    if step.operation().is_some()
+        && let Some(act) = materialize_step_act_with_index(step, prior_run_index)?
+    {
+        inputs.insert("act".to_owned(), JsonValue::Object(act));
+    }
+    Ok(inputs)
+}
+
+/// A step's act when it runs: an operation step's call's, or the `$act` a
+/// skill step's child run takes.
+pub(crate) fn materialize_step_act_with_index(
+    step: &GraphStep,
+    prior_run_index: &PriorRunIndex<'_>,
+) -> Result<Option<JsonObject>, RuntimeError> {
+    step.act
+        .as_ref()
+        .map(|act| bind_earlier_steps(step, &act.values, &act.bindings, "act", prior_run_index))
+        .transpose()
+}
+
+fn bind_earlier_steps(
+    step: &GraphStep,
+    values: &JsonObject,
+    bindings: &[Binding],
+    root: &str,
+    prior_run_index: &PriorRunIndex<'_>,
+) -> Result<JsonObject, RuntimeError> {
+    let mut values = values.clone();
+    for binding in bindings {
         let Source::Step { step: from, path } = &binding.source else {
             continue;
         };
-        let value = prior_run_index.output(&step.id, &binding_label(binding), from, path)?;
-        place(&step.id, &mut inputs, binding, Some(value))?;
+        let label = match (root, binding_label(binding)) {
+            ("", label) => label,
+            (root, _) if binding.at.is_empty() => root.to_owned(),
+            (root, label) => format!("{root}.{label}"),
+        };
+        let value = prior_run_index.output(&step.id, &label, from, path)?;
+        place(&step.id, &mut values, binding, Some(value))?;
     }
-    Ok(inputs)
+    Ok(values)
 }
 
 pub(crate) fn materialize_step_invocation_provenance_with_index(
@@ -604,7 +685,7 @@ pub(crate) fn materialize_step_invocation_provenance_with_index(
             Source::Step { step: from, path } => {
                 Some(prior_run_index.provenance(&step.id, &binding_label(binding), from, path))
             }
-            Source::Input { .. } => None,
+            Source::Input { .. } | Source::Act { .. } => None,
         })
         .collect()
 }
@@ -664,6 +745,7 @@ steps:
                 "retry": {"key": "campaign-42"},
                 "unrelated": "never reaches a step",
             })),
+            None,
         )
         .map_err(|error| error.to_string())?;
         let consume = &bound.steps[1];
@@ -695,7 +777,7 @@ steps:
         let whole = graph(
             "name: whole\nsteps:\n  - id: take\n    tool: { module: take.mjs }\n    inputs: $input.payload\n",
         )?;
-        let error = bind_run_inputs(whole, &object(serde_json::json!({"payload": "text"})))
+        let error = bind_run_inputs(whole, &object(serde_json::json!({"payload": "text"})), None)
             .err()
             .ok_or("a whole input that is not an object binds nothing")?;
         assert!(error.to_string().contains("must be an object"), "{error}");
@@ -703,8 +785,12 @@ steps:
         let list = graph(
             "name: list\nsteps:\n  - id: take\n    tool: { module: take.mjs }\n    inputs: {ids: [$input.first, $input.second, $input.third]}\n",
         )?;
-        let bound = bind_run_inputs(list, &object(serde_json::json!({"first": 1, "third": 3})))
-            .map_err(|error| error.to_string())?;
+        let bound = bind_run_inputs(
+            list,
+            &object(serde_json::json!({"first": 1, "third": 3})),
+            None,
+        )
+        .map_err(|error| error.to_string())?;
         assert_eq!(
             bound.steps[0].inputs.get("ids"),
             serde_json::from_value::<JsonValue>(serde_json::json!([1, 3]))
@@ -720,6 +806,7 @@ steps:
         let bound = bind_run_inputs(
             graph(BINDINGS)?,
             &object(serde_json::json!({"mode": "apply", "label": "$steps.produce.value"})),
+            None,
         )
         .map_err(|error| error.to_string())?;
         assert_eq!(

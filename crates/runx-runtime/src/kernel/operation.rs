@@ -328,6 +328,37 @@ impl OperationAdmission {
         self.admitted.operation().access() == OperationAccess::Mutate
     }
 
+    /// What the call's receipt records: the act its caller stated, the
+    /// execution term it was admitted under, and what it produced.
+    pub(crate) fn sealed_call(
+        &self,
+        effects: Vec<Reference>,
+    ) -> Result<crate::receipts::SealedCall, RuntimeError> {
+        let term = self
+            .admitted
+            .admission
+            .execution_term
+            .as_ref()
+            .ok_or_else(|| engine("the operation has no execution term"))?;
+        let target_ref = self
+            .call
+            .act
+            .as_ref()
+            .and_then(|act| act.target.as_ref())
+            .map(|target| {
+                Reference::with_uri(
+                    super::connectors::references::reference_kind(None, target.as_str()),
+                    target.as_str().to_owned(),
+                )
+            });
+        Ok(crate::receipts::SealedCall {
+            act: self.call.act.clone(),
+            term_id: term.term_id.as_str().to_owned(),
+            target_ref,
+            effects,
+        })
+    }
+
     /// The key the provider sees, stable for the intent.
     fn provider_key(&self) -> Option<String> {
         self.mutation().then(|| {
@@ -518,13 +549,8 @@ impl RuntimeEffect for OperationEffect {
         let packet = request
             .claim
             .get("provider_operation")
+            .map(crate::output_contract::enveloped_value)
             .and_then(JsonValue::as_object)
-            .map(|packet| {
-                packet
-                    .get("data")
-                    .and_then(JsonValue::as_object)
-                    .unwrap_or(packet)
-            })
             .ok_or_else(|| state("the provider_operation packet is missing"))?;
         let field = |name: &str| packet.get(name).and_then(JsonValue::as_str);
         let intent_digest = context.admitted.intent_digest().as_str();
@@ -639,6 +665,8 @@ impl RuntimeEffect for OperationEffect {
             .ok_or_else(|| state("the operation admission is missing"))?;
         let admitted = &context.admitted;
         Ok(crate::receipts::SealAuthority {
+            actor_ref: Some(admitted.actor_ref.clone()),
+            mandate_ref: admitted.mandate_ref.clone(),
             grant_refs: vec![Reference::runx(
                 ReferenceType::Grant,
                 &admitted.capability.grant_id,
@@ -678,12 +706,14 @@ pub(crate) fn packet_artifacts() -> runx_parser::SkillArtifactContract {
     }
 }
 
-/// The step's output: the packet, the caller-only overlay, and where it ran.
+/// The step's output: the packet, the caller-only overlay, where it ran, and
+/// what the call produced.
 #[derive(Debug)]
 pub(crate) struct OperationOutcome {
     pub value: JsonValue,
     pub ephemeral: Option<JsonValue>,
     pub boundary: ExecutionBoundaryKind,
+    pub effects: Vec<Reference>,
 }
 
 /// How a placement failed.
@@ -752,7 +782,13 @@ pub(crate) fn execute(
         // Readback is provider evidence, not permission to settle under a
         // different implementation or authority than the attempted call.
         if let Some(readback) = pending.readback.clone() {
-            return finish(context, readback, implementation_digest.as_deref());
+            let produced = effects(context, &readback.result).map_err(unknown)?;
+            return finish(
+                context,
+                readback,
+                implementation_digest.as_deref(),
+                produced,
+            );
         }
         if pending.acknowledgement.is_none() && !context.resend_safe() {
             return Err(unknown(
@@ -794,6 +830,8 @@ pub(crate) fn execute(
             })?;
     }
 
+    // An answer the connector cannot describe as it declares, its effect
+    // included, is not trusted: the call holds for reconciliation.
     let outcome = dispatch(context, session, env, tools).and_then(|readback| {
         readback
             .verify(&Expected {
@@ -802,17 +840,23 @@ pub(crate) fn execute(
                 target: &admitted.target,
                 idempotency_key: provider_key.as_deref(),
             })
-            .map(|()| readback)
-            .map_err(Failure::Unknown)
+            .map_err(Failure::Unknown)?;
+        let produced = effects(context, &readback.result).map_err(Failure::Unknown)?;
+        Ok((readback, produced))
     });
     match outcome {
-        Ok(readback) => {
+        Ok((readback, produced)) => {
             if let Some(custody) = &context.admitted.custody {
                 custody.read_back(readback.clone()).map_err(|error| {
                     RuntimeError::effect_state("recording the readback", error.to_string())
                 })?;
             }
-            finish(context, readback, implementation_digest.as_deref())
+            finish(
+                context,
+                readback,
+                implementation_digest.as_deref(),
+                produced,
+            )
         }
         Err(Failure::Rejected {
             status,
@@ -1437,10 +1481,105 @@ fn rejected(code: &str, reason: String) -> Failure {
     }
 }
 
+/// What a write produced, as its operation declares.
+fn effects(context: &OperationAdmission, result: &JsonValue) -> Result<Vec<Reference>, String> {
+    let manifest = &context.admitted.connector.manifest;
+    let Some(effect) = &context.admitted.operation().effect else {
+        return Ok(Vec::new());
+    };
+    render_effects(
+        manifest,
+        effect,
+        context.admitted.operation().repeated_write(),
+        &runx_contracts::connector::TemplateInputs {
+            arguments: Some(&JsonValue::Object(context.call.input.clone())),
+            parameters: Some(&context.admitted.instance.instance.parameters),
+            result: Some(result),
+            ..runx_contracts::connector::TemplateInputs::default()
+        },
+    )
+}
+
+/// One reference per rendered locator, of the effect's kind, each matching
+/// the connector's own pattern for that kind when it declares references.
+fn render_effects(
+    manifest: &runx_contracts::connector::ConnectorManifest,
+    effect: &runx_contracts::connector::OperationEffect,
+    repeated_write: bool,
+    inputs: &runx_contracts::connector::TemplateInputs<'_>,
+) -> Result<Vec<Reference>, String> {
+    let elements = match &effect.each {
+        None => vec![None],
+        Some(each) => match each
+            .render(inputs)
+            .map_err(|error| format!("the effect's result array cannot be read: {error}"))?
+        {
+            JsonValue::Array(items) if repeated_write => {
+                applied(items)?.into_iter().map(Some).collect()
+            }
+            JsonValue::Array(items) => items.into_iter().map(Some).collect(),
+            _ => return Err("the effect repeats over a result that is not an array".to_owned()),
+        },
+    };
+    let patterns = manifest
+        .references
+        .iter()
+        .filter(|reference| reference.kind == effect.kind)
+        .map(|reference| runx_parser::whole_match(reference.locator.as_str()))
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| format!("the connector's reference pattern is invalid: {error}"))?;
+    elements
+        .iter()
+        .map(|item| {
+            let locator = effect
+                .locator
+                .render_string(&runx_contracts::connector::TemplateInputs {
+                    item: item.as_ref(),
+                    ..*inputs
+                })
+                .map_err(|error| format!("the effect locator cannot be rendered: {error}"))?;
+            if !patterns.is_empty() && !patterns.iter().any(|pattern| pattern.is_match(&locator)) {
+                return Err(format!(
+                    "the effect locator {locator:?} is not a {} {} declares",
+                    effect.kind.as_str(),
+                    manifest.id
+                ));
+            }
+            Ok(Reference {
+                provider: Some(manifest.id.as_str().to_owned().into()),
+                ..Reference::with_uri(effect.kind.clone(), locator)
+            })
+        })
+        .collect()
+}
+
+/// The provider's answer for each item a repeated write applied: an item
+/// refused or never sent produced nothing.
+fn applied(outcomes: Vec<JsonValue>) -> Result<Vec<JsonValue>, String> {
+    outcomes
+        .into_iter()
+        .filter_map(|outcome| {
+            let JsonValue::Object(mut outcome) = outcome else {
+                return Some(Err("a repeated write's outcome is not a record".to_owned()));
+            };
+            match outcome.get("status").and_then(JsonValue::as_str) {
+                Some("applied") => Some(
+                    outcome
+                        .remove("acknowledgement")
+                        .ok_or_else(|| "an applied item carries no answer".to_owned()),
+                ),
+                Some(_) => None,
+                None => Some(Err("a repeated write's outcome has no status".to_owned())),
+            }
+        })
+        .collect()
+}
+
 fn finish(
     context: &OperationAdmission,
     readback: Readback,
     implementation_digest: Option<&str>,
+    effects: Vec<Reference>,
 ) -> Result<OperationOutcome, RuntimeError> {
     let admitted = &context.admitted;
     let instance = &admitted.instance.instance;
@@ -1497,6 +1636,7 @@ fn finish(
             )]))
         }),
         boundary,
+        effects,
     })
 }
 
@@ -1796,6 +1936,13 @@ fn human(
         summary.insert(
             "exact_input".to_owned(),
             JsonValue::Object(context.call.input.clone()),
+        );
+    }
+    // A person approves the act with the call: the intent binds its digest.
+    if let Some(act) = &context.call.act {
+        summary.insert(
+            "act".to_owned(),
+            JsonValue::from_serialize(act).map_err(|error| state(error.to_string()))?,
         );
     }
     let gate = ApprovalGate {

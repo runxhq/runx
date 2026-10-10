@@ -86,7 +86,6 @@ export interface ConnectorOperation {
   readonly scopes: readonly string[];
   readonly credentials?: readonly string[];
   readonly target: { readonly template: Template; readonly pattern?: string };
-  readonly readback?: string;
   readonly approval?: "none" | "required";
   readonly standing?: JsonObject;
   readonly idempotency_key_format?: "runx" | "uuid";
@@ -94,6 +93,11 @@ export interface ConnectorOperation {
   readonly amount?: "none" | "required";
   readonly input_schema?: JsonObject;
   readonly result_fields?: readonly string[];
+  /**
+   * What a successful write produced: a locator rendered from the call's
+   * arguments and result, one per element of the `each` result array.
+   */
+  readonly effect?: OperationEffect;
   /** Present when the hosted placement offers the operation. */
   readonly hosted?: { readonly provider_scopes?: readonly string[] };
   readonly implementation?: {
@@ -136,6 +140,13 @@ export type ReferenceKind =
   | "change_request"
   | "repository"
   | "external_url";
+
+/** The reference a write leaves for what it produced. */
+export interface OperationEffect {
+  readonly kind: ReferenceKind;
+  readonly locator: Template;
+  readonly each?: Template;
+}
 
 /** One kind of thing a connector's locators name. */
 export interface ReferenceDeclaration {
@@ -221,14 +232,16 @@ export interface TemplateInputs {
   readonly arguments?: JsonValue;
   readonly parameters?: JsonObject;
   readonly responses?: { readonly [request: string]: JsonObject };
-  /** The element a repeated request is sent for. */
+  /** The element a repeated request is sent for, or an effect rendered for. */
   readonly item?: JsonValue;
+  /** The call's decoded result, which only an operation's effect reads. */
+  readonly result?: JsonValue;
   readonly idempotencyKey?: string;
 }
 
 const MAX_DEPTH = 32;
 const MAX_CONCAT_BYTES = 512;
-const BINDINGS = new Set(["$argument", "$parameter", "$response", "$item", "$runx", "$concat"]);
+const BINDINGS = new Set(["$argument", "$parameter", "$response", "$item", "$result", "$runx", "$concat"]);
 
 export function renderTemplate(template: Template, inputs: TemplateInputs): JsonValue {
   return render(template, inputs, 0);
@@ -278,6 +291,8 @@ function renderBinding(key: string, argument: JsonValue, inputs: TemplateInputs,
       return found(inputs.responses === undefined ? undefined : response(inputs.responses, reference));
     case "$item":
       return found(inputs.item === undefined ? undefined : pointer(inputs.item, reference));
+    case "$result":
+      return found(inputs.result === undefined ? undefined : pointer(inputs.result, reference));
     case "$runx":
       return found(inputs.idempotencyKey);
     default: {

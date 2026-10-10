@@ -8,6 +8,7 @@
 mod abnormal_seal;
 mod agent_turns;
 mod approval;
+mod call_acts;
 mod config;
 mod credential_delivery;
 mod credential_delivery_core;

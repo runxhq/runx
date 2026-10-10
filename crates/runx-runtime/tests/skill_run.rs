@@ -211,6 +211,7 @@ fn native_skill_run_pauses_with_agent_act_request() -> Result<(), Box<dyn std::e
         current_context: Vec::new(),
         historical_context: Vec::new(),
         run_authority: None,
+        act: None,
         skill_path: skill_dir.clone(),
         receipt_dir: None,
         run_id: None,
@@ -260,6 +261,7 @@ fn native_skill_run_pauses_with_agent_act_request() -> Result<(), Box<dyn std::e
         current_context: Vec::new(),
         historical_context: Vec::new(),
         run_authority: None,
+        act: None,
         skill_path: skill_dir,
         receipt_dir: None,
         run_id: None,
@@ -298,6 +300,7 @@ fn configured_model_credentials_do_not_enable_managed_agent_without_run_consent(
         current_context: Vec::new(),
         historical_context: Vec::new(),
         run_authority: None,
+        act: None,
         skill_path: skill_dir,
         receipt_dir: None,
         run_id: None,
@@ -328,6 +331,7 @@ fn native_agent_task_skill_run_infers_bundled_tool_roots() -> Result<(), Box<dyn
         current_context: Vec::new(),
         historical_context: Vec::new(),
         run_authority: None,
+        act: None,
         skill_path: skill_dir,
         receipt_dir: None,
         run_id: None,
@@ -388,6 +392,7 @@ fn native_skill_run_resumes_and_seals_receipt() -> Result<(), Box<dyn std::error
         current_context: Vec::new(),
         historical_context: Vec::new(),
         run_authority: None,
+        act: None,
         skill_path: skill_dir,
         receipt_dir: Some(receipt_dir.clone()),
         run_id: Some("issue-intake-run".to_owned()),
@@ -484,6 +489,7 @@ fn native_skill_run_treats_structured_stdout_as_claim_not_receipt_proof()
         current_context: Vec::new(),
         historical_context: Vec::new(),
         run_authority: None,
+        act: None,
         skill_path: skill_dir,
         receipt_dir: Some(receipt_dir.clone()),
         run_id: Some("malicious-stdout-run".to_owned()),
@@ -551,6 +557,7 @@ fn native_skill_run_preserves_deferred_closure_disposition()
         current_context: Vec::new(),
         historical_context: Vec::new(),
         run_authority: None,
+        act: None,
         skill_path: skill_dir,
         receipt_dir: Some(receipt_dir.clone()),
         run_id: Some("issue-intake-deferred".to_owned()),
@@ -601,6 +608,7 @@ fn native_skill_run_uses_runtime_receipt_path_resolution() -> Result<(), Box<dyn
         current_context: Vec::new(),
         historical_context: Vec::new(),
         run_authority: None,
+        act: None,
         skill_path: skill_dir,
         receipt_dir: None,
         run_id: Some("env-receipt-run".to_owned()),
@@ -659,6 +667,7 @@ runners:
         current_context: Vec::new(),
         historical_context: Vec::new(),
         run_authority: None,
+        act: None,
         skill_path: skill_dir,
         receipt_dir: Some(receipt_dir.clone()),
         run_id: None,
@@ -756,6 +765,7 @@ runners:
         current_context: Vec::new(),
         historical_context: Vec::new(),
         run_authority: None,
+        act: None,
         skill_path: skill_dir,
         receipt_dir: Some(temp.path().join("receipts")),
         run_id: None,
@@ -844,6 +854,7 @@ runners:
         current_context: Vec::new(),
         historical_context: Vec::new(),
         run_authority: None,
+        act: None,
         skill_path: skill_dir,
         receipt_dir: Some(temp.path().join("receipts")),
         run_id: None,
@@ -897,6 +908,7 @@ fn native_skill_run_uses_production_receipt_signing_env() -> Result<(), Box<dyn 
         current_context: Vec::new(),
         historical_context: Vec::new(),
         run_authority: None,
+        act: None,
         skill_path: skill_dir,
         receipt_dir: Some(receipt_dir.clone()),
         run_id: Some("production-signed-run".to_owned()),
@@ -945,6 +957,7 @@ fn native_skill_run_uses_local_development_without_production_receipt_signing_en
         current_context: Vec::new(),
         historical_context: Vec::new(),
         run_authority: None,
+        act: None,
         skill_path: skill_dir,
         receipt_dir: None,
         run_id: Some("local-development-signed-run".to_owned()),
@@ -976,6 +989,7 @@ fn native_graph_skill_run_pauses_and_resumes_agent_task() -> Result<(), Box<dyn 
         current_context: Vec::new(),
         historical_context: Vec::new(),
         run_authority: None,
+        act: None,
         skill_path: skill_dir.clone(),
         receipt_dir: Some(receipt_dir.clone()),
         run_id: None,
@@ -1032,6 +1046,7 @@ fn native_graph_skill_run_pauses_and_resumes_agent_task() -> Result<(), Box<dyn 
         current_context: Vec::new(),
         historical_context: Vec::new(),
         run_authority: None,
+        act: None,
         skill_path: skill_dir.clone(),
         receipt_dir: Some(receipt_dir.clone()),
         run_id: Some(run_id.to_owned()),
@@ -1069,6 +1084,7 @@ fn native_graph_skill_run_pauses_and_resumes_agent_task() -> Result<(), Box<dyn 
         current_context: Vec::new(),
         historical_context: Vec::new(),
         run_authority: None,
+        act: None,
         skill_path: skill_dir.clone(),
         receipt_dir: Some(receipt_dir.clone()),
         run_id: Some(run_id.to_owned()),
@@ -1110,6 +1126,7 @@ fn native_graph_skill_run_pauses_and_resumes_agent_task() -> Result<(), Box<dyn 
         current_context: Vec::new(),
         historical_context: Vec::new(),
         run_authority: None,
+        act: None,
         skill_path: skill_dir,
         receipt_dir: Some(receipt_dir),
         run_id: Some(run_id.to_owned()),
@@ -1151,6 +1168,7 @@ fn native_graph_transition_gate_allows_declared_agent_output()
         current_context: Vec::new(),
         historical_context: Vec::new(),
         run_authority: None,
+        act: None,
         skill_path: skill_dir.clone(),
         receipt_dir: Some(receipt_dir.clone()),
         run_id: None,
@@ -1183,6 +1201,7 @@ fn native_graph_transition_gate_allows_declared_agent_output()
         current_context: Vec::new(),
         historical_context: Vec::new(),
         run_authority: None,
+        act: None,
         skill_path: skill_dir,
         receipt_dir: Some(receipt_dir),
         run_id: Some(run_id.to_owned()),
@@ -1246,6 +1265,7 @@ runners:
             current_context: Vec::new(),
             historical_context: Vec::new(),
             run_authority: None,
+            act: None,
             skill_path: skill_dir.clone(),
             receipt_dir: Some(receipt_dir.clone()),
             run_id: Some("run_continuation".to_owned()),
@@ -1282,6 +1302,7 @@ fn native_graph_guard_rejects_skill_claim_as_fact() -> Result<(), Box<dyn std::e
         current_context: Vec::new(),
         historical_context: Vec::new(),
         run_authority: None,
+        act: None,
         skill_path: skill_dir.clone(),
         receipt_dir: Some(receipt_dir.clone()),
         run_id: None,
@@ -1314,6 +1335,7 @@ fn native_graph_guard_rejects_skill_claim_as_fact() -> Result<(), Box<dyn std::e
         current_context: Vec::new(),
         historical_context: Vec::new(),
         run_authority: None,
+        act: None,
         skill_path: skill_dir,
         receipt_dir: Some(receipt_dir.clone()),
         run_id: Some(run_id.to_owned()),
@@ -1355,6 +1377,7 @@ fn native_graph_skill_run_pauses_and_resumes_nested_agent_skill()
         current_context: Vec::new(),
         historical_context: Vec::new(),
         run_authority: None,
+        act: None,
         skill_path: skill_dir.clone(),
         receipt_dir: Some(receipt_dir.clone()),
         run_id: None,
@@ -1401,6 +1424,7 @@ fn native_graph_skill_run_pauses_and_resumes_nested_agent_skill()
         current_context: Vec::new(),
         historical_context: Vec::new(),
         run_authority: None,
+        act: None,
         skill_path: skill_dir,
         receipt_dir: Some(receipt_dir),
         run_id: Some(run_id.to_owned()),
@@ -1475,6 +1499,7 @@ runners:
         current_context: Vec::new(),
         historical_context: Vec::new(),
         run_authority: None,
+        act: None,
         skill_path: skill_dir,
         receipt_dir: Some(temp.path().join("receipts")),
         run_id: None,
@@ -1536,6 +1561,7 @@ fn graph_agent_task_rejects_parent_path_context_skill() -> Result<(), Box<dyn st
         current_context: Vec::new(),
         historical_context: Vec::new(),
         run_authority: None,
+        act: None,
         skill_path: skill_dir,
         receipt_dir: Some(temp.path().join("receipts")),
         run_id: None,
@@ -1597,6 +1623,7 @@ runners:
         current_context: Vec::new(),
         historical_context: Vec::new(),
         run_authority: None,
+        act: None,
         skill_path: skill_dir,
         receipt_dir: Some(temp.path().join("receipts")),
         run_id: None,
@@ -1672,6 +1699,7 @@ runners:
         current_context: Vec::new(),
         historical_context: Vec::new(),
         run_authority: None,
+        act: None,
         skill_path: skill_dir,
         receipt_dir: Some(temp.path().join("receipts")),
         run_id: None,
@@ -1717,6 +1745,7 @@ fn native_graph_skill_run_executes_local_tool_step() -> Result<(), Box<dyn std::
         current_context: Vec::new(),
         historical_context: Vec::new(),
         run_authority: None,
+        act: None,
         skill_path: skill_dir,
         receipt_dir: Some(receipt_dir),
         run_id: None,
@@ -1751,6 +1780,7 @@ fn configured_model_credentials_do_not_enable_graph_agent_without_run_consent()
         current_context: Vec::new(),
         historical_context: Vec::new(),
         run_authority: None,
+        act: None,
         skill_path: skill_dir,
         receipt_dir: Some(temp.path().join("receipts")),
         run_id: None,
@@ -1801,6 +1831,7 @@ fn native_graph_skill_run_resolves_agent_task_named_emit_context()
         current_context: Vec::new(),
         historical_context: Vec::new(),
         run_authority: None,
+        act: None,
         skill_path: skill_dir.clone(),
         receipt_dir: Some(receipt_dir.clone()),
         run_id: None,
@@ -1820,6 +1851,7 @@ fn native_graph_skill_run_resolves_agent_task_named_emit_context()
         current_context: Vec::new(),
         historical_context: Vec::new(),
         run_authority: None,
+        act: None,
         skill_path: skill_dir,
         receipt_dir: Some(receipt_dir),
         run_id: Some(run_id),
@@ -1891,6 +1923,7 @@ fn native_graph_skill_resume_preserves_initial_inputs_for_later_tool_steps()
         current_context: Vec::new(),
         historical_context: Vec::new(),
         run_authority: None,
+        act: None,
         skill_path: skill_dir.clone(),
         receipt_dir: Some(receipt_dir.clone()),
         run_id: None,
@@ -1910,6 +1943,7 @@ fn native_graph_skill_resume_preserves_initial_inputs_for_later_tool_steps()
         current_context: Vec::new(),
         historical_context: Vec::new(),
         run_authority: None,
+        act: None,
         skill_path: skill_dir.clone(),
         receipt_dir: Some(receipt_dir.clone()),
         run_id: Some(run_id.clone()),
@@ -1932,6 +1966,7 @@ fn native_graph_skill_resume_preserves_initial_inputs_for_later_tool_steps()
         current_context: Vec::new(),
         historical_context: Vec::new(),
         run_authority: None,
+        act: None,
         skill_path: skill_dir,
         receipt_dir: Some(receipt_dir),
         run_id: Some(run_id),
@@ -1992,6 +2027,7 @@ fn native_graph_skill_run_refuses_agent_output_envelope_claim()
         current_context: Vec::new(),
         historical_context: Vec::new(),
         run_authority: None,
+        act: None,
         skill_path: skill_dir.clone(),
         receipt_dir: Some(receipt_dir.clone()),
         run_id: None,
@@ -2016,6 +2052,7 @@ fn native_graph_skill_run_refuses_agent_output_envelope_claim()
         current_context: Vec::new(),
         historical_context: Vec::new(),
         run_authority: None,
+        act: None,
         skill_path: skill_dir.clone(),
         receipt_dir: Some(receipt_dir.clone()),
         run_id: Some(run_id.clone()),
@@ -2036,6 +2073,7 @@ fn native_graph_skill_run_refuses_agent_output_envelope_claim()
         current_context: Vec::new(),
         historical_context: Vec::new(),
         run_authority: None,
+        act: None,
         skill_path: skill_dir,
         receipt_dir: Some(receipt_dir),
         run_id: Some(run_id),
@@ -2076,6 +2114,7 @@ fn native_graph_skill_run_omits_missing_optional_graph_input_references()
         current_context: Vec::new(),
         historical_context: Vec::new(),
         run_authority: None,
+        act: None,
         skill_path: skill_dir,
         receipt_dir: Some(receipt_dir),
         run_id: None,
@@ -2110,6 +2149,7 @@ fn native_graph_skill_run_requires_declared_graph_inputs() -> Result<(), Box<dyn
         current_context: Vec::new(),
         historical_context: Vec::new(),
         run_authority: None,
+        act: None,
         skill_path: skill_dir,
         receipt_dir: Some(receipt_dir.clone()),
         run_id: None,
@@ -2163,6 +2203,7 @@ fn native_graph_skill_resume_applies_approval_before_completing_step()
         current_context: Vec::new(),
         historical_context: Vec::new(),
         run_authority: None,
+        act: None,
         skill_path: skill_dir.clone(),
         receipt_dir: Some(receipt_dir.clone()),
         run_id: None,
@@ -2182,6 +2223,7 @@ fn native_graph_skill_resume_applies_approval_before_completing_step()
         current_context: Vec::new(),
         historical_context: Vec::new(),
         run_authority: None,
+        act: None,
         skill_path: skill_dir,
         receipt_dir: Some(receipt_dir),
         run_id: Some(run_id),
@@ -2218,6 +2260,7 @@ fn native_graph_skill_resume_approves_only_what_the_run_waits_on()
         current_context: Vec::new(),
         historical_context: Vec::new(),
         run_authority: None,
+        act: None,
         skill_path: skill_dir.clone(),
         receipt_dir: Some(receipt_dir.clone()),
         run_id: Some(run_id.clone()),
@@ -2282,6 +2325,7 @@ fn native_graph_skill_resume_rejects_agent_answer_for_approval()
         current_context: Vec::new(),
         historical_context: Vec::new(),
         run_authority: None,
+        act: None,
         skill_path: skill_dir.clone(),
         receipt_dir: Some(receipt_dir.clone()),
         run_id: None,
@@ -2300,6 +2344,7 @@ fn native_graph_skill_resume_rejects_agent_answer_for_approval()
         current_context: Vec::new(),
         historical_context: Vec::new(),
         run_authority: None,
+        act: None,
         skill_path: skill_dir,
         receipt_dir: Some(receipt_dir.clone()),
         run_id: Some(run_id.clone()),
@@ -2340,6 +2385,7 @@ fn native_graph_skill_run_uses_canonical_tool_root() -> Result<(), Box<dyn std::
         current_context: Vec::new(),
         historical_context: Vec::new(),
         run_authority: None,
+        act: None,
         skill_path: skill_dir,
         receipt_dir: Some(receipt_dir),
         run_id: None,
@@ -2377,6 +2423,7 @@ fn native_graph_skill_run_merges_imported_graph_skill_tool_roots()
         current_context: Vec::new(),
         historical_context: Vec::new(),
         run_authority: None,
+        act: None,
         skill_path: skill_dir,
         receipt_dir: Some(receipt_dir.clone()),
         run_id: None,
@@ -2470,6 +2517,7 @@ fn native_graph_skill_run_executes_nested_process_tool_skill()
         current_context: Vec::new(),
         historical_context: Vec::new(),
         run_authority: None,
+        act: None,
         skill_path: skill_dir,
         receipt_dir: Some(receipt_dir.clone()),
         run_id: None,
@@ -2585,6 +2633,7 @@ fn native_graph_skill_run_executes_nested_registry_skill() -> Result<(), Box<dyn
         current_context: Vec::new(),
         historical_context: Vec::new(),
         run_authority: None,
+        act: None,
         skill_path: skill_dir,
         receipt_dir: Some(receipt_dir),
         run_id: None,
@@ -2638,6 +2687,7 @@ fn native_graph_skill_run_rejects_env_promoted_official_nested_registry_skill()
         current_context: Vec::new(),
         historical_context: Vec::new(),
         run_authority: None,
+        act: None,
         skill_path: skill_dir,
         receipt_dir: Some(receipt_dir),
         run_id: None,
@@ -2695,6 +2745,7 @@ fn native_graph_skill_run_rejects_unsigned_nested_registry_skill()
         current_context: Vec::new(),
         historical_context: Vec::new(),
         run_authority: None,
+        act: None,
         skill_path: skill_dir,
         receipt_dir: Some(receipt_dir),
         run_id: None,
@@ -2746,6 +2797,7 @@ fn native_graph_skill_run_rejects_tampered_nested_registry_skill()
         current_context: Vec::new(),
         historical_context: Vec::new(),
         run_authority: None,
+        act: None,
         skill_path: skill_dir,
         receipt_dir: Some(receipt_dir),
         run_id: None,
@@ -2777,6 +2829,7 @@ fn native_graph_skill_run_rejects_nested_registry_skill_without_registry_dir()
         current_context: Vec::new(),
         historical_context: Vec::new(),
         run_authority: None,
+        act: None,
         skill_path: skill_dir,
         receipt_dir: Some(receipt_dir),
         run_id: None,
@@ -2802,7 +2855,7 @@ fn native_graph_skill_run_rejects_nested_registry_skill_without_registry_dir()
 #[test]
 fn native_graph_skill_run_does_not_rerun_final_step() -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;
-    let skill_dir = write_graph_nested_cli_counter_skill(temp.path(), false)?;
+    let skill_dir = write_graph_nested_cli_counter_skill(temp.path())?;
     let receipt_dir = temp.path().join("receipts");
     let count_file = temp.path().join("count.txt");
     let inputs = [(
@@ -2816,6 +2869,7 @@ fn native_graph_skill_run_does_not_rerun_final_step() -> Result<(), Box<dyn std:
         current_context: Vec::new(),
         historical_context: Vec::new(),
         run_authority: None,
+        act: None,
         skill_path: skill_dir,
         receipt_dir: Some(receipt_dir.clone()),
         run_id: Some("run_pinned_counter".to_owned()),
@@ -2899,37 +2953,6 @@ fn native_graph_skill_run_does_not_rerun_final_step() -> Result<(), Box<dyn std:
 }
 
 #[test]
-fn native_graph_skill_run_recovers_domain_act_receipt() -> Result<(), Box<dyn std::error::Error>> {
-    let temp = tempdir()?;
-    let skill_dir = write_graph_nested_cli_counter_skill(temp.path(), true)?;
-    let count_file = temp.path().join("count.txt");
-    let request = SkillRunRequest {
-        current_context: Vec::new(),
-        historical_context: Vec::new(),
-        run_authority: None,
-        skill_path: skill_dir,
-        receipt_dir: Some(temp.path().join("receipts")),
-        run_id: Some("run_pinned_domain_act".to_owned()),
-        answers_path: None,
-        inputs: [(
-            "count_file".to_owned(),
-            JsonValue::String(count_file.to_string_lossy().into_owned()),
-        )]
-        .into_iter()
-        .collect(),
-        env: path_env(),
-        cwd: temp.path().to_path_buf(),
-        managed_agent: Default::default(),
-    };
-    let result = run_skill(request.clone())?;
-    let recovered = run_skill(request)?;
-    assert_eq!(recovered.output, result.output);
-    assert_eq!(recovered.receipt_refs, result.receipt_refs);
-    assert_eq!(fs::read_to_string(count_file)?, "1");
-    Ok(())
-}
-
-#[test]
 fn native_graph_skill_run_executes_graph_stage_process_tool_skill()
 -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;
@@ -2946,6 +2969,7 @@ fn native_graph_skill_run_executes_graph_stage_process_tool_skill()
         current_context: Vec::new(),
         historical_context: Vec::new(),
         run_authority: None,
+        act: None,
         skill_path: skill_dir,
         receipt_dir: Some(receipt_dir),
         run_id: None,
@@ -2989,6 +3013,7 @@ fn native_graph_skill_run_executes_nested_x_yaml_runner_skill()
         current_context: Vec::new(),
         historical_context: Vec::new(),
         run_authority: None,
+        act: None,
         skill_path: skill_dir,
         receipt_dir: Some(receipt_dir),
         run_id: None,
@@ -3018,6 +3043,7 @@ fn native_skill_run_accepts_named_start_and_requires_identity_for_answers()
         current_context: Vec::new(),
         historical_context: Vec::new(),
         run_authority: None,
+        act: None,
         skill_path: skill_dir.clone(),
         receipt_dir: None,
         run_id: Some("issue-intake-run".to_owned()),
@@ -3035,6 +3061,7 @@ fn native_skill_run_accepts_named_start_and_requires_identity_for_answers()
         current_context: Vec::new(),
         historical_context: Vec::new(),
         run_authority: None,
+        act: None,
         skill_path: skill_dir.clone(),
         receipt_dir: None,
         run_id: None,
@@ -3057,6 +3084,7 @@ fn native_skill_run_accepts_named_start_and_requires_identity_for_answers()
         current_context: Vec::new(),
         historical_context: Vec::new(),
         run_authority: None,
+        act: None,
         skill_path: skill_dir,
         receipt_dir: None,
         run_id: Some("missing".to_owned()),
@@ -3860,7 +3888,6 @@ runners:
 
 fn write_graph_nested_cli_counter_skill(
     root: &Path,
-    domain_act: bool,
 ) -> Result<PathBuf, Box<dyn std::error::Error>> {
     let child_dir = root.join("child-counter");
     crate::support::write_test_skill_package(
@@ -3910,15 +3937,9 @@ console.log(JSON.stringify({ counted: { count } }));
         skill_dir.join("SKILL.md"),
         "---\nname: graph-nested-cli-counter\ndescription: graph-nested-cli-counter fixture.\n---\n# Graph Nested CLI Counter\n",
     )?;
-    let act = if domain_act {
-        "    act:\n      purpose: Record one completed counter action.\n"
-    } else {
-        ""
-    };
     fs::write(
         skill_dir.join("run.yaml"),
-        format!(
-            r#"
+        r#"
 skill: graph-nested-cli-counter
 runners:
   graph:
@@ -3927,7 +3948,6 @@ runners:
       count_file:
         type: string
         required: true
-{act}
     result_from:
       - counted
     steps:
@@ -3935,8 +3955,7 @@ runners:
         skill: ../child-counter
         inputs:
           count_file: $input.count_file
-"#
-        ),
+"#,
     )?;
     Ok(skill_dir)
 }
@@ -4104,6 +4123,7 @@ fn native_graph_when_skips_unselected_branch() -> Result<(), Box<dyn std::error:
         current_context: Vec::new(),
         historical_context: Vec::new(),
         run_authority: None,
+        act: None,
         skill_path: skill_dir.clone(),
         receipt_dir: Some(receipt_dir.clone()),
         run_id: None,
@@ -4144,6 +4164,7 @@ fn native_graph_when_skips_unselected_branch() -> Result<(), Box<dyn std::error:
         current_context: Vec::new(),
         historical_context: Vec::new(),
         run_authority: None,
+        act: None,
         skill_path: skill_dir,
         receipt_dir: Some(receipt_dir),
         run_id: Some(run_id.to_owned()),

@@ -88,8 +88,16 @@ fn parse_skill_plan_inner(args: &[OsString]) -> Result<SkillPlan, String> {
         full_operator_context: state.full_operator_context,
         inputs: state.inputs,
         input_document: state.input_document,
+        act: state.act,
         managed_agent,
     })
+}
+
+/// `--act <json>`: the act the invoker states for the run.
+fn parse_act(value: &str) -> Result<runx_contracts::CallAct, String> {
+    let act = serde_json::from_str::<JsonValue>(value)
+        .map_err(|error| format!("runx skill --act must be a JSON act: {error}"))?;
+    runx_contracts::CallAct::parse(&act).map_err(|error| format!("runx skill --act: {error}"))
 }
 
 #[derive(Default)]
@@ -110,6 +118,7 @@ struct SkillParseState {
     force_run: bool,
     inputs: BTreeMap<String, JsonValue>,
     input_document: Option<crate::document_input::DocumentInputSource>,
+    act: Option<runx_contracts::CallAct>,
     managed_agent: bool,
     managed_agent_rounds: Option<u32>,
 }
@@ -259,6 +268,13 @@ fn parse_skill_arg(
             index = parse_input_document_arg(args, index, None, &mut state.input_document)?;
         }
         "-i" => index = parse_input_arg(args, index, None, &mut state.inputs)?,
+        value if value.starts_with("--act=") => {
+            state.act = Some(parse_act(value.trim_start_matches("--act="))?);
+        }
+        "--act" => {
+            index += 1;
+            state.act = Some(parse_act(&string_arg(args, index)?)?);
+        }
         "--run" => state.force_run = true,
         "--json" | "-j" => state.json = true,
         "--diagnostics" => state.diagnostics = true,

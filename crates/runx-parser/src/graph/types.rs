@@ -192,6 +192,10 @@ pub struct GraphStep {
     /// Where `inputs` reads the run's input and earlier steps' results.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub bindings: Vec<Binding>,
+    /// The act an operation step's call performs, or the act a skill step's
+    /// child run takes as its `$act`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub act: Option<StepAct>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub context_skills: Vec<String>,
     pub scopes: Vec<String>,
@@ -240,6 +244,7 @@ impl GraphStep {
         for step in self
             .bindings
             .iter()
+            .chain(self.act.iter().flat_map(|act| &act.bindings))
             .filter_map(|binding| binding.source.step())
         {
             if !steps.contains(&step) {
@@ -248,6 +253,17 @@ impl GraphStep {
         }
         steps
     }
+}
+
+/// A step's `act:` as written: its literal fields, with each reference left
+/// in place, and the bindings that fill them. `act: $act` is one binding of
+/// the whole.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct StepAct {
+    pub values: JsonObject,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub bindings: Vec<Binding>,
 }
 
 /// An operation step's target: a key of the skill's `connectors:` block and,

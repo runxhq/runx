@@ -16,11 +16,12 @@ pub mod signing;
 pub mod store;
 pub mod tree;
 
+pub(crate) use act::SealedCall;
 pub(crate) use issuer::local_runtime_issuer;
 pub(crate) use seal::{
-    DomainActFrame, DomainActReceiptRequest, GraphClosure, RuntimeReceiptProofContextProvider,
-    StepReceiptWithDisposition, StepSeal, StepSealClosure, domain_act_receipt,
-    graph_receipt_with_closure, seal_step, step_receipt_with_declared_claim_and_policy,
+    GraphClosure, RuntimeReceiptProofContextProvider, StepReceiptWithDisposition, StepSeal,
+    StepSealClosure, graph_receipt_with_closure, seal_step,
+    step_receipt_with_declared_claim_and_policy,
 };
 pub use seal::{
     RunScope, RuntimeReceiptSignaturePolicy, SealAuthority, graph_receipt,

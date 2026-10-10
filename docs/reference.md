@@ -791,6 +791,8 @@ the verified receipts and runner output establish.
 A case's `caller` stands in for the host and the world. It is one shape in
 fixture files, inline runner cases and dev fixtures:
 
+- `act`: the act the caller states for the run, which its steps read as
+  `$act`;
 - `answers`: agent act outputs, by request id;
 - `turns`: agent turns the caller works call by call, by request id. An act
   is answered or worked, not both;

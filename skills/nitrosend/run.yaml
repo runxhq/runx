@@ -1,5 +1,5 @@
 skill: nitrosend
-version: "0.4.12"
+version: "0.4.13"
 catalog:
   kind: skill
   audience: public
@@ -51,8 +51,6 @@ runners:
             status_evidence: nitrosend.provider_evidence.v1
             plans_evidence: nitrosend.provider_evidence.v1
   plan-checkout:
-    act:
-      purpose: Create one operator-approved Nitrosend hosted plan checkout or confirmed in-place plan change.
     inputs:
       plan_id:
         type: integer
@@ -84,6 +82,8 @@ runners:
       - id: checkout
         skill: graph/provider-operation
         runner: act
+        act:
+          purpose: Create one operator-approved Nitrosend hosted plan checkout or confirmed in-place plan change.
         inputs:
           approval:
             reason: Create the Nitrosend hosted checkout or confirmed plan change for this exact selected plan.
@@ -355,8 +355,6 @@ runners:
           named_emits: { assistant_context: assistant_context }
           packets: { assistant_context: runx.source_packet.v1 }
   configure-sender:
-    act:
-      purpose: Replace one explicitly selected Nitrosend brand's exact sender defaults.
     inputs:
       brand_sid:
         type: string
@@ -410,6 +408,8 @@ runners:
       - id: apply
         skill: graph/provider-operation
         runner: act
+        act:
+          purpose: Replace one explicitly selected Nitrosend brand's exact sender defaults.
         inputs:
           approval:
             reason: Replace the selected Nitrosend brand's sender defaults with these exact values.
@@ -486,8 +486,6 @@ runners:
             revision_id: "$input.revision_id"
           brand_sid: "$input.brand_sid"
   send-test-message:
-    act:
-      purpose: Send or dry-run one reviewed test message to one to five explicit recipients without approving or activating the target.
     inputs:
       target_type:
         type: string
@@ -573,6 +571,8 @@ runners:
       - id: send
         skill: graph/provider-operation
         runner: act
+        act:
+          purpose: Send or dry-run one reviewed test message to one to five explicit recipients without approving or activating the target.
         inputs:
           approval:
             reason: Send this exact reviewed test message to the named recipients.
@@ -664,8 +664,6 @@ runners:
             import_id: "$input.import_id"
           brand_sid: "$input.brand_sid"
   approve-delivery:
-    act:
-      purpose: Approve one reviewed Nitrosend campaign or flow without sending it.
     inputs:
       target_type:
         type: string
@@ -704,6 +702,8 @@ runners:
       - id: apply
         skill: graph/provider-operation
         runner: act
+        act:
+          purpose: Approve one reviewed Nitrosend campaign or flow without sending it.
         inputs:
           approval:
             reason: Approve this reviewed delivery configuration. This does not send or activate it.
@@ -716,8 +716,6 @@ runners:
             revision_id: "$input.revision_id"
           brand_sid: "$input.brand_sid"
   send-campaign:
-    act:
-      purpose: Deliver one already-approved Nitrosend campaign after fresh review and explicit approval.
     inputs:
       campaign_id:
         type: number
@@ -766,6 +764,8 @@ runners:
       - id: deliver
         skill: graph/provider-operation
         runner: act
+        act:
+          purpose: Deliver one already-approved Nitrosend campaign after fresh review and explicit approval.
         inputs:
           approval:
             reason: Deliver this reviewed campaign to its configured live audience.
@@ -786,8 +786,6 @@ runners:
           value: $steps.review.provider_evidence.decision
           equals: ok
   activate-flow:
-    act:
-      purpose: Activate one already-approved Nitrosend flow after fresh review and explicit approval.
     inputs:
       flow_id:
         type: number
@@ -820,6 +818,8 @@ runners:
       - id: activate
         skill: graph/provider-operation
         runner: act
+        act:
+          purpose: Activate one already-approved Nitrosend flow after fresh review and explicit approval.
         inputs:
           approval:
             reason: Activate this reviewed automation flow for live contacts.
@@ -837,8 +837,6 @@ runners:
           value: $steps.review.provider_evidence.decision
           equals: ok
   apply-draft:
-    act:
-      purpose: Apply one reviewed Nitrosend campaign, flow, template, segment, or remote image ingest request.
     inputs:
       operation:
         type: string
@@ -892,6 +890,8 @@ runners:
           equals: ready
         skill: graph/provider-operation
         runner: act
+        act:
+          purpose: Apply one reviewed Nitrosend campaign, flow, template, segment, or remote image ingest request.
         inputs:
           approval:
             reason: Apply this reviewed draft or image ingest to the live Nitrosend account. This does not deliver to recipients or activate a flow.
@@ -1145,8 +1145,6 @@ runners:
           wrap_as: transactional_packet
           packet: nitrosend.transactional.v1
   send-transactional:
-    act:
-      purpose: Send or dry-run one idempotent transactional message to one recipient.
     inputs:
       channel:
         type: string
@@ -1202,6 +1200,8 @@ runners:
       - id: send
         skill: graph/provider-operation
         runner: act
+        act:
+          purpose: Send or dry-run one idempotent transactional message to one recipient.
         inputs:
           operation: send_transactional
           arguments:
@@ -1400,8 +1400,6 @@ runners:
           wrap_as: import_packet
           packet: nitrosend.import.v1
   import-contacts:
-    act:
-      purpose: Import one consented inline contact batch after explicit approval.
     inputs:
       records:
         type: array
@@ -1452,6 +1450,8 @@ runners:
       - id: import
         skill: graph/provider-operation
         runner: act
+        act:
+          purpose: Import one consented inline contact batch after explicit approval.
         inputs:
           approval:
             reason: Import this consented contact batch into Nitrosend.
@@ -1468,8 +1468,6 @@ runners:
           brand_sid: "$input.brand_sid"
           idempotency_key: $input.idempotency_key
   import-contacts-csv:
-    act:
-      purpose: Upload and start one consented CSV contact import without putting file bytes or signed URLs in the agent packet.
     inputs:
       csv_path:
         type: string
@@ -1548,6 +1546,8 @@ runners:
         approval:
           reason: Upload and import this consented local CSV.
           type: nitrosend_import_contacts_csv
+        act:
+          purpose: Upload and start one consented CSV contact import without putting file bytes or signed URLs in the agent packet.
         input: $steps.plan.csv_import.input
       - id: present-preview
         when:

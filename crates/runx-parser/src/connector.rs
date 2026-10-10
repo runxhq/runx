@@ -57,6 +57,7 @@ pub fn validate_connector_manifest(
         validate_messages(messages, &mut errors);
     }
     validate_references(&manifest.references, &mut errors);
+    validate_effects(&manifest, &mut errors);
     errors.finish()?;
 
     let digest_error = |error: runx_contracts::connector::ConnectorDigestError| {
@@ -806,17 +807,7 @@ fn validate_messages(messages: &MessageRules, errors: &mut Errors) {
 /// compiles.
 fn validate_references(references: &[ReferenceDeclaration], errors: &mut Errors) {
     for (index, reference) in references.iter().enumerate() {
-        let external = matches!(
-            reference.kind,
-            ReferenceType::Thread
-                | ReferenceType::Comment
-                | ReferenceType::Event
-                | ReferenceType::TrackingItem
-                | ReferenceType::ChangeRequest
-                | ReferenceType::Repository
-                | ReferenceType::ExternalUrl
-        );
-        if !external {
+        if !external_kind(&reference.kind) {
             errors.push(
                 &format!("references[{index}].kind"),
                 format!(
@@ -841,6 +832,124 @@ fn validate_references(references: &[ReferenceDeclaration], errors: &mut Errors)
             );
         }
     }
+}
+
+/// The kinds a reference to something outside runx may name.
+fn external_kind(kind: &ReferenceType) -> bool {
+    matches!(
+        kind,
+        ReferenceType::Thread
+            | ReferenceType::Comment
+            | ReferenceType::Event
+            | ReferenceType::TrackingItem
+            | ReferenceType::ChangeRequest
+            | ReferenceType::Repository
+            | ReferenceType::ExternalUrl
+    )
+}
+
+/// An effect is what a write produced: an external kind the connector's own
+/// references declare, when it declares any, rendered from the call and its
+/// result. `$result` is read by an effect and by nothing the call renders
+/// before it has one.
+fn validate_effects(manifest: &ConnectorManifest, errors: &mut Errors) {
+    let declared = manifest
+        .references
+        .iter()
+        .map(|reference| &reference.kind)
+        .collect::<Vec<_>>();
+    for (name, operation) in &manifest.operations {
+        let field = format!("operations.{name}");
+        if call_templates(manifest, operation).any(Template::binds_result) {
+            errors.push(
+                &field,
+                "only an effect reads $result; the call has no result while it is made",
+            );
+        }
+        let Some(effect) = &operation.effect else {
+            continue;
+        };
+        let field = format!("{field}.effect");
+        if operation.access() == OperationAccess::Read {
+            errors.push(
+                &field,
+                "a read produces nothing; only a write declares an effect",
+            );
+        }
+        if !external_kind(&effect.kind) {
+            errors.push(
+                &format!("{field}.kind"),
+                format!("{} is not an external reference kind", effect.kind.as_str()),
+            );
+        } else if !declared.is_empty() && !declared.contains(&&effect.kind) {
+            errors.push(
+                &format!("{field}.kind"),
+                format!(
+                    "the connector's references declare no {} locator to check it against",
+                    effect.kind.as_str()
+                ),
+            );
+        }
+        let locator = &effect.locator;
+        if locator.binds_exchange() && !(effect.each.is_some() && !binds_response(locator)) {
+            errors.push(
+                &format!("{field}.locator"),
+                "a locator reads $item only under each, and never $response",
+            );
+        }
+        if locator.is_literal() {
+            errors.push(
+                &format!("{field}.locator"),
+                "a locator is rendered from the call's arguments and result",
+            );
+        }
+        if let Some(each) = &effect.each
+            && each.result_pointer().is_none()
+        {
+            errors.push(
+                &format!("{field}.each"),
+                "each names the result array the effect repeats over, as one $result binding",
+            );
+        }
+    }
+}
+
+fn binds_response(template: &Template) -> bool {
+    !template.responses().is_empty()
+}
+
+/// Every template the call renders while it is made: its target, and its
+/// implementation's requests, readbacks, tool arguments and session headers.
+fn call_templates<'a>(
+    manifest: &'a ConnectorManifest,
+    operation: &'a ConnectorOperation,
+) -> impl Iterator<Item = &'a Template> {
+    let mut templates = vec![&operation.target.template];
+    match &operation.implementation {
+        Some(Implementation::Http(http)) => {
+            templates.extend(http.requests.iter().flat_map(HttpRequest::templates));
+            templates.extend(
+                http.preconditions
+                    .iter()
+                    .chain(&http.readbacks)
+                    .flat_map(|readback| readback.request.templates()),
+            );
+        }
+        Some(Implementation::Mcp(mcp)) => {
+            templates.push(&mcp.arguments);
+            templates.extend(mcp.readback.iter().map(|readback| &readback.arguments));
+            if let Some(McpServer::StreamableHttp { headers, .. }) = manifest
+                .placements
+                .local
+                .as_ref()
+                .and_then(|local| local.mcp_server.as_ref())
+            {
+                templates.extend(headers.values());
+            }
+        }
+        _ => {}
+    }
+    templates.into_iter()
 }
 
 fn binds_item(request: &HttpRequest) -> bool {

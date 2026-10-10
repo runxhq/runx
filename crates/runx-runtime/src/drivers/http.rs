@@ -260,6 +260,7 @@ impl Http<'_> {
             responses,
             item,
             idempotency_key: self.call.idempotency_key,
+            ..TemplateInputs::default()
         }
     }
 

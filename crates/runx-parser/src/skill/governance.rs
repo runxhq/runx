@@ -71,6 +71,12 @@ pub(crate) fn validate_inputs(
         .into_iter()
         .map(|(name, value)| {
             let field = format!("{field_prefix}.{name}");
+            // The invoker's act travels beside a run's inputs, under this name.
+            if name == "act" {
+                return Err(FIELDS.validation_error(format!(
+                    "{field}: act is the act a run's invoker states, given beside its inputs, never one of them."
+                )));
+            }
             let input = FIELDS.required_object(Some(&value), &field)?;
             FIELDS.reject_unknown_fields(
                 input,

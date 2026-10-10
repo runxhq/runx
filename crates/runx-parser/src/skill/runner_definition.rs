@@ -3,10 +3,9 @@ use runx_contracts::{JsonObject, JsonValue};
 use crate::ValidationError;
 use crate::graph::{RawGraphIr, validate_graph_document};
 
-use super::{ActDeclaration, FIELDS, SkillRunnerDefinition, validate_inputs};
+use super::{FIELDS, SkillRunnerDefinition, validate_inputs};
 
 const RUNNER_FIELDS: &[&str] = &[
-    "act",
     "default",
     "examples",
     "inputs",
@@ -48,7 +47,6 @@ pub(crate) fn validate_runner_definition(
             .unwrap_or(false),
         inputs,
         examples,
-        act: validate_act_declaration(runner.get("act"))?,
         runx,
         graph: runner_graph(skill, name, &runner)?,
         raw: runner,
@@ -164,80 +162,4 @@ pub fn validate_input_examples(
         }
     }
     Ok(())
-}
-
-/// Validate a declared `act:` block at load: deserialize it into the typed
-/// `ActDeclaration` and fail closed if it is present but malformed, so a skill
-/// author sees the error instead of silently sealing a generic observation act.
-pub(crate) fn validate_act_declaration(
-    value: Option<&JsonValue>,
-) -> Result<Option<ActDeclaration>, ValidationError> {
-    let Some(value) = value else {
-        return Ok(None);
-    };
-    let act = serde_json::to_value(value)
-        .and_then(serde_json::from_value::<ActDeclaration>)
-        .map_err(|error| FIELDS.validation_error(format!("act is malformed: {error}")))?;
-    validate_act_reason_coherence(&act)?;
-    Ok(Some(act))
-}
-
-/// Reject incoherent reason declarations: the operator-authored path
-/// (`reason_from_input`) and the step-authored path (`reason_step`/`reason_from`)
-/// are mutually exclusive; the sealed reason has exactly one author.
-fn validate_act_reason_coherence(act: &ActDeclaration) -> Result<(), ValidationError> {
-    if act.reason_from_input.is_some() && (act.reason_step.is_some() || act.reason_from.is_some()) {
-        return Err(FIELDS.validation_error(
-            "act.reason_from_input (operator-authored) is mutually exclusive with the step-authored reason_step / reason_from keys.",
-        ));
-    }
-    Ok(())
-}
-
-#[cfg(test)]
-#[allow(clippy::expect_used, clippy::unwrap_used)]
-mod tests {
-    use runx_contracts::JsonValue;
-
-    use super::validate_act_declaration;
-    use serde_json::json;
-
-    fn act_value(value: serde_json::Value) -> JsonValue {
-        serde_json::from_value(value).expect("convertible act value")
-    }
-
-    fn act_err(value: serde_json::Value) -> String {
-        validate_act_declaration(Some(&act_value(value)))
-            .err()
-            .map(|error| error.to_string())
-            .expect("act unexpectedly validated")
-    }
-
-    #[test]
-    fn operator_reason_input_validates() {
-        let act = validate_act_declaration(Some(&act_value(json!({
-            "reason_from_input": "line",
-        }))))
-        .expect("valid act")
-        .expect("present act");
-        assert_eq!(act.reason_from_input.as_deref(), Some("line"));
-    }
-
-    #[test]
-    fn operator_reason_input_conflicts_with_reason_step() {
-        let message = act_err(json!({
-            "reason_from_input": "line",
-            "reason_step": "voice",
-        }));
-        assert!(message.contains("mutually exclusive"));
-    }
-
-    #[test]
-    fn operator_reason_input_conflicts_with_reason_from() {
-        let message = act_err(json!({
-            "reason_from_input": "line",
-            "reason_from": "line",
-        }));
-        assert!(message.contains("mutually exclusive"));
-    }
 }

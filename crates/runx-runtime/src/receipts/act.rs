@@ -5,17 +5,43 @@
 //! (criterion status, refs, closure, filled from the result) is what makes the
 //! act a unit of its own rather than a value reconstructed at seal time.
 //!
-//! Today the runtime opens a generic observation act at the seal call; later
-//! cuts open it at step admission and carry it through invocation, and a
-//! declared `act:` block specializes the opening intent into a domain act.
+//! A step opens a generic observation act. A governed call whose caller
+//! states an act opens that act instead: its form, purpose, reason and target
+//! are the caller's, and its legitimacy is the execution term admission
+//! derived for the call.
 
 use runx_contracts::schema::NonEmptyString;
 use runx_contracts::{
-    ActForm, Closure, ClosureDisposition, CriterionBinding, CriterionStatus, Intent, ReceiptAct,
-    SuccessCriterion,
+    ActForm, CallAct, Closure, ClosureDisposition, CriterionBinding, CriterionStatus,
+    DecisionChoice, Intent, ReceiptAct, Reference, ReferenceType, SuccessCriterion,
 };
 
 use crate::execution::output_projection::StepOutputRefs;
+
+/// What a governed call's receipt records beyond its step: the act its caller
+/// stated, the authority it was admitted under, and what it produced.
+pub(crate) struct SealedCall {
+    pub(crate) act: Option<CallAct>,
+    /// The execution term admission derived for the call.
+    pub(crate) term_id: String,
+    /// Where the act's target lives, classified by the declared references.
+    pub(crate) target_ref: Option<Reference>,
+    /// What the call produced, as its operation declares it.
+    pub(crate) effects: Vec<Reference>,
+}
+
+impl SealedCall {
+    /// The receipt this act follows, when its caller names one.
+    pub(crate) fn previous(&self) -> Option<Reference> {
+        let previous = self.act.as_ref()?.previous.as_ref()?;
+        Some(Reference::runx(ReferenceType::Receipt, previous.as_str()))
+    }
+
+    /// The decision the call carries out, when its caller states one.
+    pub(crate) fn decision(&self) -> Option<DecisionChoice> {
+        self.act.as_ref()?.decision.map(DecisionChoice::from)
+    }
+}
 
 /// The execution outcome that closes an act into its sealed body.
 pub(crate) struct ActOutcome<'a> {
@@ -41,12 +67,40 @@ pub(crate) struct RuntimeAct {
     criterion_id: NonEmptyString,
     reason_code: NonEmptyString,
     verified_bindings: Vec<CriterionBinding>,
+    target_refs: Vec<Reference>,
+    produced: Vec<Reference>,
+    context_ref: Option<Reference>,
 }
 
 impl RuntimeAct {
-    /// The generic observation act a runtime step opens when it declares no
-    /// domain act of its own: "this step ran, admitted by the local harness".
-    pub(crate) fn observation(step_id: &str) -> Self {
+    /// The act a step opens: the act its call's caller stated, or the generic
+    /// observation, "this step ran, admitted by the local harness".
+    pub(crate) fn open(step_id: &str, call: Option<&SealedCall>) -> Self {
+        let act = Self::observation(step_id);
+        let Some(call) = call else {
+            return act;
+        };
+        let act = Self {
+            produced: call.effects.clone(),
+            ..act
+        };
+        let Some(stated) = &call.act else {
+            return act;
+        };
+        Self {
+            form: stated.form.into(),
+            intent: Intent {
+                purpose: stated.purpose.clone(),
+                legitimacy: format!("runx:authority_term:{}", call.term_id).into(),
+                ..act.intent
+            },
+            summary: stated.summary().clone(),
+            target_refs: call.target_ref.iter().cloned().collect(),
+            ..act
+        }
+    }
+
+    fn observation(step_id: &str) -> Self {
         Self {
             id: format!("act_{step_id}").into(),
             form: ActForm::Observation,
@@ -65,6 +119,9 @@ impl RuntimeAct {
             criterion_id: "step_outcome".into(),
             reason_code: "step_outcome".into(),
             verified_bindings: Vec::new(),
+            target_refs: Vec::new(),
+            produced: Vec::new(),
+            context_ref: None,
         }
     }
 
@@ -81,10 +138,19 @@ impl RuntimeAct {
         self
     }
 
+    /// The operator context the run was prepared with.
+    pub(crate) fn with_context(mut self, context_ref: Option<Reference>) -> Self {
+        self.context_ref = context_ref;
+        self
+    }
+
     /// Close the act with its execution outcome, producing the sealed act body.
     pub(crate) fn close(self, outcome: ActOutcome<'_>) -> ReceiptAct {
         let mut artifact_refs = outcome.refs.artifact_refs.clone();
         artifact_refs.extend(outcome.refs.surface_refs.iter().cloned());
+        if outcome.succeeded {
+            artifact_refs.extend(self.produced);
+        }
         let mut criterion_bindings = vec![CriterionBinding {
             criterion_id: self.criterion_id,
             status: if outcome.succeeded {
@@ -105,9 +171,9 @@ impl RuntimeAct {
             criterion_bindings,
             by: None,
             source_refs: outcome.refs.source_refs.clone(),
-            target_refs: Vec::new(),
+            target_refs: self.target_refs,
             artifact_refs,
-            context_ref: None,
+            context_ref: self.context_ref,
             closure: Closure {
                 disposition: outcome.disposition,
                 reason_code: self.reason_code,

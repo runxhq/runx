@@ -828,6 +828,7 @@ fn run_skill_with_resolution(
         current_context: agent_context.map_or_else(Vec::new, |context| context.0.to_vec()),
         historical_context: agent_context.map_or_else(Vec::new, |context| context.1.to_vec()),
         run_authority: Some(loaded.profile.authority.clone()),
+        act: None,
         skill_path: path,
         receipt_dir: None,
         run_id: run_id.map(str::to_owned),

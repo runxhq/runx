@@ -247,7 +247,7 @@ pub(crate) const OFFICIAL_SKILLS: &[OfficialSkillLockEntry] = &[
     },
     OfficialSkillLockEntry {
         skill_id: "runx/nitrosend",
-        version: "sha-dccee02add0d",
+        version: "sha-f99f29653316",
         digest: "e2eadf5332e8a7480e358c45cdc9226f4a5098df0db31bf3cb9def5d4e5842d4",
     },
     OfficialSkillLockEntry {
@@ -402,7 +402,7 @@ pub(crate) const OFFICIAL_SKILLS: &[OfficialSkillLockEntry] = &[
     },
     OfficialSkillLockEntry {
         skill_id: "runx/twitter",
-        version: "sha-4324bbb8b798",
+        version: "sha-498c768e6a45",
         digest: "c38123baec8101a8c1d38c2f46abb08fcb30730658e245c6b9693f1217677400",
     },
     OfficialSkillLockEntry {

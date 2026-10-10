@@ -51,6 +51,7 @@ pub fn run_native_new_with_workspace(plan: NewPlan, workspace: &WorkspaceEnv) ->
             full_operator_context: false,
             inputs,
             input_document: None,
+            act: None,
             managed_agent: plan.managed_agent,
         },
         workspace,

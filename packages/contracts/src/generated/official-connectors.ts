@@ -1115,6 +1115,24 @@ export const officialConnectors: readonly OfficialConnector[] = [
             "token"
           ],
           "description": "Comment on issues or pull requests, one comment per item.",
+          "effect": {
+            "each": {
+              "$result": "/comments"
+            },
+            "kind": "comment",
+            "locator": {
+              "$concat": [
+                "github://",
+                {
+                  "$argument": "/repository"
+                },
+                "/issues/comments/",
+                {
+                  "$item": "/id"
+                }
+              ]
+            }
+          },
           "hosted": {
             "provider_scopes": [
               "repo"
@@ -1368,6 +1386,24 @@ export const officialConnectors: readonly OfficialConnector[] = [
             "token"
           ],
           "description": "Edit comments, one new body per item.",
+          "effect": {
+            "each": {
+              "$result": "/comments"
+            },
+            "kind": "comment",
+            "locator": {
+              "$concat": [
+                "github://",
+                {
+                  "$argument": "/repository"
+                },
+                "/issues/comments/",
+                {
+                  "$item": "/id"
+                }
+              ]
+            }
+          },
           "guarantees": {
             "provider_idempotency": "inherent"
           },
@@ -1612,6 +1648,24 @@ export const officialConnectors: readonly OfficialConnector[] = [
             "token"
           ],
           "description": "Open issues in a repository, one issue per item.",
+          "effect": {
+            "each": {
+              "$result": "/issues"
+            },
+            "kind": "thread",
+            "locator": {
+              "$concat": [
+                "github://",
+                {
+                  "$argument": "/repository"
+                },
+                "/issues/",
+                {
+                  "$item": "/number"
+                }
+              ]
+            }
+          },
           "hosted": {
             "provider_scopes": [
               "repo"
@@ -2016,6 +2070,24 @@ export const officialConnectors: readonly OfficialConnector[] = [
             "token"
           ],
           "description": "Update issues, each with its own patch of title, body, state, labels, assignees or milestone.",
+          "effect": {
+            "each": {
+              "$result": "/updates"
+            },
+            "kind": "thread",
+            "locator": {
+              "$concat": [
+                "github://",
+                {
+                  "$argument": "/repository"
+                },
+                "/issues/",
+                {
+                  "$item": "/number"
+                }
+              ]
+            }
+          },
           "guarantees": {
             "provider_idempotency": "inherent"
           },
@@ -2273,6 +2345,21 @@ export const officialConnectors: readonly OfficialConnector[] = [
             "token"
           ],
           "description": "Open a pull request from a pushed branch.",
+          "effect": {
+            "kind": "change_request",
+            "locator": {
+              "$concat": [
+                "github://",
+                {
+                  "$argument": "/repository"
+                },
+                "/pulls/",
+                {
+                  "$result": "/pull/number"
+                }
+              ]
+            }
+          },
           "hosted": {
             "provider_scopes": [
               "repo"
@@ -2781,6 +2868,24 @@ export const officialConnectors: readonly OfficialConnector[] = [
             "token"
           ],
           "description": "Update pull requests, each with its own patch of title, body, state, base or maintainer_can_modify.",
+          "effect": {
+            "each": {
+              "$result": "/updates"
+            },
+            "kind": "change_request",
+            "locator": {
+              "$concat": [
+                "github://",
+                {
+                  "$argument": "/repository"
+                },
+                "/pulls/",
+                {
+                  "$item": "/number"
+                }
+              ]
+            }
+          },
           "guarantees": {
             "provider_idempotency": "inherent"
           },
@@ -3019,7 +3124,7 @@ export const officialConnectors: readonly OfficialConnector[] = [
       ],
       "schema": "runx.connector.v1"
     },
-    "manifest_digest": "sha256:15a528bc5eb7ff3a7183362eeb704ba887f261d2d2ae0a07983a6da85d07defa"
+    "manifest_digest": "sha256:6ba06ff55bcd119759da9ccbf31d7429f4f78897389da11b34e43d031ecbe4e8"
   },
   {
     "digests": {
@@ -8033,6 +8138,12 @@ export const officialConnectors: readonly OfficialConnector[] = [
         "channel.post": {
           "approval": "required",
           "description": "Post a message to a channel.",
+          "effect": {
+            "kind": "thread",
+            "locator": {
+              "$result": "/message_locator"
+            }
+          },
           "hosted": {
             "provider_scopes": [
               "chat:write"
@@ -8340,7 +8451,7 @@ export const officialConnectors: readonly OfficialConnector[] = [
       ],
       "schema": "runx.connector.v1"
     },
-    "manifest_digest": "sha256:66707a9a849edac95f368f1fab16be186e9527e179829167fb65d377ecf25f86"
+    "manifest_digest": "sha256:9d8231cf8b5fe851f058b0c014688dad07b5f48a94cfe5b4b81523d0585a4ed5"
   },
   {
     "digests": {
@@ -8388,6 +8499,12 @@ export const officialConnectors: readonly OfficialConnector[] = [
             "password"
           ],
           "description": "Append one event to a stream when the stream is at the expected version. The event is keyed by the call's idempotency key, so a repeated call answers as a replay; at another version the answer is a conflict and nothing is appended.",
+          "effect": {
+            "kind": "event",
+            "locator": {
+              "$result": "/event_ref"
+            }
+          },
           "guarantees": {
             "provider_idempotency": "enforced",
             "readback": "exact"
@@ -8723,7 +8840,7 @@ export const officialConnectors: readonly OfficialConnector[] = [
       },
       "schema": "runx.connector.v1"
     },
-    "manifest_digest": "sha256:1c07258ccbc68ad358b9c9a0a906906cfeb3ab3a13aa29eed14ca2d933760436"
+    "manifest_digest": "sha256:eacfeba7cf1d8145ae87aec0a51820043b5e8baa359f2cc6eaf7f8bcea797732"
   },
   {
     "digests": {
@@ -9843,6 +9960,17 @@ export const officialConnectors: readonly OfficialConnector[] = [
             "user"
           ],
           "description": "Publish one post to the account's public timeline.",
+          "effect": {
+            "kind": "thread",
+            "locator": {
+              "$concat": [
+                "https://x.com/i/web/status/",
+                {
+                  "$result": "/post/id"
+                }
+              ]
+            }
+          },
           "implementation": {
             "http": {
               "allowed_hosts": [
@@ -9932,6 +10060,17 @@ export const officialConnectors: readonly OfficialConnector[] = [
             "user"
           ],
           "description": "Publish one post that quotes another post.",
+          "effect": {
+            "kind": "thread",
+            "locator": {
+              "$concat": [
+                "https://x.com/i/web/status/",
+                {
+                  "$result": "/post/id"
+                }
+              ]
+            }
+          },
           "implementation": {
             "http": {
               "allowed_hosts": [
@@ -10036,6 +10175,17 @@ export const officialConnectors: readonly OfficialConnector[] = [
             "user"
           ],
           "description": "Publish one reply to a post.",
+          "effect": {
+            "kind": "comment",
+            "locator": {
+              "$concat": [
+                "https://x.com/i/web/status/",
+                {
+                  "$result": "/post/id"
+                }
+              ]
+            }
+          },
           "implementation": {
             "http": {
               "allowed_hosts": [
@@ -11020,7 +11170,7 @@ export const officialConnectors: readonly OfficialConnector[] = [
       },
       "schema": "runx.connector.v1"
     },
-    "manifest_digest": "sha256:4a7fe28b00fdc53efbbe9eea3ab5ce3fd9fa4a6592a990d75daa0bb377953aa2"
+    "manifest_digest": "sha256:5b473f16231f433a3593a272d3827841df4346b5864e3a02e5160245e26c2b2c"
   },
   {
     "digests": {

@@ -1,5 +1,5 @@
 skill: twitter
-version: "0.5.2"
+version: "0.5.3"
 catalog:
   kind: skill
   audience: public
@@ -607,8 +607,6 @@ runners:
           packets:
             twitter_selection: twitter.selection.v1
   execute:
-    act:
-      purpose: Execute one approved twitter act plan, batch by batch, and nothing beyond it.
     inputs:
       plan_json:
         type: object
@@ -753,6 +751,8 @@ runners:
         operation_name: $steps.bind.twitter_call.operation
         input: $steps.bind.twitter_call.input
         approval: $steps.bind.twitter_call.approval
+        act:
+          purpose: Execute one approved twitter act plan, batch by batch, and nothing beyond it.
       - id: apply
         when:
           value: $steps.prepare.twitter_execution_plan.decision

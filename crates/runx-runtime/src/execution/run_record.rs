@@ -31,7 +31,8 @@
 use std::sync::{Arc, Mutex};
 
 use runx_contracts::{
-    ClosureDisposition, ContextEntry, JsonObject, JsonValue, Receipt, ResolutionRequest, TurnTarget,
+    CallAct, ClosureDisposition, ContextEntry, JsonObject, JsonValue, Receipt, ResolutionRequest,
+    TurnTarget,
 };
 use runx_core::state_machine::StepAdmissionWitness;
 use serde::{Deserialize, Serialize};
@@ -92,6 +93,9 @@ pub(crate) struct Started {
     pub context: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub run_authority: Option<RunAuthority>,
+    /// The act its invoker stated, which the run's steps read as `$act`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub act: Option<CallAct>,
     /// Who works the run's turns, fixed when it starts. A run started before
     /// runs recorded it has none, and no driver may take its turns.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -117,6 +121,9 @@ pub(crate) struct ChildStarted {
     pub skill: String,
     /// Blob: the child's materialized inputs.
     pub inputs: String,
+    /// The act the parent's step gave the child, read as its `$act`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub act: Option<CallAct>,
     pub created_at: String,
 }
 
@@ -268,13 +275,15 @@ struct AnswerEvent {
 #[serde(deny_unknown_fields)]
 struct SealedEvent {
     disposition: ClosureDisposition,
-    /// The receipt the run presents: the domain act when there is one.
+    /// The run's receipt.
     receipt_id: String,
-    /// Blob: the graph receipt.
+    /// Blob: the run's receipt.
     receipt: String,
-    /// Blob: the domain act receipt, when the runner declares `act:`.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    primary: Option<String>,
+    /// Blob: the standalone act receipt runs sealed before acts moved onto
+    /// their calls. No run writes it now and nothing reads it; the log is
+    /// append-only and chained, so the events that carry it must still read.
+    #[serde(rename = "primary", default, skip_serializing)]
+    _primary: Option<String>,
     /// Blob: the public result of a run that stopped short of completion.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     terminal_result: Option<String>,
@@ -375,7 +384,6 @@ pub(crate) enum Replayed {
 pub(crate) struct Sealed {
     pub disposition: ClosureDisposition,
     pub receipt: Receipt,
-    pub primary: Option<Receipt>,
     pub terminal_result: Option<JsonValue>,
 }
 
@@ -385,6 +393,8 @@ pub(crate) struct RunRecord {
     pub origin: Origin,
     pub created_at: String,
     pub inputs: JsonObject,
+    /// The act the run's invoker stated, read by its steps as `$act`.
+    pub act: Option<CallAct>,
     pub context: RunContext,
     pub facts: Vec<Replayed>,
     /// Where the run waits now, when its last step-level event is a
@@ -560,6 +570,7 @@ impl RunLog {
             inputs: inputs.digest().to_owned(),
             context: context.as_ref().map(|blob| blob.digest().to_owned()),
             run_authority: started.run_authority.cloned(),
+            act: started.act.cloned(),
             driver: Some(started.driver),
             created_at: started.created_at.to_owned(),
         };
@@ -596,6 +607,7 @@ impl RunLog {
         step_id: &str,
         skill: &str,
         inputs: &JsonObject,
+        act: Option<&CallAct>,
         created_at: &str,
     ) -> Result<Option<RunRecord>, RunRecordError> {
         let inputs = Blob::json(inputs)?;
@@ -609,6 +621,9 @@ impl RunLog {
             if recorded.inputs != inputs.digest() {
                 return Err(self.mismatch("inputs"));
             }
+            if recorded.act.as_ref() != act {
+                return Err(self.mismatch("act"));
+            }
             return Ok(Some(existing));
         }
         let event = ChildStarted {
@@ -616,6 +631,7 @@ impl RunLog {
             step_id: step_id.to_owned(),
             skill: skill.to_owned(),
             inputs: inputs.digest().to_owned(),
+            act: act.cloned(),
             created_at: created_at.to_owned(),
         };
         self.append_first(RunEvent::ChildStarted(Box::new(event)), vec![inputs])?;
@@ -831,26 +847,20 @@ impl RunLog {
     pub(crate) fn record_sealed(
         &self,
         receipt: &Receipt,
-        primary: Option<&Receipt>,
         terminal_result: Option<&JsonValue>,
     ) -> Result<(), RunRecordError> {
         let receipt_blob = Blob::json(receipt)?;
-        let primary_id = primary
-            .map_or(&receipt.id, |primary| &primary.id)
-            .to_string();
-        let primary = primary.map(Blob::json).transpose()?;
         let terminal_result = terminal_result.map(Blob::json).transpose()?;
         let event = SealedEvent {
             disposition: receipt.seal.disposition.clone(),
-            receipt_id: primary_id,
+            receipt_id: receipt.id.to_string(),
             receipt: receipt_blob.digest().to_owned(),
-            primary: primary.as_ref().map(|blob| blob.digest().to_owned()),
+            _primary: None,
             terminal_result: terminal_result
                 .as_ref()
                 .map(|blob| blob.digest().to_owned()),
         };
         let mut blobs = vec![receipt_blob];
-        blobs.extend(primary);
         blobs.extend(terminal_result);
         self.append(RunEvent::Sealed(Box::new(event)), blobs)
     }
@@ -918,6 +928,7 @@ pub(crate) struct StartRequest<'a> {
     pub inputs: &'a JsonObject,
     pub context: &'a RunContext,
     pub run_authority: Option<&'a RunAuthority>,
+    pub act: Option<&'a CallAct>,
     pub driver: Driver,
     pub created_at: &'a str,
 }
@@ -1038,9 +1049,15 @@ fn replay(
         }
         _ => return Err(invalid("the stream does not begin with its start")),
     };
+    let act = match &origin {
+        Origin::Run(started) => started.act.clone(),
+        Origin::Child(started) => started.act.clone(),
+        Origin::Evaluation(_) => None,
+    };
     let mut record = RunRecord {
         origin,
         created_at,
+        act,
         inputs: inputs_digest
             .map(|digest| store.blob_json(&digest))
             .transpose()?
@@ -1127,10 +1144,6 @@ fn replay(
                 record.sealed = Some(Sealed {
                     disposition: sealed.disposition,
                     receipt: store.blob_json(&sealed.receipt)?,
-                    primary: sealed
-                        .primary
-                        .map(|digest| store.blob_json(&digest))
-                        .transpose()?,
                     terminal_result: sealed
                         .terminal_result
                         .map(|digest| store.blob_json(&digest))

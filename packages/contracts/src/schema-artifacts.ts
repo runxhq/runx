@@ -5908,6 +5908,11 @@ export const runxSchemaArtifacts = {
       "intent": {
         "additionalProperties": false,
         "properties": {
+          "act_digest": {
+            "maxLength": 71,
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          },
           "amount": {
             "additionalProperties": false,
             "properties": {
@@ -14490,6 +14495,61 @@ export const runxSchemaArtifacts = {
             "description": {
               "minLength": 1,
               "type": "string"
+            },
+            "effect": {
+              "additionalProperties": false,
+              "properties": {
+                "each": {},
+                "kind": {
+                  "enum": [
+                    "thread",
+                    "comment",
+                    "event",
+                    "tracking_item",
+                    "change_request",
+                    "repository",
+                    "signal",
+                    "run",
+                    "act",
+                    "receipt",
+                    "graph_receipt",
+                    "artifact",
+                    "verification",
+                    "harness",
+                    "host",
+                    "deployment",
+                    "surface",
+                    "target",
+                    "opportunity",
+                    "thesis_assessment",
+                    "selection",
+                    "skill_binding",
+                    "target_transition_entry",
+                    "selection_cycle",
+                    "decision",
+                    "reflection_entry",
+                    "feed_entry",
+                    "principal",
+                    "authority_proof",
+                    "scope_admission",
+                    "grant",
+                    "mandate",
+                    "credential",
+                    "webhook_delivery",
+                    "redaction_policy",
+                    "external_url",
+                    "connector_instance",
+                    "connector_operation"
+                  ],
+                  "type": "string"
+                },
+                "locator": {}
+              },
+              "required": [
+                "kind",
+                "locator"
+              ],
+              "type": "object"
             },
             "guarantees": {
               "additionalProperties": false,

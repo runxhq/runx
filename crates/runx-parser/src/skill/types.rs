@@ -54,65 +54,6 @@ impl InputMode {
     }
 }
 
-/// A skill's declared act: how a run describes the act it performs. The form and
-/// purpose, and how the target, decision, effect, actor, authority, and previous
-/// receipt are read, where `<field>_from` names a trusted input key and the bare
-/// field is a static literal (the driver-pinned input wins). The runtime fills
-/// the act's structure from these and the trusted inputs; the model authors only
-/// the reason prose. Absent an `act:` block, a run seals a generic observation.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct ActDeclaration {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub form: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub form_from: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub purpose: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub purpose_from: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub legitimacy: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub legitimacy_from: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub reason_from: Option<String>,
-    /// The input key carrying the reason prose, authored by the calling operator
-    /// (mutually exclusive with `reason_step`/`reason_from`): the operator agent
-    /// holds the context and voice; runners must not embed an agent step just to
-    /// write the sealed reason line.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub reason_from_input: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub target_from: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub decision_from: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub effect_from: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub effect_field_from: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub effect_from_input: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub effect_type: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub effect_prefix: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub effect_prefix_from: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub actor_from: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub authority_from: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub previous_from: Option<String>,
-    /// Graph turns only: the step whose output supplies the reason prose.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub reason_step: Option<String>,
-    /// Graph turns only: the step whose real result supplies the governed effect.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub effect_step: Option<String>,
-}
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ValidateSkillMode {
     Strict,
@@ -159,7 +100,7 @@ pub struct ValidatedSkill {
     pub raw: RawSkillIr,
 }
 
-/// One runner: the steps it runs, its inputs, and the act it performs.
+/// One runner: the steps it runs and its inputs.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SkillRunnerDefinition {
@@ -171,10 +112,6 @@ pub struct SkillRunnerDefinition {
     /// expose them without reparsing package files.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub examples: Vec<JsonObject>,
-    /// The act this runner performs. Absent, a run seals a generic
-    /// observation act.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub act: Option<ActDeclaration>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub runx: Option<JsonObject>,
     /// The runner's steps, as the graph the engine runs. Its name is the

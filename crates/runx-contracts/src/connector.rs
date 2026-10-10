@@ -513,6 +513,10 @@ pub struct ConnectorOperation {
     pub input_schema: Option<JsonObject>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub result_fields: Vec<NonEmptyString>,
+    /// What a successful write produced, as the reference its act's receipt
+    /// carries.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub effect: Option<OperationEffect>,
     /// Present when the hosted placement offers the operation: it runs an
     /// `http` implementation through the provider gateway, and any other
     /// operation through a private driver.
@@ -551,6 +555,19 @@ impl ConnectorOperation {
         }
     }
 
+    /// Whether the operation is a write sent once per item of an input array.
+    /// Its acknowledgement is then the list of each item's outcome, and only
+    /// an `applied` outcome carries the provider's answer.
+    #[must_use]
+    pub fn repeated_write(&self) -> bool {
+        self.access() == OperationAccess::Mutate
+            && matches!(
+                &self.implementation,
+                Some(Implementation::Http(http))
+                    if matches!(http.requests.as_slice(), [request] if request.each.is_some())
+            )
+    }
+
     /// The declared requests the hosted placement sends through the provider
     /// gateway, when it offers the operation and the implementation is `http`.
     #[must_use]
@@ -560,6 +577,26 @@ impl ConnectorOperation {
             _ => None,
         }
     }
+}
+
+/// What a write produced: one reference, or one per element of a result
+/// array. The locator is rendered from the call's arguments, the instance's
+/// parameters and the call's result (`$result`); under `each` it reads the
+/// element as `$item`. A repeated write's result array is its items'
+/// outcomes: an effect is rendered for each applied item, whose `$item` is
+/// the provider's answer, and an item not applied produced nothing. Where the
+/// connector declares `references`, the kind is one of them and every
+/// locator matches its pattern.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
+#[serde(deny_unknown_fields)]
+pub struct OperationEffect {
+    /// An external reference kind: thread, comment, event, tracking_item,
+    /// change_request, repository or external_url.
+    pub kind: crate::ReferenceType,
+    pub locator: Template,
+    /// A `$result` pointer to the array the effect repeats over.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub each: Option<Template>,
 }
 
 /// The target an operation acts on, rendered from the call's arguments and

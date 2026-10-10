@@ -245,3 +245,111 @@ fn skill_markdown_carries_only_manual_fields() -> Result<(), String> {
     assert_eq!(lenient.name, "manual");
     Ok(())
 }
+
+/// A runner whose steps may call `tracker/item.update`.
+fn acting(steps: &str) -> Result<runx_parser::SkillRunnerDefinition, String> {
+    let yaml = format!(
+        "skill: demo\nconnectors:\n  tracker:\n    operations: [item.update]\nrunners:\n  main:\n    inputs:\n      item: {{type: string, required: true}}\n    steps:\n{steps}"
+    );
+    let raw = parse_runner_manifest_yaml(&yaml).map_err(|error| error.to_string())?;
+    let mut manifest = validate_runner_manifest(raw).map_err(|error| error.to_string())?;
+    manifest
+        .runners
+        .remove("main")
+        .ok_or_else(|| "runner main is missing".to_owned())
+}
+
+#[test]
+fn an_operation_act_binds_the_invokers_act_whole_or_by_field() -> Result<(), String> {
+    use runx_parser::Source;
+
+    let whole = acting(
+        "      - id: close\n        operation: tracker/item.update\n        input: {id: $input.item}\n        act: $act\n",
+    )?;
+    let act = only_step(&whole).act.clone().ok_or("the step has an act")?;
+    assert!(act.values.is_empty());
+    assert_eq!(act.bindings.len(), 1);
+    assert!(act.bindings[0].at.is_empty());
+    assert_eq!(act.bindings[0].source, Source::Act { path: Vec::new() });
+    assert!(
+        !only_step(&whole).inputs.contains_key("act"),
+        "the act is not one of the call's literal fields"
+    );
+
+    let fields = acting(
+        "      - id: close\n        operation: tracker/item.update\n        input: {id: $input.item}\n        act: {purpose: $act.purpose, target: $input.item, decision: close}\n",
+    )?;
+    let act = only_step(&fields)
+        .act
+        .clone()
+        .ok_or("the step has an act")?;
+    assert_eq!(
+        act.values.get("decision"),
+        Some(&runx_contracts::JsonValue::String("close".to_owned()))
+    );
+    let sources = act
+        .bindings
+        .iter()
+        .map(|binding| (binding.at.join("."), binding.source.reference()))
+        .collect::<Vec<_>>();
+    assert!(sources.contains(&("purpose".to_owned(), "$act.purpose".to_owned())));
+    assert!(sources.contains(&("target".to_owned(), "$input.item".to_owned())));
+    Ok(())
+}
+
+#[test]
+fn only_an_act_reads_the_invokers_act() -> Result<(), String> {
+    for (steps, field) in [
+        (
+            "      - id: close\n        operation: tracker/item.update\n        input: {why: $act.purpose}\n",
+            "input",
+        ),
+        (
+            "      - id: close\n        operation: tracker/item.update\n        input: {id: $input.item}\n        when: {value: $act.decision, equals: close}\n",
+            "when",
+        ),
+        (
+            "      - id: note\n        tool: {module: note.mjs}\n        inputs: {why: $act}\n",
+            "inputs",
+        ),
+    ] {
+        let Err(error) = acting(steps) else {
+            return Err(format!("{field}: $act outside act: is refused"));
+        };
+        assert!(
+            error.contains("only an act: may read") && error.contains(field),
+            "{field}: {error}"
+        );
+    }
+    Ok(())
+}
+
+#[test]
+fn a_skill_step_gives_its_child_an_act_and_other_steps_take_none() -> Result<(), String> {
+    let child = runner(
+        "      - id: child\n        skill: ./child\n        act: {purpose: $act.purpose}\n",
+    )?;
+    assert!(only_step(&child).act.is_some());
+    for steps in [
+        "      - id: note\n        tool: {module: note.mjs}\n        act: {purpose: Note}\n",
+        "      - id: think\n        agent: {role: writer, task: draft}\n        act: {purpose: Think}\n",
+    ] {
+        let Err(error) = runner(steps) else {
+            return Err("only governed calls and child runs take an act".to_owned());
+        };
+        assert!(error.contains("act does not apply"), "{error}");
+    }
+    Ok(())
+}
+
+#[test]
+fn an_input_cannot_take_the_name_of_the_invokers_act() -> Result<(), String> {
+    let Err(error) = runner_with(
+        "    inputs:\n      act: {type: string}\n",
+        "      - id: note\n        tool: {module: note.mjs}\n",
+    ) else {
+        return Err("act is reserved".to_owned());
+    };
+    assert!(error.contains("never one of them"), "{error}");
+    Ok(())
+}

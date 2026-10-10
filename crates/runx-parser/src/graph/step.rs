@@ -4,7 +4,7 @@ use std::collections::BTreeSet;
 
 use runx_contracts::{JsonObject, JsonValue, TurnAllowance};
 
-use super::binding::{parse_operand, parse_values, parse_whole};
+use super::binding::{parse_act, parse_operand, parse_values, parse_whole};
 use super::helpers::{
     gate_id, optional_non_empty_string, optional_object, optional_string, optional_string_array,
     required_object, required_string, step_id, validation_error,
@@ -12,7 +12,7 @@ use super::helpers::{
 use super::tool::validate_tool_target;
 use super::types::{
     AgentTask, AskGate, DuplicatePolicy, GraphStep, GraphWhen, OperationStepTarget, SkillTarget,
-    StepKind, UncertainOutcome,
+    StepAct, StepKind, UncertainOutcome,
 };
 use crate::{ValidationError, skill::validate_skill_artifact_contract};
 use runx_contracts::connector::{OperationName, is_connector_id};
@@ -45,7 +45,7 @@ fn kind_fields(kind: &str) -> &'static [&'static str] {
     match kind {
         "agent" => &["inputs", "outputs", "artifacts", "context_skills"],
         "tool" => &["inputs", "outputs", "artifacts", "scopes"],
-        "skill" => &["runner", "inputs", "artifacts", "scopes"],
+        "skill" => &["runner", "inputs", "act", "artifacts", "scopes"],
         "ask" => &["inputs"],
         "operation" => &[
             "operation_name",
@@ -58,6 +58,7 @@ fn kind_fields(kind: &str) -> &'static [&'static str] {
             "ephemeral_result_paths",
             "readback_of",
             "idempotency_key",
+            "act",
             "on_uncertain",
             "duplicates",
         ],
@@ -93,6 +94,14 @@ pub fn validate_step(
         },
     };
 
+    // An operation step's act is its call's; a skill step's is its child
+    // run's `$act`. Only an act reads `$act`.
+    let act = raw_step
+        .get("act")
+        .map(|value| parse_act(value, previous_step_ids, &format!("{field}.act")))
+        .transpose()?
+        .map(|(values, bindings)| StepAct { values, bindings });
+
     let scopes = optional_string_array(raw_step.get("scopes"), &format!("{field}.scopes"))?
         .unwrap_or_default();
     if scopes.iter().any(|scope| scope.trim().is_empty()) {
@@ -122,6 +131,7 @@ pub fn validate_step(
         outputs,
         inputs,
         bindings,
+        act,
         context_skills: optional_string_array(
             raw_step.get("context_skills"),
             &format!("{field}.context_skills"),

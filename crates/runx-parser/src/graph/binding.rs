@@ -5,7 +5,9 @@
 //!
 //! - `$input` or `$input.<path>`: the run's input, or a field of it;
 //! - `$steps.<id>` or `$steps.<id>.<path>`: an earlier step's result, or a
-//!   field of it.
+//!   field of it;
+//! - `$act` or `$act.<field>`: the act the run's invoker states, read only
+//!   inside an `act:`. Domain values never read accountability metadata.
 //!
 //! Paths are dotted; a numeric segment indexes a list. A literal string that
 //! begins with `$` is written `$$`. References may sit at any depth of an
@@ -28,6 +30,8 @@ pub enum Source {
     Input { path: Vec<String> },
     /// An earlier step's result, or the field at `path`.
     Step { step: String, path: Vec<String> },
+    /// The invoker's act, or the field at `path`.
+    Act { path: Vec<String> },
 }
 
 impl Source {
@@ -36,7 +40,7 @@ impl Source {
     pub fn step(&self) -> Option<&str> {
         match self {
             Self::Step { step, .. } => Some(step),
-            Self::Input { .. } => None,
+            Self::Input { .. } | Self::Act { .. } => None,
         }
     }
 
@@ -46,6 +50,7 @@ impl Source {
         let (head, path) = match self {
             Self::Input { path } => ("$input".to_owned(), path),
             Self::Step { step, path } => (format!("$steps.{step}"), path),
+            Self::Act { path } => ("$act".to_owned(), path),
         };
         std::iter::once(head)
             .chain(path.iter().cloned())
@@ -89,20 +94,7 @@ pub(crate) fn parse_values(
     previous_steps: &BTreeSet<String>,
     field: &str,
 ) -> Result<(JsonObject, Vec<Binding>), ValidationError> {
-    let mut bindings = Vec::new();
-    let mut template = JsonObject::new();
-    for (key, value) in values {
-        let mut at = vec![key.clone()];
-        let literal = parse_value(
-            value,
-            &mut at,
-            previous_steps,
-            &format!("{field}.{key}"),
-            &mut bindings,
-        )?;
-        template.insert(key.clone(), literal);
-    }
-    Ok((template, bindings))
+    Reading::Values.object(values, previous_steps, field)
 }
 
 /// Parse a whole value that may itself be one reference, such as
@@ -112,24 +104,17 @@ pub(crate) fn parse_whole(
     previous_steps: &BTreeSet<String>,
     field: &str,
 ) -> Result<(JsonObject, Vec<Binding>), ValidationError> {
-    match value {
-        JsonValue::Object(values) => parse_values(values, previous_steps, field),
-        JsonValue::String(text) => match reference(text, previous_steps, field)? {
-            Some(source) => Ok((
-                JsonObject::new(),
-                vec![Binding {
-                    at: Vec::new(),
-                    source,
-                }],
-            )),
-            None => Err(validation_error(format!(
-                "{field} must be an object of values or a reference to one."
-            ))),
-        },
-        _ => Err(validation_error(format!(
-            "{field} must be an object of values or a reference to one."
-        ))),
-    }
+    Reading::Values.whole(value, previous_steps, field)
+}
+
+/// Parse an `act:`: an object of act fields, or a reference to a whole act
+/// such as `act: $act`. Only here may a value read `$act`.
+pub(crate) fn parse_act(
+    value: &JsonValue,
+    previous_steps: &BTreeSet<String>,
+    field: &str,
+) -> Result<(JsonObject, Vec<Binding>), ValidationError> {
+    Reading::Act.whole(value, previous_steps, field)
 }
 
 /// Parse one value read by a condition or a guard.
@@ -139,70 +124,147 @@ pub(crate) fn parse_operand(
     field: &str,
 ) -> Result<Operand, ValidationError> {
     match value {
-        JsonValue::String(text) => Ok(match reference(text, previous_steps, field)? {
-            Some(source) => Operand::Reference(source),
-            None => Operand::Literal(JsonValue::String(unescape(text).to_owned())),
-        }),
+        JsonValue::String(text) => Ok(
+            match Reading::Values.reference(text, previous_steps, field)? {
+                Some(source) => Operand::Reference(source),
+                None => Operand::Literal(JsonValue::String(unescape(text).to_owned())),
+            },
+        ),
         literal => Ok(Operand::Literal(literal.clone())),
     }
 }
 
-fn parse_value(
-    value: &JsonValue,
-    at: &mut Vec<String>,
-    previous_steps: &BTreeSet<String>,
-    field: &str,
-    bindings: &mut Vec<Binding>,
-) -> Result<JsonValue, ValidationError> {
-    Ok(match value {
-        JsonValue::String(text) => match reference(text, previous_steps, field)? {
-            Some(source) => {
-                bindings.push(Binding {
-                    at: at.clone(),
-                    source,
-                });
-                JsonValue::String(text.clone())
-            }
-            None => JsonValue::String(unescape(text).to_owned()),
-        },
-        JsonValue::Object(object) => {
-            let mut parsed = JsonObject::new();
-            for (key, value) in object {
-                at.push(key.clone());
-                parsed.insert(
-                    key.clone(),
-                    parse_value(
-                        value,
-                        at,
-                        previous_steps,
-                        &format!("{field}.{key}"),
-                        bindings,
-                    )?,
-                );
-                at.pop();
-            }
-            JsonValue::Object(parsed)
-        }
-        JsonValue::Array(items) => {
-            let mut parsed = Vec::with_capacity(items.len());
-            for (index, item) in items.iter().enumerate() {
-                at.push(index.to_string());
-                parsed.push(parse_value(
-                    item,
-                    at,
-                    previous_steps,
-                    &format!("{field}.{index}"),
-                    bindings,
-                )?);
-                at.pop();
-            }
-            JsonValue::Array(parsed)
-        }
-        literal => literal.clone(),
-    })
+/// What a value may read: the run's input and earlier steps everywhere, and
+/// the invoker's act only inside an `act:`.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Reading {
+    Values,
+    Act,
 }
 
-/// The reference `text` names, if it names one.
+impl Reading {
+    fn object(
+        self,
+        values: &JsonObject,
+        previous_steps: &BTreeSet<String>,
+        field: &str,
+    ) -> Result<(JsonObject, Vec<Binding>), ValidationError> {
+        let mut bindings = Vec::new();
+        let mut template = JsonObject::new();
+        for (key, value) in values {
+            let mut at = vec![key.clone()];
+            let literal = self.value(
+                value,
+                &mut at,
+                previous_steps,
+                &format!("{field}.{key}"),
+                &mut bindings,
+            )?;
+            template.insert(key.clone(), literal);
+        }
+        Ok((template, bindings))
+    }
+
+    fn whole(
+        self,
+        value: &JsonValue,
+        previous_steps: &BTreeSet<String>,
+        field: &str,
+    ) -> Result<(JsonObject, Vec<Binding>), ValidationError> {
+        let refused = || {
+            validation_error(format!(
+                "{field} must be an object of values or a reference to one."
+            ))
+        };
+        match value {
+            JsonValue::Object(values) => self.object(values, previous_steps, field),
+            JsonValue::String(text) => match self.reference(text, previous_steps, field)? {
+                Some(source) => Ok((
+                    JsonObject::new(),
+                    vec![Binding {
+                        at: Vec::new(),
+                        source,
+                    }],
+                )),
+                None => Err(refused()),
+            },
+            _ => Err(refused()),
+        }
+    }
+
+    fn value(
+        self,
+        value: &JsonValue,
+        at: &mut Vec<String>,
+        previous_steps: &BTreeSet<String>,
+        field: &str,
+        bindings: &mut Vec<Binding>,
+    ) -> Result<JsonValue, ValidationError> {
+        Ok(match value {
+            JsonValue::String(text) => match self.reference(text, previous_steps, field)? {
+                Some(source) => {
+                    bindings.push(Binding {
+                        at: at.clone(),
+                        source,
+                    });
+                    JsonValue::String(text.clone())
+                }
+                None => JsonValue::String(unescape(text).to_owned()),
+            },
+            JsonValue::Object(object) => {
+                let mut parsed = JsonObject::new();
+                for (key, value) in object {
+                    at.push(key.clone());
+                    parsed.insert(
+                        key.clone(),
+                        self.value(
+                            value,
+                            at,
+                            previous_steps,
+                            &format!("{field}.{key}"),
+                            bindings,
+                        )?,
+                    );
+                    at.pop();
+                }
+                JsonValue::Object(parsed)
+            }
+            JsonValue::Array(items) => {
+                let mut parsed = Vec::with_capacity(items.len());
+                for (index, item) in items.iter().enumerate() {
+                    at.push(index.to_string());
+                    parsed.push(self.value(
+                        item,
+                        at,
+                        previous_steps,
+                        &format!("{field}.{index}"),
+                        bindings,
+                    )?);
+                    at.pop();
+                }
+                JsonValue::Array(parsed)
+            }
+            literal => literal.clone(),
+        })
+    }
+
+    /// The reference `text` names, if it names one this value may read.
+    fn reference(
+        self,
+        text: &str,
+        previous_steps: &BTreeSet<String>,
+        field: &str,
+    ) -> Result<Option<Source>, ValidationError> {
+        match reference(text, previous_steps, field)? {
+            Some(Source::Act { .. }) if self != Self::Act => Err(validation_error(format!(
+                "{field} reads $act, the invoker's act, which only an act: may read."
+            ))),
+            source => Ok(source),
+        }
+    }
+}
+
+/// The reference `text` names, if it names one, wherever it is written.
 fn reference(
     text: &str,
     previous_steps: &BTreeSet<String>,
@@ -221,6 +283,7 @@ fn reference(
     }
     match head {
         "$input" => Ok(Some(Source::Input { path: rest })),
+        "$act" => Ok(Some(Source::Act { path: rest })),
         "$steps" => {
             let Some((step, path)) = rest.split_first() else {
                 return Err(validation_error(format!(
@@ -238,7 +301,7 @@ fn reference(
             }))
         }
         _ => Err(validation_error(format!(
-            "{field} {text:?} is not a reference: write $input.<path> or $steps.<id>.<path>, and a literal that begins with $ as $$."
+            "{field} {text:?} is not a reference: write $input.<path>, $steps.<id>.<path> or, in an act:, $act.<field>, and a literal that begins with $ as $$."
         ))),
     }
 }

@@ -541,12 +541,12 @@ fn blocked_prepared_context(
     }
 }
 
-pub(crate) fn prepared_receipt_references(env: &BTreeMap<String, String>) -> Vec<Reference> {
-    let Some(digest) = env.get(PREPARED_CONTEXT_DIGEST_ENV) else {
-        return Vec::new();
-    };
+/// The operator context the run was prepared with, which every act the run
+/// seals carries as its `context_ref`.
+pub(crate) fn prepared_context_ref(env: &BTreeMap<String, String>) -> Option<Reference> {
+    let digest = env.get(PREPARED_CONTEXT_DIGEST_ENV)?;
     let digest_id = digest.strip_prefix("sha256:").unwrap_or(digest);
-    let artifact = Reference {
+    Some(Reference {
         reference_type: ReferenceType::Artifact,
         uri: format!("runx:artifact:operator_context:{digest_id}").into(),
         provider: Some("runx".to_owned().into()),
@@ -554,8 +554,7 @@ pub(crate) fn prepared_receipt_references(env: &BTreeMap<String, String>) -> Vec
         label: Some("prepared operator context".to_owned().into()),
         observed_at: None,
         proof_kind: None,
-    };
-    vec![artifact]
+    })
 }
 
 pub(crate) fn verify_prepared_artifact_at_use(
@@ -803,6 +802,7 @@ mod tests {
             current_context: Vec::new(),
             historical_context: Vec::new(),
             run_authority: None,
+            act: None,
             skill_path: path.to_path_buf(),
             receipt_dir: None,
             run_id: None,
@@ -1356,11 +1356,11 @@ runners:
 
         prepared.bind_context()?;
         assert!(prepared.is_context_bound());
-        let references = prepared_receipt_references(&prepared.request().env);
-        assert_eq!(references.len(), 1);
-        assert_eq!(references[0].reference_type, ReferenceType::Artifact);
+        let context = prepared_context_ref(&prepared.request().env)
+            .ok_or("a bound prepared run has an operator context")?;
+        assert_eq!(context.reference_type, ReferenceType::Artifact);
         assert_eq!(
-            references[0].label.as_ref().map(AsRef::as_ref),
+            context.label.as_ref().map(AsRef::as_ref),
             Some("prepared operator context")
         );
         assert_eq!(
@@ -1412,7 +1412,7 @@ runners:
     }
 
     #[test]
-    fn prepared_skill_receipt_binds_context_artifact_without_approval_decision()
+    fn prepared_skill_receipt_carries_its_operator_context_as_the_act_context()
     -> Result<(), Box<dyn Error>> {
         use crate::adapter::InvocationOutput;
         use crate::receipts::{
@@ -1445,7 +1445,9 @@ runners:
                 projection_refs: std::mem::take(&mut projection.refs),
                 created_at: "2026-07-12T00:00:00Z",
                 authority: crate::receipts::SealAuthority::default(),
-                operator_refs: prepared_receipt_references(&env),
+                call: None,
+                context_ref: prepared_context_ref(&env),
+                approval_refs: Vec::new(),
                 child_receipts: &[],
                 descendant_receipts: &[],
                 closure: Some(StepSealClosure {
@@ -1457,26 +1459,20 @@ runners:
             },
             RuntimeReceiptSignaturePolicy::local_development(),
         )?;
-        let refs = &receipt.acts[0].artifact_refs;
-        assert!(refs.iter().any(|reference| {
-            reference.reference_type == ReferenceType::Artifact
-                && reference.uri.as_str().contains("operator_context:abc123")
-        }));
-        assert!(
-            receipt.seal.criteria[0]
-                .verification_refs
-                .iter()
-                .all(|reference| reference.reference_type != ReferenceType::Decision)
+        assert_eq!(
+            receipt.acts[0]
+                .context_ref
+                .as_ref()
+                .map(|context| context.uri.as_str()),
+            Some("runx:artifact:operator_context:abc123")
         );
-        assert!(prepared_receipt_references(&BTreeMap::new()).is_empty());
-
-        let safe_env = BTreeMap::from([(
-            PREPARED_CONTEXT_DIGEST_ENV.to_owned(),
-            "sha256:safe123".to_owned(),
-        )]);
-        let safe_refs = prepared_receipt_references(&safe_env);
-        assert_eq!(safe_refs.len(), 1);
-        assert_eq!(safe_refs[0].reference_type, ReferenceType::Artifact);
+        assert!(
+            receipt.acts[0]
+                .artifact_refs
+                .iter()
+                .all(|reference| !reference.uri.as_str().contains("operator_context"))
+        );
+        assert!(prepared_context_ref(&BTreeMap::new()).is_none());
         Ok(())
     }
 
@@ -1487,7 +1483,7 @@ runners:
             "sha256:forged".to_owned(),
         )]);
         strip_untrusted_prepared_env(&mut env);
-        assert!(prepared_receipt_references(&env).is_empty());
+        assert!(prepared_context_ref(&env).is_none());
         assert!(
             !env.keys()
                 .any(|key| key.starts_with("RUNX_INTERNAL_PREPARED_"))

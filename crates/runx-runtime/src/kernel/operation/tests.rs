@@ -65,6 +65,8 @@ enum Answer {
     Reject,
     Unbound,
     WrongProvider,
+    /// Succeeds with a locator the connector's references do not declare.
+    OffPattern,
 }
 
 #[derive(Clone)]
@@ -160,6 +162,9 @@ impl crate::http::RuntimeHttpTransport for Provider {
                         "failure_reason": null,
                         "recovered": false,
                     }),
+                    _ if answer == Answer::OffPattern => {
+                        serde_json::json!({"message_locator": "https://example.com/m/1", "text": "hi"})
+                    }
                     _ => {
                         serde_json::json!({"message_locator": "slack://T123/C456/1.0", "text": "hi"})
                     }
@@ -1195,4 +1200,247 @@ fn sent(fixture: &Fixture) -> Vec<serde_json::Value> {
         .iter()
         .map(|call| serde_json::to_value(call).unwrap())
         .collect()
+}
+
+fn acted(text: &str, act: serde_json::Value) -> JsonObject {
+    let mut call = post(text);
+    call.insert("act".to_owned(), JsonValue::from_serialize(&act).unwrap());
+    call
+}
+
+#[test]
+fn a_calls_act_is_bound_into_its_intent_and_shown_to_its_approver() {
+    let fixture = Fixture::new(&["channel.post"]);
+    let intent = |inputs: &JsonObject| {
+        let admission = fixture.admit("post", inputs).expect("admits");
+        let context = admission.context::<OperationAdmission>().unwrap();
+        (
+            context.admitted.intent().act_digest.clone(),
+            context.admitted.intent_digest().clone(),
+        )
+    };
+    let closing = acted("hi", serde_json::json!({"purpose": "Close the thread"}));
+    let declining = acted("hi", serde_json::json!({"purpose": "Decline the thread"}));
+    let (act, closing_digest) = intent(&closing);
+    assert!(act.is_some(), "a stated act is bound into the intent");
+    let (_, declining_digest) = intent(&declining);
+    assert_ne!(
+        closing_digest, declining_digest,
+        "a changed act is another call"
+    );
+    let (none, _) = intent(&post("hi"));
+    assert!(none.is_none());
+
+    // The approver sees the act it approves, under the intent that binds it.
+    let admission = fixture.admit("post", &closing).expect("admits");
+    let mut host = Approver::new(None);
+    fixture
+        .prepare("post", admission, &mut host)
+        .expect("pending");
+    let request = serde_json::to_value(&host.requests).unwrap();
+    let gate = &request[0]["gate"];
+    assert_eq!(gate["summary"]["act"]["purpose"], "Close the thread");
+    assert_eq!(
+        gate["id"],
+        serde_json::Value::String(format!("operation:{closing_digest}"))
+    );
+}
+
+#[test]
+fn a_changed_act_is_held_by_the_unsettled_attempt_of_another() {
+    let fixture = Fixture::new(&["channel.post"]);
+    fixture.provider.answer(Answer::TimeOut);
+    let closing = acted("hi", serde_json::json!({"purpose": "Close the thread"}));
+    fixture
+        .run("post", &closing, Some(ResolutionResponseActor::Human))
+        .expect_err("unknown");
+    fixture.provider.answer(Answer::Succeed);
+    let declining = acted("hi", serde_json::json!({"purpose": "Decline the thread"}));
+    let error = fixture
+        .run("post", &declining, Some(ResolutionResponseActor::Human))
+        .expect_err("held");
+    assert!(error.contains("carries another intent"), "{error}");
+    assert_eq!(fixture.provider.calls(), 1);
+}
+
+#[test]
+fn an_act_outside_its_shape_is_refused_before_anything_is_sent() {
+    let fixture = Fixture::new(&["channel.post"]);
+    for act in [
+        serde_json::json!({"purpose": "Revise it", "form": "revision"}),
+        serde_json::json!({"purpose": "Settle it", "decision": "paid"}),
+        serde_json::json!({"reason": "no purpose"}),
+        serde_json::json!({"purpose": "Close it", "legitimacy": "trust me"}),
+    ] {
+        let error = fixture
+            .admit("post", &acted("hi", act.clone()))
+            .expect_err("refused")
+            .to_string();
+        assert!(
+            error.contains("operation step inputs are invalid"),
+            "{act}: {error}"
+        );
+    }
+    assert_eq!(fixture.provider.calls(), 0);
+}
+
+#[test]
+fn a_call_carries_the_effect_its_operation_declares_and_admissions_authority() {
+    let fixture = Fixture::new(&["channel.post"]);
+    let (admission, outcome) = fixture
+        .run("post", &post("hi"), Some(ResolutionResponseActor::Human))
+        .expect("runs");
+    assert_eq!(
+        outcome.effects.len(),
+        1,
+        "one effect: {:?}",
+        outcome.effects
+    );
+    let effect = &outcome.effects[0];
+    assert_eq!(effect.reference_type, ReferenceType::Thread);
+    assert_eq!(effect.uri.as_str(), "slack://T123/C456/1.0");
+    let authority = fixture.effect.authority(&admission).expect("authority");
+    assert_eq!(
+        authority.actor_ref.as_ref().map(|actor| actor.uri.as_str()),
+        Some(PRINCIPAL_REF)
+    );
+    assert_eq!(
+        authority.mandate_ref, None,
+        "a direct call acts under no mandate"
+    );
+    let context = admission.context::<OperationAdmission>().unwrap();
+    let sealed = context
+        .sealed_call(outcome.effects.clone())
+        .expect("sealed");
+    let term = context.admitted.admission.execution_term.as_ref().unwrap();
+    assert_eq!(sealed.term_id, term.term_id.as_str());
+}
+
+#[test]
+fn an_effect_the_connector_does_not_declare_holds_the_call() {
+    let fixture = Fixture::new(&["channel.post"]);
+    fixture.provider.answer(Answer::OffPattern);
+    let error = fixture
+        .run("post", &post("hi"), Some(ResolutionResponseActor::Human))
+        .expect_err("held");
+    assert!(error.contains("is not a thread slack declares"), "{error}");
+    assert!(
+        error.contains("unknown"),
+        "an unconfirmed effect holds: {error}"
+    );
+}
+
+#[test]
+fn an_effect_renders_from_the_result_and_is_checked_only_against_declared_patterns() {
+    use runx_contracts::connector::TemplateInputs;
+
+    let manifest = |references: &str, kind: &str, locator: &str| {
+        let yaml = format!(
+            r#"schema: runx.connector.v1
+id: acme
+name: Acme
+description: A plugin-shaped connector.
+auth: {{none: {{}}}}
+placements: {{local: {{auth: [none]}}}}
+{references}
+operations:
+  items.create:
+    description: Create items.
+    verb: create
+    scopes: [items.write]
+    target: {{template: "acme://items"}}
+    result_fields: [items]
+    effect:
+      kind: {kind}
+      each: {{"$result": "/items"}}
+      locator: {locator}
+"#
+        );
+        runx_parser::parse_connector_manifest(&yaml).unwrap()
+    };
+    let result = serde_json::json!({"items": [{"id": "a1"}, {"id": "b2"}]});
+    let result = JsonValue::from_serialize(&result).unwrap();
+    let inputs = TemplateInputs {
+        result: Some(&result),
+        ..TemplateInputs::default()
+    };
+    let locator = r#"{"$concat": ["acme://items/", {"$item": "/id"}]}"#;
+
+    let effect_of = |manifest: &runx_contracts::connector::ConnectorManifest| {
+        manifest
+            .operations
+            .values()
+            .next()
+            .unwrap()
+            .effect
+            .clone()
+            .unwrap()
+    };
+
+    // A plugin declares no references: the effect is typed as declared.
+    let plugin = manifest("", "tracking_item", locator);
+    let effect = effect_of(&plugin);
+    let refs = render_effects(&plugin, &effect, false, &inputs).expect("renders");
+    assert_eq!(
+        refs.iter().map(|r| r.uri.as_str()).collect::<Vec<_>>(),
+        ["acme://items/a1", "acme://items/b2"]
+    );
+    assert!(
+        refs.iter()
+            .all(|r| r.reference_type == ReferenceType::TrackingItem)
+    );
+
+    // Declared references check every locator against the kind's pattern.
+    let declared = manifest(
+        "references:\n  - {kind: tracking_item, locator: \"acme://items/[a-z][0-9]\"}",
+        "tracking_item",
+        locator,
+    );
+    let effect = effect_of(&declared);
+    assert!(render_effects(&declared, &effect, false, &inputs).is_ok());
+    let mismatched = manifest(
+        "references:\n  - {kind: tracking_item, locator: \"acme://items/[0-9]+\"}",
+        "tracking_item",
+        locator,
+    );
+    let effect = effect_of(&mismatched);
+    assert!(render_effects(&mismatched, &effect, false, &inputs).is_err());
+
+    // A repeated write's result is its items' outcomes: only what it applied
+    // was produced.
+    let outcomes = JsonValue::from_serialize(&serde_json::json!({"items": [
+        {"status": "applied", "acknowledgement": {"id": "a1"}},
+        {"status": "refused", "code": "provider_rejected", "reason": "no"},
+        {"status": "applied", "acknowledgement": {"id": "b2"}},
+        {"status": "unsent", "code": "rate_limited", "reason": "halted"},
+    ]}))
+    .unwrap();
+    let refs = render_effects(
+        &plugin,
+        &effect_of(&plugin),
+        true,
+        &TemplateInputs {
+            result: Some(&outcomes),
+            ..TemplateInputs::default()
+        },
+    )
+    .expect("renders the applied items");
+    assert_eq!(
+        refs.iter().map(|r| r.uri.as_str()).collect::<Vec<_>>(),
+        ["acme://items/a1", "acme://items/b2"]
+    );
+
+    // A result without what the effect reads does not render.
+    let empty = JsonValue::from_serialize(&serde_json::json!({})).unwrap();
+    let error = render_effects(
+        &plugin,
+        &effect_of(&plugin),
+        false,
+        &TemplateInputs {
+            result: Some(&empty),
+            ..TemplateInputs::default()
+        },
+    )
+    .expect_err("unresolved");
+    assert!(error.contains("result array"), "{error}");
 }

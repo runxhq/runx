@@ -28,9 +28,9 @@ pub use governance::validate_skill_artifact_contract;
 pub use markdown::parse_skill_markdown;
 pub use runner_definition::validate_input_examples;
 pub use types::{
-    ActDeclaration, ArtifactPageFraming, ArtifactPageSource, InputMode, RawSkillIr,
-    SkillArtifactContract, SkillIdempotencyPolicy, SkillInput, SkillRunnerDefinition,
-    ValidateSkillMode, ValidateSkillOptions, ValidatedSkill,
+    ArtifactPageFraming, ArtifactPageSource, InputMode, RawSkillIr, SkillArtifactContract,
+    SkillIdempotencyPolicy, SkillInput, SkillRunnerDefinition, ValidateSkillMode,
+    ValidateSkillOptions, ValidatedSkill,
 };
 
 pub(crate) use catalog::validate_catalog_metadata;

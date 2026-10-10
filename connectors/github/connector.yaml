@@ -153,6 +153,10 @@ operations:
                   assignees: {type: array, maxItems: 10, items: {type: string}}
                   milestone: {type: [integer, "null"]}
     result_fields: [updates]
+    effect:
+      kind: thread
+      each: {"$result": "/updates"}
+      locator: {"$concat": ["github://", {"$argument": "/repository"}, "/issues/", {"$item": "/number"}]}
     hosted: {provider_scopes: [repo]}
     implementation:
       http:
@@ -208,6 +212,10 @@ operations:
               assignees: {type: array, maxItems: 10, items: {type: string}}
               milestone: {type: integer, minimum: 1}
     result_fields: [issues]
+    effect:
+      kind: thread
+      each: {"$result": "/issues"}
+      locator: {"$concat": ["github://", {"$argument": "/repository"}, "/issues/", {"$item": "/number"}]}
     hosted: {provider_scopes: [repo]}
     implementation:
       http:
@@ -359,6 +367,10 @@ operations:
                   base: {type: string, minLength: 1, maxLength: 255}
                   maintainer_can_modify: {type: boolean}
     result_fields: [updates]
+    effect:
+      kind: change_request
+      each: {"$result": "/updates"}
+      locator: {"$concat": ["github://", {"$argument": "/repository"}, "/pulls/", {"$item": "/number"}]}
     hosted: {provider_scopes: [repo]}
     implementation:
       http:
@@ -403,6 +415,9 @@ operations:
         base: {type: string, minLength: 1, maxLength: 255}
         draft: {type: boolean}
     result_fields: [pull]
+    effect:
+      kind: change_request
+      locator: {"$concat": ["github://", {"$argument": "/repository"}, "/pulls/", {"$result": "/pull/number"}]}
     hosted: {provider_scopes: [repo]}
     implementation:
       http:
@@ -513,6 +528,10 @@ operations:
               number: {type: [integer, string], minimum: 1, pattern: "^[1-9][0-9]{0,9}$"}
               body: {type: string, minLength: 1, maxLength: 65536}
     result_fields: [comments]
+    effect:
+      kind: comment
+      each: {"$result": "/comments"}
+      locator: {"$concat": ["github://", {"$argument": "/repository"}, "/issues/comments/", {"$item": "/id"}]}
     hosted: {provider_scopes: [repo]}
     implementation:
       http:
@@ -562,6 +581,10 @@ operations:
               comment_id: {type: [integer, string], minimum: 1, pattern: "^[1-9][0-9]{0,9}$"}
               body: {type: string, minLength: 1, maxLength: 65536}
     result_fields: [comments]
+    effect:
+      kind: comment
+      each: {"$result": "/comments"}
+      locator: {"$concat": ["github://", {"$argument": "/repository"}, "/issues/comments/", {"$item": "/id"}]}
     hosted: {provider_scopes: [repo]}
     implementation:
       http:
@@ -651,3 +674,55 @@ operations:
         advisory_ref: {type: string, minLength: 1}
         payload_digest: {type: string}
     result_fields: [advisory_ref, payload_digest, status]
+  pullrequest.files.list:
+    description: Read one bounded page of changed PR files and available patches; absent or truncated patches are incomplete review evidence.
+    verb: read
+    scopes: [repo.read]
+    credentials: [token]
+    target:
+      template: {$argument: /repository}
+    input_schema:
+      type: object
+      additionalProperties: false
+      required: [repository, number, per_page, page]
+      properties:
+        repository: {type: string, maxLength: 201, pattern: '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$'}
+        number: {type: integer, minimum: 1, maximum: 1000000000}
+        per_page: {type: integer, minimum: 1, maximum: 100}
+        page: {type: integer, minimum: 1, maximum: 30}
+    result_fields: [files]
+    implementation:
+      http:
+        allowed_hosts: [api.github.com]
+        auth: {token: {type: bearer}}
+        requests:
+          - method: GET
+            url: {$concat: ['https://api.github.com/repos/', {$argument: /repository}, '/pulls/', {$argument: /number}, '/files']}
+            query: {per_page: {$argument: /per_page}, page: {$argument: /page}}
+            headers: {accept: application/vnd.github+json, X-GitHub-Api-Version: '2026-03-10'}
+  checks.list:
+    description: Read one bounded page of latest check runs for an exact commit SHA; check runs do not include legacy commit statuses.
+    verb: read
+    scopes: [repo.read]
+    credentials: [token]
+    target:
+      template: {$argument: /repository}
+    input_schema:
+      type: object
+      additionalProperties: false
+      required: [repository, commit, per_page, page]
+      properties:
+        repository: {type: string, maxLength: 201, pattern: '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$'}
+        commit: {type: string, pattern: '^[0-9a-f]{40}$'}
+        per_page: {type: integer, minimum: 1, maximum: 100}
+        page: {type: integer, minimum: 1, maximum: 10000}
+    result_fields: [checks]
+    implementation:
+      http:
+        allowed_hosts: [api.github.com]
+        auth: {token: {type: bearer}}
+        requests:
+          - method: GET
+            url: {$concat: ['https://api.github.com/repos/', {$argument: /repository}, '/commits/', {$argument: /commit}, '/check-runs']}
+            query: {filter: latest, per_page: {$argument: /per_page}, page: {$argument: /page}}
+            headers: {accept: application/vnd.github+json, X-GitHub-Api-Version: '2026-03-10'}

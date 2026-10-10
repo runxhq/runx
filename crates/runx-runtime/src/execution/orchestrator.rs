@@ -70,6 +70,9 @@ pub struct SkillRunRequest {
     /// Actor identity and attenuated terms from the trusted host. Never taken
     /// from skill inputs, model output or retrieved context.
     pub run_authority: Option<crate::RunAuthority>,
+    /// The act the invoker states for the run: why it is made. Its steps read
+    /// it as `$act`, only inside an `act:`.
+    pub act: Option<runx_contracts::CallAct>,
     pub skill_path: PathBuf,
     pub receipt_dir: Option<PathBuf>,
     pub run_id: Option<String>,

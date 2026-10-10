@@ -340,6 +340,7 @@ fn graph_action_approval_yields_one_operator_resolution() -> Result<(), Box<dyn 
             current_context: Vec::new(),
             historical_context: Vec::new(),
             run_authority: None,
+            act: None,
             skill_path: approval_skill,
             receipt_dir: Some(receipt_dir),
             run_id: Some(run_id.to_owned()),

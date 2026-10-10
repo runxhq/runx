@@ -67,6 +67,7 @@ pub use act::assignment::{
     ActAssignmentIdempotency, ActAssignmentSchema, BuildActAssignment, IntentKeyInput,
     derive_content_hash, derive_intent_key, derive_trigger_key,
 };
+pub use act::call::{CALL_ACT_TARGET_MAX, CALL_ACT_TEXT_MAX, CallAct, CallActForm, CallDecision};
 pub use act::result::{
     ActResultEnvelope, ActResultNeedsAgentEnvelope, ActResultNeedsAgentStatus, ActResultNull,
     ActResultSignal, ActResultTerminalEnvelope, ActResultTerminalStatus,

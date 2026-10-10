@@ -48,8 +48,9 @@ A project operator skill uses runx the right way:
   procedure;
 - Agent steps let the model author a line, verdict, or draft.
 - Deterministic steps perform the board mutation.
-- The receipt seals the domain act: target, authority, decision, reason, and
-  effect.
+- Each governed call's receipt seals its act: purpose, reason, target and
+  decision as the skill states them, authority from admission, and the effect
+  the operation declares.
 
 Project-owned operator skills should copy that shape. Keep product vocabulary
 and policy in the project skill or project profile. Keep OSS skills generic and

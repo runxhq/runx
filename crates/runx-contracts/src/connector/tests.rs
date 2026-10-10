@@ -197,6 +197,44 @@ fn an_item_binding_renders_only_for_a_repeated_request() {
     assert!(!plain.binds_item());
 }
 
+/// The TS renderer answers the same (packages/contracts/src/connector.test.ts).
+#[test]
+fn an_effect_reads_the_call_result_and_a_repeated_element() {
+    let locator: Template = serde_json::from_str(
+        r#"{"$concat": ["github://", {"$argument": "/repository"}, "/issues/", {"$item": "/number"}]}"#,
+    )
+    .expect("template");
+    let arguments: JsonValue =
+        serde_json::from_str(r#"{"repository": "acme/app"}"#).expect("arguments");
+    let item: JsonValue = serde_json::from_str(r#"{"number": 7}"#).expect("item");
+    assert_eq!(
+        locator
+            .render_string(&TemplateInputs {
+                arguments: Some(&arguments),
+                item: Some(&item),
+                ..TemplateInputs::default()
+            })
+            .expect("renders"),
+        "github://acme/app/issues/7"
+    );
+    let id: Template = serde_json::from_str(r#"{"$result": "/post/id"}"#).expect("template");
+    assert!(id.binds_result());
+    assert_eq!(id.result_pointer(), Some("/post/id"));
+    let result: JsonValue = serde_json::from_str(r#"{"post": {"id": "19"}}"#).expect("result");
+    assert_eq!(
+        id.render_string(&TemplateInputs {
+            result: Some(&result),
+            ..TemplateInputs::default()
+        })
+        .expect("renders"),
+        "19"
+    );
+    assert!(matches!(
+        id.render(&TemplateInputs::default()),
+        Err(TemplateError::Unavailable { .. })
+    ));
+}
+
 #[test]
 fn malformed_templates_fail_to_parse() {
     for malformed in [

@@ -142,50 +142,43 @@ loop. Use [Loop Orchestration](./loop-orchestration.md): an outer loop host
 submits one governed runx turn at a time, reads receipts and projections, and
 continues only when explicit stop policy allows.
 
-## Domain Receipts: The `act:` Declaration
+## Acts: Why A Governed Call Is Made
 
-By default a receipt records that a step ran. A runner can instead declare an
-`act:` block so its primary receipt reads as the **domain act** it performed:
-what was decided, on what, under what authority, with what effect, and what it
-follows.
-
-The discipline is a trust boundary. The model authors only the human reason; the
-structure and authority come from the declaration plus trusted inputs, never from
-the model, so it cannot forge what kind of act happened, what it targeted, or
-under what right. A run that declares no `act:` block seals exactly as before.
-
-Each field maps to a trusted source, a literal or driver-pinned from an input
-(`<field>_from: <input>`). The reason and effect come from named steps, so the
-effect is read from the deterministic action step's real result, never the
-model's restatement of it:
+By default a receipt records that a step ran. A governed call can also say
+what act it performs and why. An `operation` step declares it as `act:`; an
+agent's operation call carries it as its `act` argument:
 
 ```yaml
-runners:
-  approve:
+steps:
+  - id: close
+    operation: tracker/item.update
+    input: { item_id: $input.item_id, state: closed }
+    idempotency_key: $input.idempotency_key
     act:
-      form_from: act_form        # review | revision | reply | observation | verification
-      purpose_from: act_purpose  # what this act is
-      target_from: target_ref    # the entity acted on (a ref uri)
-      decision_from: decision    # accept | reject | continue | ... -> the receipt decision
-      authority_from: authority  # the right exercised (a grant ref)
-      actor_from: actor          # who acted (a principal ref)
-      previous_from: prior       # the receipt this one chains from (lineage)
-      reason_step: decide        # the agent step whose output holds the reason
-      reason_from: line          # the field in that step's output
-      effect_step: act           # the deterministic action step
-      effect_from: id            # the field of its result that is the consequence id
-      effect_prefix_from: ns     # wraps it, e.g. ticket: -> ticket:<id>
-    steps:
-      # ...
+      form: review               # observation (default), reply or review
+      purpose: Close the reviewed item
+      reason: $act.reason        # what the invoker says about this call
+      target: $input.item_locator
+      decision: close            # continue, close, decline, defer, escalate or monitor
+      previous: $input.review_receipt
 ```
 
-When the operator, not an agent, authors the reason, `reason_from_input` names a
-trusted input instead of `reason_step`/`reason_from`.
+`form` and `decision` take only those values, and `purpose` is required: an
+act outside them refuses the call before it is admitted. The act is bound into
+the call's admitted intent, so an approval of the call approves its act and a
+changed act is another call. It never reaches the provider.
 
-Transport never enters the receipt: the tool name, url, status, and any token
-stay out; only the domain act and its effect ref are sealed. See
-[the act model](./act-model.md) for the receipt's act/decision
-shape.
+The act sits in the call's own receipt. Who acted, under what grant, term and
+mandate, and why that was legitimate come from admission, never from the act:
+the act's legitimacy names the execution term admission derived. What the call
+produced comes from the operation, which declares its `effect`.
+
+`$act` is the act the run's invoker states: `runx run --act '<json>'`, an MCP
+call's `act` argument, or a harness case's `caller.act`. A step reads it only
+inside an `act:`, whole (`act: $act`) or by field (`purpose: $act.purpose`);
+no other value may read it. A `skill` step's `act:` is the act its child run
+is invoked with, which the child reads as its `$act`. An act that resolves to
+nothing leaves the call without one.
 
 ## HTTP Steps And Credentials
 

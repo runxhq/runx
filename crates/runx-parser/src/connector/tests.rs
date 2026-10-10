@@ -625,3 +625,74 @@ fn a_hosted_request_declares_no_rate_limit() {
         "a hosted request cannot read a reset header",
     );
 }
+
+#[test]
+fn a_write_declares_what_it_produces_and_only_an_effect_reads_the_result() {
+    let with = |references: &str, effect: &str| {
+        FORGE
+            .replace("placements:", &format!("{references}\nplacements:"))
+            .replace(
+                "    approval: required\n",
+                &format!("    approval: required\n{effect}"),
+            )
+    };
+    let declared =
+        "references:\n  - {kind: change_request, locator: \"forge://[^/]+/[^/]+/pulls/[0-9]+\"}";
+    let merged = r#"    effect:
+      kind: change_request
+      locator: {"$concat": ["forge://", {"$argument": "/repository"}, "/pulls/", {"$result": "/number"}]}
+"#;
+    validate(&with(declared, merged)).expect("a write declares its effect");
+    // A plugin-shaped connector declares no references: its effect is typed
+    // as declared.
+    validate(&with("", merged)).expect("no references to check against");
+
+    assert_rejects(
+        &with(declared, &merged.replace("change_request", "thread")),
+        "declare no thread locator",
+    );
+    assert_rejects(
+        &with(
+            declared,
+            "    effect: {kind: change_request, locator: \"forge://a/b/pulls/1\"}\n",
+        ),
+        "rendered from the call's arguments and result",
+    );
+    assert_rejects(
+        &with(
+            declared,
+            "    effect: {kind: change_request, locator: {\"$item\": \"/url\"}}\n",
+        ),
+        "reads $item only under each",
+    );
+    assert_rejects(
+        &with(
+            declared,
+            "    effect: {kind: change_request, each: {\"$argument\": \"/pulls\"}, locator: {\"$item\": \"/url\"}}\n",
+        ),
+        "as one $result binding",
+    );
+    assert_rejects(
+        &with(
+            declared,
+            "    effect: {kind: signal, locator: {\"$result\": \"/url\"}}\n",
+        ),
+        "not an external reference kind",
+    );
+    // A read produces nothing, and nothing the call renders reads a result
+    // it does not have yet.
+    assert_rejects(
+        &FORGE.replace(
+            "    hosted: {provider_scopes: [repo]}\n",
+            "    hosted: {provider_scopes: [repo]}\n    effect: {kind: thread, locator: {\"$result\": \"/url\"}}\n",
+        ),
+        "a read produces nothing",
+    );
+    assert_rejects(
+        &FORGE.replace(
+            "target: {template: {\"$argument\": \"/repository\"}}",
+            "target: {template: {\"$result\": \"/repository\"}}",
+        ),
+        "only an effect reads $result",
+    );
+}

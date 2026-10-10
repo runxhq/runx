@@ -174,6 +174,10 @@ pub struct HarnessTurnCall {
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct HarnessCaller {
+    /// The act the caller states for the run, which its steps read as
+    /// `$act`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub act: Option<runx_contracts::CallAct>,
     /// Agent act outputs, by request id.
     #[serde(default, skip_serializing_if = "JsonObject::is_empty")]
     pub answers: JsonObject,

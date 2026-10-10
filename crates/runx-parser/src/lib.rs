@@ -28,8 +28,8 @@ pub use eval::{ParserEvalError, ParserEvalOutput, evaluate_parser_document_str};
 pub use graph::{
     AgentTask, AskGate, Binding, DuplicatePolicy, ExecutionGraph, GraphGuard, GraphPolicy,
     GraphStep, GraphWhen, Operand, OperationStepTarget, ProcessTool, RawGraphIr, SkillTarget,
-    Source, StepKind, ToolTarget, UncertainOutcome, WorkerTool, parse_graph_yaml, validate_graph,
-    validate_graph_document, validate_process_tool,
+    Source, StepAct, StepKind, ToolTarget, UncertainOutcome, WorkerTool, parse_graph_yaml,
+    validate_graph, validate_graph_document, validate_process_tool,
 };
 pub use harness_fixture::{
     HarnessProviderAccess, HarnessProviderGrantFixture, HarnessProviderOperationFixture,
@@ -52,17 +52,17 @@ pub use runner::{
     validate_runner_manifest,
 };
 pub use skill::{
-    ActDeclaration, ArtifactPageFraming, ArtifactPageSource, CatalogApproval, CatalogAudience,
-    CatalogCompletion, CatalogExecution, CatalogKind, CatalogMetadata, CatalogOperatorReadiness,
-    CatalogRole, CatalogSemanticCode, CatalogSemanticDiagnostic, CatalogSemanticReport,
-    CatalogVisibility, ConnectorRequirement, HarnessCaller, HarnessExpectation,
-    HarnessHttpExchangeFixture, HarnessHttpRequestBodyFixture, HarnessHttpResponseFixture,
-    HarnessMcpCallFixture, InputMode, OperatorJourneyClaim, OperatorJourneyMode, RawSkillIr,
-    ReceiptExpectation, RunnerHarnessCase, RunnerHarnessManifest, SkillArtifactContract,
-    SkillIdempotencyPolicy, SkillInput, SkillRunnerDefinition, ValidateSkillMode,
-    ValidateSkillOptions, ValidatedSkill, analyze_catalog_semantics,
-    analyze_package_catalog_semantics, parse_skill_markdown, validate_input_examples,
-    validate_skill, validate_skill_artifact_contract, validate_skill_with_options,
+    ArtifactPageFraming, ArtifactPageSource, CatalogApproval, CatalogAudience, CatalogCompletion,
+    CatalogExecution, CatalogKind, CatalogMetadata, CatalogOperatorReadiness, CatalogRole,
+    CatalogSemanticCode, CatalogSemanticDiagnostic, CatalogSemanticReport, CatalogVisibility,
+    ConnectorRequirement, HarnessCaller, HarnessExpectation, HarnessHttpExchangeFixture,
+    HarnessHttpRequestBodyFixture, HarnessHttpResponseFixture, HarnessMcpCallFixture, InputMode,
+    OperatorJourneyClaim, OperatorJourneyMode, RawSkillIr, ReceiptExpectation, RunnerHarnessCase,
+    RunnerHarnessManifest, SkillArtifactContract, SkillIdempotencyPolicy, SkillInput,
+    SkillRunnerDefinition, ValidateSkillMode, ValidateSkillOptions, ValidatedSkill,
+    analyze_catalog_semantics, analyze_package_catalog_semantics, parse_skill_markdown,
+    validate_input_examples, validate_skill, validate_skill_artifact_contract,
+    validate_skill_with_options,
 };
 pub use tool::{
     RawToolManifestIr, ValidatedTool, parse_tool_manifest_json, parse_tool_manifest_yaml,

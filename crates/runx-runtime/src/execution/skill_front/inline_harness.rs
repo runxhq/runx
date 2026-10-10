@@ -236,6 +236,7 @@ fn inline_harness_case_request(
         current_context: Vec::new(),
         historical_context: Vec::new(),
         run_authority: None,
+        act: case.caller.act.clone(),
         skill_path: skill_dir.to_path_buf(),
         receipt_dir: Some(receipt_dir.to_path_buf()),
         run_id: None,
