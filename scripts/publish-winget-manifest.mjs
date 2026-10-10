@@ -24,13 +24,23 @@ if (options.dryRun) {
   process.exit(0);
 }
 
+const published = await readVersionFiles(options.upstream, options.base, manifestDir);
+if (published.length > 0) {
+  await assertExactVersion(published, manifestFiles, `${options.upstream} ${options.version}`);
+  console.log(JSON.stringify({ status: "already-published", version: options.version }));
+  process.exit(0);
+}
+
 const user = await api("GET", "/user");
 const forkOwner = user.login;
 await ensureFork(forkOwner);
 
 const baseRef = await api("GET", `/repos/${options.upstream}/git/ref/heads/${options.base}`);
-await resetBranch(forkOwner, branchName, baseRef.object.sha);
-await removeStaleVersionFiles(forkOwner, branchName, manifestDir, new Set(manifestFiles.map((file) => file.path)));
+await ensureBranch(forkOwner, branchName, baseRef.object.sha);
+const staged = await readVersionFiles(`${forkOwner}/winget-pkgs`, branchName, manifestDir);
+if (staged.some((entry) => !manifestFiles.some((file) => file.path === entry.path))) {
+  throw new Error(`winget branch ${branchName} contains unexpected files for ${options.version}`);
+}
 for (const file of manifestFiles) {
   await putFile(forkOwner, branchName, file.path, file.contents);
 }
@@ -60,14 +70,10 @@ async function ensureFork(owner) {
   throw new Error(`fork ${owner}/winget-pkgs was not ready after creation`);
 }
 
-async function resetBranch(owner, branch, sha) {
+async function ensureBranch(owner, branch, sha) {
   const encodedBranch = encodeURIComponent(branch);
   const ref = await apiMaybe("GET", `/repos/${owner}/winget-pkgs/git/ref/heads/${encodedBranch}`);
   if (ref) {
-    await api("PATCH", `/repos/${owner}/winget-pkgs/git/refs/heads/${encodedBranch}`, {
-      sha,
-      force: true,
-    });
     return;
   }
   await api("POST", `/repos/${owner}/winget-pkgs/git/refs`, {
@@ -76,24 +82,36 @@ async function resetBranch(owner, branch, sha) {
   });
 }
 
-async function removeStaleVersionFiles(owner, branch, dir, keepPaths) {
+async function readVersionFiles(repository, branch, dir) {
   const entries = await apiMaybe(
     "GET",
-    `/repos/${owner}/winget-pkgs/contents/${encodePath(dir)}?ref=${encodeURIComponent(branch)}`,
+    `/repos/${repository}/contents/${encodePath(dir)}?ref=${encodeURIComponent(branch)}`,
   );
-  if (!Array.isArray(entries)) {
-    return;
+  if (entries === null) return [];
+  if (!Array.isArray(entries) || entries.some((entry) => entry.type !== "file")) {
+    throw new Error(`${repository} ${dir} is not a flat manifest directory`);
   }
-  for (const entry of entries) {
-    if (entry.type !== "file" || keepPaths.has(entry.path)) {
-      continue;
+  return entries;
+}
+
+async function assertExactVersion(existing, expected, label) {
+  if (existing.length !== expected.length) {
+    throw new Error(`${label} has a different set of manifest files`);
+  }
+  for (const file of expected) {
+    const entry = existing.find((candidate) => candidate.path === file.path);
+    if (!entry || await readFileContents(entry.url) !== file.contents) {
+      throw new Error(`${label} differs at ${file.path}; never replace a published version`);
     }
-    await api("DELETE", `/repos/${owner}/winget-pkgs/contents/${encodePath(entry.path)}`, {
-      message: `Remove stale ${options.identifier} ${options.version} winget manifest`,
-      sha: entry.sha,
-      branch,
-    });
   }
+}
+
+async function readFileContents(url) {
+  const file = await api("GET", new URL(url).pathname);
+  if (file.encoding !== "base64" || typeof file.content !== "string") {
+    throw new Error(`winget manifest response lacks base64 content: ${url}`);
+  }
+  return Buffer.from(file.content.replace(/\s/gu, ""), "base64").toString("utf8");
 }
 
 async function putFile(owner, branch, filePath, contents) {
@@ -101,11 +119,16 @@ async function putFile(owner, branch, filePath, contents) {
     "GET",
     `/repos/${owner}/winget-pkgs/contents/${encodePath(filePath)}?ref=${encodeURIComponent(branch)}`,
   );
+  if (existing) {
+    if (await readFileContents(existing.url) !== contents) {
+      throw new Error(`winget branch ${branch} has different content for ${filePath}`);
+    }
+    return;
+  }
   await api("PUT", `/repos/${owner}/winget-pkgs/contents/${encodePath(filePath)}`, {
     message: `Update ${options.identifier} ${options.version}`,
     content: Buffer.from(contents, "utf8").toString("base64"),
     branch,
-    ...(existing?.sha ? { sha: existing.sha } : {}),
   });
 }
 
@@ -113,9 +136,12 @@ async function ensurePullRequest(owner, branch) {
   const head = `${owner}:${branch}`;
   const existing = await api(
     "GET",
-    `/repos/${options.upstream}/pulls?head=${encodeURIComponent(head)}&state=open`,
+    `/repos/${options.upstream}/pulls?head=${encodeURIComponent(head)}&state=all`,
   );
   if (existing.length > 0) {
+    if (existing[0].state !== "open") {
+      throw new Error(`winget submission for ${options.version} was closed; do not silently recreate it`);
+    }
     return existing[0];
   }
   return api("POST", `/repos/${options.upstream}/pulls`, {

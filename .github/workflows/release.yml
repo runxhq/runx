@@ -3,8 +3,8 @@ name: release
 # Tag-driven, multi-channel release for the runx CLI.
 #
 # A reviewed CLI version is committed to the candidate manifests before the
-# cli-vX.Y.Z tag is created. Every job re-stamps and verifies the tag version in
-# its ephemeral checkout so `runx --version` stays truthful on every channel.
+# cli-vX.Y.Z tag is created. Every job verifies that exact tag version; release
+# jobs never rewrite the tagged checkout.
 # Internal Rust crates keep their own semver and are not published by this CLI
 # release workflow.
 #
@@ -15,19 +15,13 @@ name: release
 # independently verified release set. Winget remains an asynchronous submission;
 # AUR is not published unless Runx controls the package.
 #
-# Pushing a cli-v* tag runs a real release. workflow_dispatch runs a dry-run
-# (build + render, no publish).
+# Pushing a cli-v* tag runs one release. Render channel repairs locally from
+# existing verified archives without spending native build jobs.
 
 on:
   push:
     tags:
       - "cli-v*"
-  workflow_dispatch:
-    inputs:
-      version:
-        description: "Version to dry-run (X.Y.Z)"
-        type: string
-        required: true
 
 concurrency:
   group: release-${{ github.ref_name }}
@@ -38,6 +32,7 @@ env:
 
 jobs:
   runtime-quality:
+    needs: prepare
     uses: ./.github/workflows/runtime-quality.yml
 
   prepare:
@@ -63,15 +58,42 @@ jobs:
       - name: Resolve version
         id: resolve
         run: |
-          if [ "${{ github.event_name }}" = "push" ]; then
-            version="${GITHUB_REF_NAME#cli-v}"
-            echo "publish=true" >> "$GITHUB_OUTPUT"
-          else
-            version="${{ github.event.inputs.version }}"
-            echo "publish=false" >> "$GITHUB_OUTPUT"
-          fi
+          version="${GITHUB_REF_NAME#cli-v}"
+          echo "publish=true" >> "$GITHUB_OUTPUT"
           echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "resolved version=$version publish from tag=${{ github.event_name == 'push' }}"
+      - name: Refuse an existing GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          node --input-type=module <<'NODE'
+          const response = await fetch(`https://api.github.com/repos/${process.env.GITHUB_REPOSITORY}/releases/tags/${process.env.GITHUB_REF_NAME}`, {
+            headers: {
+              accept: 'application/vnd.github+json',
+              authorization: `Bearer ${process.env.GH_TOKEN}`,
+              'x-github-api-version': '2022-11-28',
+            },
+          });
+          if (response.status === 404) {
+            process.stdout.write('GitHub Release tag is available\n');
+          } else if (response.ok) {
+            throw new Error(`GitHub Release ${process.env.GITHUB_REF_NAME} already exists; reuse its archives`);
+          } else {
+            throw new Error(`GitHub Release lookup returned HTTP ${response.status}; refusing to build`);
+          }
+          NODE
+      - name: Verify package publication credentials
+        env:
+          AUR_SSH_PRIVATE_KEY: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
+          CHOCOLATEY_API_KEY: ${{ secrets.CHOCOLATEY_API_KEY }}
+        run: |
+          if [ -z "$AUR_SSH_PRIVATE_KEY" ]; then
+            echo '::error::AUR_SSH_PRIVATE_KEY is required before building a release'
+            exit 1
+          fi
+          if [ -z "$CHOCOLATEY_API_KEY" ]; then
+            echo '::error::CHOCOLATEY_API_KEY is required before building a release'
+            exit 1
+          fi
       - name: Verify complete release notes
         run: node scripts/check-runx-cli-release-notes.mjs --version "${{ steps.resolve.outputs.version }}"
       - name: Install dependencies
@@ -80,12 +102,12 @@ jobs:
         id: platforms
         shell: bash
         run: echo "matrix=$(node scripts/release-platform-matrix.mjs)" >> "$GITHUB_OUTPUT"
-      - name: Stamp + verify manifests match the tag
-        run: |
-          pnpm exec tsx scripts/set-release-version.ts "${{ steps.resolve.outputs.version }}"
-          pnpm exec tsx scripts/set-release-version.ts --check "${{ steps.resolve.outputs.version }}"
+      - name: Verify committed manifests match the tag
+        run: pnpm exec tsx scripts/set-release-version.ts --check "${{ steps.resolve.outputs.version }}"
       - name: Fast verify
         run: pnpm verify:fast
+      - name: Verify release metadata checks
+        run: node --test scripts/build-channel-input.test.mjs
 
   build:
     needs: [prepare, runtime-quality]
@@ -122,9 +144,6 @@ jobs:
           cargo test --locked -p runx-js-worker
           cargo test --locked -p runx-runtime --test integration 'javascript_worker::' -- --nocapture
           cargo test --locked -p runx-runtime --test integration 'javascript_worker_hostile::' -- --nocapture
-      - name: Stamp version from tag
-        shell: bash
-        run: pnpm exec tsx scripts/set-release-version.ts "${{ needs.prepare.outputs.version }}"
       - name: Build release binary
         working-directory: crates
         run: cargo build --release --locked --target ${{ matrix.target }} -p runx-cli -p runx-js-worker
@@ -319,15 +338,39 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_CONFIG_PROVENANCE: "true"
         run: |
-          for dir in */; do
+          set -euo pipefail
+          publish_package() {
+            dir="$1"
             name=$(node -p "require('./${dir}package.json').name")
             version=$(node -p "require('./${dir}package.json').version")
-            if npm view "${name}@${version}" version >/dev/null 2>&1; then
-              echo "${name}@${version} already published; skipping"
-              continue
+            packed=$(cd "$dir" && npm pack --json --ignore-scripts --pack-destination "$RUNNER_TEMP")
+            filename=$(node -e 'const p=JSON.parse(process.argv[1])[0]; if (!p?.filename || !p.integrity) process.exit(1); process.stdout.write(p.filename)' "$packed")
+            integrity=$(node -e 'process.stdout.write(JSON.parse(process.argv[1])[0].integrity)' "$packed")
+            if published=$(npm view "${name}@${version}" dist.integrity --json --prefer-online 2>/dev/null); then
+              actual=$(node -e 'process.stdout.write(JSON.parse(process.argv[1]))' "$published")
+              if [ "$actual" != "$integrity" ]; then
+                echo "::error::${name}@${version} exists with different tarball integrity"
+                exit 1
+              fi
+              echo "${name}@${version} already matches the packed candidate"
+            else
+              npm publish "$RUNNER_TEMP/$filename" --access public --tag latest
             fi
-            ( cd "$dir" && npm publish --access public --tag latest )
+            matched=false
+            for attempt in 1 2 3 4 5 6; do
+              observed=$(npm view "${name}@${version}" dist.integrity --json --prefer-online 2>/dev/null || true)
+              if [ "$observed" = "\"$integrity\"" ]; then matched=true; break; fi
+              sleep 5
+            done
+            if [ "$matched" != true ]; then
+              echo "::error::${name}@${version} registry integrity readback did not match the candidate after ${attempt} attempts"
+              exit 1
+            fi
+          }
+          for dir in */; do
+            if [ "$dir" != 'selector/' ]; then publish_package "$dir"; fi
           done
+          publish_package selector/
 
   package-managers:
     needs: [prepare, github-release]
@@ -358,6 +401,7 @@ jobs:
             --version "${{ needs.prepare.outputs.version }}" \
             --repo "${GITHUB_REPOSITORY}" \
             --tag "cli-v${{ needs.prepare.outputs.version }}" \
+            --commit "$(git rev-parse HEAD)" \
             --archives dist/archives \
             --out dist/channel-input.json
       - name: Render channel manifests
@@ -376,6 +420,12 @@ jobs:
         with:
           name: channel-manifests
           path: dist/channels
+      - name: Upload verified artifact index
+        uses: actions/upload-artifact@v7
+        with:
+          name: channel-input
+          path: dist/channel-input.json
+          if-no-files-found: error
 
   publish-homebrew:
     needs: [prepare, package-managers]
@@ -400,7 +450,7 @@ jobs:
           git -C tap config user.name "github-actions[bot]"
           git -C tap config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git -C tap add Formula/runx.rb
-          git -C tap diff --cached --quiet || { git -C tap commit -m "runx ${{ needs.prepare.outputs.version }}"; git -C tap push; }
+          git -C tap diff --cached --quiet || { git -C tap commit -m "chore(homebrew): publish runx ${{ needs.prepare.outputs.version }}"; git -C tap push; }
 
   publish-scoop:
     needs: [prepare, package-managers]
@@ -425,7 +475,7 @@ jobs:
           git -C bucket config user.name "github-actions[bot]"
           git -C bucket config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git -C bucket add bucket/runx.json
-          git -C bucket diff --cached --quiet || { git -C bucket commit -m "runx ${{ needs.prepare.outputs.version }}"; git -C bucket push; }
+          git -C bucket diff --cached --quiet || { git -C bucket commit -m "chore(scoop): publish runx ${{ needs.prepare.outputs.version }}"; git -C bucket push; }
 
   publish-winget:
     needs: [prepare, package-managers]
@@ -459,15 +509,160 @@ jobs:
             --version "${{ needs.prepare.outputs.version }}" \
             --identifier runxhq.runx
 
-  publish-docker:
-    needs: [prepare, github-release]
+  publish-aur:
+    needs: [prepare, package-managers]
     if: needs.prepare.outputs.publish == 'true'
     runs-on: ubuntu-24.04
+    steps:
+      - name: Download rendered package
+        uses: actions/download-artifact@v8
+        with:
+          name: channel-manifests
+          path: channels
+      - name: Configure AUR SSH
+        env:
+          AUR_SSH_PRIVATE_KEY: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$AUR_SSH_PRIVATE_KEY" | tr -d '\r' > ~/.ssh/aur
+          chmod 600 ~/.ssh/aur
+          ssh-keyscan -t ed25519 aur.archlinux.org 2>/dev/null > ~/.ssh/known_hosts
+          fingerprint=$(ssh-keygen -lf ~/.ssh/known_hosts | awk '{print $2}')
+          test "$fingerprint" = 'SHA256:RFzBCUItH9LZS0cKB5UE6ceAYhBD5C8GeOBip8Z11+4'
+      - name: Publish exact AUR package
+        env:
+          GIT_SSH_COMMAND: ssh -i ~/.ssh/aur -o IdentitiesOnly=yes -o BatchMode=yes
+          RUNX_RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          set -euo pipefail
+          git clone ssh://aur@aur.archlinux.org/runxhq-bin.git aur-repo
+          existing_version=$(sed -n 's/^[[:space:]]*pkgver = //p' aur-repo/.SRCINFO | head -n 1)
+          cp channels/aur/PKGBUILD channels/aur/.SRCINFO aur-repo/
+          git -C aur-repo add PKGBUILD .SRCINFO
+          if [ "$existing_version" = "$RUNX_RELEASE_VERSION" ]; then
+            if ! git -C aur-repo diff --cached --quiet; then
+              echo '::error::AUR already has this release version with different package metadata'
+              exit 1
+            fi
+          elif ! git -C aur-repo diff --cached --quiet; then
+            git -C aur-repo config user.name 'github-actions[bot]'
+            git -C aur-repo config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git -C aur-repo commit -m "chore(aur): publish runx $RUNX_RELEASE_VERSION"
+            git -C aur-repo push origin master
+          fi
+          expected=$(git -C aur-repo rev-parse HEAD)
+          observed=$(git -C aur-repo ls-remote origin refs/heads/master | cut -f1)
+          test "$expected" = "$observed"
+
+  publish-chocolatey:
+    needs: [prepare, package-managers]
+    if: needs.prepare.outputs.publish == 'true'
+    runs-on: windows-2022
+    steps:
+      - name: Download rendered package
+        uses: actions/download-artifact@v8
+        with:
+          name: channel-manifests
+          path: channels
+      - name: Pack and install the exact candidate
+        working-directory: channels/chocolatey
+        shell: pwsh
+        env:
+          RUNX_RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          choco pack runx.nuspec --limit-output
+          if ($LASTEXITCODE -ne 0) { throw 'Chocolatey pack failed' }
+          $package = "runx.$env:RUNX_RELEASE_VERSION.nupkg"
+          if (-not (Test-Path $package)) { throw "Missing package $package" }
+          choco install runx --source . --yes --no-progress --limit-output
+          if ($LASTEXITCODE -ne 0) { throw 'Chocolatey install failed' }
+          $version = & "$env:ChocolateyInstall\bin\runx.exe" --version
+          if ($version -notlike "*$env:RUNX_RELEASE_VERSION*") { throw "Installed version drifted: $version" }
+          $worker = Get-ChildItem "$env:ChocolateyInstall\lib\runx\tools" -Recurse -Filter runx-js-worker.exe | Select-Object -First 1
+          if (-not $worker) { throw 'Installed package omitted the JavaScript worker' }
+      - name: Submit verified package
+        working-directory: channels/chocolatey
+        shell: pwsh
+        env:
+          CHOCOLATEY_API_KEY: ${{ secrets.CHOCOLATEY_API_KEY }}
+          RUNX_RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          choco push "runx.$env:RUNX_RELEASE_VERSION.nupkg" --source https://push.chocolatey.org/ --key "$env:CHOCOLATEY_API_KEY" --limit-output
+          if ($LASTEXITCODE -ne 0) { throw 'Chocolatey submission failed' }
+
+  publish-docker:
+    needs: [prepare, package-managers]
+    if: needs.prepare.outputs.publish == 'true'
+    runs-on: ubuntu-24.04
+    outputs:
+      digest: ${{ steps.image.outputs.digest }}
     permissions:
       contents: read
       packages: write
     steps:
       - uses: actions/checkout@v7
+      - name: Download verified artifact index
+        uses: actions/download-artifact@v8
+        with:
+          name: channel-input
+          path: dist
+      - name: Resolve Linux archive digests
+        id: archive
+        shell: bash
+        env:
+          RUNX_RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          node --input-type=module <<'NODE' >> "$GITHUB_OUTPUT"
+          import { execFileSync } from 'node:child_process';
+          import { readFileSync } from 'node:fs';
+          const topology = JSON.parse(readFileSync('packages/cli/native/supported-platforms.json', 'utf8'));
+          const release = JSON.parse(readFileSync('dist/channel-input.json', 'utf8'));
+          const commit = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
+          if (release.commit_ref !== commit || release.version !== process.env.RUNX_RELEASE_VERSION || release.tag !== `cli-v${release.version}`) {
+            throw new Error('verified artifact index does not match this release commit and version');
+          }
+          const linux = Object.values(topology.nativePackages).filter((entry) => entry.os === 'linux' && entry.rustTarget.endsWith('-musl'));
+          const outputs = new Set();
+          for (const platform of linux) {
+            const output = { x64: 'amd64', arm64: 'arm64' }[platform.cpu];
+            const sha256 = release.artifacts[platform.rustTarget]?.sha256;
+            if (!output || outputs.has(output) || !/^[0-9a-f]{64}$/.test(sha256 ?? '')) {
+              throw new Error(`invalid Linux archive digest or architecture for ${platform.rustTarget}`);
+            }
+            outputs.add(output);
+            process.stdout.write(`${output}=${sha256}\n`);
+          }
+          if (outputs.size !== 2 || !outputs.has('amd64') || !outputs.has('arm64')) throw new Error('GHCR requires both Linux architectures');
+          NODE
+      - name: Refuse an existing versioned image
+        env:
+          RUNX_RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          node --input-type=module <<'NODE'
+          const tokenUrl = new URL('https://ghcr.io/token');
+          tokenUrl.searchParams.set('service', 'ghcr.io');
+          tokenUrl.searchParams.set('scope', 'repository:runxhq/runx:pull');
+          const tokenResponse = await fetch(tokenUrl);
+          if (!tokenResponse.ok) throw new Error(`GHCR token lookup returned HTTP ${tokenResponse.status}`);
+          const token = (await tokenResponse.json()).token;
+          if (typeof token !== 'string' || !token) throw new Error('GHCR pull token is missing');
+          const manifest = await fetch(`https://ghcr.io/v2/runxhq/runx/manifests/${process.env.RUNX_RELEASE_VERSION}`, {
+            headers: {
+              accept: 'application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.list.v2+json',
+              authorization: `Bearer ${token}`,
+            },
+          });
+          if (manifest.status === 404) {
+            process.stdout.write('Versioned GHCR tag is available\n');
+          } else if (manifest.ok) {
+            throw new Error(`GHCR image version ${process.env.RUNX_RELEASE_VERSION} already exists; inspect and reuse its digest, do not rebuild or overwrite it`);
+          } else {
+            throw new Error(`GHCR manifest lookup returned HTTP ${manifest.status}; refusing to build without an absence proof`);
+          }
+          NODE
       - uses: docker/setup-buildx-action@v4
       - name: Log in to GHCR
         uses: docker/login-action@v4
@@ -476,18 +671,61 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Build and push
+        id: image
         uses: docker/build-push-action@v7
         with:
-          context: .
+          context: packaging/docker
           file: packaging/docker/Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
           build-args: |
             VERSION=${{ needs.prepare.outputs.version }}
-          tags: |
-            ghcr.io/runxhq/runx:${{ needs.prepare.outputs.version }}
-            ghcr.io/runxhq/runx:latest
+            SHA256_AMD64=${{ steps.archive.outputs.amd64 }}
+            SHA256_ARM64=${{ steps.archive.outputs.arm64 }}
+          tags: ghcr.io/runxhq/runx:${{ needs.prepare.outputs.version }}
       - name: Verify anonymous pull access
         env:
           RUNX_RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
         run: node scripts/check-ghcr-anonymous-access.mjs
+
+  smoke-docker:
+    needs: [prepare, publish-docker]
+    strategy:
+      fail-fast: true
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Smoke the published image on the native runner
+        run: node scripts/smoke-runx-image.mjs --image "ghcr.io/runxhq/runx@${{ needs.publish-docker.outputs.digest }}" --expected-version "${{ needs.prepare.outputs.version }}"
+
+  promote-docker:
+    needs: [publish-docker, smoke-docker]
+    runs-on: ubuntu-24.04
+    permissions:
+      packages: write
+    steps:
+      - uses: docker/setup-buildx-action@v4
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Promote the tested digest to latest
+        env:
+          RUNX_IMAGE_DIGEST: ${{ needs.publish-docker.outputs.digest }}
+        run: |
+          docker buildx imagetools create \
+            --tag ghcr.io/runxhq/runx:latest \
+            "ghcr.io/runxhq/runx@${RUNX_IMAGE_DIGEST}"
+          docker buildx imagetools inspect ghcr.io/runxhq/runx:latest \
+            --format '{{json .Manifest}}' > latest-manifest.json
+          node --input-type=module <<'NODE'
+          import { readFileSync } from 'node:fs';
+          const latest = JSON.parse(readFileSync('latest-manifest.json', 'utf8'));
+          if (latest.digest !== process.env.RUNX_IMAGE_DIGEST) {
+            throw new Error(`GHCR latest points to ${latest.digest}, expected ${process.env.RUNX_IMAGE_DIGEST}`);
+          }
+          NODE

@@ -2,6 +2,7 @@
   "name": "@runxhq/host-adapters",
   "version": "0.2.0",
   "description": "Thin host response adapters over the runx host protocol.",
+  "homepage": "https://runx.ai",
   "private": false,
   "license": "Apache-2.0",
   "type": "module",

@@ -24,6 +24,7 @@ type SkillRunnerManifest = {
   readonly catalog?: Record<string, unknown>;
   readonly runners: Readonly<Record<string, SkillRunner>>;
   readonly harness?: {
+    readonly files?: readonly string[];
     readonly cases: readonly {
       readonly name: string;
       readonly runner?: string;
