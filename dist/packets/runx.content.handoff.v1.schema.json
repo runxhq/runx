@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.runx.ai/runx/content/handoff/v1.json",
+  "x-runx-packet-id": "runx.content.handoff.v1",
+  "x-runx-generated-from": "skills/ghostwrite/run.yaml#root.runners.handoff.steps.0",
+  "type": "object",
+  "required": [
+    "boundary_state",
+    "handoff_packet"
+  ],
+  "properties": {
+    "boundary_state": {
+      "additionalProperties": false,
+      "properties": {
+        "ack_expected": {
+          "type": "boolean"
+        },
+        "approval_required_for_delivery": {
+          "type": "boolean"
+        },
+        "boundary_kind": {
+          "enum": [
+            "internal",
+            "external"
+          ]
+        },
+        "completion_state": {
+          "enum": [
+            "handoff_ready",
+            "needs_input"
+          ]
+        },
+        "next_actor": {
+          "enum": [
+            "governed_provider_adapter",
+            "operator"
+          ]
+        }
+      },
+      "required": [
+        "boundary_kind",
+        "completion_state",
+        "next_actor",
+        "approval_required_for_delivery",
+        "ack_expected"
+      ],
+      "type": "object"
+    },
+    "handoff_packet": {
+      "additionalProperties": false,
+      "properties": {
+        "blockers": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "channel": {
+          "type": "string"
+        },
+        "decision": {
+          "enum": [
+            "handoff_ready",
+            "needs_input"
+          ]
+        },
+        "delivery_status": {
+          "const": "not_sent"
+        },
+        "packet": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "payload_digest": {
+          "type": "string"
+        },
+        "target": {
+          "additionalProperties": true,
+          "type": "object"
+        }
+      },
+      "required": [
+        "decision",
+        "channel",
+        "payload_digest",
+        "packet",
+        "target",
+        "delivery_status",
+        "blockers"
+      ],
+      "type": "object"
+    }
+  },
+  "additionalProperties": false
+}

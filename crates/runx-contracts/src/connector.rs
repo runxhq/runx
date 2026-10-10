@@ -114,9 +114,7 @@ pub struct ConnectorManifest {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ReferenceDeclaration {
-    /// An external reference kind: thread, comment, event, tracking_item,
-    /// change_request, repository or external_url.
-    pub kind: crate::ReferenceType,
+    pub kind: crate::ExternalReferenceKind,
     /// A regular expression the whole locator matches.
     pub locator: NonEmptyString,
 }
@@ -590,9 +588,7 @@ impl ConnectorOperation {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub struct OperationEffect {
-    /// An external reference kind: thread, comment, event, tracking_item,
-    /// change_request, repository or external_url.
-    pub kind: crate::ReferenceType,
+    pub kind: crate::ExternalReferenceKind,
     pub locator: Template,
     /// A `$result` pointer to the array the effect repeats over.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -667,9 +663,6 @@ pub struct OperationGuarantees {
     pub provider_idempotency: ProviderIdempotency,
     #[serde(default, skip_serializing_if = "ReadbackGuarantee::is_none")]
     pub readback: ReadbackGuarantee,
-    /// The read operation that settles an unknown outcome.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub reconcile: Option<OperationName>,
 }
 
 impl OperationGuarantees {
@@ -840,6 +833,12 @@ pub enum HttpAuth {
         #[serde(default = "default_token_field")]
         field: CredentialName,
     },
+    /// A declared credential field as the complete value of a fixed header.
+    /// Unlike a request template, this is rendered only at secret delivery.
+    Header {
+        name: NonEmptyString,
+        field: CredentialName,
+    },
     /// OAuth 1.0a user context, signed with the credential's
     /// `consumer_key`, `consumer_secret`, `access_token` and `access_secret`.
     Oauth1,
@@ -850,8 +849,17 @@ impl HttpAuth {
     #[must_use]
     pub fn fields(&self) -> Vec<&str> {
         match self {
-            Self::Bearer { field } => vec![field.as_str()],
+            Self::Bearer { field } | Self::Header { field, .. } => vec![field.as_str()],
             Self::Oauth1 => OAUTH1_FIELDS.to_vec(),
+        }
+    }
+
+    /// The header the transport owns for this presentation.
+    #[must_use]
+    pub fn header_name(&self) -> &str {
+        match self {
+            Self::Header { name, .. } => name.as_str(),
+            Self::Bearer { .. } | Self::Oauth1 => "authorization",
         }
     }
 }

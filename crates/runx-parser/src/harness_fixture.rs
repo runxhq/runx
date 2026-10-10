@@ -185,8 +185,8 @@ pub struct HarnessCaller {
     /// answered or worked, not both.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub turns: BTreeMap<String, HarnessTurnScript>,
-    /// Approval decisions, by request address, or by the request's id in its
-    /// own run: an operation step's id, or an ask's gate.
+    /// Approval decisions, by the address of the request each decides: an
+    /// operation step's id or an ask's gate at the root, `<child>#<id>` below.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub approvals: BTreeMap<String, bool>,
     /// The exact HTTP exchanges the run may make; any other request is
@@ -236,7 +236,8 @@ pub struct HarnessSetup {
 pub struct HarnessExpectation {
     pub status: Option<HarnessExpectedStatus>,
     pub receipt: Option<ReceiptExpectation>,
-    pub steps: Vec<String>,
+    /// The steps that ran, in order, asserted when present.
+    pub steps: Option<Vec<String>>,
     pub output: Option<HarnessJsonExpectation>,
     pub step_outputs: BTreeMap<String, HarnessJsonExpectation>,
 }
@@ -258,11 +259,13 @@ pub struct ReceiptExpectation {
     pub state: Option<String>,
     pub disposition: Option<ClosureDisposition>,
     pub reason_code: Option<String>,
-    pub act_ids: Vec<String>,
-    pub decision_ids: Vec<String>,
-    pub child_receipt_refs: Vec<String>,
+    /// Each list is asserted when present, an empty one included: `[]`
+    /// asserts there is none.
+    pub act_ids: Option<Vec<String>>,
+    pub decision_ids: Option<Vec<String>>,
+    pub child_receipt_refs: Option<Vec<String>>,
     pub child_receipt_count: Option<usize>,
-    pub verification_refs: Vec<String>,
+    pub verification_refs: Option<Vec<String>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -294,8 +297,7 @@ struct RawHarnessFixture {
 struct RawHarnessExpectation {
     status: Option<HarnessExpectedStatus>,
     receipt: Option<RawReceiptExpectation>,
-    #[serde(default)]
-    steps: Vec<String>,
+    steps: Option<Vec<String>>,
     output: Option<HarnessJsonExpectation>,
     #[serde(default)]
     step_outputs: BTreeMap<String, HarnessJsonExpectation>,
@@ -312,15 +314,11 @@ struct RawReceiptExpectation {
     state: Option<String>,
     disposition: Option<ClosureDisposition>,
     reason_code: Option<String>,
-    #[serde(default)]
-    act_ids: Vec<String>,
-    #[serde(default)]
-    decision_ids: Vec<String>,
-    #[serde(default)]
-    child_receipt_refs: Vec<String>,
+    act_ids: Option<Vec<String>>,
+    decision_ids: Option<Vec<String>>,
+    child_receipt_refs: Option<Vec<String>>,
     child_receipt_count: Option<usize>,
-    #[serde(default)]
-    verification_refs: Vec<String>,
+    verification_refs: Option<Vec<String>>,
     #[serde(flatten)]
     extra: BTreeMap<String, serde::de::IgnoredAny>,
 }

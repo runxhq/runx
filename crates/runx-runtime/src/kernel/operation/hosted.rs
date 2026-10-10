@@ -179,7 +179,6 @@ impl Gateway<'_> {
         request: &str,
         item: Option<usize>,
         responses: Option<&std::collections::BTreeMap<String, runx_contracts::JsonObject>>,
-        idempotent: bool,
     ) -> Result<crate::http::RuntimeHttpResponse, super::confirm::Unperformed> {
         // Connect renders in TypeScript, where a JSON integer past 2^53 is
         // rounded: refuse it rather than let the two renderings differ.
@@ -204,7 +203,6 @@ impl Gateway<'_> {
                 item,
                 responses,
             },
-            idempotent,
         )
         .map_err(|error| match error {
             // The route answers 4xx only before it sends anything; the

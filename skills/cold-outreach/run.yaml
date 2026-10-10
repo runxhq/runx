@@ -1,0 +1,311 @@
+skill: cold-outreach
+version: "0.1.0"
+catalog:
+  kind: graph
+  audience: public
+  visibility: public
+  role: canonical
+  execution: plan
+  completion: runtime_receipt
+  requires_adapter: false
+  approval: none
+  category: growth
+runners:
+  prepare:
+    default: true
+    inputs:
+      sender:
+        type: object
+        required: true
+        description: Exact approved writing identity; does not grant send authority.
+        schema:
+          additionalProperties: false
+          required: [name, from_address, reply_to]
+          properties:
+            name: {type: string, minLength: 1, maxLength: 200}
+            from_address: {type: string, format: email, maxLength: 320}
+            reply_to: {type: string, format: email, maxLength: 320}
+      prospect:
+        type: object
+        required: true
+        description: Exact intended recipient; personalisation must be supported by the evidence packet.
+        schema:
+          additionalProperties: false
+          required: [email]
+          properties:
+            ref: {type: string, minLength: 1, maxLength: 1000}
+            email: {type: string, format: email, maxLength: 320}
+            name: {type: string, minLength: 1, maxLength: 200}
+            company: {type: string, minLength: 1, maxLength: 200}
+      audience:
+        type: string
+        required: true
+        description: Reader segment this prospect belongs to. Supplied brand and taste context applies only when it
+          declares this exact audience.
+        schema: {minLength: 1, maxLength: 200}
+      purpose:
+        type: string
+        required: true
+        description: Intended useful outcome of this first contact.
+        schema: {minLength: 1, maxLength: 2000}
+      offer:
+        type: string
+        required: true
+        description: Proposed value, to be substantiated from approved evidence rather than treated as a fact.
+        schema: {minLength: 1, maxLength: 2000}
+      required_footer:
+        type: string
+        required: true
+        description: Exact policy-required sender identity and opt-out wording, included unchanged in the draft.
+        schema: {minLength: 1, maxLength: 3000}
+      contact_policy:
+        type: object
+        required: true
+        description: Current policy disposition for this exact recipient, supplied by the caller; the model does
+          not establish legal permission.
+        schema:
+          additionalProperties: false
+          required: [recipient, status, suppressed, policy_ref, evidence_refs]
+          properties:
+            recipient: {type: string, format: email, maxLength: 320}
+            status: {enum: [eligible, ineligible, unknown]}
+            suppressed: {type: boolean}
+            policy_ref: {type: string, maxLength: 1000}
+            evidence_refs:
+              type: array
+              maxItems: 20
+              uniqueItems: true
+              items: {type: string, minLength: 1, maxLength: 1000}
+      qualification:
+        type: json
+        required: false
+        packet: runx.growth.lead_qualification.v1
+        description: Optional lead qualification for prospect.ref; a supplied hold or mismatched subject stops drafting.
+      evidence_pack:
+        type: json
+        required: true
+        packet: runx.research.packet.v1
+        description: Validated recipient research and disclosure-approved offer evidence.
+      brand_context: {type: json, required: false, packet: runx.context.brand_voice.v1, description: 'Scoped validated
+          brand voice, selected by the caller.'}
+      taste_context: {type: json, required: false, packet: runx.context.taste_profile.v1, description: 'Scoped validated
+          taste, selected by the caller.'}
+    result_from: [hold, review]
+    steps:
+    - id: admit-evidence
+      skill: ../ghostwrite
+      runner: admit
+      inputs:
+        objective: $input.purpose
+        audience: $input.audience
+        channel: email
+        evidence_pack: $input.evidence_pack
+        brand_context: $input.brand_context
+        taste_context: $input.taste_context
+    - id: admit
+      tool: {module: cold-outreach.mjs, export: admitContact}
+      inputs:
+        sender: $input.sender
+        prospect: $input.prospect
+        purpose: $input.purpose
+        offer: $input.offer
+        required_footer: $input.required_footer
+        contact_policy: $input.contact_policy
+        qualification: $input.qualification
+        evidence_context: $steps.admit-evidence.evidence_context
+      outputs:
+        contact_brief:
+          type: object
+          schema:
+            additionalProperties: false
+            required: [decision, sender, prospect, purpose, offer, required_footer, policy_ref, policy_evidence_refs,
+              blockers]
+            properties:
+              decision: {enum: [hold, eligible_for_draft]}
+              sender:
+                type: object
+                additionalProperties: false
+                required: [name, from_address, reply_to]
+                properties:
+                  name: {type: string}
+                  from_address: {type: string, format: email}
+                  reply_to: {type: string, format: email}
+              prospect:
+                type: object
+                additionalProperties: false
+                required: [email]
+                properties:
+                  email: {type: string, format: email}
+                  name: {type: string}
+                  company: {type: string}
+                  ref: {type: string, minLength: 1, maxLength: 1000}
+              purpose: {type: string, minLength: 1, maxLength: 2000}
+              offer: {type: string, minLength: 1, maxLength: 2000}
+              required_footer: {type: string, minLength: 1, maxLength: 3000}
+              policy_ref: {type: string, maxLength: 1000}
+              policy_evidence_refs:
+                type: array
+                maxItems: 20
+                items: {type: string, minLength: 1, maxLength: 1000}
+              blockers:
+                type: array
+                maxItems: 32
+                items: {type: string, minLength: 1, maxLength: 1000}
+    - id: hold
+      when: {value: $steps.admit.contact_brief.decision, equals: hold}
+      tool: {module: cold-outreach.mjs, export: finalizeReview}
+      inputs: {contact_brief: $steps.admit.contact_brief}
+      outputs:
+        outreach_review:
+          type: object
+          schema:
+            additionalProperties: false
+            required:
+            - decision
+            - sender
+            - recipient
+            - policy_ref
+            - policy_evidence_refs
+            - draft_status
+            - delivery_status
+            - blockers
+            - draft
+            - draft_packet_digest
+            properties:
+              decision: {enum: [ready_for_review, hold]}
+              sender:
+                type: object
+                additionalProperties: false
+                required: [name, from_address, reply_to]
+                properties:
+                  name: {type: string, minLength: 1, maxLength: 200}
+                  from_address: {type: string, format: email, maxLength: 320}
+                  reply_to: {type: string, format: email, maxLength: 320}
+              recipient: {type: string, format: email, maxLength: 320}
+              policy_ref: {type: string, maxLength: 1000}
+              policy_evidence_refs:
+                type: array
+                maxItems: 20
+                uniqueItems: true
+                items: {type: string, minLength: 1, maxLength: 1000}
+              draft_status: {enum: [prepared, withheld]}
+              delivery_status: {const: not_sent}
+              blockers:
+                type: array
+                maxItems: 32
+                items: {type: string, minLength: 1, maxLength: 1000}
+              draft:
+                type: [object, 'null']
+                additionalProperties: false
+                required: [subject, body]
+                properties:
+                  subject: {type: string, minLength: 1, maxLength: 500}
+                  body: {type: string, minLength: 1, maxLength: 100000}
+              draft_packet_digest: {type: [string, 'null'], pattern: '^sha256:[0-9a-f]{64}$'}
+            allOf:
+            - if:
+                properties:
+                  decision: {const: ready_for_review}
+              then:
+                properties:
+                  draft: {type: object}
+                  draft_packet_digest: {type: string}
+              else:
+                properties:
+                  draft: {type: 'null'}
+                  draft_packet_digest: {type: 'null'}
+      artifacts:
+        named_emits: {outreach_review: outreach_review}
+    - id: draft
+      when: {value: $steps.admit.contact_brief.decision, equals: eligible_for_draft}
+      agent: {role: writer, task: cold-outreach-draft}
+      outputs:
+        content_draft: object
+      inputs:
+        sender: $steps.admit.contact_brief.sender
+        prospect: $steps.admit.contact_brief.prospect
+        purpose: $steps.admit.contact_brief.purpose
+        offer: $steps.admit.contact_brief.offer
+        required_footer: $steps.admit.contact_brief.required_footer
+        evidence_context: $steps.admit-evidence.evidence_context
+      artifacts:
+        named_emits: {content_draft: content_draft}
+    - id: verify
+      when: {value: $steps.admit.contact_brief.decision, equals: eligible_for_draft}
+      skill: ../ghostwrite
+      runner: verify
+      inputs:
+        evidence_context: $steps.admit-evidence.evidence_context
+        content_draft: $steps.draft.content_draft
+    - id: digest-draft
+      when: {value: $steps.admit.contact_brief.decision, equals: eligible_for_draft}
+      tool: data.digest
+      inputs: {value: $steps.verify.content_draft_packet}
+    - id: review
+      when: {value: $steps.admit.contact_brief.decision, equals: eligible_for_draft}
+      tool: {module: cold-outreach.mjs, export: finalizeReview}
+      inputs:
+        contact_brief: $steps.admit.contact_brief
+        content_draft_packet: $steps.verify.content_draft_packet
+        draft_packet_digest: $steps.digest-draft.digest_result.digest
+      outputs:
+        outreach_review:
+          type: object
+          schema:
+            additionalProperties: false
+            required:
+            - decision
+            - sender
+            - recipient
+            - policy_ref
+            - policy_evidence_refs
+            - draft_status
+            - delivery_status
+            - blockers
+            - draft
+            - draft_packet_digest
+            properties:
+              decision: {enum: [ready_for_review, hold]}
+              sender:
+                type: object
+                additionalProperties: false
+                required: [name, from_address, reply_to]
+                properties:
+                  name: {type: string, minLength: 1, maxLength: 200}
+                  from_address: {type: string, format: email, maxLength: 320}
+                  reply_to: {type: string, format: email, maxLength: 320}
+              recipient: {type: string, format: email, maxLength: 320}
+              policy_ref: {type: string, maxLength: 1000}
+              policy_evidence_refs:
+                type: array
+                maxItems: 20
+                uniqueItems: true
+                items: {type: string, minLength: 1, maxLength: 1000}
+              draft_status: {enum: [prepared, withheld]}
+              delivery_status: {const: not_sent}
+              blockers:
+                type: array
+                maxItems: 32
+                items: {type: string, minLength: 1, maxLength: 1000}
+              draft:
+                type: [object, 'null']
+                additionalProperties: false
+                required: [subject, body]
+                properties:
+                  subject: {type: string, minLength: 1, maxLength: 500}
+                  body: {type: string, minLength: 1, maxLength: 100000}
+              draft_packet_digest: {type: [string, 'null'], pattern: '^sha256:[0-9a-f]{64}$'}
+            allOf:
+            - if:
+                properties:
+                  decision: {const: ready_for_review}
+              then:
+                properties:
+                  draft: {type: object}
+                  draft_packet_digest: {type: string}
+              else:
+                properties:
+                  draft: {type: 'null'}
+                  draft_packet_digest: {type: 'null'}
+      artifacts:
+        named_emits: {outreach_review: outreach_review}

@@ -213,6 +213,22 @@ pub struct AuthorityApproval {
     pub criterion_ids: Vec<NonEmptyString>,
 }
 
+/// How an act's legitimacy names the execution term it acts under.
+const AUTHORITY_TERM_LEGITIMACY: &str = "runx:authority_term:";
+
+/// The legitimacy of an act admitted under the execution term `term_id`: a
+/// reference to that term, never prose.
+#[must_use]
+pub fn authority_term_legitimacy(term_id: &str) -> String {
+    format!("{AUTHORITY_TERM_LEGITIMACY}{term_id}")
+}
+
+/// The execution term an act's legitimacy names, when it names one.
+#[must_use]
+pub fn legitimacy_authority_term(legitimacy: &str) -> Option<&str> {
+    legitimacy.strip_prefix(AUTHORITY_TERM_LEGITIMACY)
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 #[runx_schema(

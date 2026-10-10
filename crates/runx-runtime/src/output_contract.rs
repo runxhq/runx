@@ -2,7 +2,7 @@
 //! source. Agent, JavaScript, CLI, native-tool, and nested-skill results must
 //! cross the same typed boundary before a successful receipt can be sealed.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
 use runx_contracts::{
@@ -66,18 +66,6 @@ pub(crate) fn project_declared_output_claim(
     Ok(claim)
 }
 
-/// Fold the artifact envelopes into an object payload, so a step exposes
-/// `<step>.<packet>.data` for each declared artifact.
-pub(crate) fn apply_artifact_outputs(
-    value: &mut JsonValue,
-    artifacts: Option<&SkillArtifactContract>,
-) {
-    let projected = project_artifact_outputs(value, artifacts);
-    if let JsonValue::Object(object) = value {
-        object.extend(projected);
-    }
-}
-
 /// Project only the artifact-addressable portion of a producer payload.
 ///
 /// Tool dispatch and step/receipt projection call this same function, so
@@ -92,12 +80,10 @@ pub(crate) fn project_artifact_outputs(
     };
     let fields = payload.as_object();
     let mut outputs = JsonObject::new();
+    // `wrap_as` names the whole result as one artifact; `named_emits`
+    // selects fields of it. Neither looks at the result to decide.
     if let Some(wrap_as) = artifacts.wrap_as.as_deref() {
-        let value = fields
-            .and_then(|fields| fields.get(wrap_as))
-            .cloned()
-            .unwrap_or_else(|| payload.clone());
-        outputs.insert(wrap_as.to_owned(), data_envelope(value));
+        outputs.insert(wrap_as.to_owned(), data_envelope(payload.clone()));
     }
     if let Some(named_emits) = artifacts.named_emits.as_ref() {
         for name in named_emits.keys() {
@@ -110,39 +96,54 @@ pub(crate) fn project_artifact_outputs(
     outputs
 }
 
-/// Wrap a value in the canonical `{ "data": ... }` artifact envelope.
-///
-/// A runtime-created `{ "data": ... }` wrapper and a self-described
-/// `{ "schema": ..., "data": ... }` packet are already envelopes. A domain
-/// object that merely owns a `data` field is not: preserving the whole object
-/// keeps sibling fields at their declared context path.
+/// Wrap an artifact's value in its `{ "data": ... }` envelope, once: which
+/// outputs are artifacts is declared, so a value is never inspected to guess
+/// whether it is wrapped already.
 #[must_use]
 fn data_envelope(value: JsonValue) -> JsonValue {
-    match value {
-        JsonValue::Object(object) if is_data_envelope(&object) => JsonValue::Object(object),
-        other => JsonValue::Object(JsonObject::from([("data".to_owned(), other)])),
-    }
+    JsonValue::Object(JsonObject::from([("data".to_owned(), value)]))
 }
 
-/// The value an output holds, read through the envelope `data_envelope`
-/// wrapped it in. References address values, never envelopes.
+/// The outputs among `outputs` that `artifacts` declares: each is held in
+/// its packet envelope.
 #[must_use]
-pub(crate) fn enveloped_value(value: &JsonValue) -> &JsonValue {
-    match value {
-        JsonValue::Object(object) if is_data_envelope(object) => {
-            object.get("data").unwrap_or(value)
-        }
-        other => other,
+pub(crate) fn artifact_outputs(
+    outputs: &JsonObject,
+    artifacts: Option<&SkillArtifactContract>,
+) -> BTreeSet<String> {
+    let Some(artifacts) = artifacts else {
+        return BTreeSet::new();
+    };
+    artifacts
+        .wrap_as
+        .iter()
+        .chain(artifacts.named_emits.iter().flat_map(|emits| emits.keys()))
+        .filter(|name| outputs.contains_key(name.as_str()))
+        .cloned()
+        .collect()
+}
+
+/// The value a step's output holds: an artifact's packet data, or any other
+/// output as it is. Which outputs are artifacts is declared, never inferred
+/// from a value's shape. References address values, never envelopes.
+#[must_use]
+pub(crate) fn output_value<'a>(
+    outputs: &'a JsonObject,
+    artifact_outputs: &BTreeSet<String>,
+    name: &str,
+) -> Option<&'a JsonValue> {
+    let value = outputs.get(name)?;
+    if artifact_outputs.contains(name) {
+        artifact_data(value)
+    } else {
+        Some(value)
     }
 }
 
-fn is_data_envelope(object: &JsonObject) -> bool {
-    object.contains_key("data")
-        && (object.len() == 1
-            || object
-                .get("schema")
-                .and_then(JsonValue::as_str)
-                .is_some_and(|schema| !schema.trim().is_empty()))
+/// The data an artifact's packet envelope carries.
+#[must_use]
+pub(crate) fn artifact_data(envelope: &JsonValue) -> Option<&JsonValue> {
+    envelope.as_object()?.get("data")
 }
 
 pub(crate) fn verified_runner_metadata_with_artifacts(
@@ -194,27 +195,42 @@ pub(crate) fn verified_output_metadata_with_artifacts(
     }
 
     let packet_schemas = crate::packet_validation::verify_declared_packets(
-        payload,
+        &project_artifact_outputs(payload, artifacts),
         artifacts,
         skill_directory,
         env,
     )?;
+    Ok(contract_verification(verification, packet_schemas))
+}
+
+/// The verification of the artifacts a step holds, each against the packet
+/// its contract declares: for a step whose artifacts are already projected,
+/// as a nested run's are when its parent adopts them.
+pub(crate) fn verified_artifact_metadata(
+    held: &JsonObject,
+    artifacts: Option<&SkillArtifactContract>,
+    skill_directory: &Path,
+    env: &BTreeMap<String, String>,
+) -> Result<JsonObject, RuntimeError> {
+    let packet_schemas =
+        crate::packet_validation::verify_declared_packets(held, artifacts, skill_directory, env)?;
+    Ok(contract_verification(JsonObject::new(), packet_schemas))
+}
+
+fn contract_verification(mut verification: JsonObject, packet_schemas: JsonObject) -> JsonObject {
     if !packet_schemas.is_empty() {
         verification.insert(
             "packet_schemas".to_owned(),
             JsonValue::Object(packet_schemas),
         );
     }
-
     if verification.is_empty() {
-        return Ok(JsonObject::new());
+        return JsonObject::new();
     }
-    Ok([(
+    JsonObject::from([(
         CONTRACT_VERIFICATION_METADATA.to_owned(),
         JsonValue::Object(verification),
-    )]
-    .into_iter()
-    .collect())
+    )])
 }
 
 pub(crate) fn attach_verified_metadata(
@@ -388,41 +404,39 @@ mod tests {
     }
 
     #[test]
-    fn artifact_projection_distinguishes_packets_from_domain_data_objects() {
-        let packet = JsonValue::Object(JsonObject::from([
-            (
-                "schema".to_owned(),
-                JsonValue::String("test.packet.v1".to_owned()),
-            ),
-            (
-                "data".to_owned(),
-                JsonValue::Object(JsonObject::from([(
-                    "message".to_owned(),
-                    JsonValue::String("hello".to_owned()),
-                )])),
-            ),
-        ]));
-        let packet_projection =
-            project_artifact_outputs(&packet, Some(&artifacts(Some("packet"), &[])));
-        assert_eq!(packet_projection.get("packet"), Some(&packet));
-
-        let page = JsonValue::Object(JsonObject::from([
-            (
-                "offset".to_owned(),
-                JsonValue::Number(runx_contracts::JsonNumber::U64(0)),
-            ),
-            (
-                "data".to_owned(),
-                JsonValue::String("page bytes".to_owned()),
-            ),
-        ]));
-        let page_projection = project_artifact_outputs(&page, Some(&artifacts(Some("page"), &[])));
+    fn an_artifact_is_wrapped_once_whatever_its_value_looks_like() {
+        // A value shaped like an envelope is still the artifact's value: the
+        // declaration says what is an artifact, never the value's shape.
+        for value in [
+            serde_json::json!({"schema": "domain.v1", "data": {"id": 7}, "source": "crm"}),
+            serde_json::json!({"data": "page bytes"}),
+            serde_json::json!({"offset": 0, "data": "page bytes"}),
+        ] {
+            let value = JsonValue::from_serialize(&value).unwrap_or(JsonValue::Null);
+            let projection =
+                project_artifact_outputs(&value, Some(&artifacts(Some("report"), &[])));
+            assert_eq!(
+                projection
+                    .get("report")
+                    .and_then(JsonValue::as_object)
+                    .and_then(|envelope| envelope.get("data")),
+                Some(&value)
+            );
+        }
+        // An output named by both wrap_as and named_emits is one artifact,
+        // wrapped once.
+        let value = JsonValue::from_serialize(&serde_json::json!({"events": "present"}))
+            .unwrap_or(JsonValue::Null);
+        let both = artifacts(
+            Some("result"),
+            &[("result", "runx.data.operation_result.v1")],
+        );
         assert_eq!(
-            page_projection
-                .get("page")
+            project_artifact_outputs(&value, Some(&both))
+                .get("result")
                 .and_then(JsonValue::as_object)
-                .and_then(|packet| packet.get("data")),
-            Some(&page)
+                .and_then(|envelope| envelope.get("data")),
+            Some(&value)
         );
     }
 }

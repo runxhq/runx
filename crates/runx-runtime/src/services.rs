@@ -7,8 +7,8 @@ mod tool_roots;
 mod verified_receipts;
 mod workspace_files;
 
+pub(crate) use env::merge_inferred_tool_roots;
 pub use env::{WorkspaceEnv, WorkspaceEnvError};
-pub(crate) use env::{merge_inferred_tool_roots, process_env_value};
 pub(crate) use receipt_proof::prove_receipts;
 pub(crate) use receipt_query::{ReceiptQueryInput, query_receipts};
 pub(crate) use receipts::{ReceiptReadContext, ReceiptServices};

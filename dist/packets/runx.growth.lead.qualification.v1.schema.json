@@ -1,0 +1,202 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.runx.ai/runx/growth/lead_qualification/v1.json",
+  "x-runx-packet-id": "runx.growth.lead_qualification.v1",
+  "x-runx-generated-from": "skills/lead-qualify/run.yaml#root.runners.qualify.steps.4",
+  "additionalProperties": false,
+  "properties": {
+    "assessments": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "criterion_id": {
+            "maxLength": 100,
+            "minLength": 1,
+            "type": "string"
+          },
+          "fact_fields": {
+            "items": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 30,
+            "minItems": 0,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "rationale": {
+            "maxLength": 4000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "met",
+              "not_met",
+              "unknown"
+            ]
+          }
+        },
+        "required": [
+          "criterion_id",
+          "status",
+          "rationale",
+          "fact_fields"
+        ],
+        "type": "object"
+      },
+      "maxItems": 20,
+      "minItems": 0,
+      "type": "array"
+    },
+    "blockers": {
+      "items": {
+        "maxLength": 2000,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 100,
+      "minItems": 0,
+      "type": "array"
+    },
+    "contact_eligibility": {
+      "additionalProperties": false,
+      "properties": {
+        "evidence_refs": {
+          "items": {
+            "maxLength": 1000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 100,
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "policy_ref": {
+          "maxLength": 1000,
+          "minLength": 1,
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "eligible",
+            "ineligible",
+            "unknown"
+          ]
+        }
+      },
+      "required": [
+        "status",
+        "policy_ref",
+        "evidence_refs"
+      ],
+      "type": "object"
+    },
+    "criteria": {
+      "contains": {
+        "additionalProperties": true,
+        "properties": {
+          "required": {
+            "const": true
+          }
+        },
+        "required": [
+          "required"
+        ],
+        "type": "object"
+      },
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "id": {
+            "maxLength": 100,
+            "minLength": 1,
+            "type": "string"
+          },
+          "required": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "description",
+          "required"
+        ],
+        "type": "object"
+      },
+      "maxItems": 20,
+      "minItems": 1,
+      "type": "array"
+    },
+    "decision": {
+      "enum": [
+        "qualified",
+        "disqualified",
+        "needs_more_evidence",
+        "hold"
+      ]
+    },
+    "enrichment_digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "external_status": {
+      "const": "not_executed"
+    },
+    "fit": {
+      "enum": [
+        "fit",
+        "not_fit",
+        "unknown"
+      ]
+    },
+    "next_action": {
+      "enum": [
+        "prepare_outreach",
+        "request_evidence",
+        "resolve_contact_policy",
+        "stop"
+      ]
+    },
+    "subject": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "enum": [
+            "person",
+            "company"
+          ]
+        },
+        "ref": {
+          "maxLength": 1000,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "ref",
+        "kind"
+      ],
+      "type": "object"
+    }
+  },
+  "required": [
+    "decision",
+    "fit",
+    "subject",
+    "enrichment_digest",
+    "criteria",
+    "assessments",
+    "next_action",
+    "blockers",
+    "external_status"
+  ],
+  "type": "object"
+}

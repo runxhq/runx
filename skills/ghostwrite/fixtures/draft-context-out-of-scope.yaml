@@ -1,0 +1,103 @@
+name: ghostwrite-draft-rejects-out-of-scope-context
+kind: skill
+target: ..
+runner: draft
+inputs:
+  objective: Explain the strongest Runx architecture signal.
+  audience: buyers
+  channel: email
+  evidence_pack:
+    decision: ready
+    research_brief:
+      objective: Explain the strongest Runx architecture signal.
+      scope: Runx receipt architecture.
+      summary: Receipts bind actions to authority evidence.
+      open_questions: []
+    evidence_log:
+      - claim: Receipts bind actions to authority evidence.
+        source_digest: sha256:1111111111111111111111111111111111111111111111111111111111111111
+        content_digest: sha256:1111111111111111111111111111111111111111111111111111111111111111
+        confidence: verified
+        relevance: Directly supports the requested architecture signal.
+    decision_support: []
+    risks: []
+    source_evidence:
+      - evidence_digest: sha256:1111111111111111111111111111111111111111111111111111111111111111
+        content_digest: sha256:1111111111111111111111111111111111111111111111111111111111111111
+        source_ref: local://runx/receipt-architecture
+        source_kind: local_file
+        provenance: { path: docs/receipt-architecture.md }
+    index_digest: sha256:1111111111111111111111111111111111111111111111111111111111111111
+    validation: { status: pass, findings: [] }
+  brand_context:
+    decision: ready
+    brand: Runx
+    applicability: { channels: [reddit], audience: engineers, boundaries: [Do not extend claims beyond admitted evidence.] }
+    brand_voice:
+      voice_principles: [Lead with governed action and proof.]
+      vocabulary: { use: [receipt], avoid: [magic] }
+      cadence: [Concise engineering sentences.]
+      claim_rules: { safe: [Receipts bind actions to authority evidence.], forbidden: [], requires_proof: [] }
+      channel_adjustments: []
+    evidence:
+      evidence_digest: sha256:4444444444444444444444444444444444444444444444444444444444444444
+      sources:
+        - { source_ref: "source:1", kind: approved, label: Approved Runx engineering note. }
+      bindings:
+        - { rule: Lead with governed action and proof., source_refs: ["source:1"] }
+        - { rule: receipt, source_refs: ["source:1"] }
+        - { rule: magic, source_refs: ["source:1"] }
+        - { rule: Concise engineering sentences., source_refs: ["source:1"] }
+        - { rule: Receipts bind actions to authority evidence., source_refs: ["source:1"] }
+    redactions: []
+    stop_conditions: []
+    receipt_notes: { authority: context-only, mutation: false }
+    validation: { status: pass, findings: [] }
+  taste_context:
+    decision: ready
+    subject: Runx operators
+    applicability: { surfaces: [email], audience: buyers, expires_when: [The evidence set changes materially.] }
+    taste_profile:
+      principles: [Make the workflow visible.]
+      likes: [Dense operational surfaces.]
+      dislikes: [Decorative filler.]
+      decision_rules: [Choose operational clarity.]
+      examples_to_emulate: []
+      examples_to_avoid: []
+    evidence:
+      evidence_digest: sha256:4444444444444444444444444444444444444444444444444444444444444444
+      sources:
+        - { source_ref: "source:1", kind: liked, label: Operator-approved surface. }
+      bindings:
+        - { rule: Make the workflow visible., source_refs: ["source:1"], confidence: explicit }
+        - { rule: Dense operational surfaces., source_refs: ["source:1"], confidence: explicit }
+        - { rule: Decorative filler., source_refs: ["source:1"], confidence: explicit }
+        - { rule: Choose operational clarity., source_refs: ["source:1"], confidence: explicit }
+    redactions: []
+    stop_conditions: []
+    receipt_notes: { authority: context-only, mutation: false }
+    validation: { status: pass, findings: [] }
+expect:
+  status: sealed
+  steps: [admit, reject]
+  step_outputs:
+    admit:
+      subset:
+        evidence_context:
+          data:
+            decision: needs_more_evidence
+            blockers:
+              - brand_voice context does not apply to the requested audience
+              - brand_voice context does not apply to the requested channel
+    reject:
+      subset:
+        content_draft_packet:
+          data:
+            decision: needs_more_evidence
+            draft: { title: "", body: "", claim_refs: [] }
+            context_binding:
+              required:
+                - { type: taste_profile, packet_digest: sha256:964ae9d7cc831ad4b0a76a0a3343445c1aaf80933de2cd4452065ac94722ad5c, scope: { audience: buyers, channel: email } }
+            validation: { status: fail }
+  receipt: { schema: runx.receipt.v1 }
+metadata: { public_skill: ghostwrite, source_case: out-of-scope-writing-context, source: skills-fixture }

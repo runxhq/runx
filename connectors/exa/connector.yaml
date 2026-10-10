@@ -1,0 +1,53 @@
+schema: runx.connector.v1
+id: exa
+name: Exa
+description: Search public web sources within explicit query and result limits.
+auth:
+  credentials:
+    api_key:
+      kind: api_key
+      fields:
+        - {name: api_key, label: Exa API key}
+      delivery: {env: EXA_API_KEY}
+      audience: [api.exa.ai]
+placements:
+  local:
+    auth: [credentials]
+operations:
+  search.query:
+    description: Run one bounded search and return provider results, query identity and reported cost; does not fetch full pages.
+    verb: read
+    scopes: [search.read]
+    credentials: [api_key]
+    target: {template: 'https://api.exa.ai/search'}
+    input_schema:
+      type: object
+      additionalProperties: false
+      required: [query, limit]
+      properties:
+        query: {type: string, minLength: 1, maxLength: 2000, pattern: '\S'}
+        limit: {type: integer, minimum: 1, maximum: 20}
+        include_domains:
+          type: array
+          minItems: 1
+          maxItems: 20
+          uniqueItems: true
+          items: {type: string, minLength: 1, maxLength: 253, pattern: '^[a-zA-Z0-9.-]+$'}
+        start_published_at: {type: string, format: date-time}
+        end_published_at: {type: string, format: date-time}
+    result_fields: [search]
+    implementation:
+      http:
+        allowed_hosts: [api.exa.ai]
+        auth: {api_key: {type: bearer, field: api_key}}
+        requests:
+          - method: POST
+            url: https://api.exa.ai/search
+            headers: {accept: application/json}
+            body:
+              query: {$argument: /query}
+              numResults: {$argument: /limit}
+              type: auto
+              includeDomains: {$argument: /include_domains}
+              startPublishedDate: {$argument: /start_published_at}
+              endPublishedDate: {$argument: /end_published_at}

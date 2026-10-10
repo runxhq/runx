@@ -282,6 +282,8 @@ struct PreparedContextPreimage<'a> {
     runner: &'a str,
     answers_path: Option<&'a Path>,
     inputs: &'a BTreeMap<String, JsonValue>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    act: Option<&'a runx_contracts::CallAct>,
     run_authority: Option<&'a crate::RunAuthority>,
     managed_agent: &'a ManagedAgentPolicy,
     entry: &'a PreparedEntryProvenance,
@@ -459,6 +461,7 @@ fn prepared_context_digest(
         runner: &summary.runner,
         answers_path: summary.answers_path.as_deref(),
         inputs: &request.inputs,
+        act: request.act.as_ref(),
         run_authority: request.run_authority.as_ref(),
         managed_agent: &request.managed_agent,
         entry: &summary.entry,
@@ -545,10 +548,9 @@ fn blocked_prepared_context(
 /// seals carries as its `context_ref`.
 pub(crate) fn prepared_context_ref(env: &BTreeMap<String, String>) -> Option<Reference> {
     let digest = env.get(PREPARED_CONTEXT_DIGEST_ENV)?;
-    let digest_id = digest.strip_prefix("sha256:").unwrap_or(digest);
     Some(Reference {
         reference_type: ReferenceType::Artifact,
-        uri: format!("runx:artifact:operator_context:{digest_id}").into(),
+        uri: format!("runx:artifact:operator_context:{digest}").into(),
         provider: Some("runx".to_owned().into()),
         locator: Some(digest.clone().into()),
         label: Some("prepared operator context".to_owned().into()),
@@ -1412,11 +1414,11 @@ runners:
     }
 
     #[test]
-    fn prepared_skill_receipt_carries_its_operator_context_as_the_act_context()
+    fn a_prepared_runs_operator_context_rides_on_each_governed_calls_act()
     -> Result<(), Box<dyn Error>> {
         use crate::adapter::InvocationOutput;
         use crate::receipts::{
-            RuntimeReceiptSignaturePolicy, StepSeal, StepSealClosure, seal_step,
+            RuntimeReceiptSignaturePolicy, SealedCall, StepSeal, StepSealClosure, seal_step,
         };
         use runx_contracts::ClosureDisposition;
 
@@ -1430,41 +1432,50 @@ runners:
             0,
             BTreeMap::new(),
         );
-        let mut projection =
-            crate::execution::output_projection::project_step_claim(BTreeMap::new());
-        let receipt = seal_step(
-            StepSeal {
-                scope: crate::receipts::RunScope {
-                    run_id: "run_prepared",
-                    graph_name: "prepared",
+        let projection =
+            crate::execution::output_projection::project_step_claim(BTreeMap::new(), None);
+        let seal = |call: Option<SealedCall>| {
+            seal_step(
+                StepSeal {
+                    scope: crate::receipts::RunScope {
+                        run_id: "run_prepared",
+                        graph_name: "prepared",
+                    },
+                    step_id: "execute",
+                    attempt: 1,
+                    output: &output,
+                    claim: &projection.outputs,
+                    created_at: "2026-07-12T00:00:00Z",
+                    authority: crate::receipts::SealAuthority::default(),
+                    call,
+                    approval_refs: Vec::new(),
+                    child_receipts: &[],
+                    descendant_receipts: &[],
+                    closure: Some(StepSealClosure {
+                        disposition: ClosureDisposition::Closed,
+                        reason_code: "prepared_complete".to_owned(),
+                        summary: "prepared run completed".to_owned(),
+                    }),
+                    receipt_metadata: None,
                 },
-                step_id: "execute",
-                attempt: 1,
-                output: &output,
-                claim: &projection.outputs,
-                projection_refs: std::mem::take(&mut projection.refs),
-                created_at: "2026-07-12T00:00:00Z",
-                authority: crate::receipts::SealAuthority::default(),
-                call: None,
-                context_ref: prepared_context_ref(&env),
-                approval_refs: Vec::new(),
-                child_receipts: &[],
-                descendant_receipts: &[],
-                closure: Some(StepSealClosure {
-                    disposition: ClosureDisposition::Closed,
-                    reason_code: "prepared_complete".to_owned(),
-                    summary: "prepared run completed".to_owned(),
-                }),
-                receipt_metadata: None,
-            },
-            RuntimeReceiptSignaturePolicy::local_development(),
-        )?;
+                RuntimeReceiptSignaturePolicy::local_development(),
+            )
+        };
+        let receipt = seal(Some(SealedCall {
+            act: None,
+            description: "Post one message.".into(),
+            term_id: "term_prepared".to_owned(),
+            target_ref: None,
+            effects: Vec::new(),
+            context_ref: prepared_context_ref(&env),
+        }))?;
+        assert_eq!(receipt.acts[0].intent.purpose.as_str(), "Post one message.");
         assert_eq!(
             receipt.acts[0]
                 .context_ref
                 .as_ref()
                 .map(|context| context.uri.as_str()),
-            Some("runx:artifact:operator_context:abc123")
+            Some("runx:artifact:operator_context:sha256:abc123")
         );
         assert!(
             receipt.acts[0]
@@ -1473,6 +1484,8 @@ runners:
                 .all(|reference| !reference.uri.as_str().contains("operator_context"))
         );
         assert!(prepared_context_ref(&BTreeMap::new()).is_none());
+        // A step that makes no governed call seals no act to carry it.
+        assert!(seal(None)?.acts.is_empty());
         Ok(())
     }
 

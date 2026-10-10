@@ -231,6 +231,24 @@ pub fn run_harness_fixture_with_adapter<A>(
 where
     A: SkillAdapter,
 {
+    let receipt_signature = options.receipt_signature.clone();
+    let output = replay_harness_fixture_with_adapter(fixture_path, adapter, options)?;
+    assert_expectations(&output, receipt_signature.signature_policy())
+        .map_err(|error| expectation_error_with_output(error, &output))?;
+    Ok(output)
+}
+
+/// Replay a case without asserting its expectations: for a generator that
+/// rewrites the expectations this run produces. Every other caller asserts
+/// them through [`run_harness_fixture_with_adapter`].
+pub fn replay_harness_fixture_with_adapter<A>(
+    fixture_path: impl AsRef<Path>,
+    adapter: A,
+    options: HarnessOptions,
+) -> Result<HarnessReplayOutput, HarnessReplayError>
+where
+    A: SkillAdapter,
+{
     let fixture_path = fixture_path.as_ref();
     let mut fixture = load_harness_fixture(fixture_path)?;
     let target_path = resolve_target_path(fixture_path, &fixture.target)?;
@@ -250,14 +268,10 @@ where
         options
     };
     seed_harness_receipts(&fixture, &target_path, &options)?;
-    let receipt_signature = options.receipt_signature.clone();
-    let output = match fixture.kind {
+    Ok(match fixture.kind {
         HarnessFixtureKind::Skill => run_skill_fixture(&fixture, target_path, adapter, options)?,
         HarnessFixtureKind::Graph => run_graph_fixture(&fixture, &target_path, adapter, options)?,
-    };
-    assert_expectations(&output, receipt_signature.signature_policy())
-        .map_err(|error| expectation_error_with_output(error, &output))?;
-    Ok(output)
+    })
 }
 
 fn seed_harness_receipts(
@@ -503,7 +517,7 @@ fn seal_admission_failure(
         0,
         JsonObject::new(),
     );
-    let projection = project_step_claim(JsonObject::new());
+    let projection = project_step_claim(JsonObject::new(), None);
     let run_id = harness_run_id(&fixture.name);
     let receipt = step_receipt_with_declared_claim_and_policy(
         StepReceiptWithDisposition {
@@ -520,7 +534,6 @@ fn seal_admission_failure(
             summary: "runner input contract rejected the harness case".to_owned(),
         },
         &projection.outputs,
-        projection.refs,
         options.signature_policy(),
     )?;
     Ok(HarnessReplayOutput {
@@ -736,15 +749,14 @@ impl Host for FixtureHost<'_> {
         request: ResolutionRequest,
     ) -> Result<Option<ResolutionResponse>, RuntimeError> {
         match request {
-            // A case decides an approval by its address, or by its id in its
-            // own run at any depth: the step that asks.
+            // A case decides an approval by the address of the request it
+            // names: the step that asks at the root, `<child>#<step>` below.
             ResolutionRequest::Approval { id, .. } => {
-                let approvals = &self.fixture.caller.approvals;
-                let response = approvals
+                let response = self
+                    .fixture
+                    .caller
+                    .approvals
                     .get(id.as_str())
-                    .or_else(|| {
-                        approvals.get(crate::execution::run_record::local_request_id(id.as_str()))
-                    })
                     .map(|approved| ResolutionResponse {
                         actor: ResolutionResponseActor::Human,
                         payload: JsonValue::Bool(*approved),

@@ -7,13 +7,15 @@ use runx_parser::SkillArtifactContract;
 use crate::RuntimeError;
 use crate::packet_schemas::{PacketSchemaCatalog, packet_schema_directories};
 
+/// Verify each artifact a step holds against the packet its contract
+/// declares. `held` is the step's artifacts by name, each in its envelope.
 pub(crate) fn verify_declared_packets(
-    payload: &JsonValue,
+    held: &JsonObject,
     artifacts: Option<&SkillArtifactContract>,
     skill_directory: &Path,
     env: &BTreeMap<String, String>,
 ) -> Result<JsonObject, RuntimeError> {
-    let bindings = packet_bindings(payload, artifacts)?;
+    let bindings = packet_bindings(held, artifacts)?;
     if bindings.is_empty() {
         return Ok(JsonObject::new());
     }
@@ -100,19 +102,18 @@ struct PacketBinding {
 }
 
 fn packet_bindings(
-    payload: &JsonValue,
+    held: &JsonObject,
     artifacts: Option<&SkillArtifactContract>,
 ) -> Result<Vec<PacketBinding>, RuntimeError> {
     let mut bindings = Vec::new();
     if let Some(artifacts) = artifacts {
-        let projected = crate::output_contract::project_artifact_outputs(payload, Some(artifacts));
         if let Some(named) = &artifacts.packets {
             for (output, packet) in named {
-                bindings.push(projected_binding(&projected, output, packet)?);
+                bindings.push(projected_binding(held, output, packet)?);
             }
         }
         if let (Some(output), Some(packet)) = (&artifacts.wrap_as, &artifacts.packet) {
-            bindings.push(projected_binding(&projected, output, packet)?);
+            bindings.push(projected_binding(held, output, packet)?);
         }
     }
     Ok(bindings)
@@ -153,7 +154,11 @@ mod tests {
     use runx_parser::SkillArtifactContract;
 
     use super::verify_declared_packets;
-    use crate::output_contract::project_artifact_outputs;
+
+    /// The artifacts a step producing `value` holds under `artifacts`.
+    fn held(value: &JsonValue, artifacts: &SkillArtifactContract) -> runx_contracts::JsonObject {
+        crate::output_contract::project_artifact_outputs(value, Some(artifacts))
+    }
 
     fn temp_skill() -> Result<tempfile::TempDir, std::io::Error> {
         let directory = tempfile::tempdir()?;
@@ -236,8 +241,12 @@ mod tests {
             JsonValue::String("ready".to_owned()),
         )])));
 
-        let evidence =
-            verify_declared_packets(&value, Some(&artifacts()), skill.path(), &BTreeMap::new())?;
+        let evidence = verify_declared_packets(
+            &held(&value, &artifacts()),
+            Some(&artifacts()),
+            skill.path(),
+            &BTreeMap::new(),
+        )?;
 
         let Some(plan) = evidence.get("plan").and_then(JsonValue::as_object) else {
             return Err("plan evidence is missing".into());
@@ -264,8 +273,13 @@ mod tests {
         )])));
 
         assert!(
-            verify_declared_packets(&value, Some(&artifacts()), skill.path(), &BTreeMap::new(),)
-                .is_err()
+            verify_declared_packets(
+                &held(&value, &artifacts()),
+                Some(&artifacts()),
+                skill.path(),
+                &BTreeMap::new(),
+            )
+            .is_err()
         );
         Ok(())
     }
@@ -282,40 +296,13 @@ mod tests {
 
         assert!(
             verify_declared_packets(
-                &value,
+                &held(&value, &wrapped_artifacts()),
                 Some(&wrapped_artifacts()),
                 skill.path(),
                 &BTreeMap::new(),
             )
             .is_err()
         );
-        Ok(())
-    }
-
-    #[test]
-    fn packet_validation_is_identical_after_runtime_projection()
-    -> Result<(), Box<dyn std::error::Error>> {
-        let skill = temp_skill()?;
-        write_wrapped_schema(skill.path())?;
-        let value = payload(JsonValue::Object(BTreeMap::from([(
-            "decision".to_owned(),
-            JsonValue::String("ready".to_owned()),
-        )])));
-        let artifacts = wrapped_artifacts();
-        let mut projected_payload = value.clone();
-        let projection = project_artifact_outputs(&value, Some(&artifacts));
-        let JsonValue::Object(projected_object) = &mut projected_payload else {
-            return Err("projected payload must be an object".into());
-        };
-        projected_object.extend(projection);
-
-        verify_declared_packets(&value, Some(&artifacts), skill.path(), &BTreeMap::new())?;
-        verify_declared_packets(
-            &projected_payload,
-            Some(&artifacts),
-            skill.path(),
-            &BTreeMap::new(),
-        )?;
         Ok(())
     }
 
@@ -328,8 +315,13 @@ mod tests {
         )])));
 
         assert!(
-            verify_declared_packets(&value, Some(&artifacts()), skill.path(), &BTreeMap::new(),)
-                .is_err()
+            verify_declared_packets(
+                &held(&value, &artifacts()),
+                Some(&artifacts()),
+                skill.path(),
+                &BTreeMap::new(),
+            )
+            .is_err()
         );
         Ok(())
     }

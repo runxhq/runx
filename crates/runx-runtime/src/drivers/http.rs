@@ -11,8 +11,8 @@ use std::cell::OnceCell;
 use std::collections::BTreeMap;
 
 use runx_contracts::connector::{
-    DecodeStep, HttpAuth, HttpImplementation, HttpMethod as ManifestMethod, HttpPages,
-    HttpReadback, HttpRequest, RateLimit, TemplateError, TemplateInputs,
+    DecodeStep, HttpImplementation, HttpMethod as ManifestMethod, HttpPages, HttpReadback,
+    HttpRequest, RateLimit, TemplateError, TemplateInputs,
 };
 use runx_contracts::{JsonNumber, JsonObject, JsonValue};
 use url::Url;
@@ -92,7 +92,7 @@ impl Driver for Http<'_> {
                 .as_slice()
                 .first()
                 .ok_or_else(|| not_sent("the write declares no request".to_owned()))?;
-            let response = self.send(request, Some((index, item)), None, None, false)?;
+            let response = self.send(request, Some((index, item)), None, None)?;
             return Ok(Observed {
                 value: self.answered(&response, true)?,
                 evidence: vec![response.body_digest],
@@ -113,7 +113,7 @@ impl Driver for Http<'_> {
                     };
                     let mut repeated = Vec::with_capacity(items.len());
                     for item in items.iter().enumerate() {
-                        let response = self.send(request, Some(item), earlier, None, true)?;
+                        let response = self.send(request, Some(item), earlier, None)?;
                         evidence.push(response.body_digest.clone());
                         repeated.push(self.answered(&response, false)?);
                     }
@@ -121,7 +121,7 @@ impl Driver for Http<'_> {
                 }
                 (None, Some(pages)) => self.pages(request, pages, earlier, &mut evidence)?,
                 (None, None) => {
-                    let response = self.send(request, None, earlier, None, !mutation)?;
+                    let response = self.send(request, None, earlier, None)?;
                     evidence.push(response.body_digest.clone());
                     self.answered(&response, mutation)?
                 }
@@ -167,7 +167,6 @@ impl Driver for Http<'_> {
                 item.as_ref().map(|(index, item)| (*index, item)),
                 responses.as_ref(),
                 None,
-                true,
             )
             .map_err(Unperformed::reason)?;
         let value = match readback.expected_status {
@@ -175,10 +174,10 @@ impl Driver for Http<'_> {
                 STATUS_FIELD.to_owned(),
                 JsonValue::Number(JsonNumber::from(u64::from(response.status))),
             )])),
-            None => self.scrubbed(decode(
+            None => decode(
                 &response,
                 readback.decode.as_deref().unwrap_or(&self.spec.decode),
-            )?),
+            )?,
         };
         Ok(Observed {
             value,
@@ -274,7 +273,6 @@ impl Http<'_> {
         item: Option<(usize, &JsonValue)>,
         responses: Option<&BTreeMap<String, JsonObject>>,
         cursor: Option<&str>,
-        idempotent: bool,
     ) -> Result<RuntimeHttpResponse, Unperformed> {
         let rendered = self
             .render(request, item.map(|(_, item)| item), responses, cursor)
@@ -282,23 +280,18 @@ impl Http<'_> {
         let transport = match self.egress {
             Egress::Direct(transport) => transport,
             Egress::Connect(gateway) => {
-                return gateway.send(
-                    request.id.as_str(),
-                    item.map(|(index, _)| index),
-                    responses,
-                    idempotent,
-                );
+                return gateway.send(request.id.as_str(), item.map(|(index, _)| index), responses);
             }
         };
-        let sent = if idempotent {
-            transport.send_idempotent(rendered)
-        } else {
-            transport.send(rendered)
-        };
-        sent.map_err(|error| Unperformed::MaybeSent {
-            code: "transport_failed",
-            reason: error.to_string(),
-        })
+        // Sent once: a read's cost is not declared, so repeating it is not
+        // free to assume. The transport repeats only what HTTP defines as
+        // safe to repeat.
+        transport
+            .send(rendered)
+            .map_err(|error| Unperformed::MaybeSent {
+                code: "transport_failed",
+                reason: error.to_string(),
+            })
     }
 
     fn render(
@@ -316,6 +309,11 @@ impl Http<'_> {
                 .map_err(|error| error.to_string())?,
         )
         .map_err(|error| format!("request {} has an invalid URL: {error}", request.id))?;
+        // A fragment never reaches the server: a URL carrying one names a
+        // request other than the one sent.
+        if url.fragment().is_some() {
+            return Err(format!("request {} has a URL fragment", request.id));
+        }
         let host = url.host_str().unwrap_or_default().to_ascii_lowercase();
         if url.scheme() != "https"
             || !self
@@ -437,30 +435,17 @@ impl Http<'_> {
         if let Some(halted) = halted(response, self.spec.rate_limit.as_ref()) {
             return Err(halted);
         }
-        decode(response, &self.spec.decode)
-            .map(|value| self.scrubbed(value))
-            .map_err(|reason| match response.status {
-                400..=499 if mutation && response.status != 408 => Unperformed::Refused {
-                    code: "provider_rejected",
-                    reason,
-                    answer: serde_json::from_str::<JsonValue>(&response.body)
-                        .ok()
-                        .map(|answer| self.scrubbed(answer)),
-                },
-                _ => Unperformed::MaybeSent {
-                    code: "invalid_response",
-                    reason,
-                },
-            })
-    }
-
-    /// An answer as the kernel may record it: never repeating the credential
-    /// the request presented.
-    fn scrubbed(&self, value: JsonValue) -> JsonValue {
-        match (&self.egress, self.call.credential) {
-            (Egress::Direct(_), Some(secret)) => secret.scrub(value),
-            _ => value,
-        }
+        decode(response, &self.spec.decode).map_err(|reason| match response.status {
+            400..=499 if mutation && response.status != 408 => Unperformed::Refused {
+                code: "provider_rejected",
+                reason,
+                answer: serde_json::from_str::<JsonValue>(&response.body).ok(),
+            },
+            _ => Unperformed::MaybeSent {
+                code: "invalid_response",
+                reason,
+            },
+        })
     }
 
     /// A paged read: each page in turn, until a page names no cursor, holds
@@ -495,7 +480,7 @@ impl Http<'_> {
         let mut cursor = None::<String>;
         let mut cursors = std::collections::BTreeSet::new();
         loop {
-            let response = self.send(request, None, responses, cursor.as_deref(), true)?;
+            let response = self.send(request, None, responses, cursor.as_deref())?;
             evidence.push(response.body_digest.clone());
             let page = self.answered(&response, false)?;
             // A provider omits the items of an empty page.
@@ -553,29 +538,7 @@ impl Http<'_> {
                 secret.name
             )
         })?;
-        let field = |name: &str| {
-            secret
-                .fields
-                .get(name)
-                .filter(|value| !value.is_empty())
-                .cloned()
-                .ok_or_else(|| format!("the credential has no {name}"))
-        };
-        let value = match presentation {
-            HttpAuth::Bearer { field: name } => format!("Bearer {}", field(name.as_str())?),
-            HttpAuth::Oauth1 => auth::oauth1_header(
-                method,
-                url,
-                &auth::OAuth1Credential {
-                    consumer_key: field("consumer_key")?,
-                    consumer_secret: field("consumer_secret")?,
-                    access_token: field("access_token")?,
-                    access_secret: field("access_secret")?,
-                },
-            )
-            .map_err(|error| error.to_string())?,
-        };
-        Ok(Some(RuntimeHttpHeader::new("authorization", value)))
+        auth::credential_header(presentation, secret, method, url).map(Some)
     }
 }
 
@@ -913,7 +876,7 @@ mod tests {
     fn the_instances_credential_picks_how_a_request_authenticates() -> Result<(), String> {
         let spec: HttpImplementation = serde_json::from_value(serde_json::json!({
             "allowed_hosts": ["api.example.test"],
-            "auth": {"app": {"type": "bearer"}, "user": {"type": "oauth1"}},
+            "auth": {"app": {"type": "bearer"}, "key": {"type": "header", "name": "authorization", "field": "api_key"}, "user": {"type": "oauth1"}},
             "requests": [{"id": "me", "method": "GET", "url": "https://api.example.test/me"}],
             "decode": [{"op": "auto_json"}],
             "result_paths": {"me": "acknowledgement"}
@@ -922,14 +885,13 @@ mod tests {
         let arguments = JsonValue::Object(JsonObject::new());
         let (parameters, env) = (JsonObject::new(), BTreeMap::new());
         let authorization = |name: &str, fields: &[(&str, &str)]| -> Result<String, String> {
-            let secret = crate::kernel::operation::credentials::CredentialSecret {
-                name: runx_contracts::connector::CredentialName::new(name)
-                    .ok_or("a credential name")?,
-                fields: fields
+            let secret = crate::kernel::operation::credentials::CredentialSecret::new(
+                runx_contracts::connector::CredentialName::new(name).ok_or("a credential name")?,
+                fields
                     .iter()
                     .map(|(field, value)| ((*field).to_owned(), (*value).to_owned()))
                     .collect(),
-            };
+            );
             let mut call = AdmittedCall::for_tests(
                 &arguments,
                 &parameters,
@@ -951,6 +913,8 @@ mod tests {
                 .ok_or_else(|| "no authorization".to_owned())
         };
         assert_eq!(authorization("app", &[("token", "t-1")])?, "Bearer t-1");
+        assert_eq!(authorization("key", &[("api_key", "k-1")])?, "k-1");
+        assert!(authorization("key", &[("wrong_field", "k-1")]).is_err());
         assert!(
             authorization(
                 "user",

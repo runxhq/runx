@@ -82,6 +82,8 @@ fn parse_url(_this: &JsValue, arguments: &[JsValue], context: &mut Context) -> J
         "origin": url.origin().ascii_serialization(),
         "protocol": format!("{}:", url.scheme()),
         "hostname": hostname,
+        "username": url.username(),
+        "password": url.password().unwrap_or_default(),
     });
     JsValue::from_json(&value, context)
 }

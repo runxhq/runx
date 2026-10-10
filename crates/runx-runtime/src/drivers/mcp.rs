@@ -20,7 +20,9 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
 
-use rmcp::model::{CallToolRequestParams, ClientCapabilities, ClientInfo, Implementation};
+use rmcp::model::{
+    CallToolRequestParams, CallToolResponse, ClientCapabilities, ClientInfo, Implementation,
+};
 use rmcp::service::RunningService;
 use rmcp::{RoleClient, ServiceError};
 use runx_contracts::connector::{
@@ -28,7 +30,7 @@ use runx_contracts::connector::{
 };
 use runx_contracts::{JsonObject, JsonValue, sha256_prefixed};
 
-use crate::http::ReqwestHttpTransport;
+use crate::http::{ReqwestHttpTransport, RuntimeHttpHeader};
 use crate::kernel::operation::AdmittedCall;
 use crate::kernel::operation::confirm::{Check, Driver, Observed, Unperformed};
 use stdio::{StdioServerProcess, start_stdio_server};
@@ -113,13 +115,13 @@ impl Sessions {
         }
     }
 
-    /// The session on `url` under `bearer` and `headers`, over runx's guarded
+    /// The session on `url` under the presented credential and headers, over runx's guarded
     /// `http`.
     pub(crate) fn open(
         &self,
         http: &ReqwestHttpTransport,
         url: &str,
-        bearer: Option<&str>,
+        credential: Option<&RuntimeHttpHeader>,
         headers: &BTreeMap<String, String>,
     ) -> Result<Arc<Session>, String> {
         let deadline = http.request_timeout();
@@ -128,14 +130,14 @@ impl Sessions {
         }
         let identity = serde_json::to_vec(&(
             url,
-            bearer.map(|token| sha256_prefixed(token.as_bytes())),
+            credential.map(|header| (&header.name, sha256_prefixed(header.value.as_bytes()))),
             headers,
         ))
         .map_err(|error| error.to_string())?;
         let key = format!("http\0{}", sha256_prefixed(&identity));
         self.reuse_or(key, deadline, async move {
             let transport = http
-                .mcp(url, bearer, headers)
+                .mcp(url, credential, headers)
                 .map_err(|error| error.to_string())?;
             Session::initialize(transport, deadline).await
         })
@@ -207,8 +209,10 @@ pub(crate) fn served_tools(
     bearer: Option<&str>,
 ) -> Result<Vec<ServedTool>, String> {
     block_on(http.request_timeout(), async move {
+        let credential = bearer
+            .map(|token| RuntimeHttpHeader::secret("authorization", format!("Bearer {token}")));
         let service = connect(
-            http.mcp(url, bearer, &BTreeMap::new())
+            http.mcp(url, credential.as_ref(), &BTreeMap::new())
                 .map_err(|error| error.to_string())?,
         )
         .await?;
@@ -325,14 +329,32 @@ impl Session {
                 let peer = service.peer().clone();
                 let request =
                     CallToolRequestParams::new(tool.to_owned()).with_arguments(wire_arguments);
+                // One `tools/call`: a server's request for more input, or a
+                // task it starts, is not answered with another call.
                 let answered =
-                    block_on(self.deadline, async move { peer.call_tool(request).await })
+                    block_on(self.deadline, async move { peer.call_tool_once(request).await })
                         .map_err(|reason| Unperformed::MaybeSent {
                             code: "transport_failed",
                             reason,
                         })?;
                 let answer = match answered {
-                    Ok(answer) => answer,
+                    Ok(CallToolResponse::Complete(answer)) => answer,
+                    // Input the server requires, a task it started, or any
+                    // other answer short of a result.
+                    Ok(_) => {
+                        let reason = format!("tool {tool} did not answer in one call");
+                        return Err(match mutation {
+                            true => Unperformed::MaybeSent {
+                                code: "tool_incomplete",
+                                reason,
+                            },
+                            false => Unperformed::Refused {
+                                code: "tool_incomplete",
+                                reason,
+                                answer: None,
+                            },
+                        });
+                    }
                     Err(ServiceError::McpError(error)) => {
                         return Err(Unperformed::Refused {
                             code: "tool_error",
@@ -402,24 +424,6 @@ pub(crate) struct Mcp<'a> {
     pub spec: &'a McpImplementation,
 }
 
-impl Mcp<'_> {
-    /// An answer as the kernel may record it: never repeating the credential
-    /// the session presented.
-    fn scrub(&self, value: JsonValue) -> JsonValue {
-        match self.call.credential {
-            Some(secret) => secret.scrub(value),
-            None => value,
-        }
-    }
-
-    fn scrubbed(&self, observed: Observed) -> Observed {
-        Observed {
-            value: self.scrub(observed.value),
-            evidence: observed.evidence,
-        }
-    }
-}
-
 impl Driver for Mcp<'_> {
     fn perform(&self, _item: Option<usize>) -> Result<Observed, Unperformed> {
         let arguments = self
@@ -438,19 +442,6 @@ impl Driver for Mcp<'_> {
             })?;
         self.session
             .call(self.spec.tool.as_str(), &arguments, self.call.mutation())
-            .map(|observed| self.scrubbed(observed))
-            .map_err(|failure| match failure {
-                Unperformed::Refused {
-                    code,
-                    reason,
-                    answer,
-                } => Unperformed::Refused {
-                    code,
-                    reason,
-                    answer: answer.map(|answer| self.scrub(answer)),
-                },
-                other => other,
-            })
     }
 
     fn check(&self, check: Check, write: &JsonValue) -> Result<Observed, String> {
@@ -478,7 +469,6 @@ impl Driver for Mcp<'_> {
         self.call.guard(&arguments)?;
         self.session
             .call(readback.tool.as_str(), &arguments, false)
-            .map(|observed| self.scrubbed(observed))
             .map_err(Unperformed::reason)
     }
 
@@ -487,12 +477,16 @@ impl Driver for Mcp<'_> {
         write: &JsonValue,
         _confirmed: &[JsonValue],
     ) -> Result<(JsonValue, Option<String>), String> {
+        // A write is identified by the key it was sent with, which is stable
+        // for its intent. Its answer cannot identify it: two different writes
+        // may be answered alike.
         let operation_id = match self.call.mutation() {
-            true => Some(
-                stable_digest(write)
-                    .map(|digest| format!("mcp:{}", digest.as_str()))
-                    .map_err(|error| error.to_string())?,
-            ),
+            true => Some(format!(
+                "mcp:{}",
+                self.call
+                    .idempotency_key
+                    .ok_or("a write is sent with an idempotency key")?
+            )),
             false => None,
         };
         Ok((write.clone(), operation_id))
@@ -633,6 +627,40 @@ mod tests {
     }
 
     #[test]
+    fn a_write_is_identified_by_its_key_never_by_its_answer() -> Result<(), String> {
+        let session = session()?;
+        let spec = serde_json::from_value::<McpImplementation>(serde_json::json!({
+            "tool": "echo",
+            "arguments": {"$argument": ""},
+            "tool_digest": format!("sha256:{}", "0".repeat(64)),
+        }))
+        .map_err(|error| error.to_string())?;
+        let arguments = JsonValue::Object(JsonObject::new());
+        let parameters = JsonObject::new();
+        let env = BTreeMap::new();
+        let call = AdmittedCall::for_tests(
+            &arguments,
+            &parameters,
+            &env,
+            runx_contracts::connector::OperationAccess::Mutate,
+        );
+        let driver = Mcp {
+            session: &session,
+            call: &call,
+            spec: &spec,
+        };
+        let accepted = JsonValue::Object(JsonObject::from([(
+            "status".to_owned(),
+            JsonValue::String("accepted".to_owned()),
+        )]));
+        let (_, operation_id) = driver.result(&accepted, &[])?;
+        // The call's key, which no other write shares; never the answer,
+        // which another write may receive word for word.
+        assert_eq!(operation_id.as_deref(), Some("mcp:key-1"));
+        Ok(())
+    }
+
+    #[test]
     fn a_session_pins_what_is_served_and_calls_through_rmcp() -> Result<(), String> {
         calls_through(&session()?)
     }
@@ -652,6 +680,8 @@ mod tests {
             .block_on(tokio::net::TcpListener::bind("127.0.0.1:0"))
             .map_err(|error| error.to_string())?;
         let address = listener.local_addr().map_err(|error| error.to_string())?;
+        let observed_headers = Arc::new(Mutex::new(Vec::new()));
+        let captured = Arc::clone(&observed_headers);
         runtime.spawn(async move {
             let service = StreamableHttpService::new(
                 || Ok(Fixture),
@@ -660,7 +690,23 @@ mod tests {
             );
             while let Ok((stream, _)) = listener.accept().await {
                 let service = TowerToHyperService::new(service.clone());
+                let captured = Arc::clone(&captured);
                 tokio::spawn(async move {
+                    let service = hyper::service::service_fn(
+                        move |request: hyper::Request<hyper::body::Incoming>| {
+                            if let Ok(mut captured) = captured.lock() {
+                                captured.push(
+                                    request
+                                        .headers()
+                                        .get("x-fixture-auth")
+                                        .and_then(|value| value.to_str().ok())
+                                        .map(str::to_owned),
+                                );
+                            }
+                            let service = service.clone();
+                            async move { hyper::service::Service::call(&service, request).await }
+                        },
+                    );
                     let _ = hyper::server::conn::http1::Builder::new()
                         .serve_connection(TokioIo::new(stream), service)
                         .await;
@@ -671,10 +717,16 @@ mod tests {
             .map_err(|error| error.to_string())?;
         let sessions = Sessions::default();
         let url = format!("http://{address}/mcp");
-        let session = sessions.open(&transport, &url, Some("token"), &BTreeMap::new())?;
+        let credential = RuntimeHttpHeader::secret("x-fixture-auth", "presented-token");
+        let session = sessions.open(&transport, &url, Some(&credential), &BTreeMap::new())?;
         assert!(Arc::ptr_eq(
             &session,
-            &sessions.open(&transport, &url, Some("token"), &BTreeMap::new())?
+            &sessions.open(&transport, &url, Some(&credential), &BTreeMap::new())?
+        ));
+        let replacement = RuntimeHttpHeader::secret("x-fixture-auth", "different-account-token");
+        assert!(!Arc::ptr_eq(
+            &session,
+            &sessions.open(&transport, &url, Some(&replacement), &BTreeMap::new())?
         ));
         let served = served_tools(&transport, &url, None)?;
         assert_eq!(
@@ -687,7 +739,19 @@ mod tests {
         assert!(served.iter().all(|(name, _, definition)| {
             definition.get("name").and_then(JsonValue::as_str) == Some(name.as_str())
         }));
-        calls_through(&session)
+        calls_through(&session)?;
+        let captured = observed_headers.lock().map_err(|error| error.to_string())?;
+        assert!(
+            captured
+                .iter()
+                .any(|value| value.as_deref() == Some("presented-token"))
+        );
+        assert!(
+            captured
+                .iter()
+                .any(|value| value.as_deref() == Some("different-account-token"))
+        );
+        Ok(())
     }
 
     /// A stdio server the runtime starts: pinned and called like any other,

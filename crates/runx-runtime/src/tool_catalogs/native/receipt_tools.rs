@@ -95,7 +95,6 @@ const QUERY_FIELDS: &[CapabilityField] = &[
     field("status", "Exact terminal status filter."),
     field("issuer", "Exact receipt issuer filter: local or hosted."),
     field("actor", "Exact signed actor filter."),
-    field("artifact_type", "Exact artifact-type filter."),
     field("since", "RFC3339 inclusive lower time bound."),
     field("until", "RFC3339 inclusive upper time bound."),
     field(

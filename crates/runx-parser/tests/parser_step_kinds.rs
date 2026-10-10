@@ -343,6 +343,26 @@ fn a_skill_step_gives_its_child_an_act_and_other_steps_take_none() -> Result<(),
 }
 
 #[test]
+fn an_act_states_its_purpose() -> Result<(), String> {
+    let Err(error) = acting(
+        "      - id: close\n        operation: tracker/item.update\n        input: {id: $input.item}\n        act: {form: reply, reason: $act.reason}\n",
+    ) else {
+        return Err("an act without a purpose is refused".to_owned());
+    };
+    assert!(error.contains("needs a purpose"), "{error}");
+    let Err(error) = acting(
+        "      - id: close\n        operation: tracker/item.update\n        input: {id: $input.item}\n        act: {purpose: Close it, legitimacy: $act.reason}\n",
+    ) else {
+        return Err("an act states only an act's fields".to_owned());
+    };
+    assert!(
+        error.contains("act.legitimacy is not a field of an act"),
+        "{error}"
+    );
+    Ok(())
+}
+
+#[test]
 fn an_input_cannot_take_the_name_of_the_invokers_act() -> Result<(), String> {
     let Err(error) = runner_with(
         "    inputs:\n      act: {type: string}\n",

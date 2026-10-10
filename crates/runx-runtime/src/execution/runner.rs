@@ -9,7 +9,7 @@
 //! ([`super::run_record`]) and continues from it. The internal state machine
 //! and the per-step execution helpers live in private submodules.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -171,6 +171,9 @@ pub struct StepRun {
     pub runner: Option<String>,
     /// The one semantic, addressable output surface retained by graph state.
     pub contract: JsonObject,
+    /// The outputs of `contract` that are artifacts, each held in its packet
+    /// envelope.
+    pub artifact_outputs: BTreeSet<String>,
     /// Immediate caller-only overlay. It exists only in the live process and is
     /// deliberately absent from the run record, receipts, and graph context.
     #[doc(hidden)]
@@ -185,6 +188,15 @@ pub struct StepRun {
     /// referenced receipts without embedding child graph output payloads.
     pub nested_receipts: Vec<Receipt>,
     pub admission_witness: StepAdmissionWitness,
+}
+
+impl StepRun {
+    /// The value the output `name` holds: an artifact's packet data, or any
+    /// other output as it is.
+    #[must_use]
+    pub(crate) fn output(&self, name: &str) -> Option<&JsonValue> {
+        crate::output_contract::output_value(&self.contract, &self.artifact_outputs, name)
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -741,6 +753,23 @@ pub(crate) fn graph_run_result(run: &GraphRun) -> Result<JsonValue, RuntimeError
     Ok(JsonValue::Object(result))
 }
 
+/// The outputs of the graph's result that are artifacts: those its result
+/// producers hold in packet envelopes.
+pub(crate) fn graph_run_result_artifacts(run: &GraphRun) -> BTreeSet<String> {
+    let runs = run
+        .steps
+        .iter()
+        .map(|step| (step.step_id.as_str(), step))
+        .collect::<BTreeMap<_, _>>();
+    run.graph
+        .result_from
+        .iter()
+        .filter_map(|step_id| runs.get(step_id.as_str()))
+        .filter(|step| step.outcome.succeeded())
+        .flat_map(|step| step.artifact_outputs.iter().cloned())
+        .collect()
+}
+
 pub(crate) fn graph_run_ephemeral_result(run: &GraphRun) -> JsonValue {
     let runs = run
         .steps
@@ -1232,6 +1261,7 @@ mod tests {
             skill: step_id.to_owned(),
             runner: None,
             contract,
+            artifact_outputs: Default::default(),
             ephemeral_contract: EphemeralValue::default(),
             outcome: output.into(),
             nested_receipts: Vec::new(),

@@ -140,13 +140,13 @@ evidence, not copied into the repo by default.
 | Category | Maintained packages |
 | --- | --- |
 | `authoring` | `adopt-skill`, `diagnose-skill-run`, `policy-author`, `prior-art`, `review-skill`, `skill-lab`, `work-plan` |
-| `code` | `release`, `schema-guard` |
+| `code` | `github-pr-review`, `release`, `schema-guard` |
 | `content` | `brand-voice`, `content-pipeline`, `contract-drafter`, `ghostwrite`, `moltbook` |
-| `data` | `data-store`, `run-history`, `sql-analyst` |
-| `growth` | `crm-cleanup`, `lead-enrichment`, `lead-router`, `nitrosend` |
+| `data` | `data-store`, `product-analytics`, `run-history`, `sql-analyst` |
+| `growth` | `cold-outreach`, `crm-cleanup`, `lead-enrichment`, `lead-qualify`, `nitrosend` |
 | `ops` | `github-sync`, `governed-outbound`, `chief-of-staff`, `issue-intake`, `issue-triage`, `n8n-handoff`, `ops-desk`, `postmortem-maker`, `send-as`, `zapier-handoff` |
 | `payments` | `charge`, `dispute-respond`, `mock-charge`, `mock-pay`, `mock-refund`, `purchase-approval`, `refund`, `settle-invoice`, `spend`, `stripe-pay`, `x402-pay` |
-| `research` | `ecosystem-brief`, `research` |
+| `research` | `ecosystem-brief`, `research`, `web-search` |
 | `security` | `cve-audit`, `sbom-maker`, `vuln-triage`, `vuln-disclosure`, `data-subject-request`, `least-privilege`, `audit-receipt`, `redact-pii`, `sign-receipt`, `vault-unseal` |
 
 Graph stages, harness fixtures, context-only packages, and provider bindings are

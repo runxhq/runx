@@ -153,12 +153,10 @@ pub fn compute_verification_summary(
     let authority_attenuation_valid = context.authority_verified
         && has_verified_attenuation_shape(&receipt.authority.attenuation);
     let structural_verification = verify_receipt(receipt);
-    let criteria_bound = structural_verification.findings.iter().all(|finding| {
-        !matches!(
-            finding.code,
-            ReceiptFindingCode::SealCriterionActMissing | ReceiptFindingCode::SealCriterionUnbound
-        )
-    });
+    let criteria_bound = structural_verification
+        .findings
+        .iter()
+        .all(|finding| finding.code != ReceiptFindingCode::SealCriterionUnbound);
     let redaction_valid = receipt
         .authority
         .enforcement

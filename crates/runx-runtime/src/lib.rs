@@ -100,13 +100,12 @@ pub use effects::{
 pub use effects::{
     EffectAdmission, EffectOutputRequest, EffectPreparationOutcome, EffectReceiptRequest,
     EffectStepRequest, EffectToolRequest, RuntimeEffect, RuntimeEffectError, RuntimeEffectRegistry,
-    insert_effect_verification_ref,
 };
 pub use error::RuntimeError;
 pub use harness::{
     HarnessExpectedStatus, HarnessFixtureError, HarnessFixtureKind, HarnessOptions,
-    HarnessReplayError, HarnessReplayOutput, load_harness_fixture, run_harness_fixture,
-    run_harness_fixture_with_adapter,
+    HarnessReplayError, HarnessReplayOutput, load_harness_fixture,
+    replay_harness_fixture_with_adapter, run_harness_fixture, run_harness_fixture_with_adapter,
 };
 pub use host::{Host, NoopHost};
 pub use hosted_api::{

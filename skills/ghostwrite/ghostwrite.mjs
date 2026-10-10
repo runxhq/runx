@@ -2,7 +2,7 @@ export function prepareEvidence(inputs) {
   const objective = text(inputs.objective);
   const audience = text(inputs.audience);
   const channel = text(inputs.channel);
-  const evidence = unwrap(inputs.evidence_pack);
+  const evidence = object(inputs.evidence_pack);
   const blockers = [];
 
   if (!objective) blockers.push("objective is missing");
@@ -22,9 +22,10 @@ export function prepareEvidence(inputs) {
     }
   }
 
+  const scope = { audience, channel };
   const writingContexts = [
-    admitWritingContext(inputs.brand_context, "brand_voice", inputs.brand_context_digest, blockers),
-    admitWritingContext(inputs.taste_context, "taste_profile", inputs.taste_context_digest, blockers),
+    admitWritingContext(inputs.brand_context, "brand_voice", inputs.brand_context_digest, scope, blockers),
+    admitWritingContext(inputs.taste_context, "taste_profile", inputs.taste_context_digest, scope, blockers),
   ].filter(Boolean);
 
   const evidencePacketDigest = text(inputs.evidence_packet_digest);
@@ -42,6 +43,9 @@ export function prepareEvidence(inputs) {
       decision_support: Array.isArray(evidence.decision_support) ? evidence.decision_support : [],
       source_digests: sourceDigests,
       writing_contexts: writingContexts,
+      context_requirements: writingContexts.map(({ type, packet_digest, scope, rules, stop_conditions }) => ({
+        type, packet_digest, scope, rules, stop_conditions,
+      })),
       blockers: [...new Set(blockers)],
     },
   };
@@ -49,15 +53,28 @@ export function prepareEvidence(inputs) {
 
 export function prepareContent(inputs) {
   const channel = text(inputs.channel);
-  const packet = unwrap(inputs.draft);
+  const packet = object(inputs.draft);
   const draft = object(packet.draft);
-  const ready = Boolean(
-    channel
-      && packet.decision === "ready"
-      && object(packet.validation).status === "pass"
-      && text(draft.title)
-      && text(draft.body),
-  );
+  const binding = object(packet.evidence_binding);
+  const evidencePacketDigest = text(binding.evidence_packet_digest);
+  const sourceDigests = strings(binding.source_digests);
+  const blockers = [];
+  if (!channel) blockers.push("channel is missing");
+  if (packet.decision !== "ready" || object(packet.validation).status !== "pass") {
+    blockers.push("draft is not ready and validated");
+  }
+  if (!text(draft.title) || !text(draft.body)) blockers.push("draft has no title and body");
+  if (!isDigest(evidencePacketDigest) || sourceDigests.length === 0 || !sourceDigests.every(isDigest)) {
+    blockers.push("draft is not bound to its evidence");
+  }
+  const claims = Array.isArray(draft.claim_refs) ? draft.claim_refs : [];
+  if (claims.some((claim) => {
+    const cited = strings(object(claim).source_digests);
+    return cited.length === 0 || cited.some((digest) => !sourceDigests.includes(digest));
+  })) {
+    blockers.push("a claim cites a source the draft is not bound to");
+  }
+  const ready = blockers.length === 0;
   const payload = ready
     ? { title: text(draft.title), body: text(draft.body) }
     : { title: "", body: "" };
@@ -67,49 +84,43 @@ export function prepareContent(inputs) {
       channel,
       headline: payload.title,
       body: payload.body,
-      evidence_binding: object(packet.evidence_binding),
+      evidence_binding: ready
+        ? { evidence_packet_digest: evidencePacketDigest, source_digests: sourceDigests }
+        : {},
       delivery_status: "not_sent",
-      blockers: ready ? [] : ["validated ready draft and channel are required"],
+      blockers,
     },
     digest_input: ready ? JSON.stringify({ channel, payload }) : "",
-    qa_checklist: ready
-      ? ["payload digest recorded", "evidence binding preserved", "provider delivery still pending"]
-      : [],
-    handoff_notes: {
-      next_action: ready ? "route through a governed provider delivery lane" : "repair draft inputs",
-      provider_delivery_required: true,
-    },
   };
 }
 
 export function bindContent(inputs) {
   const draft = object(inputs.publish_draft);
-  const digestResult = object(inputs.digest_result);
   const ready = draft.decision === "ready_for_handoff";
-  const payloadDigest = text(digestResult.digest);
+  const payloadDigest = text(object(inputs.digest_result).digest);
   if (ready && !isDigest(payloadDigest)) throw new Error("native payload digest is missing");
   return {
     content_publish_packet: {
       ...draft,
       payload_digest: ready ? payloadDigest : "",
     },
-    qa_checklist: Array.isArray(inputs.qa_checklist) ? inputs.qa_checklist : [],
-    handoff_notes: object(inputs.handoff_notes),
   };
 }
 
 export function prepareHandoff(inputs) {
   const channel = text(inputs.channel);
-  const boundaryKind = text(inputs.boundary_kind);
-  const packet = unwrap(inputs.packet);
+  const boundaryKind = inputs.boundary_kind;
+  const packet = object(inputs.packet);
   const target = object(inputs.target);
-  const approval = object(inputs.approval);
-  const external = boundaryKind.startsWith("external") || !boundaryKind.startsWith("internal");
-  const ready = packet.decision === "ready_for_handoff"
-    && packet.delivery_status === "not_sent"
-    && channel
-    && Object.keys(target).length > 0;
-
+  const blockers = [];
+  if (packet.decision !== "ready_for_handoff" || packet.delivery_status !== "not_sent") {
+    blockers.push("publication packet is not ready and unsent");
+  }
+  if (!isDigest(text(packet.payload_digest))) blockers.push("publication packet has no payload digest");
+  if (!channel || text(packet.channel) !== channel) blockers.push("publication packet is for another channel");
+  if (Object.keys(target).length === 0) blockers.push("target is missing");
+  const ready = blockers.length === 0;
+  const external = boundaryKind === "external";
   return {
     handoff_packet: {
       decision: ready ? "handoff_ready" : "needs_input",
@@ -118,26 +129,25 @@ export function prepareHandoff(inputs) {
       packet,
       target,
       delivery_status: "not_sent",
-      blockers: ready ? [] : ["ready publication packet, channel, and target are required"],
+      blockers,
     },
     boundary_state: {
       boundary_kind: boundaryKind,
       completion_state: ready ? "handoff_ready" : "needs_input",
       next_actor: ready ? "governed_provider_adapter" : "operator",
       approval_required_for_delivery: external,
-      approval_present: approval.approved === true,
       ack_expected: external,
-    },
-    follow_up_contract: {
-      retrigger_on: ["provider receipt", "provider refusal", "operator amendment"],
-      closure_rule: "close only after provider delivery readback or explicit retirement",
     },
   };
 }
 
-function admitWritingContext(raw, type, packetDigest, blockers) {
+// The applicability field each writing-context packet declares its channels in:
+// runx.context.brand_voice.v1 names `channels`, runx.context.taste_profile.v1 names `surfaces`.
+const CONTEXT_CHANNEL_FIELD = { brand_voice: "channels", taste_profile: "surfaces" };
+
+function admitWritingContext(raw, type, packetDigest, scope, blockers) {
   if (raw === undefined || raw === null) return null;
-  const packet = unwrap(raw);
+  const packet = object(raw);
   if (packet.decision !== "ready" || object(packet.validation).status !== "pass") {
     blockers.push(`${type} context is not ready and validated`);
   }
@@ -146,17 +156,23 @@ function admitWritingContext(raw, type, packetDigest, blockers) {
   if (rules.length === 0) blockers.push(`${type} context has no bounded rules`);
   const admittedDigest = text(packetDigest);
   if (!isDigest(admittedDigest)) blockers.push(`${type} native context digest is missing`);
+  const applicability = object(packet.applicability);
+  const appliesToAudience = Boolean(scope.audience) && text(applicability.audience) === scope.audience;
+  const appliesToChannel = Boolean(scope.channel)
+    && strings(applicability[CONTEXT_CHANNEL_FIELD[type]]).includes(scope.channel);
+  if (!appliesToAudience) blockers.push(`${type} context does not apply to the requested audience`);
+  if (!appliesToChannel) blockers.push(`${type} context does not apply to the requested channel`);
+  if (!appliesToAudience || !appliesToChannel) return null;
   return {
     type,
     packet_digest: admittedDigest,
+    scope: { audience: scope.audience, channel: scope.channel },
+    applicability,
+    profile: object(packet[type]),
+    evidence_bindings: bindings,
     rules,
     stop_conditions: strings(packet.stop_conditions),
   };
-}
-
-function unwrap(value) {
-  const item = object(value);
-  return item.data && typeof item.data === "object" ? item.data : item;
 }
 
 function object(value) {

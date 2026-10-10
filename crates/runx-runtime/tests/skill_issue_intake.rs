@@ -30,26 +30,22 @@ fn issue_intake_generated_fixtures_replay_to_receipts() -> Result<(), Box<dyn st
         assert_object_field(&payload, "change_set", case_name)?;
         assert_object_field(&payload, "signal", case_name)?;
 
-        // The agent step's receipt carries the act and the bound signal.
+        // The signal and change set are the agent's declared outputs, which
+        // the step receipt commits by its claim; it lifts nothing out of
+        // them, and the agent step makes no governed call to seal an act.
         let [intake] = output.step_receipts.as_slice() else {
             return Err(format!("{case_name}: expected one step receipt").into());
         };
         validate_receipt(intake)
             .map_err(|verification| format!("{case_name}: {:?}", verification.findings))?;
+        assert!(intake.signals.is_empty(), "{case_name}");
         assert!(
-            !intake.signals.is_empty(),
-            "{case_name}: receipt should bind the emitted signal"
-        );
-        let [act] = intake.acts.as_slice() else {
-            return Err(format!("{case_name}: expected one contained act").into());
-        };
-        assert!(
-            !act.source_refs.is_empty(),
-            "{case_name}: act should bind source event refs"
+            intake.acts.is_empty() && intake.decisions.is_empty(),
+            "{case_name}"
         );
         assert!(
-            !act.artifact_refs.is_empty(),
-            "{case_name}: act should bind target surface refs"
+            intake.subject.reference.locator.is_some(),
+            "{case_name}: the receipt commits the step's claim"
         );
     }
     Ok(())

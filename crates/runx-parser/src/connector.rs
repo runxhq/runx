@@ -12,8 +12,9 @@ use runx_contracts::connector::{
     AmountRule, ApprovalFloor, ConnectorAuth, ConnectorManifest, ConnectorOperation,
     CredentialName, Digest, HostedAuth, HttpAuth, HttpImplementation, HttpMethod, HttpReadback,
     HttpRequest, Implementation, LocalAuth, McpServer, MessageRules, OperationAccess,
-    OperationName, OperationVerb, ReadbackExpected, ReadbackGuarantee, ReferenceDeclaration,
-    SessionAuth, SessionPrincipal, Template, manifest_digest, operation_digest,
+    OperationName, OperationVerb, ProviderIdempotency, ReadbackExpected, ReadbackGuarantee,
+    ReferenceDeclaration, SessionAuth, SessionPrincipal, Template, manifest_digest,
+    operation_digest,
 };
 use runx_contracts::schema::NonEmptyString;
 use runx_contracts::{JsonObject, JsonValue, ReferenceType};
@@ -58,6 +59,7 @@ pub fn validate_connector_manifest(
     }
     validate_references(&manifest.references, &mut errors);
     validate_effects(&manifest, &mut errors);
+    validate_enforced(&manifest, &mut errors);
     errors.finish()?;
 
     let digest_error = |error: runx_contracts::connector::ConnectorDigestError| {
@@ -233,27 +235,16 @@ fn validate_auth_and_placements(manifest: &ConnectorManifest, errors: &mut Error
             headers,
         }) = &local.mcp_server
         {
-            // The session's own protocol and credential headers are the
-            // runtime's; a manifest adds only headers the server reads.
-            const RESERVED: &[&str] = &[
-                "authorization",
-                "accept",
-                "content-type",
-                "content-length",
-                "host",
-                "cookie",
-                "connection",
-                "mcp-session-id",
-                "mcp-protocol-version",
-                "last-event-id",
-            ];
+            // The session's own protocol headers are the runtime's; a
+            // manifest adds only headers the server reads.
             for (name, template) in headers {
                 let field = format!("placements.local.mcp_server.headers.{name}");
                 if name.is_empty()
                     || !name.bytes().all(|byte| {
                         byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-'
                     })
-                    || RESERVED.contains(&name.as_str())
+                    || ["accept", "content-type"].contains(&name.as_str())
+                    || mcp_protocol_header(name)
                 {
                     errors.push(
                         &field,
@@ -281,11 +272,17 @@ fn validate_auth_and_placements(manifest: &ConnectorManifest, errors: &mut Error
                     errors,
                 ),
             }
+            validate_template_headers(
+                server_auth,
+                headers,
+                "placements.local.mcp_server.headers",
+                errors,
+            );
             for (credential, presentation) in server_auth {
-                if !matches!(presentation, HttpAuth::Bearer { .. }) {
+                if matches!(presentation, HttpAuth::Oauth1) {
                     errors.push(
                         &format!("placements.local.mcp_server.auth.{credential}"),
-                        "an MCP server authenticates with a bearer token",
+                        "an MCP server authenticates with a bearer token or a declared credential header",
                     );
                 }
             }
@@ -522,21 +519,6 @@ fn validate_operation(
         }
     }
 
-    if let Some(reconcile) = &operation.guarantees.reconcile {
-        match manifest.operations.get(reconcile) {
-            Some(target) if target.access() == OperationAccess::Read => {}
-            _ => errors.push(
-                &format!("{field}.guarantees.reconcile"),
-                format!("reconcile {reconcile} must name a read operation on this connector"),
-            ),
-        }
-        if read {
-            errors.push(
-                &format!("{field}.guarantees.reconcile"),
-                "a read has nothing to reconcile",
-            );
-        }
-    }
     if read {
         if operation.approval == ApprovalFloor::Required {
             errors.push(
@@ -598,12 +580,6 @@ fn validate_operation(
             "only a write can be unavailable for readback",
         );
     }
-    if acknowledged && operation.guarantees.reconcile.is_some() {
-        errors.push(
-            &format!("{field}.guarantees.reconcile"),
-            "an operation the provider cannot read back has no read to reconcile with",
-        );
-    }
 
     match (&operation.hosted, &manifest.placements.hosted) {
         (Some(_), None) => errors.push(
@@ -630,21 +606,24 @@ fn validate_operation(
     if let (Some(_), Some(placement)) = (&operation.hosted, &manifest.placements.hosted)
         && let Implementation::Http(http) = implementation
     {
-        if placement.auth != HostedAuth::Delegated {
-            errors.push(
-                &format!("{field}.hosted"),
-                "the hosted placement sends declared requests under delegated auth only",
-            );
-        }
-        if http.auth.is_empty()
-            || http
-                .auth
-                .values()
-                .any(|auth| !matches!(auth, HttpAuth::Bearer { .. }))
-        {
+        let supported = match placement.auth {
+            HostedAuth::Delegated => {
+                !http.auth.is_empty()
+                    && http
+                        .auth
+                        .values()
+                        .all(|auth| matches!(auth, HttpAuth::Bearer { .. }))
+            }
+            HostedAuth::Credential => placement
+                .credential
+                .as_ref()
+                .and_then(|name| http.auth.get(name))
+                .is_some_and(|auth| !matches!(auth, HttpAuth::Oauth1)),
+        };
+        if !supported {
             errors.push(
                 &format!("{field}.implementation.http.auth"),
-                "the provider gateway presents the delegated token as a bearer",
+                "hosted delegated requests use bearer auth; stored credentials use bearer or declared header auth",
             );
         }
         if http
@@ -803,19 +782,9 @@ fn validate_messages(messages: &MessageRules, errors: &mut Errors) {
     }
 }
 
-/// Each declaration names an external kind and a locator pattern that
-/// compiles.
+/// Each declaration's locator pattern compiles, as both engines read it.
 fn validate_references(references: &[ReferenceDeclaration], errors: &mut Errors) {
     for (index, reference) in references.iter().enumerate() {
-        if !external_kind(&reference.kind) {
-            errors.push(
-                &format!("references[{index}].kind"),
-                format!(
-                    "{} is not an external reference kind",
-                    reference.kind.as_str()
-                ),
-            );
-        }
         if let Err(error) = whole_match(reference.locator.as_str()) {
             errors.push(
                 &format!("references[{index}].locator"),
@@ -834,22 +803,8 @@ fn validate_references(references: &[ReferenceDeclaration], errors: &mut Errors)
     }
 }
 
-/// The kinds a reference to something outside runx may name.
-fn external_kind(kind: &ReferenceType) -> bool {
-    matches!(
-        kind,
-        ReferenceType::Thread
-            | ReferenceType::Comment
-            | ReferenceType::Event
-            | ReferenceType::TrackingItem
-            | ReferenceType::ChangeRequest
-            | ReferenceType::Repository
-            | ReferenceType::ExternalUrl
-    )
-}
-
-/// An effect is what a write produced: an external kind the connector's own
-/// references declare, when it declares any, rendered from the call and its
+/// An effect is what a write produced: a kind the connector's own references
+/// declare, when it declares any, rendered from the call and its
 /// result. `$result` is read by an effect and by nothing the call renders
 /// before it has one.
 fn validate_effects(manifest: &ConnectorManifest, errors: &mut Errors) {
@@ -876,17 +831,12 @@ fn validate_effects(manifest: &ConnectorManifest, errors: &mut Errors) {
                 "a read produces nothing; only a write declares an effect",
             );
         }
-        if !external_kind(&effect.kind) {
-            errors.push(
-                &format!("{field}.kind"),
-                format!("{} is not an external reference kind", effect.kind.as_str()),
-            );
-        } else if !declared.is_empty() && !declared.contains(&&effect.kind) {
+        if !declared.is_empty() && !declared.contains(&&effect.kind) {
             errors.push(
                 &format!("{field}.kind"),
                 format!(
                     "the connector's references declare no {} locator to check it against",
-                    effect.kind.as_str()
+                    ReferenceType::from(effect.kind).as_str()
                 ),
             );
         }
@@ -909,6 +859,59 @@ fn validate_effects(manifest: &ConnectorManifest, errors: &mut Errors) {
             errors.push(
                 &format!("{field}.each"),
                 "each names the result array the effect repeats over, as one $result binding",
+            );
+        }
+    }
+}
+
+/// `enforced` means the provider deduplicates by the key the call carries,
+/// which is what makes resending an uncertain write safe. A declared request
+/// must therefore send that key, and a write repeated per item cannot carry
+/// one key for every item.
+fn validate_enforced(manifest: &ConnectorManifest, errors: &mut Errors) {
+    for (name, operation) in &manifest.operations {
+        let enforced = operation.guarantees.provider_idempotency == ProviderIdempotency::Enforced;
+        let field = format!("operations.{name}.guarantees.provider_idempotency");
+        // A read changes nothing for its provider to deduplicate, and the
+        // kernel derives no key for it to send.
+        if operation.access() == OperationAccess::Read {
+            if enforced {
+                errors.push(
+                    &field,
+                    "a read changes nothing for its provider to deduplicate",
+                );
+            }
+            if call_templates(manifest, operation).any(Template::binds_runx) {
+                errors.push(
+                    &format!("operations.{name}"),
+                    "a read has no idempotency key: it binds no {\"$runx\": \"idempotency_key\"}",
+                );
+            }
+            continue;
+        }
+        if !enforced {
+            continue;
+        }
+        let sends_key = match &operation.implementation {
+            Some(Implementation::Http(http)) => {
+                if http.requests.iter().any(|request| request.each.is_some()) {
+                    errors.push(
+                        &field,
+                        "a write repeated per item sends one call key for every item, so its provider cannot enforce it",
+                    );
+                }
+                http.requests
+                    .iter()
+                    .flat_map(HttpRequest::templates)
+                    .any(Template::binds_runx)
+            }
+            Some(Implementation::Mcp(mcp)) => mcp.arguments.binds_runx(),
+            _ => true,
+        };
+        if !sends_key {
+            errors.push(
+                &field,
+                "enforced deduplication needs the request to send the call's key: bind {\"$runx\": \"idempotency_key\"}",
             );
         }
     }
@@ -971,6 +974,11 @@ fn validate_auth(
 ) {
     for (credential, presentation) in presentations {
         let field = format!("{field}.{credential}");
+        if let HttpAuth::Header { name, .. } = presentation
+            && !credential_header_name(name.as_str())
+        {
+            errors.push(&field, "a credential header must be a valid HTTP token and cannot control the transport or session");
+        }
         let Some(declaration) = auth.credentials.get(credential) else {
             errors.push(&field, format!("credential {credential} is not declared"));
             continue;
@@ -998,6 +1006,93 @@ fn validate_auth(
                     format!("host {host} is outside credential {credential}'s audience"),
                 );
             }
+        }
+    }
+}
+
+/// Headers that frame the message, route it or hold the connection. The
+/// transport sets them from the request and its destination, so no manifest
+/// does: not a request template, a session header or a credential.
+const TRANSPORT_HEADERS: &[&str] = &[
+    "host",
+    "connection",
+    "keep-alive",
+    "proxy-connection",
+    "te",
+    "trailer",
+    "transfer-encoding",
+    "upgrade",
+    "content-length",
+    "expect",
+];
+
+fn transport_header(name: &str) -> bool {
+    TRANSPORT_HEADERS
+        .iter()
+        .any(|reserved| name.eq_ignore_ascii_case(reserved))
+}
+
+/// Headers the MCP protocol sets on a session's requests: the session, its
+/// version and event stream, and the standard request headers (method, name
+/// and each promoted parameter). No manifest sets them.
+fn mcp_protocol_header(name: &str) -> bool {
+    const PARAMETER: &str = "mcp-param-";
+    [
+        "mcp-session-id",
+        "mcp-protocol-version",
+        "last-event-id",
+        "mcp-method",
+        "mcp-name",
+    ]
+    .iter()
+    .any(|reserved| name.eq_ignore_ascii_case(reserved))
+        || name
+            .get(..PARAMETER.len())
+            .is_some_and(|prefix| prefix.eq_ignore_ascii_case(PARAMETER))
+}
+
+fn credential_header_name(name: &str) -> bool {
+    !name.is_empty()
+        && name
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || b"!#$%&'*+-.^_`|~".contains(&byte))
+        && !transport_header(name)
+        && !mcp_protocol_header(name)
+        && ![
+            "accept",
+            "content-type",
+            "cookie",
+            "set-cookie",
+            "proxy-authorization",
+            "proxy-authenticate",
+        ]
+        .iter()
+        .any(|reserved| name.eq_ignore_ascii_case(reserved))
+}
+
+/// A template sets neither what the transport sets nor what a credential's
+/// presentation owns.
+fn validate_template_headers(
+    auth: &BTreeMap<CredentialName, HttpAuth>,
+    headers: &BTreeMap<String, Template>,
+    field: &str,
+    errors: &mut Errors,
+) {
+    for name in headers.keys() {
+        if transport_header(name) {
+            errors.push(
+                &format!("{field}.{name}"),
+                "the transport sets this header from the request and its destination",
+            );
+        }
+        if ["authorization", "proxy-authorization", "cookie"]
+            .iter()
+            .any(|reserved| name.eq_ignore_ascii_case(reserved))
+            || auth
+                .values()
+                .any(|presentation| name.eq_ignore_ascii_case(presentation.header_name()))
+        {
+            errors.push(&format!("{field}.{name}"), "authentication headers are owned by credential presentation, not request templates");
         }
     }
 }
@@ -1039,6 +1134,19 @@ fn validate_http(
 ) {
     let field = format!("{field}.implementation.http");
     let read = operation.access() == OperationAccess::Read;
+    for request in http
+        .requests
+        .iter()
+        .chain(http.preconditions.iter().map(|readback| &readback.request))
+        .chain(http.readbacks.iter().map(|readback| &readback.request))
+    {
+        validate_template_headers(
+            &http.auth,
+            &request.headers,
+            &format!("{field}.{}.headers", request.id),
+            errors,
+        );
+    }
     for host in http.allowed_hosts.iter() {
         let domain = host.as_str().strip_prefix("*.").unwrap_or(host.as_str());
         if domain.contains('*') || domain.split('.').filter(|label| !label.is_empty()).count() < 2 {

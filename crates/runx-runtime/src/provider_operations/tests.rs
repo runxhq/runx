@@ -1,4 +1,4 @@
-use std::cell::{Cell, RefCell};
+use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::path::Path;
 
@@ -12,7 +12,8 @@ use crate::http::{
 struct StubTransport {
     requests: RefCell<Vec<HttpRequest>>,
     responses: RefCell<Vec<HttpResponse>>,
-    idempotent_requests: Cell<usize>,
+    /// The URLs of the requests sent as repeatable.
+    repeatable: RefCell<Vec<String>>,
 }
 
 impl StubTransport {
@@ -20,7 +21,7 @@ impl StubTransport {
         Self {
             requests: RefCell::new(Vec::new()),
             responses: RefCell::new(responses.into_iter().rev().collect()),
-            idempotent_requests: Cell::new(0),
+            repeatable: RefCell::new(Vec::new()),
         }
     }
 }
@@ -37,14 +38,14 @@ impl Transport for StubTransport {
     }
 
     fn send_idempotent(&self, request: HttpRequest) -> Result<HttpResponse, RuntimeHttpError> {
-        self.idempotent_requests
-            .set(self.idempotent_requests.get().saturating_add(1));
+        self.repeatable.borrow_mut().push(request.url.clone());
         self.send(request)
     }
 }
 
 #[test]
-fn provider_read_uses_only_the_idempotent_transport_lane() {
+fn a_provider_read_is_sent_once_never_through_the_repeating_lane() {
+    // Its cost is not declared, so Connect is never asked to run it twice.
     let env = BTreeMap::from([("RUNX_PUBLIC_API_TOKEN".to_owned(), "rxk_test".to_owned())]);
     let transport = StubTransport::with_responses(vec![
         HttpResponse::new(
@@ -90,7 +91,11 @@ fn provider_read_uses_only_the_idempotent_transport_lane() {
     )
     .expect("provider read");
 
-    assert_eq!(transport.idempotent_requests.get(), 1);
+    // Only reading the principal may repeat.
+    assert_eq!(
+        *transport.repeatable.borrow(),
+        ["https://api.runx.test/v1/me"]
+    );
 }
 
 #[test]
@@ -146,7 +151,10 @@ fn provider_operation_authenticates_and_returns_bounded_readback() {
 
     assert_eq!(response.provider, "slack");
     assert_eq!(transport.requests.borrow().len(), 2);
-    assert_eq!(transport.idempotent_requests.get(), 0);
+    assert_eq!(
+        *transport.repeatable.borrow(),
+        ["https://api.runx.test/v1/me"]
+    );
     let request_body: JsonValue = serde_json::from_str(
         transport.requests.borrow()[1]
             .body

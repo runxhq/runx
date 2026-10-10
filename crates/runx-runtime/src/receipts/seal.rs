@@ -8,17 +8,16 @@ use crate::adapter::{
     EXECUTION_LIMITS_METADATA, InvocationOutput,
 };
 use crate::effects::effect_verification_refs;
-use crate::execution::output_projection::{StepOutputRefs, claim_refs};
 use crate::{RuntimeError, StepRun};
 use runx_contracts::fingerprint::sha256_hex;
 use runx_contracts::schema::NonEmptyString;
 use runx_contracts::{
     AuthorityAttenuation, AuthoritySubsetResult, ClosureDisposition, CredentialDeliveryObservation,
     CriterionBinding, CriterionStatus, Decision, DecisionChoice, DecisionInputs,
-    DecisionJustification, Intent, JsonObject, JsonValue, Lineage, RECEIPT_CANONICALIZATION,
-    Receipt, ReceiptAct, ReceiptAuthority, ReceiptClass, ReceiptEnforcement, ReceiptIdempotency,
+    DecisionJustification, JsonObject, JsonValue, Lineage, RECEIPT_CANONICALIZATION, Receipt,
+    ReceiptAct, ReceiptAuthority, ReceiptClass, ReceiptEnforcement, ReceiptIdempotency,
     ReceiptIssuer, ReceiptSchema, Reference, ReferenceType, Seal, SignatureAlgorithm, Subject,
-    SuccessCriterion, canonical_stable_json, json_string_field, receipt_subject_kind,
+    SuccessCriterion, canonical_stable_json, receipt_subject_kind,
 };
 use runx_receipts::{
     ReceiptProofContext, ReceiptProofContextProvider, ReceiptSignature, ReceiptTreeConfig,
@@ -45,7 +44,6 @@ pub fn step_receipt(
             scope, step_id, attempt, output, created_at,
         ),
         claim,
-        claim_refs(claim),
         RuntimeReceiptSignaturePolicy::local_development(),
     )
 }
@@ -64,7 +62,6 @@ pub fn step_receipt_with_signature_policy(
             scope, step_id, attempt, output, created_at,
         ),
         claim,
-        claim_refs(claim),
         signature_policy,
     )
 }
@@ -78,13 +75,12 @@ pub fn step_receipt_with_authority_grant_refs(
     authority_grant_refs: Vec<Reference>,
     created_at: &str,
 ) -> Result<Receipt, RuntimeError> {
-    let refs = claim_refs(claim);
     step_receipt_with_disposition_projection_authority_and_policy(StepReceiptSeal {
         params: StepReceiptWithDisposition::with_default_closure(
             scope, step_id, attempt, output, created_at,
         ),
         claim,
-        projection_refs: refs,
+        approval_refs: Vec::new(),
         child_receipts: &[],
         descendant_receipts: &[],
         authority: SealAuthority {
@@ -92,7 +88,6 @@ pub fn step_receipt_with_authority_grant_refs(
             ..SealAuthority::default()
         },
         call: None,
-        context_ref: None,
         receipt_metadata: None,
         signature_policy: RuntimeReceiptSignaturePolicy::local_development(),
     })
@@ -112,12 +107,11 @@ pub(crate) struct StepReceiptWithDisposition<'a> {
 struct StepReceiptSeal<'a> {
     params: StepReceiptWithDisposition<'a>,
     claim: &'a JsonObject,
-    projection_refs: StepOutputRefs,
+    approval_refs: Vec<Reference>,
     child_receipts: &'a [Receipt],
     descendant_receipts: &'a [Receipt],
     authority: SealAuthority,
     call: Option<SealedCall>,
-    context_ref: Option<Reference>,
     receipt_metadata: Option<JsonObject>,
     signature_policy: RuntimeReceiptSignaturePolicy<'a>,
 }
@@ -155,18 +149,16 @@ impl<'a> StepReceiptWithDisposition<'a> {
 pub(crate) fn step_receipt_with_declared_claim_and_policy(
     params: StepReceiptWithDisposition<'_>,
     claim: &JsonObject,
-    projection_refs: StepOutputRefs,
     signature_policy: RuntimeReceiptSignaturePolicy<'_>,
 ) -> Result<Receipt, RuntimeError> {
     step_receipt_with_disposition_projection_authority_and_policy(StepReceiptSeal {
         params,
         claim,
-        projection_refs,
+        approval_refs: Vec::new(),
         child_receipts: &[],
         descendant_receipts: &[],
         authority: SealAuthority::default(),
         call: None,
-        context_ref: None,
         receipt_metadata: None,
         signature_policy,
     })
@@ -178,12 +170,11 @@ fn step_receipt_with_disposition_projection_authority_and_policy(
     let StepReceiptSeal {
         params,
         claim,
-        projection_refs,
+        approval_refs,
         child_receipts,
         descendant_receipts,
         authority,
         call,
-        context_ref,
         receipt_metadata,
         signature_policy,
     } = request;
@@ -197,29 +188,32 @@ fn step_receipt_with_disposition_projection_authority_and_policy(
         reason_code,
         summary,
     } = params;
-    let output_refs = output_refs(output, projection_refs)?;
+    let evidence = step_evidence(output, approval_refs)?;
     let verification = contract_verification_criteria(&output.metadata)?;
-    let act = RuntimeAct::open(step_id, call.as_ref())
-        .with_verified_criteria(verification.criteria.clone(), verification.bindings.clone())
-        .with_context(context_ref)
-        .close(ActOutcome {
-            disposition: disposition.clone(),
-            succeeded: output.succeeded(),
-            summary: output_summary(output),
-            performed_at: created_at,
-            refs: &output_refs,
-        });
-    let seal_criterion = step_outcome_criterion(output, &output_refs);
-    let mut seal_criteria = vec![seal_criterion];
+    // Only a governed call seals an act, and only a stated decision seals a
+    // decision: a step's own outcome is its seal.
+    let act = call.as_ref().map(|call| {
+        RuntimeAct::for_call(step_id, call)
+            .with_verified_criteria(verification.criteria.clone(), verification.bindings.clone())
+            .close(ActOutcome {
+                disposition: disposition.clone(),
+                succeeded: output.succeeded(),
+                summary: output_summary(output),
+                performed_at: created_at,
+                evidence_refs: &evidence.evidence_refs,
+                verification_refs: &evidence.verification_refs,
+            })
+    });
+    let decisions = call
+        .as_ref()
+        .and_then(SealedCall::decision)
+        .zip(act.as_ref())
+        .map(|(choice, act)| decision(step_id, choice, act))
+        .into_iter()
+        .collect();
+    let mut seal_criteria = vec![step_outcome_criterion(output, &evidence)];
     seal_criteria.extend(verification.bindings);
     let seal = seal(disposition, reason_code, summary, created_at, seal_criteria);
-    let decisions = decisions(
-        step_id,
-        &act,
-        call.as_ref(),
-        &output_refs.signal_refs,
-        &output_refs.artifact_refs,
-    );
     let mut receipt = build_unsealed_receipt(BuildReceipt {
         class: ReceiptClass::Executed,
         scope,
@@ -227,10 +221,9 @@ fn step_receipt_with_disposition_projection_authority_and_policy(
         kind: receipt_subject_kind::SKILL.into(),
         created_at,
         decisions,
-        acts: vec![act],
+        acts: act.into_iter().collect(),
         seal,
         children: child_receipts.iter().map(child_receipt_reference).collect(),
-        signals: output_refs.signal_refs,
         authority,
         previous: call.as_ref().and_then(SealedCall::previous),
     });
@@ -298,13 +291,10 @@ pub(crate) struct StepSeal<'a> {
     /// The sealed contract claim (the step's declared outputs). Output
     /// identity binds to this claim, never to raw transport values.
     pub(crate) claim: &'a JsonObject,
-    pub(crate) projection_refs: StepOutputRefs,
     pub(crate) created_at: &'a str,
     pub(crate) authority: SealAuthority,
     /// The governed call the step made, for an operation step.
     pub(crate) call: Option<SealedCall>,
-    /// The operator context the run was prepared with.
-    pub(crate) context_ref: Option<Reference>,
     /// Evidence of the policy approvals that let the step run.
     pub(crate) approval_refs: Vec<Reference>,
     /// Direct child receipts for a composed step such as a nested graph. The
@@ -352,11 +342,9 @@ pub(crate) fn seal_step(
         attempt,
         output,
         claim,
-        mut projection_refs,
         created_at,
         authority,
         call,
-        context_ref,
         approval_refs,
         child_receipts,
         descendant_receipts,
@@ -368,11 +356,6 @@ pub(crate) fn seal_step(
         reason_code,
         summary,
     } = closure.unwrap_or_else(|| StepSealClosure::default_for(output, step_id));
-    for reference in approval_refs {
-        projection_refs.artifact_refs.push(reference.clone());
-        projection_refs.verification_refs.push(reference.clone());
-        projection_refs.evidence_refs.push(reference);
-    }
     step_receipt_with_disposition_projection_authority_and_policy(StepReceiptSeal {
         params: StepReceiptWithDisposition {
             scope,
@@ -385,12 +368,11 @@ pub(crate) fn seal_step(
             summary,
         },
         claim,
-        projection_refs,
+        approval_refs,
         child_receipts,
         descendant_receipts,
         authority,
         call,
-        context_ref,
         receipt_metadata,
         signature_policy,
     })
@@ -398,10 +380,7 @@ pub(crate) fn seal_step(
 
 /// The single runtime-outcome criterion a step receipt seals on, independent
 /// of whether the producer was a process, native value, approval, or graph.
-fn step_outcome_criterion(
-    output: &InvocationOutput,
-    output_refs: &StepOutputRefs,
-) -> CriterionBinding {
+fn step_outcome_criterion(output: &InvocationOutput, evidence: &StepEvidence) -> CriterionBinding {
     CriterionBinding {
         criterion_id: "step_outcome".into(),
         status: if output.succeeded() {
@@ -409,8 +388,8 @@ fn step_outcome_criterion(
         } else {
             CriterionStatus::Failed
         },
-        evidence_refs: output_refs.evidence_refs.clone(),
-        verification_refs: output_refs.verification_refs.clone(),
+        evidence_refs: evidence.evidence_refs.clone(),
+        verification_refs: evidence.verification_refs.clone(),
         summary: Some(output_summary(output).into()),
     }
 }
@@ -703,7 +682,6 @@ fn build_graph_receipt(
             Vec::new(),
         ),
         children,
-        signals: Vec::new(),
         authority: SealAuthority::default(),
         previous: None,
     });
@@ -859,7 +837,6 @@ struct BuildReceipt<'a> {
     acts: Vec<ReceiptAct>,
     seal: Seal,
     children: Vec<Reference>,
-    signals: Vec<Reference>,
     authority: SealAuthority,
     /// The receipt this one follows (`lineage.previous`): the act its call's
     /// caller says it follows.
@@ -903,7 +880,6 @@ fn build_unsealed_receipt(parts: BuildReceipt<'_>) -> UnsealedReceipt {
         acts,
         seal,
         children,
-        signals,
         authority,
         previous,
     } = parts;
@@ -923,11 +899,11 @@ fn build_unsealed_receipt(parts: BuildReceipt<'_>) -> UnsealedReceipt {
         issuer: local_runtime_issuer(),
         signature: placeholder_signature(),
         digest: "sha256:runtime-skeleton".into(),
-        idempotency: idempotency(&subject_uri, &signals),
+        idempotency: idempotency(&subject_uri),
         class,
         subject: subject(scope, subject_uri, kind),
         authority: local_authority(authority),
-        signals,
+        signals: Vec::new(),
         decisions,
         acts,
         evidence: Vec::new(),
@@ -937,48 +913,27 @@ fn build_unsealed_receipt(parts: BuildReceipt<'_>) -> UnsealedReceipt {
     })
 }
 
-/// The decision behind the act, inline in `decisions[]`: the one its call's
-/// caller states, or the planner opening the node. The `selected_act_id`
-/// integrity property is checked against the inline `acts[]` at verify time.
-fn decisions(
-    node_id: &str,
-    act: &ReceiptAct,
-    call: Option<&SealedCall>,
-    signal_refs: &[Reference],
-    artifact_refs: &[Reference],
-) -> Vec<Decision> {
-    let (choice, proposed_intent, summary) = match call.and_then(SealedCall::decision) {
-        Some(choice) => (choice, act.intent.clone(), act.summary.clone()),
-        None => (
-            DecisionChoice::Open,
-            Intent {
-                purpose: format!("Open runtime node {node_id}").into(),
-                legitimacy: "Local graph execution requested this node".into(),
-                success_criteria: Vec::new(),
-                constraints: Vec::new(),
-                derived_from: Vec::new(),
-            },
-            "runtime graph planner selected this node".into(),
-        ),
-    };
-    vec![Decision {
+/// The decision a call's caller states, inline in `decisions[]` and carried
+/// out by the call's act. The `selected_act_id` integrity property is checked
+/// against the inline `acts[]` at verify time.
+fn decision(node_id: &str, choice: DecisionChoice, act: &ReceiptAct) -> Decision {
+    Decision {
         decision_id: format!("dec_{node_id}").into(),
         choice,
         inputs: DecisionInputs {
-            signal_refs: signal_refs.to_vec(),
             target_ref: act.target_refs.first().cloned(),
             ..DecisionInputs::default()
         },
-        proposed_intent,
+        proposed_intent: act.intent.clone(),
         selected_act_id: Some(act.id.clone()),
         selected_harness_ref: None,
         justification: DecisionJustification {
-            summary,
-            evidence_refs: signal_refs.to_vec(),
+            summary: act.summary.clone(),
+            evidence_refs: Vec::new(),
         },
         closure: None,
-        artifact_refs: artifact_refs.to_vec(),
-    }]
+        artifact_refs: act.artifact_refs.clone(),
+    }
 }
 
 fn seal(
@@ -1082,47 +1037,43 @@ fn local_authority(authority: SealAuthority) -> ReceiptAuthority {
     }
 }
 
-/// What the receipt is for (its run and node), what triggered it (its signal
-/// references) and what it produced. The content hash starts as the digest
+/// What the receipt is for (its run and node), what triggered it and what it
+/// produced. No signal triggers a runtime node, so its trigger fingerprint is
+/// the digest of the empty signal list. The content hash starts as the digest
 /// of nothing and is bound to the sealed claim by the node's builder.
-fn idempotency(subject_uri: &str, signals: &[Reference]) -> ReceiptIdempotency {
+fn idempotency(subject_uri: &str) -> ReceiptIdempotency {
     let digest = |bytes: &[u8]| format!("sha256:{}", sha256_hex(bytes));
-    let signal_uris = signals
-        .iter()
-        .map(|reference| reference.uri.as_str())
-        .collect::<Vec<_>>();
     ReceiptIdempotency {
         intent_key: digest(subject_uri.as_bytes()).into(),
-        trigger_fingerprint: digest(&serde_json::to_vec(&signal_uris).unwrap_or_default()).into(),
+        trigger_fingerprint: digest(b"[]").into(),
         content_hash: digest(b"").into(),
     }
 }
 
-fn output_refs(
+/// The evidence of a step's outcome and its verification, from what admission
+/// and the runtime recorded: the approvals that let it run, and its effect
+/// and credential verification. No output field is read for a reference.
+#[derive(Default)]
+struct StepEvidence {
+    evidence_refs: Vec<Reference>,
+    verification_refs: Vec<Reference>,
+}
+
+fn step_evidence(
     output: &InvocationOutput,
-    mut refs: StepOutputRefs,
-) -> Result<StepOutputRefs, RuntimeError> {
-    if let Some(request_id) = json_string_field(&output.metadata, "agent_request_id") {
-        let reference = Reference {
-            uri: format!("runx:agent_act:{request_id}").into(),
-            reference_type: ReferenceType::Act,
-            provider: None,
-            locator: Some(request_id.to_owned().into()),
-            label: Some("agent act request".to_owned().into()),
-            observed_at: None,
-            proof_kind: None,
-        };
-        refs.source_refs.insert(0, reference.clone());
-        refs.evidence_refs.insert(0, reference);
-    }
-    collect_supervisor_metadata_refs(&output.metadata, &mut refs)?;
-    collect_credential_delivery_refs(&output.metadata, &mut refs)?;
-    Ok(refs)
+    approval_refs: Vec<Reference>,
+) -> Result<StepEvidence, RuntimeError> {
+    let mut evidence = StepEvidence::default();
+    evidence.evidence_refs.extend(approval_refs.iter().cloned());
+    evidence.verification_refs.extend(approval_refs);
+    collect_supervisor_metadata_refs(&output.metadata, &mut evidence)?;
+    collect_credential_delivery_refs(&output.metadata, &mut evidence)?;
+    Ok(evidence)
 }
 
 fn collect_supervisor_metadata_refs(
     metadata: &JsonObject,
-    refs: &mut StepOutputRefs,
+    refs: &mut StepEvidence,
 ) -> Result<(), RuntimeError> {
     let mut verification_refs =
         effect_verification_refs(metadata).map_err(|error| RuntimeError::ReceiptInvalid {
@@ -1134,7 +1085,7 @@ fn collect_supervisor_metadata_refs(
 
 fn collect_credential_delivery_refs(
     metadata: &JsonObject,
-    refs: &mut StepOutputRefs,
+    refs: &mut StepEvidence,
 ) -> Result<(), RuntimeError> {
     let Some(value) = metadata.get(CREDENTIAL_DELIVERY_OBSERVATIONS_METADATA) else {
         return Ok(());
@@ -1511,7 +1462,8 @@ mod tests {
             "2026-05-28T00:00:00Z",
         )?;
 
-        let verification_refs = &receipt.acts[0].criterion_bindings[0].verification_refs;
+        assert!(receipt.acts.is_empty());
+        let verification_refs = &receipt.seal.criteria[0].verification_refs;
         assert_eq!(verification_refs.len(), 1);
         assert_eq!(
             verification_refs[0].reference_type,
@@ -1525,16 +1477,9 @@ mod tests {
             verification_refs[0].proof_kind,
             Some(ProofKind::CredentialResolution)
         );
-        assert_eq!(
-            receipt.seal.criteria[0].verification_refs,
-            *verification_refs
-        );
 
         let sealed_digest = canonical_receipt_body_digest(&receipt)?;
         let mut without_credential_ref = receipt.clone();
-        without_credential_ref.acts[0].criterion_bindings[0]
-            .verification_refs
-            .clear();
         without_credential_ref.seal.criteria[0]
             .verification_refs
             .clear();
@@ -1544,7 +1489,7 @@ mod tests {
     }
 
     #[test]
-    fn contract_verification_is_bound_into_signed_act_and_seal() -> Result<(), TestError> {
+    fn contract_verification_is_bound_into_the_seal_and_a_calls_act() -> Result<(), TestError> {
         let mut verification = JsonObject::new();
         verification.insert(
             "output_contract_sha256".to_owned(),
@@ -1587,9 +1532,39 @@ mod tests {
             "2026-05-28T00:00:00Z",
         )?;
 
-        assert_eq!(receipt.acts[0].intent.success_criteria.len(), 4);
-        assert_eq!(receipt.acts[0].criterion_bindings.len(), 4);
+        // A step without a governed call seals its criteria in its seal alone.
+        assert!(receipt.acts.is_empty() && receipt.decisions.is_empty());
         assert_eq!(receipt.seal.criteria.len(), 4);
+        // A governed call's act carries the same criteria.
+        let call =
+            step_receipt_with_disposition_projection_authority_and_policy(StepReceiptSeal {
+                params: StepReceiptWithDisposition::with_default_closure(
+                    test_scope("agent_graph"),
+                    "call_step",
+                    1,
+                    &output,
+                    "2026-05-28T00:00:00Z",
+                ),
+                claim: &JsonObject::new(),
+                approval_refs: Vec::new(),
+                child_receipts: &[],
+                descendant_receipts: &[],
+                authority: SealAuthority::default(),
+                call: Some(SealedCall {
+                    act: None,
+                    description: "Post one message.".into(),
+                    term_id: "term_call".to_owned(),
+                    target_ref: None,
+                    effects: Vec::new(),
+                    context_ref: None,
+                }),
+                receipt_metadata: None,
+                signature_policy: RuntimeReceiptSignaturePolicy::local_development(),
+            })?;
+        assert_eq!(call.acts[0].intent.purpose.as_str(), "Post one message.");
+        assert_eq!(call.acts[0].intent.success_criteria.len(), 4);
+        assert_eq!(call.acts[0].criterion_bindings.len(), 4);
+        assert!(call.decisions.is_empty(), "an unstated decision seals none");
         assert_eq!(
             receipt.seal.criteria[1].criterion_id.as_str(),
             "output_contract_verified"
@@ -1628,6 +1603,45 @@ mod tests {
             )
             .is_err()
         );
+    }
+
+    #[test]
+    fn a_supervisors_verification_refs_are_sealed_and_stdout_claims_are_not()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let reference = Reference::runx(ReferenceType::Verification, "supervised-proof");
+        let mut metadata = JsonObject::new();
+        crate::effects::insert_effect_verification_ref(&mut metadata, reference.clone())?;
+        let output = InvocationOutput::process(
+            crate::InvocationStatus::Success,
+            r#"{"verification":{"verification_id":"stdout-verification"}}"#.to_owned(),
+            String::new(),
+            Some(0),
+            10,
+            metadata,
+        );
+
+        let receipt = step_receipt(
+            test_scope("verified"),
+            "fulfill",
+            1,
+            &output,
+            &JsonObject::new(),
+            "2026-05-18T00:00:00Z",
+        )?;
+        let verification_refs = receipt
+            .seal
+            .criteria
+            .iter()
+            .flat_map(|criterion| criterion.verification_refs.iter())
+            .collect::<Vec<_>>();
+
+        assert!(verification_refs.contains(&&reference));
+        assert!(
+            verification_refs
+                .iter()
+                .all(|reference| reference.uri != "runx:verification:stdout-verification")
+        );
+        Ok(())
     }
 
     #[test]
@@ -1761,12 +1775,11 @@ mod tests {
                     "2026-05-28T00:00:00Z",
                 ),
                 claim: &claim,
-                projection_refs: StepOutputRefs::default(),
+                approval_refs: Vec::new(),
                 child_receipts: &[],
                 descendant_receipts: &[],
                 authority: SealAuthority::default(),
                 call: None,
-                context_ref: None,
                 receipt_metadata: None,
                 signature_policy: RuntimeReceiptSignaturePolicy::local_development(),
             })?,
@@ -1835,12 +1848,11 @@ mod tests {
                     "2026-05-28T00:00:00Z",
                 ),
                 claim: &JsonObject::new(),
-                projection_refs: StepOutputRefs::default(),
+                approval_refs: Vec::new(),
                 child_receipts: std::slice::from_ref(child),
                 descendant_receipts: &[],
                 authority: SealAuthority::default(),
                 call: None,
-                context_ref: None,
                 receipt_metadata: None,
                 signature_policy: RuntimeReceiptSignaturePolicy::local_development(),
             })

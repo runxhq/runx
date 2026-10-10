@@ -1,6 +1,6 @@
 #![allow(clippy::expect_used, clippy::panic, clippy::unwrap_used)]
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
 use runx_contracts::{ApprovalGate, JsonObject, JsonValue, ResolutionRequest};
@@ -70,6 +70,7 @@ fn step(run_id: &str, step_id: &str) -> StepRun {
         skill: step_id.to_owned(),
         runner: None,
         contract: claim,
+        artifact_outputs: Default::default(),
         ephemeral_contract: Default::default(),
         outcome: output.into(),
         admission_witness: StepAdmissionWitness::local_runtime(step_id, receipt.id.as_str()),
@@ -174,6 +175,22 @@ fn a_run_replays_its_steps_suspension_and_answers() {
     assert!(record.answers[0].human);
     assert_eq!(record.answers[0].request_digest, request.digest);
     assert!(waiting_ids(&store, "run_triage_1").is_empty());
+}
+
+#[test]
+fn a_replayed_step_knows_which_of_its_outputs_are_artifacts() {
+    let (_root, store) = store();
+    let log = RunLog::open(Arc::clone(&store), "run_triage_1").unwrap();
+    start(&log, &JsonObject::new());
+    let mut read = step("run_triage_1", "read");
+    read.artifact_outputs = BTreeSet::from(["verdict".to_owned()]);
+    log.record_step(&read, &[]).unwrap();
+
+    let record = log.load().unwrap().unwrap();
+    let Some(Replayed::Step(replayed)) = record.facts.first() else {
+        panic!("the step replays");
+    };
+    assert_eq!(replayed.artifact_outputs, read.artifact_outputs);
 }
 
 #[test]

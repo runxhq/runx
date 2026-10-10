@@ -35,8 +35,9 @@ fn explicit_approval_guard_binds_its_receipt_to_the_governed_step()
         .find(|step| step.step_id == "write")
         .ok_or("missing write step")?;
     let expected_uri = format!("runx:receipt:{}", approval.receipt.id);
-    assert!(write.receipt.acts.iter().any(|act| {
-        act.artifact_refs.iter().any(|reference| {
+    // The approval is the evidence the step's outcome was allowed.
+    assert!(write.receipt.seal.criteria.iter().any(|criterion| {
+        criterion.verification_refs.iter().any(|reference| {
             reference.reference_type == ReferenceType::Receipt
                 && reference.uri.as_str() == expected_uri
                 && reference.locator.as_ref() == Some(&approval.receipt.digest)
@@ -142,8 +143,8 @@ policy:
         .find(|step| step.step_id == "child")
         .ok_or("missing child step")?;
     let expected_uri = format!("runx:receipt:{}", approval.receipt.id);
-    assert!(child_step.receipt.acts.iter().any(|act| {
-        act.artifact_refs.iter().any(|reference| {
+    assert!(child_step.receipt.seal.criteria.iter().any(|criterion| {
+        criterion.verification_refs.iter().any(|reference| {
             reference.reference_type == ReferenceType::Receipt
                 && reference.uri.as_str() == expected_uri
         })

@@ -25,7 +25,7 @@ caller:
     agent.ghostwrite-draft.output:
       content_draft:
         decision: ready
-        content_brief: { objective: Explain the strongest Runx architecture signal., audience: operators, channel: brief }
+        content_brief: { objective: Explain the strongest Runx architecture signal., audience: advanced software builders, channel: public product writing }
         draft:
           title: The workflow stays visible
           body: Receipts bind actions to authority evidence.
@@ -35,7 +35,7 @@ caller:
           applied:
             - { packet_digest: sha256:b5ab80e6d9bee911cfbed34c80f55539bc57a22a72a4cc775bc02085ab2472e9, applied_rules: [Choose operational clarity over decorative flourish.] }
         review_checklist: []
-        distribution_notes: { primary_channel: brief }
+        distribution_notes: { primary_channel: public product writing }
     agent.twitter-plan.output:
       twitter_plan:
         decision: ready

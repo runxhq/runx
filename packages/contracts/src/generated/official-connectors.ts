@@ -6,6 +6,106 @@ import type { OfficialConnector } from "../connector.js";
 export const officialConnectors: readonly OfficialConnector[] = [
   {
     "digests": {
+      "auth.inspect": {
+        "implementation": "sha256:978ba9bfe8b3672fc2b011cea11b615515934fe9ac5e06c9724319d83e706734",
+        "operation": "sha256:b0863468fae930e0da4cf3b6a39455b7068524a3220e870443fe6b0d7cf569c0"
+      }
+    },
+    "manifest": {
+      "auth": {
+        "credentials": {
+          "api_key": {
+            "audience": [
+              "api.apollo.io"
+            ],
+            "delivery": {
+              "env": "APOLLO_API_KEY"
+            },
+            "fields": [
+              {
+                "label": "Apollo API key",
+                "name": "api_key"
+              }
+            ],
+            "kind": "api_key"
+          }
+        }
+      },
+      "description": "Inspect the selected Apollo API key without enriching contacts or consuming enrichment credits.",
+      "id": "apollo",
+      "name": "Apollo",
+      "operations": {
+        "auth.inspect": {
+          "credentials": [
+            "api_key"
+          ],
+          "description": "Inspect API health and whether the exact selected key authenticates; this does not prove account identity, enrichment permissions or credits.",
+          "hosted": {},
+          "implementation": {
+            "http": {
+              "allowed_hosts": [
+                "api.apollo.io"
+              ],
+              "auth": {
+                "api_key": {
+                  "field": "api_key",
+                  "name": "x-api-key",
+                  "type": "header"
+                }
+              },
+              "decode": [
+                {
+                  "op": "auto_json"
+                }
+              ],
+              "requests": [
+                {
+                  "headers": {
+                    "accept": "application/json"
+                  },
+                  "id": "health",
+                  "method": "GET",
+                  "url": "https://api.apollo.io/api/v1/auth/health"
+                }
+              ],
+              "result_paths": {
+                "auth": "acknowledgement"
+              }
+            }
+          },
+          "input_schema": {
+            "additionalProperties": false,
+            "type": "object"
+          },
+          "result_fields": [
+            "auth"
+          ],
+          "scopes": [
+            "auth.read"
+          ],
+          "target": {
+            "template": "https://api.apollo.io/api/v1/auth/health"
+          },
+          "verb": "read"
+        }
+      },
+      "placements": {
+        "hosted": {
+          "auth": "credential",
+          "credential": "api_key"
+        },
+        "local": {
+          "auth": [
+            "credentials"
+          ]
+        }
+      },
+      "schema": "runx.connector.v1"
+    },
+    "manifest_digest": "sha256:c37275cc1c586c9667076a522588286efee9fc7fffe305cf974c323f2ad6520b"
+  },
+  {
+    "digests": {
       "ausca.browser.provision": {
         "operation": "sha256:985c943bc6a695e9c393450a81334a26838e5b67b581c1e92f4280e7e49f6c66"
       }
@@ -427,7 +527,7 @@ export const officialConnectors: readonly OfficialConnector[] = [
         "operation": "sha256:97b41666eb13ea98effbf5f4f3fa340c3c7b5e4c506da17c8dd6797ca8709f9e"
       },
       "payment.x402.merchant.settle": {
-        "operation": "sha256:6354f81f64cb853bb0af33468c80b41d3f4321c06f5f429e7a1630de7d782714"
+        "operation": "sha256:773f4aae4f213400dafa32b3dfddcc14e0859c393fdca300b9d4ebecb3474128"
       }
     },
     "manifest": {
@@ -476,12 +576,6 @@ export const officialConnectors: readonly OfficialConnector[] = [
               {
                 "label": "x402 asset address",
                 "name": "x402_asset",
-                "required": false,
-                "secret": false
-              },
-              {
-                "label": "x402 asset decimals (derived; legacy input)",
-                "name": "x402_asset_decimals",
                 "required": false,
                 "secret": false
               },
@@ -705,8 +799,7 @@ export const officialConnectors: readonly OfficialConnector[] = [
         "payment.x402.merchant.settle": {
           "description": "Verify and settle one x402 payment for a resource.",
           "guarantees": {
-            "provider_idempotency": "enforced",
-            "reconcile": "payment.x402.merchant.lookup"
+            "provider_idempotency": "enforced"
           },
           "hosted": {},
           "result_fields": [
@@ -751,7 +844,156 @@ export const officialConnectors: readonly OfficialConnector[] = [
       },
       "schema": "runx.connector.v1"
     },
-    "manifest_digest": "sha256:83b84eb998ad1c2ce5bb523fdf34b1d858816a41be0001b772e74a4e2022da81"
+    "manifest_digest": "sha256:344e284031391734e4ccb2fa88efbdf48874c165f101f899b5901c5f1ce3d38d"
+  },
+  {
+    "digests": {
+      "search.query": {
+        "implementation": "sha256:2a3a667185b824baec39705c7a1df96d709bc96b4a85f74b8ea5f10988bb67ca",
+        "operation": "sha256:7fabccbc2e72f4b1f4334a2edb2646e9e807d3b1a5d7b1bfde6d38c6e6870d20"
+      }
+    },
+    "manifest": {
+      "auth": {
+        "credentials": {
+          "api_key": {
+            "audience": [
+              "api.exa.ai"
+            ],
+            "delivery": {
+              "env": "EXA_API_KEY"
+            },
+            "fields": [
+              {
+                "label": "Exa API key",
+                "name": "api_key"
+              }
+            ],
+            "kind": "api_key"
+          }
+        }
+      },
+      "description": "Search public web sources within explicit query and result limits.",
+      "id": "exa",
+      "name": "Exa",
+      "operations": {
+        "search.query": {
+          "credentials": [
+            "api_key"
+          ],
+          "description": "Run one bounded search and return provider results, query identity and reported cost; does not fetch full pages.",
+          "implementation": {
+            "http": {
+              "allowed_hosts": [
+                "api.exa.ai"
+              ],
+              "auth": {
+                "api_key": {
+                  "field": "api_key",
+                  "type": "bearer"
+                }
+              },
+              "decode": [
+                {
+                  "op": "auto_json"
+                }
+              ],
+              "requests": [
+                {
+                  "body": {
+                    "endPublishedDate": {
+                      "$argument": "/end_published_at"
+                    },
+                    "includeDomains": {
+                      "$argument": "/include_domains"
+                    },
+                    "numResults": {
+                      "$argument": "/limit"
+                    },
+                    "query": {
+                      "$argument": "/query"
+                    },
+                    "startPublishedDate": {
+                      "$argument": "/start_published_at"
+                    },
+                    "type": "auto"
+                  },
+                  "headers": {
+                    "accept": "application/json"
+                  },
+                  "id": "request",
+                  "method": "POST",
+                  "url": "https://api.exa.ai/search"
+                }
+              ],
+              "result_paths": {
+                "search": "acknowledgement"
+              }
+            }
+          },
+          "input_schema": {
+            "additionalProperties": false,
+            "properties": {
+              "end_published_at": {
+                "format": "date-time",
+                "type": "string"
+              },
+              "include_domains": {
+                "items": {
+                  "maxLength": 253,
+                  "minLength": 1,
+                  "pattern": "^[a-zA-Z0-9.-]+$",
+                  "type": "string"
+                },
+                "maxItems": 20,
+                "minItems": 1,
+                "type": "array",
+                "uniqueItems": true
+              },
+              "limit": {
+                "maximum": 20,
+                "minimum": 1,
+                "type": "integer"
+              },
+              "query": {
+                "maxLength": 2000,
+                "minLength": 1,
+                "pattern": "\\S",
+                "type": "string"
+              },
+              "start_published_at": {
+                "format": "date-time",
+                "type": "string"
+              }
+            },
+            "required": [
+              "query",
+              "limit"
+            ],
+            "type": "object"
+          },
+          "result_fields": [
+            "search"
+          ],
+          "scopes": [
+            "search.read"
+          ],
+          "target": {
+            "template": "https://api.exa.ai/search"
+          },
+          "verb": "read"
+        }
+      },
+      "placements": {
+        "local": {
+          "auth": [
+            "credentials"
+          ]
+        }
+      },
+      "schema": "runx.connector.v1"
+    },
+    "manifest_digest": "sha256:5999f455a775d2371418614cc90c7d9f94274c96bfc12bcca7d7ffe53fc14805"
   },
   {
     "digests": {
@@ -764,6 +1006,10 @@ export const officialConnectors: readonly OfficialConnector[] = [
       "branch.push": {
         "implementation": "sha256:fc0791c52c90a99eb8a7523401cec6fa6274414ed1fbbd2b234f5ba6840142f1",
         "operation": "sha256:c57877b6416ffd2e764ef2ab25d4b3d81faf392a99c1add6cec85ba830e88283"
+      },
+      "checks.list": {
+        "implementation": "sha256:1f5871efd0c1fe530d3d29cfe2c5168f84a70b282686be64bb8a279f568840dc",
+        "operation": "sha256:98b0e7f242e63c52dcc455ba9f7131396fe566bb2700a16079590070f579e778"
       },
       "comment.read": {
         "implementation": "sha256:0e5daea0078025122bf72a903e8a68e95eafb4f9ea192b1fbaf51df0953bfd01",
@@ -780,6 +1026,10 @@ export const officialConnectors: readonly OfficialConnector[] = [
       "comments.update": {
         "implementation": "sha256:69ae25b7dabe7fb3514df45b71004b491d30d97b7abd9d0cebea0823cb2ad4ba",
         "operation": "sha256:b359155d5c0523a1ddbcc365fa02bb975eb25d25a576b29202cbe10116fb91b3"
+      },
+      "commits.compare": {
+        "implementation": "sha256:80d5d1258266466c92becc781f2a5d4a34545f429e060d2384bd6ebd508ee1ec",
+        "operation": "sha256:4d210390dc11d849d70cab412a6dbd5ca933de765a7af554680fccdfaf66b21f"
       },
       "issue.read": {
         "implementation": "sha256:64d3faa95f6fcbb19fc1d04f0f04b174e0b906efc243744e813fa25dcb81186e",
@@ -1022,6 +1272,108 @@ export const officialConnectors: readonly OfficialConnector[] = [
             }
           },
           "verb": "write"
+        },
+        "checks.list": {
+          "credentials": [
+            "token"
+          ],
+          "description": "Read one bounded page of latest check runs for an exact commit SHA; check runs do not include legacy commit statuses.",
+          "implementation": {
+            "http": {
+              "allowed_hosts": [
+                "api.github.com"
+              ],
+              "auth": {
+                "token": {
+                  "field": "token",
+                  "type": "bearer"
+                }
+              },
+              "decode": [
+                {
+                  "op": "auto_json"
+                }
+              ],
+              "requests": [
+                {
+                  "headers": {
+                    "X-GitHub-Api-Version": "2026-03-10",
+                    "accept": "application/vnd.github+json"
+                  },
+                  "id": "request",
+                  "method": "GET",
+                  "query": {
+                    "filter": "latest",
+                    "page": {
+                      "$argument": "/page"
+                    },
+                    "per_page": {
+                      "$argument": "/per_page"
+                    }
+                  },
+                  "url": {
+                    "$concat": [
+                      "https://api.github.com/repos/",
+                      {
+                        "$argument": "/repository"
+                      },
+                      "/commits/",
+                      {
+                        "$argument": "/commit"
+                      },
+                      "/check-runs"
+                    ]
+                  }
+                }
+              ],
+              "result_paths": {
+                "checks": "acknowledgement"
+              }
+            }
+          },
+          "input_schema": {
+            "additionalProperties": false,
+            "properties": {
+              "commit": {
+                "pattern": "^[0-9a-f]{40}$",
+                "type": "string"
+              },
+              "page": {
+                "maximum": 10000,
+                "minimum": 1,
+                "type": "integer"
+              },
+              "per_page": {
+                "maximum": 100,
+                "minimum": 1,
+                "type": "integer"
+              },
+              "repository": {
+                "maxLength": 201,
+                "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "repository",
+              "commit",
+              "per_page",
+              "page"
+            ],
+            "type": "object"
+          },
+          "result_fields": [
+            "checks"
+          ],
+          "scopes": [
+            "repo.read"
+          ],
+          "target": {
+            "template": {
+              "$argument": "/repository"
+            }
+          },
+          "verb": "read"
         },
         "comment.read": {
           "credentials": [
@@ -1555,6 +1907,99 @@ export const officialConnectors: readonly OfficialConnector[] = [
             }
           },
           "verb": "write"
+        },
+        "commits.compare": {
+          "credentials": [
+            "token"
+          ],
+          "description": "Read the three-dot comparison of exact base and head commits; files are returned only on the first page and capped by GitHub at 300.",
+          "implementation": {
+            "http": {
+              "allowed_hosts": [
+                "api.github.com"
+              ],
+              "auth": {
+                "token": {
+                  "field": "token",
+                  "type": "bearer"
+                }
+              },
+              "decode": [
+                {
+                  "op": "auto_json"
+                }
+              ],
+              "requests": [
+                {
+                  "headers": {
+                    "X-GitHub-Api-Version": "2026-03-10",
+                    "accept": "application/vnd.github+json"
+                  },
+                  "id": "request",
+                  "method": "GET",
+                  "query": {
+                    "page": 1,
+                    "per_page": 1
+                  },
+                  "url": {
+                    "$concat": [
+                      "https://api.github.com/repos/",
+                      {
+                        "$argument": "/repository"
+                      },
+                      "/compare/",
+                      {
+                        "$argument": "/base"
+                      },
+                      "...",
+                      {
+                        "$argument": "/head"
+                      }
+                    ]
+                  }
+                }
+              ],
+              "result_paths": {
+                "comparison": "acknowledgement"
+              }
+            }
+          },
+          "input_schema": {
+            "additionalProperties": false,
+            "properties": {
+              "base": {
+                "pattern": "^[0-9a-f]{40}$",
+                "type": "string"
+              },
+              "head": {
+                "pattern": "^[0-9a-f]{40}$",
+                "type": "string"
+              },
+              "repository": {
+                "maxLength": 201,
+                "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "repository",
+              "base",
+              "head"
+            ],
+            "type": "object"
+          },
+          "result_fields": [
+            "comparison"
+          ],
+          "scopes": [
+            "repo.read"
+          ],
+          "target": {
+            "template": {
+              "$argument": "/repository"
+            }
+          },
+          "verb": "read"
         },
         "issue.read": {
           "credentials": [
@@ -3124,7 +3569,7 @@ export const officialConnectors: readonly OfficialConnector[] = [
       ],
       "schema": "runx.connector.v1"
     },
-    "manifest_digest": "sha256:6ba06ff55bcd119759da9ccbf31d7429f4f78897389da11b34e43d031ecbe4e8"
+    "manifest_digest": "sha256:0b0ee1dc0a4a79bcd9ab0115f467cae1aeb93bd970f6a3606ae541c0dbc78b20"
   },
   {
     "digests": {
@@ -3541,6 +3986,611 @@ export const officialConnectors: readonly OfficialConnector[] = [
       "schema": "runx.connector.v1"
     },
     "manifest_digest": "sha256:f38a45b76adca04684c03ddb694368978048df1250815fbfe0533ae049325761"
+  },
+  {
+    "digests": {
+      "spreadsheet.read": {
+        "implementation": "sha256:1cd665478e5bdc84a19827222111074515105cbd2641baf2c0ffd9a0dc50f57c",
+        "operation": "sha256:72362bddf5be03ef3fc3c8d3d03841fa3ed5d051f2ee24c769eb01a38b981251"
+      },
+      "values.read": {
+        "implementation": "sha256:a648ba59e353da9198ce8cf90e66299f2060f2c494ad81ff89e6ffa7ffc8cd10",
+        "operation": "sha256:ec2edb3e792d81d27cb6691ae0ddb4007d3d5deac7fe20ed9d82bba953abe807"
+      }
+    },
+    "manifest": {
+      "auth": {
+        "credentials": {
+          "access_token": {
+            "audience": [
+              "sheets.googleapis.com"
+            ],
+            "delivery": {
+              "env": "GOOGLE_SHEETS_ACCESS_TOKEN"
+            },
+            "fields": [
+              {
+                "label": "Google OAuth access token with Sheets read access",
+                "name": "access_token"
+              }
+            ],
+            "kind": "oauth2"
+          }
+        }
+      },
+      "description": "Read selected spreadsheet metadata and one explicitly bounded cell range.",
+      "id": "google-sheets",
+      "name": "Google Sheets",
+      "operations": {
+        "spreadsheet.read": {
+          "credentials": [
+            "access_token"
+          ],
+          "description": "Read spreadsheet and sheet properties without cell data; file discovery remains a Drive operation.",
+          "implementation": {
+            "http": {
+              "allowed_hosts": [
+                "sheets.googleapis.com"
+              ],
+              "auth": {
+                "access_token": {
+                  "field": "access_token",
+                  "type": "bearer"
+                }
+              },
+              "decode": [
+                {
+                  "op": "auto_json"
+                }
+              ],
+              "requests": [
+                {
+                  "headers": {
+                    "accept": "application/json"
+                  },
+                  "id": "request",
+                  "method": "GET",
+                  "query": {
+                    "fields": "spreadsheetId,spreadsheetUrl,properties,sheets.properties",
+                    "includeGridData": false
+                  },
+                  "url": {
+                    "$concat": [
+                      "https://sheets.googleapis.com/v4/spreadsheets/",
+                      {
+                        "$argument": "/spreadsheet_id"
+                      }
+                    ]
+                  }
+                }
+              ],
+              "result_paths": {
+                "spreadsheet": "acknowledgement"
+              }
+            }
+          },
+          "input_schema": {
+            "additionalProperties": false,
+            "properties": {
+              "spreadsheet_id": {
+                "maxLength": 128,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9_-]+$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "spreadsheet_id"
+            ],
+            "type": "object"
+          },
+          "result_fields": [
+            "spreadsheet"
+          ],
+          "scopes": [
+            "spreadsheets.read"
+          ],
+          "target": {
+            "template": {
+              "$concat": [
+                "https://sheets.googleapis.com/v4/spreadsheets/",
+                {
+                  "$argument": "/spreadsheet_id"
+                }
+              ]
+            }
+          },
+          "verb": "read"
+        },
+        "values.read": {
+          "credentials": [
+            "access_token"
+          ],
+          "description": "Read one finite A1 rectangle in columns A-Z and rows 1-1000, using an explicit value rendering mode.",
+          "implementation": {
+            "http": {
+              "allowed_hosts": [
+                "sheets.googleapis.com"
+              ],
+              "auth": {
+                "access_token": {
+                  "field": "access_token",
+                  "type": "bearer"
+                }
+              },
+              "decode": [
+                {
+                  "op": "auto_json"
+                }
+              ],
+              "requests": [
+                {
+                  "headers": {
+                    "accept": "application/json"
+                  },
+                  "id": "request",
+                  "method": "GET",
+                  "query": {
+                    "dateTimeRenderOption": "SERIAL_NUMBER",
+                    "majorDimension": "ROWS",
+                    "ranges": {
+                      "$argument": "/range"
+                    },
+                    "valueRenderOption": {
+                      "$argument": "/value_render_option"
+                    }
+                  },
+                  "url": {
+                    "$concat": [
+                      "https://sheets.googleapis.com/v4/spreadsheets/",
+                      {
+                        "$argument": "/spreadsheet_id"
+                      },
+                      "/values:batchGet"
+                    ]
+                  }
+                }
+              ],
+              "result_paths": {
+                "values": "acknowledgement"
+              }
+            }
+          },
+          "input_schema": {
+            "additionalProperties": false,
+            "properties": {
+              "range": {
+                "maxLength": 512,
+                "minLength": 1,
+                "pattern": "^(?:[A-Za-z_][A-Za-z0-9_ ]*|'(?:[^'\\r\\n]|'')+')![A-Z](?:[1-9][0-9]{0,2}|1000):[A-Z](?:[1-9][0-9]{0,2}|1000)$",
+                "type": "string"
+              },
+              "spreadsheet_id": {
+                "maxLength": 128,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9_-]+$",
+                "type": "string"
+              },
+              "value_render_option": {
+                "enum": [
+                  "FORMATTED_VALUE",
+                  "UNFORMATTED_VALUE",
+                  "FORMULA"
+                ]
+              }
+            },
+            "required": [
+              "spreadsheet_id",
+              "range",
+              "value_render_option"
+            ],
+            "type": "object"
+          },
+          "result_fields": [
+            "values"
+          ],
+          "scopes": [
+            "spreadsheets.read"
+          ],
+          "target": {
+            "template": {
+              "$concat": [
+                "https://sheets.googleapis.com/v4/spreadsheets/",
+                {
+                  "$argument": "/spreadsheet_id"
+                }
+              ]
+            }
+          },
+          "verb": "read"
+        }
+      },
+      "placements": {
+        "local": {
+          "auth": [
+            "credentials"
+          ]
+        }
+      },
+      "schema": "runx.connector.v1"
+    },
+    "manifest_digest": "sha256:7d69da74b845f28c9fdc4f811c12f38e97cc390d4563191b271d2d42ea287160"
+  },
+  {
+    "digests": {
+      "comments.list": {
+        "implementation": "sha256:adb30e2389e193ce02a1add948a452da1f992c823c4386c501d2e83fea61b700",
+        "operation": "sha256:547cc99b8110ad8d67b344ba96e9908555a5699b70ebef920679215b243dda93"
+      },
+      "issue.read": {
+        "implementation": "sha256:813a0a0779cdf2a36af6eec69c0b25477966951ade6c9328cfba7d0f02c157b2",
+        "operation": "sha256:3a86d3eb2aca2d410e2317f3e2612604937b7c6fd81286cb78d75d2bf800de92"
+      },
+      "issues.list": {
+        "implementation": "sha256:c77fb0de3a810331757cb07fac53b5ace3413ba641339d7fb9d402d3f2601e81",
+        "operation": "sha256:9be510caaf272928228fb135f9950c08d00e192f1958a92952b5566ec44fced7"
+      }
+    },
+    "manifest": {
+      "auth": {
+        "credentials": {
+          "access_token": {
+            "audience": [
+              "api.linear.app"
+            ],
+            "delivery": {
+              "env": "LINEAR_ACCESS_TOKEN"
+            },
+            "fields": [
+              {
+                "label": "Linear OAuth access token with read scope",
+                "name": "access_token"
+              }
+            ],
+            "kind": "oauth2"
+          },
+          "api_key": {
+            "audience": [
+              "api.linear.app"
+            ],
+            "delivery": {
+              "env": "LINEAR_API_KEY"
+            },
+            "fields": [
+              {
+                "label": "Linear personal API key",
+                "name": "api_key"
+              }
+            ],
+            "kind": "api_key"
+          }
+        }
+      },
+      "description": "Read bounded team issues, selected issue context and comments through fixed GraphQL queries.",
+      "id": "linear",
+      "name": "Linear",
+      "operations": {
+        "comments.list": {
+          "credentials": [
+            "access_token",
+            "api_key"
+          ],
+          "description": "Read one bounded page of comments on the exact selected issue; preserve null bot authors and continuation metadata.",
+          "hosted": {},
+          "implementation": {
+            "http": {
+              "allowed_hosts": [
+                "api.linear.app"
+              ],
+              "auth": {
+                "access_token": {
+                  "field": "access_token",
+                  "type": "bearer"
+                },
+                "api_key": {
+                  "field": "api_key",
+                  "name": "authorization",
+                  "type": "header"
+                }
+              },
+              "decode": [
+                {
+                  "op": "auto_json"
+                },
+                {
+                  "op": "reject_present",
+                  "path": "/errors"
+                },
+                {
+                  "op": "field",
+                  "path": "/data"
+                }
+              ],
+              "requests": [
+                {
+                  "body": {
+                    "query": "query IssueComments($id: String!, $first: Int!, $after: String) {\n  issue(id: $id) {\n    id identifier\n    comments(first: $first, after: $after) {\n      nodes { id body createdAt updatedAt user { id name } }\n      pageInfo { hasNextPage endCursor }\n    }\n  }\n}",
+                    "variables": {
+                      "after": {
+                        "$argument": "/after"
+                      },
+                      "first": {
+                        "$argument": "/limit"
+                      },
+                      "id": {
+                        "$argument": "/issue_id"
+                      }
+                    }
+                  },
+                  "headers": {
+                    "accept": "application/json"
+                  },
+                  "id": "request",
+                  "method": "POST",
+                  "url": "https://api.linear.app/graphql"
+                }
+              ],
+              "result_paths": {
+                "comments": "acknowledgement"
+              }
+            }
+          },
+          "input_schema": {
+            "additionalProperties": false,
+            "properties": {
+              "after": {
+                "maxLength": 4096,
+                "minLength": 1,
+                "type": "string"
+              },
+              "issue_id": {
+                "pattern": "^(?:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}|[A-Z][A-Z0-9]{0,20}-[1-9][0-9]{0,12})$",
+                "type": "string"
+              },
+              "limit": {
+                "maximum": 100,
+                "minimum": 1,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "issue_id",
+              "limit"
+            ],
+            "type": "object"
+          },
+          "result_fields": [
+            "comments"
+          ],
+          "scopes": [
+            "read"
+          ],
+          "target": {
+            "template": {
+              "$concat": [
+                "https://api.linear.app/issue/",
+                {
+                  "$argument": "/issue_id"
+                },
+                "/comments"
+              ]
+            }
+          },
+          "verb": "read"
+        },
+        "issue.read": {
+          "credentials": [
+            "access_token",
+            "api_key"
+          ],
+          "description": "Read one exact issue's current description, workflow state and project; not a comments or activity-history read.",
+          "hosted": {},
+          "implementation": {
+            "http": {
+              "allowed_hosts": [
+                "api.linear.app"
+              ],
+              "auth": {
+                "access_token": {
+                  "field": "access_token",
+                  "type": "bearer"
+                },
+                "api_key": {
+                  "field": "api_key",
+                  "name": "authorization",
+                  "type": "header"
+                }
+              },
+              "decode": [
+                {
+                  "op": "auto_json"
+                },
+                {
+                  "op": "reject_present",
+                  "path": "/errors"
+                },
+                {
+                  "op": "field",
+                  "path": "/data"
+                }
+              ],
+              "requests": [
+                {
+                  "body": {
+                    "query": "query IssueContext($id: String!) {\n  issue(id: $id) {\n    id identifier title description url priority createdAt updatedAt archivedAt\n    team { id name } state { id name type } assignee { id name }\n    project { id name }\n  }\n}",
+                    "variables": {
+                      "id": {
+                        "$argument": "/issue_id"
+                      }
+                    }
+                  },
+                  "headers": {
+                    "accept": "application/json"
+                  },
+                  "id": "request",
+                  "method": "POST",
+                  "url": "https://api.linear.app/graphql"
+                }
+              ],
+              "result_paths": {
+                "issue": "acknowledgement"
+              }
+            }
+          },
+          "input_schema": {
+            "additionalProperties": false,
+            "properties": {
+              "issue_id": {
+                "pattern": "^(?:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}|[A-Z][A-Z0-9]{0,20}-[1-9][0-9]{0,12})$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "issue_id"
+            ],
+            "type": "object"
+          },
+          "result_fields": [
+            "issue"
+          ],
+          "scopes": [
+            "read"
+          ],
+          "target": {
+            "template": {
+              "$concat": [
+                "https://api.linear.app/issue/",
+                {
+                  "$argument": "/issue_id"
+                }
+              ]
+            }
+          },
+          "verb": "read"
+        },
+        "issues.list": {
+          "credentials": [
+            "access_token",
+            "api_key"
+          ],
+          "description": "Read one bounded page of issues from the exact selected team; preserves provider continuation metadata.",
+          "hosted": {},
+          "implementation": {
+            "http": {
+              "allowed_hosts": [
+                "api.linear.app"
+              ],
+              "auth": {
+                "access_token": {
+                  "field": "access_token",
+                  "type": "bearer"
+                },
+                "api_key": {
+                  "field": "api_key",
+                  "name": "authorization",
+                  "type": "header"
+                }
+              },
+              "decode": [
+                {
+                  "op": "auto_json"
+                },
+                {
+                  "op": "reject_present",
+                  "path": "/errors"
+                },
+                {
+                  "op": "field",
+                  "path": "/data"
+                }
+              ],
+              "requests": [
+                {
+                  "body": {
+                    "query": "query TeamIssues($team: String!, $first: Int!, $after: String) {\n  team(id: $team) {\n    id name\n    issues(first: $first, after: $after) {\n      nodes { id identifier title description url createdAt updatedAt archivedAt\n        state { id name type } assignee { id name } project { id name } }\n      pageInfo { hasNextPage endCursor }\n    }\n  }\n}",
+                    "variables": {
+                      "after": {
+                        "$argument": "/after"
+                      },
+                      "first": {
+                        "$argument": "/limit"
+                      },
+                      "team": {
+                        "$argument": "/team_id"
+                      }
+                    }
+                  },
+                  "headers": {
+                    "accept": "application/json"
+                  },
+                  "id": "request",
+                  "method": "POST",
+                  "url": "https://api.linear.app/graphql"
+                }
+              ],
+              "result_paths": {
+                "issues": "acknowledgement"
+              }
+            }
+          },
+          "input_schema": {
+            "additionalProperties": false,
+            "properties": {
+              "after": {
+                "maxLength": 4096,
+                "minLength": 1,
+                "type": "string"
+              },
+              "limit": {
+                "maximum": 100,
+                "minimum": 1,
+                "type": "integer"
+              },
+              "team_id": {
+                "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "team_id",
+              "limit"
+            ],
+            "type": "object"
+          },
+          "result_fields": [
+            "issues"
+          ],
+          "scopes": [
+            "read"
+          ],
+          "target": {
+            "template": {
+              "$concat": [
+                "https://api.linear.app/team/",
+                {
+                  "$argument": "/team_id"
+                },
+                "/issues"
+              ]
+            }
+          },
+          "verb": "read"
+        }
+      },
+      "placements": {
+        "hosted": {
+          "auth": "credential",
+          "credential": "api_key"
+        },
+        "local": {
+          "auth": [
+            "credentials"
+          ]
+        }
+      },
+      "schema": "runx.connector.v1"
+    },
+    "manifest_digest": "sha256:e1a0eeee55967d01e36d3aee8cd5e0f363186d461d1388e45f5dbdd2d5c11fc7"
   },
   {
     "digests": {
@@ -7130,6 +8180,409 @@ export const officialConnectors: readonly OfficialConnector[] = [
   },
   {
     "digests": {
+      "blocks.list": {
+        "implementation": "sha256:2ceef682c72426134f7073092ea60ffc990e3586ec2340abf877bc9db1776c8a",
+        "operation": "sha256:588526294a36c6ca24af9e1068acafd489d679123075efcc46708e0dc8eba285"
+      },
+      "datasource.read": {
+        "implementation": "sha256:0efa9c4c6e8cb3388c1a1abf6d8d20c5affc6514dde3e9da5a6047ba8f3289ed",
+        "operation": "sha256:af359f3af807d4723b552c4df7b2c0161cf76ded865f51a7eedc9422b89b8e69"
+      },
+      "page.read": {
+        "implementation": "sha256:64a4319ae3023b553a9878ae54d7ebcbf6e0468cafa72086640c6474001dadd9",
+        "operation": "sha256:c383b9943e54692c7d67e718d61b279eeea40847b6f567a1044292ddebcc12a9"
+      },
+      "resources.search": {
+        "implementation": "sha256:00411ef8bba8f1ef7a9d297e52cf568573838183989ffb1e2760e529db6e76a9",
+        "operation": "sha256:ba158d2b04c0c39f13e80971cc9a7539a61b06ee2c8294bf97db0ddcc2daa0c3"
+      }
+    },
+    "manifest": {
+      "auth": {
+        "credentials": {
+          "access_token": {
+            "audience": [
+              "api.notion.com"
+            ],
+            "delivery": {
+              "env": "NOTION_ACCESS_TOKEN"
+            },
+            "fields": [
+              {
+                "label": "Notion integration token with read content capability",
+                "name": "access_token"
+              }
+            ],
+            "kind": "api_key"
+          }
+        }
+      },
+      "description": "Search authorized Notion titles and read selected page, data-source and block evidence.",
+      "id": "notion",
+      "name": "Notion",
+      "operations": {
+        "blocks.list": {
+          "credentials": [
+            "access_token"
+          ],
+          "description": "Read one bounded page of immediate child blocks, preserving has_more and next_cursor; does not recursively traverse children.",
+          "implementation": {
+            "http": {
+              "allowed_hosts": [
+                "api.notion.com"
+              ],
+              "auth": {
+                "access_token": {
+                  "field": "access_token",
+                  "type": "bearer"
+                }
+              },
+              "decode": [
+                {
+                  "op": "auto_json"
+                }
+              ],
+              "requests": [
+                {
+                  "headers": {
+                    "Notion-Version": "2026-03-11",
+                    "accept": "application/json"
+                  },
+                  "id": "request",
+                  "method": "GET",
+                  "query": {
+                    "page_size": {
+                      "$argument": "/page_size"
+                    },
+                    "start_cursor": {
+                      "$argument": "/start_cursor"
+                    }
+                  },
+                  "url": {
+                    "$concat": [
+                      "https://api.notion.com/v1/blocks/",
+                      {
+                        "$argument": "/block_id"
+                      },
+                      "/children"
+                    ]
+                  }
+                }
+              ],
+              "result_paths": {
+                "blocks": "acknowledgement"
+              }
+            }
+          },
+          "input_schema": {
+            "additionalProperties": false,
+            "properties": {
+              "block_id": {
+                "pattern": "^(?:[0-9a-fA-F]{32}|[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$",
+                "type": "string"
+              },
+              "page_size": {
+                "maximum": 100,
+                "minimum": 1,
+                "type": "integer"
+              },
+              "start_cursor": {
+                "maxLength": 4096,
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "block_id",
+              "page_size"
+            ],
+            "type": "object"
+          },
+          "result_fields": [
+            "blocks"
+          ],
+          "scopes": [
+            "content.read"
+          ],
+          "target": {
+            "template": {
+              "$concat": [
+                "https://api.notion.com/v1/blocks/",
+                {
+                  "$argument": "/block_id"
+                },
+                "/children"
+              ]
+            }
+          },
+          "verb": "read"
+        },
+        "datasource.read": {
+          "credentials": [
+            "access_token"
+          ],
+          "description": "Read one authorized data-source schema and properties; does not query its rows.",
+          "implementation": {
+            "http": {
+              "allowed_hosts": [
+                "api.notion.com"
+              ],
+              "auth": {
+                "access_token": {
+                  "field": "access_token",
+                  "type": "bearer"
+                }
+              },
+              "decode": [
+                {
+                  "op": "auto_json"
+                }
+              ],
+              "requests": [
+                {
+                  "headers": {
+                    "Notion-Version": "2026-03-11",
+                    "accept": "application/json"
+                  },
+                  "id": "request",
+                  "method": "GET",
+                  "url": {
+                    "$concat": [
+                      "https://api.notion.com/v1/data_sources/",
+                      {
+                        "$argument": "/data_source_id"
+                      }
+                    ]
+                  }
+                }
+              ],
+              "result_paths": {
+                "data_source": "acknowledgement"
+              }
+            }
+          },
+          "input_schema": {
+            "additionalProperties": false,
+            "properties": {
+              "data_source_id": {
+                "pattern": "^(?:[0-9a-fA-F]{32}|[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "data_source_id"
+            ],
+            "type": "object"
+          },
+          "result_fields": [
+            "data_source"
+          ],
+          "scopes": [
+            "content.read"
+          ],
+          "target": {
+            "template": {
+              "$concat": [
+                "https://api.notion.com/v1/data_sources/",
+                {
+                  "$argument": "/data_source_id"
+                }
+              ]
+            }
+          },
+          "verb": "read"
+        },
+        "page.read": {
+          "credentials": [
+            "access_token"
+          ],
+          "description": "Read one page's metadata and properties; page body requires separately bounded block reads.",
+          "implementation": {
+            "http": {
+              "allowed_hosts": [
+                "api.notion.com"
+              ],
+              "auth": {
+                "access_token": {
+                  "field": "access_token",
+                  "type": "bearer"
+                }
+              },
+              "decode": [
+                {
+                  "op": "auto_json"
+                }
+              ],
+              "requests": [
+                {
+                  "headers": {
+                    "Notion-Version": "2026-03-11",
+                    "accept": "application/json"
+                  },
+                  "id": "request",
+                  "method": "GET",
+                  "url": {
+                    "$concat": [
+                      "https://api.notion.com/v1/pages/",
+                      {
+                        "$argument": "/page_id"
+                      }
+                    ]
+                  }
+                }
+              ],
+              "result_paths": {
+                "page": "acknowledgement"
+              }
+            }
+          },
+          "input_schema": {
+            "additionalProperties": false,
+            "properties": {
+              "page_id": {
+                "pattern": "^(?:[0-9a-fA-F]{32}|[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "page_id"
+            ],
+            "type": "object"
+          },
+          "result_fields": [
+            "page"
+          ],
+          "scopes": [
+            "content.read"
+          ],
+          "target": {
+            "template": {
+              "$concat": [
+                "https://api.notion.com/v1/pages/",
+                {
+                  "$argument": "/page_id"
+                }
+              ]
+            }
+          },
+          "verb": "read"
+        },
+        "resources.search": {
+          "credentials": [
+            "access_token"
+          ],
+          "description": "Read one bounded page of authorized title matches; not full-text search or a workspace inventory.",
+          "implementation": {
+            "http": {
+              "allowed_hosts": [
+                "api.notion.com"
+              ],
+              "auth": {
+                "access_token": {
+                  "field": "access_token",
+                  "type": "bearer"
+                }
+              },
+              "decode": [
+                {
+                  "op": "auto_json"
+                }
+              ],
+              "requests": [
+                {
+                  "body": {
+                    "filter": {
+                      "property": "object",
+                      "value": {
+                        "$argument": "/object"
+                      }
+                    },
+                    "page_size": {
+                      "$argument": "/page_size"
+                    },
+                    "query": {
+                      "$argument": "/query"
+                    },
+                    "sort": {
+                      "direction": "descending",
+                      "timestamp": "last_edited_time"
+                    },
+                    "start_cursor": {
+                      "$argument": "/start_cursor"
+                    }
+                  },
+                  "headers": {
+                    "Notion-Version": "2026-03-11",
+                    "accept": "application/json"
+                  },
+                  "id": "request",
+                  "method": "POST",
+                  "url": "https://api.notion.com/v1/search"
+                }
+              ],
+              "result_paths": {
+                "resources": "acknowledgement"
+              }
+            }
+          },
+          "input_schema": {
+            "additionalProperties": false,
+            "properties": {
+              "object": {
+                "enum": [
+                  "page",
+                  "data_source"
+                ]
+              },
+              "page_size": {
+                "maximum": 100,
+                "minimum": 1,
+                "type": "integer"
+              },
+              "query": {
+                "maxLength": 1000,
+                "minLength": 1,
+                "pattern": "\\S",
+                "type": "string"
+              },
+              "start_cursor": {
+                "maxLength": 4096,
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "query",
+              "object",
+              "page_size"
+            ],
+            "type": "object"
+          },
+          "result_fields": [
+            "resources"
+          ],
+          "scopes": [
+            "content.read"
+          ],
+          "target": {
+            "template": "https://api.notion.com/v1/search"
+          },
+          "verb": "read"
+        }
+      },
+      "placements": {
+        "local": {
+          "auth": [
+            "credentials"
+          ]
+        }
+      },
+      "schema": "runx.connector.v1"
+    },
+    "manifest_digest": "sha256:ad06fe3f416ac5e2a817a5030f1343dbfb9e4c84c3b19448aea2957b6afbc723"
+  },
+  {
+    "digests": {
       "air_quality.read": {
         "implementation": "sha256:04336b2f676238df968090c2ce321dca30c5f02f09d8ee067cefc41c09f733ea",
         "operation": "sha256:1d248e0c9858d5dd71ba54868ccfc15496154dd698dd684a6f9cdd69dbd59044"
@@ -7563,6 +9016,266 @@ export const officialConnectors: readonly OfficialConnector[] = [
       "schema": "runx.connector.v1"
     },
     "manifest_digest": "sha256:3317b4bd791b6a644c5f9e98077d9158d810bd1f7a7eeeef466f4a529087d875"
+  },
+  {
+    "digests": {
+      "insight.read": {
+        "implementation": "sha256:9c71b82b48048261c1013d48d7bfbec9c507e2b3c4040c1343b5be8de2342b0e",
+        "operation": "sha256:16017bd95b1389bc7fc223bf71ec02a4d2f905dabe73ff83316b959595ab4fca"
+      },
+      "insights.list": {
+        "implementation": "sha256:e2e8301b91f7c9a9f10baf3c57195a2edb2c081b00ca046a5752d725d01f8895",
+        "operation": "sha256:284248881c58b90e2a2da71c51afe1d707874f19274652beddb9a44fc31f0b0a"
+      }
+    },
+    "manifest": {
+      "auth": {
+        "credentials": {
+          "personal_key": {
+            "audience": [
+              "us.posthog.com",
+              "eu.posthog.com"
+            ],
+            "delivery": {
+              "env": "POSTHOG_PERSONAL_API_KEY"
+            },
+            "fields": [
+              {
+                "label": "PostHog personal API key with insight read access",
+                "name": "personal_key"
+              }
+            ],
+            "kind": "api_key"
+          }
+        }
+      },
+      "description": "Read saved product insights from an explicitly selected PostHog Cloud project and region.",
+      "id": "posthog",
+      "name": "PostHog",
+      "operations": {
+        "insight.read": {
+          "credentials": [
+            "personal_key"
+          ],
+          "description": "Read one saved insight and its cached result, query definition and freshness; empty or stale results remain visible.",
+          "implementation": {
+            "http": {
+              "allowed_hosts": [
+                "us.posthog.com",
+                "eu.posthog.com"
+              ],
+              "auth": {
+                "personal_key": {
+                  "field": "personal_key",
+                  "type": "bearer"
+                }
+              },
+              "decode": [
+                {
+                  "op": "auto_json"
+                }
+              ],
+              "requests": [
+                {
+                  "headers": {
+                    "accept": "application/json"
+                  },
+                  "id": "request",
+                  "method": "GET",
+                  "query": {
+                    "refresh": "force_cache"
+                  },
+                  "url": {
+                    "$concat": [
+                      {
+                        "$parameter": "/api_origin"
+                      },
+                      "/api/projects/",
+                      {
+                        "$parameter": "/project_id"
+                      },
+                      "/insights/",
+                      {
+                        "$argument": "/insight_id"
+                      },
+                      "/"
+                    ]
+                  }
+                }
+              ],
+              "result_paths": {
+                "insight": "acknowledgement"
+              }
+            }
+          },
+          "input_schema": {
+            "additionalProperties": false,
+            "properties": {
+              "insight_id": {
+                "pattern": "^[1-9][0-9]{0,19}$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "insight_id"
+            ],
+            "type": "object"
+          },
+          "result_fields": [
+            "insight"
+          ],
+          "scopes": [
+            "insight:read"
+          ],
+          "target": {
+            "template": {
+              "$concat": [
+                {
+                  "$parameter": "/api_origin"
+                },
+                "/project/",
+                {
+                  "$parameter": "/project_id"
+                },
+                "/insights/",
+                {
+                  "$argument": "/insight_id"
+                }
+              ]
+            }
+          },
+          "verb": "read"
+        },
+        "insights.list": {
+          "credentials": [
+            "personal_key"
+          ],
+          "description": "Read one page of saved insights, preserving pagination and cached-result metadata; does not run a new report.",
+          "implementation": {
+            "http": {
+              "allowed_hosts": [
+                "us.posthog.com",
+                "eu.posthog.com"
+              ],
+              "auth": {
+                "personal_key": {
+                  "field": "personal_key",
+                  "type": "bearer"
+                }
+              },
+              "decode": [
+                {
+                  "op": "auto_json"
+                }
+              ],
+              "requests": [
+                {
+                  "headers": {
+                    "accept": "application/json"
+                  },
+                  "id": "request",
+                  "method": "GET",
+                  "query": {
+                    "limit": {
+                      "$argument": "/limit"
+                    },
+                    "offset": {
+                      "$argument": "/offset"
+                    },
+                    "refresh": "force_cache"
+                  },
+                  "url": {
+                    "$concat": [
+                      {
+                        "$parameter": "/api_origin"
+                      },
+                      "/api/projects/",
+                      {
+                        "$parameter": "/project_id"
+                      },
+                      "/insights/"
+                    ]
+                  }
+                }
+              ],
+              "result_paths": {
+                "insights": "acknowledgement"
+              }
+            }
+          },
+          "input_schema": {
+            "additionalProperties": false,
+            "properties": {
+              "limit": {
+                "maximum": 100,
+                "minimum": 1,
+                "type": "integer"
+              },
+              "offset": {
+                "maximum": 100000,
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "limit",
+              "offset"
+            ],
+            "type": "object"
+          },
+          "result_fields": [
+            "insights"
+          ],
+          "scopes": [
+            "insight:read"
+          ],
+          "target": {
+            "template": {
+              "$concat": [
+                {
+                  "$parameter": "/api_origin"
+                },
+                "/project/",
+                {
+                  "$parameter": "/project_id"
+                },
+                "/insights"
+              ]
+            }
+          },
+          "verb": "read"
+        }
+      },
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "api_origin": {
+            "enum": [
+              "https://us.posthog.com",
+              "https://eu.posthog.com"
+            ]
+          },
+          "project_id": {
+            "pattern": "^[1-9][0-9]{0,19}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "api_origin",
+          "project_id"
+        ],
+        "type": "object"
+      },
+      "placements": {
+        "local": {
+          "auth": [
+            "credentials"
+          ]
+        }
+      },
+      "schema": "runx.connector.v1"
+    },
+    "manifest_digest": "sha256:3d2035e40dca7b6cb184e50240e7b3c4f2eac643375c5af5a082ec7383005765"
   },
   {
     "digests": {
@@ -8048,6 +9761,358 @@ export const officialConnectors: readonly OfficialConnector[] = [
   },
   {
     "digests": {
+      "event.read": {
+        "implementation": "sha256:05ee086b4665c1a3d7c9d55a3b444e6482151dd711ef0c8ea8b48656535d91a2",
+        "operation": "sha256:da4046225a0cc53728bf532340146bb2c32e3668fa4421f0489b67f2528955c2"
+      },
+      "issue.read": {
+        "implementation": "sha256:edb35779361ed9fa5eb9f1ab2877ef696b265ad817b1320c204c28f267e2f153",
+        "operation": "sha256:a128f4a83f6ffa72ee8efdc6b995befe6faac890f5c318ab3b1abf5be8d33b58"
+      },
+      "issues.list": {
+        "implementation": "sha256:693e34b3f9f5ae62b110d84e548f0fc755b2a8e608d59c0315c7bc911f3e54d0",
+        "operation": "sha256:09a3a642672923f4705243525a67d93b8c68d5be01de230d9ad697e103a1a564"
+      }
+    },
+    "manifest": {
+      "auth": {
+        "credentials": {
+          "access_token": {
+            "audience": [
+              "sentry.io"
+            ],
+            "delivery": {
+              "env": "SENTRY_AUTH_TOKEN"
+            },
+            "fields": [
+              {
+                "label": "Sentry read token",
+                "name": "access_token"
+              }
+            ],
+            "kind": "api_key"
+          }
+        }
+      },
+      "description": "Read bounded issue and event evidence from a selected Sentry organization.",
+      "id": "sentry",
+      "name": "Sentry",
+      "operations": {
+        "event.read": {
+          "credentials": [
+            "access_token"
+          ],
+          "description": "Hydrate one issue event, including latest; event data may contain private context and needs bounded admission before sharing.",
+          "implementation": {
+            "http": {
+              "allowed_hosts": [
+                "sentry.io"
+              ],
+              "auth": {
+                "access_token": {
+                  "field": "access_token",
+                  "type": "bearer"
+                }
+              },
+              "decode": [
+                {
+                  "op": "auto_json"
+                }
+              ],
+              "requests": [
+                {
+                  "headers": {
+                    "accept": "application/json"
+                  },
+                  "id": "request",
+                  "method": "GET",
+                  "url": {
+                    "$concat": [
+                      "https://sentry.io/api/0/organizations/",
+                      {
+                        "$parameter": "/organization"
+                      },
+                      "/issues/",
+                      {
+                        "$argument": "/issue_id"
+                      },
+                      "/events/",
+                      {
+                        "$argument": "/event_id"
+                      },
+                      "/"
+                    ]
+                  }
+                }
+              ],
+              "result_paths": {
+                "event": "acknowledgement"
+              }
+            }
+          },
+          "input_schema": {
+            "additionalProperties": false,
+            "properties": {
+              "event_id": {
+                "pattern": "^(latest|[a-fA-F0-9]{32})$",
+                "type": "string"
+              },
+              "issue_id": {
+                "pattern": "^[0-9]{1,30}$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "issue_id",
+              "event_id"
+            ],
+            "type": "object"
+          },
+          "result_fields": [
+            "event"
+          ],
+          "scopes": [
+            "event:read"
+          ],
+          "target": {
+            "template": {
+              "$concat": [
+                "sentry://",
+                {
+                  "$parameter": "/organization"
+                },
+                "/issues/",
+                {
+                  "$argument": "/issue_id"
+                },
+                "/events/",
+                {
+                  "$argument": "/event_id"
+                }
+              ]
+            }
+          },
+          "verb": "read"
+        },
+        "issue.read": {
+          "credentials": [
+            "access_token"
+          ],
+          "description": "Read one issue's current stats, project and release context; an issue read is not a verified fix.",
+          "implementation": {
+            "http": {
+              "allowed_hosts": [
+                "sentry.io"
+              ],
+              "auth": {
+                "access_token": {
+                  "field": "access_token",
+                  "type": "bearer"
+                }
+              },
+              "decode": [
+                {
+                  "op": "auto_json"
+                }
+              ],
+              "requests": [
+                {
+                  "headers": {
+                    "accept": "application/json"
+                  },
+                  "id": "request",
+                  "method": "GET",
+                  "url": {
+                    "$concat": [
+                      "https://sentry.io/api/0/organizations/",
+                      {
+                        "$parameter": "/organization"
+                      },
+                      "/issues/",
+                      {
+                        "$argument": "/issue_id"
+                      },
+                      "/"
+                    ]
+                  }
+                }
+              ],
+              "result_paths": {
+                "issue": "acknowledgement"
+              }
+            }
+          },
+          "input_schema": {
+            "additionalProperties": false,
+            "properties": {
+              "issue_id": {
+                "pattern": "^[0-9]{1,30}$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "issue_id"
+            ],
+            "type": "object"
+          },
+          "result_fields": [
+            "issue"
+          ],
+          "scopes": [
+            "event:read"
+          ],
+          "target": {
+            "template": {
+              "$concat": [
+                "sentry://",
+                {
+                  "$parameter": "/organization"
+                },
+                "/issues/",
+                {
+                  "$argument": "/issue_id"
+                }
+              ]
+            }
+          },
+          "verb": "read"
+        },
+        "issues.list": {
+          "credentials": [
+            "access_token"
+          ],
+          "description": "Read one bounded page of issues from a selected project; does not traverse subsequent pages.",
+          "implementation": {
+            "http": {
+              "allowed_hosts": [
+                "sentry.io"
+              ],
+              "auth": {
+                "access_token": {
+                  "field": "access_token",
+                  "type": "bearer"
+                }
+              },
+              "decode": [
+                {
+                  "op": "auto_json"
+                }
+              ],
+              "requests": [
+                {
+                  "headers": {
+                    "accept": "application/json"
+                  },
+                  "id": "request",
+                  "method": "GET",
+                  "query": {
+                    "cursor": {
+                      "$argument": "/cursor"
+                    },
+                    "limit": {
+                      "$argument": "/limit"
+                    },
+                    "query": {
+                      "$argument": "/query"
+                    }
+                  },
+                  "url": {
+                    "$concat": [
+                      "https://sentry.io/api/0/projects/",
+                      {
+                        "$parameter": "/organization"
+                      },
+                      "/",
+                      {
+                        "$argument": "/project"
+                      },
+                      "/issues/"
+                    ]
+                  }
+                }
+              ],
+              "result_paths": {
+                "issues": "acknowledgement"
+              }
+            }
+          },
+          "input_schema": {
+            "additionalProperties": false,
+            "properties": {
+              "cursor": {
+                "maxLength": 1000,
+                "type": "string"
+              },
+              "limit": {
+                "maximum": 100,
+                "minimum": 1,
+                "type": "integer"
+              },
+              "project": {
+                "pattern": "^[a-zA-Z0-9_-]{1,100}$",
+                "type": "string"
+              },
+              "query": {
+                "maxLength": 1000,
+                "type": "string"
+              }
+            },
+            "required": [
+              "project",
+              "limit"
+            ],
+            "type": "object"
+          },
+          "result_fields": [
+            "issues"
+          ],
+          "scopes": [
+            "event:read"
+          ],
+          "target": {
+            "template": {
+              "$concat": [
+                "sentry://",
+                {
+                  "$parameter": "/organization"
+                },
+                "/projects/",
+                {
+                  "$argument": "/project"
+                },
+                "/issues"
+              ]
+            }
+          },
+          "verb": "read"
+        }
+      },
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "organization": {
+            "pattern": "^[a-zA-Z0-9_-]{1,100}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "organization"
+        ],
+        "type": "object"
+      },
+      "placements": {
+        "local": {
+          "auth": [
+            "credentials"
+          ]
+        }
+      },
+      "schema": "runx.connector.v1"
+    },
+    "manifest_digest": "sha256:88e2e386e529d6179d472c465c8ea63723fe03d824471513b56bf67f66af5544"
+  },
+  {
+    "digests": {
       "channel.post": {
         "operation": "sha256:c68bd71a5a6cdb7a5da0e4b791a41bd48f94126e32b0f58bd10563a51e90a40f"
       },
@@ -8499,12 +10564,6 @@ export const officialConnectors: readonly OfficialConnector[] = [
             "password"
           ],
           "description": "Append one event to a stream when the stream is at the expected version. The event is keyed by the call's idempotency key, so a repeated call answers as a replay; at another version the answer is a conflict and nothing is appended.",
-          "effect": {
-            "kind": "event",
-            "locator": {
-              "$result": "/event_ref"
-            }
-          },
           "guarantees": {
             "provider_idempotency": "enforced",
             "readback": "exact"
@@ -8840,7 +10899,7 @@ export const officialConnectors: readonly OfficialConnector[] = [
       },
       "schema": "runx.connector.v1"
     },
-    "manifest_digest": "sha256:eacfeba7cf1d8145ae87aec0a51820043b5e8baa359f2cc6eaf7f8bcea797732"
+    "manifest_digest": "sha256:1c07258ccbc68ad358b9c9a0a906906cfeb3ab3a13aa29eed14ca2d933760436"
   },
   {
     "digests": {

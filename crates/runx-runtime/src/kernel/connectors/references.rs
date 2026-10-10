@@ -29,7 +29,9 @@ fn declarations() -> &'static [(String, ReferenceType, Regex)] {
                     .filter_map(move |reference| {
                         runx_parser::whole_match(reference.locator.as_str())
                             .ok()
-                            .map(|pattern| (id.clone(), reference.kind.clone(), pattern))
+                            .map(|pattern| {
+                                (id.clone(), ReferenceType::from(reference.kind), pattern)
+                            })
                     })
                     .collect::<Vec<_>>()
             })

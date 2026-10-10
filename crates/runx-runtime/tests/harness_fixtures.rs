@@ -66,7 +66,10 @@ fn parses_harness_graph_fixture_contract() -> Result<(), Box<dyn std::error::Err
     assert_eq!(fixture.name, "sequential-graph");
     assert_eq!(fixture.kind, HarnessFixtureKind::Graph);
     assert_eq!(fixture.target, "../graphs/sequential/graph.yaml");
-    assert_eq!(fixture.expect.steps, vec!["first", "second"]);
+    assert_eq!(
+        fixture.expect.steps,
+        Some(vec!["first".to_owned(), "second".to_owned()])
+    );
     let receipt = fixture.expect.receipt.ok_or("missing expect.receipt")?;
     assert_eq!(
         receipt.subject_ref.as_deref(),
@@ -74,11 +77,15 @@ fn parses_harness_graph_fixture_contract() -> Result<(), Box<dyn std::error::Err
     );
     assert_eq!(
         receipt.child_receipt_refs,
-        vec![
-            "runx:receipt:sha256:bef90d7394c209caa08d18775eeab0a6f7bc856fa4805816d87da6b212b94026",
-            "runx:receipt:sha256:96e710e3d40b9494c18b4c56976034c26c1a7d52d7dac6792a3cf629687b6de9"
-        ]
+        Some(vec![
+            "runx:receipt:sha256:48fc6f9081c169abd81dbed08dcc013d386a1bc3532f7ee13f7f616ff157f345"
+                .to_owned(),
+            "runx:receipt:sha256:d5819757f43a00be6ee0668073062096f99d14fcd9c5b2a751a4aa6cc6b149c4"
+                .to_owned()
+        ])
     );
+    // An omitted list asserts nothing; an empty one asserts there is none.
+    assert_eq!(receipt.verification_refs, None);
     Ok(())
 }
 
@@ -115,8 +122,21 @@ fn replays_active_harness_graph_fixture() -> Result<(), Box<dyn std::error::Erro
     );
     assert_eq!(output.receipt.seal.disposition, ClosureDisposition::Closed);
     assert_eq!(output.step_receipts.len(), 2);
-    assert_eq!(output.step_receipts[0].acts[0].id, "act_first");
-    assert_eq!(output.step_receipts[1].acts[0].id, "act_second");
+    // Neither step makes a governed call, so neither seals an act.
+    assert!(
+        output
+            .step_receipts
+            .iter()
+            .all(|receipt| receipt.acts.is_empty())
+    );
+    assert_eq!(
+        output
+            .steps
+            .iter()
+            .map(|step| step.step_id.as_str())
+            .collect::<Vec<_>>(),
+        ["first", "second"]
+    );
     Ok(())
 }
 

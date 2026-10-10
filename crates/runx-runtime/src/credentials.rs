@@ -86,30 +86,42 @@ struct CredentialDeliveryState {
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
-struct SecretTaint {
+pub(crate) struct SecretTaint {
     derived: Vec<SecretString>,
 }
 
 impl SecretTaint {
     fn from_secret_env(secret_env: &SecretEnv) -> Self {
+        let values = secret_env
+            .iter()
+            .flat_map(|(_, delivered)| {
+                let fields = serde_json::from_str::<BTreeMap<String, String>>(delivered)
+                    .map(BTreeMap::into_values)
+                    .unwrap_or_default();
+                std::iter::once(delivered.to_owned())
+                    .chain(fields)
+                    .map(SecretString::new)
+            })
+            .collect::<Vec<_>>();
+        Self::from_values(values.iter().map(SecretString::expose))
+    }
+
+    /// Each secret as text may carry it: itself, with a form's `+` for each
+    /// space, and its base64 forms. Percent escapes need no variant: text is
+    /// searched with its escapes decoded, so any escaping of any byte
+    /// matches.
+    pub(crate) fn from_values<'a>(values: impl IntoIterator<Item = &'a str>) -> Self {
         let mut variants = BTreeSet::new();
-        for (_, delivered) in secret_env.iter() {
-            // A credential of several fields is delivered as one JSON object;
-            // each field is secret on its own, wherever a process prints it.
-            let fields = serde_json::from_str::<BTreeMap<String, String>>(delivered)
-                .map(BTreeMap::into_values)
-                .unwrap_or_default()
-                .collect::<Vec<_>>();
-            for secret in std::iter::once(delivered).chain(fields.iter().map(String::as_str)) {
-                // Derived encodings of tiny values are too collision-prone to
-                // be a useful redaction boundary. The exact raw value is still
-                // scrubbed.
-                if secret.len() < 6 {
-                    continue;
-                }
-                if secret != delivered {
-                    variants.insert(secret.to_owned());
-                }
+        for secret in values {
+            if secret.is_empty() {
+                continue;
+            }
+            variants.insert(secret.to_owned());
+            if secret.contains(' ') {
+                variants.insert(secret.replace(' ', "+"));
+            }
+            // Tiny encodings collide with ordinary text; raw values remain secret.
+            if secret.len() >= 6 {
                 Self::encodings(secret, &mut variants);
             }
         }
@@ -121,10 +133,28 @@ impl SecretTaint {
         Self { derived }
     }
 
+    /// A presenter may derive new material (for example an OAuth signature).
+    /// Retain it in this call's existing taint, including encoded echoes.
+    pub(crate) fn include(&mut self, value: &str) {
+        if value.is_empty()
+            || self
+                .derived
+                .iter()
+                .any(|existing| existing.expose() == value)
+        {
+            return;
+        }
+        for variant in Self::from_values([value]).derived {
+            if !self.derived.iter().any(|existing| existing == &variant) {
+                self.derived.push(variant);
+            }
+        }
+        self.derived
+            .sort_by_key(|value| std::cmp::Reverse(value.expose().len()));
+    }
+
     fn encodings(secret: &str, variants: &mut BTreeSet<String>) {
         let encoded = [
-            url::form_urlencoded::byte_serialize(secret.as_bytes()).collect::<String>(),
-            form_urlencoded_value(secret),
             base64::engine::general_purpose::STANDARD.encode(secret),
             base64::engine::general_purpose::STANDARD_NO_PAD.encode(secret),
             base64::engine::general_purpose::URL_SAFE.encode(secret),
@@ -138,13 +168,194 @@ impl SecretTaint {
     }
 }
 
-fn form_urlencoded_value(value: &str) -> String {
-    url::form_urlencoded::Serializer::new(String::new())
-        .append_pair("", value)
-        .finish()
-        .strip_prefix('=')
-        .unwrap_or_default()
-        .to_owned()
+impl SecretTaint {
+    pub(crate) fn redact_value(&self, mut value: JsonValue) -> JsonValue {
+        self.redact_json_value_at_depth(&mut value, 0);
+        value
+    }
+
+    /// A percent escape and the byte it encodes are the same character (RFC
+    /// 3986 §2.1), so a secret is found in `text` read with its escapes
+    /// decoded, however many of its bytes are escaped and in whatever case,
+    /// and each place it is found is replaced in `text` itself: provider
+    /// bytes no secret is in stay as they were. Overlapping finds are
+    /// replaced as one.
+    #[must_use]
+    pub(crate) fn redact_text(&self, text: impl Into<String>) -> String {
+        let text = text.into();
+        if self.derived.is_empty() {
+            return text;
+        }
+        let view = DecodedView::of(&text);
+        let mut found = Vec::new();
+        for secret in &self.derived {
+            let finder = memchr::memmem::Finder::new(secret.expose().as_bytes());
+            let mut from = 0;
+            while let Some(at) = view.bytes.get(from..).and_then(|rest| finder.find(rest)) {
+                found.push((from + at, from + at + finder.needle().len()));
+                from += at + 1;
+            }
+        }
+        if found.is_empty() {
+            return text;
+        }
+        found.sort_unstable();
+        let mut spans: Vec<(usize, usize)> = Vec::with_capacity(found.len());
+        for (start, end) in found {
+            match spans.last_mut() {
+                Some(last) if start <= last.1 => last.1 = last.1.max(end),
+                _ => spans.push((start, end)),
+            }
+        }
+        let mut redacted = String::with_capacity(text.len());
+        let mut copied = 0;
+        for (start, end) in spans {
+            let (Some(&(from, _)), Some(&(_, to))) =
+                (view.spans.get(start), view.spans.get(end - 1))
+            else {
+                return REDACTED_CREDENTIAL.to_owned();
+            };
+            // Every place a secret is found starts and ends at a character
+            // boundary; a text it does not is withheld whole.
+            let Some(before) = text.get(copied..from) else {
+                return REDACTED_CREDENTIAL.to_owned();
+            };
+            if !text.is_char_boundary(to) {
+                return REDACTED_CREDENTIAL.to_owned();
+            }
+            redacted.push_str(before);
+            redacted.push_str(REDACTED_CREDENTIAL);
+            copied = to;
+        }
+        match text.get(copied..) {
+            Some(rest) => {
+                redacted.push_str(rest);
+                redacted
+            }
+            None => REDACTED_CREDENTIAL.to_owned(),
+        }
+    }
+
+    /// Redact delivered credential material from every string-bearing JSON
+    /// position after decoding. Callers must not redact a serialized
+    /// representation and then parse it, because JSON escapes can otherwise
+    /// reconstruct the secret after the redaction pass.
+    fn redact_json_value_at_depth(&self, value: &mut JsonValue, depth: usize) {
+        if depth >= MAX_STRUCTURED_REDACTION_DEPTH {
+            *value = JsonValue::String(REDACTED_CREDENTIAL.to_owned());
+            return;
+        }
+        match value {
+            JsonValue::String(text) => {
+                *text = self.redact_output_text_at_depth(std::mem::take(text), depth + 1);
+            }
+            JsonValue::Array(values) => {
+                for child in values {
+                    self.redact_json_value_at_depth(child, depth + 1);
+                }
+            }
+            JsonValue::Object(object) => self.redact_json_object_at_depth(object, depth),
+            JsonValue::Null | JsonValue::Bool(_) | JsonValue::Number(_) => {}
+        }
+    }
+
+    fn redact_json_object_at_depth(&self, object: &mut JsonObject, depth: usize) {
+        let mut redacted = JsonObject::new();
+        for (key, mut value) in std::mem::take(object) {
+            self.redact_json_value_at_depth(&mut value, depth + 1);
+            let base = self.redact_output_text_at_depth(key, depth + 1);
+            let mut candidate = base.clone();
+            let mut suffix = 2_u64;
+            while redacted.contains_key(&candidate) {
+                candidate = format!("{base}#{suffix}");
+                suffix = suffix.saturating_add(1);
+            }
+            redacted.insert(candidate, value);
+        }
+        *object = redacted;
+    }
+
+    /// Redact a final output string that may itself be a JSON document. JSON
+    /// strings nested inside that document are handled recursively because
+    /// process output can legitimately carry structured output inside a string
+    /// field.
+    #[must_use]
+    pub(crate) fn redact_output_text(&self, text: impl Into<String>) -> String {
+        self.redact_output_text_at_depth(text.into(), 0)
+    }
+
+    fn redact_output_text_at_depth(&self, text: String, depth: usize) -> String {
+        if self.derived.is_empty() {
+            return text;
+        }
+        if depth >= MAX_STRUCTURED_REDACTION_DEPTH {
+            return REDACTED_CREDENTIAL.to_owned();
+        }
+        if !matches!(
+            text.trim_start().as_bytes().first(),
+            Some(b'{') | Some(b'[') | Some(b'"')
+        ) {
+            return self.redact_text(text);
+        }
+        match serde_json::from_str::<JsonValue>(&text) {
+            Ok(mut value) => {
+                self.redact_json_value_at_depth(&mut value, depth);
+                // `JsonValue` serialization is infallible in practice. Keep this
+                // boundary fail-closed nevertheless: falling back to the encoded
+                // source text would recreate the escape bypass this branch exists
+                // to prevent.
+                match serde_json::to_string(&value) {
+                    Ok(serialized) => serialized,
+                    Err(_) => REDACTED_CREDENTIAL.to_owned(),
+                }
+            }
+            Err(_) => self.redact_text(text),
+        }
+    }
+}
+
+/// `text` as its bytes read with every percent escape decoded, and the span
+/// of `text` each of those bytes was read from.
+struct DecodedView {
+    bytes: Vec<u8>,
+    spans: Vec<(usize, usize)>,
+}
+
+impl DecodedView {
+    fn of(text: &str) -> Self {
+        let raw = text.as_bytes();
+        let mut view = Self {
+            bytes: Vec::with_capacity(raw.len()),
+            spans: Vec::with_capacity(raw.len()),
+        };
+        let mut index = 0;
+        while let Some(&byte) = raw.get(index) {
+            if byte == b'%'
+                && let (Some(high), Some(low)) = (
+                    raw.get(index + 1).and_then(hex_digit),
+                    raw.get(index + 2).and_then(hex_digit),
+                )
+            {
+                view.bytes.push(high << 4 | low);
+                view.spans.push((index, index + 3));
+                index += 3;
+            } else {
+                view.bytes.push(byte);
+                view.spans.push((index, index + 1));
+                index += 1;
+            }
+        }
+        view
+    }
+}
+
+fn hex_digit(byte: &u8) -> Option<u8> {
+    match byte {
+        b'0'..=b'9' => Some(byte - b'0'),
+        b'a'..=b'f' => Some(byte - b'a' + 10),
+        b'A'..=b'F' => Some(byte - b'A' + 10),
+        _ => None,
+    }
 }
 
 impl CredentialDelivery {
@@ -254,94 +465,12 @@ impl CredentialDelivery {
 
     #[must_use]
     pub fn redact_text(&self, text: impl Into<String>) -> String {
-        let mut redacted = text.into();
-        for value in self.inner.secret_env.values.values() {
-            let secret = value.expose();
-            if !secret.is_empty() {
-                redacted = redacted.replace(secret, REDACTED_CREDENTIAL);
-            }
-        }
-        for value in &self.inner.secret_taint.derived {
-            redacted = redacted.replace(value.expose(), REDACTED_CREDENTIAL);
-        }
-        redacted
+        self.inner.secret_taint.redact_text(text)
     }
 
-    /// Redact delivered credential material from every string-bearing JSON
-    /// position after decoding. Callers must not redact a serialized
-    /// representation and then parse it, because JSON escapes can otherwise
-    /// reconstruct the secret after the redaction pass.
-    fn redact_json_value_at_depth(&self, value: &mut JsonValue, depth: usize) {
-        if depth >= MAX_STRUCTURED_REDACTION_DEPTH {
-            *value = JsonValue::String(REDACTED_CREDENTIAL.to_owned());
-            return;
-        }
-        match value {
-            JsonValue::String(text) => {
-                *text = self.redact_output_text_at_depth(std::mem::take(text), depth + 1);
-            }
-            JsonValue::Array(values) => {
-                for child in values {
-                    self.redact_json_value_at_depth(child, depth + 1);
-                }
-            }
-            JsonValue::Object(object) => self.redact_json_object_at_depth(object, depth),
-            JsonValue::Null | JsonValue::Bool(_) | JsonValue::Number(_) => {}
-        }
-    }
-
-    fn redact_json_object_at_depth(&self, object: &mut JsonObject, depth: usize) {
-        let mut redacted = JsonObject::new();
-        for (key, mut value) in std::mem::take(object) {
-            self.redact_json_value_at_depth(&mut value, depth + 1);
-            let base = self.redact_output_text_at_depth(key, depth + 1);
-            let mut candidate = base.clone();
-            let mut suffix = 2_u64;
-            while redacted.contains_key(&candidate) {
-                candidate = format!("{base}#{suffix}");
-                suffix = suffix.saturating_add(1);
-            }
-            redacted.insert(candidate, value);
-        }
-        *object = redacted;
-    }
-
-    /// Redact a final output string that may itself be a JSON document. JSON
-    /// strings nested inside that document are handled recursively because
-    /// process output can legitimately carry structured output inside a string
-    /// field.
     #[must_use]
     pub(crate) fn redact_output_text(&self, text: impl Into<String>) -> String {
-        self.redact_output_text_at_depth(text.into(), 0)
-    }
-
-    fn redact_output_text_at_depth(&self, text: String, depth: usize) -> String {
-        if self.inner.secret_env.is_empty() {
-            return text;
-        }
-        if depth >= MAX_STRUCTURED_REDACTION_DEPTH {
-            return REDACTED_CREDENTIAL.to_owned();
-        }
-        if !matches!(
-            text.trim_start().as_bytes().first(),
-            Some(b'{') | Some(b'[') | Some(b'"')
-        ) {
-            return self.redact_text(text);
-        }
-        match serde_json::from_str::<JsonValue>(&text) {
-            Ok(mut value) => {
-                self.redact_json_value_at_depth(&mut value, depth);
-                // `JsonValue` serialization is infallible in practice. Keep this
-                // boundary fail-closed nevertheless: falling back to the encoded
-                // source text would recreate the escape bypass this branch exists
-                // to prevent.
-                match serde_json::to_string(&value) {
-                    Ok(serialized) => serialized,
-                    Err(_) => REDACTED_CREDENTIAL.to_owned(),
-                }
-            }
-            Err(_) => self.redact_text(text),
-        }
+        self.inner.secret_taint.redact_output_text(text)
     }
 
     #[must_use]
@@ -562,6 +691,56 @@ mod tests {
         assert!(!printed.contains("cs-field-sentinel"), "{printed}");
         assert!(!printed.contains("ck-field-sentinel"), "{printed}");
         Ok(())
+    }
+
+    #[test]
+    fn a_percent_encoded_echo_is_redacted_whatever_the_case_of_its_hex() {
+        let taint = SecretTaint::from_values(["private/token=1"]);
+        for echo in [
+            "private%2Ftoken%3D1",
+            "private%2ftoken%3d1",
+            "private%2Ftoken%3d1",
+        ] {
+            assert_eq!(
+                taint.redact_text(format!("a%2fb {echo} c%3d")),
+                "a%2fb [redacted-credential] c%3d",
+                "{echo}"
+            );
+        }
+    }
+
+    #[test]
+    fn an_echo_is_redacted_however_many_of_its_bytes_are_escaped() {
+        let taint = SecretTaint::from_values(["private/token", "a/b", "two words"]);
+        for (echo, redacted) in [
+            // An escape of an unreserved byte is the same character.
+            (
+                r#"{"echo":"%70rivate%2Ftoken"}"#,
+                r#"{"echo":"[redacted-credential]"}"#,
+            ),
+            // A short secret is matched escaped as well as raw.
+            ("path a%2Fb end", "path [redacted-credential] end"),
+            // Every byte escaped, in lowercase hex.
+            (
+                "%70%72%69%76%61%74%65%2f%74%6f%6b%65%6e",
+                "[redacted-credential]",
+            ),
+            // A form's `+` for a space.
+            ("q=two+words&x=1", "q=[redacted-credential]&x=1"),
+            // Escapes no secret is in stay exactly as they were.
+            ("100%25 of a%2fc", "100%25 of a%2fc"),
+        ] {
+            assert_eq!(taint.redact_text(echo), redacted, "{echo}");
+        }
+    }
+
+    #[test]
+    fn overlapping_secrets_are_redacted_as_one() {
+        let taint = SecretTaint::from_values(["abcdef", "efgh"]);
+        assert_eq!(
+            taint.redact_text("x abcdefgh y"),
+            "x [redacted-credential] y"
+        );
     }
 
     #[test]

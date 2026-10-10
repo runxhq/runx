@@ -29,6 +29,7 @@ impl HttpMethod {
 pub struct RuntimeHttpHeader {
     pub name: String,
     pub value: String,
+    sensitive: bool,
 }
 
 impl RuntimeHttpHeader {
@@ -36,6 +37,20 @@ impl RuntimeHttpHeader {
         Self {
             name: name.into(),
             value: value.into(),
+            sensitive: false,
+        }
+    }
+
+    pub(crate) fn is_sensitive(&self) -> bool {
+        self.sensitive || sensitive_header_name(&self.name)
+    }
+
+    /// Material presented as authentication is secret regardless of its name.
+    pub(crate) fn secret(name: impl Into<String>, value: impl Into<String>) -> Self {
+        Self {
+            name: name.into(),
+            value: value.into(),
+            sensitive: true,
         }
     }
 }
@@ -47,7 +62,7 @@ impl fmt::Debug for RuntimeHttpHeader {
             .field("name", &self.name)
             .field(
                 "value",
-                &if sensitive_header_name(&self.name) {
+                &if self.is_sensitive() {
                     "[redacted]"
                 } else {
                     self.value.as_str()

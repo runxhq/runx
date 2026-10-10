@@ -35,6 +35,34 @@ impl RunxPrincipalId {
     }
 }
 
+/// The kinds of thing outside runx a connector's locators name: what its
+/// declared references classify and what its operations produce.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum ExternalReferenceKind {
+    Thread,
+    Comment,
+    Event,
+    TrackingItem,
+    ChangeRequest,
+    Repository,
+    ExternalUrl,
+}
+
+impl From<ExternalReferenceKind> for ReferenceType {
+    fn from(kind: ExternalReferenceKind) -> Self {
+        match kind {
+            ExternalReferenceKind::Thread => Self::Thread,
+            ExternalReferenceKind::Comment => Self::Comment,
+            ExternalReferenceKind::Event => Self::Event,
+            ExternalReferenceKind::TrackingItem => Self::TrackingItem,
+            ExternalReferenceKind::ChangeRequest => Self::ChangeRequest,
+            ExternalReferenceKind::Repository => Self::Repository,
+            ExternalReferenceKind::ExternalUrl => Self::ExternalUrl,
+        }
+    }
+}
+
 /// What a reference points at. External kinds never name a provider: the
 /// reference's `provider` and `locator` say where, and connectors declare
 /// which of their locators are which kind.

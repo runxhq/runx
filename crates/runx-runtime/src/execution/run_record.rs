@@ -28,6 +28,7 @@
 //! `<path>#<id>` below it, the path being the child run's place under the
 //! root. A paused run waits on every open request in its tree.
 
+use std::collections::BTreeSet;
 use std::sync::{Arc, Mutex};
 
 use runx_contracts::{
@@ -161,6 +162,8 @@ struct RecordedStep {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     runner: Option<String>,
     contract: JsonObject,
+    #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
+    artifact_outputs: BTreeSet<String>,
     outcome: StepOutcome,
     admission_witness: StepAdmissionWitness,
 }
@@ -647,6 +650,7 @@ impl RunLog {
             skill: step.skill.clone(),
             runner: step.runner.clone(),
             contract: step.contract.clone(),
+            artifact_outputs: step.artifact_outputs.clone(),
             outcome: step.outcome.clone(),
             admission_witness: step.admission_witness.clone(),
         })?;
@@ -763,6 +767,7 @@ impl RunLog {
                     skill: step.skill.clone(),
                     runner: step.runner.clone(),
                     contract: step.contract.clone(),
+                    artifact_outputs: step.artifact_outputs.clone(),
                     outcome: step.outcome.clone(),
                     admission_witness: step.admission_witness.clone(),
                 })?;
@@ -1273,6 +1278,7 @@ fn step_run(store: &KernelStore, event: StepEvent) -> Result<StepRun, RunRecordE
         skill: record.skill,
         runner: record.runner,
         contract: record.contract,
+        artifact_outputs: record.artifact_outputs,
         ephemeral_contract: Default::default(),
         outcome: record.outcome,
         receipt: store.blob_json(&event.receipt)?,

@@ -31,10 +31,6 @@ auth:
           label: x402 asset address
           secret: false
           required: false
-        - name: x402_asset_decimals
-          label: x402 asset decimals (derived; legacy input)
-          secret: false
-          required: false
         - name: x402_targets
           label: x402 settlement targets
           secret: false
@@ -63,7 +59,6 @@ operations:
       template: {"$argument": "/resource"}
     guarantees:
       provider_idempotency: enforced
-      reconcile: payment.x402.merchant.lookup
     result_fields: [payment_contract, payment_ref, idempotency_key, request_binding_digest, resource, amount_minor, currency, status, settlement_ambiguous, reason, evidence_contract, payment_payload_digest, payment_requirements_digest, verification_ref, settlement_ref, payer, pay_to, network, asset, asset_decimals, settled_at]
     hosted: {}
   payment.x402.merchant.recover:

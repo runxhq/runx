@@ -253,8 +253,7 @@ fn append_in(
 fn open(call: &AdmittedCall<'_>) -> Result<Box<dyn Backend>, StoreError> {
     let password = call
         .credential
-        .and_then(|secret| secret.fields.get("password"))
-        .map(String::as_str);
+        .and_then(|secret| secret.field("password").ok());
     match Location::of(call)? {
         Location::Sqlite(path) => {
             if password.is_some() {

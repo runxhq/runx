@@ -234,10 +234,6 @@ fn merge_path_env(existing: &str, addition: &str) -> String {
         })
 }
 
-pub(crate) fn process_env_value(key: &str) -> Option<String> {
-    std::env::var(key).ok()
-}
-
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeMap;

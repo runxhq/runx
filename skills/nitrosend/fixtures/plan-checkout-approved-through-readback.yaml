@@ -20,7 +20,7 @@ inputs:
   idempotency_key: account-1-plan-202-v1
 caller:
   approvals:
-    "request": true
+    "checkout#request": true
   mcp_calls:
   - tool: nitro_manage_billing
     arguments:
@@ -42,7 +42,7 @@ caller:
       params:
         plan_id: 202
         confirm: true
-      idempotency_key: "runx:sha256:b3a983d6a385292f7f51a384ff7b5f5aecdbce736698804461e7381dde9a7505"
+      idempotency_key: "runx:sha256:da1e4fe1d18ff0c84850d1a9a52727b76bbeeb6576ba7cebb5e4cb340d5a3c8b"
     result:
       content:
       - type: text

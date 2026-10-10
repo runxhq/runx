@@ -2,8 +2,9 @@
 use std::collections::BTreeSet;
 
 use runx_contracts::{
-    ActForm, AuthorityAttenuation, Decision, ProofKind, Receipt, ReceiptAct, ReceiptClass,
-    ReceiptCommitment, ReceiptEvidence, Reference, ReferenceType, Seal,
+    ActForm, AuthorityAttenuation, CriterionBinding, Decision, ProofKind, Receipt, ReceiptAct,
+    ReceiptClass, ReceiptCommitment, ReceiptEvidence, Reference, ReferenceType, Seal,
+    legitimacy_authority_term,
 };
 
 mod finding;
@@ -74,6 +75,7 @@ impl Verifier {
         self.check_marketplace_contract(receipt);
         self.check_effect_grant_evidence(receipt);
         self.check_acts(&receipt.acts);
+        self.check_act_legitimacy(receipt);
         self.check_decisions(&receipt.decisions, &receipt.acts);
         self.check_seal_criteria(receipt, &receipt.seal);
     }
@@ -268,6 +270,28 @@ impl Verifier {
         }
     }
 
+    /// An act whose legitimacy names an execution term acts under a term the
+    /// receipt's authority holds.
+    fn check_act_legitimacy(&mut self, receipt: &Receipt) {
+        for (index, act) in receipt.acts.iter().enumerate() {
+            let Some(term_id) = legitimacy_authority_term(&act.intent.legitimacy) else {
+                continue;
+            };
+            if !receipt
+                .authority
+                .terms
+                .iter()
+                .any(|term| term.term_id.as_str() == term_id)
+            {
+                self.push(
+                    ReceiptFindingCode::ActLegitimacyTermMissing,
+                    format!("acts[{index}].intent.legitimacy"),
+                    "an act's legitimacy must name an execution term in the receipt's authority",
+                );
+            }
+        }
+    }
+
     /// The reasoning is inline; the `selected_act_id` integrity property is
     /// checked against the inline `acts[]` (no journal).
     fn check_decisions(&mut self, decisions: &[Decision], acts: &[ReceiptAct]) {
@@ -363,6 +387,11 @@ fn receipt_has_effect_evidence(receipt: &Receipt) -> bool {
     receipt.signals.iter().any(reference_is_effect_evidence)
         || receipt.decisions.iter().any(decision_has_effect_evidence)
         || receipt.acts.iter().any(act_has_effect_evidence)
+        || receipt
+            .seal
+            .criteria
+            .iter()
+            .any(binding_has_effect_evidence)
 }
 
 fn decision_has_effect_evidence(decision: &Decision) -> bool {
@@ -418,16 +447,21 @@ fn act_has_effect_evidence(act: &ReceiptAct) -> bool {
             .context_ref
             .as_ref()
             .is_some_and(reference_is_effect_evidence)
-        || act.criterion_bindings.iter().any(|binding| {
-            binding
-                .evidence_refs
-                .iter()
-                .any(reference_is_effect_evidence)
-                || binding
-                    .verification_refs
-                    .iter()
-                    .any(reference_is_effect_evidence)
-        })
+        || act
+            .criterion_bindings
+            .iter()
+            .any(binding_has_effect_evidence)
+}
+
+fn binding_has_effect_evidence(binding: &CriterionBinding) -> bool {
+    binding
+        .evidence_refs
+        .iter()
+        .any(reference_is_effect_evidence)
+        || binding
+            .verification_refs
+            .iter()
+            .any(reference_is_effect_evidence)
 }
 
 fn reference_is_effect_evidence(reference: &Reference) -> bool {

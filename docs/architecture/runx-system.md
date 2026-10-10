@@ -162,7 +162,7 @@ rejected.
 
 The worker exposes ECMAScript plus one frozen Runx helper:
 `Runx.parseUrl(value)`. It performs deterministic absolute-URL parsing and
-returns `href`, `origin`, `protocol`, and `hostname`. Browser and Node globals
+returns `href`, `origin`, `protocol`, `hostname`, `username`, and `password`. Browser and Node globals
 are not implied; adding another helper requires a reusable domain-independent
 need and one runtime-owned implementation.
 

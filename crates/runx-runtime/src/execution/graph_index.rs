@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use runx_contracts::schema::NonEmptyString;
 use runx_contracts::{JsonObject, JsonValue, ProvenanceEntry};
@@ -10,6 +10,7 @@ use runx_core::state_machine::{
 };
 use runx_parser::{ExecutionGraph, GraphStep};
 
+use crate::output_contract::output_value;
 use crate::{RuntimeError, StepRun};
 
 pub(crate) struct ExecutionGraphIndex {
@@ -152,7 +153,7 @@ impl<'a> PriorRunIndex<'a> {
                 reason: "the step it reads has not run".to_owned(),
             });
         };
-        resolve_output_path(&run.contract, path).map_err(|break_at| {
+        resolve_output_path(&run.contract, &run.artifact_outputs, path).map_err(|break_at| {
             RuntimeError::context_edge_unresolved(
                 to_step,
                 input,
@@ -212,23 +213,24 @@ pub(crate) struct ContextPathBreak {
 
 pub(crate) fn resolve_output_path(
     outputs: &JsonObject,
+    artifact_outputs: &BTreeSet<String>,
     path: &[String],
 ) -> Result<JsonValue, ContextPathBreak> {
-    use crate::output_contract::enveloped_value;
-    // A step's result is the values it declares; a reference reads through
-    // the envelope each output is stored in.
+    // A step's result is the values it declares; a reference reads an
+    // artifact through the envelope it is stored in.
+    let value_of = |name: &str| output_value(outputs, artifact_outputs, name);
     let Some((first, rest)) = path.split_first() else {
         return Ok(JsonValue::Object(
             outputs
-                .iter()
-                .map(|(name, value)| (name.clone(), enveloped_value(value).clone()))
+                .keys()
+                .filter_map(|name| Some((name.clone(), value_of(name)?.clone())))
                 .collect(),
         ));
     };
-    let mut value = enveloped_value(outputs.get(first).ok_or_else(|| ContextPathBreak {
+    let mut value = value_of(first).ok_or_else(|| ContextPathBreak {
         missing_segment: first.clone(),
         available_keys: outputs.keys().cloned().collect(),
-    })?);
+    })?;
     for segment in rest {
         value = match value {
             JsonValue::Object(object) => object.get(segment).ok_or_else(|| ContextPathBreak {
@@ -256,6 +258,8 @@ pub(crate) fn resolve_output_path(
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeSet;
+
     use runx_contracts::{JsonObject, JsonValue};
 
     use super::resolve_output_path;
@@ -278,9 +282,12 @@ mod tests {
             "decision": {"schema": "runx.approval.decision.v1", "data": {"approved": true}},
             "plain": {"brand": "plain"},
             "page": {"offset": 0, "data": "bytes"},
+            "document": {"schema": "domain.v1", "data": {"id": 7}, "source": "crm"},
         }))
         .unwrap_or_default();
-        let read = |segments: &[&str]| resolve_output_path(&outputs, &path(segments)).ok();
+        let artifacts = BTreeSet::from(["report".to_owned(), "decision".to_owned()]);
+        let read =
+            |segments: &[&str]| resolve_output_path(&outputs, &artifacts, &path(segments)).ok();
 
         assert_eq!(
             read(&["report", "brand"]),
@@ -297,6 +304,11 @@ mod tests {
             "a domain object's own data field is read as is"
         );
         assert_eq!(
+            read(&["document", "source"]),
+            Some(json(serde_json::json!("crm"))),
+            "an output that is not an artifact is its value, whatever its shape"
+        );
+        assert_eq!(
             read(&["report"]),
             Some(json(serde_json::json!({"brand": "acme"})))
         );
@@ -307,6 +319,7 @@ mod tests {
                 "decision": {"approved": true},
                 "plain": {"brand": "plain"},
                 "page": {"offset": 0, "data": "bytes"},
+                "document": {"schema": "domain.v1", "data": {"id": 7}, "source": "crm"},
             })))
         );
     }

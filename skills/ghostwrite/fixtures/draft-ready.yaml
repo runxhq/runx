@@ -60,7 +60,7 @@ caller:
         context_binding: { applied: [] }
 expect:
   status: sealed
-  steps: [digest-evidence, digest-brand-context, digest-taste-context, prepare, author, finalize]
+  steps: [admit, author, finalize]
   step_outputs:
     finalize:
       subset:

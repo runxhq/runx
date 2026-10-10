@@ -1,0 +1,55 @@
+name: qualifies-known-fit
+kind: skill
+target: ..
+inputs:
+  enrichment_packet:
+    decision: enriched
+    subject: {ref: 'lead:example', kind: person}
+    as_of: '2026-10-10T00:00:00Z'
+    facts:
+    - {field: company.industry, value: B2B software, source_refs: ['crm:lead']}
+    missing_fields: []
+    conflicts: []
+    sources:
+    - source_ref: crm:lead
+      source_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      observed_at: '2026-10-09T00:00:00Z'
+      match_confidence: high
+      provenance: caller_supplied_source_digest
+    blockers: []
+    acquisition: supplied_evidence
+  criteria:
+  - {id: industry, description: Works for a B2B software company., required: true}
+  contact_eligibility:
+    subject: {ref: 'lead:example', kind: person}
+    status: eligible
+    policy_ref: policy:outreach
+    evidence_refs: ['policy:assessment']
+caller:
+  answers:
+    agent.lead-qualify-assess.output:
+      assessment_draft:
+        assessments:
+        - {criterion_id: industry, status: met, rationale: The admitted company industry is B2B software., fact_fields: [
+            company.industry]}
+expect:
+  status: sealed
+  steps: [digest, admit, assess, finalize]
+  step_outputs:
+    finalize:
+      subset:
+        lead_qualification:
+          data: {decision: qualified, external_status: not_executed}
+  receipt: {schema: runx.receipt.v1}
+metadata: {public_skill: lead-qualify, source: skills-fixture}
+operator_journeys:
+- mode: standalone
+  confusors: [lead-enrichment, cold-outreach]
+  request: Qualify this lead against the supplied ICP using the admitted facts and separate contact-policy evidence.
+  expected_outcome: Return a fit decision and bounded next action; acquire no facts and draft or send no message.
+- mode: composed
+  request: Assess this already enriched lead against the ICP.
+  expected_outcome: Reuse the factual packet, preserve its digest and keep eligibility distinct from commercial
+    fit.
+  prior_evidence: [An enrichment packet with matched factual observations.]
+  must_not_repeat: [Do not repeat enrichment or perform a vendor lookup.]

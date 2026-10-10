@@ -296,11 +296,21 @@ or list that holds it; a step reference must resolve, and one that does not
 fails the step with the keys that were available. A literal string that
 begins with `$` is written `$$`. A bare `select.result` is an ordinary string.
 
-Conditions and guards read the same way:
+A condition runs its step only when one field it reads, of the run's input or
+an earlier step's result, equals or does not equal a literal:
 
 ```yaml
 when: { value: $steps.select.selection.decision, equals: ready }
 ```
+
+A step whose condition does not hold is skipped, and so is every step that
+reads a skipped step. A condition reads a field, never a literal or a whole
+result, and the literal it compares with reads nothing (`$` is written `$$`).
+A condition whose field resolves to nothing when its step is reached stops the
+run; an absent optional input is nothing, not `null`, so give an input a
+`default` when a step branches on it. A runner's `policy.guards` read and
+compare the same way, each for the one `step` it gates, and block that step
+unless they hold.
 
 An ask's `reason` is the text a person reads; the values they need to decide
 belong in its `inputs`, which are shown beside it.

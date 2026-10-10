@@ -27,7 +27,7 @@ use runx_core::policy::{
     AttenuationRequest, ConnectorBoundsComparator, DerivationParent, ExecutionTermRequest,
     derive_execution_term, mint_attenuated,
 };
-use runx_parser::{ConnectorRequirement, DuplicatePolicy, OperationStepTarget, UncertainOutcome};
+use runx_parser::{ConnectorRequirement, DuplicatePolicy, OperationStepTarget};
 
 use super::capability::{self, Capability, CapabilityRequest};
 use super::connectors::{ConnectorScope, LoadedConnector};
@@ -52,8 +52,6 @@ pub(crate) struct Context<'a> {
 pub(crate) struct Evaluation<'a> {
     pub step: &'a OperationStepTarget,
     pub call: &'a OperationCall,
-    /// The step-level request key, used when the call carries none.
-    pub on_uncertain: Option<UncertainOutcome>,
     pub duplicates: Option<DuplicatePolicy>,
     /// The harness's provider fixture stands in for a declared operation's
     /// missing hosted implementation.
@@ -1017,17 +1015,10 @@ fn executable(operation: &ConnectorOperation, placement: Placement) -> Result<()
 
 fn tolerance(evaluation: &Evaluation<'_>, operation: &ConnectorOperation) -> Result<(), String> {
     if operation.access() == OperationAccess::Read {
-        if evaluation.on_uncertain.is_some() || evaluation.duplicates.is_some() {
+        if evaluation.duplicates.is_some() {
             return Err("a read has no uncertain outcome to tolerate".to_owned());
         }
         return Ok(());
-    }
-    if evaluation.on_uncertain == Some(UncertainOutcome::Reconcile)
-        && operation.guarantees.reconcile.is_none()
-    {
-        return Err(
-            "the operation names no reconcile read, so this use cannot reconcile".to_owned(),
-        );
     }
     Ok(())
 }

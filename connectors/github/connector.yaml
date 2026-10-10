@@ -674,8 +674,8 @@ operations:
         advisory_ref: {type: string, minLength: 1}
         payload_digest: {type: string}
     result_fields: [advisory_ref, payload_digest, status]
-  pullrequest.files.list:
-    description: Read one bounded page of changed PR files and available patches; absent or truncated patches are incomplete review evidence.
+  commits.compare:
+    description: Read the three-dot comparison of exact base and head commits; files are returned only on the first page and capped by GitHub at 300.
     verb: read
     scopes: [repo.read]
     credentials: [token]
@@ -684,21 +684,20 @@ operations:
     input_schema:
       type: object
       additionalProperties: false
-      required: [repository, number, per_page, page]
+      required: [repository, base, head]
       properties:
         repository: {type: string, maxLength: 201, pattern: '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$'}
-        number: {type: integer, minimum: 1, maximum: 1000000000}
-        per_page: {type: integer, minimum: 1, maximum: 100}
-        page: {type: integer, minimum: 1, maximum: 30}
-    result_fields: [files]
+        base: {type: string, pattern: '^[0-9a-f]{40}$'}
+        head: {type: string, pattern: '^[0-9a-f]{40}$'}
+    result_fields: [comparison]
     implementation:
       http:
         allowed_hosts: [api.github.com]
         auth: {token: {type: bearer}}
         requests:
           - method: GET
-            url: {$concat: ['https://api.github.com/repos/', {$argument: /repository}, '/pulls/', {$argument: /number}, '/files']}
-            query: {per_page: {$argument: /per_page}, page: {$argument: /page}}
+            url: {$concat: ['https://api.github.com/repos/', {$argument: /repository}, '/compare/', {$argument: /base}, '...', {$argument: /head}]}
+            query: {per_page: 1, page: 1}
             headers: {accept: application/vnd.github+json, X-GitHub-Api-Version: '2026-03-10'}
   checks.list:
     description: Read one bounded page of latest check runs for an exact commit SHA; check runs do not include legacy commit statuses.

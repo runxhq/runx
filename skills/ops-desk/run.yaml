@@ -1,6 +1,5 @@
 skill: ops-desk
-version: "0.3.4"
-
+version: "0.3.5"
 catalog:
   kind: skill
   audience: operator
@@ -154,8 +153,8 @@ runners:
                     description: { type: string }
                   additionalProperties: false
         artifacts:
-          wrap_as: ops_desk_packet
-          packet: runx.ops_desk.packet.v1
+          named_emits: { ops_desk_packet: ops_desk_packet }
+          packets: { ops_desk_packet: runx.ops_desk.packet.v1 }
 
   advance:
     inputs:
@@ -375,5 +374,5 @@ runners:
           requested_action: "$input.requested_action"
           dashboard_snapshot: $steps.read-state.data_operation_result.projection
         artifacts:
-          wrap_as: ops_desk_packet
-          packet: runx.ops_desk.packet.v1
+          named_emits: { ops_desk_packet: ops_desk_packet }
+          packets: { ops_desk_packet: runx.ops_desk.packet.v1 }

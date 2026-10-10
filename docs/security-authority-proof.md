@@ -135,12 +135,14 @@ Every embedding surface that claims to verify a runx receipt must replay those
 fixtures through the pinned `runx` binary and match the expected verdicts
 instead of carrying a second verifier implementation in another language.
 
-Scope adherence is intentionally pure and offline. Any act carrying typed
-`EffectEvidence` without corresponding `receipt.authority.grant_refs` produces
-`EffectGrantEvidenceMissing`, fails verification, and exits non-zero. This is
-the boundary between a signed activity log and a governance proof: the receipt
-must show both the privileged effect and the operator-granted authority that
-admitted it.
+Scope adherence is intentionally pure and offline. A receipt whose acts or
+seal carry typed `EffectEvidence` without corresponding
+`receipt.authority.grant_refs` produces `EffectGrantEvidenceMissing`, fails
+verification, and exits non-zero. An act whose legitimacy names an execution
+term (`runx:authority_term:<id>`) that `receipt.authority.terms` does not hold
+produces `ActLegitimacyTermMissing`. This is the boundary between a signed
+activity log and a governance proof: the receipt must show both the
+privileged effect and the operator-granted authority that admitted it.
 
 ## Operator Authority Diagnostics
 

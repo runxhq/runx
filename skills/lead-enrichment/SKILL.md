@@ -1,83 +1,46 @@
 ---
 name: lead-enrichment
-description: Enrich a lead from supplied account signals and produce a consent-aware, evidence-bound outreach recommendation.
+description: Normalize factual person and company evidence for one confidently matched lead, preserving provenance, freshness, missing fields and conflicts.
 ---
 
 # Lead Enrichment
 
-Turn known lead, account, and engagement signals into a reviewable picture of
-fit, confidence, risk, and the narrowest sensible follow-up. Good enrichment
-does not mean filling every field. It means making useful claims only where the
-evidence supports them and making “do not contact” or “learn more first” first-
-class outcomes.
+Build factual context for one person or company. Enrichment answers what is
+known about the subject. `lead-qualify` decides whether those facts meet an ICP;
+`cold-outreach` prepares copy only after contact eligibility is supplied.
 
-This is a supplied-signal synthesis skill. It does not scrape the web, query an
-enrichment vendor, update a CRM, or send outreach. Upstream systems own source
-collection; downstream routing and provider skills own action.
+The default `enrich` runner reuses supplied structured evidence. It makes no
+provider request and spends no enrichment credits. An upstream declared
+connector operation can supply evidence; Apollo is the planned first lookup
+provider, whose credential presentation remains a native connector dependency.
+Do not claim that running this skill performs an Apollo lookup.
 
-## When to use it
+## Procedure
 
-Use `lead-enrichment` when a product already has bounded signals and needs a
-consistent, auditable assessment before routing a lead. It is useful for
-combining product activity, declared firmographics, CRM facts, and consent state
-without letting an agent silently invent the missing pieces.
+1. Bind one subject reference and the professional fields actually needed.
+2. Supply source references, native or upstream digests, observation times,
+   explicit subject matches, and factual field/value pairs. A caller-supplied
+   digest is provenance, not independent provider verification.
+3. Reuse only fresh sources confidently matched to that exact subject. A weak
+   name match, stale observation or mismatched identity does not fill a field.
+4. Preserve conflicting values with their separate sources. Do not silently
+   choose the latest value or invent a merged person from several matches.
+5. Return `enriched`, `partial` or `needs_more_evidence`, supported facts,
+   missing fields, conflicts and the admitted source index.
 
-Do not use it to infer sensitive traits, reconstruct personal profiles, or
-manufacture permission from engagement. A recommendation is not consent and a
-source digest is not proof that Runx independently verified the provider.
+The runner performs deterministic normalization rather than an extra model
+turn. Evidence acquisition and entity matching belong to the selected provider;
+commercial fit belongs to qualification. It does not infer buying intent,
+budget, consent, sensitive traits or private personal details.
 
-## How it works
+## Composition
 
-1. Supply the known lead fields and typed signals with unique source references,
-   upstream SHA-256 digests, claims, and observation times.
-2. Deterministic admission checks provenance, freshness, duplicates, consent,
-   suppression, region, and channel constraints before synthesis.
-3. Opt-out and do-not-contact signals stop the lane immediately. The model never
-   gets to reason its way around them.
-4. Synthesis builds the lead profile, fit assessment, recommendation, and risk
-   flags using only admitted lead fields and signals.
-5. Finalization rejects invented source references and any language claiming
-   outreach permission, CRM mutation, or send completion.
+Pass `lead_enrichment_packet` into `lead-qualify#qualify` together with the
+actual ICP criteria. Preserve the native artifact digest. For another lookup,
+request only missing professional fields with a bounded credit allowance and
+the same subject identity. Never enable personal-email/phone reveal or a
+waterfall merely to make an incomplete packet look complete.
 
-## Inputs and result
-
-- `lead` contains known identity and account fields; unknown values remain
-  unknown.
-- `signals` contain stable `source_ref`, `source_digest`, type, claim, and
-  `observed_at` fields.
-- `as_of` and `max_age_days` establish a reproducible freshness decision.
-- `constraints` carry consent, suppression, region, and allowed-channel state.
-
-The result is a source-bound enrichment packet containing the supported profile,
-evidence references, fit and confidence, risk flags, and a non-delivery
-recommendation such as hold, review, nurture, or bounded follow-up. It can feed
-`lead-router`, which must preserve the packet digest and cannot broaden consent.
-
-## Stop conditions
-
-- Stop on opt-out, do-not-contact, prohibited region, or conflicting suppression
-  evidence.
-- Return `needs_more_evidence` when the remaining signals are stale, too thin,
-  or lack stable provenance.
-- Never infer protected or sensitive traits, personal circumstances, or missing
-  firmographic facts.
-- Distinguish observed facts from inferred fit and express confidence honestly.
-- Do not claim a CRM update, enrollment, approval, outreach, or delivery.
-
-## Example
-
-A lead has a verified company role, two recent product events, and an explicit
-email opt-in. The packet may identify a plausible product fit and recommend a
-bounded review for outreach, citing the three exact source references. It cannot
-infer budget or buying authority. If the same lead has a suppression signal,
-the result is do-not-contact regardless of apparent fit.
-
-## Agent task contract
-
-### `lead-enrichment-synthesize`
-
-Use only admitted lead fields and signals. Return the supported profile,
-evidence, fit assessment, recommended action, and risk flags. Every evidence
-claim must cite exact admitted source references; label confidence as observed
-or inferred. Never infer sensitive traits or claim consent, CRM mutation,
-enrollment, or send completion.
+The skill neither updates CRM records nor authorizes messages. Fieldwork owns
+refresh schedules and continuing Work; connectors own exact provider requests,
+credential custody and billing evidence.

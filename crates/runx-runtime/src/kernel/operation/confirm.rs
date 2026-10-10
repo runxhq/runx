@@ -19,6 +19,7 @@
 use runx_contracts::connector::{ReadbackExpected, ReadbackMatch};
 use runx_contracts::{JsonObject, JsonValue, sha256_prefixed};
 
+use super::credentials::CredentialSecret;
 use super::packet::Readback;
 use super::{AdmittedCall, Failure};
 use crate::kernel::custody::Acknowledgement;
@@ -118,6 +119,94 @@ pub(crate) trait Driver {
     ) -> Result<(JsonValue, Option<String>), String>;
 }
 
+/// A driver as the kernel holds it: nothing it answers repeats the credential
+/// the call presented, a failure's reason and a refusal's answer included,
+/// before the kernel records, returns or seals any of it.
+struct Custody<'a> {
+    driver: &'a dyn Driver,
+    credential: Option<&'a CredentialSecret>,
+}
+
+impl Custody<'_> {
+    fn text(&self, text: String) -> String {
+        match self.credential {
+            Some(secret) => secret.scrub_text(text),
+            None => text,
+        }
+    }
+
+    fn value(&self, value: JsonValue) -> JsonValue {
+        match self.credential {
+            Some(secret) => secret.scrub(value),
+            None => value,
+        }
+    }
+
+    fn observed(&self, observed: Observed) -> Observed {
+        Observed {
+            value: self.value(observed.value),
+            evidence: observed.evidence,
+        }
+    }
+}
+
+impl Driver for Custody<'_> {
+    fn items(&self) -> Result<Option<Vec<JsonValue>>, String> {
+        self.driver.items().map_err(|reason| self.text(reason))
+    }
+
+    fn perform(&self, item: Option<usize>) -> Result<Observed, Unperformed> {
+        self.driver
+            .perform(item)
+            .map(|observed| self.observed(observed))
+            .map_err(|failure| match failure {
+                Unperformed::NotSent { code, reason } => Unperformed::NotSent {
+                    code,
+                    reason: self.text(reason),
+                },
+                Unperformed::Refused {
+                    code,
+                    reason,
+                    answer,
+                } => Unperformed::Refused {
+                    code,
+                    reason: self.text(reason),
+                    answer: answer.map(|answer| self.value(answer)),
+                },
+                Unperformed::Halted {
+                    code,
+                    reason,
+                    retry_at,
+                } => Unperformed::Halted {
+                    code,
+                    reason: self.text(reason),
+                    retry_at,
+                },
+                Unperformed::MaybeSent { code, reason } => Unperformed::MaybeSent {
+                    code,
+                    reason: self.text(reason),
+                },
+            })
+    }
+
+    fn check(&self, check: Check, write: &JsonValue) -> Result<Observed, String> {
+        self.driver
+            .check(check, write)
+            .map(|observed| self.observed(observed))
+            .map_err(|reason| self.text(reason))
+    }
+
+    fn result(
+        &self,
+        write: &JsonValue,
+        confirmed: &[JsonValue],
+    ) -> Result<(JsonValue, Option<String>), String> {
+        self.driver
+            .result(write, confirmed)
+            .map_err(|reason| self.text(reason))
+    }
+}
+
 /// Run `driver` for the admitted `call` under `checks`.
 pub(super) fn run(
     driver: &dyn Driver,
@@ -126,6 +215,10 @@ pub(super) fn run(
     recovery: Recovery,
     record: &mut dyn FnMut(&Acknowledgement) -> Result<(), String>,
 ) -> Result<Readback, Failure> {
+    let driver = &Custody {
+        driver,
+        credential: call.credential,
+    };
     let items = match call.mutation() {
         true => driver
             .items()
@@ -588,6 +681,61 @@ mod tests {
             access,
             _sealed: Sealed,
         })
+    }
+
+    #[test]
+    fn a_providers_failure_never_repeats_the_presented_credential() {
+        let secret = CredentialSecret::new(
+            runx_contracts::connector::CredentialName::new("key").expect("a credential name"),
+            BTreeMap::from([("token".to_owned(), "sk_live_private".to_owned())]),
+        );
+        let driver = Fake {
+            performed: Cell::new(0),
+            answer: || {
+                Err(Unperformed::Refused {
+                    code: "tool_error",
+                    reason: "tool post reported an error: token sk_live_private is revoked"
+                        .to_owned(),
+                    answer: None,
+                })
+            },
+            observed: JsonValue::Null,
+        };
+        let arguments = JsonValue::Object(JsonObject::new());
+        let parameters = JsonObject::new();
+        let env = BTreeMap::new();
+        let call = AdmittedCall {
+            connector: "example",
+            operation: "item.write",
+            implementation: "mcp",
+            target: "example://item",
+            arguments: &arguments,
+            parameters: &parameters,
+            idempotency_key: Some("key-1"),
+            credential: Some(&secret),
+            env: &env,
+            access: OperationAccess::Mutate,
+            _sealed: Sealed,
+        };
+
+        let failure = run(
+            &driver,
+            &call,
+            &Checks::default(),
+            Recovery {
+                acknowledged: None,
+                resend_safe: false,
+            },
+            &mut |_| Ok(()),
+        );
+
+        let reason = match failure {
+            Err(Failure::Rejected { reason, .. }) => Some(reason),
+            _ => None,
+        }
+        .expect("a refused write is rejected");
+        assert!(!reason.contains("sk_live_private"), "{reason}");
+        assert!(reason.contains("[redacted-credential]"), "{reason}");
     }
 
     #[test]

@@ -4,14 +4,16 @@ target: ..
 runner: handoff
 inputs:
   channel: github_issue_comment
-  boundary_kind: external_maintainer
+  boundary_kind: external
   packet:
     decision: ready_for_handoff
     channel: github_issue_comment
     headline: Bounded update
     body: The evidence-bound update is ready for review.
     payload_digest: sha256:3333333333333333333333333333333333333333333333333333333333333333
-    evidence_binding: {}
+    evidence_binding:
+      evidence_packet_digest: sha256:2222222222222222222222222222222222222222222222222222222222222222
+      source_digests: [sha256:1111111111111111111111111111111111111111111111111111111111111111]
     delivery_status: not_sent
     blockers: []
   target: { thread_locator: github.com/runxhq/runx/issues/241 }
@@ -24,7 +26,6 @@ expect:
         delivery_status: not_sent
       boundary_state:
         approval_required_for_delivery: true
-        approval_present: false
         completion_state: handoff_ready
   receipt: { schema: runx.receipt.v1 }
 metadata: { public_skill: ghostwrite, source_case: external-handoff-plan, source: skills-fixture }

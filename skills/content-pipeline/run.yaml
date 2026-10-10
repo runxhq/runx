@@ -1,6 +1,5 @@
 skill: content-pipeline
-version: "0.3.6"
-
+version: "0.4.0"
 catalog:
   kind: graph
   audience: public
@@ -36,7 +35,7 @@ harness:
         publication_target:
           provider: example
           destination: operator-review-queue
-        boundary_kind: external_maintainer
+        boundary_kind: external
         source_packets:
           - decision: ready
             final_url: https://example.com/receipts
@@ -209,13 +208,9 @@ runners:
       boundary_kind:
         type: string
         required: false
-        default: external_maintainer
-        description: Trust boundary the provider-neutral handoff will cross.
-      approval_context:
-        type: json
-        required: false
-        default: {}
-        description: Existing approval evidence to record for the later provider action.
+        default: external
+        schema: { enum: [internal, external] }
+        description: Whether delivery crosses outside the team; an external delivery needs the delivering lane's own approval.
     result_from: [research-topic, draft-brief, package-content, prepare-handoff]
     steps:
       - id: research-topic
@@ -264,5 +259,4 @@ runners:
           channel: $input.channel
           boundary_kind: $input.boundary_kind
           target: $input.publication_target
-          approval: $input.approval_context
           packet: $steps.package-content.content_publish_packet

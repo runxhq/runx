@@ -91,7 +91,7 @@ fn history_lists_receipts_newest_first_with_safe_refs_and_filters()
         &store,
         &workspace,
         &ReceiptFilter {
-            query: Some("artifact".to_owned()),
+            query: Some("receipt-archive".to_owned()),
             issuer: Some("LOCAL".to_owned()),
             since: Some("2026-05-18T00:00:00Z".to_owned()),
             limit: Some(2),
@@ -109,11 +109,6 @@ fn history_lists_receipts_newest_first_with_safe_refs_and_filters()
     assert_eq!(history.receipts[0].subject_ref, SIGNED_RUNTIME_SUBJECT);
     assert_eq!(history.receipts[0].issuer_type, "local");
     assert_eq!(history.receipts[1].actors, vec![SIGNED_LOCAL_ACTOR]);
-    assert!(
-        history.receipts[0]
-            .artifact_types
-            .contains(&"artifact".to_owned())
-    );
     assert!(
         history.receipts[0]
             .receipt_ref
@@ -166,7 +161,14 @@ fn receipt_inspection_projects_signed_governance_without_execution_bodies()
         inspection.receipt.authority.exercised_scopes[0].scope,
         "repo:read"
     );
-    assert!(!inspection.receipt.acts.is_empty());
+    // A step that made no governed call seals no act; how it ended is the
+    // seal's, and inspection shows it.
+    assert!(inspection.receipt.acts.is_empty());
+    assert_eq!(
+        inspection.receipt.seal_criteria[0].criterion_id,
+        "step_outcome"
+    );
+    assert_eq!(inspection.receipt.seal_criteria[0].status, "verified");
     let serialized = serde_json::to_string(&inspection)?;
     assert!(!serialized.contains("structured_output"));
     assert!(!serialized.contains("stderr"));
@@ -216,13 +218,13 @@ fn history_filter_matches_actor_status_skill_and_date() -> Result<(), Box<dyn st
 }
 
 #[test]
-fn history_filter_intersects_skill_status_source_artifact_and_date_range()
+fn history_filter_intersects_skill_status_issuer_and_date_range()
 -> Result<(), Box<dyn std::error::Error>> {
     let temp = TestDir::new()?;
     let workspace = temp.path().join("workspace");
     let store = LocalReceiptStore::new(paths(&workspace).receipts());
 
-    let mut matching = receipt_with_metadata(
+    let matching = receipt_with_metadata(
         InvocationStatus::Success,
         "rcpt_matching",
         "2026-05-18T12:00:00Z",
@@ -230,31 +232,26 @@ fn history_filter_intersects_skill_status_source_artifact_and_date_range()
         "local",
         "runner-a",
     )?;
-    set_artifact_label(&mut matching, "deploy-bundle")?;
     let matching_id = matching.id.to_string();
     store.write_receipt(&matching)?;
 
-    let mut wrong_artifact = receipt_with_metadata(
-        InvocationStatus::Success,
-        "rcpt_wrong_artifact",
+    store.write_receipt(&receipt_with_metadata(
+        InvocationStatus::Failure,
+        "rcpt_wrong_status",
         "2026-05-18T12:30:00Z",
         "Deploy Skill",
         "local",
         "runner-a",
-    )?;
-    set_artifact_label(&mut wrong_artifact, "diagnostic-log")?;
-    store.write_receipt(&wrong_artifact)?;
+    )?)?;
 
-    let mut outside_window = receipt_with_metadata(
+    store.write_receipt(&receipt_with_metadata(
         InvocationStatus::Success,
         "rcpt_outside_window",
         "2026-05-19T00:00:01Z",
         "Deploy Skill",
         "local",
         "runner-a",
-    )?;
-    set_artifact_label(&mut outside_window, "deploy-bundle")?;
-    store.write_receipt(&outside_window)?;
+    )?)?;
 
     let history = list(
         &store,
@@ -263,7 +260,6 @@ fn history_filter_intersects_skill_status_source_artifact_and_date_range()
             skill: Some("receipt-archive".to_owned()),
             status: Some("CLOSED".to_owned()),
             issuer: Some("LOCAL".to_owned()),
-            artifact_type: Some("deploy-bundle".to_owned()),
             since: Some("2026-05-18T00:00:00Z".to_owned()),
             until: Some("2026-05-19T00:00:00Z".to_owned()),
             ..ReceiptFilter::default()
@@ -278,7 +274,6 @@ fn history_filter_intersects_skill_status_source_artifact_and_date_range()
             .collect::<Vec<_>>(),
         vec![matching_id.as_str()]
     );
-    assert_eq!(history.receipts[0].artifact_types, vec!["deploy-bundle"]);
     Ok(())
 }
 
@@ -418,7 +413,7 @@ fn generated_runtime_receipt_with(
 ) -> Result<Receipt, Box<dyn std::error::Error>> {
     let output = InvocationOutput::process(
         status.clone(),
-        format!(r#"{{"artifact":{{"artifact_id":"artifact_{id}","artifact_type":"artifact"}}}}"#),
+        format!(r#"{{"message":"{id}"}}"#),
         String::new(),
         Some(if status == InvocationStatus::Success {
             0
@@ -475,7 +470,7 @@ fn production_generated_receipt(
 ) -> Result<Receipt, Box<dyn std::error::Error>> {
     let output = InvocationOutput::process(
         InvocationStatus::Success,
-        r#"{"artifact":{"artifact_id":"artifact_prod","artifact_type":"artifact"}}"#.to_owned(),
+        r#"{"message":"production"}"#.to_owned(),
         String::new(),
         Some(0),
         10,
@@ -495,23 +490,6 @@ fn production_generated_receipt(
         "2026-05-18T00:00:01Z",
         RuntimeReceiptSignaturePolicy::production_signing(signer, verifier),
     )?)
-}
-
-fn set_artifact_label(
-    receipt: &mut Receipt,
-    label: &str,
-) -> Result<(), Box<dyn std::error::Error>> {
-    for reference in receipt
-        .acts
-        .iter_mut()
-        .flat_map(|act| act.artifact_refs.iter_mut())
-    {
-        if reference.reference_type == ReferenceType::Artifact {
-            reference.label = Some(label.to_owned().into());
-        }
-    }
-    reseal_receipt(receipt)?;
-    Ok(())
 }
 
 fn json_object(value: serde_json::Value) -> Result<runx_contracts::JsonObject, io::Error> {

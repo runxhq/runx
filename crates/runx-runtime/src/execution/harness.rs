@@ -54,8 +54,8 @@ pub use fixtures::{
 };
 pub(crate) use json_assertions::assert_json_expectation;
 pub use runner::{
-    HarnessOptions, HarnessReplayError, HarnessReplayOutput, run_harness_fixture,
-    run_harness_fixture_with_adapter,
+    HarnessOptions, HarnessReplayError, HarnessReplayOutput, replay_harness_fixture_with_adapter,
+    run_harness_fixture, run_harness_fixture_with_adapter,
 };
 pub(crate) use transport::{effects_for_harness, provider_env};
 

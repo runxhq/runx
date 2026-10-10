@@ -209,18 +209,29 @@ pub(crate) fn bind_run_inputs(
 }
 
 /// Place every binding `invoked` resolves, last first so a list item left out
-/// never moves one still to bind, and return the rest for the step to bind
-/// when it runs.
+/// never moves one still to place, and return the rest for the step to bind
+/// when it runs, each moved up past any item left out before it.
 fn bind_invoked(
     step_id: &str,
     values: &mut JsonObject,
     bindings: Vec<Binding>,
     invoked: &dyn Fn(&Source) -> Option<Option<JsonValue>>,
 ) -> Result<Vec<Binding>, RuntimeError> {
-    let mut later = Vec::new();
+    let mut later: Vec<Binding> = Vec::new();
     for binding in bindings.into_iter().rev() {
         match invoked(&binding.source) {
-            Some(value) => place(step_id, values, &binding, value)?,
+            Some(value) => {
+                let left_out = value
+                    .is_none()
+                    .then(|| list_item(values, &binding.at))
+                    .flatten();
+                place(step_id, values, &binding, value)?;
+                if let Some((list, index)) = left_out {
+                    for waiting in &mut later {
+                        move_up_past(&mut waiting.at, list, index);
+                    }
+                }
+            }
             None => later.push(binding),
         }
     }
@@ -228,13 +239,39 @@ fn bind_invoked(
     Ok(later)
 }
 
+/// The list and index `at` names, when it names an item of a list.
+fn list_item<'a>(values: &JsonObject, at: &'a [String]) -> Option<(&'a [String], usize)> {
+    let (last, list) = at.split_last()?;
+    let index = last.parse::<usize>().ok()?;
+    let (first, rest) = list.split_first()?;
+    matches!(
+        value_at(values.get(first)?, rest),
+        Some(JsonValue::Array(_))
+    )
+    .then_some((list, index))
+}
+
+/// Move a path inside `list` up one place when the item at `removed`, before
+/// it, was left out.
+fn move_up_past(at: &mut [String], list: &[String], removed: usize) {
+    if at.len() > list.len()
+        && at.starts_with(list)
+        && let Some(index) = at[list.len()]
+            .parse::<usize>()
+            .ok()
+            .filter(|index| *index > removed)
+    {
+        at[list.len()] = (index - 1).to_string();
+    }
+}
+
+/// Bind the input field a condition or a guard reads. An absent field is not
+/// `null`: it stays unbound, resolves to nothing, and decides nothing.
 fn bind_operand(operand: &mut Operand, run_input: &JsonValue) {
-    if let Operand::Reference(Source::Input { path }) = operand {
-        *operand = Operand::Literal(
-            value_at(run_input, path)
-                .cloned()
-                .unwrap_or(JsonValue::Null),
-        );
+    if let Operand::Reference(Source::Input { path }) = operand
+        && let Some(value) = value_at(run_input, path)
+    {
+        *operand = Operand::Literal(value.clone());
     }
 }
 
@@ -797,6 +834,30 @@ steps:
                 .ok()
                 .as_ref(),
             "an absent item leaves itself out and the rest keep their order"
+        );
+
+        // A step reference after an absent item still names its own item.
+        let mixed = graph(
+            "name: mixed\nsteps:\n  - id: discover\n    tool: { module: discover.mjs }\n    outputs: { id: string }\n  - id: take\n    tool: { module: take.mjs }\n    inputs: {ids: [$input.optional, $steps.discover.id, {of: $steps.discover.id}]}\n",
+        )?;
+        let bound =
+            bind_run_inputs(mixed, &JsonObject::new(), None).map_err(|error| error.to_string())?;
+        let take = &bound.steps[1];
+        assert_eq!(
+            take.inputs.get("ids"),
+            serde_json::from_value::<JsonValue>(serde_json::json!([
+                "$steps.discover.id",
+                {"of": "$steps.discover.id"}
+            ]))
+            .ok()
+            .as_ref()
+        );
+        assert_eq!(
+            take.bindings
+                .iter()
+                .map(|binding| binding.at.join("."))
+                .collect::<Vec<_>>(),
+            ["ids.0", "ids.1.of"]
         );
         Ok(())
     }

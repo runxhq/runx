@@ -286,6 +286,7 @@ fn synthetic_step_runs(signature: &RuntimeReceiptSignatureConfig, count: usize) 
                 skill: step_id.clone(),
                 runner: None,
                 contract,
+                artifact_outputs: Default::default(),
                 ephemeral_contract: EphemeralValue::default(),
                 outcome: output.into(),
                 admission_witness: StepAdmissionWitness::local_runtime(

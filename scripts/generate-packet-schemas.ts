@@ -301,16 +301,9 @@ function collectArtifactContracts(
   const packet = nonEmptyString(artifacts.packet);
   if (packet) {
     if (!wrapAs) throw new Error(`${source} packet requires wrap_as`);
-    register({
-      packetId: packet,
-      source,
-      // Runtime projection uses the named value when wrap_as is also a
-      // declared output; otherwise it wraps the complete declared payload.
-      // Generate the schema from that same semantic value.
-      schema: Object.hasOwn(outputs, wrapAs)
-        ? outputSchema(outputs[wrapAs])
-        : objectSchema(outputs),
-    });
+    // wrap_as names the step's whole declared result as the artifact, as the
+    // runtime projects it.
+    register({ packetId: packet, source, schema: objectSchema(outputs) });
   }
   if (!artifacts.packets) return;
   for (const [output, packetValue] of Object.entries(artifacts.packets)) {

@@ -47,6 +47,8 @@ bytes = { version = "1.11.1", optional = true }
 http = { version = "1.4.0", optional = true }
 http-body-util = { version = "0.1.5", optional = true }
 httpdate = "1.0.3"
+# SIMD substring search for credential redaction (already in the tree via regex).
+memchr = "2.8.3"
 runx-contracts.workspace = true
 runx-core.workspace = true
 runx-parser.workspace = true

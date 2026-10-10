@@ -68,9 +68,10 @@ function render() {
 
 function renderContracts() {
   const cargo = process.platform === "win32" ? "cargo.exe" : "cargo";
+  const prebuilt = process.env.RUNX_OFFICIAL_CONNECTORS_BIN;
   const result = spawnSync(
-    cargo,
-    [
+    prebuilt || cargo,
+    prebuilt ? [connectorsRoot] : [
       "run",
       "--quiet",
       "--manifest-path",

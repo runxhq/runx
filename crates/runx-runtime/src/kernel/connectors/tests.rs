@@ -141,3 +141,23 @@ fn a_missing_connector_says_where_it_was_looked_for() {
         Err(ConnectorRegistryError::Uninspectable { .. })
     ));
 }
+
+#[cfg(unix)]
+#[test]
+fn a_plugin_whose_connectors_cannot_be_read_is_an_error_not_an_empty_plugin() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let root = tempfile::tempdir().unwrap();
+    let skill = root.path().join("skills/forecast");
+    std::fs::create_dir_all(&skill).unwrap();
+    let connectors = root.path().join("connectors");
+    std::fs::create_dir_all(&connectors).unwrap();
+    std::fs::set_permissions(&connectors, std::fs::Permissions::from_mode(0o000)).unwrap();
+    let result = ConnectorScope::for_skill(&skill);
+    std::fs::set_permissions(&connectors, std::fs::Permissions::from_mode(0o755)).unwrap();
+    assert!(
+        matches!(result, Err(ConnectorRegistryError::Uninspectable { .. })),
+        "{:?}",
+        result.err()
+    );
+}

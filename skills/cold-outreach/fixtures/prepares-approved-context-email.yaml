@@ -1,0 +1,151 @@
+name: prepares-approved-context-email
+kind: skill
+target: ..
+inputs:
+  sender: {name: Example team, from_address: hello@example.com, reply_to: hello@example.com}
+  prospect: {email: operator@example.org, company: Example}
+  audience: documentation maintainers
+  purpose: Offer a useful documentation review
+  offer: A bounded review of public docs
+  required_footer: Example team. Reply to opt out.
+  contact_policy:
+    recipient: operator@example.org
+    status: eligible
+    suppressed: false
+    policy_ref: policy:outreach
+    evidence_refs: ['decision:recipient-1']
+  evidence_pack:
+    decision: ready
+    research_brief:
+      objective: Explain the strongest Runx architecture signal.
+      scope: agent infrastructure
+      summary: The recipient published a guide about receipts binding actions to authority evidence. The sender
+        offers a bounded public documentation review.
+      open_questions: []
+    evidence_log:
+    - claim: The recipient published a guide about receipts binding actions to authority evidence; the sender offers
+        a bounded public documentation review.
+      source_digest: sha256:1111111111111111111111111111111111111111111111111111111111111111
+      content_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      confidence: verified
+      relevance: Supports the governance claim.
+    decision_support: []
+    risks: []
+    source_evidence:
+    - evidence_digest: sha256:1111111111111111111111111111111111111111111111111111111111111111
+      content_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      source_ref: https://example.com/evidence
+      source_kind: fetch
+      provenance: {observed_at: '2026-07-17T00:00:00Z', bytes: 0, status: 200, redirects: []}
+    index_digest: sha256:2222222222222222222222222222222222222222222222222222222222222222
+    validation: {status: pass, findings: []}
+  brand_context:
+    decision: ready
+    brand: Example team
+    applicability: {channels: [email], audience: documentation maintainers, boundaries: [Do not extend claims beyond
+          admitted evidence.]}
+    brand_voice:
+      voice_principles: [Lead with the reader's own work.]
+      vocabulary: {use: [review], avoid: [synergy]}
+      cadence: [Short plain sentences.]
+      claim_rules: {safe: [], requires_proof: [], forbidden: [Guaranteed outcomes.]}
+      channel_adjustments: [Email stays short with one ask.]
+    evidence:
+      evidence_digest: sha256:3333333333333333333333333333333333333333333333333333333333333333
+      sources: [{source_ref: 'source:1', kind: approved, label: Approved outreach example}]
+      bindings:
+      - {rule: Lead with the reader's own work., source_refs: ['source:1']}
+      - {rule: Short plain sentences., source_refs: ['source:1']}
+    redactions: []
+    stop_conditions: [Require new evidence before adding a new factual claim.]
+    receipt_notes: {authority: context-only, mutation: false}
+    validation: {status: pass, findings: []}
+  taste_context:
+    decision: ready
+    subject: Example team outreach
+    applicability: {surfaces: [email], audience: documentation maintainers, expires_when: [Preferences change.]}
+    taste_profile:
+      principles: [Be specific about the reader's work.]
+      likes: [One concrete next step.]
+      dislikes: [Generic compliments.]
+      decision_rules: [Prefer a question to an assumption.]
+      examples_to_emulate: []
+      examples_to_avoid: []
+    evidence:
+      evidence_digest: sha256:4444444444444444444444444444444444444444444444444444444444444444
+      sources: [{source_ref: 'source:1', kind: liked, label: Liked outreach example}]
+      bindings:
+      - {rule: Prefer a question to an assumption., source_refs: ['source:1'], confidence: explicit}
+    redactions: []
+    stop_conditions: []
+    receipt_notes: {authority: context-only, mutation: false}
+    validation: {status: pass, findings: []}
+expect:
+  status: sealed
+  steps: [admit-evidence, admit, draft, verify, digest-draft, review]
+  step_outputs:
+    verify:
+      subset:
+        content_draft_packet:
+          data:
+            decision: ready
+            context_binding:
+              required:
+              - {type: brand_voice, packet_digest: sha256:635d1cd53df5ba6d403f26276e6ac5caa2338aecb8559f3214460be81a08c441, scope: {audience: documentation maintainers,
+                  channel: email}}
+              - {type: taste_profile, packet_digest: sha256:dd28c12a5a077b29bd88c8d0ab765096cda94261955ab1232a01035728cd30ea, scope: {audience: documentation maintainers,
+                  channel: email}}
+            validation: {status: pass}
+    review:
+      subset:
+        outreach_review:
+          data:
+            decision: ready_for_review
+            draft_status: prepared
+            draft:
+              subject: A review of your public guide
+              body: 'Your public guide explains how receipts bind actions to authority evidence. We can offer a
+                bounded review of that explanation. Would a short annotated review help?
+
+
+                Example team. Reply to opt out.'
+            recipient: operator@example.org
+            sender: {name: Example team, from_address: hello@example.com, reply_to: hello@example.com}
+            delivery_status: not_sent
+  receipt: {schema: runx.receipt.v1}
+metadata: {public_skill: cold-outreach, source: skills-fixture}
+operator_journeys:
+- mode: standalone
+  request: Prepare one relevant cold email using supplied evidence and policy, keeping delivery off.
+  expected_outcome: Return one exact evidence-bound reviewable email from one writing turn that ghostwrite admits
+    and verifies, with no send.
+  confusors: [ghostwrite, lead-qualify]
+- mode: composed
+  request: Continue outreach preparation from supplied research and contact-policy evidence.
+  expected_outcome: Reuse the supplied evidence and retain the exact bounded outcome without outward actions.
+  prior_evidence: [The validated research packet and current recipient suppression disposition.]
+  must_not_repeat: [Do not enrich or research the recipient again; do not send the draft.]
+caller:
+  answers:
+    agent.cold-outreach-draft.output:
+      content_draft:
+        decision: ready
+        content_brief: {objective: Offer a useful documentation review, audience: documentation maintainers, channel: email}
+        draft:
+          title: A review of your public guide
+          body: 'Your public guide explains how receipts bind actions to authority evidence. We can offer a bounded
+            review of that explanation. Would a short annotated review help?
+
+
+            Example team. Reply to opt out.'
+          claim_refs:
+          - claim: The recipient has a public guide and the sender offers a bounded documentation review.
+            source_digests: ['sha256:1111111111111111111111111111111111111111111111111111111111111111']
+        review_checklist: [Confirm current contact eligibility before any send.]
+        distribution_notes: {primary_channel: email}
+        context_binding:
+          applied:
+          - packet_digest: sha256:635d1cd53df5ba6d403f26276e6ac5caa2338aecb8559f3214460be81a08c441
+            applied_rules: [Lead with the reader's own work.]
+          - packet_digest: sha256:dd28c12a5a077b29bd88c8d0ab765096cda94261955ab1232a01035728cd30ea
+            applied_rules: [Prefer a question to an assumption.]

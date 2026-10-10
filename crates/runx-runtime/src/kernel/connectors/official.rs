@@ -5,6 +5,45 @@
 /// Official connector manifests, by id.
 pub(super) const CONNECTORS: &[(&str, &str)] = &[
     (
+        "apollo",
+        r###"schema: runx.connector.v1
+id: apollo
+name: Apollo
+description: Inspect the selected Apollo API key without enriching contacts or consuming enrichment credits.
+auth:
+  credentials:
+    api_key:
+      kind: api_key
+      fields:
+        - {name: api_key, label: Apollo API key}
+      delivery: {env: APOLLO_API_KEY}
+      audience: [api.apollo.io]
+placements:
+  local:
+    auth: [credentials]
+  hosted: {auth: credential, credential: api_key}
+operations:
+  auth.inspect:
+    description: Inspect API health and whether the exact selected key authenticates; this does not prove account identity, enrichment permissions or credits.
+    verb: read
+    scopes: [auth.read]
+    credentials: [api_key]
+    target: {template: 'https://api.apollo.io/api/v1/auth/health'}
+    input_schema: {type: object, additionalProperties: false}
+    result_fields: [auth]
+    hosted: {}
+    implementation:
+      http:
+        allowed_hosts: [api.apollo.io]
+        auth: {api_key: {type: header, name: x-api-key, field: api_key}}
+        requests:
+          - id: health
+            method: GET
+            url: https://api.apollo.io/api/v1/auth/health
+            headers: {accept: application/json}
+"###,
+    ),
+    (
         "ausca-browser",
         r###"schema: runx.connector.v1
 id: ausca-browser
@@ -212,10 +251,6 @@ auth:
           label: x402 asset address
           secret: false
           required: false
-        - name: x402_asset_decimals
-          label: x402 asset decimals (derived; legacy input)
-          secret: false
-          required: false
         - name: x402_targets
           label: x402 settlement targets
           secret: false
@@ -244,7 +279,6 @@ operations:
       template: {"$argument": "/resource"}
     guarantees:
       provider_idempotency: enforced
-      reconcile: payment.x402.merchant.lookup
     result_fields: [payment_contract, payment_ref, idempotency_key, request_binding_digest, resource, amount_minor, currency, status, settlement_ambiguous, reason, evidence_contract, payment_payload_digest, payment_requirements_digest, verification_ref, settlement_ref, payer, pay_to, network, asset, asset_decimals, settled_at]
     hosted: {}
   payment.x402.merchant.recover:
@@ -289,6 +323,63 @@ operations:
       template: {"$argument": "/resource"}
     result_fields: [refund_contract, refund_ref, payment_ref, idempotency_key, resource, amount_minor, currency, status, outcome_ambiguous, reason, evidence_contract, original_settlement_ref, provider_idempotency_key, refund_settlement_ref, payer, pay_to, network, asset, asset_decimals, settled_at]
     hosted: {}
+"###,
+    ),
+    (
+        "exa",
+        r###"schema: runx.connector.v1
+id: exa
+name: Exa
+description: Search public web sources within explicit query and result limits.
+auth:
+  credentials:
+    api_key:
+      kind: api_key
+      fields:
+        - {name: api_key, label: Exa API key}
+      delivery: {env: EXA_API_KEY}
+      audience: [api.exa.ai]
+placements:
+  local:
+    auth: [credentials]
+operations:
+  search.query:
+    description: Run one bounded search and return provider results, query identity and reported cost; does not fetch full pages.
+    verb: read
+    scopes: [search.read]
+    credentials: [api_key]
+    target: {template: 'https://api.exa.ai/search'}
+    input_schema:
+      type: object
+      additionalProperties: false
+      required: [query, limit]
+      properties:
+        query: {type: string, minLength: 1, maxLength: 2000, pattern: '\S'}
+        limit: {type: integer, minimum: 1, maximum: 20}
+        include_domains:
+          type: array
+          minItems: 1
+          maxItems: 20
+          uniqueItems: true
+          items: {type: string, minLength: 1, maxLength: 253, pattern: '^[a-zA-Z0-9.-]+$'}
+        start_published_at: {type: string, format: date-time}
+        end_published_at: {type: string, format: date-time}
+    result_fields: [search]
+    implementation:
+      http:
+        allowed_hosts: [api.exa.ai]
+        auth: {api_key: {type: bearer, field: api_key}}
+        requests:
+          - method: POST
+            url: https://api.exa.ai/search
+            headers: {accept: application/json}
+            body:
+              query: {$argument: /query}
+              numResults: {$argument: /limit}
+              type: auto
+              includeDomains: {$argument: /include_domains}
+              startPublishedDate: {$argument: /start_published_at}
+              endPublishedDate: {$argument: /end_published_at}
 "###,
     ),
     (
@@ -969,6 +1060,57 @@ operations:
         advisory_ref: {type: string, minLength: 1}
         payload_digest: {type: string}
     result_fields: [advisory_ref, payload_digest, status]
+  commits.compare:
+    description: Read the three-dot comparison of exact base and head commits; files are returned only on the first page and capped by GitHub at 300.
+    verb: read
+    scopes: [repo.read]
+    credentials: [token]
+    target:
+      template: {$argument: /repository}
+    input_schema:
+      type: object
+      additionalProperties: false
+      required: [repository, base, head]
+      properties:
+        repository: {type: string, maxLength: 201, pattern: '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$'}
+        base: {type: string, pattern: '^[0-9a-f]{40}$'}
+        head: {type: string, pattern: '^[0-9a-f]{40}$'}
+    result_fields: [comparison]
+    implementation:
+      http:
+        allowed_hosts: [api.github.com]
+        auth: {token: {type: bearer}}
+        requests:
+          - method: GET
+            url: {$concat: ['https://api.github.com/repos/', {$argument: /repository}, '/compare/', {$argument: /base}, '...', {$argument: /head}]}
+            query: {per_page: 1, page: 1}
+            headers: {accept: application/vnd.github+json, X-GitHub-Api-Version: '2026-03-10'}
+  checks.list:
+    description: Read one bounded page of latest check runs for an exact commit SHA; check runs do not include legacy commit statuses.
+    verb: read
+    scopes: [repo.read]
+    credentials: [token]
+    target:
+      template: {$argument: /repository}
+    input_schema:
+      type: object
+      additionalProperties: false
+      required: [repository, commit, per_page, page]
+      properties:
+        repository: {type: string, maxLength: 201, pattern: '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$'}
+        commit: {type: string, pattern: '^[0-9a-f]{40}$'}
+        per_page: {type: integer, minimum: 1, maximum: 100}
+        page: {type: integer, minimum: 1, maximum: 10000}
+    result_fields: [checks]
+    implementation:
+      http:
+        allowed_hosts: [api.github.com]
+        auth: {token: {type: bearer}}
+        requests:
+          - method: GET
+            url: {$concat: ['https://api.github.com/repos/', {$argument: /repository}, '/commits/', {$argument: /commit}, '/check-runs']}
+            query: {filter: latest, per_page: {$argument: /per_page}, page: {$argument: /page}}
+            headers: {accept: application/vnd.github+json, X-GitHub-Api-Version: '2026-03-10'}
 "###,
     ),
     (
@@ -1119,6 +1261,237 @@ operations:
     result_fields: [property, sitemap_url, accepted_at, idempotency_key]
     hosted:
       provider_scopes: ["https://www.googleapis.com/auth/webmasters", "openid"]
+"###,
+    ),
+    (
+        "google-sheets",
+        r###"schema: runx.connector.v1
+id: google-sheets
+name: Google Sheets
+description: Read selected spreadsheet metadata and one explicitly bounded cell range.
+auth:
+  credentials:
+    access_token:
+      kind: oauth2
+      fields:
+        - {name: access_token, label: Google OAuth access token with Sheets read access}
+      delivery: {env: GOOGLE_SHEETS_ACCESS_TOKEN}
+      audience: [sheets.googleapis.com]
+placements:
+  local:
+    auth: [credentials]
+operations:
+  spreadsheet.read:
+    description: Read spreadsheet and sheet properties without cell data; file discovery remains a Drive operation.
+    verb: read
+    scopes: [spreadsheets.read]
+    credentials: [access_token]
+    target:
+      template: {$concat: ['https://sheets.googleapis.com/v4/spreadsheets/', {$argument: /spreadsheet_id}]}
+    input_schema:
+      type: object
+      additionalProperties: false
+      required: [spreadsheet_id]
+      properties:
+        spreadsheet_id: {type: string, minLength: 1, maxLength: 128, pattern: '^[A-Za-z0-9_-]+$'}
+    result_fields: [spreadsheet]
+    implementation:
+      http:
+        allowed_hosts: [sheets.googleapis.com]
+        auth: {access_token: {type: bearer, field: access_token}}
+        requests:
+          - method: GET
+            url: {$concat: ['https://sheets.googleapis.com/v4/spreadsheets/', {$argument: /spreadsheet_id}]}
+            headers: {accept: application/json}
+            query:
+              includeGridData: false
+              fields: spreadsheetId,spreadsheetUrl,properties,sheets.properties
+  values.read:
+    description: Read one finite A1 rectangle in columns A-Z and rows 1-1000, using an explicit value rendering mode.
+    verb: read
+    scopes: [spreadsheets.read]
+    credentials: [access_token]
+    target:
+      template: {$concat: ['https://sheets.googleapis.com/v4/spreadsheets/', {$argument: /spreadsheet_id}]}
+    input_schema:
+      type: object
+      additionalProperties: false
+      required: [spreadsheet_id, range, value_render_option]
+      properties:
+        spreadsheet_id: {type: string, minLength: 1, maxLength: 128, pattern: '^[A-Za-z0-9_-]+$'}
+        range:
+          type: string
+          minLength: 1
+          maxLength: 512
+          pattern: '^(?:[A-Za-z_][A-Za-z0-9_ ]*|''(?:[^''\r\n]|'''')+'')![A-Z](?:[1-9][0-9]{0,2}|1000):[A-Z](?:[1-9][0-9]{0,2}|1000)$'
+        value_render_option: {enum: [FORMATTED_VALUE, UNFORMATTED_VALUE, FORMULA]}
+    result_fields: [values]
+    implementation:
+      http:
+        allowed_hosts: [sheets.googleapis.com]
+        auth: {access_token: {type: bearer, field: access_token}}
+        requests:
+          - method: GET
+            url: {$concat: ['https://sheets.googleapis.com/v4/spreadsheets/', {$argument: /spreadsheet_id}, '/values:batchGet']}
+            headers: {accept: application/json}
+            query:
+              ranges: {$argument: /range}
+              majorDimension: ROWS
+              valueRenderOption: {$argument: /value_render_option}
+              dateTimeRenderOption: SERIAL_NUMBER
+"###,
+    ),
+    (
+        "linear",
+        r###"schema: runx.connector.v1
+id: linear
+name: Linear
+description: Read bounded team issues, selected issue context and comments through fixed GraphQL queries.
+auth:
+  credentials:
+    access_token:
+      kind: oauth2
+      fields:
+        - {name: access_token, label: Linear OAuth access token with read scope}
+      delivery: {env: LINEAR_ACCESS_TOKEN}
+      audience: [api.linear.app]
+    api_key:
+      kind: api_key
+      fields:
+        - {name: api_key, label: Linear personal API key}
+      delivery: {env: LINEAR_API_KEY}
+      audience: [api.linear.app]
+placements:
+  local:
+    auth: [credentials]
+  hosted: {auth: credential, credential: api_key}
+operations:
+  issues.list:
+    description: Read one bounded page of issues from the exact selected team; preserves provider continuation metadata.
+    verb: read
+    scopes: [read]
+    credentials: [access_token, api_key]
+    hosted: {}
+    target:
+      template: {$concat: ['https://api.linear.app/team/', {$argument: /team_id}, '/issues']}
+    input_schema:
+      type: object
+      additionalProperties: false
+      required: [team_id, limit]
+      properties:
+        team_id: {type: string, pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'}
+        limit: {type: integer, minimum: 1, maximum: 100}
+        after: {type: string, minLength: 1, maxLength: 4096}
+    result_fields: [issues]
+    implementation:
+      http:
+        allowed_hosts: [api.linear.app]
+        auth:
+          access_token: {type: bearer, field: access_token}
+          api_key: {type: header, name: authorization, field: api_key}
+        requests:
+          - method: POST
+            url: https://api.linear.app/graphql
+            headers: {accept: application/json}
+            body:
+              query: >-
+                query TeamIssues($team: String!, $first: Int!, $after: String) {
+                  team(id: $team) {
+                    id name
+                    issues(first: $first, after: $after) {
+                      nodes { id identifier title description url createdAt updatedAt archivedAt
+                        state { id name type } assignee { id name } project { id name } }
+                      pageInfo { hasNextPage endCursor }
+                    }
+                  }
+                }
+              variables: {team: {$argument: /team_id}, first: {$argument: /limit}, after: {$argument: /after}}
+        decode:
+          - {op: auto_json}
+          - {op: reject_present, path: /errors}
+          - {op: field, path: /data}
+  issue.read:
+    description: Read one exact issue's current description, workflow state and project; not a comments or activity-history read.
+    verb: read
+    scopes: [read]
+    credentials: [access_token, api_key]
+    hosted: {}
+    target:
+      template: {$concat: ['https://api.linear.app/issue/', {$argument: /issue_id}]}
+    input_schema:
+      type: object
+      additionalProperties: false
+      required: [issue_id]
+      properties:
+        issue_id: {type: string, pattern: '^(?:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}|[A-Z][A-Z0-9]{0,20}-[1-9][0-9]{0,12})$'}
+    result_fields: [issue]
+    implementation:
+      http:
+        allowed_hosts: [api.linear.app]
+        auth:
+          access_token: {type: bearer, field: access_token}
+          api_key: {type: header, name: authorization, field: api_key}
+        requests:
+          - method: POST
+            url: https://api.linear.app/graphql
+            headers: {accept: application/json}
+            body:
+              query: >-
+                query IssueContext($id: String!) {
+                  issue(id: $id) {
+                    id identifier title description url priority createdAt updatedAt archivedAt
+                    team { id name } state { id name type } assignee { id name }
+                    project { id name }
+                  }
+                }
+              variables: {id: {$argument: /issue_id}}
+        decode:
+          - {op: auto_json}
+          - {op: reject_present, path: /errors}
+          - {op: field, path: /data}
+  comments.list:
+    description: Read one bounded page of comments on the exact selected issue; preserve null bot authors and continuation metadata.
+    verb: read
+    scopes: [read]
+    credentials: [access_token, api_key]
+    hosted: {}
+    target:
+      template: {$concat: ['https://api.linear.app/issue/', {$argument: /issue_id}, '/comments']}
+    input_schema:
+      type: object
+      additionalProperties: false
+      required: [issue_id, limit]
+      properties:
+        issue_id: {type: string, pattern: '^(?:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}|[A-Z][A-Z0-9]{0,20}-[1-9][0-9]{0,12})$'}
+        limit: {type: integer, minimum: 1, maximum: 100}
+        after: {type: string, minLength: 1, maxLength: 4096}
+    result_fields: [comments]
+    implementation:
+      http:
+        allowed_hosts: [api.linear.app]
+        auth:
+          access_token: {type: bearer, field: access_token}
+          api_key: {type: header, name: authorization, field: api_key}
+        requests:
+          - method: POST
+            url: https://api.linear.app/graphql
+            headers: {accept: application/json}
+            body:
+              query: >-
+                query IssueComments($id: String!, $first: Int!, $after: String) {
+                  issue(id: $id) {
+                    id identifier
+                    comments(first: $first, after: $after) {
+                      nodes { id body createdAt updatedAt user { id name } }
+                      pageInfo { hasNextPage endCursor }
+                    }
+                  }
+                }
+              variables: {id: {$argument: /issue_id}, first: {$argument: /limit}, after: {$argument: /after}}
+        decode:
+          - {op: auto_json}
+          - {op: reject_present, path: /errors}
+          - {op: field, path: /data}
 "###,
     ),
     (
@@ -2432,6 +2805,127 @@ operations:
 "###,
     ),
     (
+        "notion",
+        r###"schema: runx.connector.v1
+id: notion
+name: Notion
+description: Search authorized Notion titles and read selected page, data-source and block evidence.
+auth:
+  credentials:
+    access_token:
+      kind: api_key
+      fields:
+        - {name: access_token, label: Notion integration token with read content capability}
+      delivery: {env: NOTION_ACCESS_TOKEN}
+      audience: [api.notion.com]
+placements:
+  local:
+    auth: [credentials]
+operations:
+  resources.search:
+    description: Read one bounded page of authorized title matches; not full-text search or a workspace inventory.
+    verb: read
+    scopes: [content.read]
+    credentials: [access_token]
+    target: {template: 'https://api.notion.com/v1/search'}
+    input_schema:
+      type: object
+      additionalProperties: false
+      required: [query, object, page_size]
+      properties:
+        query: {type: string, minLength: 1, maxLength: 1000, pattern: '\S'}
+        object: {enum: [page, data_source]}
+        page_size: {type: integer, minimum: 1, maximum: 100}
+        start_cursor: {type: string, minLength: 1, maxLength: 4096}
+    result_fields: [resources]
+    implementation:
+      http:
+        allowed_hosts: [api.notion.com]
+        auth: {access_token: {type: bearer, field: access_token}}
+        requests:
+          - method: POST
+            url: https://api.notion.com/v1/search
+            headers: {accept: application/json, Notion-Version: '2026-03-11'}
+            body:
+              query: {$argument: /query}
+              filter: {property: object, value: {$argument: /object}}
+              sort: {direction: descending, timestamp: last_edited_time}
+              page_size: {$argument: /page_size}
+              start_cursor: {$argument: /start_cursor}
+  page.read:
+    description: Read one page's metadata and properties; page body requires separately bounded block reads.
+    verb: read
+    scopes: [content.read]
+    credentials: [access_token]
+    target:
+      template: {$concat: ['https://api.notion.com/v1/pages/', {$argument: /page_id}]}
+    input_schema:
+      type: object
+      additionalProperties: false
+      required: [page_id]
+      properties:
+        page_id: {type: string, pattern: '^(?:[0-9a-fA-F]{32}|[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$'}
+    result_fields: [page]
+    implementation:
+      http:
+        allowed_hosts: [api.notion.com]
+        auth: {access_token: {type: bearer, field: access_token}}
+        requests:
+          - method: GET
+            url: {$concat: ['https://api.notion.com/v1/pages/', {$argument: /page_id}]}
+            headers: {accept: application/json, Notion-Version: '2026-03-11'}
+  datasource.read:
+    description: Read one authorized data-source schema and properties; does not query its rows.
+    verb: read
+    scopes: [content.read]
+    credentials: [access_token]
+    target:
+      template: {$concat: ['https://api.notion.com/v1/data_sources/', {$argument: /data_source_id}]}
+    input_schema:
+      type: object
+      additionalProperties: false
+      required: [data_source_id]
+      properties:
+        data_source_id: {type: string, pattern: '^(?:[0-9a-fA-F]{32}|[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$'}
+    result_fields: [data_source]
+    implementation:
+      http:
+        allowed_hosts: [api.notion.com]
+        auth: {access_token: {type: bearer, field: access_token}}
+        requests:
+          - method: GET
+            url: {$concat: ['https://api.notion.com/v1/data_sources/', {$argument: /data_source_id}]}
+            headers: {accept: application/json, Notion-Version: '2026-03-11'}
+  blocks.list:
+    description: Read one bounded page of immediate child blocks, preserving has_more and next_cursor; does not recursively traverse children.
+    verb: read
+    scopes: [content.read]
+    credentials: [access_token]
+    target:
+      template: {$concat: ['https://api.notion.com/v1/blocks/', {$argument: /block_id}, '/children']}
+    input_schema:
+      type: object
+      additionalProperties: false
+      required: [block_id, page_size]
+      properties:
+        block_id: {type: string, pattern: '^(?:[0-9a-fA-F]{32}|[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$'}
+        page_size: {type: integer, minimum: 1, maximum: 100}
+        start_cursor: {type: string, minLength: 1, maxLength: 4096}
+    result_fields: [blocks]
+    implementation:
+      http:
+        allowed_hosts: [api.notion.com]
+        auth: {access_token: {type: bearer, field: access_token}}
+        requests:
+          - method: GET
+            url: {$concat: ['https://api.notion.com/v1/blocks/', {$argument: /block_id}, '/children']}
+            headers: {accept: application/json, Notion-Version: '2026-03-11'}
+            query:
+              page_size: {$argument: /page_size}
+              start_cursor: {$argument: /start_cursor}
+"###,
+    ),
+    (
         "open-meteo",
         r###"schema: runx.connector.v1
 id: open-meteo
@@ -2610,6 +3104,83 @@ operations:
           - each: {"$argument": "/ids"}
             method: GET
             url: {"$concat": ["https://api.osv.dev/v1/vulns/", {"$item": ""}]}
+"###,
+    ),
+    (
+        "posthog",
+        r###"schema: runx.connector.v1
+id: posthog
+name: PostHog
+description: Read saved product insights from an explicitly selected PostHog Cloud project and region.
+auth:
+  credentials:
+    personal_key:
+      kind: api_key
+      fields:
+        - {name: personal_key, label: PostHog personal API key with insight read access}
+      delivery: {env: POSTHOG_PERSONAL_API_KEY}
+      audience: [us.posthog.com, eu.posthog.com]
+parameters:
+  type: object
+  additionalProperties: false
+  required: [api_origin, project_id]
+  properties:
+    api_origin: {enum: ['https://us.posthog.com', 'https://eu.posthog.com']}
+    project_id: {type: string, pattern: '^[1-9][0-9]{0,19}$'}
+placements:
+  local:
+    auth: [credentials]
+operations:
+  insights.list:
+    description: Read one page of saved insights, preserving pagination and cached-result metadata; does not run a new report.
+    verb: read
+    scopes: [insight:read]
+    credentials: [personal_key]
+    target:
+      template: {$concat: [{$parameter: /api_origin}, '/project/', {$parameter: /project_id}, '/insights']}
+    input_schema:
+      type: object
+      additionalProperties: false
+      required: [limit, offset]
+      properties:
+        limit: {type: integer, minimum: 1, maximum: 100}
+        offset: {type: integer, minimum: 0, maximum: 100000}
+    result_fields: [insights]
+    implementation:
+      http:
+        allowed_hosts: [us.posthog.com, eu.posthog.com]
+        auth: {personal_key: {type: bearer, field: personal_key}}
+        requests:
+          - method: GET
+            url: {$concat: [{$parameter: /api_origin}, '/api/projects/', {$parameter: /project_id}, '/insights/']}
+            query:
+              limit: {$argument: /limit}
+              offset: {$argument: /offset}
+              refresh: force_cache
+            headers: {accept: application/json}
+  insight.read:
+    description: Read one saved insight and its cached result, query definition and freshness; empty or stale results remain visible.
+    verb: read
+    scopes: [insight:read]
+    credentials: [personal_key]
+    target:
+      template: {$concat: [{$parameter: /api_origin}, '/project/', {$parameter: /project_id}, '/insights/', {$argument: /insight_id}]}
+    input_schema:
+      type: object
+      additionalProperties: false
+      required: [insight_id]
+      properties:
+        insight_id: {type: string, pattern: '^[1-9][0-9]{0,19}$'}
+    result_fields: [insight]
+    implementation:
+      http:
+        allowed_hosts: [us.posthog.com, eu.posthog.com]
+        auth: {personal_key: {type: bearer, field: personal_key}}
+        requests:
+          - method: GET
+            url: {$concat: [{$parameter: /api_origin}, '/api/projects/', {$parameter: /project_id}, '/insights/', {$argument: /insight_id}, '/']}
+            query: {refresh: force_cache}
+            headers: {accept: application/json}
 "###,
     ),
     (
@@ -2792,6 +3363,106 @@ operations:
       process:
         tool: reddit.brave
         runtime_scopes: ["fs:write"]
+"###,
+    ),
+    (
+        "sentry",
+        r###"schema: runx.connector.v1
+id: sentry
+name: Sentry
+description: Read bounded issue and event evidence from a selected Sentry organization.
+auth:
+  credentials:
+    access_token:
+      kind: api_key
+      fields:
+        - {name: access_token, label: Sentry read token}
+      delivery: {env: SENTRY_AUTH_TOKEN}
+      audience: [sentry.io]
+parameters:
+  type: object
+  additionalProperties: false
+  required: [organization]
+  properties:
+    organization: {type: string, pattern: '^[a-zA-Z0-9_-]{1,100}$'}
+placements:
+  local:
+    auth: [credentials]
+operations:
+  issues.list:
+    description: Read one bounded page of issues from a selected project; does not traverse subsequent pages.
+    verb: read
+    scopes: [event:read]
+    credentials: [access_token]
+    target:
+      template: {$concat: ['sentry://', {$parameter: /organization}, '/projects/', {$argument: /project}, '/issues']}
+    input_schema:
+      type: object
+      additionalProperties: false
+      required: [project, limit]
+      properties:
+        project: {type: string, pattern: '^[a-zA-Z0-9_-]{1,100}$'}
+        limit: {type: integer, minimum: 1, maximum: 100}
+        query: {type: string, maxLength: 1000}
+        cursor: {type: string, maxLength: 1000}
+    result_fields: [issues]
+    implementation:
+      http:
+        allowed_hosts: [sentry.io]
+        auth: {access_token: {type: bearer, field: access_token}}
+        requests:
+          - method: GET
+            url: {$concat: ['https://sentry.io/api/0/projects/', {$parameter: /organization}, '/', {$argument: /project}, '/issues/']}
+            query:
+              limit: {$argument: /limit}
+              query: {$argument: /query}
+              cursor: {$argument: /cursor}
+            headers: {accept: application/json}
+  issue.read:
+    description: Read one issue's current stats, project and release context; an issue read is not a verified fix.
+    verb: read
+    scopes: [event:read]
+    credentials: [access_token]
+    target:
+      template: {$concat: ['sentry://', {$parameter: /organization}, '/issues/', {$argument: /issue_id}]}
+    input_schema:
+      type: object
+      additionalProperties: false
+      required: [issue_id]
+      properties:
+        issue_id: {type: string, pattern: '^[0-9]{1,30}$'}
+    result_fields: [issue]
+    implementation:
+      http:
+        allowed_hosts: [sentry.io]
+        auth: {access_token: {type: bearer, field: access_token}}
+        requests:
+          - method: GET
+            url: {$concat: ['https://sentry.io/api/0/organizations/', {$parameter: /organization}, '/issues/', {$argument: /issue_id}, '/']}
+            headers: {accept: application/json}
+  event.read:
+    description: Hydrate one issue event, including latest; event data may contain private context and needs bounded admission before sharing.
+    verb: read
+    scopes: [event:read]
+    credentials: [access_token]
+    target:
+      template: {$concat: ['sentry://', {$parameter: /organization}, '/issues/', {$argument: /issue_id}, '/events/', {$argument: /event_id}]}
+    input_schema:
+      type: object
+      additionalProperties: false
+      required: [issue_id, event_id]
+      properties:
+        issue_id: {type: string, pattern: '^[0-9]{1,30}$'}
+        event_id: {type: string, pattern: '^(latest|[a-fA-F0-9]{32})$'}
+    result_fields: [event]
+    implementation:
+      http:
+        allowed_hosts: [sentry.io]
+        auth: {access_token: {type: bearer, field: access_token}}
+        requests:
+          - method: GET
+            url: {$concat: ['https://sentry.io/api/0/organizations/', {$parameter: /organization}, '/issues/', {$argument: /issue_id}, '/events/', {$argument: /event_id}, '/']}
+            headers: {accept: application/json}
 "###,
     ),
     (
@@ -2983,9 +3654,6 @@ operations:
         event: {type: object}
         observed_at: {type: string, minLength: 1, maxLength: 64}
     result_fields: [schema, data_source_ref, provider, operation, resource, aggregate_id, status, before_version, after_version, idempotency_key, event_ref, event_digest, result_digest, projection_digest, projection, events, rows, redactions, stop_conditions, provider_evidence]
-    effect:
-      kind: event
-      locator: {"$result": "/event_ref"}
     implementation:
       store: {}
   events.read:

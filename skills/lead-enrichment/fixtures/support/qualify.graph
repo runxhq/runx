@@ -1,0 +1,31 @@
+name: enrichment-to-qualification
+steps:
+- id: enrich
+  skill: ../..
+  runner: enrich
+  inputs:
+    subject: {ref: 'lead:example', kind: person}
+    as_of: '2026-10-10T00:00:00Z'
+    requested_fields: [company.industry, person.title]
+    sources:
+    - source_ref: crm:lead
+      source_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      subject_ref: lead:example
+      observed_at: '2026-10-09T00:00:00Z'
+      match_confidence: high
+      facts:
+      - {field: company.industry, value: B2B software}
+      - {field: person.title, value: Head of Engineering}
+- id: qualify
+  skill: ../../../lead-qualify
+  runner: qualify
+  inputs:
+    enrichment_packet: $steps.enrich.lead_enrichment_packet
+    criteria:
+    - {id: industry, description: Works for a B2B software company., required: true}
+    - {id: role, description: Has an engineering leadership role., required: true}
+    contact_eligibility:
+      subject: {ref: 'lead:example', kind: person}
+      status: unknown
+      policy_ref: policy:outreach
+      evidence_refs: ['policy:assessment']

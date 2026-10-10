@@ -138,7 +138,7 @@ fn runtime_tree_rejects_extra_child_receipt() -> Result<(), Box<dyn std::error::
 fn runtime_tree_rejects_structurally_valid_child_proof_tamper()
 -> Result<(), Box<dyn std::error::Error>> {
     let (root, mut children) = graph_with_steps("tree_runtime_child_tamper", &["child"])?;
-    children[0].acts[0].summary = "tampered child proof body".into();
+    children[0].seal.summary = "tampered child proof body".into();
 
     assert!(runx_receipts::verify_receipt_tree(&root, &children).valid);
     let verification = verify_runtime_receipt_tree(&root, children, ReceiptTreeConfig::default());
@@ -161,7 +161,7 @@ fn runtime_tree_rejects_valid_alternate_child_with_same_id()
 -> Result<(), Box<dyn std::error::Error>> {
     let (root, children) = graph_with_steps("tree_runtime_child_digest", &["child"])?;
     let mut alternate = children[0].clone();
-    alternate.acts[0].summary = "valid alternate child body".into();
+    alternate.seal.summary = "valid alternate child body".into();
     refresh_local_digest_and_signature(&mut alternate)?;
 
     let verification =
@@ -306,6 +306,7 @@ fn step_run(
         skill: step_id.to_owned(),
         runner: None,
         contract: JsonObject::new(),
+        artifact_outputs: Default::default(),
         ephemeral_contract: EphemeralValue::default(),
         outcome: output.into(),
         receipt,

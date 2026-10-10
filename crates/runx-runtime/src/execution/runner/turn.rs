@@ -594,7 +594,6 @@ where
             context_skills: Vec::new(),
             scopes,
             when: None,
-            on_uncertain: None,
             duplicates: None,
         })
     }

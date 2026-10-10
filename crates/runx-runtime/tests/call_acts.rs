@@ -3,7 +3,7 @@
 //! A governed call's act, end to end: the invoker states `$act`, an operation
 //! step binds it into its call's `act:`, and the call's own receipt seals the
 //! act with the authority admission derived and the effect its operation
-//! declares.
+//! declares. A call in a child run is decided at its address.
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -196,7 +196,7 @@ fn the_invokers_act_is_sealed_in_the_call_receipt_with_admitted_authority_and_ef
 }
 
 #[test]
-fn a_whole_act_forwards_the_invokers_and_an_absent_one_leaves_the_observation() {
+fn a_whole_act_forwards_the_invokers_and_an_absent_one_leaves_the_operations_observation() {
     let root = tempfile::tempdir().unwrap();
     let forwarded = run(
         root.path(),
@@ -230,7 +230,14 @@ fn a_whole_act_forwards_the_invokers_and_an_absent_one_leaves_the_observation() 
     let receipt = post(&absent);
     let act = &receipt.acts[0];
     assert_eq!(act.form, ActForm::Observation);
-    assert_eq!(act.intent.purpose.as_str(), "Run graph step post");
+    // Unstated, its purpose is what the operation declares it does.
+    assert_eq!(act.intent.purpose.as_str(), "Post a message to a channel.");
+    let term = receipt.authority.terms.first().expect("the admitted term");
+    assert_eq!(
+        act.intent.legitimacy.as_str(),
+        format!("runx:authority_term:{}", term.term_id),
+        "a governed call is legitimate by its term, stated act or not"
+    );
     assert!(act.target_refs.is_empty());
     assert!(
         act.artifact_refs
@@ -238,7 +245,10 @@ fn a_whole_act_forwards_the_invokers_and_an_absent_one_leaves_the_observation() 
             .any(|reference| reference.uri.as_str() == EFFECT),
         "an effect is the call's, whether or not its act is stated"
     );
-    assert_eq!(receipt.decisions[0].choice, DecisionChoice::Open);
+    assert!(
+        receipt.decisions.is_empty(),
+        "no decision is sealed when none is stated"
+    );
 }
 
 #[test]
@@ -360,10 +370,10 @@ expect:
     );
 }
 
-#[test]
-fn a_skill_step_gives_its_child_run_the_act_its_calls_read_as_dollar_act() {
-    let root = tempfile::tempdir().unwrap();
-    let parent = root.path().join("delegating");
+/// A parent whose skill step hands its child run a post, decided by
+/// `approvals`.
+fn delegate(root: &Path, approvals: &str) -> Result<HarnessReplayOutput, HarnessReplayError> {
+    let parent = root.join("delegating");
     let child = parent.join("child");
     std::fs::create_dir_all(parent.join("fixtures")).unwrap();
     std::fs::create_dir_all(&child).unwrap();
@@ -423,8 +433,7 @@ kind: skill
 target: ..
 caller:
   act: {{purpose: Run the release, reason: Release 0.8.2 shipped.}}
-  approvals:
-    "send#post": true
+  approvals: {approvals}
   provider_responses:
     principal_id: operator-fixture
     grant:
@@ -448,7 +457,13 @@ expect:
         .ok()
         .map(|path| BTreeMap::from([("PATH".to_owned(), path)]))
         .unwrap_or_default();
-    let output = run_harness_fixture(path, env).expect("the delegated post seals");
+    run_harness_fixture(path, env)
+}
+
+#[test]
+fn a_skill_step_gives_its_child_run_the_act_its_calls_read_as_dollar_act() {
+    let root = tempfile::tempdir().unwrap();
+    let output = delegate(root.path(), r#"{"send#post": true}"#).expect("the delegated post seals");
     let call = output
         .steps
         .iter()
@@ -460,4 +475,15 @@ expect:
     // child's call through the act the step gives it, never through inputs.
     assert_eq!(act.intent.purpose.as_str(), "Announce the deploy");
     assert_eq!(act.summary.as_str(), "Release 0.8.2 shipped.");
+}
+
+#[test]
+fn a_child_runs_approval_is_decided_only_by_its_address() {
+    let root = tempfile::tempdir().unwrap();
+    // The child's `post` is `send#post` to the case; its id alone decides
+    // nothing, so the post waits for a decision and nothing is sent.
+    let error = delegate(root.path(), "{post: true}")
+        .expect_err("the child's post is not approved")
+        .to_string();
+    assert!(error.contains("unanswered: send#post"), "{error}");
 }

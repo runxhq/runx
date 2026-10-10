@@ -1,0 +1,60 @@
+name: holds-suppressed-recipient
+kind: skill
+target: ..
+inputs:
+  sender: {name: Example team, from_address: hello@example.com, reply_to: hello@example.com}
+  prospect: {email: operator@example.org, company: Example}
+  audience: documentation maintainers
+  purpose: Offer a useful documentation review
+  offer: A bounded review of public docs
+  required_footer: Example team. Reply to opt out.
+  contact_policy:
+    recipient: operator@example.org
+    status: eligible
+    suppressed: true
+    policy_ref: policy:outreach
+    evidence_refs: ['decision:recipient-1']
+  evidence_pack:
+    decision: ready
+    research_brief:
+      objective: Explain the strongest Runx architecture signal.
+      scope: agent infrastructure
+      summary: Evidence-bound portable execution is the strongest signal.
+      open_questions: []
+    evidence_log:
+    - claim: Receipts bind actions to authority evidence.
+      source_digest: sha256:1111111111111111111111111111111111111111111111111111111111111111
+      content_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      confidence: verified
+      relevance: Supports the governance claim.
+    decision_support: []
+    risks: []
+    source_evidence:
+    - evidence_digest: sha256:1111111111111111111111111111111111111111111111111111111111111111
+      content_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      source_ref: https://example.com/evidence
+      source_kind: fetch
+      provenance: {observed_at: '2026-07-17T00:00:00Z', bytes: 0, status: 200, redirects: []}
+    index_digest: sha256:2222222222222222222222222222222222222222222222222222222222222222
+    validation: {status: pass, findings: []}
+expect:
+  status: sealed
+  steps: [admit-evidence, admit, hold]
+  step_outputs:
+    hold:
+      subset:
+        outreach_review:
+          data: {decision: hold, draft_status: withheld, draft: null, draft_packet_digest: null, delivery_status: not_sent}
+  receipt: {schema: runx.receipt.v1}
+metadata: {public_skill: cold-outreach, source: skills-fixture}
+operator_journeys:
+- mode: standalone
+  request: Prepare first contact for a suppressed recipient; withhold the payload and make no writing or provider
+    call.
+  expected_outcome: Return the exact bounded domain result and preserve holds without outward effects.
+  confusors: [ghostwrite, lead-qualify]
+- mode: composed
+  request: Continue outreach preparation from supplied research and contact-policy evidence.
+  expected_outcome: Reuse the supplied evidence and retain the exact bounded outcome without outward actions.
+  prior_evidence: [The validated research packet and current recipient suppression disposition.]
+  must_not_repeat: [Do not enrich or research the recipient again; do not draft for a suppressed recipient.]

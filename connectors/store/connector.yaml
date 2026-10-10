@@ -48,9 +48,6 @@ operations:
         event: {type: object}
         observed_at: {type: string, minLength: 1, maxLength: 64}
     result_fields: [schema, data_source_ref, provider, operation, resource, aggregate_id, status, before_version, after_version, idempotency_key, event_ref, event_digest, result_digest, projection_digest, projection, events, rows, redactions, stop_conditions, provider_evidence]
-    effect:
-      kind: event
-      locator: {"$result": "/event_ref"}
     implementation:
       store: {}
   events.read:

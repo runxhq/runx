@@ -41,7 +41,7 @@ caller:
         target_author: another_builder
         vote_state: up
         effect_attempted: true
-  approvals: {reddit.publish: true, reddit.vote: true, reddit.reconcile: true}
+  approvals: {"publish#reddit.publish": true, "followup-vote#reddit.vote": true, "retry#reddit.publish": true}
 expect:
   status: sealed
   step_outputs:

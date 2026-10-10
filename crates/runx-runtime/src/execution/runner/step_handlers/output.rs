@@ -26,7 +26,7 @@ pub(super) fn build_step_output_projection(
     // contract. Preserve that failure for sealing instead of replacing it with
     // a secondary "declared output was not returned" projection error.
     if !output.succeeded() {
-        return Ok(project_step_claim(JsonObject::new()));
+        return Ok(project_step_claim(JsonObject::new(), None));
     }
     let declared_outputs = step.outputs.as_ref().or(extra_outputs);
     let artifacts = step.artifacts.as_ref().or(extra_artifacts);
@@ -35,7 +35,7 @@ pub(super) fn build_step_output_projection(
             step_id: step.id.clone(),
             reason: error.to_string(),
         })?;
-    Ok(project_step_claim(claim))
+    Ok(project_step_claim(claim, artifacts))
 }
 
 /// Return only the step outputs declared by its runner or artifact contract.

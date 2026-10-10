@@ -41,6 +41,21 @@ a process tool or a stdio MCP server in the variable `delivery.env` names. A
 skill declares none of this; it lists the connector and its operations under
 `connectors:` and calls them from `operation` steps.
 
+For a provider requiring a raw or named header, use the same auth map:
+
+```yaml
+auth:
+  api_key: {type: header, name: x-api-key, field: api_key}
+```
+
+This is the implementation's `auth`, not the manifest's field declaration.
+`name` is fixed in the manifest; `field` names a declared credential field.
+HTTP and streamable-HTTP MCP use the same presentation boundary. Ordinary
+request and session headers cannot override it, and protocol/hop headers cannot
+carry credentials. Presented material is secret regardless of the header name.
+MCP accepts bearer and named headers; OAuth1 remains per-request HTTP signing.
+Query credentials and Basic authentication are not implemented.
+
 `audience` fixes the hosts a request Runx renders may reach: an HTTP request or
 an MCP server URL outside it is refused before anything is sent. A process tool
 or stdio MCP server is different. It is a trusted program on the operator's
@@ -140,8 +155,10 @@ Secrets never appear in:
 - receipts or captured stdout/stderr;
 - pause checkpoints or resume answers.
 
-A resumed run reads the instance's current material, so profile rotation takes
-effect immediately.
+A replaced profile has a new material reference. Its previous binding is refused
+until the profile is explicitly reconfirmed in that workspace. Reconfirmation
+does not authorize a paused or in-flight operation to change its pinned binding;
+normal admission and recovery checks still apply.
 
 ## Hosted provider grants
 
@@ -150,7 +167,13 @@ placement sends the call to runx Connect, which renders the connector's own
 declared request for it and presents the grant's token; it renders nothing a
 manifest does not declare. The `runx connect` command manages grant setup,
 status, listing, and revocation, and `runx connector use <connector> --grant`
-makes an active grant an instance.
+makes an active grant an instance. Delegated OAuth uses the configured gateway;
+a stored-key placement loads the exact grant's encrypted material and presents
+the manifest's bearer or named header through the existing bounded HTTP path.
+Neither path searches for a replacement account when the binding is unavailable.
+Connect credential forms for manifest-backed providers are projections of the
+same field declarations. Provider-specific verification does not imply account
+identity, paid entitlement or permissions the probe did not establish.
 
 A host may inject a grant instead: a complete `RUNX_PROVIDER_PERMISSION_GRANT_ID`,
 `RUNX_PROVIDER_PERMISSION_GRANTED_SCOPES` (a JSON array), and

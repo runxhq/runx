@@ -26,8 +26,10 @@ enum AnswerKeys {
     #[default]
     Address,
     /// As a harness script: an answer keyed by an address answers that
-    /// request; one keyed by a request's id in its own run answers every ask
-    /// of that id, at any depth, that no address names.
+    /// request; an agent's answer keyed by a request's id in its own run
+    /// answers every ask of that id, at any depth, that no address names. An
+    /// approval decides only the request it names: below the root, by its
+    /// full address.
     Script,
 }
 
@@ -52,7 +54,12 @@ impl ResolutionAnswers {
     fn key<'a>(&self, request_id: &'a str) -> &'a str {
         match self.keys {
             AnswerKeys::Script if !self.values.contains_key(request_id) => {
-                crate::execution::run_record::local_request_id(request_id)
+                let local = crate::execution::run_record::local_request_id(request_id);
+                if self.human_approvals.contains(local) {
+                    request_id
+                } else {
+                    local
+                }
             }
             AnswerKeys::Address | AnswerKeys::Script => request_id,
         }

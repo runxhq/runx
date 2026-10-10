@@ -35,6 +35,26 @@ export type OperationVerb =
 
 export type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
+export type HttpAuth =
+  | { readonly type: "bearer"; readonly field?: string }
+  | { readonly type: "header"; readonly name: string; readonly field: string }
+  | { readonly type: "oauth1" };
+
+export interface CredentialField {
+  readonly name: string;
+  readonly label?: string;
+  readonly secret?: boolean;
+  readonly required?: boolean;
+  readonly prefixes?: readonly string[];
+}
+
+export interface CredentialDeclaration {
+  readonly kind: string;
+  readonly fields: readonly CredentialField[];
+  readonly delivery: { readonly env: string };
+  readonly audience?: readonly string[];
+}
+
 export interface HttpRequest {
   readonly id: string;
   readonly each?: Template;
@@ -67,9 +87,7 @@ export interface HttpImplementation {
   readonly allowed_hosts: readonly string[];
   /** How each credential authenticates a request, by credential name. */
   readonly auth?: {
-    readonly [credential: string]:
-      | { readonly type: "bearer"; readonly field?: string }
-      | { readonly type: "oauth1" };
+    readonly [credential: string]: HttpAuth;
   };
   readonly requests: readonly HttpRequest[];
   readonly preconditions?: readonly HttpReadback[];
@@ -114,7 +132,12 @@ export interface ConnectorManifest {
   readonly id: string;
   readonly name: string;
   readonly description: string;
-  readonly auth: JsonObject;
+  readonly auth: {
+    readonly credentials?: { readonly [name: string]: CredentialDeclaration };
+    readonly delegated?: JsonObject;
+    readonly session?: JsonObject;
+    readonly none?: JsonObject;
+  };
   /** The JSON Schema of the parameters an instance pins. */
   readonly parameters?: JsonObject;
   readonly placements: {
@@ -409,6 +432,9 @@ export function renderDeclaredRequest(http: HttpImplementation, call: DeclaredRe
   } catch {
     throw new TemplateError(`request ${request.id} has an invalid URL`);
   }
+  // As the kernel does: a fragment never reaches the server, so a URL
+  // carrying one names a request other than the one sent.
+  if (url.href.includes("#")) throw new TemplateError(`request ${request.id} has a URL fragment`);
   const host = url.hostname.toLowerCase();
   if (url.protocol !== "https:" || !http.allowed_hosts.some((allowed) => hostAllowed(allowed, host))) {
     throw new TemplateError(`request ${request.id} targets a host the implementation does not allow`);

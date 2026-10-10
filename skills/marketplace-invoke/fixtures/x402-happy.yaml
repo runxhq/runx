@@ -38,7 +38,7 @@ inputs:
     max_response_bytes: 26214400
   idempotency_seed: marketplace-test-payment-001
 caller:
-  approvals: { "pay": true }
+  approvals: { "x402#pay": true }
   provider_responses:
     principal_id: marketplace-fixture
     grant: { grant_id: marketplace-fixture, provider: x402, scopes: [payment.x402, payment.x402.read] }

@@ -24,8 +24,6 @@ pub(crate) struct ReceiptQueryInput {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) actor: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) artifact_type: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) since: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) until: Option<String>,
@@ -64,10 +62,6 @@ impl QueryRequest {
             ("status".to_owned(), optional_json(&self.filter.status)),
             ("issuer".to_owned(), optional_json(&self.filter.issuer)),
             ("actor".to_owned(), optional_json(&self.filter.actor)),
-            (
-                "artifact_type".to_owned(),
-                optional_json(&self.filter.artifact_type),
-            ),
             ("since".to_owned(), optional_json(&self.filter.since)),
             ("until".to_owned(), optional_json(&self.filter.until)),
             (
@@ -97,7 +91,6 @@ fn history_filter(inputs: &ReceiptQueryInput, limit: usize) -> Result<ReceiptFil
         status: optional_string(inputs.status.as_deref()),
         issuer: optional_string(inputs.issuer.as_deref()),
         actor: optional_string(inputs.actor.as_deref()),
-        artifact_type: optional_string(inputs.artifact_type.as_deref()),
         since: resolve_since(inputs)?,
         until: optional_string(inputs.until.as_deref()),
         limit: Some(limit),

@@ -41,7 +41,7 @@ caller:
         target_author: ''
         vote_state: unknown
         effect_attempted: true
-  approvals: {reddit.publish: true, reddit.vote: true, reddit.reconcile: true}
+  approvals: {"publish#reddit.publish": true, "reconcile#reddit.reconcile": true, "retry#reddit.publish": true}
 expect:
   status: sealed
   step_outputs:

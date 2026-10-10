@@ -10,8 +10,9 @@
 //!   inside an `act:`. Domain values never read accountability metadata.
 //!
 //! Paths are dotted; a numeric segment indexes a list. A literal string that
-//! begins with `$` is written `$$`. References may sit at any depth of an
-//! object or list. Parsing turns them into typed bindings once, so a bound
+//! begins with `$` is written `$$`, everywhere a value is written, including
+//! the literal a condition compares with. References may sit at any depth of
+//! an object or list. Parsing turns them into typed bindings once, so a bound
 //! value is never read again as a reference.
 
 use std::collections::BTreeSet;
@@ -117,21 +118,62 @@ pub(crate) fn parse_act(
     Reading::Act.whole(value, previous_steps, field)
 }
 
-/// Parse one value read by a condition or a guard.
+/// Parse the value a condition or a guard reads: always a reference, since a
+/// literal would decide the same way on every run.
 pub(crate) fn parse_operand(
     value: &JsonValue,
     previous_steps: &BTreeSet<String>,
     field: &str,
 ) -> Result<Operand, ValidationError> {
-    match value {
-        JsonValue::String(text) => Ok(
-            match Reading::Values.reference(text, previous_steps, field)? {
-                Some(source) => Operand::Reference(source),
-                None => Operand::Literal(JsonValue::String(unescape(text).to_owned())),
-            },
+    let source = match value {
+        JsonValue::String(text) => Reading::Values.reference(text, previous_steps, field)?,
+        _ => None,
+    };
+    let field_of = |source: &Source| match source {
+        Source::Input { path } | Source::Act { path } | Source::Step { path, .. } => {
+            !path.is_empty()
+        }
+    };
+    source
+        .filter(field_of)
+        .map(Operand::Reference)
+        .ok_or_else(|| {
+            validation_error(format!(
+                "{field} reads one field of the run's input or an earlier step's result: write $input.<path> or $steps.<id>.<path>; a literal decides nothing."
+            ))
+        })
+}
+
+/// Parse the literal a condition or a guard compares with. It reads nothing,
+/// so a string in it that begins with `$` is written `$$`.
+pub(crate) fn parse_literal(value: &JsonValue, field: &str) -> Result<JsonValue, ValidationError> {
+    Ok(match value {
+        JsonValue::String(text) if text.starts_with('$') && !text.starts_with("$$") => {
+            return Err(validation_error(format!(
+                "{field} is a literal compared with the value read; write a literal that begins with $ as $$."
+            )));
+        }
+        JsonValue::String(text) => JsonValue::String(unescape(text).to_owned()),
+        JsonValue::Object(object) => JsonValue::Object(
+            object
+                .iter()
+                .map(|(key, value)| {
+                    Ok((
+                        key.clone(),
+                        parse_literal(value, &format!("{field}.{key}"))?,
+                    ))
+                })
+                .collect::<Result<_, ValidationError>>()?,
         ),
-        literal => Ok(Operand::Literal(literal.clone())),
-    }
+        JsonValue::Array(items) => JsonValue::Array(
+            items
+                .iter()
+                .enumerate()
+                .map(|(index, item)| parse_literal(item, &format!("{field}.{index}")))
+                .collect::<Result<_, _>>()?,
+        ),
+        literal => literal.clone(),
+    })
 }
 
 /// What a value may read: the run's input and earlier steps everywhere, and

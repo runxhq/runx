@@ -23,7 +23,7 @@ caller:
         target_author: Another_Builder
         vote_state: up
         effect_attempted: true
-  approvals: {reddit.publish: true, reddit.vote: true, reddit.reconcile: true}
+  approvals: {"vote#reddit.vote": true}
 expect:
   status: sealed
   step_outputs:

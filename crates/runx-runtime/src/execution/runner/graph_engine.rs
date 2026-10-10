@@ -365,6 +365,7 @@ impl GraphExecution {
     where
         A: SkillAdapter,
     {
+        enforce_condition(context.step, &self.runs)?;
         enforce_guards(context.graph, context.step, &self.runs)?;
         let policy_approval_refs =
             verified_approval_references(context.runtime, context.graph, context.step, &self.runs)?;
@@ -743,6 +744,35 @@ fn terminal_prefix_cursor(state: &SequentialGraphState, start: usize) -> usize {
     cursor
 }
 
+/// A step runs only on a condition that holds. One that reads nothing (a
+/// field the earlier step's result does not have) never lets the step run.
+fn enforce_condition(step: &GraphStep, runs: &[StepRun]) -> Result<(), RuntimeError> {
+    let Some(when) = &step.when else {
+        return Ok(());
+    };
+    let shown = operand_text(&when.value);
+    let value = operand_value(&when.value, runs).ok_or_else(|| RuntimeError::InvalidRunStep {
+        step_id: step.id.clone(),
+        reason: format!("condition '{shown}' resolves to nothing"),
+    })?;
+    let holds = match (&when.equals, &when.not_equals) {
+        (Some(expected), _) => value == expected,
+        (_, Some(disallowed)) => value != disallowed,
+        _ => true,
+    };
+    if holds {
+        Ok(())
+    } else {
+        Err(RuntimeError::EngineInvariant {
+            context: "running a graph step",
+            message: format!(
+                "step {} was selected although its condition '{shown}' does not hold",
+                step.id
+            ),
+        })
+    }
+}
+
 pub(super) fn enforce_guards(
     graph: &ExecutionGraph,
     step: &GraphStep,
@@ -893,13 +923,11 @@ pub(super) fn operand_value<'a>(
         Operand::Reference(Source::Step { step, path }) => {
             let run = runs.iter().rev().find(|run| run.step_id == *step)?;
             let (first, rest) = path.split_first()?;
-            crate::execution::graph::value_at(
-                crate::output_contract::enveloped_value(run.contract.get(first)?),
-                rest,
-            )
+            crate::execution::graph::value_at(run.output(first)?, rest)
         }
-        // The run's input is bound before the graph runs, and no condition
-        // or guard reads the invoker's act.
+        // The run's input is bound before the graph runs, so an input field
+        // still unbound is absent; no condition or guard reads the invoker's
+        // act.
         Operand::Reference(Source::Input { .. } | Source::Act { .. }) => None,
     }
 }
@@ -916,9 +944,10 @@ pub(super) fn display_json(value: &JsonValue) -> String {
 }
 
 /// Resolve which steps a `when` condition selects out, given the runs so far.
-/// A pending predicate source leaves the branch pending. A source already
-/// selected out makes every branch depending on its absent output unreachable,
-/// so selection propagates transitively instead of leaving the graph blocked.
+/// A pending predicate source leaves the branch pending. A step selected out
+/// makes every step that reads it (its condition, its values or its act)
+/// unreachable, so selection propagates transitively instead of leaving the
+/// graph blocked.
 pub(super) fn when_skipped_steps(
     graph: &ExecutionGraph,
     runs: &[StepRun],
@@ -928,17 +957,19 @@ pub(super) fn when_skipped_steps(
     loop {
         let previous_len = skipped.len();
         for step in &graph.steps {
-            let Some(when) = &step.when else {
-                continue;
-            };
-            if when
-                .value
-                .step()
-                .is_some_and(|source| skipped.contains(source))
+            let condition_source = step.when.as_ref().and_then(|when| when.value.step());
+            if step
+                .reads()
+                .into_iter()
+                .chain(condition_source)
+                .any(|source| skipped.contains(source))
             {
                 skipped.insert(step.id.clone());
                 continue;
             }
+            let Some(when) = &step.when else {
+                continue;
+            };
             let Some(value) = operand_value(&when.value, runs) else {
                 continue;
             };
@@ -1043,6 +1074,54 @@ steps:
     }
 
     #[test]
+    fn a_step_that_reads_a_skipped_step_is_skipped_whatever_it_reads_it_through() {
+        let graph = validate_graph(
+            parse_graph_yaml(
+                r#"
+name: read-propagation
+steps:
+  - id: inspect
+    when: { value: $input.inspect, equals: true }
+    agent: { role: test, task: inspect }
+    outputs: { report: object }
+  - id: publish
+    when: { value: $input.publish, equals: true }
+    agent: { role: test, task: publish }
+    inputs: { report: $steps.inspect.report }
+"#,
+            )
+            .expect("fixture graph should parse"),
+        )
+        .expect("fixture graph should validate");
+        let skipped = when_skipped_steps(&graph, &[], &BTreeSet::from(["inspect".to_owned()]));
+
+        assert!(skipped.contains("publish"));
+    }
+
+    #[test]
+    fn a_condition_that_reads_nothing_never_lets_its_step_run() {
+        let graph = validate_graph(
+            parse_graph_yaml(
+                r#"
+name: misspelled-condition
+steps:
+  - id: review
+    agent: { role: test, task: review }
+    outputs: { verdict: string }
+  - id: send
+    when: { value: $steps.review.verdcit, equals: approved }
+    agent: { role: test, task: send }
+"#,
+            )
+            .expect("fixture graph should parse"),
+        )
+        .expect("fixture graph should validate");
+        let send = &graph.steps[1];
+        let error = super::enforce_condition(send, &[]).expect_err("unresolved");
+        assert!(error.to_string().contains("resolves to nothing"), "{error}");
+    }
+
+    #[test]
     fn a_branch_on_the_run_input_is_decided_before_any_step_runs() {
         let graph = validate_graph(
             parse_graph_yaml(
@@ -1069,5 +1148,47 @@ steps:
         let skipped = when_skipped_steps(&graph, &[], &BTreeSet::new());
 
         assert_eq!(skipped, BTreeSet::from(["apply".to_owned()]));
+    }
+
+    #[test]
+    fn an_absent_input_satisfies_no_condition_and_passes_no_guard() {
+        let graph = validate_graph(
+            parse_graph_yaml(
+                r#"
+name: absent-input
+steps:
+  - id: preview
+    when: { value: $input.mode, not_equals: apply }
+    agent: { role: test, task: preview }
+  - id: send
+    agent: { role: test, task: send }
+policy:
+  guards:
+    - { step: send, value: $input.approved, not_equals: false }
+"#,
+            )
+            .expect("fixture graph should parse"),
+        )
+        .expect("fixture graph should validate");
+        let graph = crate::execution::graph::bind_run_inputs(
+            graph,
+            &runx_contracts::JsonObject::new(),
+            None,
+        )
+        .expect("the run input binds");
+
+        assert!(
+            when_skipped_steps(&graph, &[], &BTreeSet::new()).is_empty(),
+            "an absent input decides no branch"
+        );
+        let error = super::enforce_condition(&graph.steps[0], &[]).expect_err("absent");
+        assert!(error.to_string().contains("resolves to nothing"), "{error}");
+        let error = super::enforce_guards(&graph, &graph.steps[1], &[]).expect_err("absent");
+        assert!(
+            error
+                .to_string()
+                .contains("guard '$input.approved' is unresolved"),
+            "{error}"
+        );
     }
 }

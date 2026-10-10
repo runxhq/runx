@@ -26,7 +26,7 @@ inputs:
     counterparty: https://vendor.example/v1/invocations
   idempotency_seed: x402-test-payment-001
 caller:
-  approvals: { "pay": true }
+  approvals: { "settle#pay": true }
   provider_responses:
     principal_id: x402-fixture
     grant: { grant_id: x402-fixture, provider: x402, scopes: [payment.x402, payment.x402.read] }

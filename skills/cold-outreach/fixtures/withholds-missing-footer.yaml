@@ -1,0 +1,68 @@
+name: withholds-missing-footer
+kind: skill
+target: ..
+inputs:
+  sender: {name: Example team, from_address: hello@example.com, reply_to: hello@example.com}
+  prospect: {email: operator@example.org, company: Example}
+  audience: documentation maintainers
+  purpose: Offer a useful documentation review
+  offer: A bounded review of public docs
+  required_footer: Example team. Reply to opt out.
+  contact_policy:
+    recipient: operator@example.org
+    status: eligible
+    suppressed: false
+    policy_ref: policy:outreach
+    evidence_refs: ['decision:recipient-1']
+  evidence_pack:
+    decision: ready
+    research_brief:
+      objective: Explain the strongest Runx architecture signal.
+      scope: agent infrastructure
+      summary: The recipient published a guide about receipts binding actions to authority evidence. The sender
+        offers a bounded public documentation review.
+      open_questions: []
+    evidence_log:
+    - claim: The recipient published a guide about receipts binding actions to authority evidence; the sender offers
+        a bounded public documentation review.
+      source_digest: sha256:1111111111111111111111111111111111111111111111111111111111111111
+      content_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      confidence: verified
+      relevance: Supports the governance claim.
+    decision_support: []
+    risks: []
+    source_evidence:
+    - evidence_digest: sha256:1111111111111111111111111111111111111111111111111111111111111111
+      content_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      source_ref: https://example.com/evidence
+      source_kind: fetch
+      provenance: {observed_at: '2026-07-17T00:00:00Z', bytes: 0, status: 200, redirects: []}
+    index_digest: sha256:2222222222222222222222222222222222222222222222222222222222222222
+    validation: {status: pass, findings: []}
+expect:
+  status: sealed
+  steps: [admit-evidence, admit, draft, verify, digest-draft, review]
+  step_outputs:
+    review:
+      subset:
+        outreach_review:
+          data: {decision: hold, draft_status: withheld, draft: null, draft_packet_digest: null, delivery_status: not_sent,
+            blockers: [the exact required footer is missing]}
+  receipt: {schema: runx.receipt.v1}
+metadata: {public_skill: cold-outreach, source: skills-fixture}
+caller:
+  answers:
+    agent.cold-outreach-draft.output:
+      content_draft:
+        decision: ready
+        content_brief: {objective: Offer a useful documentation review, audience: documentation maintainers, channel: email}
+        draft:
+          title: A review of your public guide
+          body: Your public guide explains how receipts bind actions to authority evidence. Would a short review
+            help?
+          claim_refs:
+          - claim: The recipient has a public guide and the sender offers a bounded documentation review.
+            source_digests: ['sha256:1111111111111111111111111111111111111111111111111111111111111111']
+        review_checklist: [Confirm current contact eligibility before any send.]
+        distribution_notes: {primary_channel: email}
+        context_binding: {applied: []}

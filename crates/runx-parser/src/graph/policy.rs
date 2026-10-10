@@ -2,7 +2,7 @@ use std::collections::BTreeSet;
 
 use runx_contracts::JsonValue;
 
-use super::binding::parse_operand;
+use super::binding::{parse_literal, parse_operand};
 use super::helpers::{
     optional_object, required_array, required_object, required_string, validation_error,
 };
@@ -57,8 +57,14 @@ fn guard(
             "{gate_field}.{key} is not a field of a guard; it takes step, value and equals or not_equals."
         )));
     }
-    let equals = gate.get("equals").cloned();
-    let not_equals = gate.get("not_equals").cloned();
+    let equals = gate
+        .get("equals")
+        .map(|value| parse_literal(value, &format!("{gate_field}.equals")))
+        .transpose()?;
+    let not_equals = gate
+        .get("not_equals")
+        .map(|value| parse_literal(value, &format!("{gate_field}.not_equals")))
+        .transpose()?;
     if equals.is_some() && not_equals.is_some() {
         return Err(validation_error(format!(
             "{gate_field} must not declare both equals and not_equals."

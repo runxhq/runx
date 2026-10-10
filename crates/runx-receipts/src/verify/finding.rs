@@ -11,7 +11,7 @@ pub enum ReceiptFindingCode {
     EmptyEnvelopeField,
     ActFormDetailsInvalid,
     DecisionSelectedActMissing,
-    SealCriterionActMissing,
+    ActLegitimacyTermMissing,
     SealCriterionUnbound,
     ChildReceiptRefInvalid,
     ChildReceiptRefMalformed,

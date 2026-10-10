@@ -120,7 +120,34 @@ fn a_reference_names_an_earlier_step_and_a_known_form() {
 }
 
 #[test]
-fn an_operand_is_a_literal_or_one_reference() {
+fn a_compared_literal_reads_nothing_and_writes_dollar_as_double_dollar() {
+    let literal = parse_literal(
+        &serde_json::from_value(serde_json::json!({"code": ["$$5", "plain", 1]})).unwrap(),
+        "when.equals",
+    )
+    .unwrap();
+    assert_eq!(
+        literal,
+        serde_json::from_value::<JsonValue>(serde_json::json!({"code": ["$5", "plain", 1]}))
+            .unwrap()
+    );
+    for reference in ["$input.mode", "$steps.a.ok"] {
+        let error = parse_literal(
+            &serde_json::from_value(serde_json::json!({"code": [reference]})).unwrap(),
+            "when.equals",
+        )
+        .unwrap_err();
+        assert!(
+            error
+                .to_string()
+                .contains("when.equals.code.0 is a literal compared with the value read"),
+            "{error}"
+        );
+    }
+}
+
+#[test]
+fn an_operand_is_one_reference_and_never_a_literal() {
     assert_eq!(
         parse_operand(
             &JsonValue::String("$input.mode".to_owned()),
@@ -132,17 +159,15 @@ fn an_operand_is_a_literal_or_one_reference() {
             path: at(&["mode"])
         })
     );
-    assert_eq!(
-        parse_operand(
-            &JsonValue::String("$$draft".to_owned()),
-            &steps(&[]),
-            "when.value"
-        )
-        .unwrap(),
-        Operand::Literal(JsonValue::String("$draft".to_owned()))
-    );
-    assert_eq!(
-        parse_operand(&JsonValue::Bool(true), &steps(&[]), "when.value").unwrap(),
-        Operand::Literal(JsonValue::Bool(true))
-    );
+    for literal in [
+        JsonValue::String("$$draft".to_owned()),
+        JsonValue::String("draft".to_owned()),
+        JsonValue::Bool(true),
+    ] {
+        let error = parse_operand(&literal, &steps(&[]), "when.value").unwrap_err();
+        assert!(
+            error.to_string().contains("a literal decides nothing"),
+            "{error}"
+        );
+    }
 }

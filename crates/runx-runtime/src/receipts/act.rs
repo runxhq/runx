@@ -1,33 +1,36 @@
-//! The act as a first-class object.
+//! The act a governed call performs, as its receipt seals it.
 //!
-//! An act is OPENED with its declared intent and form, and CLOSED with the
-//! execution outcome. Separating the intent (fixed up front) from the outcome
-//! (criterion status, refs, closure, filled from the result) is what makes the
-//! act a unit of its own rather than a value reconstructed at seal time.
-//!
-//! A step opens a generic observation act. A governed call whose caller
-//! states an act opens that act instead: its form, purpose, reason and target
-//! are the caller's, and its legitimacy is the execution term admission
-//! derived for the call.
+//! An act is OPENED with its intent and form, and CLOSED with the execution
+//! outcome. Only a governed call seals one: the runtime testifies to what it
+//! observed (its seal), and never states an intent nobody gave it. The act's
+//! purpose, reason and target are its caller's; when the caller states none,
+//! its purpose is the operation's declared description. Its legitimacy is the
+//! execution term admission derived for the call.
 
 use runx_contracts::schema::NonEmptyString;
 use runx_contracts::{
     ActForm, CallAct, Closure, ClosureDisposition, CriterionBinding, CriterionStatus,
     DecisionChoice, Intent, ReceiptAct, Reference, ReferenceType, SuccessCriterion,
+    authority_term_legitimacy,
 };
 
-use crate::execution::output_projection::StepOutputRefs;
-
 /// What a governed call's receipt records beyond its step: the act its caller
-/// stated, the authority it was admitted under, and what it produced.
+/// stated, the operation's declared description, the authority it was
+/// admitted under, what it produced, and the context the run was prepared
+/// with.
 pub(crate) struct SealedCall {
     pub(crate) act: Option<CallAct>,
+    /// The operation's declared description: the call's purpose when its
+    /// caller states none.
+    pub(crate) description: NonEmptyString,
     /// The execution term admission derived for the call.
     pub(crate) term_id: String,
     /// Where the act's target lives, classified by the declared references.
     pub(crate) target_ref: Option<Reference>,
     /// What the call produced, as its operation declares it.
     pub(crate) effects: Vec<Reference>,
+    /// The operator context the run was prepared with.
+    pub(crate) context_ref: Option<Reference>,
 }
 
 impl SealedCall {
@@ -45,27 +48,28 @@ impl SealedCall {
 
 /// The execution outcome that closes an act into its sealed body.
 pub(crate) struct ActOutcome<'a> {
-    /// How the act closed (`Closed`, `Deferred`, ...). May differ from
-    /// `succeeded`: an agent act can close `Deferred` on a successful turn.
+    /// How the act closed (`Closed`, `Failed`, ...).
     pub(crate) disposition: ClosureDisposition,
-    /// Whether the underlying invocation succeeded, driving the criterion status.
+    /// Whether the call succeeded, driving the criterion status.
     pub(crate) succeeded: bool,
-    /// Human summary of the outcome, shared by the criterion and the closure.
+    /// The outcome the runtime observed, shared by the criterion and closure.
     pub(crate) summary: String,
     /// When the act closed.
     pub(crate) performed_at: &'a str,
-    /// References projected from the execution output.
-    pub(crate) refs: &'a StepOutputRefs,
+    /// The evidence of the outcome and its verification.
+    pub(crate) evidence_refs: &'a [Reference],
+    pub(crate) verification_refs: &'a [Reference],
 }
 
-/// An act opened with its intent and form fixed up front.
+/// The criterion every call's outcome is judged by.
+const OUTCOME_CRITERION: &str = "step_outcome";
+
+/// A governed call's act, opened with its intent and form.
 pub(crate) struct RuntimeAct {
     id: NonEmptyString,
     form: ActForm,
     intent: Intent,
     summary: NonEmptyString,
-    criterion_id: NonEmptyString,
-    reason_code: NonEmptyString,
     verified_bindings: Vec<CriterionBinding>,
     target_refs: Vec<Reference>,
     produced: Vec<Reference>,
@@ -73,61 +77,37 @@ pub(crate) struct RuntimeAct {
 }
 
 impl RuntimeAct {
-    /// The act a step opens: the act its call's caller stated, or the generic
-    /// observation, "this step ran, admitted by the local harness".
-    pub(crate) fn open(step_id: &str, call: Option<&SealedCall>) -> Self {
-        let act = Self::observation(step_id);
-        let Some(call) = call else {
-            return act;
-        };
-        let act = Self {
-            produced: call.effects.clone(),
-            ..act
-        };
-        let Some(stated) = &call.act else {
-            return act;
-        };
-        Self {
-            form: stated.form.into(),
-            intent: Intent {
-                purpose: stated.purpose.clone(),
-                legitimacy: format!("runx:authority_term:{}", call.term_id).into(),
-                ..act.intent
-            },
-            summary: stated.summary().clone(),
-            target_refs: call.target_ref.iter().cloned().collect(),
-            ..act
-        }
-    }
-
-    fn observation(step_id: &str) -> Self {
+    /// The act a governed call performs: the one its caller states, or an
+    /// observation whose purpose is its operation's declared description.
+    pub(crate) fn for_call(step_id: &str, call: &SealedCall) -> Self {
+        let stated = call.act.as_ref();
+        let purpose =
+            stated.map_or_else(|| call.description.clone(), |stated| stated.purpose.clone());
         Self {
             id: format!("act_{step_id}").into(),
-            form: ActForm::Observation,
+            form: stated.map_or(ActForm::Observation, |stated| stated.form.into()),
             intent: Intent {
-                purpose: format!("Run graph step {step_id}").into(),
-                legitimacy: "Runtime graph execution was admitted by the local harness".into(),
+                purpose: purpose.clone(),
+                legitimacy: authority_term_legitimacy(&call.term_id).into(),
                 success_criteria: vec![SuccessCriterion {
-                    criterion_id: "step_outcome".into(),
+                    criterion_id: OUTCOME_CRITERION.into(),
                     statement: "runtime step completes successfully".into(),
                     required: true,
                 }],
                 constraints: Vec::new(),
                 derived_from: Vec::new(),
             },
-            summary: format!("Executed graph step {step_id}").into(),
-            criterion_id: "step_outcome".into(),
-            reason_code: "step_outcome".into(),
+            summary: stated.map_or(purpose, |stated| stated.summary().clone()),
             verified_bindings: Vec::new(),
-            target_refs: Vec::new(),
-            produced: Vec::new(),
-            context_ref: None,
+            target_refs: call.target_ref.iter().cloned().collect(),
+            produced: call.effects.clone(),
+            context_ref: call.context_ref.clone(),
         }
     }
 
-    /// Bind native verification evidence into the act opened for this step.
-    /// Criteria are generic contract proofs; the runtime receipt layer does not
-    /// need provider- or skill-specific knowledge.
+    /// Bind native verification evidence into the call's act. Criteria are
+    /// generic contract proofs; the receipt layer needs no provider- or
+    /// skill-specific knowledge.
     pub(crate) fn with_verified_criteria(
         mut self,
         criteria: Vec<SuccessCriterion>,
@@ -138,28 +118,22 @@ impl RuntimeAct {
         self
     }
 
-    /// The operator context the run was prepared with.
-    pub(crate) fn with_context(mut self, context_ref: Option<Reference>) -> Self {
-        self.context_ref = context_ref;
-        self
-    }
-
     /// Close the act with its execution outcome, producing the sealed act body.
     pub(crate) fn close(self, outcome: ActOutcome<'_>) -> ReceiptAct {
-        let mut artifact_refs = outcome.refs.artifact_refs.clone();
-        artifact_refs.extend(outcome.refs.surface_refs.iter().cloned());
-        if outcome.succeeded {
-            artifact_refs.extend(self.produced);
-        }
+        let artifact_refs = if outcome.succeeded {
+            self.produced
+        } else {
+            Vec::new()
+        };
         let mut criterion_bindings = vec![CriterionBinding {
-            criterion_id: self.criterion_id,
+            criterion_id: OUTCOME_CRITERION.into(),
             status: if outcome.succeeded {
                 CriterionStatus::Verified
             } else {
                 CriterionStatus::Failed
             },
-            evidence_refs: outcome.refs.evidence_refs.clone(),
-            verification_refs: outcome.refs.verification_refs.clone(),
+            evidence_refs: outcome.evidence_refs.to_vec(),
+            verification_refs: outcome.verification_refs.to_vec(),
             summary: Some(outcome.summary.clone().into()),
         }];
         criterion_bindings.extend(self.verified_bindings);
@@ -170,13 +144,13 @@ impl RuntimeAct {
             summary: self.summary,
             criterion_bindings,
             by: None,
-            source_refs: outcome.refs.source_refs.clone(),
+            source_refs: Vec::new(),
             target_refs: self.target_refs,
             artifact_refs,
             context_ref: self.context_ref,
             closure: Closure {
                 disposition: outcome.disposition,
-                reason_code: self.reason_code,
+                reason_code: OUTCOME_CRITERION.into(),
                 summary: outcome.summary.into(),
                 closed_at: outcome.performed_at.into(),
             },

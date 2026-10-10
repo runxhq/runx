@@ -121,6 +121,12 @@ impl Template {
         binds(&self.0, RESPONSE) || binds(&self.0, ITEM)
     }
 
+    /// Whether the template sends the key the kernel derived for the call.
+    #[must_use]
+    pub fn binds_runx(&self) -> bool {
+        binds(&self.0, RUNX)
+    }
+
     /// Whether the template binds `$result`, which only an effect reads.
     #[must_use]
     pub fn binds_result(&self) -> bool {

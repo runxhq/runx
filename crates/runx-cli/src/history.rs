@@ -443,17 +443,8 @@ mod tests {
         let verifier = Ed25519ReceiptVerifier::new([signer.production_key()]);
         let output = InvocationOutput::runtime_success(
             runx_contracts::JsonValue::Object(BTreeMap::from([(
-                "artifact".to_owned(),
-                runx_contracts::JsonValue::Object(BTreeMap::from([
-                    (
-                        "artifact_id".to_owned(),
-                        runx_contracts::JsonValue::String("artifact_cli_history".to_owned()),
-                    ),
-                    (
-                        "artifact_type".to_owned(),
-                        runx_contracts::JsonValue::String("artifact".to_owned()),
-                    ),
-                ])),
+                "message".to_owned(),
+                runx_contracts::JsonValue::String("cli history".to_owned()),
             )])),
             10,
             BTreeMap::new(),

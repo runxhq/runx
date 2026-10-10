@@ -5,6 +5,7 @@ mod host_resolution;
 mod output;
 
 use std::borrow::Cow;
+use std::collections::BTreeSet;
 use std::path::Path;
 use std::time::Instant;
 
@@ -31,7 +32,7 @@ use super::admission::{
 use super::turn::{OpenTurn, TurnScope};
 use super::{
     GraphRun, Runtime, StepRun, graph_run_ephemeral_result, graph_run_result,
-    graph_run_skill_output,
+    graph_run_result_artifacts, graph_run_skill_output,
 };
 use crate::RuntimeError;
 use crate::adapter::{
@@ -262,9 +263,11 @@ where
     let ephemeral_result = graph_run_ephemeral_result(&run);
     let mut output = graph_run_skill_output(&result, &run)?;
     let mut projection = build_step_output_projection(request.step, &output, None, None)?;
-    adopt_nested_graph_result(&result, &mut projection.outputs);
+    adopt_nested_graph_result(&result, &graph_run_result_artifacts(&run), &mut projection);
     let mut ephemeral_contract = JsonObject::new();
-    adopt_nested_graph_result(&ephemeral_result, &mut ephemeral_contract);
+    if let JsonValue::Object(ephemeral) = ephemeral_result {
+        ephemeral_contract.extend(ephemeral);
+    }
     let effect_claim = contract_output_claim(&projection);
     prepare_effect_output_before_gate(
         request.step,
@@ -274,10 +277,10 @@ where
         &request.runtime.options.effects,
     )?;
     if output.succeeded() {
-        let metadata = verified_runner_metadata_with_artifacts(
-            &skill_name,
-            &output.value,
-            None,
+        // The packets the step declares are checked against the artifacts it
+        // holds, as its parent adopted them.
+        let metadata = crate::output_contract::verified_artifact_metadata(
+            &projection.outputs,
             request.step.artifacts.as_ref(),
             &skill.directory,
             &env,
@@ -389,14 +392,24 @@ where
 }
 
 /// A nested graph exposes the same canonical public result that a top-level
-/// graph returns. This keeps composition and direct invocation on one output
-/// contract without re-reading the nested graph's diagnostic step state.
-fn adopt_nested_graph_result(result: &JsonValue, outputs: &mut JsonObject) {
+/// graph returns, and which of its outputs are artifacts. This keeps
+/// composition and direct invocation on one output contract without
+/// re-reading the nested graph's diagnostic step state.
+fn adopt_nested_graph_result(
+    result: &JsonValue,
+    artifacts: &BTreeSet<String>,
+    projection: &mut StepOutputProjection,
+) {
     let JsonValue::Object(result) = result else {
         return;
     };
     for (name, value) in result {
-        outputs.insert(name.clone(), value.clone());
+        projection.outputs.insert(name.clone(), value.clone());
+        if artifacts.contains(name) {
+            projection.artifact_outputs.insert(name.clone());
+        } else {
+            projection.artifact_outputs.remove(name);
+        }
     }
 }
 
@@ -468,11 +481,10 @@ where
 {
     let RegularSkillStepOutput {
         mut output,
-        mut projection,
+        projection,
         ephemeral_contract,
         receipt_lineage,
     } = regular;
-    let projection_refs = std::mem::take(&mut projection.refs);
     let effect_claim = contract_output_claim(&projection);
     let seal_authority = context
         .authority
@@ -486,13 +498,9 @@ where
             attempt: context.attempt,
             output: &output,
             claim: &projection.outputs,
-            projection_refs,
             created_at: &context.runtime.options.created_at,
             authority: seal_authority,
             call: None,
-            context_ref: crate::execution::prepared_skill::prepared_context_ref(
-                &context.runtime.options.env,
-            ),
             approval_refs: context.policy_approval_refs,
             child_receipts: &receipt_lineage.direct_children,
             descendant_receipts: &receipt_lineage.descendants,
@@ -536,6 +544,7 @@ where
         skill: context.skill_name,
         runner: step_runner(context.step),
         contract: projection.outputs,
+        artifact_outputs: projection.artifact_outputs,
         ephemeral_contract: EphemeralValue::from_value(JsonValue::Object(ephemeral_contract)),
         outcome: output.into(),
         receipt,
@@ -709,8 +718,7 @@ fn seal_agent_act_step<A>(
     // The answer was verified against its output contract whatever closure it
     // claims, so an act that declines or defers still returns its outputs.
     let answer = InvocationOutput::runtime_success(response.payload.clone(), 0, JsonObject::new());
-    let mut projection =
-        build_step_output_projection(step, &answer, extra_outputs, extra_artifacts)?;
+    let projection = build_step_output_projection(step, &answer, extra_outputs, extra_artifacts)?;
     let mut output = agent_task_output(response, &disposition)?;
     output.metadata.extend(verification_metadata);
     let disposition_label = disposition.label();
@@ -721,13 +729,9 @@ fn seal_agent_act_step<A>(
             attempt,
             output: &output,
             claim: &projection.outputs,
-            projection_refs: std::mem::take(&mut projection.refs),
             created_at: &runtime.options.created_at,
             authority: crate::receipts::SealAuthority::default(),
             call: None,
-            context_ref: crate::execution::prepared_skill::prepared_context_ref(
-                &runtime.options.env,
-            ),
             approval_refs: Vec::new(),
             child_receipts: &lineage.direct_children,
             descendant_receipts: &lineage.descendants,
@@ -747,6 +751,7 @@ fn seal_agent_act_step<A>(
         skill: skill_name,
         runner: step_runner(step),
         contract: projection.outputs,
+        artifact_outputs: projection.artifact_outputs,
         ephemeral_contract: EphemeralValue::default(),
         outcome: output.into(),
         receipt,
@@ -1008,9 +1013,8 @@ where
         &mut output,
         &runtime.options.effects,
     )?;
-    let mut projection = build_step_output_projection(step, &output, None, artifacts)?;
+    let projection = build_step_output_projection(step, &output, None, artifacts)?;
     let ephemeral_contract = build_ephemeral_step_output(step, &output, None, artifacts);
-    let projection_refs = std::mem::take(&mut projection.refs);
     let effect_claim = contract_output_claim(&projection);
     let seal_authority = authority
         .map(|authority| authority.authority(&runtime.options.effects))
@@ -1023,13 +1027,9 @@ where
             attempt,
             output: &output,
             claim: effect_claim,
-            projection_refs,
             created_at: &runtime.options.created_at,
             authority: seal_authority,
             call,
-            context_ref: crate::execution::prepared_skill::prepared_context_ref(
-                &runtime.options.env,
-            ),
             approval_refs: policy_approval_refs,
             child_receipts: &[],
             descendant_receipts: &[],
@@ -1067,6 +1067,7 @@ where
         skill,
         runner: step_runner(step),
         contract: projection.outputs,
+        artifact_outputs: projection.artifact_outputs,
         ephemeral_contract: EphemeralValue::from_value(JsonValue::Object(ephemeral_contract)),
         outcome: output.into(),
         receipt,
@@ -1158,7 +1159,7 @@ where
         &tools,
     );
     let mut effects = Vec::new();
-    let mut output = match outcome {
+    let output = match outcome {
         Ok(outcome) => {
             effects = outcome.effects;
             let mut output = crate::adapter_pipeline::AdapterProjection::from_started(started)
@@ -1187,14 +1188,11 @@ where
             .failure(error.to_string(), JsonObject::new()),
     };
     let artifacts = crate::kernel::operation::packet_artifacts();
-    if output.succeeded() {
-        crate::output_contract::apply_artifact_outputs(&mut output.value, Some(&artifacts));
-        if let Some(ephemeral) = output.ephemeral.as_value_mut() {
-            crate::output_contract::apply_artifact_outputs(ephemeral, Some(&artifacts));
-        }
-    }
     let skill = context.skill_label();
-    let call = context.sealed_call(effects)?;
+    let call = context.sealed_call(
+        effects,
+        crate::execution::prepared_skill::prepared_context_ref(&runtime.options.env),
+    )?;
     seal_effect_step(
         EffectStepSeal {
             runtime,
@@ -1279,7 +1277,7 @@ where
     let outputs = approval_outputs(step, &gate, &resolution)?;
     let output =
         InvocationOutput::runtime_success(JsonValue::Object(outputs.clone()), 0, JsonObject::new());
-    let mut projection = project_step_claim(outputs);
+    let projection = project_step_claim(outputs, step.artifacts.as_ref());
     let receipt = seal_executed_step(
         StepSeal {
             scope: runtime.scope(graph_name),
@@ -1287,13 +1285,9 @@ where
             attempt,
             output: &output,
             claim: &projection.outputs,
-            projection_refs: std::mem::take(&mut projection.refs),
             created_at: &runtime.options.created_at,
             authority: crate::receipts::SealAuthority::default(),
             call: None,
-            context_ref: crate::execution::prepared_skill::prepared_context_ref(
-                &runtime.options.env,
-            ),
             approval_refs: Vec::new(),
             child_receipts: &[],
             descendant_receipts: &[],
@@ -1309,6 +1303,7 @@ where
         skill: "ask".to_owned(),
         runner: step_runner(step),
         contract: projection.outputs,
+        artifact_outputs: projection.artifact_outputs,
         ephemeral_contract: EphemeralValue::default(),
         outcome: output.into(),
         receipt,
@@ -1465,7 +1460,7 @@ where
             })
             .collect::<Vec<_>>(),
     );
-    let mut projection = project_step_claim(JsonObject::new());
+    let projection = project_step_claim(JsonObject::new(), None);
     let receipt = seal_step(
         StepSeal {
             scope: runtime.scope(graph_name),
@@ -1473,13 +1468,9 @@ where
             attempt,
             output: &output,
             claim: &projection.outputs,
-            projection_refs: std::mem::take(&mut projection.refs),
             created_at: &runtime.options.created_at,
             authority: crate::receipts::SealAuthority::default(),
             call: None,
-            context_ref: crate::execution::prepared_skill::prepared_context_ref(
-                &runtime.options.env,
-            ),
             approval_refs: Vec::new(),
             child_receipts: &lineage.direct_children,
             descendant_receipts: &lineage.descendants,
@@ -1498,6 +1489,7 @@ where
             .to_owned(),
         runner: step_runner(step),
         contract: projection.outputs,
+        artifact_outputs: projection.artifact_outputs,
         ephemeral_contract: EphemeralValue::default(),
         outcome: output.into(),
         receipt,

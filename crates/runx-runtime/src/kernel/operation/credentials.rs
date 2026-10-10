@@ -6,6 +6,7 @@
 //! of its fields. The declaration fixes the field names, so a profile that
 //! does not hold them is refused at binding and again at delivery.
 
+use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::path::Path;
 
@@ -13,13 +14,15 @@ use runx_contracts::JsonValue;
 use runx_contracts::connector::{ConnectorManifest, CredentialDeclaration, CredentialName};
 
 use crate::config::{load_local_credential_secret, load_runx_config_file};
+use crate::credentials::{SecretString, SecretTaint};
 use crate::paths::RunxPaths;
 
 /// A delivered credential: which of the connector's credentials it is, and
 /// its fields. Its `Debug` never shows the fields.
 pub(crate) struct CredentialSecret {
     pub name: CredentialName,
-    pub fields: BTreeMap<String, String>,
+    pub fields: BTreeMap<String, SecretString>,
+    taint: RefCell<SecretTaint>,
 }
 
 impl std::fmt::Debug for CredentialSecret {
@@ -31,46 +34,38 @@ impl std::fmt::Debug for CredentialSecret {
     }
 }
 
-/// What replaces a credential field a provider answer repeats.
-pub(crate) const REDACTED: &str = "[redacted-credential]";
-
 impl CredentialSecret {
-    /// `value` with every field of the credential it carries replaced, so a
-    /// provider that echoes the secret in an answer never puts it in custody
-    /// or a receipt.
-    pub(crate) fn scrub(&self, value: JsonValue) -> JsonValue {
-        let secrets = self
-            .fields
-            .values()
-            .filter(|secret| secret.len() >= 4)
-            .collect::<Vec<_>>();
-        if secrets.is_empty() {
-            return value;
+    pub(crate) fn new(name: CredentialName, fields: BTreeMap<String, String>) -> Self {
+        let taint = SecretTaint::from_values(fields.values().map(String::as_str));
+        Self {
+            name,
+            fields: fields
+                .into_iter()
+                .map(|(name, value)| (name, SecretString::new(value)))
+                .collect(),
+            taint: RefCell::new(taint),
         }
-        scrub_value(value, &secrets)
     }
-}
 
-fn scrub_value(value: JsonValue, secrets: &[&String]) -> JsonValue {
-    match value {
-        JsonValue::String(text) => JsonValue::String(
-            secrets
-                .iter()
-                .fold(text, |text, secret| text.replace(secret.as_str(), REDACTED)),
-        ),
-        JsonValue::Array(values) => JsonValue::Array(
-            values
-                .into_iter()
-                .map(|value| scrub_value(value, secrets))
-                .collect(),
-        ),
-        JsonValue::Object(object) => JsonValue::Object(
-            object
-                .into_iter()
-                .map(|(key, value)| (key, scrub_value(value, secrets)))
-                .collect(),
-        ),
-        other => other,
+    pub(crate) fn field(&self, name: &str) -> Result<&str, String> {
+        self.fields
+            .get(name)
+            .map(SecretString::expose)
+            .filter(|value| !value.is_empty())
+            .ok_or_else(|| format!("the credential has no {name}"))
+    }
+
+    pub(crate) fn presented(&self, value: &str) {
+        self.taint.borrow_mut().include(value);
+    }
+
+    /// The same escape-safe boundary used for trusted process output.
+    pub(crate) fn scrub(&self, value: JsonValue) -> JsonValue {
+        self.taint.borrow().redact_value(value)
+    }
+
+    pub(crate) fn scrub_text(&self, text: impl Into<String>) -> String {
+        self.taint.borrow().redact_output_text(text)
     }
 }
 
@@ -96,14 +91,13 @@ pub(crate) fn deliver(
     let declaration = declaration(connector, binding.credential)?;
     let (paths, stored) = stored_profile(env, cwd, connector, binding)?;
     let profile = binding.profile;
-    let value = load_local_credential_secret(&paths, &stored.secret_ref)
-        .map_err(|error| format!("credential profile {profile} cannot be read: {error}"))?;
-    let fields = fields(declaration, &value)
+    let value = SecretString::new(
+        load_local_credential_secret(&paths, &stored.secret_ref)
+            .map_err(|error| format!("credential profile {profile} cannot be read: {error}"))?,
+    );
+    let fields = fields(declaration, value.expose())
         .map_err(|reason| format!("credential profile {profile} {reason}"))?;
-    Ok(CredentialSecret {
-        name: binding.credential.clone(),
-        fields,
-    })
+    Ok(CredentialSecret::new(binding.credential.clone(), fields))
 }
 
 /// What an instance's credential authority names: the profile, the
@@ -199,6 +193,21 @@ mod tests {
 
     use std::collections::BTreeMap;
 
+    #[test]
+    fn connector_output_uses_the_native_escape_safe_secret_boundary() {
+        let secret = super::CredentialSecret::new(
+            runx_contracts::connector::CredentialName::new("key").unwrap(),
+            BTreeMap::from([("api_key".to_owned(), "private-token".to_owned())]),
+        );
+        let text = r#"{"escaped":"private-\u0074oken","nested":"{\"token\":\"private-token\"}","base64":"cHJpdmF0ZS10b2tlbg=="}"#;
+        let value: serde_json::Value = serde_json::from_str(&secret.scrub_text(text)).unwrap();
+        assert_eq!(value["escaped"], "[redacted-credential]");
+        assert_eq!(value["base64"], "[redacted-credential]");
+        let nested: serde_json::Value =
+            serde_json::from_str(value["nested"].as_str().unwrap()).unwrap();
+        assert_eq!(nested["token"], "[redacted-credential]");
+    }
+
     use runx_contracts::InstanceAuthority;
     use runx_contracts::connector::CredentialName;
 
@@ -256,7 +265,7 @@ mod tests {
             material_ref: first_ref.as_str(),
         };
         let secret = deliver(&first, root.path(), &connector.manifest, &binding).unwrap();
-        assert_eq!(secret.fields.get("api_key").unwrap(), "first-account-key");
+        assert_eq!(secret.field("api_key").unwrap(), "first-account-key");
 
         let (_, second_ref) = bind("b", "second-account-key");
         let refused = deliver(&first, root.path(), &connector.manifest, &binding).unwrap_err();

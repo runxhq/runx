@@ -47,7 +47,7 @@ fn main() {
     write_receipt(&valid_path, &valid);
 
     let mut tampered_body = valid.clone();
-    tampered_body.acts[0].summary = "tampered receipt body".into();
+    tampered_body.seal.summary = "tampered receipt body".into();
     write_receipt(&root.join("tampered-body/receipt.json"), &tampered_body);
 
     let mut tampered_signature = valid.clone();

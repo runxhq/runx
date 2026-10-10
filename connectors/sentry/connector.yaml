@@ -1,0 +1,96 @@
+schema: runx.connector.v1
+id: sentry
+name: Sentry
+description: Read bounded issue and event evidence from a selected Sentry organization.
+auth:
+  credentials:
+    access_token:
+      kind: api_key
+      fields:
+        - {name: access_token, label: Sentry read token}
+      delivery: {env: SENTRY_AUTH_TOKEN}
+      audience: [sentry.io]
+parameters:
+  type: object
+  additionalProperties: false
+  required: [organization]
+  properties:
+    organization: {type: string, pattern: '^[a-zA-Z0-9_-]{1,100}$'}
+placements:
+  local:
+    auth: [credentials]
+operations:
+  issues.list:
+    description: Read one bounded page of issues from a selected project; does not traverse subsequent pages.
+    verb: read
+    scopes: [event:read]
+    credentials: [access_token]
+    target:
+      template: {$concat: ['sentry://', {$parameter: /organization}, '/projects/', {$argument: /project}, '/issues']}
+    input_schema:
+      type: object
+      additionalProperties: false
+      required: [project, limit]
+      properties:
+        project: {type: string, pattern: '^[a-zA-Z0-9_-]{1,100}$'}
+        limit: {type: integer, minimum: 1, maximum: 100}
+        query: {type: string, maxLength: 1000}
+        cursor: {type: string, maxLength: 1000}
+    result_fields: [issues]
+    implementation:
+      http:
+        allowed_hosts: [sentry.io]
+        auth: {access_token: {type: bearer, field: access_token}}
+        requests:
+          - method: GET
+            url: {$concat: ['https://sentry.io/api/0/projects/', {$parameter: /organization}, '/', {$argument: /project}, '/issues/']}
+            query:
+              limit: {$argument: /limit}
+              query: {$argument: /query}
+              cursor: {$argument: /cursor}
+            headers: {accept: application/json}
+  issue.read:
+    description: Read one issue's current stats, project and release context; an issue read is not a verified fix.
+    verb: read
+    scopes: [event:read]
+    credentials: [access_token]
+    target:
+      template: {$concat: ['sentry://', {$parameter: /organization}, '/issues/', {$argument: /issue_id}]}
+    input_schema:
+      type: object
+      additionalProperties: false
+      required: [issue_id]
+      properties:
+        issue_id: {type: string, pattern: '^[0-9]{1,30}$'}
+    result_fields: [issue]
+    implementation:
+      http:
+        allowed_hosts: [sentry.io]
+        auth: {access_token: {type: bearer, field: access_token}}
+        requests:
+          - method: GET
+            url: {$concat: ['https://sentry.io/api/0/organizations/', {$parameter: /organization}, '/issues/', {$argument: /issue_id}, '/']}
+            headers: {accept: application/json}
+  event.read:
+    description: Hydrate one issue event, including latest; event data may contain private context and needs bounded admission before sharing.
+    verb: read
+    scopes: [event:read]
+    credentials: [access_token]
+    target:
+      template: {$concat: ['sentry://', {$parameter: /organization}, '/issues/', {$argument: /issue_id}, '/events/', {$argument: /event_id}]}
+    input_schema:
+      type: object
+      additionalProperties: false
+      required: [issue_id, event_id]
+      properties:
+        issue_id: {type: string, pattern: '^[0-9]{1,30}$'}
+        event_id: {type: string, pattern: '^(latest|[a-fA-F0-9]{32})$'}
+    result_fields: [event]
+    implementation:
+      http:
+        allowed_hosts: [sentry.io]
+        auth: {access_token: {type: bearer, field: access_token}}
+        requests:
+          - method: GET
+            url: {$concat: ['https://sentry.io/api/0/organizations/', {$parameter: /organization}, '/issues/', {$argument: /issue_id}, '/events/', {$argument: /event_id}, '/']}
+            headers: {accept: application/json}

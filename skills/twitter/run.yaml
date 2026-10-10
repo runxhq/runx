@@ -1,5 +1,5 @@
 skill: twitter
-version: "0.5.3"
+version: "0.5.4"
 catalog:
   kind: skill
   audience: public
@@ -372,8 +372,8 @@ runners:
                     milestone: { type: string, minLength: 1, maxLength: 256 }
                     description: { type: string, minLength: 1, maxLength: 4000 }
         artifacts:
-          wrap_as: twitter_plan
-          packet: twitter.plan.v1
+          named_emits: { twitter_plan: twitter_plan }
+          packets: { twitter_plan: twitter.plan.v1 }
       - id: digest
         tool: data.digest
         inputs:

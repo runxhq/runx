@@ -547,7 +547,9 @@ not emit the same key. Preparation resolves every result producer through its
 exact runner, tool manifest, or nested skill and rejects a missing semantic
 output contract before any step executes. Declare `run.outputs`,
 `artifacts.wrap_as`, or `artifacts.named_emits`; transport output is never an
-implicit graph result.
+implicit graph result. `artifacts.wrap_as` names a step's whole result as one
+artifact, with `artifacts.packet` its packet; `artifacts.named_emits` names
+fields of the result as artifacts, with `artifacts.packets` theirs.
 
 Public catalog packages must keep examples in standalone fixtures, not inline
 manifest harness blocks. The package should contain only the files the skill
@@ -796,12 +798,16 @@ fixture files, inline runner cases and dev fixtures:
 - `answers`: agent act outputs, by request id;
 - `turns`: agent turns the caller works call by call, by request id. An act
   is answered or worked, not both;
-- `approvals`: approval decisions, `true` or `false`, by request id: an
-  operation step's id, or an ask's gate;
+- `approvals`: approval decisions, `true` or `false`, by the address of the
+  request each decides: an operation step's id or an ask's gate at the root,
+  and `<path>#<id>` in a child run, `<path>` being its place under the root,
+  such as `send#post`;
 
-An id answers that request in every run of the case that asks it. A key may
-instead be an address, such as `answer/0#agent.answer.output`, which answers
-only the request at that place in the run and wins over an id.
+An answer or a turn script keyed by an id answers that request in every run of
+the case that asks it. A key may instead be an address, such as
+`answer/0#agent.answer.output`, which answers only the request at that place
+in the run and wins over an id. An approval decides only the request it
+names.
 - `http_exchanges`, `mcp_calls` and `provider_responses`: what the run's
   requests reach, described below.
 

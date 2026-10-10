@@ -1,0 +1,117 @@
+schema: runx.connector.v1
+id: notion
+name: Notion
+description: Search authorized Notion titles and read selected page, data-source and block evidence.
+auth:
+  credentials:
+    access_token:
+      kind: api_key
+      fields:
+        - {name: access_token, label: Notion integration token with read content capability}
+      delivery: {env: NOTION_ACCESS_TOKEN}
+      audience: [api.notion.com]
+placements:
+  local:
+    auth: [credentials]
+operations:
+  resources.search:
+    description: Read one bounded page of authorized title matches; not full-text search or a workspace inventory.
+    verb: read
+    scopes: [content.read]
+    credentials: [access_token]
+    target: {template: 'https://api.notion.com/v1/search'}
+    input_schema:
+      type: object
+      additionalProperties: false
+      required: [query, object, page_size]
+      properties:
+        query: {type: string, minLength: 1, maxLength: 1000, pattern: '\S'}
+        object: {enum: [page, data_source]}
+        page_size: {type: integer, minimum: 1, maximum: 100}
+        start_cursor: {type: string, minLength: 1, maxLength: 4096}
+    result_fields: [resources]
+    implementation:
+      http:
+        allowed_hosts: [api.notion.com]
+        auth: {access_token: {type: bearer, field: access_token}}
+        requests:
+          - method: POST
+            url: https://api.notion.com/v1/search
+            headers: {accept: application/json, Notion-Version: '2026-03-11'}
+            body:
+              query: {$argument: /query}
+              filter: {property: object, value: {$argument: /object}}
+              sort: {direction: descending, timestamp: last_edited_time}
+              page_size: {$argument: /page_size}
+              start_cursor: {$argument: /start_cursor}
+  page.read:
+    description: Read one page's metadata and properties; page body requires separately bounded block reads.
+    verb: read
+    scopes: [content.read]
+    credentials: [access_token]
+    target:
+      template: {$concat: ['https://api.notion.com/v1/pages/', {$argument: /page_id}]}
+    input_schema:
+      type: object
+      additionalProperties: false
+      required: [page_id]
+      properties:
+        page_id: {type: string, pattern: '^(?:[0-9a-fA-F]{32}|[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$'}
+    result_fields: [page]
+    implementation:
+      http:
+        allowed_hosts: [api.notion.com]
+        auth: {access_token: {type: bearer, field: access_token}}
+        requests:
+          - method: GET
+            url: {$concat: ['https://api.notion.com/v1/pages/', {$argument: /page_id}]}
+            headers: {accept: application/json, Notion-Version: '2026-03-11'}
+  datasource.read:
+    description: Read one authorized data-source schema and properties; does not query its rows.
+    verb: read
+    scopes: [content.read]
+    credentials: [access_token]
+    target:
+      template: {$concat: ['https://api.notion.com/v1/data_sources/', {$argument: /data_source_id}]}
+    input_schema:
+      type: object
+      additionalProperties: false
+      required: [data_source_id]
+      properties:
+        data_source_id: {type: string, pattern: '^(?:[0-9a-fA-F]{32}|[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$'}
+    result_fields: [data_source]
+    implementation:
+      http:
+        allowed_hosts: [api.notion.com]
+        auth: {access_token: {type: bearer, field: access_token}}
+        requests:
+          - method: GET
+            url: {$concat: ['https://api.notion.com/v1/data_sources/', {$argument: /data_source_id}]}
+            headers: {accept: application/json, Notion-Version: '2026-03-11'}
+  blocks.list:
+    description: Read one bounded page of immediate child blocks, preserving has_more and next_cursor; does not recursively traverse children.
+    verb: read
+    scopes: [content.read]
+    credentials: [access_token]
+    target:
+      template: {$concat: ['https://api.notion.com/v1/blocks/', {$argument: /block_id}, '/children']}
+    input_schema:
+      type: object
+      additionalProperties: false
+      required: [block_id, page_size]
+      properties:
+        block_id: {type: string, pattern: '^(?:[0-9a-fA-F]{32}|[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$'}
+        page_size: {type: integer, minimum: 1, maximum: 100}
+        start_cursor: {type: string, minLength: 1, maxLength: 4096}
+    result_fields: [blocks]
+    implementation:
+      http:
+        allowed_hosts: [api.notion.com]
+        auth: {access_token: {type: bearer, field: access_token}}
+        requests:
+          - method: GET
+            url: {$concat: ['https://api.notion.com/v1/blocks/', {$argument: /block_id}, '/children']}
+            headers: {accept: application/json, Notion-Version: '2026-03-11'}
+            query:
+              page_size: {$argument: /page_size}
+              start_cursor: {$argument: /start_cursor}

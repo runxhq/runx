@@ -201,9 +201,6 @@ pub struct GraphStep {
     pub scopes: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub when: Option<GraphWhen>,
-    /// What this use accepts when an operation's outcome is unknown.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub on_uncertain: Option<UncertainOutcome>,
     /// Whether this use tolerates a visible duplicate.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub duplicates: Option<DuplicatePolicy>,
@@ -279,45 +276,6 @@ pub struct OperationStepTarget {
     /// steps are refused at admission.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub declared: Option<crate::ConnectorRequirement>,
-}
-
-/// What a use accepts when an operation's outcome is unknown. The kernel
-/// refuses a tolerance the operation's guarantees cannot support.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase", tag = "kind", deny_unknown_fields)]
-pub enum UncertainOutcome {
-    /// Hold for reconciliation; never re-send blind. The default.
-    Hold,
-    /// Settle the outcome through the operation's reconcile read.
-    Reconcile,
-    /// Give up after this long and let the caller supersede the work.
-    ExpireAfter { seconds: u64 },
-}
-
-impl UncertainOutcome {
-    /// `hold`, `reconcile`, or `expire_after <n><s|m|h|d>`.
-    #[must_use]
-    pub fn parse(value: &str) -> Option<Self> {
-        match value.trim() {
-            "hold" => Some(Self::Hold),
-            "reconcile" => Some(Self::Reconcile),
-            other => {
-                let duration = other.strip_prefix("expire_after")?.trim();
-                let (count, unit) = duration.split_at(duration.len().checked_sub(1)?);
-                let count = count.parse::<u64>().ok().filter(|count| *count > 0)?;
-                let unit = match unit {
-                    "s" => 1,
-                    "m" => 60,
-                    "h" => 3_600,
-                    "d" => 86_400,
-                    _ => return None,
-                };
-                count
-                    .checked_mul(unit)
-                    .map(|seconds| Self::ExpireAfter { seconds })
-            }
-        }
-    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]

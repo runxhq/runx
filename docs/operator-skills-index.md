@@ -26,10 +26,12 @@ Skills that run a standing mandate, route work, or operate a project workspace.
 | `business-ops/` | Route one business signal through a replayable governed ops chain. |
 | `ops-desk/` | Operate a project, workspace, or account from an agent or machine principal. |
 | `policy-author/` | Turn a plain-English governance brief into one validated runx policy. |
-| `lead-router/` | Qualify a lead and route it to the right governed action. |
-| `lead-enrichment/` | Enrich a lead from supplied account signals and produce a reviewable packet. |
+| `lead-qualify/` | Assess supplied ICP criteria against factual lead context; keep contact eligibility separate. |
+| `cold-outreach/` | Prepare relevant first-contact copy from evidence and scoped brand/taste context. |
+| `lead-enrichment/` | Normalize fresh matched professional facts, preserving missing and conflicting fields. |
 | `knowledge-router/` | Route a question or source event to the right knowledge source. |
 | `issue-intake/` | Turn a noisy inbound request into a bounded intake artifact. |
+| `github-pr-review/` | Review an exact PR head against bounded changed-line evidence without publication. |
 | `issue-triage/` | Discover, analyze, and draft high-signal issue-thread responses. |
 | `issue-to-pr/` | Implement and test an issue with normal host tools, finalize once, and optionally publish a governed PR. |
 
@@ -54,6 +56,8 @@ Skills that enforce policy, audit receipts, or review skill quality.
 | `ghostwrite/` | Turn evidence and operator intent into publication-ready drafts. |
 | `deep-research/` | Produce an approved deep-research brief from bounded research. |
 | `ecosystem-brief/` | Produce an approved ecosystem briefing from bounded research. |
+| `web-search/` | Discover bounded source candidates through an explicitly selected search provider. |
+| `product-analytics/` | Interpret comparable supplied funnel and retention measurements. |
 | `research/` | Produce bounded, source-backed research packets for product decisions. |
 | `brand-voice/` | Build a scoped brand voice packet from source material. |
 | `taste-profile/` | Build a scoped taste profile packet from examples and preferences. |

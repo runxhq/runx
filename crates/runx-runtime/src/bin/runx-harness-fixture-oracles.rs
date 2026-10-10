@@ -17,7 +17,7 @@ use runx_receipts::{
 use runx_runtime::harness::{HarnessFixtureCase, list_cases};
 use runx_runtime::{
     HarnessOptions, HarnessReplayOutput, InvocationOutput, SkillAdapter, SkillInvocation,
-    run_harness_fixture_with_adapter,
+    replay_harness_fixture_with_adapter, run_harness_fixture_with_adapter,
 };
 
 fn main() -> ExitCode {
@@ -64,7 +64,14 @@ fn process_fixture(
 ) -> Result<FixtureSummary, Box<dyn Error>> {
     let started = Instant::now();
     let fixture_path = cli.repo_root.join(fixture.fixture_path);
-    let output = match run_harness_fixture_with_adapter(
+    // Writing regenerates the expectations this run produces, so it replays
+    // the case without asserting them; checking asserts them all.
+    let replay = if cli.write {
+        replay_harness_fixture_with_adapter
+    } else {
+        run_harness_fixture_with_adapter
+    };
+    let output = match replay(
         &fixture_path,
         FixtureOracleAdapter,
         fixture_runtime_options(),

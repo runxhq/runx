@@ -1,42 +1,5 @@
 {
-  "acts": [
-    {
-      "artifact_refs": [],
-      "closure": {
-        "closed_at": "2026-05-18T00:00:00Z",
-        "disposition": "closed",
-        "reason_code": "process_exit",
-        "summary": "process exited successfully"
-      },
-      "criterion_bindings": [
-        {
-          "criterion_id": "process_exit",
-          "evidence_refs": [],
-          "status": "verified",
-          "summary": "process exited successfully",
-          "verification_refs": []
-        }
-      ],
-      "form": "observation",
-      "id": "act_first",
-      "intent": {
-        "constraints": [],
-        "derived_from": [],
-        "legitimacy": "Runtime graph execution was admitted by the local harness",
-        "purpose": "Run graph step first",
-        "success_criteria": [
-          {
-            "criterion_id": "process_exit",
-            "required": true,
-            "statement": "process exits successfully"
-          }
-        ]
-      },
-      "source_refs": [],
-      "summary": "Executed graph step first",
-      "target_refs": []
-    }
-  ],
+  "acts": [],
   "authority": {
     "actor_ref": {
       "type": "principal",
@@ -60,35 +23,9 @@
   "canonicalization": "runx.receipt.c14n.v1",
   "class": "executed",
   "created_at": "2026-05-18T00:00:00Z",
-  "decisions": [
-    {
-      "artifact_refs": [],
-      "choice": "open",
-      "closure": null,
-      "decision_id": "dec_first",
-      "inputs": {
-        "opportunity_refs": [],
-        "selection_ref": null,
-        "signal_refs": [],
-        "target_ref": null
-      },
-      "justification": {
-        "evidence_refs": [],
-        "summary": "runtime graph planner selected this node"
-      },
-      "proposed_intent": {
-        "constraints": [],
-        "derived_from": [],
-        "legitimacy": "Local graph execution requested this node",
-        "purpose": "Open runtime node first",
-        "success_criteria": []
-      },
-      "selected_act_id": "act_first",
-      "selected_harness_ref": null
-    }
-  ],
-  "digest": "sha256:5eb43696ef1c06f10f128b2f56d35d4b684fbb333595ddf7cc41922f76221829",
-  "id": "sha256:84a9e99f5866eb7e1ac4a1607a1b069b950769b26c3c98577fe4c1d6d2e55411",
+  "decisions": [],
+  "digest": "sha256:fb0f10fc3c97a721df45aa8db4186e55ecd6687b5a3b6d00e42053263aaa5b77",
+  "id": "sha256:c020ac9a651e06ebe39f661089b8699e1f277163948bd4a7551fda252c146402",
   "idempotency": {
     "content_hash": "sha256:sequential-echo-first-content",
     "intent_key": "sha256:sequential-echo-first-intent",
@@ -111,22 +48,22 @@
     "closed_at": "2026-05-18T00:00:00Z",
     "criteria": [
       {
-        "criterion_id": "process_exit",
+        "criterion_id": "step_outcome",
         "evidence_refs": [],
         "status": "verified",
-        "summary": "process exited successfully",
+        "summary": "step completed successfully",
         "verification_refs": []
       }
     ],
     "disposition": "closed",
     "last_observed_at": "2026-05-18T00:00:00Z",
-    "reason_code": "process_closed",
+    "reason_code": "step_closed",
     "summary": "step first completed"
   },
   "signals": [],
   "signature": {
     "alg": "Ed25519",
-    "value": "sig:sha256:5eb43696ef1c06f10f128b2f56d35d4b684fbb333595ddf7cc41922f76221829"
+    "value": "sig:sha256:fb0f10fc3c97a721df45aa8db4186e55ecd6687b5a3b6d00e42053263aaa5b77"
   },
   "subject": {
     "commitments": [],

@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use super::RuntimeEffectError;
 
-pub const EFFECT_VERIFICATION_REFS_METADATA: &str = "runx_effect_verification_refs";
+pub(crate) const EFFECT_VERIFICATION_REFS_METADATA: &str = "runx_effect_verification_refs";
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -11,7 +11,7 @@ struct EffectVerificationRefsMetadata {
     refs: Vec<Reference>,
 }
 
-pub fn insert_effect_verification_ref(
+pub(crate) fn insert_effect_verification_ref(
     metadata: &mut JsonObject,
     reference: Reference,
 ) -> Result<(), RuntimeEffectError> {

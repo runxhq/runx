@@ -7,7 +7,7 @@
 
 use std::collections::BTreeSet;
 
-use runx_contracts::{ClosureDisposition, Receipt, ReferenceType};
+use runx_contracts::{ClosureDisposition, Receipt};
 use runx_core::policy::parse_rfc3339_moment;
 use runx_receipts::{
     ReceiptFindingCode, ReceiptProofContextProvider, signed_display_identity, verify_receipt_proof,
@@ -31,7 +31,6 @@ pub struct ReceiptFilter {
     pub status: Option<String>,
     pub issuer: Option<String>,
     pub actor: Option<String>,
-    pub artifact_type: Option<String>,
     pub since: Option<String>,
     pub until: Option<String>,
     pub limit: Option<usize>,
@@ -60,7 +59,6 @@ pub struct ReceiptRow {
     pub summary: String,
     pub issuer_type: String,
     pub actors: Vec<String>,
-    pub artifact_types: Vec<String>,
     pub verification: ReceiptVerification,
 }
 
@@ -177,25 +175,10 @@ fn row(receipt: &Receipt, signature_policy: RuntimeReceiptSignaturePolicy<'_>) -
         summary: receipt.seal.summary.to_string(),
         issuer_type: identity.issuer_type,
         actors: identity.actors,
-        artifact_types: artifact_types(receipt),
         verification: ReceiptVerification {
             status: verification_status(receipt, signature_policy),
         },
     }
-}
-
-fn artifact_types(receipt: &Receipt) -> Vec<String> {
-    let mut types = BTreeSet::new();
-    for reference in receipt.acts.iter().flat_map(|act| act.artifact_refs.iter()) {
-        if reference.reference_type == ReferenceType::Artifact {
-            if let Some(label) = reference.label.as_ref().filter(|label| !label.is_empty()) {
-                types.insert(label.to_string());
-            } else {
-                types.insert("artifact".to_owned());
-            }
-        }
-    }
-    types.into_iter().collect()
 }
 
 fn child_receipt_ids(receipts: &[Receipt]) -> BTreeSet<String> {
@@ -215,7 +198,6 @@ struct ResolvedFilter {
     status: Option<String>,
     issuer: Option<String>,
     actor: Option<String>,
-    artifact_type: Option<String>,
     since: Option<Timestamp>,
     until: Option<Timestamp>,
     limit: Option<usize>,
@@ -230,7 +212,6 @@ impl ResolvedFilter {
             status: normalized(&filter.status),
             issuer: normalized(&filter.issuer),
             actor: normalized(&filter.actor),
-            artifact_type: normalized(&filter.artifact_type),
             since: parse_date_filter("since", &filter.since)?,
             until: parse_date_filter("until", &filter.until)?,
             limit: filter.limit,
@@ -250,10 +231,6 @@ impl ResolvedFilter {
                     .actors
                     .iter()
                     .any(|actor| actor.to_lowercase().contains(query))
-                || row
-                    .artifact_types
-                    .iter()
-                    .any(|artifact_type| artifact_type.to_lowercase().contains(query))
         }) && self.skill.as_ref().is_none_or(|skill| name.contains(skill))
             && self
                 .status
@@ -267,11 +244,6 @@ impl ResolvedFilter {
                 row.actors
                     .iter()
                     .any(|candidate| candidate.to_lowercase() == *actor)
-            })
-            && self.artifact_type.as_ref().is_none_or(|artifact_type| {
-                row.artifact_types
-                    .iter()
-                    .any(|candidate| candidate.to_lowercase() == *artifact_type)
             })
             && self.within_window(&row.created_at)
     }

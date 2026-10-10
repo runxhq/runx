@@ -1,0 +1,64 @@
+name: bounded-discovery
+kind: skill
+target: ..
+inputs:
+  query: Example API documentation
+  limit: 3
+expect:
+  status: sealed
+  steps:
+  - validate
+  - search
+  - normalize
+  step_outputs:
+    normalize:
+      subset:
+        search_result:
+          data:
+            decision: sources_found
+            returned_count: 2
+            duplicate_count: 1
+            reported_cost_usd: 0.005
+            sources:
+            - url: https://example.com/docs
+              content_status: not_fetched
+  receipt:
+    schema: runx.receipt.v1
+metadata:
+  public_skill: web-search
+  source: skills-fixture
+caller:
+  http_exchanges:
+  - request:
+      method: POST
+      url: https://api.exa.ai/search
+      body:
+        json:
+          query: Example API documentation
+          numResults: 3
+          type: auto
+    response:
+      status: 200
+      headers:
+        content-type: application/json
+      body: '{"requestId":"fixture-1","results":[{"url":"https://example.com/docs","title":"Example docs"},{"url":"https://example.com/docs","title":"Example
+        docs"}],"costDollars":{"total":0.005}}'
+setup:
+  credentials:
+  - exa
+env:
+  EXA_API_KEY: harness-exa-key
+operator_journeys:
+- mode: standalone
+  request: Find a bounded set of source candidates without fetching pages or claiming completed research.
+  expected_outcome: Return the exact bounded domain result and preserve holds without outward effects.
+  confusors:
+  - web-fetch
+  - research
+- mode: composed
+  request: Discover source candidates for the supplied question, retaining the selected query and budget.
+  expected_outcome: Reuse the supplied evidence and retain the exact bounded outcome without outward actions.
+  prior_evidence:
+  - The supplied query, domain/date constraints and result limit.
+  must_not_repeat:
+  - Do not add a second search or fetch result pages.

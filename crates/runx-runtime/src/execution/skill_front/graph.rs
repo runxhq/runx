@@ -231,33 +231,24 @@ impl BoundRun {
                 ),
                 Stop::Blocked,
             ),
-            Err(error @ RuntimeError::ProviderReadbackPending { .. }) => {
-                let step_id = error
-                    .graph_step_id()
-                    .unwrap_or("provider-readback")
-                    .to_owned();
+            // The mutation may be applied and its readback is pending. The
+            // run stays open, unsealed, so the call seals once, when its
+            // outcome is known: retried while readback may yet arrive, then
+            // returned to the operator to reconcile before resuming.
+            Err(RuntimeError::ProviderReadbackPending { step_id, reason }) => {
                 let retries = existing.as_ref().map_or(0, |record| record.retries) + 1;
-                if retries <= MAX_READBACK_RETRIES {
-                    log.record_retry(
-                        &step_id,
-                        &ResolutionRequest::Retry {
-                            id: format!("provider-readback-{step_id}-{retries}").into(),
-                            reason: "Independent provider readback is pending".into(),
-                            retry_after_seconds: 300,
-                        },
-                    )?;
-                    return self.paused(&log);
+                if retries > MAX_READBACK_RETRIES {
+                    return Err(RuntimeError::ProviderReadbackPending { step_id, reason }.into());
                 }
-                let summary = format!(
-                    "graph {} deferred at {step_id}: the provider mutation may be applied, but independent readback is unavailable; reconcile before retrying",
-                    graph.name
-                );
-                run.seal_stopped(
+                log.record_retry(
                     &step_id,
-                    "provider_readback_pending",
-                    summary,
-                    Stop::Deferred(error),
-                )
+                    &ResolutionRequest::Retry {
+                        id: format!("provider-readback-{step_id}-{retries}").into(),
+                        reason: "Independent provider readback is pending".into(),
+                        retry_after_seconds: 300,
+                    },
+                )?;
+                self.paused(&log)
             }
             #[cfg(feature = "agent")]
             Err(RuntimeError::ManagedAgentResolution {
@@ -466,7 +457,6 @@ fn continuation_identity<'a>(
 /// Why a run stopped short of completion.
 enum Stop {
     Blocked,
-    Deferred(RuntimeError),
     /// A step sealed its own governed closure (an agent act that declined,
     /// deferred, blocked, or was superseded). The run stops with that
     /// disposition and returns the step's declared outputs.
@@ -513,14 +503,11 @@ impl Driven<'_> {
         let bound = self.bound;
         let mut host = RunHost::new(ResolutionAnswers::default());
         let failure_result = match &stop {
-            Stop::Deferred(error) | Stop::Failed(error) => {
-                Some(JsonValue::Object(error.public_failure_projection()))
-            }
+            Stop::Failed(error) => Some(JsonValue::Object(error.public_failure_projection())),
             Stop::Blocked | Stop::Closed(_) => None,
         };
         let (disposition, failure) = match stop {
             Stop::Blocked => (ClosureDisposition::Blocked, None),
-            Stop::Deferred(_) => (ClosureDisposition::Deferred, None),
             Stop::Closed(disposition) => (disposition, None),
             Stop::Failed(error) => (ClosureDisposition::Failed, Some(error)),
         };
@@ -1163,7 +1150,8 @@ steps:
 
         assert!(output.succeeded());
         assert!(!serde_json::to_string(&output.value)?.contains(MARKER));
-        let projection = crate::execution::output_projection::project_step_claim(JsonObject::new());
+        let projection =
+            crate::execution::output_projection::project_step_claim(JsonObject::new(), None);
         let value = serde_json::to_string(&output.value)?;
         assert!(projection.outputs.is_empty());
         assert!(value.contains("[redacted-credential]"));

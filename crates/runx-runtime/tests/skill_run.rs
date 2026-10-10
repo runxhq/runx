@@ -429,9 +429,9 @@ fn native_skill_run_resumes_and_seals_receipt() -> Result<(), Box<dyn std::error
         serde_json::to_value(&step_receipt.seal.disposition)?,
         "declined"
     );
-    assert_eq!(step_receipt.acts.len(), 1);
+    assert!(step_receipt.acts.is_empty());
     assert_eq!(
-        serde_json::to_value(&step_receipt.acts[0].criterion_bindings[0].status)?,
+        serde_json::to_value(&step_receipt.seal.criteria[0].status)?,
         "failed"
     );
 
@@ -507,8 +507,9 @@ fn native_skill_run_treats_structured_stdout_as_claim_not_receipt_proof()
     let receipt_id = string_field(output, "receipt_id").ok_or("missing receipt_id")?;
     let receipt = crate::support::read_test_signed_receipt(&receipt_dir, receipt_id)?;
     let step_receipt = crate::support::read_test_first_step_receipt(&receipt_dir, &receipt)?;
-    let refs = step_receipt.acts[0]
-        .criterion_bindings
+    let refs = step_receipt
+        .seal
+        .criteria
         .iter()
         .flat_map(|criterion| {
             criterion

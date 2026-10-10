@@ -9,8 +9,9 @@ pub use error::RuntimeEffectError;
 pub use external_receipt::{
     EXTERNAL_RECEIPT_EFFECT_FAMILY, EXTERNAL_RECEIPT_VERIFY_TOOL, ExternalReceiptEffect,
 };
-pub(crate) use metadata::effect_verification_refs;
-pub use metadata::{EFFECT_VERIFICATION_REFS_METADATA, insert_effect_verification_ref};
+#[cfg(test)]
+pub(crate) use metadata::EFFECT_VERIFICATION_REFS_METADATA;
+pub(crate) use metadata::{effect_verification_refs, insert_effect_verification_ref};
 pub use registry::RuntimeEffectRegistry;
 pub use state::EffectAdmission;
 pub use types::{
@@ -377,7 +378,6 @@ mod tests {
             context_skills: Vec::new(),
             scopes: Vec::new(),
             when: None,
-            on_uncertain: None,
             duplicates: None,
         }
     }

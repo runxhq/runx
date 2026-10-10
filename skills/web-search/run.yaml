@@ -1,0 +1,101 @@
+skill: web-search
+version: "0.1.0"
+catalog:
+  kind: graph
+  audience: public
+  visibility: public
+  role: canonical
+  execution: read
+  completion: provider_readback
+  requires_adapter: true
+  approval: none
+  category: research
+connectors:
+  exa:
+    operations: [search.query]
+runners:
+  search:
+    default: true
+    inputs:
+      query:
+        type: string
+        required: true
+        description: One specific discovery question, within the caller's request budget.
+        schema: {minLength: 1, maxLength: 2000, pattern: '\S'}
+      limit:
+        type: integer
+        required: false
+        default: 8
+        description: Maximum source candidates for this one provider call.
+        schema: {minimum: 1, maximum: 20}
+      include_domains:
+        type: array
+        required: false
+        description: Optional exact domain filters for authoritative source discovery.
+        schema:
+          minItems: 1
+          maxItems: 20
+          uniqueItems: true
+          items: {type: string, minLength: 1, maxLength: 253, pattern: '^[a-zA-Z0-9.-]+$'}
+      start_published_at:
+        type: string
+        required: false
+        description: Optional publication-time lower bound, not an event-date claim.
+        schema: {format: date-time}
+      end_published_at:
+        type: string
+        required: false
+        description: Optional publication-time upper bound.
+        schema: {format: date-time}
+    result_from: [search, normalize]
+    steps:
+      - id: validate
+        tool: {module: web-search.mjs, export: validateQuery}
+        inputs:
+          start_published_at: $input.start_published_at
+          end_published_at: $input.end_published_at
+        outputs: {valid: boolean}
+      - id: search
+        operation: exa/search.query
+        input:
+          query: $input.query
+          limit: $input.limit
+          include_domains: $input.include_domains
+          start_published_at: $input.start_published_at
+          end_published_at: $input.end_published_at
+      - id: normalize
+        tool: {module: web-search.mjs, export: normalizeSearch}
+        inputs:
+          query: $input.query
+          limit: $input.limit
+          provider_operation: $steps.search.provider_operation
+        outputs:
+          search_result:
+            type: object
+            schema:
+              additionalProperties: false
+              required: [decision, query, request_id, sources, returned_count, duplicate_count, unusable_count, reported_cost_usd, coverage]
+              properties:
+                decision: {enum: [sources_found, no_results, unusable_results]}
+                query: {type: string, minLength: 1, maxLength: 2000}
+                request_id: {type: [string, 'null']}
+                sources:
+                  type: array
+                  maxItems: 20
+                  items:
+                    type: object
+                    additionalProperties: false
+                    required: [url, title, published_at, excerpt, content_status]
+                    properties:
+                      url: {type: string, format: uri, pattern: '^https?://', maxLength: 8000}
+                      title: {type: string, minLength: 1, maxLength: 2000}
+                      published_at: {type: [string, 'null'], description: Unverified provider publication metadata.}
+                      excerpt: {type: [string, 'null'], maxLength: 4000}
+                      content_status: {const: not_fetched}
+                returned_count: {type: integer, minimum: 0, maximum: 20}
+                duplicate_count: {type: integer, minimum: 0, maximum: 20}
+                unusable_count: {type: integer, minimum: 0, maximum: 20}
+                reported_cost_usd: {type: [number, 'null'], minimum: 0}
+                coverage: {const: one_query}
+        artifacts:
+          named_emits: {search_result: search_result}

@@ -317,7 +317,7 @@ fn assert_inline_harness_expectations(
         .as_object()
         .and_then(|object| object.get("result"))
         .unwrap_or(&JsonValue::Null);
-    if !case.expect.steps.is_empty() {
+    if let Some(expected_steps) = &case.expect.steps {
         let actual_steps = output
             .as_object()
             .and_then(|object| object.get("trace"))
@@ -332,17 +332,15 @@ fn assert_inline_harness_expectations(
                     .and_then(JsonValue::as_str)
             })
             .collect::<Vec<_>>();
-        if case
-            .expect
-            .steps
+        if expected_steps
             .iter()
             .map(String::as_str)
             .ne(actual_steps.iter().copied())
         {
             return Err(HarnessReplayError::Mismatch {
                 field: "expect.steps".to_owned(),
-                expected: case.expect.steps.join(","),
-                actual: actual_steps.join(","),
+                expected: format!("{expected_steps:?}"),
+                actual: format!("{actual_steps:?}"),
             });
         }
     }
@@ -537,10 +535,15 @@ mod tests {
             answers.get(approval_id, "sha256:approval"),
             Some(&JsonValue::Bool(true))
         );
-        // A script answers by the request's id in its own run, at any depth.
+        // A script answers an agent act by its id in its own run, at any
+        // depth; an approval decides only the request it names.
+        assert_eq!(
+            answers.get("deliver#agent.plan", "sha256:plan"),
+            Some(&JsonValue::String("ready".to_owned()))
+        );
         assert_eq!(
             answers.get(&format!("deliver#{approval_id}"), "sha256:approval"),
-            Some(&JsonValue::Bool(true))
+            None
         );
         Ok(())
     }

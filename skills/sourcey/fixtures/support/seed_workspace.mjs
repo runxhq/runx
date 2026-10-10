@@ -39,9 +39,7 @@ writeFileSync(path.join(outputDir, "index.html"), \`<!doctype html>
 
 process.stdout.write(`${JSON.stringify({
   fixture_workspace: {
-    data: {
-      root: path.relative(workspace, root),
-      file_count: 3,
-    },
+    root: path.relative(workspace, root),
+    file_count: 3,
   },
 })}\n`);

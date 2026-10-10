@@ -1,6 +1,5 @@
 skill: agency
-version: "0.1.9"
-
+version: "0.1.10"
 catalog:
   kind: graph
   audience: operator
@@ -69,8 +68,8 @@ runners:
           decision: $steps.decide.dispatch_decision
           reduction: $steps.reduce.reduction
         artifacts:
-          wrap_as: turn_plan
-          packet: runx.agency.turn.v1
+          named_emits: { turn_plan: turn_plan }
+          packets: { turn_plan: runx.agency.turn.v1 }
       - id: append
         skill: ../data-store
         runner: append_event

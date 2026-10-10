@@ -1,0 +1,44 @@
+name: holds-changed-head
+kind: skill
+target: ..
+inputs: { repository: example/project, number: 42, expected_head: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa }
+setup: { credentials: [ github ] }
+env: { GITHUB_TOKEN: harness-github-token }
+caller:
+  http_exchanges:
+    - request: { method: GET, url: 'https://api.github.com/repos/example/project/pulls/42', body: none }
+      response:
+        status: 200
+        headers: { content-type: application/json }
+        body: '{"number":42,"head":{"sha":"cccccccccccccccccccccccccccccccccccccccc"},"base":{"sha":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","repo":{"full_name":"example/project"}},"title":"Use account token","body":"Authenticate the request with its account token.","changed_files":1}'
+    - request:
+        method: GET
+        url: https://api.github.com/repos/example/project/compare/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb...aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa?page=1&per_page=1
+        body: none
+      response:
+        status: 200
+        headers: { content-type: application/json }
+        body: '{"base_commit":{"sha":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"},"merge_base_commit":{"sha":"dddddddddddddddddddddddddddddddddddddddd"},"files":[{"filename":"src/client.rs","status":"modified","additions":1,"deletions":1,"patch":"@@ -12 +12 @@\n-request.auth(account.token);\n+request.auth(default_token);"}]}'
+    - request:
+        method: GET
+        url: https://api.github.com/repos/example/project/commits/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/check-runs?filter=latest&page=1&per_page=100
+        body: none
+      response:
+        status: 200
+        headers: { content-type: application/json }
+        body: '{"total_count":0,"check_runs":[]}'
+expect:
+  status: sealed
+  steps: [ read-pull, read-files, read-checks, prepare, hold ]
+  step_outputs:
+    hold:
+      subset:
+        pr_review:
+          data:
+            decision: needs_more_evidence
+            head_sha: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+            publication_status: not_posted
+            execution_status: not_tested
+            findings: []
+  receipt: { schema: runx.receipt.v1 }
+metadata: { public_skill: github-pr-review, source: skills-fixture }

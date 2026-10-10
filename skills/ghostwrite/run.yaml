@@ -1,5 +1,5 @@
 skill: ghostwrite
-version: "0.3.4"
+version: "0.4.0"
 
 catalog:
   kind: skill
@@ -12,40 +12,114 @@ catalog:
   approval: none
   category: content
 
+input_definitions:
+  objective:
+    type: string
+    required: true
+    description: What the content must accomplish.
+  audience:
+    type: string
+    required: true
+    description: Intended reader.
+  channel:
+    type: string
+    required: true
+    description: Intended content channel.
+  evidence_pack:
+    type: json
+    required: true
+    packet: runx.research.packet.v1
+    description: Validated runx.research.packet.v1 evidence.
+  brand_context:
+    type: json
+    required: false
+    packet: runx.context.brand_voice.v1
+    description: Validated runx.context.brand_voice.v1 packet.
+  taste_context:
+    type: json
+    required: false
+    packet: runx.context.taste_profile.v1
+    description: Validated runx.context.taste_profile.v1 packet.
+
 runners:
   draft:
     default: true
     inputs:
-      objective:
-        type: string
-        required: true
-        description: What the content must accomplish.
-      audience:
-        type: string
-        required: true
-        description: Intended reader.
-      channel:
-        type: string
-        required: true
-        description: Intended content channel.
-      evidence_pack:
-        type: json
-        required: true
-        packet: runx.research.packet.v1
-        description: Validated runx.research.packet.v1 evidence.
+      objective: { definition: objective }
+      audience: { definition: audience }
+      channel: { definition: channel }
+      evidence_pack: { definition: evidence_pack }
       voice_guide:
         type: string
         required: false
         description: Additional project-specific voice constraints.
-      brand_context:
-        type: json
-        required: false
-        description: Validated runx.context.brand_voice.v1 packet.
-      taste_context:
-        type: json
-        required: false
-        description: Validated runx.context.taste_profile.v1 packet.
+      brand_context: { definition: brand_context }
+      taste_context: { definition: taste_context }
     result_from: [reject, finalize]
+    steps:
+      - id: admit
+        label: admit validated evidence
+        skill: .
+        runner: admit
+        inputs:
+          objective: $input.objective
+          audience: $input.audience
+          channel: $input.channel
+          evidence_pack: $input.evidence_pack
+          brand_context: $input.brand_context
+          taste_context: $input.taste_context
+
+      - id: reject
+        label: withhold unsupported draft
+        when:
+          value: $steps.admit.evidence_context.decision
+          equals: needs_more_evidence
+        skill: .
+        runner: verify
+        inputs:
+          evidence_context: $steps.admit.evidence_context
+
+      - id: author
+        label: author from bounded evidence
+        when:
+          value: $steps.admit.evidence_context.decision
+          equals: ready
+        agent: { role: writer, task: ghostwrite-draft }
+        outputs:
+          content_draft: object
+        inputs:
+          objective: $input.objective
+          audience: $input.audience
+          channel: $input.channel
+          voice_guide: $input.voice_guide
+          evidence_context: $steps.admit.evidence_context
+          evidence_pack: $input.evidence_pack
+          brand_context: $input.brand_context
+          taste_context: $input.taste_context
+        artifacts:
+          named_emits:
+            content_draft: content_draft
+
+      - id: finalize
+        label: verify draft evidence and context bindings
+        when:
+          value: $steps.admit.evidence_context.decision
+          equals: ready
+        skill: .
+        runner: verify
+        inputs:
+          evidence_context: $steps.admit.evidence_context
+          content_draft: $steps.author.content_draft
+
+  admit:
+    inputs:
+      objective: { definition: objective }
+      audience: { definition: audience }
+      channel: { definition: channel }
+      evidence_pack: { definition: evidence_pack }
+      brand_context: { definition: brand_context }
+      taste_context: { definition: taste_context }
+    result_from: [prepare]
     steps:
       - id: digest-evidence
         tool: data.digest
@@ -84,10 +158,23 @@ runners:
         artifacts:
           named_emits:
             evidence_context: evidence_context
+
+  verify:
+    inputs:
+      evidence_context:
+        type: json
+        required: true
+        description: Evidence context returned by `admit`, the authority for source digests and context rules.
+      content_draft:
+        type: json
+        required: false
+        description: Candidate draft written from that evidence context; absent when admission withheld the draft.
+    result_from: [reject, finalize]
+    steps:
       - id: reject
         label: withhold unsupported draft
         when:
-          value: $steps.prepare.evidence_context.decision
+          value: $input.evidence_context.decision
           equals: needs_more_evidence
         tool: evidence.verify_artifact
         scopes:
@@ -127,40 +214,20 @@ runners:
             - target_path: evidence_binding.source_digests
               source_path: source_digests
             - target_path: context_binding.required
-              source_path: writing_contexts
-          source_digests: $steps.prepare.evidence_context.source_digests
-          context_requirements: $steps.prepare.evidence_context.writing_contexts
-          fallback_source: $steps.prepare.evidence_context
+              source_path: context_requirements
+          source_digests: $input.evidence_context.source_digests
+          context_requirements: $input.evidence_context.context_requirements
+          fallback_source: $input.evidence_context
         artifacts:
           named_emits:
             content_draft_packet: content_draft_packet
           packets:
             content_draft_packet: runx.content.draft.v1
 
-      - id: author
-        label: author from bounded evidence
-        when:
-          value: $steps.prepare.evidence_context.decision
-          equals: ready
-        agent: { role: writer, task: ghostwrite-draft }
-        outputs:
-          content_draft: object
-        inputs:
-          objective: $input.objective
-          audience: $input.audience
-          channel: $input.channel
-          voice_guide: $input.voice_guide
-          evidence_context: $steps.prepare.evidence_context
-          evidence_pack: $input.evidence_pack
-          brand_context: $input.brand_context
-          taste_context: $input.taste_context
-        artifacts:
-          named_emits:
-            content_draft: content_draft
       - id: finalize
         label: verify draft evidence and context bindings
         when:
-          value: $steps.prepare.evidence_context.decision
+          value: $input.evidence_context.decision
           equals: ready
         tool: evidence.verify_artifact
         scopes:
@@ -187,7 +254,7 @@ runners:
             - target_path: evidence_binding.source_digests
               source_path: source_digests
             - target_path: context_binding.required
-              source_path: writing_contexts
+              source_path: context_requirements
           fallback_artifact:
             decision: needs_more_evidence
             content_brief:
@@ -218,15 +285,15 @@ runners:
             - target_path: evidence_binding.source_digests
               source_path: source_digests
             - target_path: context_binding.required
-              source_path: writing_contexts
-          candidate: $steps.author.content_draft
-          identity_source: $steps.prepare.evidence_context
-          authoritative_source: $steps.prepare.evidence_context
-          fallback_source: $steps.prepare.evidence_context
-          source_digests: $steps.prepare.evidence_context.source_digests
-          claim_bindings: $steps.author.content_draft.draft.claim_refs
-          context_requirements: $steps.prepare.evidence_context.writing_contexts
-          context_bindings: $steps.author.content_draft.context_binding.applied
+              source_path: context_requirements
+          candidate: $input.content_draft
+          identity_source: $input.evidence_context
+          authoritative_source: $input.evidence_context
+          fallback_source: $input.evidence_context
+          source_digests: $input.evidence_context.source_digests
+          claim_bindings: $input.content_draft.draft.claim_refs
+          context_requirements: $input.evidence_context.context_requirements
+          context_bindings: $input.content_draft.context_binding.applied
         artifacts:
           named_emits:
             content_draft_packet: content_draft_packet
@@ -242,24 +309,18 @@ runners:
       draft:
         type: json
         required: true
-        description: Validated runx.content.draft.v1 packet.
-      distribution_notes:
-        type: json
-        required: false
-        description: Optional packaging constraints.
+        packet: runx.content.draft.v1
+        description: Validated, evidence-bound runx.content.draft.v1 packet.
     result_from: [bind]
     steps:
       - id: prepare
         inputs:
           channel: $input.channel
           draft: $input.draft
-          distribution_notes: $input.distribution_notes
         tool: { module: ghostwrite.mjs, export: prepareContent }
         outputs:
           publish_draft: object
           digest_input: string
-          qa_checklist: array
-          handoff_notes: object
       - id: digest
         tool: data.digest
         inputs:
@@ -269,13 +330,40 @@ runners:
         inputs:
           publish_draft: $steps.prepare.publish_draft
           digest_result: $steps.digest.digest_result
-          qa_checklist: $steps.prepare.qa_checklist
-          handoff_notes: $steps.prepare.handoff_notes
         tool: { module: ghostwrite.mjs, export: bindContent }
         outputs:
-          content_publish_packet: object
-          qa_checklist: array
-          handoff_notes: object
+          content_publish_packet:
+            type: object
+            schema:
+              additionalProperties: false
+              required: [decision, channel, headline, body, evidence_binding, delivery_status, blockers, payload_digest]
+              properties:
+                decision: { enum: [ready_for_handoff, needs_input] }
+                channel: { type: string }
+                headline: { type: string }
+                body: { type: string }
+                evidence_binding:
+                  type: object
+                  additionalProperties: false
+                  properties:
+                    evidence_packet_digest: { type: string, pattern: '^sha256:[0-9a-f]{64}$' }
+                    source_digests:
+                      type: array
+                      minItems: 1
+                      items: { type: string, pattern: '^sha256:[0-9a-f]{64}$' }
+                delivery_status: { const: not_sent }
+                blockers: { type: array, items: { type: string, minLength: 1 } }
+                payload_digest: { type: string }
+              # A packet ready for handoff carries its evidence binding and its
+              # payload's digest.
+              if: { properties: { decision: { const: ready_for_handoff } } }
+              then:
+                properties:
+                  headline: { minLength: 1 }
+                  body: { minLength: 1 }
+                  evidence_binding: { required: [evidence_packet_digest, source_digests] }
+                  payload_digest: { pattern: '^sha256:[0-9a-f]{64}$' }
+                  blockers: { maxItems: 0 }
         artifacts:
           named_emits:
             content_publish_packet: content_publish_packet
@@ -291,19 +379,17 @@ runners:
       boundary_kind:
         type: string
         required: true
-        description: Boundary such as external_maintainer or internal_team.
+        schema: { enum: [internal, external] }
+        description: Whether delivery crosses outside the team; an external delivery needs the delivering lane's own approval.
       packet:
         type: json
         required: true
-        description: Deterministic content publication packet.
+        packet: runx.content.publish.v1
+        description: Content publication packet from `package`, bound to its payload digest.
       target:
         type: json
         required: true
         description: Exact downstream target locator.
-      approval:
-        type: json
-        required: false
-        description: Existing approval for the downstream provider action.
     steps:
       - id: handoff
         tool: { module: ghostwrite.mjs, export: prepareHandoff }
@@ -312,11 +398,33 @@ runners:
           boundary_kind: $input.boundary_kind
           packet: $input.packet
           target: $input.target
-          approval: $input.approval
         outputs:
-          handoff_packet: object
-          boundary_state: object
-          follow_up_contract: object
+          handoff_packet:
+            type: object
+            schema:
+              additionalProperties: false
+              required: [decision, channel, payload_digest, packet, target, delivery_status, blockers]
+              properties:
+                decision: { enum: [handoff_ready, needs_input] }
+                channel: { type: string }
+                payload_digest: { type: string }
+                # The publication packet as `package` produced it.
+                packet: { type: object, additionalProperties: true }
+                # The target locator the delivering lane reads.
+                target: { type: object, additionalProperties: true }
+                delivery_status: { const: not_sent }
+                blockers: { type: array, items: { type: string, minLength: 1 } }
+          boundary_state:
+            type: object
+            schema:
+              additionalProperties: false
+              required: [boundary_kind, completion_state, next_actor, approval_required_for_delivery, ack_expected]
+              properties:
+                boundary_kind: { enum: [internal, external] }
+                completion_state: { enum: [handoff_ready, needs_input] }
+                next_actor: { enum: [governed_provider_adapter, operator] }
+                approval_required_for_delivery: { type: boolean }
+                ack_expected: { type: boolean }
         artifacts:
           wrap_as: content_handoff_packet
           packet: runx.content.handoff.v1

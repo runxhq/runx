@@ -2,9 +2,9 @@
 // field-level diagnostics stay consistent across the five step kinds.
 use std::collections::BTreeSet;
 
-use runx_contracts::{JsonObject, JsonValue, TurnAllowance};
+use runx_contracts::{CallAct, JsonObject, JsonValue, TurnAllowance};
 
-use super::binding::{parse_act, parse_operand, parse_values, parse_whole};
+use super::binding::{parse_act, parse_literal, parse_operand, parse_values, parse_whole};
 use super::helpers::{
     gate_id, optional_non_empty_string, optional_object, optional_string, optional_string_array,
     required_object, required_string, step_id, validation_error,
@@ -12,7 +12,7 @@ use super::helpers::{
 use super::tool::validate_tool_target;
 use super::types::{
     AgentTask, AskGate, DuplicatePolicy, GraphStep, GraphWhen, OperationStepTarget, SkillTarget,
-    StepAct, StepKind, UncertainOutcome,
+    StepAct, StepKind,
 };
 use crate::{ValidationError, skill::validate_skill_artifact_contract};
 use runx_contracts::connector::{OperationName, is_connector_id};
@@ -59,7 +59,6 @@ fn kind_fields(kind: &str) -> &'static [&'static str] {
             "readback_of",
             "idempotency_key",
             "act",
-            "on_uncertain",
             "duplicates",
         ],
         _ => &[],
@@ -98,7 +97,25 @@ pub fn validate_step(
     // run's `$act`. Only an act reads `$act`.
     let act = raw_step
         .get("act")
-        .map(|value| parse_act(value, previous_step_ids, &format!("{field}.act")))
+        .map(|value| {
+            if let JsonValue::Object(act) = value {
+                if let Some(key) = act
+                    .keys()
+                    .find(|key| !CallAct::FIELDS.contains(&key.as_str()))
+                {
+                    return Err(validation_error(format!(
+                        "{field}.act.{key} is not a field of an act; it takes {}.",
+                        CallAct::FIELDS.join(", ")
+                    )));
+                }
+                if !act.contains_key("purpose") {
+                    return Err(validation_error(format!(
+                        "{field}.act states why the call is made: it needs a purpose."
+                    )));
+                }
+            }
+            parse_act(value, previous_step_ids, &format!("{field}.act"))
+        })
         .transpose()?
         .map(|(values, bindings)| StepAct { values, bindings });
 
@@ -121,7 +138,7 @@ pub fn validate_step(
             &format!("{field}.artifacts"),
         )?,
     };
-    let (on_uncertain, duplicates) = validate_tolerance(raw_step, field)?;
+    let duplicates = validate_duplicates(raw_step, field)?;
 
     Ok(GraphStep {
         id,
@@ -143,7 +160,6 @@ pub fn validate_step(
             previous_step_ids,
             &format!("{field}.when"),
         )?,
-        on_uncertain,
         duplicates,
     })
 }
@@ -329,18 +345,11 @@ fn approval_decision_contract(
         .ok_or_else(|| validation_error(format!("{field}.ask has no decision packet.")))
 }
 
-fn validate_tolerance(
+fn validate_duplicates(
     raw_step: &JsonObject,
     field: &str,
-) -> Result<(Option<UncertainOutcome>, Option<DuplicatePolicy>), ValidationError> {
-    let on_uncertain = optional_string(raw_step.get("on_uncertain"), &format!("{field}.on_uncertain"))?
-        .map(|value| UncertainOutcome::parse(&value).ok_or_else(|| {
-            validation_error(format!(
-                "{field}.on_uncertain '{value}' must be hold, reconcile, or expire_after <n>s|m|h|d."
-            ))
-        }))
-        .transpose()?;
-    let duplicates = optional_string(raw_step.get("duplicates"), &format!("{field}.duplicates"))?
+) -> Result<Option<DuplicatePolicy>, ValidationError> {
+    optional_string(raw_step.get("duplicates"), &format!("{field}.duplicates"))?
         .map(|value| match value.as_str() {
             "forbidden" => Ok(DuplicatePolicy::Forbidden),
             "visible" => Ok(DuplicatePolicy::Visible),
@@ -348,8 +357,7 @@ fn validate_tolerance(
                 "{field}.duplicates '{value}' must be forbidden or visible."
             ))),
         })
-        .transpose()?;
-    Ok((on_uncertain, duplicates))
+        .transpose()
 }
 
 fn validate_when(
@@ -368,8 +376,14 @@ fn validate_when(
             "{field}.{key} is not a field of a condition; it takes value and equals or not_equals."
         )));
     }
-    let equals = record.get("equals").cloned();
-    let not_equals = record.get("not_equals").cloned();
+    let equals = record
+        .get("equals")
+        .map(|value| parse_literal(value, &format!("{field}.equals")))
+        .transpose()?;
+    let not_equals = record
+        .get("not_equals")
+        .map(|value| parse_literal(value, &format!("{field}.not_equals")))
+        .transpose()?;
     if equals.is_some() && not_equals.is_some() {
         return Err(validation_error(format!(
             "{field} must not declare both equals and not_equals."

@@ -292,11 +292,11 @@ fn governed_harness_document(
             state: None,
             disposition: None,
             reason_code: None,
-            act_ids: Vec::new(),
-            decision_ids: Vec::new(),
-            child_receipt_refs: Vec::new(),
+            act_ids: None,
+            decision_ids: None,
+            child_receipt_refs: None,
             child_receipt_count: None,
-            verification_refs: Vec::new(),
+            verification_refs: None,
         });
     }
     Ok(serde_json::to_string(&fixture)?)

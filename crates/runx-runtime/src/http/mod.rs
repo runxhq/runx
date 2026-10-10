@@ -29,7 +29,7 @@ const MANAGED_AGENT_REQUEST_TIMEOUT: Duration = Duration::from_secs(180);
 /// to 120 seconds. Keep the control-plane envelope above that budget so the
 /// caller never abandons a still-running, idempotently recoverable effect.
 pub(crate) const PROVIDER_OPERATION_REQUEST_TIMEOUT: Duration = Duration::from_secs(180);
-const MAX_SAFE_READ_ATTEMPTS: usize = 3;
+const MAX_REPEATABLE_ATTEMPTS: usize = 3;
 const DEFAULT_SAFE_READ_RETRY_DELAY: Duration = Duration::from_millis(100);
 const MAX_SAFE_READ_RETRY_DELAY: Duration = Duration::from_secs(2);
 static HTTP_CLIENT_RUNTIME: RetryableCell<tokio::runtime::Runtime> = RetryableCell::new();
@@ -229,38 +229,29 @@ impl ReqwestHttpTransport {
     pub(crate) fn mcp(
         &self,
         url: &str,
-        bearer: Option<&str>,
+        credential: Option<&RuntimeHttpHeader>,
         headers: &BTreeMap<String, String>,
     ) -> Result<McpTransport, RuntimeHttpError> {
         validate_http_url(url, self.allow_private_networks)?;
-        let custom_headers = headers
+        let mut presented = headers
             .iter()
-            .map(|(name, value)| {
-                Ok((
-                    reqwest::header::HeaderName::from_bytes(name.as_bytes()).map_err(|error| {
-                        RuntimeHttpError::InvalidHeaderName {
-                            name: name.clone(),
-                            message: error.to_string(),
-                        }
-                    })?,
-                    reqwest::header::HeaderValue::from_str(value).map_err(|error| {
-                        RuntimeHttpError::InvalidHeaderValue {
-                            name: name.clone(),
-                            message: error.to_string(),
-                        }
-                    })?,
-                ))
-            })
-            .collect::<Result<std::collections::HashMap<_, _>, RuntimeHttpError>>()?;
+            .map(|(name, value)| RuntimeHttpHeader::new(name, value))
+            .collect::<Vec<_>>();
+        if let Some(header) = credential {
+            presented.push(header.clone());
+        }
+        let custom_headers = reqwest_headers(&presented)?
+            .iter()
+            .map(|(name, value)| (name.clone(), value.clone()))
+            .collect();
         let config =
             rmcp::transport::streamable_http_client::StreamableHttpClientTransportConfig::with_uri(
                 url.to_owned(),
             )
-            .custom_headers(custom_headers);
-        let config = match bearer {
-            Some(token) => config.auth_header(token.to_owned()),
-            None => config,
-        };
+            .custom_headers(custom_headers)
+            // A POST is sent once: a session the server expired is not
+            // reopened to send it again.
+            .reinit_on_expired_session(false);
         Ok(McpTransport::with_client(self.client.clone(), config))
     }
 
@@ -497,7 +488,7 @@ impl ReqwestHttpTransport {
         &self,
         request: RuntimeHttpRequest,
         response_limit: Option<usize>,
-        retry_as_idempotent: bool,
+        repeatable: bool,
     ) -> Result<RuntimeHttpResponse, RuntimeHttpError> {
         validate_http_url(&request.url, self.allow_private_networks)?;
         let client = self.client.clone();
@@ -506,13 +497,7 @@ impl ReqwestHttpTransport {
         block_on_http(async move {
             tokio::time::timeout(
                 request_timeout,
-                send_reqwest_with_safe_read_retries(
-                    client,
-                    request,
-                    headers,
-                    response_limit,
-                    retry_as_idempotent,
-                ),
+                send_reqwest(client, request, headers, response_limit, repeatable),
             )
             .await
             .map_err(|_| RuntimeHttpError::Transport {
@@ -537,23 +522,24 @@ fn reqwest_headers(
                 message: error.to_string(),
             },
         )?;
-        let value = reqwest::header::HeaderValue::from_str(&header.value).map_err(|error| {
+        let mut value = reqwest::header::HeaderValue::from_str(&header.value).map_err(|error| {
             RuntimeHttpError::InvalidHeaderValue {
                 name: header.name.clone(),
                 message: error.to_string(),
             }
         })?;
+        value.set_sensitive(header.is_sensitive());
         output.insert(name, value);
     }
     Ok(output)
 }
 
-async fn send_reqwest_with_safe_read_retries(
+async fn send_reqwest(
     client: reqwest::Client,
     request: RuntimeHttpRequest,
     headers: reqwest::header::HeaderMap,
     response_limit: Option<usize>,
-    retry_as_idempotent: bool,
+    repeatable: bool,
 ) -> Result<RuntimeHttpResponse, RuntimeHttpError> {
     let mut attempt = 1_usize;
     loop {
@@ -570,11 +556,10 @@ async fn send_reqwest_with_safe_read_retries(
                 message: transport_error_message(&error),
             })?;
         let status = response.status().as_u16();
-        if (request.method == HttpMethod::Get || retry_as_idempotent)
-            && retryable_read_status(status)
-            && attempt < MAX_SAFE_READ_ATTEMPTS
-        {
-            let delay = safe_read_retry_delay(&response, attempt);
+        // Only a caller that knows the request may repeat says so: the
+        // transport never infers it, not even from a GET.
+        if repeatable && repeatable_status(status) && attempt < MAX_REPEATABLE_ATTEMPTS {
+            let delay = repeat_delay(&response, attempt);
             drop(response);
             tokio::time::sleep(delay).await;
             attempt += 1;
@@ -608,11 +593,11 @@ fn safe_response_headers(response: &reqwest::Response) -> Vec<RuntimeHttpHeader>
         .collect()
 }
 
-fn retryable_read_status(status: u16) -> bool {
+fn repeatable_status(status: u16) -> bool {
     matches!(status, 429 | 502 | 503 | 504)
 }
 
-fn safe_read_retry_delay(response: &reqwest::Response, completed_attempts: usize) -> Duration {
+fn repeat_delay(response: &reqwest::Response, completed_attempts: usize) -> Duration {
     response
         .headers()
         .get(reqwest::header::RETRY_AFTER)
@@ -1469,7 +1454,8 @@ mod tests {
     }
 
     #[test]
-    fn reqwest_transport_retries_bounded_safe_reads() -> Result<(), RuntimeHttpTestError> {
+    fn reqwest_transport_repeats_a_read_its_caller_says_may_repeat()
+    -> Result<(), RuntimeHttpTestError> {
         let listener = TcpListener::bind("127.0.0.1:0")?;
         let address = listener.local_addr()?;
         let server = std::thread::spawn(move || -> Result<Vec<String>, std::io::Error> {
@@ -1493,7 +1479,7 @@ mod tests {
         });
 
         let transport = ReqwestHttpTransport::with_private_network_access_for_tests()?;
-        let response = transport.send(RuntimeHttpRequest {
+        let response = transport.send_idempotent(RuntimeHttpRequest {
             method: HttpMethod::Get,
             url: format!("http://{address}/retry"),
             headers: Vec::new(),
@@ -1511,32 +1497,37 @@ mod tests {
     }
 
     #[test]
-    fn reqwest_transport_never_retries_mutations() -> Result<(), RuntimeHttpTestError> {
-        let listener = TcpListener::bind("127.0.0.1:0")?;
-        let address = listener.local_addr()?;
-        let server = std::thread::spawn(move || -> Result<String, std::io::Error> {
-            let (mut stream, _) = listener.accept()?;
-            let mut buffer = [0_u8; 1024];
-            let bytes_read = stream.read(&mut buffer)?;
-            stream.write_all(
-                b"HTTP/1.1 503 Service Unavailable\r\nRetry-After: 0\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
-            )?;
-            Ok(String::from_utf8_lossy(&buffer[..bytes_read]).into_owned())
-        });
+    fn reqwest_transport_sends_once_unless_its_caller_says_it_may_repeat()
+    -> Result<(), RuntimeHttpTestError> {
+        for (method, body) in [(HttpMethod::Get, None), (HttpMethod::Post, Some("{}"))] {
+            let listener = TcpListener::bind("127.0.0.1:0")?;
+            let address = listener.local_addr()?;
+            let server = std::thread::spawn(move || -> Result<String, std::io::Error> {
+                let (mut stream, _) = listener.accept()?;
+                let mut buffer = [0_u8; 1024];
+                let bytes_read = stream.read(&mut buffer)?;
+                stream.write_all(
+                    b"HTTP/1.1 503 Service Unavailable\r\nRetry-After: 0\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+                )?;
+                Ok(String::from_utf8_lossy(&buffer[..bytes_read]).into_owned())
+            });
 
-        let transport = ReqwestHttpTransport::with_private_network_access_for_tests()?;
-        let response = transport.send(RuntimeHttpRequest {
-            method: HttpMethod::Post,
-            url: format!("http://{address}/mutate"),
-            headers: Vec::new(),
-            body: Some("{}".to_owned()),
-        })?;
-        let request = server
-            .join()
-            .map_err(|_| RuntimeHttpTestError::ServerThread)??;
+            let transport = ReqwestHttpTransport::with_private_network_access_for_tests()?;
+            let response = transport.send(RuntimeHttpRequest {
+                method,
+                url: format!("http://{address}/once"),
+                headers: Vec::new(),
+                body: body.map(str::to_owned),
+            })?;
+            let request = server
+                .join()
+                .map_err(|_| RuntimeHttpTestError::ServerThread)??;
 
-        assert_eq!(response.status, 503);
-        assert!(request.starts_with("POST "));
+            // The listener took one connection; a repeat would have failed
+            // to connect rather than reach it.
+            assert_eq!(response.status, 503);
+            assert!(request.starts_with(method.as_str()));
+        }
         Ok(())
     }
 

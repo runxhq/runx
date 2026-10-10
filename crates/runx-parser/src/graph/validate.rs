@@ -383,14 +383,13 @@ steps:
     }
 
     #[test]
-    fn operation_steps_validate_with_tolerance() -> Result<(), String> {
+    fn operation_steps_validate_with_their_duplicate_tolerance() -> Result<(), String> {
         let graph = validate_yaml(
             r#"
 name: deliver
 steps:
   - id: post
     operation: slack/channel.post
-    on_uncertain: expire_after 2h
     duplicates: forbidden
     idempotency_key: notify-1
     input:
@@ -404,10 +403,6 @@ steps:
         assert_eq!(
             operation.operation.as_ref().map(|name| name.as_str()),
             Some("channel.post")
-        );
-        assert_eq!(
-            step.on_uncertain,
-            Some(crate::UncertainOutcome::ExpireAfter { seconds: 7_200 })
         );
         assert_eq!(step.duplicates, Some(crate::DuplicatePolicy::Forbidden));
         Ok(())
@@ -478,7 +473,7 @@ name: tool-step
 steps:
   - id: digest
     tool: data.digest
-    on_uncertain: hold
+    duplicates: visible
 "#,
         )?;
         assert!(message.contains("does not apply to this tool step"));

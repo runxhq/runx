@@ -31,6 +31,8 @@ inputs:
     validation: { status: pass, findings: [] }
   brand_context:
     decision: ready
+    brand: Runx
+    applicability: { channels: [brief], audience: operators, boundaries: [Do not extend claims beyond admitted evidence.] }
     brand_voice:
       voice_principles: [Lead with governed action and proof.]
       vocabulary: { use: [receipt], avoid: [magic] }
@@ -38,26 +40,42 @@ inputs:
       claim_rules: { safe: [Receipts bind actions to authority evidence.], forbidden: [], requires_proof: [] }
       channel_adjustments: []
     evidence:
+      evidence_digest: sha256:4444444444444444444444444444444444444444444444444444444444444444
+      sources:
+        - { source_ref: "source:1", kind: approved, label: Approved Runx engineering note. }
       bindings:
-        - { rule: Lead with governed action and proof. }
-        - { rule: receipt }
-        - { rule: magic }
-        - { rule: Concise engineering sentences. }
-        - { rule: Receipts bind actions to authority evidence. }
+        - { rule: Lead with governed action and proof., source_refs: ["source:1"] }
+        - { rule: receipt, source_refs: ["source:1"] }
+        - { rule: magic, source_refs: ["source:1"] }
+        - { rule: Concise engineering sentences., source_refs: ["source:1"] }
+        - { rule: Receipts bind actions to authority evidence., source_refs: ["source:1"] }
+    redactions: []
+    stop_conditions: []
+    receipt_notes: { authority: context-only, mutation: false }
     validation: { status: pass, findings: [] }
   taste_context:
     decision: ready
+    subject: Runx operators
+    applicability: { surfaces: [brief], audience: operators, expires_when: [The evidence set changes materially.] }
     taste_profile:
       principles: [Make the workflow visible.]
       likes: [Dense operational surfaces.]
       dislikes: [Decorative filler.]
       decision_rules: [Choose operational clarity.]
+      examples_to_emulate: []
+      examples_to_avoid: []
     evidence:
+      evidence_digest: sha256:4444444444444444444444444444444444444444444444444444444444444444
+      sources:
+        - { source_ref: "source:1", kind: liked, label: Operator-approved surface. }
       bindings:
-        - { rule: Make the workflow visible. }
-        - { rule: Dense operational surfaces. }
-        - { rule: Decorative filler. }
-        - { rule: Choose operational clarity. }
+        - { rule: Make the workflow visible., source_refs: ["source:1"], confidence: explicit }
+        - { rule: Dense operational surfaces., source_refs: ["source:1"], confidence: explicit }
+        - { rule: Decorative filler., source_refs: ["source:1"], confidence: explicit }
+        - { rule: Choose operational clarity., source_refs: ["source:1"], confidence: explicit }
+    redactions: []
+    stop_conditions: []
+    receipt_notes: { authority: context-only, mutation: false }
     validation: { status: pass, findings: [] }
 caller:
   answers:
@@ -73,21 +91,25 @@ caller:
               source_digests: [sha256:1111111111111111111111111111111111111111111111111111111111111111]
         context_binding:
           applied:
-            - packet_digest: sha256:191384d14eac0d65c2c599e243c777fba9106bb58456cf1c286e2de59ac997c5
+            - packet_digest: sha256:d82b3f6e9731497a2aa6d91051f144a69fdcff6dd1225572ea30b245bf9ab5b5
               applied_rules: [Lead with governed action and proof.]
-            - packet_digest: sha256:14ac2374b19b3341c270be471b9d232430d24396b2603f8093ff9a0d30b4e509
+            - packet_digest: sha256:96c6705e4667be9eac94382c35fe1552eac2f243d60fbafce64b5263d79b068f
               applied_rules: [Choose operational clarity.]
         review_checklist: []
         distribution_notes: { primary_channel: brief }
 expect:
   status: sealed
-  steps: [digest-evidence, digest-brand-context, digest-taste-context, prepare, author, finalize]
+  steps: [admit, author, finalize]
   step_outputs:
     finalize:
       subset:
         content_draft_packet:
           data:
             decision: ready
+            context_binding:
+              required:
+                - { type: brand_voice, packet_digest: sha256:d82b3f6e9731497a2aa6d91051f144a69fdcff6dd1225572ea30b245bf9ab5b5, scope: { audience: operators, channel: brief } }
+                - { type: taste_profile, packet_digest: sha256:96c6705e4667be9eac94382c35fe1552eac2f243d60fbafce64b5263d79b068f, scope: { audience: operators, channel: brief } }
             validation: { status: pass }
   receipt: { schema: runx.receipt.v1 }
 metadata: { public_skill: ghostwrite, source_case: bound-writing-context, source: skills-fixture }

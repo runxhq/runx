@@ -45,15 +45,10 @@ pub(super) fn resolve_artifacts(
     }
 }
 
-pub(super) struct LocalInvocationOutput {
-    pub(super) output: InvocationOutput,
-    pub(super) artifacts: Option<SkillArtifactContract>,
-}
-
 pub(super) fn invoke(
     request: &ToolDispatchRequest<'_>,
     started: Instant,
-) -> Result<Option<LocalInvocationOutput>, RuntimeError> {
+) -> Result<Option<InvocationOutput>, RuntimeError> {
     let resolution = match resolve_local_tool(&inspect_options(request, request.tool_ref.as_ref()))
     {
         Ok(resolution) => resolution,
@@ -73,10 +68,7 @@ pub(super) fn invoke(
         requirements.scopes.iter().map(String::as_str),
         request.scopes,
     ) {
-        return Ok(Some(LocalInvocationOutput {
-            output: failure(error.to_string(), started),
-            artifacts,
-        }));
+        return Ok(Some(failure(error.to_string(), started)));
     }
     let tool_directory = manifest_directory(&resolution.manifest_path, request.skill_directory);
     let inputs = match crate::input_contract::materialize_tool_inputs(
@@ -86,10 +78,7 @@ pub(super) fn invoke(
     ) {
         Ok(inputs) => inputs,
         Err(error) => {
-            return Ok(Some(LocalInvocationOutput {
-                output: failure(error.to_string(), started),
-                artifacts,
-            }));
+            return Ok(Some(failure(error.to_string(), started)));
         }
     };
     let invocation = SkillInvocation {
@@ -99,7 +88,7 @@ pub(super) fn invoke(
         executable: crate::adapter::Executable::Process(resolution.tool.source),
         outputs: None,
         requirements,
-        artifacts: artifacts.clone(),
+        artifacts,
         inputs,
         resolved_inputs: JsonObject::new(),
         current_context: Vec::new(),
@@ -109,7 +98,7 @@ pub(super) fn invoke(
         credential_delivery: request.credential_delivery.clone(),
     };
     let output = ProcessToolAdapter.invoke(invocation)?;
-    Ok(Some(LocalInvocationOutput { output, artifacts }))
+    Ok(Some(output))
 }
 
 fn inspect_options(request: &ToolDispatchRequest<'_>, tool_ref: &str) -> ToolInspectOptions {

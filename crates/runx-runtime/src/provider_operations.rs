@@ -3,7 +3,7 @@ use runx_contracts::{JsonObject, JsonValue};
 
 use crate::hosted_api::{
     AuthenticatedHostedApiEnvironment, HostedConnectAction, execute_hosted_connect,
-    request::{send_json, send_json_idempotent},
+    request::send_json,
 };
 use crate::http::{HttpMethod, RuntimeHttpTransport as Transport};
 
@@ -160,26 +160,17 @@ pub(crate) fn invoke_provider_operation<T: Transport + ?Sized>(
             message: error.to_string(),
         }
     })?;
-    let response: JsonObject = match request.access {
-        OperationAccess::Read => send_json_idempotent(
-            transport,
-            environment.base_url(),
-            "provider operation",
-            HttpMethod::Post,
-            "/v1/provider-operations",
-            Some(environment.token()),
-            Some(body),
-        )?,
-        OperationAccess::Mutate => send_json(
-            transport,
-            environment.base_url(),
-            "provider operation",
-            HttpMethod::Post,
-            "/v1/provider-operations",
-            Some(environment.token()),
-            Some(body),
-        )?,
-    };
+    // Sent once: the provider's cost of an operation is not declared, so
+    // Connect is never asked to run it twice.
+    let response: JsonObject = send_json(
+        transport,
+        environment.base_url(),
+        "provider operation",
+        HttpMethod::Post,
+        "/v1/provider-operations",
+        Some(environment.token()),
+        Some(body),
+    )?;
     decode_readback(response, request.access)
 }
 
@@ -215,7 +206,6 @@ pub(crate) fn send_provider_request<T: Transport + ?Sized>(
     transport: &T,
     environment: &AuthenticatedHostedApiEnvironment,
     request: &ProviderRequest<'_>,
-    idempotent: bool,
 ) -> Result<crate::http::RuntimeHttpResponse, ProviderOperationError> {
     validate_provider_grant_id(request.grant_id)?;
     validate_provider_operation(request.operation)?;
@@ -262,27 +252,17 @@ pub(crate) fn send_provider_request<T: Transport + ?Sized>(
     })?;
     let (base_url, token) = (environment.base_url(), Some(environment.token()));
     let path = "/v1/provider-requests";
-    let answer: ProviderAnswer = if idempotent {
-        send_json_idempotent(
-            transport,
-            base_url,
-            "provider request",
-            HttpMethod::Post,
-            path,
-            token,
-            Some(body),
-        )?
-    } else {
-        send_json(
-            transport,
-            base_url,
-            "provider request",
-            HttpMethod::Post,
-            path,
-            token,
-            Some(body),
-        )?
-    };
+    // Sent once, read or write: the provider's cost of a request is not
+    // declared, so Connect is never asked to send it twice.
+    let answer: ProviderAnswer = send_json(
+        transport,
+        base_url,
+        "provider request",
+        HttpMethod::Post,
+        path,
+        token,
+        Some(body),
+    )?;
     Ok(crate::http::RuntimeHttpResponse::new(
         answer.status,
         answer.body,

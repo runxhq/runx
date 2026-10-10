@@ -1,0 +1,73 @@
+schema: runx.connector.v1
+id: posthog
+name: PostHog
+description: Read saved product insights from an explicitly selected PostHog Cloud project and region.
+auth:
+  credentials:
+    personal_key:
+      kind: api_key
+      fields:
+        - {name: personal_key, label: PostHog personal API key with insight read access}
+      delivery: {env: POSTHOG_PERSONAL_API_KEY}
+      audience: [us.posthog.com, eu.posthog.com]
+parameters:
+  type: object
+  additionalProperties: false
+  required: [api_origin, project_id]
+  properties:
+    api_origin: {enum: ['https://us.posthog.com', 'https://eu.posthog.com']}
+    project_id: {type: string, pattern: '^[1-9][0-9]{0,19}$'}
+placements:
+  local:
+    auth: [credentials]
+operations:
+  insights.list:
+    description: Read one page of saved insights, preserving pagination and cached-result metadata; does not run a new report.
+    verb: read
+    scopes: [insight:read]
+    credentials: [personal_key]
+    target:
+      template: {$concat: [{$parameter: /api_origin}, '/project/', {$parameter: /project_id}, '/insights']}
+    input_schema:
+      type: object
+      additionalProperties: false
+      required: [limit, offset]
+      properties:
+        limit: {type: integer, minimum: 1, maximum: 100}
+        offset: {type: integer, minimum: 0, maximum: 100000}
+    result_fields: [insights]
+    implementation:
+      http:
+        allowed_hosts: [us.posthog.com, eu.posthog.com]
+        auth: {personal_key: {type: bearer, field: personal_key}}
+        requests:
+          - method: GET
+            url: {$concat: [{$parameter: /api_origin}, '/api/projects/', {$parameter: /project_id}, '/insights/']}
+            query:
+              limit: {$argument: /limit}
+              offset: {$argument: /offset}
+              refresh: force_cache
+            headers: {accept: application/json}
+  insight.read:
+    description: Read one saved insight and its cached result, query definition and freshness; empty or stale results remain visible.
+    verb: read
+    scopes: [insight:read]
+    credentials: [personal_key]
+    target:
+      template: {$concat: [{$parameter: /api_origin}, '/project/', {$parameter: /project_id}, '/insights/', {$argument: /insight_id}]}
+    input_schema:
+      type: object
+      additionalProperties: false
+      required: [insight_id]
+      properties:
+        insight_id: {type: string, pattern: '^[1-9][0-9]{0,19}$'}
+    result_fields: [insight]
+    implementation:
+      http:
+        allowed_hosts: [us.posthog.com, eu.posthog.com]
+        auth: {personal_key: {type: bearer, field: personal_key}}
+        requests:
+          - method: GET
+            url: {$concat: [{$parameter: /api_origin}, '/api/projects/', {$parameter: /project_id}, '/insights/', {$argument: /insight_id}, '/']}
+            query: {refresh: force_cache}
+            headers: {accept: application/json}

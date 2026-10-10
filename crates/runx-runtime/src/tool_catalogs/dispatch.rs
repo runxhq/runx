@@ -73,8 +73,7 @@ pub(crate) fn dispatch_tool(
         request.tool_ref = Cow::Owned(tool_ref.to_owned());
     }
 
-    let (output, artifacts) = invoke_resolved_tool(&mut request, effects, observed_at, started)?;
-    Ok(finalize_output(output, artifacts.as_ref()))
+    invoke_resolved_tool(&mut request, effects, observed_at, started)
 }
 
 fn invoke_resolved_tool(
@@ -82,34 +81,16 @@ fn invoke_resolved_tool(
     effects: &RuntimeEffectRegistry,
     observed_at: &str,
     started: Instant,
-) -> Result<(InvocationOutput, Option<SkillArtifactContract>), RuntimeError> {
+) -> Result<InvocationOutput, RuntimeError> {
     if crate::tool_catalogs::native::is_core_tool(request.tool_ref.as_ref())
         || effects.capability(request.tool_ref.as_ref()).is_some()
     {
-        let artifacts = crate::tool_catalogs::native::artifacts(request.tool_ref.as_ref(), effects);
-        let output = invoke_native_tool(request, effects, observed_at, started)?;
-        return Ok((output, artifacts));
+        return invoke_native_tool(request, effects, observed_at, started);
     }
-    let Some(invocation) = local::invoke(request, started)? else {
-        return Ok((
-            missing_imported_tool(request.tool_ref.as_ref(), started),
-            None,
-        ));
-    };
-    Ok((invocation.output, invocation.artifacts))
-}
-
-fn finalize_output(
-    mut output: InvocationOutput,
-    artifacts: Option<&SkillArtifactContract>,
-) -> InvocationOutput {
-    if output.succeeded() {
-        crate::output_contract::apply_artifact_outputs(&mut output.value, artifacts);
-        if let Some(ephemeral) = output.ephemeral.as_value_mut() {
-            crate::output_contract::apply_artifact_outputs(ephemeral, artifacts);
-        }
-    }
-    output
+    Ok(match local::invoke(request, started)? {
+        Some(output) => output,
+        None => missing_imported_tool(request.tool_ref.as_ref(), started),
+    })
 }
 
 fn invoke_native_tool(

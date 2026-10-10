@@ -32,5 +32,5 @@ caller:
         unknowns: [No live Reddit page was accessed in this offline fixture.]
         next_step: Review the draft before any publication.
         effect_status: not_submitted
-  approvals: {reddit.publish: false, reddit.vote: false, reddit.reconcile: true}
+  approvals: {"publish#reddit.publish": false}
 expect: {status: policy_denied}

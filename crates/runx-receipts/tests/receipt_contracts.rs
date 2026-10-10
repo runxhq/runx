@@ -141,6 +141,41 @@ fn effect_evidence_requires_authority_grant_refs() -> Result<(), serde_json::Err
 }
 
 #[test]
+fn an_acts_legitimacy_names_a_term_the_authority_holds() -> Result<(), serde_json::Error> {
+    let receipt = fixture(SUCCESS_RECEIPT)?;
+    assert!(validate_receipt(&receipt).is_ok());
+
+    let mut unbound = receipt;
+    unbound.authority.terms.clear();
+
+    assert_finding(
+        &verify_receipt(&unbound),
+        ReceiptFindingCode::ActLegitimacyTermMissing,
+    );
+    Ok(())
+}
+
+#[test]
+fn effect_evidence_in_the_seal_requires_authority_grant_refs() -> Result<(), serde_json::Error> {
+    // A step that made no governed call seals no act; its evidence is the seal's.
+    let mut receipt = fixture(SUCCESS_RECEIPT)?;
+    receipt.acts.clear();
+    receipt.decisions.clear();
+    let mut evidence = Reference::runx(ReferenceType::Verification, "effect-proof-1");
+    evidence.proof_kind = Some(ProofKind::EffectEvidence);
+    receipt.seal.criteria[0].verification_refs.push(evidence);
+    receipt.authority.grant_refs.clear();
+
+    let verification = verify_receipt(&receipt);
+
+    assert_finding(
+        &verification,
+        ReceiptFindingCode::EffectGrantEvidenceMissing,
+    );
+    Ok(())
+}
+
+#[test]
 fn effect_evidence_accepts_authority_grant_refs() -> Result<(), serde_json::Error> {
     let mut receipt = fixture(SUCCESS_RECEIPT)?;
     let mut evidence = Reference::runx(ReferenceType::Verification, "effect-proof-1");

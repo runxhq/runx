@@ -30,7 +30,7 @@ caller:
         upgrade_guidance: No migration is required.
         risks: []
   approvals:
-    release.publish.approval: true
+    "release#release.publish.approval": true
 expect:
   status: sealed
   receipt: { schema: runx.receipt.v1 }

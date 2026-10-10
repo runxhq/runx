@@ -45,17 +45,13 @@ pub(super) fn assert_expectations(
     if let Some(expected_receipt) = &output.fixture.expect.receipt {
         assert_receipt_expectation(expected_receipt, &output.receipt, signature_policy)?;
     }
-    if !output.fixture.expect.steps.is_empty() {
+    if let Some(expected) = &output.fixture.expect.steps {
         let actual = output
-            .step_receipts
+            .steps
             .iter()
-            .map(receipt_step_name)
+            .map(|step| step.step_id.clone())
             .collect::<Vec<_>>();
-        assert_equal(
-            "expect.steps",
-            output.fixture.expect.steps.join(","),
-            actual.join(","),
-        )?;
+        assert_list("expect.steps", expected, &actual)?;
     }
     assert_caller_answers_replayed(output)?;
     if let Some(expectation) = &output.fixture.expect.output {
@@ -95,30 +91,12 @@ pub(super) fn status_from_disposition(disposition: &ClosureDisposition) -> Harne
     }
 }
 
-// The RUNX_REGEN_FIXTURES branch prints regenerated digests to stderr so a
-// human can paste them back into fixtures; it is a developer regen path, not
-// runtime logging, so the workspace print ban is lifted for this function only.
-#[allow(clippy::print_stderr)]
 pub(crate) fn assert_receipt_expectation(
     expected: &ReceiptExpectation,
     actual: &Receipt,
     signature_policy: RuntimeReceiptSignaturePolicy<'_>,
 ) -> Result<(), HarnessReplayError> {
     assert_receipt_proof(actual, signature_policy)?;
-    if crate::services::process_env_value("RUNX_REGEN_FIXTURES").is_some() {
-        let summary = summarize_receipt(actual);
-        let body_digest = canonical_receipt_body_digest(actual).map_err(receipt_digest_error)?;
-        let receipt_digest = canonical_receipt_digest(actual).map_err(receipt_digest_error)?;
-        eprintln!(
-            "REGEN id={} receipt_id={} body_digest={} receipt_digest={} child_refs=[{}]",
-            actual.subject.reference.uri,
-            actual.id,
-            body_digest,
-            receipt_digest,
-            summary.child_receipt_refs.join(",")
-        );
-        return Ok(());
-    }
     assert_equal(
         "expect.receipt.schema",
         schema_name(&expected.schema),
@@ -179,26 +157,33 @@ fn assert_receipt_lists(
     expected: &ReceiptExpectation,
     summary: &HarnessReplayReceipt,
 ) -> Result<(), HarnessReplayError> {
-    assert_optional_list(
-        "expect.receipt.act_ids",
-        &expected.act_ids,
-        &summary.act_ids,
-    )?;
-    assert_optional_list(
-        "expect.receipt.decision_ids",
-        &expected.decision_ids,
-        &summary.decision_ids,
-    )?;
-    assert_optional_list(
-        "expect.receipt.child_receipt_refs",
-        &expected.child_receipt_refs,
-        &summary.child_receipt_refs,
-    )?;
-    assert_optional_list(
-        "expect.receipt.verification_refs",
-        &expected.verification_refs,
-        &summary.verification_refs,
-    )
+    for (field, expected, actual) in [
+        (
+            "expect.receipt.act_ids",
+            &expected.act_ids,
+            &summary.act_ids,
+        ),
+        (
+            "expect.receipt.decision_ids",
+            &expected.decision_ids,
+            &summary.decision_ids,
+        ),
+        (
+            "expect.receipt.child_receipt_refs",
+            &expected.child_receipt_refs,
+            &summary.child_receipt_refs,
+        ),
+        (
+            "expect.receipt.verification_refs",
+            &expected.verification_refs,
+            &summary.verification_refs,
+        ),
+    ] {
+        if let Some(expected) = expected {
+            assert_list(field, expected, actual)?;
+        }
+    }
+    Ok(())
 }
 
 fn assert_receipt_digests(
@@ -277,31 +262,26 @@ fn summarize_receipt(receipt: &Receipt) -> HarnessReplayReceipt {
             })
             .unwrap_or_default(),
         verification_refs: receipt
-            .acts
+            .seal
+            .criteria
             .iter()
-            .flat_map(|act| act.criterion_bindings.iter())
             .flat_map(|binding| binding.verification_refs.iter())
             .map(|reference| reference.uri.clone().into_string())
             .collect(),
     }
 }
 
-fn receipt_step_name(receipt: &Receipt) -> String {
-    receipt.acts.first().map_or_else(
-        || receipt.subject.reference.uri.clone().into_string(),
-        |act| act.id.trim_start_matches("act_").to_owned(),
-    )
-}
-
-fn assert_optional_list(
+/// A list asserted whole, in order: an empty expected list asserts there is
+/// none.
+fn assert_list(
     field: &'static str,
     expected: &[String],
     actual: &[String],
 ) -> Result<(), HarnessReplayError> {
-    if expected.is_empty() {
+    if expected == actual {
         return Ok(());
     }
-    assert_equal(field, expected.join(","), actual.join(","))
+    assert_equal(field, format!("{expected:?}"), format!("{actual:?}"))
 }
 
 fn assert_equal(
@@ -347,5 +327,24 @@ pub(crate) fn status_name(status: &HarnessExpectedStatus) -> &'static str {
         HarnessExpectedStatus::NeedsAgent => "needs_agent",
         HarnessExpectedStatus::PolicyDenied => "policy_denied",
         HarnessExpectedStatus::Escalated => "escalated",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::assert_list;
+
+    #[test]
+    fn an_empty_expected_list_asserts_there_is_none() {
+        assert!(assert_list("expect.receipt.act_ids", &[], &[]).is_ok());
+        assert!(assert_list("expect.receipt.act_ids", &[], &["act_step".to_owned()]).is_err());
+        assert!(
+            assert_list(
+                "expect.receipt.act_ids",
+                &["act_step".to_owned()],
+                &["act_step".to_owned()]
+            )
+            .is_ok()
+        );
     }
 }

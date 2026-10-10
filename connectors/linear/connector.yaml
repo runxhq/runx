@@ -1,0 +1,149 @@
+schema: runx.connector.v1
+id: linear
+name: Linear
+description: Read bounded team issues, selected issue context and comments through fixed GraphQL queries.
+auth:
+  credentials:
+    access_token:
+      kind: oauth2
+      fields:
+        - {name: access_token, label: Linear OAuth access token with read scope}
+      delivery: {env: LINEAR_ACCESS_TOKEN}
+      audience: [api.linear.app]
+    api_key:
+      kind: api_key
+      fields:
+        - {name: api_key, label: Linear personal API key}
+      delivery: {env: LINEAR_API_KEY}
+      audience: [api.linear.app]
+placements:
+  local:
+    auth: [credentials]
+  hosted: {auth: credential, credential: api_key}
+operations:
+  issues.list:
+    description: Read one bounded page of issues from the exact selected team; preserves provider continuation metadata.
+    verb: read
+    scopes: [read]
+    credentials: [access_token, api_key]
+    hosted: {}
+    target:
+      template: {$concat: ['https://api.linear.app/team/', {$argument: /team_id}, '/issues']}
+    input_schema:
+      type: object
+      additionalProperties: false
+      required: [team_id, limit]
+      properties:
+        team_id: {type: string, pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'}
+        limit: {type: integer, minimum: 1, maximum: 100}
+        after: {type: string, minLength: 1, maxLength: 4096}
+    result_fields: [issues]
+    implementation:
+      http:
+        allowed_hosts: [api.linear.app]
+        auth:
+          access_token: {type: bearer, field: access_token}
+          api_key: {type: header, name: authorization, field: api_key}
+        requests:
+          - method: POST
+            url: https://api.linear.app/graphql
+            headers: {accept: application/json}
+            body:
+              query: >-
+                query TeamIssues($team: String!, $first: Int!, $after: String) {
+                  team(id: $team) {
+                    id name
+                    issues(first: $first, after: $after) {
+                      nodes { id identifier title description url createdAt updatedAt archivedAt
+                        state { id name type } assignee { id name } project { id name } }
+                      pageInfo { hasNextPage endCursor }
+                    }
+                  }
+                }
+              variables: {team: {$argument: /team_id}, first: {$argument: /limit}, after: {$argument: /after}}
+        decode:
+          - {op: auto_json}
+          - {op: reject_present, path: /errors}
+          - {op: field, path: /data}
+  issue.read:
+    description: Read one exact issue's current description, workflow state and project; not a comments or activity-history read.
+    verb: read
+    scopes: [read]
+    credentials: [access_token, api_key]
+    hosted: {}
+    target:
+      template: {$concat: ['https://api.linear.app/issue/', {$argument: /issue_id}]}
+    input_schema:
+      type: object
+      additionalProperties: false
+      required: [issue_id]
+      properties:
+        issue_id: {type: string, pattern: '^(?:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}|[A-Z][A-Z0-9]{0,20}-[1-9][0-9]{0,12})$'}
+    result_fields: [issue]
+    implementation:
+      http:
+        allowed_hosts: [api.linear.app]
+        auth:
+          access_token: {type: bearer, field: access_token}
+          api_key: {type: header, name: authorization, field: api_key}
+        requests:
+          - method: POST
+            url: https://api.linear.app/graphql
+            headers: {accept: application/json}
+            body:
+              query: >-
+                query IssueContext($id: String!) {
+                  issue(id: $id) {
+                    id identifier title description url priority createdAt updatedAt archivedAt
+                    team { id name } state { id name type } assignee { id name }
+                    project { id name }
+                  }
+                }
+              variables: {id: {$argument: /issue_id}}
+        decode:
+          - {op: auto_json}
+          - {op: reject_present, path: /errors}
+          - {op: field, path: /data}
+  comments.list:
+    description: Read one bounded page of comments on the exact selected issue; preserve null bot authors and continuation metadata.
+    verb: read
+    scopes: [read]
+    credentials: [access_token, api_key]
+    hosted: {}
+    target:
+      template: {$concat: ['https://api.linear.app/issue/', {$argument: /issue_id}, '/comments']}
+    input_schema:
+      type: object
+      additionalProperties: false
+      required: [issue_id, limit]
+      properties:
+        issue_id: {type: string, pattern: '^(?:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}|[A-Z][A-Z0-9]{0,20}-[1-9][0-9]{0,12})$'}
+        limit: {type: integer, minimum: 1, maximum: 100}
+        after: {type: string, minLength: 1, maxLength: 4096}
+    result_fields: [comments]
+    implementation:
+      http:
+        allowed_hosts: [api.linear.app]
+        auth:
+          access_token: {type: bearer, field: access_token}
+          api_key: {type: header, name: authorization, field: api_key}
+        requests:
+          - method: POST
+            url: https://api.linear.app/graphql
+            headers: {accept: application/json}
+            body:
+              query: >-
+                query IssueComments($id: String!, $first: Int!, $after: String) {
+                  issue(id: $id) {
+                    id identifier
+                    comments(first: $first, after: $after) {
+                      nodes { id body createdAt updatedAt user { id name } }
+                      pageInfo { hasNextPage endCursor }
+                    }
+                  }
+                }
+              variables: {id: {$argument: /issue_id}, first: {$argument: /limit}, after: {$argument: /after}}
+        decode:
+          - {op: auto_json}
+          - {op: reject_present, path: /errors}
+          - {op: field, path: /data}

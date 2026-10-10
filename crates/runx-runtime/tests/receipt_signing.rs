@@ -166,7 +166,7 @@ fn production_verifier_reports_tamper_findings() -> Result<(), Box<dyn Error>> {
     let receipt = production_step_receipt(&signer, &verifier)?;
 
     let mut tampered_body = receipt.clone();
-    tampered_body.acts[0].summary = "tampered body".into();
+    tampered_body.seal.summary = "tampered body".into();
     let verification = verify_receipt_proof(&tampered_body, &proof_context(&verifier));
     assert_finding(&verification, ReceiptFindingCode::SealDigestMismatch);
     assert_finding(&verification, ReceiptFindingCode::SignatureInvalid);
@@ -299,6 +299,7 @@ fn production_step_run(
         skill: step_id.to_owned(),
         runner: None,
         contract: JsonObject::new(),
+        artifact_outputs: Default::default(),
         ephemeral_contract: EphemeralValue::default(),
         outcome: output.into(),
         receipt,

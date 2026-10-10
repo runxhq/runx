@@ -1,0 +1,384 @@
+skill: product-analytics
+version: "0.1.0"
+catalog:
+  kind: graph
+  audience: public
+  visibility: public
+  role: canonical
+  execution: plan
+  completion: runtime_receipt
+  requires_adapter: false
+  approval: none
+  category: data
+runners:
+  analyze:
+    default: true
+    inputs:
+      objective:
+        type: string
+        required: true
+        description: Bounded product decision to support.
+        schema: {minLength: 1, maxLength: 2000}
+      reports:
+        type: array
+        required: true
+        description: Current and optional baseline aggregate evidence; preserve native source digest, the
+          measurement definition that source was computed under and actual cache observation time.
+        schema:
+          minItems: 1
+          maxItems: 2
+          items:
+            type: object
+            additionalProperties: false
+            required:
+            - name
+            - window
+            - definition
+            - source_digest
+            - observed_at
+            - complete
+            properties:
+              name: {enum: [current, baseline]}
+              window:
+                type: object
+                additionalProperties: false
+                required:
+                - start_at
+                - end_at
+                properties:
+                  start_at: {type: string, format: date-time}
+                  end_at: {type: string, format: date-time}
+              definition:
+                type: object
+                additionalProperties: false
+                required:
+                - product
+                - identity
+                - time_zone
+                - cohort
+                - filters
+                - funnel_rule
+                - retention_rule
+                properties:
+                  product: {type: string, minLength: 1, maxLength: 200}
+                  identity: {enum: [person, account]}
+                  time_zone: {type: string, minLength: 1, maxLength: 100}
+                  cohort: {type: string, minLength: 1, maxLength: 2000}
+                  filters: {type: string, minLength: 1, maxLength: 2000}
+                  funnel_rule: {type: string, minLength: 1, maxLength: 2000}
+                  retention_rule: {type: string, minLength: 1, maxLength: 2000}
+              source_digest: {type: string, pattern: '^sha256:[0-9a-f]{64}$'}
+              observed_at: {type: string, format: date-time}
+              complete: {type: boolean}
+              funnel:
+                type: object
+                additionalProperties: false
+                required:
+                - steps
+                properties:
+                  steps:
+                    type: array
+                    minItems: 2
+                    maxItems: 12
+                    items:
+                      type: object
+                      additionalProperties: false
+                      required:
+                      - event
+                      - count
+                      properties:
+                        event: {type: string, minLength: 1, maxLength: 300}
+                        count: {type: integer, minimum: 0, maximum: 9007199254740991}
+              retention:
+                type: object
+                additionalProperties: false
+                required:
+                - period
+                - eligible
+                - returned
+                properties:
+                  period: {type: string, minLength: 1, maxLength: 200}
+                  eligible: {type: integer, minimum: 0, maximum: 9007199254740991}
+                  returned: {type: integer, minimum: 0, maximum: 9007199254740991}
+            anyOf:
+            - {required: [funnel]}
+            - {required: [retention]}
+    result_from:
+    - calculate
+    - finalize
+    steps:
+    - id: calculate
+      tool: {module: product-analytics.mjs, export: calculateMetrics}
+      inputs: {objective: $input.objective, reports: $input.reports}
+      outputs:
+        metric_context:
+          type: object
+          schema:
+            additionalProperties: false
+            required:
+            - decision
+            - objective
+            - reports
+            - comparison
+            - source_digests
+            - blockers
+            properties:
+              decision: {enum: [ready, needs_more_evidence]}
+              objective: {type: string, minLength: 1, maxLength: 2000}
+              reports:
+                type: array
+                maxItems: 2
+                items:
+                  type: object
+                  additionalProperties: false
+                  required:
+                  - name
+                  - window
+                  - definition
+                  - observed_at
+                  - source_digest
+                  - complete
+                  - funnel
+                  - retention
+                  properties:
+                    name: {enum: [current, baseline]}
+                    window:
+                      type: object
+                      additionalProperties: false
+                      required:
+                      - start_at
+                      - end_at
+                      properties:
+                        start_at: {type: string, format: date-time}
+                        end_at: {type: string, format: date-time}
+                    definition:
+                      type: object
+                      additionalProperties: false
+                      required:
+                      - product
+                      - identity
+                      - time_zone
+                      - cohort
+                      - filters
+                      - funnel_rule
+                      - retention_rule
+                      properties:
+                        product: {type: string, minLength: 1, maxLength: 200}
+                        identity: {enum: [person, account]}
+                        time_zone: {type: string, minLength: 1, maxLength: 100}
+                        cohort: {type: string, minLength: 1, maxLength: 2000}
+                        filters: {type: string, minLength: 1, maxLength: 2000}
+                        funnel_rule: {type: string, minLength: 1, maxLength: 2000}
+                        retention_rule: {type: string, minLength: 1, maxLength: 2000}
+                    observed_at: {type: string, format: date-time}
+                    source_digest: {type: string, pattern: '^sha256:[0-9a-f]{64}$'}
+                    complete: {type: boolean}
+                    funnel:
+                      type: array
+                      maxItems: 12
+                      items:
+                        type: object
+                        additionalProperties: false
+                        required:
+                        - event
+                        - count
+                        - conversion_from_entry
+                        - conversion_from_previous
+                        - lost_from_previous
+                        properties:
+                          event: {type: string, minLength: 1, maxLength: 300}
+                          count: {type: integer, minimum: 0, maximum: 9007199254740991}
+                          conversion_from_entry: {type: [number, 'null'], minimum: 0, maximum: 1}
+                          conversion_from_previous: {type: [number, 'null'], minimum: 0, maximum: 1}
+                          lost_from_previous: {type: [integer, 'null'], minimum: 0, maximum: 9007199254740991}
+                    retention:
+                      type:
+                      - object
+                      - 'null'
+                      additionalProperties: false
+                      required:
+                      - period
+                      - eligible
+                      - returned
+                      - rate
+                      properties:
+                        period: {type: string, minLength: 1, maxLength: 200}
+                        eligible: {type: integer, minimum: 0, maximum: 9007199254740991}
+                        returned: {type: integer, minimum: 0, maximum: 9007199254740991}
+                        rate: {type: [number, 'null'], minimum: 0, maximum: 1}
+              comparison:
+                type:
+                - object
+                - 'null'
+                additionalProperties: false
+                required:
+                - funnel
+                - retention_change_percentage_points
+                properties:
+                  funnel:
+                    type: array
+                    maxItems: 12
+                    items:
+                      type: object
+                      additionalProperties: false
+                      required:
+                      - event
+                      - conversion_change_percentage_points
+                      properties:
+                        event: {type: string, minLength: 1, maxLength: 300}
+                        conversion_change_percentage_points: {type: [number, 'null'], minimum: -100, maximum: 100}
+                  retention_change_percentage_points: {type: [number, 'null'], minimum: -100, maximum: 100}
+              source_digests:
+                type: array
+                minItems: 1
+                maxItems: 2
+                uniqueItems: true
+                items: {type: string, pattern: '^sha256:[0-9a-f]{64}$'}
+              blockers:
+                type: array
+                maxItems: 40
+                items: {type: string, minLength: 1, maxLength: 1000}
+    - id: digest
+      when: {value: $steps.calculate.metric_context.decision, equals: ready}
+      tool: data.digest
+      inputs: {value: $steps.calculate.metric_context}
+    - id: analyze
+      when: {value: $steps.calculate.metric_context.decision, equals: ready}
+      agent: {role: product_analyst, task: product-analytics-analyze}
+      inputs: {metric_context: $steps.calculate.metric_context}
+      outputs:
+        analytics_candidate:
+          type: object
+          schema:
+            additionalProperties: false
+            required:
+            - decision
+            - objective
+            - summary
+            - findings
+            - limitations
+            properties:
+              decision: {enum: [ready, needs_more_evidence]}
+              objective: {type: string, minLength: 1, maxLength: 2000}
+              summary: {type: string, maxLength: 4000}
+              findings:
+                type: array
+                maxItems: 30
+                items:
+                  type: object
+                  additionalProperties: false
+                  required:
+                  - claim
+                  - kind
+                  - source_digests
+                  properties:
+                    claim: {type: string, minLength: 1, maxLength: 2000}
+                    kind: {enum: [observed, hypothesis, action]}
+                    source_digests:
+                      type: array
+                      minItems: 1
+                      maxItems: 2
+                      uniqueItems: true
+                      items: {type: string, pattern: '^sha256:[0-9a-f]{64}$'}
+                    measurement: {type: string, minLength: 1, maxLength: 2000}
+                    owner_role: {type: string, minLength: 1, maxLength: 200}
+                    stop_condition: {type: string, minLength: 1, maxLength: 2000}
+                  if:
+                    properties:
+                      kind: {const: action}
+                  then: {required: [measurement, owner_role, stop_condition]}
+              limitations:
+                type: array
+                maxItems: 40
+                items: {type: string, minLength: 1, maxLength: 2000}
+    - id: finalize
+      when: {value: $steps.calculate.metric_context.decision, equals: ready}
+      tool: evidence.verify_artifact
+      inputs:
+        artifact_name: product_analytics_review
+        candidate: $steps.analyze.analytics_candidate
+        claim_bindings: $steps.analyze.analytics_candidate.findings
+        source_digests: $steps.calculate.metric_context.source_digests
+        required_paths:
+        - summary
+        required_value_bindings:
+        - {candidate_path: objective, source_path: objective}
+        identity_source: $steps.calculate.metric_context
+        authoritative_fields: {external_status: not_executed, measurement_digest: $steps.digest.digest_result.digest}
+        fallback_artifact:
+          decision: needs_more_evidence
+          objective: ''
+          summary: Interpretation withheld because its evidence bindings did not validate.
+          findings: []
+          limitations: []
+          external_status: not_executed
+          measurement_digest: $steps.digest.digest_result.digest
+        fallback_bindings:
+        - {target_path: objective, source_path: objective}
+        - {target_path: limitations, source_path: blockers}
+        fallback_source: $steps.calculate.metric_context
+      outputs:
+        product_analytics_review:
+          type: object
+          schema:
+            additionalProperties: false
+            required:
+            - decision
+            - objective
+            - summary
+            - findings
+            - limitations
+            - external_status
+            - validation
+            - measurement_digest
+            properties:
+              decision: {enum: [ready, needs_more_evidence]}
+              objective: {type: string, minLength: 1, maxLength: 2000}
+              summary: {type: string, maxLength: 4000}
+              findings:
+                type: array
+                maxItems: 30
+                items:
+                  type: object
+                  additionalProperties: false
+                  required:
+                  - claim
+                  - kind
+                  - source_digests
+                  properties:
+                    claim: {type: string, minLength: 1, maxLength: 2000}
+                    kind: {enum: [observed, hypothesis, action]}
+                    source_digests:
+                      type: array
+                      minItems: 1
+                      maxItems: 2
+                      uniqueItems: true
+                      items: {type: string, pattern: '^sha256:[0-9a-f]{64}$'}
+                    measurement: {type: string, minLength: 1, maxLength: 2000}
+                    owner_role: {type: string, minLength: 1, maxLength: 200}
+                    stop_condition: {type: string, minLength: 1, maxLength: 2000}
+                  if:
+                    properties:
+                      kind: {const: action}
+                  then: {required: [measurement, owner_role, stop_condition]}
+              limitations:
+                type: array
+                maxItems: 40
+                items: {type: string, minLength: 1, maxLength: 2000}
+              external_status: {const: not_executed}
+              validation:
+                type: object
+                additionalProperties: true
+                required:
+                - status
+                - findings
+                properties:
+                  status: {enum: [pass, fail]}
+                  findings:
+                    type: array
+                    items: {type: object, additionalProperties: true}
+              measurement_digest: {type: string, pattern: '^sha256:[0-9a-f]{64}$'}
+      artifacts:
+        named_emits: {product_analytics_review: product_analytics_review}
+      scopes:
+      - runx:evidence:read

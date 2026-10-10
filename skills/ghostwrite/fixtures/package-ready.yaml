@@ -25,7 +25,7 @@ expect:
           decision: ready_for_handoff
           delivery_status: not_sent
           channel: blog
-      handoff_notes:
-        provider_delivery_required: true
+          evidence_binding:
+            evidence_packet_digest: sha256:2222222222222222222222222222222222222222222222222222222222222222
   receipt: { schema: runx.receipt.v1 }
 metadata: { public_skill: ghostwrite, source_case: deterministic-package, source: skills-fixture }

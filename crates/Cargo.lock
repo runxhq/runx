@@ -2731,6 +2731,7 @@ dependencies = [
  "hyper",
  "hyper-util",
  "jsonschema",
+ "memchr",
  "postgres",
  "process-wrap",
  "proptest",

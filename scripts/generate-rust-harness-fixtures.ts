@@ -11,12 +11,7 @@ const oracleBinName = process.platform === "win32"
 const defaultOracleBin = path.join(repoRoot, "crates", "target", "debug", oracleBinName);
 
 const forwardedArgs = [...process.argv.slice(2), "--repo-root", repoRoot];
-const write = process.argv.includes("--write") || process.argv.includes("--generate");
 const summaryJson = process.argv.includes("--summary-json");
-const env = {
-  ...process.env,
-  ...(write && process.env.RUNX_REGEN_FIXTURES === undefined ? { RUNX_REGEN_FIXTURES: "1" } : {}),
-};
 
 if (process.env.RUNX_HARNESS_FIXTURE_ORACLE_BIN) {
   run(process.env.RUNX_HARNESS_FIXTURE_ORACLE_BIN, forwardedArgs);
@@ -40,7 +35,7 @@ if (process.env.RUNX_HARNESS_FIXTURE_ORACLE_BIN) {
 function run(command: string, args: readonly string[]): void {
   const result = spawnSync(command, args, {
     cwd: repoRoot,
-    env,
+    env: process.env,
     stdio: "inherit",
   });
   if (result.status !== 0) {

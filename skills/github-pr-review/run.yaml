@@ -1,0 +1,310 @@
+skill: github-pr-review
+version: "0.1.0"
+catalog:
+  kind: graph
+  audience: public
+  visibility: public
+  role: canonical
+  execution: read
+  completion: runtime_receipt
+  requires_adapter: true
+  approval: none
+  category: code
+connectors:
+  github: {operations: [pullrequest.read, commits.compare, checks.list]}
+runners:
+  review:
+    default: true
+    inputs:
+      repository:
+        type: string
+        required: true
+        description: Exact selected GitHub owner/repository.
+        schema: {maxLength: 201, pattern: '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$'}
+      number:
+        type: integer
+        required: true
+        description: Exact positive pull-request number.
+        schema: {minimum: 1, maximum: 1000000000}
+      expected_head:
+        type: string
+        required: true
+        description: Exact head commit to review; a different current head stops the review.
+        schema: {pattern: '^[0-9a-f]{40}$'}
+      patch_char_limit:
+        type: integer
+        required: false
+        default: 60000
+        description: Maximum aggregate patch characters admitted to the model.
+        schema: {minimum: 1000, maximum: 200000}
+    result_from: [hold, finalize]
+    steps:
+    - id: read-pull
+      operation: github/pullrequest.read
+      input: {repository: $input.repository, number: $input.number}
+    - id: read-files
+      operation: github/commits.compare
+      input: {repository: $input.repository, base: $steps.read-pull.provider_operation.result.pull.base.sha, head: $input.expected_head}
+    - id: read-checks
+      operation: github/checks.list
+      input: {repository: $input.repository, commit: $input.expected_head, per_page: 100, page: 1}
+    - id: prepare
+      tool: {module: github-pr-review.mjs, export: prepareReview}
+      inputs:
+        repository: $input.repository
+        number: $input.number
+        expected_head: $input.expected_head
+        patch_char_limit: $input.patch_char_limit
+        pull: $steps.read-pull.provider_operation
+        files: $steps.read-files.provider_operation
+        checks: $steps.read-checks.provider_operation
+      outputs:
+        review_context:
+          type: object
+          schema:
+            additionalProperties: false
+            required:
+            - decision
+            - repository
+            - number
+            - base_sha
+            - head_sha
+            - title
+            - description
+            - files
+            - checks
+            - checks_complete
+            - coverage
+            - blockers
+            - diff_base_sha
+            properties:
+              decision: {enum: [ready, needs_more_evidence]}
+              repository: {type: string, minLength: 1, maxLength: 201}
+              number: {type: integer, minimum: 1}
+              base_sha:
+                oneOf:
+                - {type: string, pattern: '^[0-9a-f]{40}$'}
+                - {type: 'null'}
+              head_sha: {type: string, pattern: '^[0-9a-f]{40}$'}
+              title: {type: string, maxLength: 1000}
+              description: {type: string, maxLength: 65536}
+              files:
+                type: array
+                maxItems: 100
+                items:
+                  type: object
+                  additionalProperties: false
+                  required: [path, previous_path, status, patch, left_lines, right_lines]
+                  properties:
+                    path: {type: string, minLength: 1, maxLength: 1000}
+                    previous_path: {type: [string, 'null'], maxLength: 1000}
+                    status: {enum: [added, removed, modified, renamed, copied, changed, unchanged]}
+                    patch: {type: string, minLength: 1, maxLength: 200000}
+                    left_lines:
+                      type: array
+                      maxItems: 200000
+                      items: {type: integer, minimum: 1}
+                    right_lines:
+                      type: array
+                      maxItems: 200000
+                      items: {type: integer, minimum: 1}
+              checks:
+                type: array
+                maxItems: 100
+                items:
+                  type: object
+                  additionalProperties: false
+                  required: [name, status, conclusion]
+                  properties:
+                    name: {type: string, minLength: 1, maxLength: 1000}
+                    status: {type: string, maxLength: 100}
+                    conclusion: {type: [string, 'null'], maxLength: 100}
+              checks_complete: {type: boolean}
+              coverage: {const: available_pr_patches_only}
+              blockers:
+                type: array
+                maxItems: 200
+                items: {type: string, minLength: 1, maxLength: 2000}
+              diff_base_sha:
+                oneOf:
+                - {type: string, pattern: '^[0-9a-f]{40}$'}
+                - {type: 'null'}
+    - id: hold
+      when: {value: $steps.prepare.review_context.decision, equals: needs_more_evidence}
+      tool: {module: github-pr-review.mjs, export: finalizeReview}
+      inputs: {review_context: $steps.prepare.review_context}
+      outputs:
+        pr_review:
+          type: object
+          schema:
+            additionalProperties: false
+            required:
+            - decision
+            - repository
+            - number
+            - base_sha
+            - head_sha
+            - context_digest
+            - coverage
+            - checks_complete
+            - summary
+            - findings
+            - limitations
+            - blockers
+            - publication_status
+            - execution_status
+            - diff_base_sha
+            properties:
+              decision: {enum: [draft_ready, needs_more_evidence]}
+              repository: {type: string, minLength: 1, maxLength: 201}
+              number: {type: integer, minimum: 1}
+              base_sha:
+                oneOf:
+                - {type: string, pattern: '^[0-9a-f]{40}$'}
+                - {type: 'null'}
+              head_sha: {type: string, pattern: '^[0-9a-f]{40}$'}
+              context_digest: {type: [string, 'null'], pattern: '^sha256:[0-9a-f]{64}$'}
+              coverage: {const: available_pr_patches_only}
+              checks_complete: {type: boolean}
+              summary: {type: string, maxLength: 4000}
+              findings:
+                type: array
+                maxItems: 30
+                items:
+                  type: object
+                  additionalProperties: false
+                  required: [path, side, line, severity, title, trigger, impact, suggested_change]
+                  properties:
+                    path: {type: string, minLength: 1, maxLength: 1000}
+                    side: {enum: [LEFT, RIGHT]}
+                    line: {type: integer, minimum: 1, maximum: 10000000}
+                    severity: {enum: [critical, high, medium, low]}
+                    title: {type: string, minLength: 1, maxLength: 200}
+                    trigger: {type: string, minLength: 1, maxLength: 2000}
+                    impact: {type: string, minLength: 1, maxLength: 2000}
+                    suggested_change: {type: string, minLength: 1, maxLength: 2000}
+              limitations:
+                type: array
+                maxItems: 30
+                items: {type: string, minLength: 1, maxLength: 2000}
+              blockers:
+                type: array
+                maxItems: 200
+                items: {type: string, minLength: 1, maxLength: 2000}
+              publication_status: {const: not_posted}
+              execution_status: {const: not_tested}
+              diff_base_sha:
+                oneOf:
+                - {type: string, pattern: '^[0-9a-f]{40}$'}
+                - {type: 'null'}
+      artifacts:
+        named_emits: {pr_review: pr_review}
+    - id: digest
+      when: {value: $steps.prepare.review_context.decision, equals: ready}
+      tool: data.digest
+      inputs: {value: $steps.prepare.review_context}
+    - id: review
+      when: {value: $steps.prepare.review_context.decision, equals: ready}
+      agent: {role: code, task: github-pr-review-assess}
+      inputs: {review_context: $steps.prepare.review_context, context_digest: $steps.digest.digest_result.digest}
+      outputs:
+        review_draft:
+          type: object
+          schema:
+            additionalProperties: false
+            required: [summary, findings, limitations]
+            properties:
+              summary: {type: string, minLength: 1, maxLength: 4000}
+              findings:
+                type: array
+                maxItems: 30
+                items:
+                  type: object
+                  additionalProperties: false
+                  required: [path, side, line, severity, title, trigger, impact, suggested_change]
+                  properties:
+                    path: {type: string, minLength: 1, maxLength: 1000}
+                    side: {enum: [LEFT, RIGHT]}
+                    line: {type: integer, minimum: 1, maximum: 10000000}
+                    severity: {enum: [critical, high, medium, low]}
+                    title: {type: string, minLength: 1, maxLength: 200}
+                    trigger: {type: string, minLength: 1, maxLength: 2000}
+                    impact: {type: string, minLength: 1, maxLength: 2000}
+                    suggested_change: {type: string, minLength: 1, maxLength: 2000}
+              limitations:
+                type: array
+                maxItems: 30
+                items: {type: string, minLength: 1, maxLength: 2000}
+    - id: finalize
+      when: {value: $steps.prepare.review_context.decision, equals: ready}
+      tool: {module: github-pr-review.mjs, export: finalizeReview}
+      inputs:
+        review_context: $steps.prepare.review_context
+        context_digest: $steps.digest.digest_result.digest
+        review_draft: $steps.review.review_draft
+      outputs:
+        pr_review:
+          type: object
+          schema:
+            additionalProperties: false
+            required:
+            - decision
+            - repository
+            - number
+            - base_sha
+            - head_sha
+            - context_digest
+            - coverage
+            - checks_complete
+            - summary
+            - findings
+            - limitations
+            - blockers
+            - publication_status
+            - execution_status
+            - diff_base_sha
+            properties:
+              decision: {enum: [draft_ready, needs_more_evidence]}
+              repository: {type: string, minLength: 1, maxLength: 201}
+              number: {type: integer, minimum: 1}
+              base_sha:
+                oneOf:
+                - {type: string, pattern: '^[0-9a-f]{40}$'}
+                - {type: 'null'}
+              head_sha: {type: string, pattern: '^[0-9a-f]{40}$'}
+              context_digest: {type: [string, 'null'], pattern: '^sha256:[0-9a-f]{64}$'}
+              coverage: {const: available_pr_patches_only}
+              checks_complete: {type: boolean}
+              summary: {type: string, maxLength: 4000}
+              findings:
+                type: array
+                maxItems: 30
+                items:
+                  type: object
+                  additionalProperties: false
+                  required: [path, side, line, severity, title, trigger, impact, suggested_change]
+                  properties:
+                    path: {type: string, minLength: 1, maxLength: 1000}
+                    side: {enum: [LEFT, RIGHT]}
+                    line: {type: integer, minimum: 1, maximum: 10000000}
+                    severity: {enum: [critical, high, medium, low]}
+                    title: {type: string, minLength: 1, maxLength: 200}
+                    trigger: {type: string, minLength: 1, maxLength: 2000}
+                    impact: {type: string, minLength: 1, maxLength: 2000}
+                    suggested_change: {type: string, minLength: 1, maxLength: 2000}
+              limitations:
+                type: array
+                maxItems: 30
+                items: {type: string, minLength: 1, maxLength: 2000}
+              blockers:
+                type: array
+                maxItems: 200
+                items: {type: string, minLength: 1, maxLength: 2000}
+              publication_status: {const: not_posted}
+              execution_status: {const: not_tested}
+              diff_base_sha:
+                oneOf:
+                - {type: string, pattern: '^[0-9a-f]{40}$'}
+                - {type: 'null'}
+      artifacts:
+        named_emits: {pr_review: pr_review}

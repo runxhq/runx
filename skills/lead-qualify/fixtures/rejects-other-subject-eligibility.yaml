@@ -1,0 +1,45 @@
+name: rejects-other-subject-eligibility
+kind: skill
+target: ..
+inputs:
+  enrichment_packet:
+    decision: enriched
+    subject: {ref: 'lead:example', kind: person}
+    as_of: '2026-10-10T00:00:00Z'
+    facts:
+    - {field: company.industry, value: B2B software, source_refs: ['crm:lead']}
+    missing_fields: []
+    conflicts: []
+    sources:
+    - source_ref: crm:lead
+      source_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      observed_at: '2026-10-09T00:00:00Z'
+      match_confidence: high
+      provenance: caller_supplied_source_digest
+    blockers: []
+    acquisition: supplied_evidence
+  criteria:
+  - {id: industry, description: Works for a B2B software company., required: true}
+  contact_eligibility:
+    subject: {ref: 'lead:another', kind: person}
+    status: eligible
+    policy_ref: policy:outreach
+    evidence_refs: ['policy:assessment']
+expect:
+  status: sealed
+  steps: [digest, admit, hold]
+  step_outputs:
+    hold:
+      subset:
+        lead_qualification:
+          data:
+            decision: needs_more_evidence
+            fit: unknown
+            subject: {ref: 'lead:example', kind: person}
+            contact_eligibility: null
+            next_action: request_evidence
+            blockers: [contact eligibility belongs to a different or unbound subject, not every supplied criterion was
+                assessed]
+            external_status: not_executed
+  receipt: {schema: runx.receipt.v1}
+metadata: {public_skill: lead-qualify, source: skills-fixture}

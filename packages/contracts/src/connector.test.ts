@@ -66,7 +66,7 @@ describe("reference kinds", () => {
 // (crates/runx-contracts/src/connector/tests.rs).
 describe("effect locators", () => {
   it("read the call's result as $result and a repeated element as $item", () => {
-    const locator = {
+    const locator: JsonValue = {
       $concat: ["github://", { $argument: "/repository" }, "/issues/", { $item: "/number" }],
     };
     expect(renderTemplate(locator, { arguments: { repository: "acme/app" }, item: { number: 7 } }))

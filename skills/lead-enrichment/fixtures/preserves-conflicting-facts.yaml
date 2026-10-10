@@ -1,0 +1,36 @@
+name: preserves-conflicting-facts
+kind: skill
+target: ..
+inputs:
+  subject: {ref: 'lead:example', kind: person}
+  as_of: '2026-10-10T00:00:00Z'
+  requested_fields: [company.industry, person.title]
+  sources:
+  - source_ref: crm:lead
+    source_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    subject_ref: lead:example
+    observed_at: '2026-10-09T00:00:00Z'
+    match_confidence: high
+    facts:
+    - {field: company.industry, value: B2B software}
+    - {field: person.title, value: Head of Engineering}
+  - source_ref: provider:lead
+    source_digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    subject_ref: lead:example
+    observed_at: '2026-10-09T00:00:00Z'
+    match_confidence: high
+    facts:
+    - {field: person.title, value: Engineering Manager}
+expect:
+  status: sealed
+  steps: [enrich]
+  step_outputs:
+    enrich:
+      subset:
+        lead_enrichment_packet:
+          data:
+            decision: partial
+            conflicts:
+            - {field: person.title}
+  receipt: {schema: runx.receipt.v1}
+metadata: {public_skill: lead-enrichment, source: skills-fixture}

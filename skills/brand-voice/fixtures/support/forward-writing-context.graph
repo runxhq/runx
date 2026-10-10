@@ -15,8 +15,8 @@ steps:
     runner: draft
     inputs:
       objective: Explain the strongest Runx architecture signal.
-      audience: operators
-      channel: brief
+      audience: advanced software builders
+      channel: public_update
       evidence_pack:
         decision: ready
         research_brief:

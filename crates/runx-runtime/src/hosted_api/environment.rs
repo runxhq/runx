@@ -195,7 +195,8 @@ impl HostedApiEnvironment {
         transport: &T,
     ) -> Result<AuthenticatedHostedApiEnvironment, HostedApiError> {
         let token = self.require_token()?;
-        let response = transport.send(HttpRequest {
+        // Reading the principal is free and changes nothing, so it may repeat.
+        let response = transport.send_idempotent(HttpRequest {
             method: HttpMethod::Get,
             url: format!("{}/v1/me", self.base_url),
             headers: vec![RuntimeHttpHeader::new(

@@ -46,8 +46,9 @@ acknowledgement, and readback.
 - `audience`, `channel`, and `domain` shape the artifact.
 - `operator_context` and `target_entities` narrow interpretation but are not
   source evidence.
-- `publication_target`, `boundary_kind`, and `approval_context` prepare the next
-  lane; they do not authorize it.
+- `publication_target` and `boundary_kind` (`internal` or `external`) prepare the
+  next lane; they do not authorize it. An external delivery needs the
+  delivering lane's own approval.
 
 The result preserves the citation-validated research packet, the evidence-bound
 draft, a deterministic channel package with `not_sent` state, and a

@@ -11,6 +11,6 @@ pub use tool::validate_process_tool;
 pub use types::{
     AgentTask, AskGate, DuplicatePolicy, ExecutionGraph, GraphGuard, GraphPolicy, GraphStep,
     GraphWhen, OperationStepTarget, ProcessTool, RawGraphIr, SkillTarget, StepAct, StepKind,
-    ToolTarget, UncertainOutcome, WorkerTool,
+    ToolTarget, WorkerTool,
 };
 pub use validate::{parse_graph_yaml, validate_graph, validate_graph_document};

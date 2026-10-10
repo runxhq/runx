@@ -329,10 +329,12 @@ impl OperationAdmission {
     }
 
     /// What the call's receipt records: the act its caller stated, the
-    /// execution term it was admitted under, and what it produced.
+    /// operation's declared description, the execution term it was admitted
+    /// under, what it produced, and the context the run was prepared with.
     pub(crate) fn sealed_call(
         &self,
         effects: Vec<Reference>,
+        context_ref: Option<Reference>,
     ) -> Result<crate::receipts::SealedCall, RuntimeError> {
         let term = self
             .admitted
@@ -353,9 +355,11 @@ impl OperationAdmission {
             });
         Ok(crate::receipts::SealedCall {
             act: self.call.act.clone(),
+            description: self.admitted.operation().description.clone(),
             term_id: term.term_id.as_str().to_owned(),
             target_ref,
             effects,
+            context_ref,
         })
     }
 
@@ -433,7 +437,6 @@ impl RuntimeEffect for OperationEffect {
         let admitted = admission::admit(&Evaluation {
             step: target,
             call: &call,
-            on_uncertain: request.step.on_uncertain,
             duplicates: request.step.duplicates,
             fixture_stand_in: self.fixture_stand_in,
             run_authority: request.run_authority,
@@ -549,7 +552,7 @@ impl RuntimeEffect for OperationEffect {
         let packet = request
             .claim
             .get("provider_operation")
-            .map(crate::output_contract::enveloped_value)
+            .and_then(crate::output_contract::artifact_data)
             .and_then(JsonValue::as_object)
             .ok_or_else(|| state("the provider_operation packet is missing"))?;
         let field = |name: &str| packet.get(name).and_then(JsonValue::as_str);
@@ -1015,10 +1018,10 @@ fn signed_in(
         .get(session.credential)
         .and_then(|declaration| declaration.fields.first())
         .ok_or("the session's credential is no longer declared")?;
-    Ok(credentials::CredentialSecret {
-        name: session.credential.clone(),
-        fields: BTreeMap::from([(field.name.as_str().to_owned(), token)]),
-    })
+    Ok(credentials::CredentialSecret::new(
+        session.credential.clone(),
+        BTreeMap::from([(field.name.as_str().to_owned(), token)]),
+    ))
 }
 
 fn dispatch(
@@ -1074,7 +1077,7 @@ fn dispatch(
             .map_err(|error| error.to_string()),
         None => Ok(()),
     };
-    match implementation {
+    let outcome = match implementation {
         Implementation::Http(spec) => {
             let (direct, gateway, implementation_digest);
             let egress = match &hosted {
@@ -1174,7 +1177,18 @@ fn dispatch(
             };
             confirm::run(&driver, &call, &checks, recovery, &mut record)
         }
-    }
+    };
+    outcome.map_err(|mut failure| {
+        if let Some(secret) = &secret {
+            let reason = match &mut failure {
+                Failure::Rejected { reason, .. }
+                | Failure::Unknown(reason)
+                | Failure::ReadbackPending(reason) => reason,
+            };
+            *reason = secret.scrub_text(std::mem::take(reason));
+        }
+        failure
+    })
 }
 
 /// The grant a hosted instance holds.
@@ -1239,8 +1253,15 @@ fn process_delivery(
             )
         })?;
     let value = match (declaration.fields.as_slice(), secret.fields.len()) {
-        ([field], 1) => secret.fields.get(field.name.as_str()).cloned(),
-        _ => serde_json::to_string(&secret.fields).ok(),
+        ([field], 1) => secret.field(field.name.as_str()).ok().map(str::to_owned),
+        _ => serde_json::to_string(
+            &secret
+                .fields
+                .iter()
+                .map(|(name, value)| (name.as_str(), value.expose()))
+                .collect::<BTreeMap<_, _>>(),
+        )
+        .ok(),
     }
     .ok_or_else(|| {
         rejected(
@@ -1295,35 +1316,42 @@ fn mcp(
                 return Err(unsupported("an injected transport reaches no MCP server"));
             }
             let headers = mcp_headers(call, headers)?;
-            let bearer = match (auth.is_empty(), call.credential) {
-                (true, _) => None,
-                (false, None) => {
-                    return Err(rejected(
+            let credential = if !auth.is_empty() {
+                let secret = call.credential.ok_or_else(|| {
+                    rejected(
                         "binding_unavailable",
                         "the MCP server authenticates but the instance delivered no credential"
                             .to_owned(),
+                    )
+                })?;
+                let presentation = auth.get(&secret.name).ok_or_else(|| {
+                    unsupported("the MCP server does not present the instance's credential")
+                })?;
+                if matches!(presentation, runx_contracts::connector::HttpAuth::Oauth1) {
+                    return Err(unsupported(
+                        "an MCP session cannot use request-bound OAuth1 signing",
                     ));
                 }
-                (false, Some(secret)) => match auth.get(&secret.name) {
-                    Some(runx_contracts::connector::HttpAuth::Bearer { field }) => Some(
-                        secret
-                            .fields
-                            .get(field.as_str())
-                            .filter(|token| !token.is_empty())
-                            .cloned()
-                            .ok_or_else(|| {
-                                rejected(
-                                    "binding_unavailable",
-                                    format!("the instance delivered no {field} for the MCP server"),
-                                )
-                            })?,
-                    ),
-                    _ => {
-                        return Err(unsupported(
-                            "an MCP server authenticates with a bearer token its credential names",
-                        ));
-                    }
-                },
+                let url = url::Url::parse(url.as_str())
+                    .map_err(|_| unsupported("the MCP server URL is invalid"))?;
+                let header = crate::drivers::http::auth::credential_header(
+                    presentation,
+                    secret,
+                    crate::http::HttpMethod::Post,
+                    &url,
+                )
+                .map_err(|reason| rejected("binding_unavailable", reason))?;
+                if headers
+                    .keys()
+                    .any(|name| name.eq_ignore_ascii_case(&header.name))
+                {
+                    return Err(unsupported(
+                        "an MCP header overrides credential presentation",
+                    ));
+                }
+                Some(header)
+            } else {
+                None
             };
             let transport = ReqwestHttpTransport::for_provider_operation(
                 crate::hosted_private_network_allowed(false, call.env),
@@ -1332,7 +1360,7 @@ fn mcp(
             context
                 .placements
                 .mcp
-                .open(&transport, url.as_str(), bearer.as_deref(), &headers)
+                .open(&transport, url.as_str(), credential.as_ref(), &headers)
         }
         runx_contracts::connector::McpServer::Stdio { command, args } => {
             let server = stdio_server(context, call, command.as_str(), args)?;
@@ -1538,16 +1566,20 @@ fn render_effects(
                     ..*inputs
                 })
                 .map_err(|error| format!("the effect locator cannot be rendered: {error}"))?;
+            // A locator names something; an empty one names nothing.
+            if locator.trim().is_empty() {
+                return Err("the effect locator rendered empty".to_owned());
+            }
             if !patterns.is_empty() && !patterns.iter().any(|pattern| pattern.is_match(&locator)) {
                 return Err(format!(
                     "the effect locator {locator:?} is not a {} {} declares",
-                    effect.kind.as_str(),
+                    ReferenceType::from(effect.kind).as_str(),
                     manifest.id
                 ));
             }
             Ok(Reference {
                 provider: Some(manifest.id.as_str().to_owned().into()),
-                ..Reference::with_uri(effect.kind.clone(), locator)
+                ..Reference::with_uri(effect.kind.into(), locator)
             })
         })
         .collect()

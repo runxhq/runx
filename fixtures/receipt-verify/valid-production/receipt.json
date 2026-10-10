@@ -1,49 +1,5 @@
 {
-  "acts": [
-    {
-      "artifact_refs": [
-        {
-          "label": "artifact",
-          "locator": "artifact_production-verified",
-          "type": "artifact",
-          "uri": "runx:artifact:artifact_production-verified"
-        }
-      ],
-      "closure": {
-        "closed_at": "2026-06-10T00:00:00Z",
-        "disposition": "closed",
-        "reason_code": "process_exit",
-        "summary": "process exited successfully"
-      },
-      "criterion_bindings": [
-        {
-          "criterion_id": "process_exit",
-          "evidence_refs": [],
-          "status": "verified",
-          "summary": "process exited successfully",
-          "verification_refs": []
-        }
-      ],
-      "form": "observation",
-      "id": "act_production-verified",
-      "intent": {
-        "constraints": [],
-        "derived_from": [],
-        "legitimacy": "Runtime graph execution was admitted by the local harness",
-        "purpose": "Run graph step production-verified",
-        "success_criteria": [
-          {
-            "criterion_id": "process_exit",
-            "required": true,
-            "statement": "process exits successfully"
-          }
-        ]
-      },
-      "source_refs": [],
-      "summary": "Executed graph step production-verified",
-      "target_refs": []
-    }
-  ],
+  "acts": [],
   "authority": {
     "actor_ref": {
       "type": "principal",
@@ -67,42 +23,9 @@
   "canonicalization": "runx.receipt.c14n.v1",
   "class": "executed",
   "created_at": "2026-06-10T00:00:00Z",
-  "decisions": [
-    {
-      "artifact_refs": [
-        {
-          "label": "artifact",
-          "locator": "artifact_production-verified",
-          "type": "artifact",
-          "uri": "runx:artifact:artifact_production-verified"
-        }
-      ],
-      "choice": "open",
-      "closure": null,
-      "decision_id": "dec_production-verified",
-      "inputs": {
-        "opportunity_refs": [],
-        "selection_ref": null,
-        "signal_refs": [],
-        "target_ref": null
-      },
-      "justification": {
-        "evidence_refs": [],
-        "summary": "runtime graph planner selected this node"
-      },
-      "proposed_intent": {
-        "constraints": [],
-        "derived_from": [],
-        "legitimacy": "Local graph execution requested this node",
-        "purpose": "Open runtime node production-verified",
-        "success_criteria": []
-      },
-      "selected_act_id": "act_production-verified",
-      "selected_harness_ref": null
-    }
-  ],
-  "digest": "sha256:3dc01fd24f1472f5f81af39c74ff42f8dfb8e7e2106df4875a43ac4225aa9734",
-  "id": "sha256:20e48f90c347fa956b52ca63eacfbf298bc343603cb605e179f7254d4e7ee1c1",
+  "decisions": [],
+  "digest": "sha256:19051cf6887457a891f37509170ecd471e63f2072018f1061f2d58d8aa7fc4e3",
+  "id": "sha256:506aaa7c9cddc809af5d524d83cfafcec1920fe10f24d640a38e150bbd666136",
   "idempotency": {
     "content_hash": "sha256:receipt-verify-production-verified-content",
     "intent_key": "sha256:receipt-verify-production-verified-intent",
@@ -121,22 +44,22 @@
     "closed_at": "2026-06-10T00:00:00Z",
     "criteria": [
       {
-        "criterion_id": "process_exit",
+        "criterion_id": "step_outcome",
         "evidence_refs": [],
         "status": "verified",
-        "summary": "process exited successfully",
+        "summary": "step completed successfully",
         "verification_refs": []
       }
     ],
     "disposition": "closed",
     "last_observed_at": "2026-06-10T00:00:00Z",
-    "reason_code": "process_closed",
+    "reason_code": "step_closed",
     "summary": "step production-verified completed"
   },
   "signals": [],
   "signature": {
     "alg": "Ed25519",
-    "value": "base64:Gw6eD5NTQjlcyGaShAppu3cgvF2p1lbbcOb3nApvYdBMvCLVWUrQMoHiUGX0inms_B8yLtsXeQ1RmjHT6Q0yCA"
+    "value": "base64:Efm4CD5d6TJVmO2T1cgMWuiDxZSz1brMNBPDkNv-I6BIw4uqlVoVfHBt_G5EFcu77mg8M-zRl0JAOQ507o42Aw"
   },
   "subject": {
     "commitments": [],

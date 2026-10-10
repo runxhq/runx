@@ -166,6 +166,131 @@ fn multiplexed_mcp_tools_need_literal_distinct_discriminators() {
     );
 }
 
+const PLAIN_READ: &str = r#"
+schema: runx.connector.v1
+id: example
+name: Example
+description: Example API.
+auth: {none: {}}
+placements: {local: {auth: [none]}}
+operations:
+  item.read:
+    description: Read one item.
+    verb: read
+    scopes: [item.read]
+    target: {template: "https://api.example.com/items"}
+    result_fields: [item]
+    implementation:
+      http:
+        allowed_hosts: [api.example.com]
+        requests:
+          - method: GET
+            url: "https://api.example.com/item"
+"#;
+
+fn header_read() -> String {
+    PLAIN_READ
+        .replace("auth: {none: {}}", "auth:\n  credentials:\n    key:\n      kind: api_key\n      fields: [{name: api_key}]\n      delivery: {env: EXAMPLE_KEY}\n      audience: [api.example.com]")
+        .replace("placements: {local: {auth: [none]}}", "placements:\n  local: {auth: [credentials]}\n  hosted: {auth: credential, credential: key}")
+        .replace("    scopes: [item.read]", "    scopes: [item.read]\n    credentials: [key]\n    hosted: {}")
+        .replace("        requests:", "        auth: {key: {type: header, name: x-api-key, field: api_key}}\n        requests:")
+}
+
+#[test]
+fn stored_keys_present_only_declared_headers_on_both_placements() {
+    validate(&header_read()).expect("local and hosted header presentations validate");
+    for name in [
+        "host",
+        "Content-Length",
+        "cookie",
+        "Connection",
+        "Proxy-Connection",
+        "Mcp-Session-Id",
+        "x invalid",
+        "x\\nkey",
+    ] {
+        assert_rejects(
+            &header_read().replace("name: x-api-key", &format!("name: '{name}'")),
+            "credential header",
+        );
+    }
+    assert_rejects(
+        &header_read().replace("field: api_key", "field: missing"),
+        "declares no field",
+    );
+    assert_rejects(
+        &header_read().replace(
+            "audience: [api.example.com]",
+            "audience: [elsewhere.example.com]",
+        ),
+        "audience",
+    );
+    assert_rejects(
+        &header_read().replace(
+            "            url:",
+            "            headers: {X-API-Key: caller-controlled}\n            url:",
+        ),
+        "credential presentation",
+    );
+    // What routes, frames or holds the connection is the transport's, in any
+    // case and wherever a manifest would set it.
+    for name in [
+        "Host",
+        "connection",
+        "Transfer-Encoding",
+        "Proxy-Connection",
+    ] {
+        assert_rejects(
+            &header_read().replace(
+                "            url:",
+                &format!("            headers: {{{name}: {{\"$argument\": \"/routing\"}}}}\n            url:"),
+            ),
+            "the transport sets this header",
+        );
+    }
+}
+
+#[test]
+fn mcp_uses_the_same_header_contract_and_rejects_session_overrides() {
+    let header = NITROSEND.replace(
+        "type: bearer, field: api_key",
+        "type: header, name: x-api-key, field: api_key",
+    );
+    validate(&header).expect("MCP accepts a credential header");
+    assert_rejects(&header.replace("url: \"https://api.nitrosend.com/mcp\", auth:", "url: \"https://api.nitrosend.com/mcp\", headers: {x-api-key: caller-controlled}, auth:"), "credential presentation");
+    // The MCP protocol's own headers are the session's: its id and version,
+    // and the standard request headers it sets on each call.
+    for reserved in [
+        "mcp-session-id",
+        "Mcp-Name",
+        "mcp-method",
+        "Mcp-Param-Region",
+    ] {
+        assert_rejects(
+            &header.replace("name: x-api-key", &format!("name: {reserved}")),
+            "credential header",
+        );
+    }
+    for reserved in ["mcp-name", "mcp-param-region"] {
+        assert_rejects(
+            &header.replace(
+                "url: \"https://api.nitrosend.com/mcp\", auth:",
+                &format!(
+                    "url: \"https://api.nitrosend.com/mcp\", headers: {{{reserved}: tenant}}, auth:"
+                ),
+            ),
+            "the runtime does not set itself",
+        );
+    }
+    assert_rejects(
+        &header.replace(
+            "url: \"https://api.nitrosend.com/mcp\", auth:",
+            "url: \"https://api.nitrosend.com/mcp\", headers: {host: elsewhere.example.com}, auth:",
+        ),
+        "the transport sets this header",
+    );
+}
+
 const HOOK: &str = r#"
 schema: runx.connector.v1
 id: hooks
@@ -370,57 +495,6 @@ fn a_target_pattern_must_be_a_regular_expression() {
         "not a valid regular expression",
     );
 }
-
-#[test]
-fn reconcile_names_a_read_for_a_write_the_provider_can_read_back() {
-    let reconcile = |operation: &str| format!("    guarantees: {{reconcile: {operation}}}\n");
-    assert_rejects(
-        &FORGE.replace(
-            "    approval: required\n",
-            &format!("    approval: required\n{}", reconcile("pullrequest.merge")),
-        ),
-        "reconcile pullrequest.merge must name a read operation on this connector",
-    );
-    assert_rejects(
-        &FORGE.replace(
-            "    hosted: {provider_scopes: [repo]}\n",
-            &format!(
-                "{}    hosted: {{provider_scopes: [repo]}}\n",
-                reconcile("issue.read")
-            ),
-        ),
-        "a read has nothing to reconcile",
-    );
-    assert_rejects(
-        &FORGE.replace(
-            "    approval: required\n",
-            "    approval: required\n    guarantees: {readback: unavailable, reconcile: issue.read}\n",
-        ),
-        "an operation the provider cannot read back has no read to reconcile with",
-    );
-}
-
-const PLAIN_READ: &str = r#"
-schema: runx.connector.v1
-id: example
-name: Example
-description: Example API.
-auth: {none: {}}
-placements: {local: {auth: [none]}}
-operations:
-  item.read:
-    description: Read one item.
-    verb: read
-    scopes: [item.read]
-    target: {template: "https://api.example.com/items"}
-    result_fields: [item]
-    implementation:
-      http:
-        allowed_hosts: [api.example.com]
-        requests:
-          - method: GET
-            url: "https://api.example.com/item"
-"#;
 
 #[test]
 fn a_lone_json_read_takes_its_whole_answer_by_default() {
@@ -677,7 +751,7 @@ fn a_write_declares_what_it_produces_and_only_an_effect_reads_the_result() {
             declared,
             "    effect: {kind: signal, locator: {\"$result\": \"/url\"}}\n",
         ),
-        "not an external reference kind",
+        "unknown variant `signal`",
     );
     // A read produces nothing, and nothing the call renders reads a result
     // it does not have yet.
@@ -694,5 +768,37 @@ fn a_write_declares_what_it_produces_and_only_an_effect_reads_the_result() {
             "target: {template: {\"$result\": \"/repository\"}}",
         ),
         "only an effect reads $result",
+    );
+}
+
+#[test]
+fn an_enforced_write_sends_the_key_its_provider_deduplicates_by() {
+    let enforced = HOOK.replace(
+        "guarantees: {readback: unavailable}",
+        "guarantees: {readback: unavailable, provider_idempotency: enforced}",
+    );
+    assert_rejects(&enforced, "needs the request to send the call's key");
+    validate(&enforced.replace(
+        r#"body: {"$argument": "/payload"}"#,
+        r#"body: {payload: {"$argument": "/payload"}, key: {"$runx": "idempotency_key"}}"#,
+    ))
+    .expect("a write that sends its key may be enforced");
+}
+
+#[test]
+fn a_read_neither_claims_deduplication_nor_sends_a_key() {
+    assert_rejects(
+        &PLAIN_READ.replace(
+            "    result_fields: [item]",
+            "    guarantees: {provider_idempotency: enforced}\n    result_fields: [item]",
+        ),
+        "a read changes nothing for its provider to deduplicate",
+    );
+    assert_rejects(
+        &PLAIN_READ.replace(
+            "            url: \"https://api.example.com/item\"",
+            "            url: \"https://api.example.com/item\"\n            query: {key: {\"$runx\": \"idempotency_key\"}}",
+        ),
+        "a read has no idempotency key",
     );
 }

@@ -114,10 +114,6 @@ impl EphemeralValue {
         self.0.as_ref()
     }
 
-    pub(crate) fn as_value_mut(&mut self) -> Option<&mut JsonValue> {
-        self.0.as_mut()
-    }
-
     #[must_use]
     pub(crate) fn merged_with(&self, durable: &JsonValue) -> JsonValue {
         let mut merged = durable.clone();

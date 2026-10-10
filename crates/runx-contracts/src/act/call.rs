@@ -89,6 +89,11 @@ impl From<CallDecision> for DecisionChoice {
 }
 
 impl CallAct {
+    /// The fields an act states.
+    pub const FIELDS: &'static [&'static str] = &[
+        "form", "purpose", "reason", "target", "decision", "previous",
+    ];
+
     /// Read an act from its JSON form, refusing anything outside its shape.
     pub fn parse(value: &crate::JsonValue) -> Result<Self, String> {
         let act: Self = value
@@ -159,6 +164,29 @@ mod tests {
         assert_eq!(act.summary().as_str(), "Close the request");
         assert!(parse(serde_json::json!({"reason": "no purpose"})).is_err());
         assert!(parse(serde_json::json!({"purpose": "x", "legitimacy": "y"})).is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn fields_name_every_field_an_act_states() -> Result<(), String> {
+        let act = parse(serde_json::json!({
+            "form": "reply",
+            "purpose": "x",
+            "reason": "y",
+            "target": "github://a/b/issues/1",
+            "decision": "close",
+            "previous": format!("sha256:{}", "a".repeat(64)),
+        }))?;
+        let serde_json::Value::Object(stated) =
+            serde_json::to_value(&act).map_err(|error| error.to_string())?
+        else {
+            return Err("an act serializes as an object".to_owned());
+        };
+        let mut stated = stated.keys().map(String::as_str).collect::<Vec<_>>();
+        let mut fields = CallAct::FIELDS.to_vec();
+        stated.sort_unstable();
+        fields.sort_unstable();
+        assert_eq!(stated, fields);
         Ok(())
     }
 

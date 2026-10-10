@@ -1,0 +1,35 @@
+schema: runx.connector.v1
+id: apollo
+name: Apollo
+description: Inspect the selected Apollo API key without enriching contacts or consuming enrichment credits.
+auth:
+  credentials:
+    api_key:
+      kind: api_key
+      fields:
+        - {name: api_key, label: Apollo API key}
+      delivery: {env: APOLLO_API_KEY}
+      audience: [api.apollo.io]
+placements:
+  local:
+    auth: [credentials]
+  hosted: {auth: credential, credential: api_key}
+operations:
+  auth.inspect:
+    description: Inspect API health and whether the exact selected key authenticates; this does not prove account identity, enrichment permissions or credits.
+    verb: read
+    scopes: [auth.read]
+    credentials: [api_key]
+    target: {template: 'https://api.apollo.io/api/v1/auth/health'}
+    input_schema: {type: object, additionalProperties: false}
+    result_fields: [auth]
+    hosted: {}
+    implementation:
+      http:
+        allowed_hosts: [api.apollo.io]
+        auth: {api_key: {type: header, name: x-api-key, field: api_key}}
+        requests:
+          - id: health
+            method: GET
+            url: https://api.apollo.io/api/v1/auth/health
+            headers: {accept: application/json}

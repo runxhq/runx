@@ -86,7 +86,9 @@ fn exposes_one_frozen_deterministic_url_parser() -> Result<(), EngineError> {
                 "href": "https://example.com:8443/a?q=1#fragment",
                 "origin": "https://example.com:8443",
                 "protocol": "https:",
-                "hostname": "example.com"
+                "hostname": "example.com",
+                "username": "",
+                "password": ""
             }
         })
     );

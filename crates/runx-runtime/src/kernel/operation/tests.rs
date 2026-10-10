@@ -1186,7 +1186,7 @@ runners:
             .unwrap()
             .to_owned()
     };
-    assert_eq!(read("PROBE_KEY"), super::credentials::REDACTED);
+    assert_eq!(read("PROBE_KEY"), "[redacted-credential]");
     assert_eq!(read("OPERATOR_SECRET"), "");
 }
 
@@ -1310,7 +1310,7 @@ fn a_call_carries_the_effect_its_operation_declares_and_admissions_authority() {
     );
     let context = admission.context::<OperationAdmission>().unwrap();
     let sealed = context
-        .sealed_call(outcome.effects.clone())
+        .sealed_call(outcome.effects.clone(), None)
         .expect("sealed");
     let term = context.admitted.admission.execution_term.as_ref().unwrap();
     assert_eq!(sealed.term_id, term.term_id.as_str());
@@ -1443,4 +1443,19 @@ operations:
     )
     .expect_err("unresolved");
     assert!(error.contains("result array"), "{error}");
+
+    // A locator names something: one that renders empty does not render.
+    let bare = manifest("", "tracking_item", r#"{"$item": "/id"}"#);
+    let blank = JsonValue::from_serialize(&serde_json::json!({"items": [{"id": " "}]})).unwrap();
+    let error = render_effects(
+        &bare,
+        &effect_of(&bare),
+        false,
+        &TemplateInputs {
+            result: Some(&blank),
+            ..TemplateInputs::default()
+        },
+    )
+    .expect_err("empty");
+    assert!(error.contains("rendered empty"), "{error}");
 }

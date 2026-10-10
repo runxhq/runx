@@ -14508,38 +14508,7 @@ export const runxSchemaArtifacts = {
                     "tracking_item",
                     "change_request",
                     "repository",
-                    "signal",
-                    "run",
-                    "act",
-                    "receipt",
-                    "graph_receipt",
-                    "artifact",
-                    "verification",
-                    "harness",
-                    "host",
-                    "deployment",
-                    "surface",
-                    "target",
-                    "opportunity",
-                    "thesis_assessment",
-                    "selection",
-                    "skill_binding",
-                    "target_transition_entry",
-                    "selection_cycle",
-                    "decision",
-                    "reflection_entry",
-                    "feed_entry",
-                    "principal",
-                    "authority_proof",
-                    "scope_admission",
-                    "grant",
-                    "mandate",
-                    "credential",
-                    "webhook_delivery",
-                    "redaction_policy",
-                    "external_url",
-                    "connector_instance",
-                    "connector_operation"
+                    "external_url"
                   ],
                   "type": "string"
                 },
@@ -14569,11 +14538,6 @@ export const runxSchemaArtifacts = {
                     "exact",
                     "unavailable"
                   ],
-                  "type": "string"
-                },
-                "reconcile": {
-                  "maxLength": 100,
-                  "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$",
                   "type": "string"
                 }
               },
@@ -14633,6 +14597,30 @@ export const runxSchemaArtifacts = {
                                 },
                                 "required": [
                                   "type"
+                                ],
+                                "type": "object"
+                              },
+                              {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "field": {
+                                    "maxLength": 64,
+                                    "pattern": "^[a-z][a-z0-9_]{0,63}$",
+                                    "type": "string"
+                                  },
+                                  "name": {
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "type": {
+                                    "const": "header",
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "type",
+                                  "name",
+                                  "field"
                                 ],
                                 "type": "object"
                               },
@@ -15891,6 +15879,30 @@ export const runxSchemaArtifacts = {
                             {
                               "additionalProperties": false,
                               "properties": {
+                                "field": {
+                                  "maxLength": 64,
+                                  "pattern": "^[a-z][a-z0-9_]{0,63}$",
+                                  "type": "string"
+                                },
+                                "name": {
+                                  "minLength": 1,
+                                  "type": "string"
+                                },
+                                "type": {
+                                  "const": "header",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "type",
+                                "name",
+                                "field"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "additionalProperties": false,
+                              "properties": {
                                 "type": {
                                   "const": "oauth1",
                                   "type": "string"
@@ -15975,38 +15987,7 @@ export const runxSchemaArtifacts = {
                 "tracking_item",
                 "change_request",
                 "repository",
-                "signal",
-                "run",
-                "act",
-                "receipt",
-                "graph_receipt",
-                "artifact",
-                "verification",
-                "harness",
-                "host",
-                "deployment",
-                "surface",
-                "target",
-                "opportunity",
-                "thesis_assessment",
-                "selection",
-                "skill_binding",
-                "target_transition_entry",
-                "selection_cycle",
-                "decision",
-                "reflection_entry",
-                "feed_entry",
-                "principal",
-                "authority_proof",
-                "scope_admission",
-                "grant",
-                "mandate",
-                "credential",
-                "webhook_delivery",
-                "redaction_policy",
-                "external_url",
-                "connector_instance",
-                "connector_operation"
+                "external_url"
               ],
               "type": "string"
             },

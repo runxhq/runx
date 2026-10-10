@@ -1,6 +1,6 @@
 use std::collections::BTreeSet;
 
-use runx_contracts::{AuthorityTerm, Receipt, Reference};
+use runx_contracts::{AuthorityTerm, CriterionBinding, Receipt, Reference};
 use serde::{Deserialize, Serialize};
 
 use super::RuntimeReceiptSignaturePolicy;
@@ -38,6 +38,9 @@ pub struct ReceiptInspection {
     pub lineage_refs: Vec<String>,
     pub seal_reason_code: String,
     pub seal_summary: String,
+    /// The seal's criteria: how the step ended and the evidence of it,
+    /// whether or not the step made a governed call.
+    pub seal_criteria: Vec<ReceiptCriterionInspection>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -162,6 +165,7 @@ pub fn project_receipt_inspection_with_policy(
         lineage_refs: inspection_lineage_refs(receipt),
         seal_reason_code: receipt.seal.reason_code.to_string(),
         seal_summary: receipt.seal.summary.to_string(),
+        seal_criteria: criterion_inspections(&receipt.seal.criteria),
     }
 }
 
@@ -195,17 +199,20 @@ fn act_inspections(receipt: &Receipt) -> Vec<ReceiptActInspection> {
             source_refs: refs(&act.source_refs),
             target_refs: refs(&act.target_refs),
             artifact_refs: refs(&act.artifact_refs),
-            criterion_statuses: act
-                .criterion_bindings
-                .iter()
-                .map(|criterion| ReceiptCriterionInspection {
-                    criterion_id: criterion.criterion_id.to_string(),
-                    status: wire_label(&criterion.status),
-                    evidence_refs: refs(&criterion.evidence_refs),
-                    verification_refs: refs(&criterion.verification_refs),
-                })
-                .collect(),
+            criterion_statuses: criterion_inspections(&act.criterion_bindings),
             context_ref_present: act.context_ref.is_some(),
+        })
+        .collect()
+}
+
+fn criterion_inspections(criteria: &[CriterionBinding]) -> Vec<ReceiptCriterionInspection> {
+    criteria
+        .iter()
+        .map(|criterion| ReceiptCriterionInspection {
+            criterion_id: criterion.criterion_id.to_string(),
+            status: wire_label(&criterion.status),
+            evidence_refs: refs(&criterion.evidence_refs),
+            verification_refs: refs(&criterion.verification_refs),
         })
         .collect()
 }

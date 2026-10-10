@@ -277,17 +277,29 @@ fn load_plugin(root: &Path) -> Result<PluginConnectors, ConnectorRegistryError> 
     let official = official()?;
     let mut connectors = BTreeMap::new();
     let directory = root.join("connectors");
-    let Ok(entries) = std::fs::read_dir(&directory) else {
-        return Ok(PluginConnectors {
-            root: root.to_path_buf(),
-            connectors,
-        });
+    // A plugin without connectors/ has none; one whose connectors cannot be
+    // read is an error, never a plugin without connectors.
+    let uninspectable = |error: std::io::Error| ConnectorRegistryError::Uninspectable {
+        dir: directory.clone(),
+        message: error.to_string(),
     };
-    let mut paths = entries
-        .filter_map(Result::ok)
-        .map(|entry| entry.path().join("connector.yaml"))
-        .filter(|path| path.is_file())
-        .collect::<Vec<_>>();
+    let entries = match std::fs::read_dir(&directory) {
+        Ok(entries) => entries,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            return Ok(PluginConnectors {
+                root: root.to_path_buf(),
+                connectors,
+            });
+        }
+        Err(error) => return Err(uninspectable(error)),
+    };
+    let mut paths = Vec::new();
+    for entry in entries {
+        let path = entry.map_err(uninspectable)?.path().join("connector.yaml");
+        if path.try_exists().map_err(uninspectable)? {
+            paths.push(path);
+        }
+    }
     paths.sort();
     for path in paths {
         let invalid = |message: String| ConnectorRegistryError::InvalidManifest {
