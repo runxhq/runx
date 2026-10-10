@@ -2,7 +2,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-// Generates package-manager manifests (Homebrew, Scoop, winget, AUR) for a
+// Generates package-manager manifests for a
 // release from one input: the version plus the per-target release-archive
 // checksums. The GitHub Release is the hub; every manifest points at its
 // archives by URL + sha256. Run after the build job has produced archives and
@@ -21,6 +21,7 @@ interface Manifest {
   readonly tag: string; // e.g. cli-v0.6.0
   readonly homepage: string;
   readonly description: string;
+  readonly license: string;
   readonly artifacts: Record<string, Artifact>; // keyed by rust target triple
 }
 
@@ -46,6 +47,11 @@ for (const file of renderWinget(manifest)) {
   write(file.path, file.contents);
 }
 write("aur/PKGBUILD", renderPkgbuild(manifest));
+write("aur/.SRCINFO", renderAurSrcinfo(manifest));
+write("chocolatey/runx.nuspec", renderChocolateyNuspec(manifest));
+write("chocolatey/tools/chocolateyinstall.ps1", renderChocolateyInstall(manifest));
+write("chocolatey/tools/chocolateyuninstall.ps1", renderChocolateyUninstall());
+write("macports/Portfile", renderMacPorts(manifest));
 
 console.log(JSON.stringify({ status: "generated", version: manifest.version, files: written }, null, 2));
 
@@ -86,7 +92,7 @@ class Runx < Formula
   desc "${m.description}"
   homepage "${m.homepage}"
   version "${m.version}"
-  license "Apache-2.0"
+  license "${m.license}"
 
   on_macos do
     on_arm do
@@ -127,7 +133,7 @@ function renderScoop(m: Manifest): string {
     version: m.version,
     description: m.description,
     homepage: m.homepage,
-    license: "Apache-2.0",
+    license: m.license,
     architecture: {
       "64bit": {
         url: archiveUrl(m, TARGETS.winX64),
@@ -173,7 +179,7 @@ PackageVersion: ${m.version}
 PackageLocale: en-US
 PackageName: runx
 Publisher: runxhq
-License: Apache-2.0
+License: ${m.license}
 ShortDescription: ${m.description}
 PackageUrl: ${m.homepage}
 ManifestType: defaultLocale
@@ -203,17 +209,18 @@ ManifestVersion: ${manifestVersion}
 }
 
 function renderPkgbuild(m: Manifest): string {
-  // -bin style PKGBUILD: install the prebuilt musl binary.
+  // AUR's runx-bin belongs to an unrelated project. Keep the package identity
+  // unambiguous while installing the released runx binary.
   return `# Maintainer: runxhq <dev@runx.ai>
-pkgname=runx-bin
+pkgname=runxhq-bin
 pkgver=${m.version}
 pkgrel=1
 pkgdesc="${m.description}"
 arch=('x86_64' 'aarch64')
 url="${m.homepage}"
-license=('Apache-2.0')
-provides=('runx')
-conflicts=('runx')
+license=('${m.license}')
+provides=('runxhq')
+conflicts=('runx' 'runx-bin')
 source_x86_64=("${archiveUrl(m, TARGETS.linuxX64)}")
 source_aarch64=("${archiveUrl(m, TARGETS.linuxArm64)}")
 sha256sums_x86_64=('${artifact(m, TARGETS.linuxX64).sha256}')
@@ -229,6 +236,119 @@ package() {
   install -Dm755 "runx-\${pkgver}-\${target}/runx-js-worker" "$pkgdir/usr/bin/runx-js-worker"
 }
 `;
+}
+
+function renderAurSrcinfo(m: Manifest): string {
+  const linuxX64 = TARGETS.linuxX64;
+  const linuxArm64 = TARGETS.linuxArm64;
+  return `pkgbase = runxhq-bin
+	pkgdesc = ${m.description}
+	pkgver = ${m.version}
+	pkgrel = 1
+	url = ${m.homepage}
+	arch = x86_64
+	arch = aarch64
+	license = ${m.license}
+	provides = runxhq
+	conflicts = runx
+	conflicts = runx-bin
+	source_x86_64 = ${archiveUrl(m, linuxX64)}
+	sha256sums_x86_64 = ${artifact(m, linuxX64).sha256}
+	source_aarch64 = ${archiveUrl(m, linuxArm64)}
+	sha256sums_aarch64 = ${artifact(m, linuxArm64).sha256}
+
+pkgname = runxhq-bin
+`;
+}
+
+function renderChocolateyNuspec(m: Manifest): string {
+  return `<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
+  <metadata>
+    <id>runx</id>
+    <version>${m.version}</version>
+    <title>Runx</title>
+    <authors>runxhq</authors>
+    <owners>runxhq</owners>
+    <projectUrl>${xmlEscape(m.homepage)}</projectUrl>
+    <packageSourceUrl>https://github.com/${xmlEscape(m.repo)}</packageSourceUrl>
+    <licenseUrl>https://github.com/${xmlEscape(m.repo)}/blob/main/LICENSE</licenseUrl>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <description>${xmlEscape(m.description)}</description>
+    <tags>runx agent skills cli governed runtime</tags>
+  </metadata>
+  <files>
+    <file src="tools/**" target="tools" />
+  </files>
+</package>
+`;
+}
+
+function renderChocolateyInstall(m: Manifest): string {
+  const target = TARGETS.winX64;
+  return `$ErrorActionPreference = 'Stop'
+$toolsDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
+Install-ChocolateyZipPackage -PackageName 'runx' -Url '${archiveUrl(m, target)}' -UnzipLocation $toolsDir -Checksum '${artifact(m, target).sha256}' -ChecksumType 'sha256'
+$binDir = Join-Path $toolsDir '${archiveStem(m, target)}'
+$runxBin = Join-Path $binDir 'runx.exe'
+$workerBin = Join-Path $binDir 'runx-js-worker.exe'
+if (-not (Test-Path $runxBin) -or -not (Test-Path $workerBin)) {
+  throw 'The verified Runx archive must contain runx.exe and runx-js-worker.exe together.'
+}
+New-Item -ItemType File -Path (Join-Path $binDir 'runx.exe.ignore') -Force | Out-Null
+New-Item -ItemType File -Path (Join-Path $binDir 'runx-js-worker.exe.ignore') -Force | Out-Null
+Install-BinFile -Name 'runx' -Path $runxBin
+`;
+}
+
+function renderChocolateyUninstall(): string {
+  return `Uninstall-BinFile -Name 'runx'
+`;
+}
+
+function renderMacPorts(m: Manifest): string {
+  const arm = TARGETS.darwinArm64;
+  const intel = TARGETS.darwinX64;
+  return `PortSystem 1.0
+
+name                runx
+version             ${m.version}
+categories          sysutils
+platforms           darwin
+supported_archs     arm64 x86_64
+universal_variant   no
+license             ${m.license}
+maintainers         {runx.ai:dev}
+description         {${m.description}}
+long_description    {${m.description}}
+homepage            ${m.homepage}
+master_sites        https://github.com/${m.repo}/releases/download/${m.tag}/
+
+if {$build_arch eq "arm64"} {
+    distfiles       ${artifact(m, arm).file}
+    checksums       sha256 ${artifact(m, arm).sha256}
+    worksrcdir      ${archiveStem(m, arm)}
+} elseif {$build_arch eq "x86_64"} {
+    distfiles       ${artifact(m, intel).file}
+    checksums       sha256 ${artifact(m, intel).sha256}
+    worksrcdir      ${archiveStem(m, intel)}
+} else {
+    known_fail      yes
+}
+
+use_configure       no
+build               {}
+
+destroot {
+    xinstall -m 755 -d $destroot$prefix/bin
+    xinstall -m 755 $worksrcpath/runx $destroot$prefix/bin/runx
+    xinstall -m 755 $worksrcpath/runx-js-worker $destroot$prefix/bin/runx-js-worker
+}
+`;
+}
+
+function xmlEscape(value: string): string {
+  return value.replace(/&/gu, "&amp;").replace(/</gu, "&lt;").replace(/>/gu, "&gt;").replace(/"/gu, "&quot;");
 }
 
 function write(relativePath: string, contents: string): void {

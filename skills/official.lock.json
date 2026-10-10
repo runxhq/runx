@@ -400,8 +400,8 @@
   },
   {
     "skill_id": "runx/reddit",
-    "version": "sha-f7c7e6198bd8",
-    "digest": "0b64567ead780b5a4daf870d1758bf07966cc72b718a4e4dda429b86267feddb",
+    "version": "sha-ebc495fed297",
+    "digest": "1b6358a781fb720860aab11b123b439a25cd6dc65d137682600df1f59843851a",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
   },

@@ -16,6 +16,9 @@ const versions = new Map(
 
 for (const { directory, manifest: sourceManifest } of packages) {
   if (sourceManifest.private === true) continue;
+  if (sourceManifest.homepage !== "https://runx.ai") {
+    throw new Error(`${path.basename(directory)} homepage must be https://runx.ai`);
+  }
   const manifest = rewriteManifestForPublish(sourceManifest, versions);
   for (const sectionName of dependencySections) {
     const section = manifest[sectionName];

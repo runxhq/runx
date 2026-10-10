@@ -135,10 +135,12 @@ mod tests {
             local_artifacts: crate::tool_catalogs::native::fixture_local_artifacts(),
             effects: &effects,
         };
-        assert!(execute(&invocation)
-            .expect_err("assistant mutation must stop before HTTP admission")
-            .to_string()
-            .contains("require provider.mutate"));
+        assert!(
+            execute(&invocation)
+                .expect_err("assistant mutation must stop before HTTP admission")
+                .to_string()
+                .contains("require provider.mutate")
+        );
     }
 
     #[test]
