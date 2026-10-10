@@ -8,4 +8,4 @@ steps:
   - id: second
     skill: ../../skills/echo
     inputs:
-      message: $steps.first.result.data.message
+      message: $steps.first.result.message

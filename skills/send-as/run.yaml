@@ -1,5 +1,5 @@
 skill: send-as
-version: "0.3.4"
+version: "0.3.5"
 
 catalog:
   kind: graph
@@ -80,24 +80,24 @@ runners:
 
       - id: apply
         when:
-          value: $steps.plan.send_plan.data.decision
+          value: $steps.plan.send_plan.decision
           equals: ready
         skill: .
         runner: apply
         inputs:
           connector: $input.connector
-          send_plan: $steps.plan.send_plan.data
+          send_plan: $steps.plan.send_plan
 
       - id: finalize
         when:
-          value: $steps.plan.send_plan.data.decision
+          value: $steps.plan.send_plan.decision
           equals: ready
         skill: .
         runner: verify
         inputs:
           connector: $input.connector
-          send_plan: $steps.plan.send_plan.data
-          apply_result: $steps.apply.provider_operation.data
+          send_plan: $steps.plan.send_plan
+          apply_result: $steps.apply.provider_operation
 
   plan:
     inputs:
@@ -181,7 +181,7 @@ runners:
       - id: bind
         inputs:
           delivery_draft: $steps.prepare.delivery_draft
-          digest_result: $steps.digest.digest_result.data
+          digest_result: $steps.digest.digest_result
         tool: { module: send-as.mjs, export: bindDelivery }
         outputs:
           delivery_request: object
@@ -230,7 +230,7 @@ runners:
           send_plan: $input.send_plan
           apply_result: $input.apply_result
           connector: $input.connector
-          readback_result: $steps.readback.provider_operation.data
+          readback_result: $steps.readback.provider_operation
         tool: { module: send-as.mjs, export: finalizeSend }
         outputs:
           send_result: object

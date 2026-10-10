@@ -1,5 +1,5 @@
 skill: github-sync
-version: "0.5.6"
+version: "0.5.7"
 
 catalog:
   kind: skill
@@ -345,15 +345,15 @@ runners:
 
       - id: pull
         when:
-          value: $steps.plan.sync_plan.data.decision
+          value: $steps.plan.sync_plan.decision
           equals: ready
         operation: github
-        operation_name: $steps.plan.sync_plan.data.provider_operation
-        input: $steps.plan.sync_plan.data.provider_input
+        operation_name: $steps.plan.sync_plan.provider_operation
+        input: $steps.plan.sync_plan.provider_input
 
       - id: push
         when:
-          value: $steps.plan.sync_plan.data.decision
+          value: $steps.plan.sync_plan.decision
           equals: ready_for_execution
         skill: .
         runner: push
@@ -415,11 +415,11 @@ runners:
 
       - id: pull
         when:
-          value: $steps.plan.sync_plan.data.decision
+          value: $steps.plan.sync_plan.decision
           equals: ready
         operation: github
-        operation_name: $steps.plan.sync_plan.data.provider_operation
-        input: $steps.plan.sync_plan.data.provider_input
+        operation_name: $steps.plan.sync_plan.provider_operation
+        input: $steps.plan.sync_plan.provider_input
 
   push:
     inputs:
@@ -455,12 +455,12 @@ runners:
 
       - id: apply
         when:
-          value: $steps.plan.sync_plan.data.decision
+          value: $steps.plan.sync_plan.decision
           equals: ready_for_execution
         operation: github
         idempotency_key: $input.idempotency_key
-        operation_name: $steps.plan.sync_plan.data.provider_operation
-        input: $steps.plan.sync_plan.data.provider_input
+        operation_name: $steps.plan.sync_plan.provider_operation
+        input: $steps.plan.sync_plan.provider_input
 
   plan_and_append_cursor:
     inputs:
@@ -532,7 +532,7 @@ runners:
           aggregate_id: $input.aggregate_id
           expected_version: $input.expected_version
           idempotency_key: $input.idempotency_key
-          event: $steps.plan.sync_plan.data
+          event: $steps.plan.sync_plan
 
       - id: readback
         skill: ../data-store

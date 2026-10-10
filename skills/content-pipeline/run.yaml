@@ -1,5 +1,5 @@
 skill: content-pipeline
-version: "0.3.5"
+version: "0.3.6"
 
 catalog:
   kind: graph
@@ -232,7 +232,7 @@ runners:
 
       - id: draft-brief
         when:
-          value: $steps.research-topic.research_packet.data.decision
+          value: $steps.research-topic.research_packet.decision
           equals: ready
         skill: ../ghostwrite
         scopes:
@@ -242,21 +242,21 @@ runners:
           audience: $input.audience
           channel: $input.channel
           voice_guide: Write for the declared audience and channel, preserve evidence bindings, and separate verified claims from inference.
-          evidence_pack: $steps.research-topic.research_packet.data
+          evidence_pack: $steps.research-topic.research_packet
 
       - id: package-content
         when:
-          value: $steps.research-topic.research_packet.data.decision
+          value: $steps.research-topic.research_packet.decision
           equals: ready
         skill: ../ghostwrite
         runner: package
         inputs:
           channel: $input.channel
-          draft: $steps.draft-brief.content_draft_packet.data
+          draft: $steps.draft-brief.content_draft_packet
 
       - id: prepare-handoff
         when:
-          value: $steps.research-topic.research_packet.data.decision
+          value: $steps.research-topic.research_packet.decision
           equals: ready
         skill: ../ghostwrite
         runner: handoff
@@ -265,4 +265,4 @@ runners:
           boundary_kind: $input.boundary_kind
           target: $input.publication_target
           approval: $input.approval_context
-          packet: $steps.package-content.content_publish_packet.data
+          packet: $steps.package-content.content_publish_packet

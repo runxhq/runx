@@ -1,5 +1,5 @@
 skill: lead-router
-version: "0.3.3"
+version: "0.3.4"
 
 catalog:
   kind: graph
@@ -173,12 +173,12 @@ runners:
 
       - id: hold
         when:
-          value: $steps.admit.route_context.data.path
+          value: $steps.admit.route_context.path
           equals: hold
         inputs:
           principal: $input.principal
-          route_context: $steps.admit.route_context.data
-          enrichment_digest: $steps.digest.digest_result.data.digest
+          route_context: $steps.admit.route_context
+          enrichment_digest: $steps.digest.digest_result.digest
           objective: $input.objective
           provider_context: $input.provider_context
         tool: { module: lead-router.mjs, export: finalizeRoute }
@@ -254,14 +254,14 @@ runners:
 
       - id: qualify
         when:
-          value: $steps.admit.route_context.data.path
+          value: $steps.admit.route_context.path
           equals: qualify
         agent: { role: growth, task: lead-route }
         outputs:
           route_draft: object
         inputs:
           objective: $input.objective
-          route_context: $steps.admit.route_context.data
+          route_context: $steps.admit.route_context
           enrichment_packet: $input.enrichment_packet
           principal: $input.principal
           provider_context: $input.provider_context
@@ -271,15 +271,15 @@ runners:
 
       - id: finalize
         when:
-          value: $steps.admit.route_context.data.path
+          value: $steps.admit.route_context.path
           equals: qualify
         inputs:
           principal: $input.principal
           objective: $input.objective
           provider_context: $input.provider_context
-          route_context: $steps.admit.route_context.data
-          route_draft: $steps.qualify.route_draft.data
-          enrichment_digest: $steps.digest.digest_result.data.digest
+          route_context: $steps.admit.route_context
+          route_draft: $steps.qualify.route_draft
+          enrichment_digest: $steps.digest.digest_result.digest
         tool: { module: lead-router.mjs, export: finalizeRoute }
         outputs:
           lead_route_packet: object

@@ -1,5 +1,5 @@
 skill: slack
-version: "0.2.10"
+version: "0.2.11"
 
 catalog:
   kind: graph
@@ -53,7 +53,7 @@ runners:
           request_digest: $input.request_digest
           nonce: $input.nonce
           authorized_actor_ref: $input.authorized_actor_ref
-          provider_operation: $steps.thread.provider_operation.data
+          provider_operation: $steps.thread.provider_operation
         tool: { module: assistant-source.mjs, export: decideAssistantRequest }
         outputs: { decision_observation: object }
         artifacts:
@@ -78,7 +78,7 @@ runners:
       - id: finish
         inputs:
           page_limit: $input.page_limit
-          provider_operation: $steps.search.provider_operation.data
+          provider_operation: $steps.search.provider_operation
         tool: { module: assistant-source.mjs, export: finishAssistantScan }
         outputs: { assistant_page: object }
         artifacts:
@@ -128,7 +128,7 @@ runners:
           source_digest: "$input.source_digest"
           thread_locator: "$input.thread_locator"
           action: "$input.action"
-          provider_operation: $steps.thread.provider_operation.data
+          provider_operation: $steps.thread.provider_operation
         tool: { module: assistant-source.mjs, export: finishAssistantHydrate }
         outputs: { assistant_context: object }
         artifacts:
@@ -300,7 +300,7 @@ runners:
             ref: $input.thread_locator
             requires_reconfirmation: false
           operator_context: $input.operator_context
-          content_ref: $steps.digest.digest_result.data
+          content_ref: $steps.digest.digest_result
 
   deliver_reply:
     inputs:
@@ -372,16 +372,16 @@ runners:
       - id: bind-content
         tool: data.compare
         when:
-          value: $steps.bind-plan.comparison.data.equal
+          value: $steps.bind-plan.comparison.equal
           equals: true
         inputs:
           expected: $input.send_plan.content.digest
-          actual: $steps.digest.digest_result.data.digest
+          actual: $steps.digest.digest_result.digest
       - id: deliver
         operation: slack/thread.reply
         idempotency_key: $input.idempotency_key
         when:
-          value: $steps.bind-content.comparison.data.equal
+          value: $steps.bind-content.comparison.equal
           equals: true
         approval:
           reason: Approve posting this exact digest-bound Slack thread reply.
@@ -395,18 +395,18 @@ runners:
           text: $input.text
       - id: prepare-readback
         when:
-          value: $steps.bind-content.comparison.data.equal
+          value: $steps.bind-content.comparison.equal
           equals: true
         inputs:
           text: $input.text
-          delivery: $steps.deliver.provider_operation.data
+          delivery: $steps.deliver.provider_operation
         tool: { module: reply-readback.mjs, export: prepareReplyReadback }
         outputs: { read_request: object }
       - id: readback
         when:
-          value: $steps.bind-content.comparison.data.equal
+          value: $steps.bind-content.comparison.equal
           equals: true
         operation: slack/thread.reply.read
         result_fields: [message_locator, conversation_locator, thread_locator, content_digest, occurred_at]
-        expected_result: $steps.deliver.provider_operation.data.result
+        expected_result: $steps.deliver.provider_operation.result
         input: $steps.prepare-readback.read_request

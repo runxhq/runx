@@ -14,7 +14,7 @@ steps:
   - id: reserve
     skill: ../../skills/x402-pay-negative-quote-drift-reserve
     inputs:
-      payment_quote_packet: $steps.quote.payment_quote_packet.data
+      payment_quote_packet: $steps.quote.payment_quote_packet
   - id: approve-spend
     ask: { gate: spend-approval, reason: Approve quote-drift payment fixture., type: payment }
     inputs:
@@ -25,11 +25,11 @@ steps:
     scopes:
       - payment:spend
     inputs:
-      reserved_payment_authority: $steps.reserve.payment_reservation_packet.data.reserved_payment_authority
-      spend_capability_ref: $steps.reserve.payment_reservation_packet.data.spend_capability_ref
-      idempotency: $steps.reserve.payment_reservation_packet.data.idempotency
+      reserved_payment_authority: $steps.reserve.payment_reservation_packet.reserved_payment_authority
+      spend_capability_ref: $steps.reserve.payment_reservation_packet.spend_capability_ref
+      idempotency: $steps.reserve.payment_reservation_packet.idempotency
 policy:
   guards:
     - step: fulfill
-      value: $steps.approve-spend.approval_decision.data.approved
+      value: $steps.approve-spend.approval_decision.approved
       equals: true

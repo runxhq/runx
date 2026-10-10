@@ -1,5 +1,5 @@
 skill: twitter
-version: "0.5.1"
+version: "0.5.2"
 catalog:
   kind: skill
   audience: public
@@ -68,7 +68,7 @@ runners:
           equals: live
         inputs:
           read_plan: $steps.prepare.twitter_read_plan
-          provider_operation: $steps.request.provider_operation.data
+          provider_operation: $steps.request.provider_operation
         tool: { module: twitter-read.mjs, export: normalizeRead }
         outputs:
           twitter_read_result: object
@@ -85,7 +85,7 @@ runners:
           equals: live
         inputs:
           read_result: $steps.normalize.twitter_read_result
-          digest_result: $steps.digest.digest_result.data
+          digest_result: $steps.digest.digest_result
         tool: { module: twitter-read.mjs, export: finalizeRead }
         outputs:
           twitter_evidence:
@@ -230,7 +230,7 @@ runners:
       - id: finalize
         inputs:
           read_result: $steps.normalize.twitter_read_result
-          digest_result: $steps.digest.digest_result.data
+          digest_result: $steps.digest.digest_result
         tool: { module: twitter-read.mjs, export: finalizeRead }
         outputs:
           twitter_evidence: object
@@ -377,7 +377,7 @@ runners:
       - id: digest
         tool: data.digest
         inputs:
-          value: $steps.draft.twitter_plan.data
+          value: $steps.draft.twitter_plan
   select:
     inputs:
       objective:
@@ -497,7 +497,7 @@ runners:
           predicate: "$input.predicate"
           max_acts: "$input.max_acts"
           selection_plan: $steps.prepare.twitter_selection_plan
-          file_read_bundle: $steps.read-users.file_read_bundle.data
+          file_read_bundle: $steps.read-users.file_read_bundle
           target: $input.target
           archive_file: $input.archive_file
           archive_base: $input.archive_base
@@ -522,7 +522,7 @@ runners:
           equals: posts
         inputs:
           twitter_selection_draft: $steps.select-posts.twitter_selection_draft
-          digest_result: $steps.digest-posts.digest_result.data
+          digest_result: $steps.digest-posts.digest_result
         tool: { module: twitter-selection.mjs, export: bindSelectionDigest }
         outputs:
           twitter_selection:
@@ -597,7 +597,7 @@ runners:
           equals: users
         inputs:
           twitter_selection_draft: $steps.select-users.twitter_selection_draft
-          digest_result: $steps.digest-users.digest_result.data
+          digest_result: $steps.digest-users.digest_result
         tool: { module: twitter-selection.mjs, export: bindSelectionDigest }
         outputs:
           twitter_selection: object
@@ -722,8 +722,8 @@ runners:
           expected_version: "$input.expected_version"
           idempotency_key: "$input.idempotency_key"
           max_acts: "$input.max_acts"
-          digest_result: $steps.digest.digest_result.data
-          execution_ledger: $steps.ledger.data_operation_result.data
+          digest_result: $steps.digest.digest_result
+          execution_ledger: $steps.ledger.data_operation_result
         tool: { module: twitter-execution.mjs, export: prepareExecution }
         outputs:
           twitter_execution_plan: object
@@ -740,7 +740,7 @@ runners:
           equals: ready
         inputs:
           execution_plan: $steps.prepare.twitter_execution_plan
-          account: $steps.self.provider_operation.data.result.account
+          account: $steps.self.provider_operation.result.account
         tool: { module: twitter-execution.mjs, export: bindExecution }
         outputs:
           twitter_call: object
@@ -759,7 +759,7 @@ runners:
           equals: ready
         inputs:
           execution_plan: $steps.prepare.twitter_execution_plan
-          provider_operation: $steps.request.provider_operation.data
+          provider_operation: $steps.request.provider_operation
           account_id: $steps.bind.twitter_call.account_id
         tool: { module: twitter-execution-result.mjs, export: finalizeExecution }
         outputs:
@@ -869,4 +869,4 @@ runners:
           aggregate_id: $steps.prepare.twitter_execution_plan.plan_digest
           expected_version: $steps.prepare.twitter_execution_plan.expected_version
           idempotency_key: $steps.prepare.twitter_execution_plan.idempotency_key
-          event: $steps.apply.twitter_execution.data.ledger_delta
+          event: $steps.apply.twitter_execution.ledger_delta

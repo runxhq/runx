@@ -1,5 +1,5 @@
 skill: vault-unseal
-version: "0.4.4"
+version: "0.4.5"
 
 catalog:
   kind: skill
@@ -146,7 +146,7 @@ runners:
 
       - id: issue-handle
         when:
-          value: $steps.plan.unseal_plan.data.decision
+          value: $steps.plan.unseal_plan.decision
           equals: ready_for_approval
         operation: vault/secret.unseal
         idempotency_key: $input.idempotency_key
@@ -163,9 +163,9 @@ runners:
 
       - id: readback
         when:
-          value: $steps.plan.unseal_plan.data.decision
+          value: $steps.plan.unseal_plan.decision
           equals: ready_for_approval
         operation: vault/handle.read
         result_fields: [handle_ref, expires_at, status]
-        expected_result: $steps.issue-handle.provider_operation.data.result
-        input: $steps.issue-handle.provider_operation.data.result
+        expected_result: $steps.issue-handle.provider_operation.result
+        input: $steps.issue-handle.provider_operation.result

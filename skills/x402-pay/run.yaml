@@ -1,5 +1,5 @@
 skill: x402-pay
-version: "0.9.2"
+version: "0.9.3"
 catalog: { kind: graph, audience: operator, visibility: public, role: branded, canonical_skill: runx/spend, provider: x402, runtime_path: hosted, execution: execute, completion: provider_readback, requires_adapter: true, approval: required, category: payments }
 input_definitions:
   marketplace_offer:
@@ -104,10 +104,10 @@ runners:
         runner: readback
         inputs:
           resource_url: $input.payment_signal.resource.url
-          payment_ref: $steps.settle.provider_operation.data.result.payment_ref
+          payment_ref: $steps.settle.provider_operation.result.payment_ref
       - id: verify
         inputs:
-          readback: $steps.readback.provider_operation.data.result
+          readback: $steps.readback.provider_operation.result
         tool: { module: readback.mjs, export: requireCompleteReadback, timeout_seconds: 5 }
         outputs: { verified: object }
 

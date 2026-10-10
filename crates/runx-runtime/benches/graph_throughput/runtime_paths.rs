@@ -561,7 +561,7 @@ steps:
     tool: { module: domain.mjs, export: project }
     inputs:
       marker: baseline
-      digest_result: $steps.digest.digest_result.data
+      digest_result: $steps.digest.digest_result
     outputs:
       projection: object
 "#;

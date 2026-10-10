@@ -81,7 +81,7 @@ runners:
           triage: $input.triage
           disposition: $input.disposition
           action: $input.action
-          action_id_digest: $steps.digest-action-id.digest_result.data.digest
+          action_id_digest: $steps.digest-action-id.digest_result.digest
         tool: { module: plan.mjs, export: prepare }
         outputs:
           transition_draft: object
@@ -95,7 +95,7 @@ runners:
         inputs:
           transition_draft: $steps.prepare.transition_draft
           idempotency_binding: $steps.prepare.idempotency_binding
-          idempotency_digest: $steps.digest-idempotency.digest_result.data.digest
+          idempotency_digest: $steps.digest-idempotency.digest_result.digest
         tool: { module: plan.mjs, export: finalize }
         outputs:
           transition: object

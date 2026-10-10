@@ -1,5 +1,5 @@
 skill: organic-growth
-version: "0.1.4"
+version: "0.1.5"
 
 catalog:
   kind: graph
@@ -292,7 +292,7 @@ runners:
 
       - id: reject
         when:
-          value: $steps.admit.growth_context.data.decision
+          value: $steps.admit.growth_context.decision
           equals: needs_more_evidence
         tool: evidence.verify_artifact
         scopes:
@@ -326,21 +326,21 @@ runners:
             - { target_path: source_evidence, source_path: sources }
             - { target_path: analysis_scope, source_path: analysis_scope }
             - { target_path: input_caveats, source_path: caveats }
-          source_digests: $steps.admit.growth_context.data.source_digests
-          source_records: $steps.admit.growth_context.data.source_records
-          fallback_source: $steps.admit.growth_context.data
+          source_digests: $steps.admit.growth_context.source_digests
+          source_records: $steps.admit.growth_context.source_records
+          fallback_source: $steps.admit.growth_context
         artifacts:
           named_emits: { organic_growth_packet: verified_artifact }
 
       - id: analyze
         when:
-          value: $steps.admit.growth_context.data.decision
+          value: $steps.admit.growth_context.decision
           equals: ready
         agent: { role: growth, task: organic-growth-analyze }
         outputs:
           growth_candidate: object
         inputs:
-          growth_context: $steps.admit.growth_context.data
+          growth_context: $steps.admit.growth_context
           objective: $input.objective
           site_url: $input.site_url
           search_evidence: $input.search_evidence
@@ -353,7 +353,7 @@ runners:
 
       - id: finalize
         when:
-          value: $steps.admit.growth_context.data.decision
+          value: $steps.admit.growth_context.decision
           equals: ready
         tool: evidence.verify_artifact
         scopes:
@@ -397,13 +397,13 @@ runners:
             - { target_path: source_evidence, source_path: sources }
             - { target_path: analysis_scope, source_path: analysis_scope }
             - { target_path: input_caveats, source_path: caveats }
-          candidate: $steps.analyze.growth_candidate.data
-          claim_bindings: $steps.analyze.growth_candidate.data.claims
-          reference_bindings: $steps.analyze.growth_candidate.data.recommended_actions
-          source_digests: $steps.admit.growth_context.data.source_digests
-          source_records: $steps.admit.growth_context.data.source_records
-          identity_source: $steps.admit.growth_context.data
-          authoritative_source: $steps.admit.growth_context.data
-          fallback_source: $steps.admit.growth_context.data
+          candidate: $steps.analyze.growth_candidate
+          claim_bindings: $steps.analyze.growth_candidate.claims
+          reference_bindings: $steps.analyze.growth_candidate.recommended_actions
+          source_digests: $steps.admit.growth_context.source_digests
+          source_records: $steps.admit.growth_context.source_records
+          identity_source: $steps.admit.growth_context
+          authoritative_source: $steps.admit.growth_context
+          fallback_source: $steps.admit.growth_context
         artifacts:
           named_emits: { organic_growth_packet: verified_artifact }

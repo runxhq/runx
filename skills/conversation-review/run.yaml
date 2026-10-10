@@ -1,5 +1,5 @@
 skill: conversation-review
-version: "0.1.2"
+version: "0.1.3"
 
 catalog:
   kind: graph
@@ -218,7 +218,7 @@ runners:
           body: $input.body
           thread: $input.thread
           source_complete: $input.source_complete
-          draft: $steps.judge.draft.data
+          draft: $steps.judge.draft
         tool: { module: conversation-review.mjs, export: finalizeConversation }
         outputs:
           conversation_packet:
@@ -287,7 +287,7 @@ runners:
       - id: finish
         inputs:
           handoff_routes: $input.handoff_routes
-          conversation_packet: $steps.review.conversation_packet.data
+          conversation_packet: $steps.review.conversation_packet
         tool: { module: conversation-review.mjs, export: finishWork }
         outputs: { work_result: object }
         artifacts:

@@ -1,5 +1,5 @@
 skill: operator-inbox
-version: "0.3.1"
+version: "0.3.2"
 
 catalog:
   kind: graph
@@ -49,8 +49,8 @@ runners:
           aggregate_id: "$input.scan.query_digest"
           expected_version: "$input.expected_version"
           observed_at: "$input.observed_at"
-          idempotency_key: $steps.plan.transition.data.idempotency_key
-          event: $steps.plan.transition.data.event
+          idempotency_key: $steps.plan.transition.idempotency_key
+          event: $steps.plan.transition.event
 
   record_action_observation:
     inputs:
@@ -91,9 +91,9 @@ runners:
           resource: operator_inbox_actions
           expected_version: "$input.expected_version"
           observed_at: "$input.message.occurred_at"
-          aggregate_id: $steps.plan.transition.data.event.payload.action.action_id
-          idempotency_key: $steps.plan.transition.data.idempotency_key
-          event: $steps.plan.transition.data.event
+          aggregate_id: $steps.plan.transition.event.payload.action.action_id
+          idempotency_key: $steps.plan.transition.idempotency_key
+          event: $steps.plan.transition.event
 
   record_disposition:
     inputs:
@@ -130,9 +130,9 @@ runners:
           resource: operator_inbox_actions
           expected_version: "$input.expected_version"
           observed_at: "$input.observed_at"
-          aggregate_id: $steps.plan.transition.data.event.payload.action.action_id
-          idempotency_key: $steps.plan.transition.data.idempotency_key
-          event: $steps.plan.transition.data.event
+          aggregate_id: $steps.plan.transition.event.payload.action.action_id
+          idempotency_key: $steps.plan.transition.idempotency_key
+          event: $steps.plan.transition.event
 
   import_action:
     inputs:
@@ -165,9 +165,9 @@ runners:
           resource: operator_inbox_actions
           expected_version: "$input.expected_version"
           observed_at: "$input.action.latest_message.occurred_at"
-          aggregate_id: $steps.plan.transition.data.event.payload.action.action_id
-          idempotency_key: $steps.plan.transition.data.idempotency_key
-          event: $steps.plan.transition.data.event
+          aggregate_id: $steps.plan.transition.event.payload.action.action_id
+          idempotency_key: $steps.plan.transition.idempotency_key
+          event: $steps.plan.transition.event
 
   read_action:
     inputs:

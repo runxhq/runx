@@ -799,11 +799,11 @@ pub(super) fn enforce_guards(
 }
 
 /// The step whose recorded approval decision `operand` reads, when it reads
-/// one: `$steps.<ask>.approval_decision.data.approved`.
+/// one: `$steps.<ask>.approval_decision.approved`.
 fn approval_decision_of(operand: &Operand) -> Option<&str> {
     match operand {
         Operand::Reference(Source::Step { step, path })
-            if path == &["approval_decision", "data", "approved"] =>
+            if path == &["approval_decision", "approved"] =>
         {
             Some(step)
         }
@@ -893,7 +893,10 @@ pub(super) fn operand_value<'a>(
         Operand::Reference(Source::Step { step, path }) => {
             let run = runs.iter().rev().find(|run| run.step_id == *step)?;
             let (first, rest) = path.split_first()?;
-            crate::execution::graph::value_at(run.contract.get(first)?, rest)
+            crate::execution::graph::value_at(
+                crate::output_contract::enveloped_value(run.contract.get(first)?),
+                rest,
+            )
         }
         // The run's input is bound before the graph runs.
         Operand::Reference(Source::Input { .. }) => None,

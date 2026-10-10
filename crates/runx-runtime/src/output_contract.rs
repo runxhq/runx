@@ -124,6 +124,18 @@ fn data_envelope(value: JsonValue) -> JsonValue {
     }
 }
 
+/// The value an output holds, read through the envelope `data_envelope`
+/// wrapped it in. References address values, never envelopes.
+#[must_use]
+pub(crate) fn enveloped_value(value: &JsonValue) -> &JsonValue {
+    match value {
+        JsonValue::Object(object) if is_data_envelope(object) => {
+            object.get("data").unwrap_or(value)
+        }
+        other => other,
+    }
+}
+
 fn is_data_envelope(object: &JsonObject) -> bool {
     object.contains_key("data")
         && (object.len() == 1

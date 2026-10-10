@@ -214,13 +214,21 @@ pub(crate) fn resolve_output_path(
     outputs: &JsonObject,
     path: &[String],
 ) -> Result<JsonValue, ContextPathBreak> {
+    use crate::output_contract::enveloped_value;
+    // A step's result is the values it declares; a reference reads through
+    // the envelope each output is stored in.
     let Some((first, rest)) = path.split_first() else {
-        return Ok(JsonValue::Object(outputs.clone()));
+        return Ok(JsonValue::Object(
+            outputs
+                .iter()
+                .map(|(name, value)| (name.clone(), enveloped_value(value).clone()))
+                .collect(),
+        ));
     };
-    let mut value = outputs.get(first).ok_or_else(|| ContextPathBreak {
+    let mut value = enveloped_value(outputs.get(first).ok_or_else(|| ContextPathBreak {
         missing_segment: first.clone(),
         available_keys: outputs.keys().cloned().collect(),
-    })?;
+    })?);
     for segment in rest {
         value = match value {
             JsonValue::Object(object) => object.get(segment).ok_or_else(|| ContextPathBreak {
@@ -244,4 +252,62 @@ pub(crate) fn resolve_output_path(
         };
     }
     Ok(value.clone())
+}
+
+#[cfg(test)]
+mod tests {
+    use runx_contracts::{JsonObject, JsonValue};
+
+    use super::resolve_output_path;
+
+    fn json(value: serde_json::Value) -> JsonValue {
+        serde_json::from_value(value).unwrap_or(JsonValue::Null)
+    }
+
+    fn path(segments: &[&str]) -> Vec<String> {
+        segments
+            .iter()
+            .map(|segment| (*segment).to_owned())
+            .collect()
+    }
+
+    #[test]
+    fn a_reference_reads_values_never_their_envelopes() {
+        let outputs: JsonObject = serde_json::from_value(serde_json::json!({
+            "report": {"data": {"brand": "acme"}},
+            "decision": {"schema": "runx.approval.decision.v1", "data": {"approved": true}},
+            "plain": {"brand": "plain"},
+            "page": {"offset": 0, "data": "bytes"},
+        }))
+        .unwrap_or_default();
+        let read = |segments: &[&str]| resolve_output_path(&outputs, &path(segments)).ok();
+
+        assert_eq!(
+            read(&["report", "brand"]),
+            Some(json(serde_json::json!("acme")))
+        );
+        assert_eq!(read(&["decision", "approved"]), Some(JsonValue::Bool(true)));
+        assert_eq!(
+            read(&["plain", "brand"]),
+            Some(json(serde_json::json!("plain")))
+        );
+        assert_eq!(
+            read(&["page", "data"]),
+            Some(json(serde_json::json!("bytes"))),
+            "a domain object's own data field is read as is"
+        );
+        assert_eq!(
+            read(&["report"]),
+            Some(json(serde_json::json!({"brand": "acme"})))
+        );
+        assert_eq!(
+            read(&[]),
+            Some(json(serde_json::json!({
+                "report": {"brand": "acme"},
+                "decision": {"approved": true},
+                "plain": {"brand": "plain"},
+                "page": {"offset": 0, "data": "bytes"},
+            })))
+        );
+    }
 }

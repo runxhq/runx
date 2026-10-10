@@ -1,5 +1,5 @@
 skill: postmortem-maker
-version: "0.1.1"
+version: "0.1.2"
 
 catalog:
   kind: graph
@@ -201,8 +201,8 @@ runners:
         label: enforce fragment citations deterministically
         inputs:
           incident_fragments: $input.incident_fragments
-          postmortem_draft: $steps.draft.postmortem_draft.data
-          fragments_digest: $steps.digest-fragments.digest_result.data.digest
+          postmortem_draft: $steps.draft.postmortem_draft
+          fragments_digest: $steps.digest-fragments.digest_result.digest
         tool: { module: postmortem-maker.mjs, export: finalizePostmortem }
         outputs:
           postmortem:

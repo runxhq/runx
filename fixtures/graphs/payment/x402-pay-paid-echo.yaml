@@ -14,7 +14,7 @@ steps:
   - id: reserve
     skill: ../../skills/x402-pay-paid-echo-reserve
     inputs:
-      payment_quote_packet: $steps.quote.payment_quote_packet.data
+      payment_quote_packet: $steps.quote.payment_quote_packet
   - id: approve-spend
     ask: { gate: spend-approval, reason: Approve payment before paid echo., type: payment }
     inputs:
@@ -25,17 +25,17 @@ steps:
     scopes:
       - payment:spend
     inputs:
-      reserved_payment_authority: $steps.reserve.payment_reservation_packet.data.reserved_payment_authority
-      spend_capability_ref: $steps.reserve.payment_reservation_packet.data.spend_capability_ref
-      idempotency: $steps.reserve.payment_reservation_packet.data.idempotency
+      reserved_payment_authority: $steps.reserve.payment_reservation_packet.reserved_payment_authority
+      spend_capability_ref: $steps.reserve.payment_reservation_packet.spend_capability_ref
+      idempotency: $steps.reserve.payment_reservation_packet.idempotency
   - id: echo
     skill: ../../skills/x402-pay-paid-echo-tool
     inputs:
       message: hello from paid echo
-      payment_capability_ref: $steps.fulfill.effect_evidence_packet.data.credential_envelope.credential_ref
-      payment_proof_ref: $steps.fulfill.effect_evidence_packet.data.rail_proof.proof_ref
+      payment_capability_ref: $steps.fulfill.effect_evidence_packet.credential_envelope.credential_ref
+      payment_proof_ref: $steps.fulfill.effect_evidence_packet.rail_proof.proof_ref
 policy:
   guards:
     - step: fulfill
-      value: $steps.approve-spend.approval_decision.data.approved
+      value: $steps.approve-spend.approval_decision.approved
       equals: true

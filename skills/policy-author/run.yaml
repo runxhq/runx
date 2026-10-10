@@ -1,5 +1,5 @@
 skill: policy-author
-version: "0.2.2"
+version: "0.2.3"
 catalog:
   kind: graph
   audience: operator
@@ -69,7 +69,7 @@ runners:
         label: enforce the attenuation boundary
         inputs:
           existing_policy: $input.existing_policy
-          policy_proposal: $steps.draft.policy_proposal.data
+          policy_proposal: $steps.draft.policy_proposal
         tool: { module: policy-author.mjs, export: preparePolicy }
         outputs:
           policy_context: object
@@ -79,15 +79,15 @@ runners:
       - id: lint
         label: lint the exact policy with the native contract engine
         when:
-          value: $steps.prepare.policy_context.data.path
+          value: $steps.prepare.policy_context.path
           equals: lint
         tool: policy.lint
         inputs:
-          policy: $steps.prepare.policy_context.data.policy
+          policy: $steps.prepare.policy_context.policy
       - id: finalize-lint
         label: finalize the native lint verdict
         when:
-          value: $steps.prepare.policy_context.data.path
+          value: $steps.prepare.policy_context.path
           equals: lint
         tool: { module: policy-author.mjs, export: finalizePolicy }
         outputs:
@@ -133,15 +133,15 @@ runners:
                     description: { type: string }
                   additionalProperties: true
         inputs:
-          policy_context: $steps.prepare.policy_context.data
-          policy_lint: $steps.lint.policy_lint.data
+          policy_context: $steps.prepare.policy_context
+          policy_lint: $steps.lint.policy_lint
         artifacts:
           wrap_as: policy_proposal_packet
           packet: runx.policy_proposal.v1
       - id: finalize-stop
         label: seal missing-input or attenuation refusal
         when:
-          value: $steps.prepare.policy_context.data.path
+          value: $steps.prepare.policy_context.path
           equals: stop
         tool: { module: policy-author.mjs, export: finalizePolicy }
         outputs:
@@ -187,7 +187,7 @@ runners:
                     description: { type: string }
                   additionalProperties: true
         inputs:
-          policy_context: $steps.prepare.policy_context.data
+          policy_context: $steps.prepare.policy_context
         artifacts:
           wrap_as: policy_proposal_packet
           packet: runx.policy_proposal.v1

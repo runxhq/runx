@@ -1355,9 +1355,10 @@ pub(super) fn approval_outputs(
         data.insert("reason".to_owned(), JsonValue::String(reason.to_owned()));
     }
 
+    // The canonical artifact envelope: the packet it declares, and its data.
     let mut packet = JsonObject::new();
     if let Some(packet_id) = artifact_packet(step)? {
-        packet.insert("packet".to_owned(), JsonValue::String(packet_id));
+        packet.insert("schema".to_owned(), JsonValue::String(packet_id));
     }
     packet.insert("data".to_owned(), JsonValue::Object(data));
 

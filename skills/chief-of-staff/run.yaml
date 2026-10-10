@@ -1,5 +1,5 @@
 skill: chief-of-staff
-version: "0.3.3"
+version: "0.3.4"
 
 catalog:
   kind: graph
@@ -251,10 +251,10 @@ runners:
 
       - id: reject
         when:
-          value: $steps.index.context_index.data.decision
+          value: $steps.index.context_index.decision
           equals: needs_context
         inputs:
-          context_index: $steps.index.context_index.data
+          context_index: $steps.index.context_index
         tool: { module: chief-of-staff.mjs, export: finalizeActions }
         outputs:
           action_packet:
@@ -338,7 +338,7 @@ runners:
 
       - id: synthesize
         when:
-          value: $steps.index.context_index.data.decision
+          value: $steps.index.context_index.decision
           equals: ready
         agent: { role: operator, task: chief-of-staff-synthesize }
         outputs:
@@ -346,7 +346,7 @@ runners:
         inputs:
           objective: $input.objective
           constraints: $input.constraints
-          context_index: $steps.index.context_index.data
+          context_index: $steps.index.context_index
           as_of: $input.as_of
           max_age_days: $input.max_age_days
           mail_context: $input.mail_context
@@ -357,11 +357,11 @@ runners:
 
       - id: finalize
         when:
-          value: $steps.index.context_index.data.decision
+          value: $steps.index.context_index.decision
           equals: ready
         inputs:
-          context_index: $steps.index.context_index.data
-          action_draft: $steps.synthesize.action_draft.data
+          context_index: $steps.index.context_index
+          action_draft: $steps.synthesize.action_draft
         tool: { module: chief-of-staff.mjs, export: finalizeActions }
         outputs:
           action_packet: object

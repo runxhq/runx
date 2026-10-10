@@ -1,5 +1,5 @@
 skill: n8n-handoff
-version: "0.2.3"
+version: "0.2.4"
 catalog:
   kind: graph
   audience: operator
@@ -182,7 +182,7 @@ runners:
         inputs:
           webhook_host: $input.webhook_host
           workflow_slug: $input.workflow_slug
-          delivery: $steps.build-handoff-context.handoff_context.data.delivery
+          delivery: $steps.build-handoff-context.handoff_context.delivery
         tool: { module: webhook.mjs, export: webhookRequest }
         outputs:
           webhook_request: object

@@ -1,5 +1,5 @@
 skill: ledger
-version: "0.5.1"
+version: "0.5.2"
 
 catalog:
   kind: graph
@@ -60,25 +60,25 @@ runners:
       - id: query
         label: query and prove native receipt evidence
         when:
-          value: $steps.prepare.ledger_context.data.path
+          value: $steps.prepare.ledger_context.path
           equals: live
         tool: receipt.query
         scopes:
           - receipt.read
         inputs:
-          actor: $steps.prepare.ledger_context.data.filter.actor
-          skill: $steps.prepare.ledger_context.data.filter.skill_ref
-          status: $steps.prepare.ledger_context.data.native_status
-          issuer: $steps.prepare.ledger_context.data.filter.issuer
-          since: $steps.prepare.ledger_context.data.filter.from
-          until: $steps.prepare.ledger_context.data.filter.to
-          limit: $steps.prepare.ledger_context.data.filter.limit
-          receipt_ids: $steps.prepare.ledger_context.data.receipt_ids
-          verify_chain: $steps.prepare.ledger_context.data.proof_requested
+          actor: $steps.prepare.ledger_context.filter.actor
+          skill: $steps.prepare.ledger_context.filter.skill_ref
+          status: $steps.prepare.ledger_context.native_status
+          issuer: $steps.prepare.ledger_context.filter.issuer
+          since: $steps.prepare.ledger_context.filter.from
+          until: $steps.prepare.ledger_context.filter.to
+          limit: $steps.prepare.ledger_context.filter.limit
+          receipt_ids: $steps.prepare.ledger_context.receipt_ids
+          verify_chain: $steps.prepare.ledger_context.proof_requested
       - id: finalize-live
         label: answer from native receipt evidence
         when:
-          value: $steps.prepare.ledger_context.data.path
+          value: $steps.prepare.ledger_context.path
           equals: live
         tool: { module: ledger.mjs, export: finalizeLedger }
         outputs:
@@ -126,8 +126,8 @@ runners:
                     additionalProperties: false
           summary: string
         inputs:
-          ledger_context: $steps.prepare.ledger_context.data
-          receipt_query: $steps.query.receipt_query.data
+          ledger_context: $steps.prepare.ledger_context
+          receipt_query: $steps.query.receipt_query
           receipts: $input.receipts
           receipt_details: $input.receipt_details
         artifacts:
@@ -136,12 +136,12 @@ runners:
       - id: finalize-replay
         label: answer from supplied replay evidence
         when:
-          value: $steps.prepare.ledger_context.data.path
+          value: $steps.prepare.ledger_context.path
           equals: replay
         inputs:
           receipts: $input.receipts
           receipt_details: $input.receipt_details
-          ledger_context: $steps.prepare.ledger_context.data
+          ledger_context: $steps.prepare.ledger_context
         tool: { module: ledger.mjs, export: finalizeLedger }
         outputs:
           ledger_answer:
@@ -193,7 +193,7 @@ runners:
       - id: finalize-empty
         label: stop when no audit question was supplied
         when:
-          value: $steps.prepare.ledger_context.data.path
+          value: $steps.prepare.ledger_context.path
           equals: no_question
         tool: { module: ledger.mjs, export: finalizeLedger }
         outputs:
@@ -241,7 +241,7 @@ runners:
                     additionalProperties: false
           summary: string
         inputs:
-          ledger_context: $steps.prepare.ledger_context.data
+          ledger_context: $steps.prepare.ledger_context
           receipts: $input.receipts
           receipt_details: $input.receipt_details
         artifacts:

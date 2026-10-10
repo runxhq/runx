@@ -1,5 +1,5 @@
 skill: conversation-reply
-version: "0.1.2"
+version: "0.1.3"
 
 catalog:
   kind: graph
@@ -100,7 +100,7 @@ runners:
           thread_locator: $input.thread_locator
           draft_message: $input.draft_message
           delivery_route: $input.delivery_route
-          digest: $steps.digest.digest_result.data
+          digest: $steps.digest.digest_result
         tool: { module: conversation-reply.mjs, export: prepareReply }
         outputs: { reply_plan: object }
       - id: held
@@ -124,20 +124,20 @@ runners:
         when: { value: $steps.prepare.reply_plan.ready, equals: true }
         inputs:
           reply_plan: $steps.prepare.reply_plan
-          mutation: $steps.deliver.provider_operation.data
+          mutation: $steps.deliver.provider_operation
         tool: { module: conversation-reply.mjs, export: prepareReadback }
         outputs: { read_request: object }
       - id: readback
         when: { value: $steps.prepare.reply_plan.ready, equals: true }
         operation: reply/thread.reply.read
-        readback_of: $steps.deliver.provider_operation.data
+        readback_of: $steps.deliver.provider_operation
         input: $steps.prepare_readback.read_request
       - id: finish
         when: { value: $steps.prepare.reply_plan.ready, equals: true }
         inputs:
           reply_plan: $steps.prepare.reply_plan
-          mutation: $steps.deliver.provider_operation.data
-          readback: $steps.readback.provider_operation.data
+          mutation: $steps.deliver.provider_operation
+          readback: $steps.readback.provider_operation
         tool: { module: conversation-reply.mjs, export: finishReply }
         outputs: { work_result: object }
         artifacts:
@@ -173,7 +173,7 @@ runners:
           content_digest: $input.content_digest
           attempt: $input.attempt
           delivery_route: $input.delivery_route
-          readback: $steps.readback.provider_operation.data
+          readback: $steps.readback.provider_operation
         tool: { module: conversation-reply.mjs, export: finishDeliveryCheck }
         outputs: { work_result: object }
         artifacts:

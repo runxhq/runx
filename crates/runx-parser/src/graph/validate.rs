@@ -423,7 +423,7 @@ steps:
     tool: data.digest
   - id: push
     operation: github
-    operation_name: $steps.plan.sync_plan.data.provider_operation
+    operation_name: $steps.plan.sync_plan.provider_operation
 "#,
         )?;
         assert_eq!(

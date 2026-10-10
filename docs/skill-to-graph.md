@@ -251,7 +251,7 @@ steps:
       aggregate_id: "$input.posting_id"
       expected_version: "$input.expected_version"
       idempotency_key: "$input.idempotency_key"
-      event: $steps.decide.claim_packet.data
+      event: $steps.decide.claim_packet
 ```
 
 The store can be SQLite, Postgres or Redis. The graph calls the store
@@ -280,8 +280,10 @@ literals and references:
 - `$steps.<id>` or `$steps.<id>.<path>`: an earlier step's result, or a field
   of it.
 
-Paths are dotted, and a numeric segment indexes a list. References may sit at
-any depth, so one input can be assembled from several steps:
+Paths are dotted, and a numeric segment indexes a list. A step's result is
+the values it declares: a reference reads an output's value, never the
+artifact envelope runx stores it in. References may sit at any depth, so one
+input can be assembled from several steps:
 
 ```yaml
 steps:
@@ -291,7 +293,7 @@ steps:
   - id: review
     operation: example-crm/claim.read
     input:
-      claim_id: $steps.select.selection.data.claim_id
+      claim_id: $steps.select.selection.claim_id
       audience: $input.audience
 ```
 
@@ -304,7 +306,7 @@ begins with `$` is written `$$`. A bare `select.result` is an ordinary string.
 Conditions and guards read the same way:
 
 ```yaml
-when: { value: $steps.select.selection.data.decision, equals: ready }
+when: { value: $steps.select.selection.decision, equals: ready }
 ```
 
 An ask's `reason` is the text a person reads; the values they need to decide

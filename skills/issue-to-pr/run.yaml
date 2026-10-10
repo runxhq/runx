@@ -1,5 +1,5 @@
 skill: issue-to-pr
-version: "0.4.4"
+version: "0.4.5"
 
 catalog:
   kind: graph
@@ -68,7 +68,7 @@ runners:
         inputs:
           requested_repository: $input.repository
           requested_issue_number: $input.issue_number
-          provider_operation: $steps.read-issue.provider_operation.data
+          provider_operation: $steps.read-issue.provider_operation
         tool: { module: issue-to-pr.mjs, export: normalizeIssueEvidence }
         outputs:
           issue_evidence: object
@@ -81,7 +81,7 @@ runners:
         runner: host
         inputs:
           objective: $input.objective
-          issue_evidence: $steps.bind-issue-evidence.issue_evidence.data
+          issue_evidence: $steps.bind-issue-evidence.issue_evidence
 
   from-evidence:
     inputs:
@@ -116,7 +116,7 @@ runners:
       - id: admit-host-result
         inputs:
           issue_evidence: $input.issue_evidence
-          host_result: $steps.host-work.host_result.data
+          host_result: $steps.host-work.host_result
         tool: { module: issue-to-pr.mjs, export: admitHostResult }
         outputs:
           host_admission: object
@@ -128,10 +128,10 @@ runners:
         tool: external_receipt.verify
         scopes: [receipt.read]
         inputs:
-          receipt_path: $steps.host-work.host_result.data.finalization.receipt_path
-          target: $steps.host-work.host_result.data.commit
-          contract_digest: $steps.host-work.host_result.data.finalization.contract_digest
-          repo_root: $steps.host-work.host_result.data.repo_root
+          receipt_path: $steps.host-work.host_result.finalization.receipt_path
+          target: $steps.host-work.host_result.commit
+          contract_digest: $steps.host-work.host_result.finalization.contract_digest
+          repo_root: $steps.host-work.host_result.repo_root
 
       - id: publish-pr
         when:
@@ -140,15 +140,15 @@ runners:
         skill: .
         runner: pull-request
         inputs:
-          host_result: $steps.host-work.host_result.data
+          host_result: $steps.host-work.host_result
       - id: finalize-published
         when:
           value: $steps.admit-host-result.host_admission.path
           equals: publish
         inputs:
-          host_result: $steps.host-work.host_result.data
-          receipt_verification: $steps.verify-publication.external_receipt_verification.data
-          publication_result: $steps.publish-pr.publication.data
+          host_result: $steps.host-work.host_result
+          receipt_verification: $steps.verify-publication.external_receipt_verification
+          publication_result: $steps.publish-pr.publication
         tool: { module: issue-to-pr.mjs, export: finalizeIssueToPr }
         outputs:
           issue_to_pr_result: object
@@ -163,10 +163,10 @@ runners:
         tool: external_receipt.verify
         scopes: [receipt.read]
         inputs:
-          receipt_path: $steps.host-work.host_result.data.finalization.receipt_path
-          target: $steps.host-work.host_result.data.commit
-          contract_digest: $steps.host-work.host_result.data.finalization.contract_digest
-          repo_root: $steps.host-work.host_result.data.repo_root
+          receipt_path: $steps.host-work.host_result.finalization.receipt_path
+          target: $steps.host-work.host_result.commit
+          contract_digest: $steps.host-work.host_result.finalization.contract_digest
+          repo_root: $steps.host-work.host_result.repo_root
 
       - id: finalize-local
         when:
@@ -176,8 +176,8 @@ runners:
           host_admission:
             path: finalized_local
             errors: []
-          host_result: $steps.host-work.host_result.data
-          receipt_verification: $steps.verify-local.external_receipt_verification.data
+          host_result: $steps.host-work.host_result
+          receipt_verification: $steps.verify-local.external_receipt_verification
         tool: { module: issue-to-pr.mjs, export: finalizeIssueToPr }
         outputs:
           issue_to_pr_result: object
@@ -190,7 +190,7 @@ runners:
           value: $steps.admit-host-result.host_admission.path
           equals: blocked
         inputs:
-          host_result: $steps.host-work.host_result.data
+          host_result: $steps.host-work.host_result
           host_admission: $steps.admit-host-result.host_admission
         tool: { module: issue-to-pr.mjs, export: finalizeIssueToPr }
         outputs:
@@ -239,8 +239,8 @@ runners:
           equals: publish
         inputs:
           host_result: $input.host_result
-          receipt_verification: $steps.verify-publication.external_receipt_verification.data
-          publication_result: $steps.publish-pr.publication.data
+          receipt_verification: $steps.verify-publication.external_receipt_verification
+          publication_result: $steps.publish-pr.publication
         tool: { module: issue-to-pr.mjs, export: finalizeIssueToPr }
         outputs:
           issue_to_pr_result: object
@@ -269,7 +269,7 @@ runners:
           host_admission:
             path: finalized_local
             errors: []
-          receipt_verification: $steps.verify-local.external_receipt_verification.data
+          receipt_verification: $steps.verify-local.external_receipt_verification
         tool: { module: issue-to-pr.mjs, export: finalizeIssueToPr }
         outputs:
           issue_to_pr_result: object
@@ -322,7 +322,7 @@ runners:
           host_admission:
             path: finalized_local
             errors: []
-          receipt_verification: $steps.verify.external_receipt_verification.data
+          receipt_verification: $steps.verify.external_receipt_verification
         tool: { module: issue-to-pr.mjs, export: finalizeIssueToPr }
         outputs:
           issue_to_pr_result: object
@@ -349,8 +349,8 @@ runners:
       - id: finalize
         inputs:
           host_result: $input.host_result
-          receipt_verification: $steps.verify.external_receipt_verification.data
-          publication_result: $steps.publish-pr.publication.data
+          receipt_verification: $steps.verify.external_receipt_verification
+          publication_result: $steps.publish-pr.publication
         tool: { module: issue-to-pr.mjs, export: finalizeIssueToPr }
         outputs:
           issue_to_pr_result: object
@@ -385,7 +385,7 @@ runners:
       - id: choose
         inputs:
           host_result: $input.host_result
-          found: $steps.find.provider_operation.data
+          found: $steps.find.provider_operation
         tool: { module: issue-to-pr.mjs, export: choosePullRequest }
         outputs:
           pull_request_choice: object
@@ -404,9 +404,9 @@ runners:
           equals: open
         inputs:
           host_result: $input.host_result
-          pushed: $steps.push.provider_operation.data
+          pushed: $steps.push.provider_operation
           choice: $steps.choose.pull_request_choice
-          opened: $steps.open.provider_operation.data
+          opened: $steps.open.provider_operation
         tool: { module: issue-to-pr.mjs, export: settlePullRequest }
         outputs:
           publication: object
@@ -419,7 +419,7 @@ runners:
           not_equals: open
         inputs:
           host_result: $input.host_result
-          pushed: $steps.push.provider_operation.data
+          pushed: $steps.push.provider_operation
           choice: $steps.choose.pull_request_choice
         tool: { module: issue-to-pr.mjs, export: settlePullRequest }
         outputs:

@@ -146,5 +146,5 @@ steps:
 policy:
   guards:
     - step: fulfill
-      value: $steps.approve-spend.approval_decision.data.approved
+      value: $steps.approve-spend.approval_decision.approved
       equals: true

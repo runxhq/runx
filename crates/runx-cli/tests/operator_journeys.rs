@@ -674,7 +674,7 @@ runners:
         agent: { role: reviewer, task: first-review }
         outputs: { decision: object }
         inputs:
-          written: $steps.first-write.file_write.data
+          written: $steps.first-write.file_write
       - id: second-write
         tool: fs.write
         scopes: [fs.write]
@@ -685,7 +685,7 @@ runners:
         agent: { role: reviewer, task: second-review }
         outputs: { decision: object }
         inputs:
-          written: $steps.second-write.file_write.data
+          written: $steps.second-write.file_write
           prior: $steps.first-review.decision
 "#
         .to_owned();

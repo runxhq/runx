@@ -1,5 +1,5 @@
 skill: moltbook
-version: "0.4.5"
+version: "0.4.6"
 
 catalog:
   kind: skill
@@ -251,7 +251,7 @@ runners:
           objective: $input.objective
           as_of: $input.as_of
           max_age_hours: $input.max_age_hours
-          posts: $steps.read-feed.provider_operation.data.result.posts
+          posts: $steps.read-feed.provider_operation.result.posts
         tool: { module: moltbook.mjs, export: admitFeed }
         outputs:
           feed_index: object
@@ -262,15 +262,15 @@ runners:
       - id: digest
         tool: data.digest
         inputs:
-          value: $steps.admit.feed_index.data.sources
+          value: $steps.admit.feed_index.sources
 
       - id: reject
         when:
-          value: $steps.admit.feed_index.data.decision
+          value: $steps.admit.feed_index.decision
           equals: needs_more_evidence
         inputs:
-          feed_index: $steps.admit.feed_index.data
-          evidence_digest: $steps.digest.digest_result.data.digest
+          feed_index: $steps.admit.feed_index
+          evidence_digest: $steps.digest.digest_result.digest
         tool: { module: moltbook.mjs, export: finalizeScan }
         outputs:
           moltbook_scan_packet: object
@@ -282,7 +282,7 @@ runners:
 
       - id: analyze
         when:
-          value: $steps.admit.feed_index.data.decision
+          value: $steps.admit.feed_index.decision
           equals: ready
         agent: { role: researcher, task: moltbook-scan }
         outputs:
@@ -290,8 +290,8 @@ runners:
         inputs:
           objective: $input.objective
           community_context: $input.community_context
-          feed_index: $steps.admit.feed_index.data
-          evidence_digest: $steps.digest.digest_result.data.digest
+          feed_index: $steps.admit.feed_index
+          evidence_digest: $steps.digest.digest_result.digest
           as_of: $input.as_of
           max_age_hours: $input.max_age_hours
           max_items: $input.max_items
@@ -302,12 +302,12 @@ runners:
 
       - id: finalize
         when:
-          value: $steps.admit.feed_index.data.decision
+          value: $steps.admit.feed_index.decision
           equals: ready
         inputs:
-          feed_index: $steps.admit.feed_index.data
-          evidence_digest: $steps.digest.digest_result.data.digest
-          scan_draft: $steps.analyze.scan_draft.data
+          feed_index: $steps.admit.feed_index
+          evidence_digest: $steps.digest.digest_result.digest
+          scan_draft: $steps.analyze.scan_draft
         tool: { module: moltbook.mjs, export: finalizeScan }
         outputs:
           moltbook_scan_packet: object
@@ -366,15 +366,15 @@ runners:
       - id: digest
         tool: data.digest
         inputs:
-          value: $steps.admit.feed_index.data.sources
+          value: $steps.admit.feed_index.sources
 
       - id: reject
         when:
-          value: $steps.admit.feed_index.data.decision
+          value: $steps.admit.feed_index.decision
           equals: needs_more_evidence
         inputs:
-          feed_index: $steps.admit.feed_index.data
-          evidence_digest: $steps.digest.digest_result.data.digest
+          feed_index: $steps.admit.feed_index
+          evidence_digest: $steps.digest.digest_result.digest
         tool: { module: moltbook.mjs, export: finalizeScan }
         outputs:
           moltbook_scan_packet: object
@@ -386,7 +386,7 @@ runners:
 
       - id: analyze
         when:
-          value: $steps.admit.feed_index.data.decision
+          value: $steps.admit.feed_index.decision
           equals: ready
         agent: { role: researcher, task: moltbook-scan }
         outputs:
@@ -394,8 +394,8 @@ runners:
         inputs:
           objective: $input.objective
           community_context: $input.community_context
-          feed_index: $steps.admit.feed_index.data
-          evidence_digest: $steps.digest.digest_result.data.digest
+          feed_index: $steps.admit.feed_index
+          evidence_digest: $steps.digest.digest_result.digest
           feed_snapshot: $input.feed_snapshot
           as_of: $input.as_of
           max_age_hours: $input.max_age_hours
@@ -405,12 +405,12 @@ runners:
 
       - id: finalize
         when:
-          value: $steps.admit.feed_index.data.decision
+          value: $steps.admit.feed_index.decision
           equals: ready
         inputs:
-          feed_index: $steps.admit.feed_index.data
-          evidence_digest: $steps.digest.digest_result.data.digest
-          scan_draft: $steps.analyze.scan_draft.data
+          feed_index: $steps.admit.feed_index
+          evidence_digest: $steps.digest.digest_result.digest
+          scan_draft: $steps.analyze.scan_draft
         tool: { module: moltbook.mjs, export: finalizeScan }
         outputs:
           moltbook_scan_packet: object
@@ -479,7 +479,7 @@ runners:
 
       - id: author
         when:
-          value: $steps.admit-scan.post_context.data.decision
+          value: $steps.admit-scan.post_context.decision
           equals: ready
         agent: { role: writer, task: moltbook-post }
         outputs:
@@ -488,7 +488,7 @@ runners:
           submolt: $input.submolt
           community_context: $input.community_context
           operator_guidance: $input.operator_guidance
-          post_context: $steps.admit-scan.post_context.data
+          post_context: $steps.admit-scan.post_context
           scan_packet: $input.scan_packet
           outline: $input.outline
         artifacts:
@@ -497,19 +497,19 @@ runners:
 
       - id: digest-post
         when:
-          value: $steps.admit-scan.post_context.data.decision
+          value: $steps.admit-scan.post_context.decision
           equals: ready
         tool: data.digest
         inputs:
-          value: $steps.author.post_draft.data.post_payload
+          value: $steps.author.post_draft.post_payload
 
       - id: reject-post
         when:
-          value: $steps.admit-scan.post_context.data.decision
+          value: $steps.admit-scan.post_context.decision
           equals: needs_more_evidence
         inputs:
           submolt: $input.submolt
-          post_context: $steps.admit-scan.post_context.data
+          post_context: $steps.admit-scan.post_context
         tool: { module: moltbook.mjs, export: finalizePost }
         outputs:
           moltbook_post_packet: object
@@ -521,13 +521,13 @@ runners:
 
       - id: finalize-post
         when:
-          value: $steps.admit-scan.post_context.data.decision
+          value: $steps.admit-scan.post_context.decision
           equals: ready
         inputs:
           submolt: $input.submolt
-          post_context: $steps.admit-scan.post_context.data
-          post_draft: $steps.author.post_draft.data
-          payload_digest: $steps.digest-post.digest_result.data.digest
+          post_context: $steps.admit-scan.post_context
+          post_draft: $steps.author.post_draft
+          payload_digest: $steps.digest-post.digest_result.digest
         tool: { module: moltbook.mjs, export: finalizePost }
         outputs:
           moltbook_post_packet: object
@@ -585,7 +585,7 @@ runners:
 
       - id: digest-payload
         when:
-          value: $steps.validate.comparison.data.equal
+          value: $steps.validate.comparison.equal
           equals: true
         tool: data.digest
         inputs:
@@ -593,16 +593,16 @@ runners:
 
       - id: bind-payload
         when:
-          value: $steps.validate.comparison.data.equal
+          value: $steps.validate.comparison.equal
           equals: true
         tool: data.compare
         inputs:
           expected: $input.post_packet.payload_digest
-          actual: $steps.digest-payload.digest_result.data.digest
+          actual: $steps.digest-payload.digest_result.digest
 
       - id: publish
         when:
-          value: $steps.bind-payload.comparison.data.equal
+          value: $steps.bind-payload.comparison.equal
           equals: true
         operation: moltbook/post.create
         idempotency_key: $input.idempotency_key

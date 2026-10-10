@@ -1,5 +1,5 @@
 skill: data-subject-request
-version: "0.1.2"
+version: "0.1.3"
 
 catalog:
   kind: graph
@@ -252,15 +252,15 @@ runners:
           aggregate_id: $input.aggregate_id
           expected_version: $input.expected_version
           idempotency_key: $input.idempotency_key
-          event: $steps.judge.verdict_draft.data.event
+          event: $steps.judge.verdict_draft.event
 
       - id: finalize
         label: bind the durable verdict and digests into one packet
         inputs:
-          verdict_draft: $steps.judge.verdict_draft.data
-          append_result: $steps.persist-verdict.data_operation_result.data
-          request_digest: $steps.digest-request.digest_result.data.digest
-          policy_digest: $steps.digest-policy.digest_result.data.digest
+          verdict_draft: $steps.judge.verdict_draft
+          append_result: $steps.persist-verdict.data_operation_result
+          request_digest: $steps.digest-request.digest_result.digest
+          policy_digest: $steps.digest-policy.digest_result.digest
         tool: { module: data-subject-request.mjs, export: finalizeVerdict }
         outputs:
           subject_request_verdict:

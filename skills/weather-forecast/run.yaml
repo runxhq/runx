@@ -1,5 +1,5 @@
 skill: weather-forecast
-version: "0.2.2"
+version: "0.2.3"
 catalog:
   kind: graph
   audience: public
@@ -56,7 +56,7 @@ runners:
           forecast_evidence: $input.forecast_evidence
           horizon: $input.horizon
           purpose: $input.purpose
-          forecast_draft: $steps.interpret.forecast_draft.data
+          forecast_draft: $steps.interpret.forecast_draft
         tool: { module: weather-forecast.mjs }
         outputs:
           decision: string

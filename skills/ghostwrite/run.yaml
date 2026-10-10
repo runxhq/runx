@@ -1,5 +1,5 @@
 skill: ghostwrite
-version: "0.3.3"
+version: "0.3.4"
 
 catalog:
   kind: skill
@@ -75,9 +75,9 @@ runners:
           evidence_pack: $input.evidence_pack
           brand_context: $input.brand_context
           taste_context: $input.taste_context
-          evidence_packet_digest: $steps.digest-evidence.digest_result.data.digest
-          brand_context_digest: $steps.digest-brand-context.digest_result.data.digest
-          taste_context_digest: $steps.digest-taste-context.digest_result.data.digest
+          evidence_packet_digest: $steps.digest-evidence.digest_result.digest
+          brand_context_digest: $steps.digest-brand-context.digest_result.digest
+          taste_context_digest: $steps.digest-taste-context.digest_result.digest
         tool: { module: ghostwrite.mjs, export: prepareEvidence }
         outputs:
           evidence_context: object
@@ -87,7 +87,7 @@ runners:
       - id: reject
         label: withhold unsupported draft
         when:
-          value: $steps.prepare.evidence_context.data.decision
+          value: $steps.prepare.evidence_context.decision
           equals: needs_more_evidence
         tool: evidence.verify_artifact
         scopes:
@@ -128,9 +128,9 @@ runners:
               source_path: source_digests
             - target_path: context_binding.required
               source_path: writing_contexts
-          source_digests: $steps.prepare.evidence_context.data.source_digests
-          context_requirements: $steps.prepare.evidence_context.data.writing_contexts
-          fallback_source: $steps.prepare.evidence_context.data
+          source_digests: $steps.prepare.evidence_context.source_digests
+          context_requirements: $steps.prepare.evidence_context.writing_contexts
+          fallback_source: $steps.prepare.evidence_context
         artifacts:
           named_emits:
             content_draft_packet: content_draft_packet
@@ -140,7 +140,7 @@ runners:
       - id: author
         label: author from bounded evidence
         when:
-          value: $steps.prepare.evidence_context.data.decision
+          value: $steps.prepare.evidence_context.decision
           equals: ready
         agent: { role: writer, task: ghostwrite-draft }
         outputs:
@@ -150,7 +150,7 @@ runners:
           audience: $input.audience
           channel: $input.channel
           voice_guide: $input.voice_guide
-          evidence_context: $steps.prepare.evidence_context.data
+          evidence_context: $steps.prepare.evidence_context
           evidence_pack: $input.evidence_pack
           brand_context: $input.brand_context
           taste_context: $input.taste_context
@@ -160,7 +160,7 @@ runners:
       - id: finalize
         label: verify draft evidence and context bindings
         when:
-          value: $steps.prepare.evidence_context.data.decision
+          value: $steps.prepare.evidence_context.decision
           equals: ready
         tool: evidence.verify_artifact
         scopes:
@@ -219,14 +219,14 @@ runners:
               source_path: source_digests
             - target_path: context_binding.required
               source_path: writing_contexts
-          candidate: $steps.author.content_draft.data
-          identity_source: $steps.prepare.evidence_context.data
-          authoritative_source: $steps.prepare.evidence_context.data
-          fallback_source: $steps.prepare.evidence_context.data
-          source_digests: $steps.prepare.evidence_context.data.source_digests
-          claim_bindings: $steps.author.content_draft.data.draft.claim_refs
-          context_requirements: $steps.prepare.evidence_context.data.writing_contexts
-          context_bindings: $steps.author.content_draft.data.context_binding.applied
+          candidate: $steps.author.content_draft
+          identity_source: $steps.prepare.evidence_context
+          authoritative_source: $steps.prepare.evidence_context
+          fallback_source: $steps.prepare.evidence_context
+          source_digests: $steps.prepare.evidence_context.source_digests
+          claim_bindings: $steps.author.content_draft.draft.claim_refs
+          context_requirements: $steps.prepare.evidence_context.writing_contexts
+          context_bindings: $steps.author.content_draft.context_binding.applied
         artifacts:
           named_emits:
             content_draft_packet: content_draft_packet
@@ -268,7 +268,7 @@ runners:
       - id: bind
         inputs:
           publish_draft: $steps.prepare.publish_draft
-          digest_result: $steps.digest.digest_result.data
+          digest_result: $steps.digest.digest_result
           qa_checklist: $steps.prepare.qa_checklist
           handoff_notes: $steps.prepare.handoff_notes
         tool: { module: ghostwrite.mjs, export: bindContent }

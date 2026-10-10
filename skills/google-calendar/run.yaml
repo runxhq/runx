@@ -1,5 +1,5 @@
 skill: google-calendar
-version: "0.1.2"
+version: "0.1.3"
 catalog:
   kind: graph
   audience: public
@@ -137,7 +137,7 @@ runners:
           calendar_id: $input.calendar_id
           occurrence_ref: $input.occurrence_ref
           window: $steps.window.calendar_window
-          calendar_context: $steps.read.calendar_context.data
+          calendar_context: $steps.read.calendar_context
         tool: { module: google-calendar.mjs, export: finishAssistantBrief }
         outputs: { work_result: object }
         artifacts:
@@ -167,7 +167,7 @@ runners:
           calendar_id: $input.calendar_id
           time_min: $input.time_min
           time_max: $input.time_max
-          provider_result: $steps.read.provider_operation.data.result
+          provider_result: $steps.read.provider_operation.result
         tool: { module: google-calendar.mjs, export: normalizeCalendar }
         outputs: { calendar_context: object }
         artifacts:
@@ -193,7 +193,7 @@ runners:
           calendar_id: $input.calendar_id
           time_min: $input.time_min
           time_max: $input.time_max
-          provider_result: $steps.read.provider_operation.data.result
+          provider_result: $steps.read.provider_operation.result
         tool: { module: google-calendar.mjs, export: normalizeCalendar }
         outputs: { calendar_context: object }
         artifacts:

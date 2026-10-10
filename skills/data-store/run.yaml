@@ -1,5 +1,5 @@
 skill: data-store
-version: "0.4.2"
+version: "0.4.3"
 
 catalog:
   kind: skill
@@ -66,7 +66,7 @@ runners:
           observed_at: $input.observed_at
       - id: append
         inputs:
-          result: $steps.store-append.provider_operation.data.result
+          result: $steps.store-append.provider_operation.result
         tool: { module: data-store.mjs, export: dataOperationResult }
         artifacts:
           wrap_as: data_operation_result
@@ -107,7 +107,7 @@ runners:
           after_version: $input.after_version
       - id: read
         inputs:
-          result: $steps.store-read.provider_operation.data.result
+          result: $steps.store-read.provider_operation.result
         tool: { module: data-store.mjs, export: dataOperationResult }
         artifacts:
           wrap_as: data_operation_result
@@ -137,7 +137,7 @@ runners:
           aggregate_id: $input.aggregate_id
       - id: read
         inputs:
-          result: $steps.store-read.provider_operation.data.result
+          result: $steps.store-read.provider_operation.result
         tool: { module: data-store.mjs, export: dataOperationResult }
         artifacts:
           wrap_as: data_operation_result
@@ -178,7 +178,7 @@ runners:
           cursor: $input.cursor
       - id: read
         inputs:
-          result: $steps.store-read.provider_operation.data.result
+          result: $steps.store-read.provider_operation.result
         tool: { module: data-store.mjs, export: dataOperationResult }
         artifacts:
           wrap_as: data_operation_result
@@ -229,7 +229,7 @@ runners:
           observed_at: $input.observed_at
       - id: append
         inputs:
-          result: $steps.store-append.provider_operation.data.result
+          result: $steps.store-append.provider_operation.result
         tool: { module: data-store.mjs, export: dataOperationResult }
         artifacts:
           wrap_as: data_operation_result
@@ -242,7 +242,7 @@ runners:
           aggregate_id: $input.aggregate_id
       - id: readback
         inputs:
-          result: $steps.store-readback.provider_operation.data.result
+          result: $steps.store-readback.provider_operation.result
         tool: { module: data-store.mjs, export: dataOperationResult }
         artifacts:
           wrap_as: data_operation_result

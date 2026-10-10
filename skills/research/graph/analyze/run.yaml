@@ -33,7 +33,7 @@ runners:
 
       - id: reject
         label: seal a sanitized evidence stop
-        when: { value: $steps.ready.comparison.data.equal, equals: false }
+        when: { value: $steps.ready.comparison.equal, equals: false }
         tool: evidence.verify_artifact
         scopes: [runx:evidence:read]
         inputs:
@@ -61,7 +61,7 @@ runners:
 
       - id: synthesize
         label: synthesize indexed evidence
-        when: { value: $steps.ready.comparison.data.equal, equals: true }
+        when: { value: $steps.ready.comparison.equal, equals: true }
         agent: { role: researcher, task: research-synthesize }
         outputs: { research_candidate: object }
         inputs:
@@ -76,7 +76,7 @@ runners:
 
       - id: finalize
         label: verify evidence bindings and finalize the artifact
-        when: { value: $steps.ready.comparison.data.equal, equals: true }
+        when: { value: $steps.ready.comparison.equal, equals: true }
         tool: evidence.verify_artifact
         scopes: [runx:evidence:read]
         inputs:
@@ -108,9 +108,9 @@ runners:
           identity_source: $input.source_index
           authoritative_source: $input.source_index
           fallback_source: $input.source_index
-          candidate: $steps.synthesize.research_candidate.data
-          claim_bindings: $steps.synthesize.research_candidate.data.evidence_log
-          reference_bindings: $steps.synthesize.research_candidate.data.decision_support
+          candidate: $steps.synthesize.research_candidate
+          claim_bindings: $steps.synthesize.research_candidate.evidence_log
+          reference_bindings: $steps.synthesize.research_candidate.decision_support
         artifacts:
           named_emits: { research_packet: verified_artifact }
           packets: { research_packet: runx.research.packet.v1 }

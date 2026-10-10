@@ -1,5 +1,5 @@
 skill: contract-drafter
-version: "0.1.1"
+version: "0.1.2"
 
 catalog:
   kind: graph
@@ -292,10 +292,10 @@ runners:
           parties: $input.parties
           terms: $input.terms
           draft_context: $steps.admit.draft_context
-          draft_doc: $steps.assemble.draft_doc.data
-          template_digest: $steps.digest-template.digest_result.data.digest
-          parties_digest: $steps.digest-parties.digest_result.data.digest
-          terms_digest: $steps.digest-terms.digest_result.data.digest
+          draft_doc: $steps.assemble.draft_doc
+          template_digest: $steps.digest-template.digest_result.digest
+          parties_digest: $steps.digest-parties.digest_result.digest
+          terms_digest: $steps.digest-terms.digest_result.digest
         tool: { module: contract-drafter.mjs, export: finalizeDraft }
         outputs:
           contract_draft:

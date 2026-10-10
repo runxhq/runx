@@ -1,5 +1,5 @@
 skill: review-skill
-version: "0.3.2"
+version: "0.3.3"
 
 catalog:
   kind: graph
@@ -142,7 +142,7 @@ runners:
           objective: $input.objective
           evidence_pack: $input.evidence_pack
           test_constraints: $input.test_constraints
-          native_validation: $steps.collect-evidence.skill_validation.data
+          native_validation: $steps.collect-evidence.skill_validation
 
   assess:
     runx:

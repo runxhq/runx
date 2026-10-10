@@ -77,7 +77,7 @@ runners:
           equals: read
         inputs:
           operation_plan: $steps.prepare.operation_plan
-          provider_operation: $steps.request.provider_operation.data
+          provider_operation: $steps.request.provider_operation
         tool: { module: nitrosend-operation.mjs, export: normalizeOperation }
         outputs:
           provider_evidence:
@@ -185,7 +185,7 @@ runners:
           equals: read
         inputs:
           operation_plan: $steps.prepare.operation_plan
-          provider_operation: $steps.preview.provider_operation.data
+          provider_operation: $steps.preview.provider_operation
         tool: { module: nitrosend-operation.mjs, export: normalizeOperation }
         outputs:
           provider_evidence:
@@ -229,7 +229,7 @@ runners:
           equals: write
         inputs:
           operation_plan: $steps.prepare.operation_plan
-          provider_operation: $steps.request.provider_operation.data
+          provider_operation: $steps.request.provider_operation
         tool: { module: nitrosend-operation.mjs, export: normalizeOperation }
         outputs:
           provider_evidence:

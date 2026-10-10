@@ -1,5 +1,5 @@
 skill: google-search-console
-version: "0.1.9"
+version: "0.1.10"
 
 catalog:
   kind: graph
@@ -502,7 +502,7 @@ runners:
             data_state: $input.data_state
             row_limit: $input.row_limit
             start_row: $input.start_row
-          provider_result: $steps.read.provider_operation.data.result
+          provider_result: $steps.read.provider_operation.result
         tool: { module: gsc/performance.mjs, export: normalizePerformance }
         outputs:
           performance_draft: object
@@ -513,7 +513,7 @@ runners:
       - id: finalize
         inputs:
           performance_draft: $steps.normalize.performance_draft
-          digest_result: $steps.digest.digest_result.data
+          digest_result: $steps.digest.digest_result
         tool: { module: gsc/performance.mjs, export: finalizePerformance }
         outputs:
           performance_evidence: object
@@ -564,7 +564,7 @@ runners:
       - id: finalize
         inputs:
           performance_draft: $steps.normalize.performance_draft
-          digest_result: $steps.digest.digest_result.data
+          digest_result: $steps.digest.digest_result
         tool: { module: gsc/performance.mjs, export: finalizePerformance }
         outputs:
           performance_evidence: object
@@ -612,7 +612,7 @@ runners:
             property: $input.property
             inspection_url: $input.inspection_url
             language_code: $input.language_code
-          provider_result: $steps.read.provider_operation.data.result
+          provider_result: $steps.read.provider_operation.result
         tool: { module: gsc/inspection.mjs, export: normalizeInspection }
         outputs:
           inspection_draft: object
@@ -623,7 +623,7 @@ runners:
       - id: finalize
         inputs:
           inspection_draft: $steps.normalize.inspection_draft
-          digest_result: $steps.digest.digest_result.data
+          digest_result: $steps.digest.digest_result
         tool: { module: gsc/inspection.mjs, export: finalizeInspection }
         outputs:
           inspection_evidence: object
@@ -671,7 +671,7 @@ runners:
       - id: bind
         inputs:
           sitemap_plan_draft: $steps.prepare.sitemap_plan_draft
-          digest_result: $steps.digest.digest_result.data
+          digest_result: $steps.digest.digest_result
         tool: { module: gsc/sitemap.mjs, export: bindSitemapPlan }
         outputs:
           sitemap_plan: object
@@ -712,7 +712,7 @@ runners:
       - id: admit
         inputs:
           sitemap_plan: $input.sitemap_plan
-          digest_result: $steps.digest.digest_result.data
+          digest_result: $steps.digest.digest_result
         tool: { module: gsc/sitemap.mjs, export: admitSitemapSubmission }
         outputs:
           submission_admission: object
@@ -750,7 +750,7 @@ runners:
         input:
           property: $input.sitemap_plan.property
           sitemap_url: $input.sitemap_plan.sitemap_url
-        expected_result: $steps.submit.provider_operation.data.result
+        expected_result: $steps.submit.provider_operation.result
       - id: finalize
         when:
           value: $steps.admit.submission_admission.decision
@@ -758,8 +758,8 @@ runners:
         inputs:
           idempotency_key: $input.idempotency_key
           sitemap_plan: $input.sitemap_plan
-          mutation_result: $steps.submit.provider_operation.data.result
-          readback_result: $steps.readback.provider_operation.data.result
+          mutation_result: $steps.submit.provider_operation.result
+          readback_result: $steps.readback.provider_operation.result
         tool: { module: gsc/sitemap.mjs, export: finalizeSitemapSubmission }
         outputs:
           sitemap_submission: object

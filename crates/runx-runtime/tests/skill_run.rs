@@ -3463,7 +3463,7 @@ runners:
         tool: test.echo
         scopes: [test.echo]
         inputs:
-          message: $steps.author.fix_bundle.data.message
+          message: $steps.author.fix_bundle.message
 "#,
     )?;
     Ok(skill_dir)

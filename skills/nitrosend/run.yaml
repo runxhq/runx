@@ -1,5 +1,5 @@
 skill: nitrosend
-version: "0.4.11"
+version: "0.4.12"
 catalog:
   kind: skill
   audience: public
@@ -37,8 +37,8 @@ runners:
           arguments: {}
       - id: present
         inputs:
-          status_evidence: $steps.status.provider_evidence.data
-          plans_evidence: $steps.plans.provider_evidence.data
+          status_evidence: $steps.status.provider_evidence
+          plans_evidence: $steps.plans.provider_evidence
         tool: { module: graph/provider-operation/nitrosend-operation.mjs, export: presentEvidence }
         outputs:
           status_evidence: object
@@ -102,8 +102,8 @@ runners:
           arguments: {}
       - id: present
         inputs:
-          checkout_evidence: $steps.checkout.provider_evidence.data
-          status_evidence: $steps.readback.provider_evidence.data
+          checkout_evidence: $steps.checkout.provider_evidence
+          status_evidence: $steps.readback.provider_evidence
           plan_id: $input.plan_id
           idempotency_key: $input.idempotency_key
         tool: { module: graph/provider-operation/nitrosend-operation.mjs, export: presentEvidence }
@@ -120,13 +120,13 @@ runners:
     policy:
       guards:
         - step: checkout
-          value: $steps.status.provider_evidence.data.decision
+          value: $steps.status.provider_evidence.decision
           equals: ok
         - step: checkout
-          value: $steps.plans.provider_evidence.data.decision
+          value: $steps.plans.provider_evidence.decision
           equals: ok
         - step: readback
-          value: $steps.checkout.provider_evidence.data.decision
+          value: $steps.checkout.provider_evidence.decision
           equals: ok
   plan-checkout-status:
     inputs:
@@ -147,7 +147,7 @@ runners:
           purchase_id: "$input.purchase_id"
       - id: present
         inputs:
-          purchase_evidence: $steps.status.provider_evidence.data
+          purchase_evidence: $steps.status.provider_evidence
           purchase_id: $input.purchase_id
         tool: { module: graph/provider-operation/nitrosend-operation.mjs, export: presentEvidence }
         outputs:
@@ -283,7 +283,7 @@ runners:
         inputs:
           page_limit: $input.page_limit
           cursor: $input.cursor
-          provider_evidence: $steps.scan.provider_evidence.data
+          provider_evidence: $steps.scan.provider_evidence
         tool: { module: assistant-source.mjs, export: finishAssistantScan }
         outputs: { assistant_page: object }
         artifacts:
@@ -310,7 +310,7 @@ runners:
         inputs:
           config: $input.config
           item: $input.item
-          provider_evidence: $steps.thread.provider_evidence.data
+          provider_evidence: $steps.thread.provider_evidence
         tool: { module: assistant-source.mjs, export: finishAssistantObserve }
         outputs: { assistant_observation: object }
         artifacts:
@@ -348,7 +348,7 @@ runners:
           source_digest: "$input.source_digest"
           thread_locator: "$input.thread_locator"
           action: "$input.action"
-          provider_evidence: $steps.thread.provider_evidence.data
+          provider_evidence: $steps.thread.provider_evidence
         tool: { module: assistant-source.mjs, export: finishAssistantHydrate }
         outputs: { assistant_context: object }
         artifacts:
@@ -406,7 +406,7 @@ runners:
         tool: data.compare
         inputs:
           expected: "$input.brand_sid"
-          actual: $steps.current.provider_evidence.data.result.sender_settings.brand_sid
+          actual: $steps.current.provider_evidence.result.sender_settings.brand_sid
       - id: apply
         skill: graph/provider-operation
         runner: act
@@ -438,17 +438,17 @@ runners:
             from_email: "$input.from_email"
             reply_to: "$input.reply_to"
             test_email_recipients: "$input.test_email_recipients"
-          actual: $steps.readback.provider_evidence.data.result.sender_settings
+          actual: $steps.readback.provider_evidence.result.sender_settings
     policy:
       guards:
         - step: apply
-          value: $steps.verify-current-brand.comparison.data.equal
+          value: $steps.verify-current-brand.comparison.equal
           equals: true
         - step: readback
-          value: $steps.apply.provider_evidence.data.decision
+          value: $steps.apply.provider_evidence.decision
           equals: ok
         - step: verify
-          value: $steps.readback.provider_evidence.data.decision
+          value: $steps.readback.provider_evidence.decision
           equals: ok
   review-delivery:
     inputs:
@@ -594,7 +594,7 @@ runners:
     policy:
       guards:
         - step: send
-          value: $steps.review.provider_evidence.data.decision
+          value: $steps.review.provider_evidence.decision
           equals: ok
   review-content:
     inputs:
@@ -628,8 +628,8 @@ runners:
         inputs:
           subject: "$input.subject"
           html: "$input.html"
-          expected_html_digest: $steps.digest-html.digest_result.data.digest
-          provider_result: $steps.review.provider_operation.data.result
+          expected_html_digest: $steps.digest-html.digest_result.digest
+          provider_result: $steps.review.provider_operation.result
         tool: { module: review-content.mjs, export: projectContentReview }
         outputs:
           subject: string
@@ -783,7 +783,7 @@ runners:
     policy:
       guards:
         - step: deliver
-          value: $steps.review.provider_evidence.data.decision
+          value: $steps.review.provider_evidence.decision
           equals: ok
   activate-flow:
     act:
@@ -834,7 +834,7 @@ runners:
     policy:
       guards:
         - step: activate
-          value: $steps.review.provider_evidence.data.decision
+          value: $steps.review.provider_evidence.decision
           equals: ok
   apply-draft:
     act:
@@ -1554,7 +1554,7 @@ runners:
           value: $steps.plan.csv_import.mode
           equals: preview
         inputs:
-          provider_operation: $steps.preview.provider_operation.data
+          provider_operation: $steps.preview.provider_operation
         tool: { module: csv-import.mjs, export: presentCsvImport }
         outputs:
           provider_evidence: object
@@ -1566,7 +1566,7 @@ runners:
           value: $steps.plan.csv_import.mode
           equals: import
         inputs:
-          provider_operation: $steps.import.provider_operation.data
+          provider_operation: $steps.import.provider_operation
         tool: { module: csv-import.mjs, export: presentCsvImport }
         outputs:
           provider_evidence: object

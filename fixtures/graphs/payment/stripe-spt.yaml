@@ -14,7 +14,7 @@ steps:
   - id: reserve
     skill: ../../skills/stripe-spt-reserve
     inputs:
-      payment_quote_packet: $steps.quote.payment_quote_packet.data
+      payment_quote_packet: $steps.quote.payment_quote_packet
   - id: approve-spend
     ask: { gate: stripe-spt.spend.approval, reason: Approve Stripe SPT settlement before rail execution., type: payment }
     inputs:
@@ -34,12 +34,12 @@ steps:
         counterparty: merchant:stripe-demo
         operation: search.paid
       rail_profile_ref: rail-profile:stripe-spt:test
-      reserved_payment_authority: $steps.reserve.payment_reservation_packet.data.reserved_payment_authority
-      spend_capability_ref: $steps.reserve.payment_reservation_packet.data.spend_capability_ref
-      idempotency: $steps.reserve.payment_reservation_packet.data.idempotency
-      quote_packet: $steps.quote.payment_quote_packet.data
+      reserved_payment_authority: $steps.reserve.payment_reservation_packet.reserved_payment_authority
+      spend_capability_ref: $steps.reserve.payment_reservation_packet.spend_capability_ref
+      idempotency: $steps.reserve.payment_reservation_packet.idempotency
+      quote_packet: $steps.quote.payment_quote_packet
 policy:
   guards:
     - step: fulfill
-      value: $steps.approve-spend.approval_decision.data.approved
+      value: $steps.approve-spend.approval_decision.approved
       equals: true

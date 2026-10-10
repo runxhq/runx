@@ -1,5 +1,5 @@
 skill: zapier-handoff
-version: "0.2.3"
+version: "0.2.4"
 catalog:
   kind: graph
   audience: operator
@@ -181,7 +181,7 @@ runners:
         inputs:
           zapier_account_id: $input.zapier_account_id
           hook_id: $input.zapier_hook_id
-          delivery: $steps.build-handoff-context.handoff_context.data.delivery
+          delivery: $steps.build-handoff-context.handoff_context.delivery
         tool: { module: hook.mjs, export: hookRequest }
         outputs:
           hook_request: object

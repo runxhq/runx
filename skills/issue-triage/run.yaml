@@ -1,5 +1,5 @@
 skill: issue-triage
-version: "0.4.4"
+version: "0.4.5"
 
 catalog:
   kind: graph
@@ -92,14 +92,14 @@ runners:
       - id: digest-snapshot
         tool: data.digest
         inputs:
-          value: $steps.read-issue.provider_operation.data.result.issue
+          value: $steps.read-issue.provider_operation.result.issue
 
       - id: admit
         inputs:
           repository: $input.repository
-          issue_snapshot: $steps.read-issue.provider_operation.data.result.issue
-          provider_operation: $steps.read-issue.provider_operation.data
-          snapshot_digest: $steps.digest-snapshot.digest_result.data.digest
+          issue_snapshot: $steps.read-issue.provider_operation.result.issue
+          provider_operation: $steps.read-issue.provider_operation
+          snapshot_digest: $steps.digest-snapshot.digest_result.digest
         tool: { module: issue-triage.mjs, export: admitIssue }
         outputs:
           issue_evidence: object
@@ -117,13 +117,13 @@ runners:
         inputs:
           objective: $input.objective
           maintainer_context: $input.maintainer_context
-          issue_evidence: $steps.admit.issue_evidence.data
+          issue_evidence: $steps.admit.issue_evidence
           repository: $input.repository
           issue_number: $input.issue_number
 
       - id: finalize
         inputs:
-          issue_evidence: $steps.admit.issue_evidence.data
+          issue_evidence: $steps.admit.issue_evidence
           issue_profile: $steps.draft.issue_profile
           response_strategy: $steps.draft.response_strategy
           response_draft: $steps.draft.response_draft
@@ -166,7 +166,7 @@ runners:
         inputs:
           issue_snapshots: $input.issue_snapshots
           query: $input.query
-          snapshot_digest: $steps.digest-snapshots.digest_result.data.digest
+          snapshot_digest: $steps.digest-snapshots.digest_result.digest
         tool: { module: issue-triage.mjs, export: indexIssues }
         outputs:
           issue_index: object
@@ -181,13 +181,13 @@ runners:
           selection_rationale: object
         inputs:
           maintainer_context: $input.maintainer_context
-          issue_index: $steps.index.issue_index.data
+          issue_index: $steps.index.issue_index
           issue_snapshots: $input.issue_snapshots
           query: $input.query
 
       - id: finalize
         inputs:
-          issue_index: $steps.index.issue_index.data
+          issue_index: $steps.index.issue_index
           issue_candidates: $steps.select.issue_candidates
           selection_rationale: $steps.select.selection_rationale
         tool: { module: issue-triage.mjs, export: finalizeDiscovery }
@@ -223,7 +223,7 @@ runners:
       - id: admit
         inputs:
           issue_snapshot: $input.issue_snapshot
-          snapshot_digest: $steps.digest-snapshot.digest_result.data.digest
+          snapshot_digest: $steps.digest-snapshot.digest_result.digest
         tool: { module: issue-triage.mjs, export: admitIssue }
         outputs:
           issue_evidence: object
@@ -241,12 +241,12 @@ runners:
         inputs:
           objective: $input.objective
           maintainer_context: $input.maintainer_context
-          issue_evidence: $steps.admit.issue_evidence.data
+          issue_evidence: $steps.admit.issue_evidence
           issue_snapshot: $input.issue_snapshot
 
       - id: finalize
         inputs:
-          issue_evidence: $steps.admit.issue_evidence.data
+          issue_evidence: $steps.admit.issue_evidence
           issue_profile: $steps.draft.issue_profile
           response_strategy: $steps.draft.response_strategy
           response_draft: $steps.draft.response_draft
@@ -287,7 +287,7 @@ runners:
             delivery_status: not_sent
             channel: github_issue_comment
       - id: post-comment
-        when: { value: $steps.validate.comparison.data.equal, equals: true }
+        when: { value: $steps.validate.comparison.equal, equals: true }
         operation: github/comments.create
         idempotency_key: $input.idempotency_key
         input:

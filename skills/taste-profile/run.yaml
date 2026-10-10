@@ -1,5 +1,5 @@
 skill: taste-profile
-version: "0.2.2"
+version: "0.2.3"
 
 catalog:
   kind: graph
@@ -52,18 +52,18 @@ runners:
       - id: digest
         tool: data.digest
         inputs:
-          value: $steps.index.evidence_index.data.sources
+          value: $steps.index.evidence_index.sources
 
       - id: reject
         when:
-          value: $steps.index.evidence_index.data.decision
+          value: $steps.index.evidence_index.decision
           equals: needs_more_evidence
         inputs:
           subject: $input.subject
           surface: $input.surface
           audience: $input.audience
-          evidence_index: $steps.index.evidence_index.data
-          evidence_digest: $steps.digest.digest_result.data.digest
+          evidence_index: $steps.index.evidence_index
+          evidence_digest: $steps.digest.digest_result.digest
         tool: { module: taste-profile.mjs, export: finalizeProfile }
         outputs:
           taste_profile_packet:
@@ -154,7 +154,7 @@ runners:
 
       - id: synthesize
         when:
-          value: $steps.index.evidence_index.data.decision
+          value: $steps.index.evidence_index.decision
           equals: ready
         agent: { role: curator, task: taste-profile-synthesize }
         outputs:
@@ -164,8 +164,8 @@ runners:
           surface: $input.surface
           audience: $input.audience
           constraints: $input.constraints
-          evidence_index: $steps.index.evidence_index.data
-          evidence_digest: $steps.digest.digest_result.data.digest
+          evidence_index: $steps.index.evidence_index
+          evidence_digest: $steps.digest.digest_result.digest
           evidence: $input.evidence
         artifacts:
           named_emits:
@@ -173,15 +173,15 @@ runners:
 
       - id: finalize
         when:
-          value: $steps.index.evidence_index.data.decision
+          value: $steps.index.evidence_index.decision
           equals: ready
         inputs:
           subject: $input.subject
           surface: $input.surface
           audience: $input.audience
-          evidence_index: $steps.index.evidence_index.data
-          evidence_digest: $steps.digest.digest_result.data.digest
-          taste_profile_draft: $steps.synthesize.taste_profile_draft.data
+          evidence_index: $steps.index.evidence_index
+          evidence_digest: $steps.digest.digest_result.digest
+          taste_profile_draft: $steps.synthesize.taste_profile_draft
         tool: { module: taste-profile.mjs, export: finalizeProfile }
         outputs:
           taste_profile_packet: object

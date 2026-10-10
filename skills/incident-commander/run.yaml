@@ -1,5 +1,5 @@
 skill: incident-commander
-version: "0.3.1"
+version: "0.3.2"
 
 catalog:
   kind: graph
@@ -175,7 +175,7 @@ runners:
           equals: decide
         inputs:
           incident_context: $steps.admit.incident_context
-          decision: $steps.decide.dispatch_decision.data
+          decision: $steps.decide.dispatch_decision
         tool: { module: incident-turn.mjs, export: finalizeIncident }
         outputs:
           incident_turn:

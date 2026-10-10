@@ -1,5 +1,5 @@
 skill: meeting-followup
-version: "0.2.3"
+version: "0.2.4"
 
 catalog:
   kind: graph
@@ -321,15 +321,15 @@ runners:
       - id: digest
         tool: data.digest
         inputs:
-          value: $steps.admit.meeting_evidence.data
+          value: $steps.admit.meeting_evidence
 
       - id: stop
         when:
-          value: $steps.admit.meeting_evidence.data.path
+          value: $steps.admit.meeting_evidence.path
           equals: stop
         inputs:
-          meeting_evidence: $steps.admit.meeting_evidence.data
-          evidence_digest: $steps.digest.digest_result.data.digest
+          meeting_evidence: $steps.admit.meeting_evidence
+          evidence_digest: $steps.digest.digest_result.digest
         tool: { module: meeting-followup.mjs, export: finalizeMeeting }
         outputs:
           meeting_followup: object
@@ -338,11 +338,11 @@ runners:
 
       - id: synthesize
         when:
-          value: $steps.admit.meeting_evidence.data.path
+          value: $steps.admit.meeting_evidence.path
           equals: synthesize
         inputs:
-          meeting_evidence: $steps.admit.meeting_evidence.data
-          evidence_digest: $steps.digest.digest_result.data.digest
+          meeting_evidence: $steps.admit.meeting_evidence
+          evidence_digest: $steps.digest.digest_result.digest
           transcript: $input.transcript
           attendees: $input.attendees
         agent: { role: operator, task: meeting-followup-synthesize }
@@ -353,12 +353,12 @@ runners:
 
       - id: finalize
         when:
-          value: $steps.admit.meeting_evidence.data.path
+          value: $steps.admit.meeting_evidence.path
           equals: synthesize
         inputs:
-          meeting_evidence: $steps.admit.meeting_evidence.data
-          evidence_digest: $steps.digest.digest_result.data.digest
-          followup_draft: $steps.synthesize.followup_draft.data
+          meeting_evidence: $steps.admit.meeting_evidence
+          evidence_digest: $steps.digest.digest_result.digest
+          followup_draft: $steps.synthesize.followup_draft
         tool: { module: meeting-followup.mjs, export: finalizeMeeting }
         outputs:
           meeting_followup: object

@@ -1,5 +1,5 @@
 skill: crm-cleanup
-version: "0.1.1"
+version: "0.1.2"
 
 catalog:
   kind: graph
@@ -199,9 +199,9 @@ runners:
           transcript: $input.transcript
           crm_records: $input.crm_records
           crm_schema: $input.crm_schema
-          update_draft: $steps.reconcile.update_draft.data
-          transcript_digest: $steps.digest-transcript.digest_result.data.digest
-          records_digest: $steps.digest-records.digest_result.data.digest
+          update_draft: $steps.reconcile.update_draft
+          transcript_digest: $steps.digest-transcript.digest_result.digest
+          records_digest: $steps.digest-records.digest_result.digest
         tool: { module: crm-cleanup.mjs, export: finalizeUpdates }
         outputs:
           crm_update_proposal:

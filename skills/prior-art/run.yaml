@@ -1,5 +1,5 @@
 skill: prior-art
-version: "0.2.6"
+version: "0.2.7"
 catalog:
   kind: graph
   audience: builder
@@ -208,16 +208,16 @@ runners:
           repo_root: $input.repo_root
           max_bytes: 262144
           on_missing: report
-          paths: $steps.plan.paths.data
+          paths: $steps.plan.paths
       - id: index
         label: bind catalog and file evidence
         tool: { module: prior-art.mjs, export: indexSources }
         outputs:
           evidence_index: object
         inputs:
-          limits: $steps.plan.limits.data
-          authoring_context: $steps.catalog.authoring_context.data
-          file_read_bundle: $steps.read.file_read_bundle.data
+          limits: $steps.plan.limits
+          authoring_context: $steps.catalog.authoring_context
+          file_read_bundle: $steps.read.file_read_bundle
         artifacts:
           named_emits:
             evidence_index: evidence_index
@@ -232,7 +232,7 @@ runners:
           graph_purpose: $input.graph_purpose
           audience: $input.audience
           artifact_contract: $input.artifact_contract
-          evidence_index: $steps.index.evidence_index.data
+          evidence_index: $steps.index.evidence_index
           source_paths: $input.source_paths
           repo_root: $input.repo_root
         artifacts:
@@ -241,8 +241,8 @@ runners:
       - id: validate
         label: validate citations and catalog fit
         inputs:
-          evidence_index: $steps.index.evidence_index.data
-          prior_art_draft: $steps.research.prior_art_draft.data
+          evidence_index: $steps.index.evidence_index
+          prior_art_draft: $steps.research.prior_art_draft
         tool: { module: prior-art.mjs, export: validatePriorArt }
         outputs:
           decision: string

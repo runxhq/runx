@@ -1,5 +1,5 @@
 skill: sbom-maker
-version: "0.1.1"
+version: "0.1.2"
 
 catalog:
   kind: graph
@@ -155,7 +155,7 @@ runners:
         inputs:
           lockfile: $input.lockfile
           lockfile_type: $input.lockfile_type
-          lockfile_digest: $steps.digest-lockfile.digest_result.data.digest
+          lockfile_digest: $steps.digest-lockfile.digest_result.digest
         tool: { module: sbom-maker.mjs, export: makeSbom }
         outputs:
           sbom_result:

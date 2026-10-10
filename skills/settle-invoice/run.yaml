@@ -1,5 +1,5 @@
 skill: settle-invoice
-version: "0.5.3"
+version: "0.5.4"
 catalog: { kind: graph, audience: operator, visibility: public, role: canonical, runtime_path: hosted, execution: execute, completion: provider_readback, requires_adapter: true, approval: required, category: payments }
 connectors:
   payment:
@@ -33,5 +33,5 @@ runners:
       - id: readback
         operation: payment/payment.invoice.read
         result_fields: [payment_ref, invoice_ref, amount_minor, currency, status]
-        input: $steps.settle.provider_operation.data.result
-        expected_result: $steps.settle.provider_operation.data.result
+        input: $steps.settle.provider_operation.result
+        expected_result: $steps.settle.provider_operation.result

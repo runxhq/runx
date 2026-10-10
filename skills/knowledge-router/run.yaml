@@ -1,5 +1,5 @@
 skill: knowledge-router
-version: "0.2.5"
+version: "0.2.6"
 
 catalog:
   kind: graph
@@ -178,8 +178,8 @@ runners:
         inputs:
           available_sources: $input.available_sources
           constraints: $input.constraints
-          route_proposal: $steps.propose.route_proposal.data
-          catalog_digest: $steps.digest.digest_result.data.digest
+          route_proposal: $steps.propose.route_proposal
+          catalog_digest: $steps.digest.digest_result.digest
         tool: { module: knowledge-router.mjs }
         outputs:
           knowledge_route:

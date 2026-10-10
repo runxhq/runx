@@ -69,7 +69,7 @@ fn graph_context_materialization_reaches_the_target_invocation()
     assert_eq!(consumer.provenance.len(), 1);
     let edge = &consumer.provenance[0];
     assert_eq!(edge.input.as_ref(), "message");
-    assert_eq!(edge.output.as_ref(), "result.data.message");
+    assert_eq!(edge.output.as_ref(), "result.message");
     assert_eq!(edge.from_step.as_deref(), Some("first"));
     assert_eq!(
         edge.receipt_id.as_deref(),

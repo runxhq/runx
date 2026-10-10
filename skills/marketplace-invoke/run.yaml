@@ -1,5 +1,5 @@
 skill: marketplace-invoke
-version: "0.4.1"
+version: "0.4.2"
 catalog:
   kind: graph
   audience: operator
@@ -125,7 +125,7 @@ runners:
         inputs:
           marketplace_offer: $input.marketplace_offer
           resource_url: $input.marketplace_offer.endpoint_url
-          settlement: $steps.x402.provider_operation.data.result
+          settlement: $steps.x402.provider_operation.result
         tool: { module: readback.mjs, export: scheduleMarketplaceReadback, timeout_seconds: 5 }
         outputs: { schedule_intent: { type: object } }
         artifacts:
@@ -156,7 +156,7 @@ runners:
         inputs:
           checkpoint: $steps.plan.checkpoint
           provider_job_ref: $steps.plan.provider_job_ref
-          readback: $steps.readback.provider_operation.data.result
+          readback: $steps.readback.provider_operation.result
         tool: { module: readback.mjs, export: interpretMarketplaceReadback, timeout_seconds: 5 }
         outputs: { action: object }
 
@@ -180,7 +180,7 @@ runners:
         when: { value: $steps.interpret.action.kind, equals: failed }
         inputs:
           action: $steps.interpret.action
-          digest_result: $steps.digest-failure.digest_result.data
+          digest_result: $steps.digest-failure.digest_result
         tool: { module: readback.mjs, export: finishMarketplaceFailure, timeout_seconds: 5 }
         outputs: { stage_result: { type: object } }
         artifacts:
@@ -206,8 +206,8 @@ runners:
         when: { value: $steps.interpret.action.kind, equals: ready }
         inputs:
           action: $steps.interpret.action
-          artifact_result: $steps.allocate-result.artifact_operation.data.result
-          digest_result: $steps.digest-completion.digest_result.data
+          artifact_result: $steps.allocate-result.artifact_operation.result
+          digest_result: $steps.digest-completion.digest_result
         tool: { module: readback.mjs, export: finishMarketplaceReady, timeout_seconds: 5 }
         outputs: { stage_result: { type: object } }
         artifacts:

@@ -1,5 +1,5 @@
 skill: release
-version: "0.4.6"
+version: "0.4.7"
 
 catalog:
   kind: graph
@@ -37,7 +37,7 @@ runners:
           version: $input.version
           last_tag: $input.last_tag
           operator_context: $input.operator_context
-          profile_file: $steps.read-profile.file_read.data
+          profile_file: $steps.read-profile.file_read
         tool: { module: release.mjs, export: inspectProfile }
         outputs:
           release_context:
@@ -87,50 +87,50 @@ runners:
         tool: command.plan
         inputs:
           output_mode: json
-          repo_root: $steps.inspect-profile.release_context.data.project_root
-          command: $steps.inspect-profile.release_context.data.commands.prepare.command
-          args: $steps.inspect-profile.release_context.data.commands.prepare.args
-          cwd: $steps.inspect-profile.release_context.data.commands.prepare.cwd
-          env: $steps.inspect-profile.release_context.data.commands.prepare.env
-          timeout_ms: $steps.inspect-profile.release_context.data.commands.prepare.timeout_ms
+          repo_root: $steps.inspect-profile.release_context.project_root
+          command: $steps.inspect-profile.release_context.commands.prepare.command
+          args: $steps.inspect-profile.release_context.commands.prepare.args
+          cwd: $steps.inspect-profile.release_context.commands.prepare.cwd
+          env: $steps.inspect-profile.release_context.commands.prepare.env
+          timeout_ms: $steps.inspect-profile.release_context.commands.prepare.timeout_ms
       - id: plan-publish
         tool: command.plan
         inputs:
           output_mode: json
-          repo_root: $steps.inspect-profile.release_context.data.project_root
-          command: $steps.inspect-profile.release_context.data.commands.publish.command
-          args: $steps.inspect-profile.release_context.data.commands.publish.args
-          cwd: $steps.inspect-profile.release_context.data.commands.publish.cwd
-          env: $steps.inspect-profile.release_context.data.commands.publish.env
-          timeout_ms: $steps.inspect-profile.release_context.data.commands.publish.timeout_ms
+          repo_root: $steps.inspect-profile.release_context.project_root
+          command: $steps.inspect-profile.release_context.commands.publish.command
+          args: $steps.inspect-profile.release_context.commands.publish.args
+          cwd: $steps.inspect-profile.release_context.commands.publish.cwd
+          env: $steps.inspect-profile.release_context.commands.publish.env
+          timeout_ms: $steps.inspect-profile.release_context.commands.publish.timeout_ms
       - id: plan-verify
         tool: command.plan
         inputs:
           output_mode: json
-          repo_root: $steps.inspect-profile.release_context.data.project_root
-          command: $steps.inspect-profile.release_context.data.commands.verify.command
-          args: $steps.inspect-profile.release_context.data.commands.verify.args
-          cwd: $steps.inspect-profile.release_context.data.commands.verify.cwd
-          env: $steps.inspect-profile.release_context.data.commands.verify.env
-          timeout_ms: $steps.inspect-profile.release_context.data.commands.verify.timeout_ms
+          repo_root: $steps.inspect-profile.release_context.project_root
+          command: $steps.inspect-profile.release_context.commands.verify.command
+          args: $steps.inspect-profile.release_context.commands.verify.args
+          cwd: $steps.inspect-profile.release_context.commands.verify.cwd
+          env: $steps.inspect-profile.release_context.commands.verify.env
+          timeout_ms: $steps.inspect-profile.release_context.commands.verify.timeout_ms
       - id: execute-prepare
         tool: command.execute
         scopes: [process.exec, runx:release:prepare]
         inputs:
           output_mode: json
-          repo_root: $steps.inspect-profile.release_context.data.project_root
-          command: $steps.inspect-profile.release_context.data.commands.prepare.command
-          args: $steps.inspect-profile.release_context.data.commands.prepare.args
-          cwd: $steps.inspect-profile.release_context.data.commands.prepare.cwd
-          env: $steps.inspect-profile.release_context.data.commands.prepare.env
-          timeout_ms: $steps.inspect-profile.release_context.data.commands.prepare.timeout_ms
-          expected_command_digest: $steps.plan-prepare.command_plan.data.command_digest
+          repo_root: $steps.inspect-profile.release_context.project_root
+          command: $steps.inspect-profile.release_context.commands.prepare.command
+          args: $steps.inspect-profile.release_context.commands.prepare.args
+          cwd: $steps.inspect-profile.release_context.commands.prepare.cwd
+          env: $steps.inspect-profile.release_context.commands.prepare.env
+          timeout_ms: $steps.inspect-profile.release_context.commands.prepare.timeout_ms
+          expected_command_digest: $steps.plan-prepare.command_plan.command_digest
       - id: interpret-prepare
         inputs:
           phase: prepare
-          release_context: $steps.inspect-profile.release_context.data
-          command_execution: $steps.execute-prepare.command_execution.data
-          command_plan: $steps.plan-prepare.command_plan.data
+          release_context: $steps.inspect-profile.release_context
+          command_execution: $steps.execute-prepare.command_execution
+          command_plan: $steps.plan-prepare.command_plan
         tool: { module: release.mjs, export: interpretPhase }
         outputs:
           preparation:
@@ -181,13 +181,13 @@ runners:
           packets: { preparation: runx.release.phase_result.v1 }
       - id: draft-notes
         when:
-          value: $steps.interpret-prepare.preparation.data.status
+          value: $steps.interpret-prepare.preparation.status
           equals: ready
         agent: { role: builder, task: release-notes }
         outputs: { release_notes: object }
         inputs:
-          release_context: $steps.inspect-profile.release_context.data
-          preparation: $steps.interpret-prepare.preparation.data
+          release_context: $steps.inspect-profile.release_context
+          preparation: $steps.interpret-prepare.preparation
           project_root: $input.project_root
           profile_ref: $input.profile_ref
           channel: $input.channel
@@ -198,15 +198,15 @@ runners:
           named_emits: { release_notes: release_notes }
       - id: finalize-ready-brief
         when:
-          value: $steps.interpret-prepare.preparation.data.status
+          value: $steps.interpret-prepare.preparation.status
           equals: ready
         inputs:
-          release_context: $steps.inspect-profile.release_context.data
-          preparation: $steps.interpret-prepare.preparation.data
-          release_notes: $steps.draft-notes.release_notes.data
-          prepare_plan: $steps.plan-prepare.command_plan.data
-          publish_plan: $steps.plan-publish.command_plan.data
-          verify_plan: $steps.plan-verify.command_plan.data
+          release_context: $steps.inspect-profile.release_context
+          preparation: $steps.interpret-prepare.preparation
+          release_notes: $steps.draft-notes.release_notes
+          prepare_plan: $steps.plan-prepare.command_plan
+          publish_plan: $steps.plan-publish.command_plan
+          verify_plan: $steps.plan-verify.command_plan
         tool: { module: release.mjs, export: finalizeBrief }
         outputs: { release_context: object, release_brief: object }
         artifacts:
@@ -214,14 +214,14 @@ runners:
           packets: { release_context: runx.release.context.v1, release_brief: runx.release.brief.v1 }
       - id: finalize-blocked-brief
         when:
-          value: $steps.interpret-prepare.preparation.data.status
+          value: $steps.interpret-prepare.preparation.status
           equals: failed
         inputs:
-          release_context: $steps.inspect-profile.release_context.data
-          preparation: $steps.interpret-prepare.preparation.data
-          prepare_plan: $steps.plan-prepare.command_plan.data
-          publish_plan: $steps.plan-publish.command_plan.data
-          verify_plan: $steps.plan-verify.command_plan.data
+          release_context: $steps.inspect-profile.release_context
+          preparation: $steps.interpret-prepare.preparation
+          prepare_plan: $steps.plan-prepare.command_plan
+          publish_plan: $steps.plan-publish.command_plan
+          verify_plan: $steps.plan-verify.command_plan
         tool: { module: release.mjs, export: finalizeBrief }
         outputs: { release_context: object, release_brief: object }
         artifacts:
@@ -251,7 +251,7 @@ runners:
       - id: approve-publish
         ask: { gate: release.publish.approval, reason: "Approve this exact version, channel, profile digest, and native command-plan digest." }
         inputs:
-          release_brief: $steps.prepare.release_brief.data
+          release_brief: $steps.prepare.release_brief
           project_root: $input.project_root
           profile_ref: $input.profile_ref
           channel: $input.channel
@@ -263,18 +263,18 @@ runners:
         scopes: [process.exec, runx:release:publish]
         inputs:
           output_mode: json
-          repo_root: $steps.prepare.release_context.data.project_root
-          command: $steps.prepare.release_context.data.commands.publish.command
-          args: $steps.prepare.release_context.data.commands.publish.args
-          cwd: $steps.prepare.release_context.data.commands.publish.cwd
-          env: $steps.prepare.release_context.data.commands.publish.env
-          timeout_ms: $steps.prepare.release_context.data.commands.publish.timeout_ms
-          expected_command_digest: $steps.prepare.release_context.data.commands.publish.command_digest
+          repo_root: $steps.prepare.release_context.project_root
+          command: $steps.prepare.release_context.commands.publish.command
+          args: $steps.prepare.release_context.commands.publish.args
+          cwd: $steps.prepare.release_context.commands.publish.cwd
+          env: $steps.prepare.release_context.commands.publish.env
+          timeout_ms: $steps.prepare.release_context.commands.publish.timeout_ms
+          expected_command_digest: $steps.prepare.release_context.commands.publish.command_digest
       - id: interpret-publish
         inputs:
           phase: publish
-          release_context: $steps.prepare.release_context.data
-          command_execution: $steps.execute-publish.command_execution.data
+          release_context: $steps.prepare.release_context
+          command_execution: $steps.execute-publish.command_execution
         tool: { module: release.mjs, export: interpretPhase }
         outputs: { publication: object }
         artifacts:
@@ -285,18 +285,18 @@ runners:
         scopes: [process.exec, runx:release:verify]
         inputs:
           output_mode: json
-          repo_root: $steps.prepare.release_context.data.project_root
-          command: $steps.prepare.release_context.data.commands.verify.command
-          args: $steps.prepare.release_context.data.commands.verify.args
-          cwd: $steps.prepare.release_context.data.commands.verify.cwd
-          env: $steps.prepare.release_context.data.commands.verify.env
-          timeout_ms: $steps.prepare.release_context.data.commands.verify.timeout_ms
-          expected_command_digest: $steps.prepare.release_context.data.commands.verify.command_digest
+          repo_root: $steps.prepare.release_context.project_root
+          command: $steps.prepare.release_context.commands.verify.command
+          args: $steps.prepare.release_context.commands.verify.args
+          cwd: $steps.prepare.release_context.commands.verify.cwd
+          env: $steps.prepare.release_context.commands.verify.env
+          timeout_ms: $steps.prepare.release_context.commands.verify.timeout_ms
+          expected_command_digest: $steps.prepare.release_context.commands.verify.command_digest
       - id: interpret-verify
         inputs:
           phase: verify
-          release_context: $steps.prepare.release_context.data
-          command_execution: $steps.execute-verify.command_execution.data
+          release_context: $steps.prepare.release_context
+          command_execution: $steps.execute-verify.command_execution
         tool: { module: release.mjs, export: interpretPhase }
         outputs: { verification: object }
         artifacts:
@@ -304,13 +304,13 @@ runners:
           packets: { verification: runx.release.phase_result.v1 }
     policy:
       guards:
-        - { step: approve-publish, value: $steps.prepare.release_brief.data.decision, equals: ready_for_approval }
-        - { step: execute-publish, value: $steps.prepare.release_brief.data.decision, equals: ready_for_approval }
-        - { step: execute-publish, value: $steps.approve-publish.approval_decision.data.approved, equals: true }
-        - { step: interpret-publish, value: $steps.approve-publish.approval_decision.data.approved, equals: true }
-        - { step: execute-verify, value: $steps.interpret-publish.publication.data.status, equals: command_completed }
-        - { step: execute-verify, value: $steps.approve-publish.approval_decision.data.approved, equals: true }
-        - { step: interpret-verify, value: $steps.interpret-publish.publication.data.status, equals: command_completed }
+        - { step: approve-publish, value: $steps.prepare.release_brief.decision, equals: ready_for_approval }
+        - { step: execute-publish, value: $steps.prepare.release_brief.decision, equals: ready_for_approval }
+        - { step: execute-publish, value: $steps.approve-publish.approval_decision.approved, equals: true }
+        - { step: interpret-publish, value: $steps.approve-publish.approval_decision.approved, equals: true }
+        - { step: execute-verify, value: $steps.interpret-publish.publication.status, equals: command_completed }
+        - { step: execute-verify, value: $steps.approve-publish.approval_decision.approved, equals: true }
+        - { step: interpret-verify, value: $steps.interpret-publish.publication.status, equals: command_completed }
 
 harness:
   files: [fixtures/support/release-blocked-fixture.graph, fixtures/support/release-fixture.graph, fixtures/support/setup_release_fixture.mjs]

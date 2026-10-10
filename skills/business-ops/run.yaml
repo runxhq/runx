@@ -1,5 +1,5 @@
 skill: business-ops
-version: "0.2.3"
+version: "0.2.4"
 
 catalog:
   kind: graph
@@ -98,13 +98,13 @@ runners:
       - id: package-route
         inputs:
           signal: "$input.signal"
-          classify: $steps.classify.lane_packet.data
-          docs: $steps.docs.lane_packet.data
-          release: $steps.release.lane_packet.data
-          issue: $steps.issue.lane_packet.data
-          send: $steps.send.lane_packet.data
-          spend: $steps.spend.lane_packet.data
-          audit: $steps.audit.lane_packet.data
+          classify: $steps.classify.lane_packet
+          docs: $steps.docs.lane_packet
+          release: $steps.release.lane_packet
+          issue: $steps.issue.lane_packet
+          send: $steps.send.lane_packet
+          spend: $steps.spend.lane_packet
+          audit: $steps.audit.lane_packet
         tool: { module: business-ops.mjs, export: packageRoute }
         outputs:
           lane_packets: object
@@ -156,7 +156,7 @@ runners:
           aggregate_id: "$input.aggregate_id"
           expected_version: "$input.expected_version"
           idempotency_key: "$input.idempotency_key"
-          event: $steps.classify.lane_packet.data
+          event: $steps.classify.lane_packet
       - id: readback
         skill: ../data-store
         runner: read_projection
@@ -166,9 +166,9 @@ runners:
           aggregate_id: "$input.aggregate_id"
       - id: finalize-route
         inputs:
-          lane_packet: $steps.classify.lane_packet.data
-          append_result: $steps.persist-route.data_operation_result.data
-          projection_result: $steps.readback.data_operation_result.data
+          lane_packet: $steps.classify.lane_packet
+          append_result: $steps.persist-route.data_operation_result
+          projection_result: $steps.readback.data_operation_result
         tool: { module: business-ops.mjs, export: finalizeDurableRoute }
         outputs:
           lane_packet: object

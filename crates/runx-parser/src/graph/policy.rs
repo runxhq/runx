@@ -104,7 +104,7 @@ mod tests {
         // A stale `transitions` key (the pre-rename name) must be rejected, not
         // silently dropped: dropping it would disable the gate it declares.
         let policy = policy_value(
-            r#"{"transitions":[{"step":"fulfill","value":"$steps.approve-spend.data.approved","equals":true}]}"#,
+            r#"{"transitions":[{"step":"fulfill","value":"$steps.approve-spend.approval_decision.approved","equals":true}]}"#,
         )?;
         let error =
             match validate_graph_policy(Some(&policy), &["approve-spend", "fulfill"], "policy") {
@@ -121,7 +121,7 @@ mod tests {
     #[test]
     fn accepts_guards_policy() -> Result<(), String> {
         let policy = policy_value(
-            r#"{"guards":[{"step":"fulfill","value":"$steps.approve-spend.data.approved","equals":true}]}"#,
+            r#"{"guards":[{"step":"fulfill","value":"$steps.approve-spend.approval_decision.approved","equals":true}]}"#,
         )?;
         let parsed =
             match validate_graph_policy(Some(&policy), &["approve-spend", "fulfill"], "policy") {

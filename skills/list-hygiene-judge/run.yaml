@@ -1,5 +1,5 @@
 skill: list-hygiene-judge
-version: "0.1.1"
+version: "0.1.2"
 
 catalog:
   kind: graph
@@ -281,7 +281,7 @@ runners:
           engagement_evidence: $input.engagement_evidence
           hygiene_policy: $input.hygiene_policy
           consent_evidence: $input.consent_evidence
-          contact_readback: $steps.read-contact.data_operation_result.data
+          contact_readback: $steps.read-contact.data_operation_result
         tool: { module: list-hygiene-judge.mjs, export: decideListHygiene }
         outputs:
           decision_plan:
@@ -332,7 +332,7 @@ runners:
 
       - id: append-transition
         when:
-          value: $steps.decide.decision_plan.data.append_allowed
+          value: $steps.decide.decision_plan.append_allowed
           equals: true
         skill: ../data-store
         runner: append_event
@@ -342,7 +342,7 @@ runners:
           aggregate_id: $input.aggregate_id
           expected_version: $input.expected_version
           idempotency_key: $input.idempotency_key
-          event: $steps.decide.decision_plan.data.event
+          event: $steps.decide.decision_plan.event
 
       - id: readback
         skill: ../data-store
@@ -354,12 +354,12 @@ runners:
 
       - id: finalize-written
         when:
-          value: $steps.decide.decision_plan.data.append_allowed
+          value: $steps.decide.decision_plan.append_allowed
           equals: true
         inputs:
-          decision_plan: $steps.decide.decision_plan.data
-          write_result: $steps.append-transition.data_operation_result.data
-          recorded_readback: $steps.readback.data_operation_result.data
+          decision_plan: $steps.decide.decision_plan
+          write_result: $steps.append-transition.data_operation_result
+          recorded_readback: $steps.readback.data_operation_result
         tool: { module: list-hygiene-judge.mjs, export: finalizeListHygiene }
         outputs:
           list_hygiene_result:
@@ -415,11 +415,11 @@ runners:
 
       - id: finalize-unchanged
         when:
-          value: $steps.decide.decision_plan.data.append_allowed
+          value: $steps.decide.decision_plan.append_allowed
           equals: false
         inputs:
-          decision_plan: $steps.decide.decision_plan.data
-          recorded_readback: $steps.readback.data_operation_result.data
+          decision_plan: $steps.decide.decision_plan
+          recorded_readback: $steps.readback.data_operation_result
         tool: { module: list-hygiene-judge.mjs, export: finalizeListHygiene }
         outputs:
           list_hygiene_result:

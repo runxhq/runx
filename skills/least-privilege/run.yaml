@@ -1,5 +1,5 @@
 skill: least-privilege
-version: "0.3.3"
+version: "0.3.4"
 catalog:
   kind: graph
   audience: operator
@@ -58,7 +58,7 @@ runners:
           granted_scopes: $input.granted_scopes
           receipt_ids: $input.receipt_ids
           objective: $input.objective
-          ledger_evidence: $steps.evidence.ledger_answer_packet.data
+          ledger_evidence: $steps.evidence.ledger_answer_packet
         tool: { module: least-privilege.mjs }
         outputs:
           audit_report:

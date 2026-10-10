@@ -1,5 +1,5 @@
 skill: reflect-digest
-version: "0.3.2"
+version: "0.3.3"
 
 catalog:
   kind: graph
@@ -186,7 +186,7 @@ runners:
           explicit_reflect_projections: $input.reflect_projections
           skill_filter: $input.skill_filter
           since: $input.since
-          stored_reflect_projections: $steps.read-reflect-projections.data_operation_result.data
+          stored_reflect_projections: $steps.read-reflect-projections.data_operation_result
         tool: { module: reflect-digest.mjs, export: loadProjections }
         artifacts:
           named_emits:
@@ -198,7 +198,7 @@ runners:
         inputs:
           min_support: $input.min_support
           min_confidence: $input.min_confidence
-          reflect_projections_packet: $steps.load-reflect-projections.reflect_projections_packet.data
+          reflect_projections_packet: $steps.load-reflect-projections.reflect_projections_packet
         tool: { module: reflect-digest.mjs, export: groupProjections }
         artifacts:
           named_emits:
@@ -211,7 +211,7 @@ runners:
         outputs:
           proposals: array
         inputs:
-          grouped_reflections: $steps.group-reflect-projections.grouped_reflections_packet.data.items
+          grouped_reflections: $steps.group-reflect-projections.grouped_reflections_packet.items
           reflect_projections: $input.reflect_projections
           data_source_ref: $input.data_source_ref
           state_resource: $input.state_resource
@@ -227,8 +227,8 @@ runners:
       - id: build-handoffs
         label: validate and build skill-lab handoffs
         inputs:
-          grouped_reflections: $steps.group-reflect-projections.grouped_reflections_packet.data.items
-          proposals: $steps.draft-digest.proposals.data
+          grouped_reflections: $steps.group-reflect-projections.grouped_reflections_packet.items
+          proposals: $steps.draft-digest.proposals
         tool: { module: reflect-digest.mjs, export: buildHandoffs }
         outputs:
           proposals: array
