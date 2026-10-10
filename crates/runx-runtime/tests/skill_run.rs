@@ -2736,7 +2736,8 @@ fn native_graph_skill_run_does_not_rerun_final_step() -> Result<(), Box<dyn std:
     assert!(
         error
             .to_string()
-            .contains("completed graph receipt is invalid")
+            .contains("receipt already exists with different content"),
+        "{error}"
     );
     assert_eq!(fs::read_to_string(count_file)?, "1");
 
