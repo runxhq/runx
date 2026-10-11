@@ -92,17 +92,25 @@ fn validate_result_producers(
 }
 
 /// An ask is addressed by its gate and an operation's approval by its step, in
-/// one run, so a gate may not name a step.
+/// one run, so a gate names one ask and no step: one answer never clears two.
 fn validate_ask_addresses(
     steps: &[crate::GraphStep],
     step_ids: &BTreeSet<String>,
 ) -> Result<(), ValidationError> {
+    let mut gates = BTreeSet::new();
     for (index, step) in steps.iter().enumerate() {
-        if let crate::StepKind::Ask(ask) = &step.kind
-            && step_ids.contains(&ask.gate)
-        {
+        let crate::StepKind::Ask(ask) = &step.kind else {
+            continue;
+        };
+        if step_ids.contains(&ask.gate) {
             return Err(validation_error(format!(
                 "steps.{index}.ask.gate '{}' names a step; an ask's gate addresses its request, so it must differ from every step id.",
+                ask.gate
+            )));
+        }
+        if !gates.insert(ask.gate.as_str()) {
+            return Err(validation_error(format!(
+                "steps.{index}.ask.gate '{}' is already another ask's gate; each ask needs its own, so one answer clears one ask.",
                 ask.gate
             )));
         }
@@ -346,6 +354,22 @@ steps:
             "{error}"
         );
         validate_yaml(&graph("send.approval"))?;
+        Ok(())
+    }
+
+    #[test]
+    fn two_asks_cannot_share_a_gate() -> Result<(), String> {
+        let graph = |second: &str| {
+            format!(
+                "name: twice\nsteps:\n  - id: first\n    ask: {{gate: approve.send, reason: Send it?}}\n  - id: second\n    ask: {{gate: {second}, reason: Send it again?}}\n"
+            )
+        };
+        let error = validate_err(&graph("approve.send"))?;
+        assert!(
+            error.contains("steps.1.ask.gate 'approve.send' is already another ask's gate"),
+            "{error}"
+        );
+        validate_yaml(&graph("approve.resend"))?;
         Ok(())
     }
 
