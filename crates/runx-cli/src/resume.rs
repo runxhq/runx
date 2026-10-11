@@ -1,12 +1,10 @@
 use std::ffi::OsString;
 use std::fs;
-use std::io::{self, Read, Write};
+use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use runx_runtime::{ManagedAgentPolicy, ResumeRequest, WorkspaceEnv};
-
-const MAX_STDIN_ANSWERS_BYTES: u64 = 4 * 1024 * 1024;
 
 use crate::managed_agent::{managed_agent_policy, parse_boolean_flag, parse_managed_agent_rounds};
 
@@ -211,19 +209,15 @@ pub fn run_native_resume_with_workspace(plan: ResumePlan, workspace: &WorkspaceE
 }
 
 fn materialize_stdin_answers(workspace: &WorkspaceEnv, run_id: &str) -> Result<PathBuf, String> {
-    let mut bytes = Vec::new();
-    io::stdin()
-        .lock()
-        .take(MAX_STDIN_ANSWERS_BYTES + 1)
-        .read_to_end(&mut bytes)
-        .map_err(|error| format!("failed to read resume answers from stdin: {error}"))?;
-    if bytes.len() as u64 > MAX_STDIN_ANSWERS_BYTES {
-        return Err(format!(
-            "resume answers from stdin exceed the {} byte limit",
-            MAX_STDIN_ANSWERS_BYTES
-        ));
-    }
-    let value = serde_json::from_slice::<runx_contracts::JsonValue>(&bytes)
+    // Resume answers read from stdin as any document input does, under the
+    // same bound as a skill's inputs.
+    let text = crate::document_input::read_document_input(
+        &crate::document_input::DocumentInputSource::Stdin,
+        workspace.env(),
+        workspace.cwd(),
+    )
+    .map_err(|error| format!("failed to read resume answers from stdin: {error}"))?;
+    let value = serde_json::from_str::<runx_contracts::JsonValue>(&text)
         .map_err(|error| format!("resume answers from stdin are not valid JSON: {error}"))?;
     if value.as_object().is_none() {
         return Err("resume answers from stdin must be a JSON object".to_owned());
