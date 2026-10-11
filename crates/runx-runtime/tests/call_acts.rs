@@ -173,6 +173,26 @@ fn the_invokers_act_is_sealed_in_the_call_receipt_with_admitted_authority_and_ef
             .iter()
             .any(|grant| grant.reference_type == ReferenceType::Grant)
     );
+    // The act names the connector operation it ran, exactly as admission
+    // bound it, inside the signed body.
+    let operation = act.operation.as_ref().expect("the admitted operation");
+    let slack = runx_runtime::ConnectorScope::official_only()
+        .unwrap()
+        .connector("runx/slack")
+        .unwrap();
+    assert_eq!(operation.connector, slack.connector_ref);
+    assert_eq!(operation.manifest_digest, slack.manifest_digest);
+    assert_eq!(operation.connector_digest, slack.connector_digest);
+    assert_eq!(operation.operation.as_str(), "channel.post");
+    let mut altered = receipt.clone();
+    if let Some(sealed) = altered.acts[0].operation.as_mut() {
+        sealed.connector_digest = sealed.manifest_digest.clone();
+    }
+    assert_ne!(
+        runx_receipts::canonical_receipt_body_digest(&altered).unwrap(),
+        receipt.digest.as_str(),
+        "the signature covers the operation the act names"
+    );
     // The target is classified by the connectors' declared references.
     let target = act.target_refs.first().expect("the act's target");
     assert_eq!(target.uri.as_str(), "github://acme/app/issues/7");

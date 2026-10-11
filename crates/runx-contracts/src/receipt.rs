@@ -129,6 +129,11 @@ pub struct ReceiptAct {
     /// referenced here and hydrated by the inspection projections.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub context_ref: Option<Reference>,
+    /// The connector operation the act ran, exactly as admission bound it:
+    /// its qualified connector, manifest and connector digests, and the
+    /// operation, instance and target it was admitted for.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub operation: Option<crate::OperationIntent>,
 }
 
 /// Exactly one seal. `deferred` expresses a suspended (waiting/delegated) run.

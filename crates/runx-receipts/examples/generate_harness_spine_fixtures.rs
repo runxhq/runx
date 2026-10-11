@@ -224,6 +224,7 @@ fn call_act(call: CallOutcome<'_>) -> ReceiptAct {
         target_refs: call.target_refs,
         artifact_refs: call.artifact_refs,
         context_ref: call.context_ref,
+        operation: None,
     }
 }
 

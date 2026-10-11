@@ -63,6 +63,24 @@ export type ReceiptActContract = DeepReadonly<{
   target_refs: readonly ReferenceContract[];
   artifact_refs: readonly ReferenceContract[];
   context_ref?: ReferenceContract;
+  /** The connector operation the act ran, exactly as admission bound it. */
+  operation?: ReceiptOperationContract;
+}>;
+
+/** An admitted operation: its qualified connector and exact digests, and the operation, instance and target it was admitted for. */
+export type ReceiptOperationContract = DeepReadonly<{
+  connector: string;
+  manifest_digest: string;
+  connector_digest: string;
+  operation: string;
+  operation_digest: string;
+  instance_id: string;
+  target: string;
+  payload_digest: string;
+  request_key_digest?: string;
+  amount?: { units: number; unit: string };
+  approval_digest?: string;
+  act_digest?: string;
 }>;
 
 export type ReceiptSealContract = DeepReadonly<{

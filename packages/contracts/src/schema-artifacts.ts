@@ -9160,6 +9160,32 @@ export const runxSchemaArtifacts = {
     "x-runx-packet": true,
     "x-runx-schema": "runx.payment.cancel_paid_invocation.result.v1"
   } as JsonSchema,
+  "connector-binding.schema.json": {
+    "additionalProperties": false,
+    "properties": {
+      "connector": {
+        "maxLength": 129,
+        "pattern": "^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?/[a-z0-9][a-z0-9-]{0,62}[a-z0-9]$",
+        "type": "string"
+      },
+      "connector_digest": {
+        "maxLength": 71,
+        "pattern": "^sha256:[0-9a-f]{64}$",
+        "type": "string"
+      },
+      "manifest_digest": {
+        "maxLength": 71,
+        "pattern": "^sha256:[0-9a-f]{64}$",
+        "type": "string"
+      }
+    },
+    "required": [
+      "connector",
+      "manifest_digest",
+      "connector_digest"
+    ],
+    "type": "object"
+  } as JsonSchema,
   "connector-instance.schema.json": {
     "$id": "https://schemas.runx.ai/runx/connector-instance/v1.json",
     "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -22890,6 +22916,94 @@ export const runxSchemaArtifacts = {
               "required": [
                 "purpose",
                 "legitimacy"
+              ],
+              "type": "object"
+            },
+            "operation": {
+              "additionalProperties": false,
+              "properties": {
+                "act_digest": {
+                  "maxLength": 71,
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                "amount": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "unit": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "units": {
+                      "minimum": 0,
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "units",
+                    "unit"
+                  ],
+                  "type": "object"
+                },
+                "approval_digest": {
+                  "maxLength": 71,
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                "connector": {
+                  "maxLength": 129,
+                  "pattern": "^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?/[a-z0-9][a-z0-9-]{0,62}[a-z0-9]$",
+                  "type": "string"
+                },
+                "connector_digest": {
+                  "maxLength": 71,
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                "instance_id": {
+                  "maxLength": 128,
+                  "pattern": "^[a-z0-9][a-z0-9._-]{0,127}$",
+                  "type": "string"
+                },
+                "manifest_digest": {
+                  "maxLength": 71,
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                "operation": {
+                  "maxLength": 100,
+                  "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$",
+                  "type": "string"
+                },
+                "operation_digest": {
+                  "maxLength": 71,
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                "payload_digest": {
+                  "maxLength": 71,
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                "request_key_digest": {
+                  "maxLength": 71,
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                "target": {
+                  "minLength": 1,
+                  "type": "string"
+                }
+              },
+              "required": [
+                "connector",
+                "manifest_digest",
+                "connector_digest",
+                "operation",
+                "operation_digest",
+                "instance_id",
+                "target",
+                "payload_digest"
               ],
               "type": "object"
             },
