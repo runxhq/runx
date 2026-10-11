@@ -815,6 +815,11 @@ pub(crate) fn execute(
         reason,
     };
     let implementation_digest = context.implementation_digest();
+    let instance_binding = admitted
+        .instance
+        .instance
+        .binding_digest()
+        .map_err(|error| engine(format!("digesting the instance binding: {error}")))?;
     let authority_term_id = admitted
         .admission
         .execution_term
@@ -834,6 +839,11 @@ pub(crate) fn execute(
     }
 
     if let Some(pending) = &context.admitted.pending {
+        if pending.instance_binding != instance_binding.as_str() {
+            return Err(unknown(
+                "the instance was confirmed again with another account or credential since the unsettled attempt; reconcile it before resuming".to_owned(),
+            ));
+        }
         if pending.implementation_digest != implementation_digest {
             return Err(unknown(
                 "the implementation changed since the unsettled attempt; reconcile it before resuming".to_owned(),
@@ -879,7 +889,7 @@ pub(crate) fn execute(
                     authority_term_id,
                     mandate_ref: admitted.mandate_ref.as_ref(),
                     idempotency_key: provider_key.as_deref().unwrap_or_default(),
-                    instance_id: admitted.instance.instance.instance_id.as_str(),
+                    instance_binding: instance_binding.as_str(),
                     attempt: plan.number,
                     approval: plan.approval.as_ref(),
                     implementation_digest: implementation_digest.as_deref(),

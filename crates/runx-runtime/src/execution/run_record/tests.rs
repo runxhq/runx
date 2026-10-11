@@ -641,7 +641,7 @@ fn a_step_settles_its_effect_in_the_same_transaction() {
                 authority_term_id: "term-1",
                 mandate_ref: None,
                 idempotency_key: "runx:sha256:intent",
-                instance_id: "slack-acme",
+                instance_binding: "sha256:binding",
                 attempt: 1,
                 approval: None,
                 implementation_digest: None,

@@ -107,7 +107,7 @@ fn an_act_counts_as_attempted_once_custody_records_it() {
                 authority_term_id: "term-1",
                 mandate_ref: None,
                 idempotency_key: "runx:sha256:intent",
-                instance_id: "slack-acme",
+                instance_binding: "sha256:binding",
                 attempt: 1,
                 approval: None,
                 implementation_digest: None,

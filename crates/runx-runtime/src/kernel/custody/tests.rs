@@ -28,7 +28,7 @@ fn attempt(custody: &EffectCustody, number: u32) -> Attempt<'static> {
         authority_term_id: "term-1",
         mandate_ref: None,
         idempotency_key: "runx:sha256:intent",
-        instance_id: "slack-acme",
+        instance_binding: "sha256:binding",
         attempt: number,
         approval: None,
         implementation_digest: None,
@@ -246,4 +246,21 @@ fn a_settlement_commits_once() {
             .is_empty()
     );
     assert_eq!(custody.custody().unwrap(), settled);
+}
+
+/// A recovered attempt keeps the instance binding it was made under: an
+/// instance confirmed again with another credential is another attempt.
+#[test]
+fn a_recovered_attempt_keeps_its_instance_binding() {
+    let (_root, custody) = custody();
+    custody.attempt(&attempt(&custody, 1), None, &[]).unwrap();
+    custody.unknown("timed out".to_owned()).unwrap();
+    let rebound = Attempt {
+        instance_binding: "sha256:rebound",
+        ..attempt(&custody, 2)
+    };
+    assert!(matches!(
+        custody.attempt(&rebound, None, &[]),
+        Err(CustodyError::Mismatch(_))
+    ));
 }

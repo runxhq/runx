@@ -847,6 +847,33 @@ fn an_enforced_operation_resends_after_an_unknown_outcome() {
     );
 }
 
+/// A write left unknown recovers only under the instance it was attempted
+/// with: confirming the instance again with another account or credential
+/// holds it, even where resending would be safe, and nothing is sent.
+#[test]
+fn an_unknown_write_is_held_when_its_instance_was_rebound() {
+    let mut fixture = Fixture::new(&["aws.transcribe.execute"]);
+    let start: JsonObject = serde_json::from_value(serde_json::json!({
+        "input": {"target": "s3://media/interview.mp3"},
+        "idempotency_key": "transcribe-1",
+    }))
+    .unwrap();
+    fixture.provider.answer(Answer::TimeOut);
+    fixture
+        .run("transcribe", &start, None)
+        .expect_err("unknown");
+    fixture.env.insert(
+        crate::INJECTED_GRANT_ID_ENV.to_owned(),
+        "grant_other_account".to_owned(),
+    );
+    fixture.provider.answer(Answer::Succeed);
+    let error = fixture
+        .run("transcribe", &start, None)
+        .expect_err("held");
+    assert!(error.contains("reconcile it before resuming"), "{error}");
+    assert_eq!(fixture.provider.calls(), 1, "nothing was sent again");
+}
+
 #[test]
 fn a_later_refusal_does_not_settle_an_earlier_unknown_attempt() {
     let fixture = Fixture::new(&["aws.transcribe.execute"]);

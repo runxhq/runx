@@ -101,7 +101,9 @@ enum EffectEvent {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         mandate_ref: Option<Reference>,
         idempotency_key: String,
-        instance_id: String,
+        /// The binding digest of the instance attempted under: its account,
+        /// principal and credential material.
+        instance_binding: String,
         attempt: u32,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         approval: Option<ApprovalRecord>,
@@ -147,7 +149,7 @@ pub(crate) struct Pending {
     pub authority_term_id: String,
     pub mandate_ref: Option<Reference>,
     pub idempotency_key: String,
-    pub instance_id: String,
+    pub instance_binding: String,
     pub attempt: u32,
     pub approval: Option<ApprovalRecord>,
     pub implementation_digest: Option<String>,
@@ -162,7 +164,9 @@ pub(crate) struct Attempt<'a> {
     pub authority_term_id: &'a str,
     pub mandate_ref: Option<&'a Reference>,
     pub idempotency_key: &'a str,
-    pub instance_id: &'a str,
+    /// The instance's binding digest: a recovery under an instance confirmed
+    /// again with other material is another attempt, never this one.
+    pub instance_binding: &'a str,
     pub attempt: u32,
     pub approval: Option<&'a ApprovalRecord>,
     pub implementation_digest: Option<&'a str>,
@@ -301,7 +305,7 @@ impl EffectCustody {
                     authority_term_id,
                     mandate_ref,
                     idempotency_key,
-                    instance_id,
+                    instance_binding,
                     attempt,
                     approval,
                     implementation_digest,
@@ -312,7 +316,7 @@ impl EffectCustody {
                         authority_term_id,
                         mandate_ref,
                         idempotency_key,
-                        instance_id,
+                        instance_binding,
                         attempt,
                         approval,
                         implementation_digest,
@@ -363,7 +367,7 @@ impl EffectCustody {
                 || pending.authority_term_id != attempt.authority_term_id
                 || pending.mandate_ref.as_ref() != attempt.mandate_ref
                 || pending.idempotency_key != attempt.idempotency_key
-                || pending.instance_id != attempt.instance_id
+                || pending.instance_binding != attempt.instance_binding
             {
                 return Err(CustodyError::Mismatch(
                     "the pending attempt has different intent, authority, or instance evidence",
@@ -396,7 +400,7 @@ impl EffectCustody {
                 authority_term_id: attempt.authority_term_id.to_owned(),
                 mandate_ref: attempt.mandate_ref.cloned(),
                 idempotency_key: attempt.idempotency_key.to_owned(),
-                instance_id: attempt.instance_id.to_owned(),
+                instance_binding: attempt.instance_binding.to_owned(),
                 attempt: attempt.attempt,
                 approval: attempt.approval.cloned(),
                 implementation_digest: attempt.implementation_digest.map(str::to_owned),
