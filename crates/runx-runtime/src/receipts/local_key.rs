@@ -41,8 +41,26 @@ pub enum LocalReceiptKeyFault {
     PublicKeyMismatch,
     #[error("cannot be restricted to its owner on this platform")]
     Unprotectable,
+    #[error("is in {directory}, which {problem}")]
+    Directory {
+        directory: String,
+        problem: KeyDirectoryProblem,
+    },
     #[error("could not be read or written: {0}")]
     Io(String),
+}
+
+/// Why the directory that holds a local receipt key cannot hold one.
+#[derive(Clone, Copy, Debug, Error, PartialEq, Eq)]
+pub enum KeyDirectoryProblem {
+    #[error("is a link")]
+    Link,
+    #[error("is not a directory")]
+    NotADirectory,
+    #[error("is not owned by the current user")]
+    Owner,
+    #[error("other users can write to; restrict it with chmod 700")]
+    Writable,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -208,7 +226,7 @@ mod platform {
     use std::os::unix::fs::{DirBuilderExt, MetadataExt, OpenOptionsExt};
     use std::path::Path;
 
-    use super::{LocalReceiptKeyFault, io_fault};
+    use super::{KeyDirectoryProblem, LocalReceiptKeyFault, io_fault};
 
     pub(super) fn ensure_private_directory(directory: &Path) -> Result<(), LocalReceiptKeyFault> {
         DirBuilder::new()
@@ -223,18 +241,24 @@ mod platform {
     /// else may add or replace a file in it.
     fn check_private_directory(directory: &Path) -> Result<(), LocalReceiptKeyFault> {
         let metadata = fs::symlink_metadata(directory).map_err(|error| io_fault(&error))?;
+        let refuse = |problem| {
+            Err(LocalReceiptKeyFault::Directory {
+                directory: directory.display().to_string(),
+                problem,
+            })
+        };
         if metadata.file_type().is_symlink() {
-            return Err(LocalReceiptKeyFault::Link);
+            return refuse(KeyDirectoryProblem::Link);
         }
         if !metadata.is_dir() {
-            return Err(LocalReceiptKeyFault::NotAFile);
+            return refuse(KeyDirectoryProblem::NotADirectory);
         }
         if metadata.uid() != rustix::process::geteuid().as_raw() {
-            return Err(LocalReceiptKeyFault::Owner);
+            return refuse(KeyDirectoryProblem::Owner);
         }
         // Others may list the directory; none may add or replace a key in it.
         if metadata.mode() & 0o022 != 0 {
-            return Err(LocalReceiptKeyFault::Permissions);
+            return refuse(KeyDirectoryProblem::Writable);
         }
         Ok(())
     }
@@ -463,20 +487,28 @@ mod tests {
         fs::remove_file(&path)?;
         fs::rename(&elsewhere, &path)?;
 
-        // A key in a directory others can write is refused, not just a new one.
+        // A key in a directory others can write is refused, not just a new
+        // one, and the refusal names the directory and how to close it.
         fs::set_permissions(paths.keys(), fs::Permissions::from_mode(0o777))?;
+        let writable = Some(LocalReceiptKeyFault::Directory {
+            directory: paths.keys().display().to_string(),
+            problem: KeyDirectoryProblem::Writable,
+        });
         assert_eq!(
             load_or_create_local_signer(&paths).err().and_then(fault),
-            Some(LocalReceiptKeyFault::Permissions)
+            writable
         );
         assert_eq!(
             load_local_trusted_key(&paths).err().and_then(fault),
-            Some(LocalReceiptKeyFault::Permissions)
+            writable
         );
         fs::remove_file(&path)?;
-        assert_eq!(
-            load_or_create_local_signer(&paths).err().and_then(fault),
-            Some(LocalReceiptKeyFault::Permissions)
+        let refused = load_or_create_local_signer(&paths).err();
+        assert_eq!(refused.clone().and_then(fault), writable);
+        assert!(
+            refused
+                .map(|error| error.to_string())
+                .is_some_and(|message| message.contains("chmod 700")),
         );
         Ok(())
     }

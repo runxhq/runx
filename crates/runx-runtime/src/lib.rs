@@ -176,8 +176,8 @@ pub use receipts::tree::{
     RuntimeReceiptResolver, validate_runtime_receipt_tree, verify_runtime_receipt_tree,
 };
 pub use receipts::{
-    Ed25519ReceiptSigner, Ed25519ReceiptVerifier, FIXTURE_RECEIPT_SEED, LOCAL_RECEIPT_KEY_SCHEMA,
-    LocalReceiptKeyFault, RUNX_RECEIPT_SIGN_ED25519_SEED_BASE64_ENV,
+    Ed25519ReceiptSigner, Ed25519ReceiptVerifier, FIXTURE_RECEIPT_SEED, KeyDirectoryProblem,
+    LOCAL_RECEIPT_KEY_SCHEMA, LocalReceiptKeyFault, RUNX_RECEIPT_SIGN_ED25519_SEED_BASE64_ENV,
     RUNX_RECEIPT_SIGN_ISSUER_TYPE_ENV, RUNX_RECEIPT_SIGN_KID_ENV,
     RUNX_RECEIPT_VERIFY_ED25519_PUBLIC_KEY_BASE64_ENV, RUNX_RECEIPT_VERIFY_ISSUER_TYPE_ENV,
     RUNX_RECEIPT_VERIFY_KID_ENV, ReceiptTrust, ReceiptTrustOrigin, ReceiptTrustSource,
