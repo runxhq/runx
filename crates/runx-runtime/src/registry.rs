@@ -31,7 +31,9 @@ pub use local::{
     resolve_runx_link, runx_link_for_version, search_registry_with_options, slugify,
     split_skill_id,
 };
-pub use package_metadata::{RegistryHarnessCaseMetadata, RegistryPackageMetadata};
+pub use package_metadata::{
+    RegistryConnectorMetadata, RegistryHarnessCaseMetadata, RegistryPackageMetadata,
+};
 pub use publish::{
     HostedAdminSkillPublishRequest, HostedSkillPublishRequest, HostedSkillPublishResult,
     RegistryPublishError, publish_hosted_admin_skill, publish_hosted_skill,

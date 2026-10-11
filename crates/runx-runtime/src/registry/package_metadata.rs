@@ -25,6 +25,19 @@ pub struct RegistryPackageMetadata {
     pub marketplace_offers: BTreeMap<String, PaidSkillOfferTerms>,
     pub tags: Vec<String>,
     pub harness_cases: Vec<RegistryHarnessCaseMetadata>,
+    /// The connectors the package's `run.yaml` declares, by id. Its own
+    /// declarations only: a skill it composes declares its own.
+    #[serde(default)]
+    pub connectors: Vec<RegistryConnectorMetadata>,
+}
+
+/// One connector a package declares and the operations it lists for it. A
+/// run-time choice names each connector it may choose, with the choice's
+/// operations.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RegistryConnectorMetadata {
+    pub id: String,
+    pub operations: Vec<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -56,7 +69,40 @@ pub(crate) fn project_registry_package_metadata(
             .unwrap_or_default(),
         tags: registry_tags(&catalog),
         harness_cases: registry_harness_cases(manifest),
+        connectors: registry_connectors(manifest),
     }
+}
+
+/// The declared connectors by id, each with its operations in the order the
+/// package lists them.
+fn registry_connectors(manifest: Option<&SkillRunnerManifest>) -> Vec<RegistryConnectorMetadata> {
+    let mut connectors = BTreeMap::<String, Vec<String>>::new();
+    for (key, requirement) in manifest
+        .into_iter()
+        .flat_map(|manifest| &manifest.connectors)
+    {
+        let ids = if requirement.connector_from.is_some() {
+            requirement
+                .allowed_connectors
+                .iter()
+                .map(|id| id.as_str().to_owned())
+                .collect()
+        } else {
+            vec![key.clone()]
+        };
+        for id in ids {
+            let operations = connectors.entry(id).or_default();
+            for operation in &requirement.operations {
+                if !operations.iter().any(|listed| listed == operation.as_str()) {
+                    operations.push(operation.as_str().to_owned());
+                }
+            }
+        }
+    }
+    connectors
+        .into_iter()
+        .map(|(id, operations)| RegistryConnectorMetadata { id, operations })
+        .collect()
 }
 
 fn registry_harness_cases(

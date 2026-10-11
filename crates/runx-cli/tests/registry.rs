@@ -270,6 +270,69 @@ runners:
 }
 
 #[test]
+fn registry_package_metadata_names_the_declared_connectors()
+-> Result<(), Box<dyn std::error::Error>> {
+    let root = temp_root("registry-package-connectors");
+    let skill_dir = root.join("connected");
+    fs::create_dir_all(&skill_dir)?;
+    fs::write(
+        skill_dir.join("SKILL.md"),
+        "---\nname: connected\ndescription: Declares a fixed and a chosen connector.\n---\n# Connected\n",
+    )?;
+    fs::write(
+        skill_dir.join("run.yaml"),
+        r#"skill: connected
+connectors:
+  github:
+    operations: [issues.read, issue.read]
+  reply:
+    operations: [thread.reply, thread.reply.read]
+    connector_from: $input.provider
+    allowed_connectors: [slack, nitrosend]
+runners:
+  default:
+    default: true
+    inputs:
+      provider: { type: string, required: true }
+    result_from: [digest]
+    steps:
+      - id: digest
+        tool: data.digest
+        inputs:
+          value: connected
+"#,
+    )?;
+
+    let package = runx_command()?
+        .args([
+            "registry",
+            "package",
+            skill_dir.to_str().ok_or("non-utf8 skill dir")?,
+            "--json",
+        ])
+        .output()?;
+    assert_eq!(
+        package.status.code(),
+        Some(0),
+        "stderr={}",
+        String::from_utf8_lossy(&package.stderr)
+    );
+    let output: serde_json::Value = serde_json::from_slice(&package.stdout)?;
+    // A run-time choice names each connector it may choose; ids are sorted
+    // and operations keep the order the package lists them.
+    assert_eq!(
+        output["registry"]["package"]["metadata"]["connectors"],
+        json!([
+            {"id": "github", "operations": ["issues.read", "issue.read"]},
+            {"id": "nitrosend", "operations": ["thread.reply", "thread.reply.read"]},
+            {"id": "slack", "operations": ["thread.reply", "thread.reply.read"]},
+        ])
+    );
+    fs::remove_dir_all(root)?;
+    Ok(())
+}
+
+#[test]
 fn registry_install_versions_are_side_by_side() -> Result<(), Box<dyn std::error::Error>> {
     let root = temp_root("registry-side-by-side");
     let registry_dir = root.join("registry");
