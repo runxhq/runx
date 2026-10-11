@@ -440,15 +440,30 @@ impl<'a> ExecutionClosureInspector<'a> {
                         None => format!("operation:{}", target.requirement),
                     });
                 }
-                StepKind::Agent(_) => {
+                StepKind::Agent(agent) => {
                     walk.closure.agent_acts = walk.closure.agent_acts.saturating_add(1);
                     walk.closure.declared_artifact |= step.artifacts.is_some();
+                    // The turn may call whatever its allowance names, so the
+                    // closure holds it; its child skills are walked below.
+                    for tool in &agent.allowance.tools {
+                        walk.closure.components.insert(format!("tool:{tool}"));
+                    }
+                    for allowed in &agent.allowance.operations {
+                        walk.closure.components.insert(format!(
+                            "operation:{}/{}",
+                            allowed.requirement, allowed.operation
+                        ));
+                    }
                 }
                 StepKind::Ask(_) | StepKind::Skill(_) => {}
             }
-            if let Some(resolved) =
-                self.resolve_step_skill(context.directory, context.profile_path, step)?
-            {
+            for child in crate::execution::graph::child_skill_steps(step) {
+                let step = child.as_ref();
+                let Some(resolved) =
+                    self.resolve_step_skill(context.directory, context.profile_path, step)?
+                else {
+                    continue;
+                };
                 let ResolvedStepSkill {
                     edge,
                     static_external_name,

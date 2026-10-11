@@ -221,7 +221,7 @@ fn append_step(out: &mut String, step: &SkillOperatorContextStep) -> Result<(), 
     for context in &step.context_skills {
         append_context_skill(out, &step.node_path, context)?;
     }
-    if let Some(child) = &step.child {
+    for child in &step.children {
         append_node(out, child, false)?;
     }
     Ok(())

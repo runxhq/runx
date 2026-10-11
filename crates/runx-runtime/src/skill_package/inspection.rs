@@ -608,6 +608,60 @@ runners:
     }
 
     #[test]
+    fn execution_closure_pins_what_an_agent_turn_may_call() -> Result<(), Box<dyn std::error::Error>>
+    {
+        let temp = tempfile::tempdir().expect("temporary skill catalog");
+        let root = temp.path().join("root");
+        let child = root.join("child");
+        fs::create_dir_all(&child).expect("child skill directory");
+        fs::write(root.join("SKILL.md"), ROOT_MANUAL).expect("root manual");
+        fs::write(
+            root.join("run.yaml"),
+            "skill: root\ntools: [data.digest]\nskills: [child]\nrunners:\n  answer:\n    default: true\n    outputs:\n      answer: string\n",
+        )
+        .expect("root manifest");
+        fs::write(child.join("SKILL.md"), CHILD_MANUAL).expect("child manual");
+        fs::write(child.join("run.yaml"), CHILD_MANIFEST).expect("child manifest");
+        let closure = |root: &std::path::Path| -> Result<JsonObject, Box<dyn std::error::Error>> {
+            let JsonValue::Object(mut inspected) = inspect_skill_package(root, None, None)? else {
+                return Err("inspection should be an object".into());
+            };
+            match inspected.remove("execution_closure") {
+                Some(JsonValue::Object(closure)) => Ok(closure),
+                _ => Err("execution closure".into()),
+            }
+        };
+
+        let first = closure(&root)?;
+        assert_eq!(
+            first.get("skill_edges"),
+            Some(&JsonValue::Array(vec![JsonValue::String(
+                "child#read".to_owned()
+            )]))
+        );
+        assert_eq!(
+            first.get("summary").and_then(JsonValue::as_str),
+            Some("tool:data.digest; 1 agent act")
+        );
+        assert_eq!(
+            first
+                .get("package_bindings")
+                .and_then(JsonValue::as_array)
+                .map(Vec::len),
+            Some(2),
+            "the child the turn may call is bound by its package digest"
+        );
+        fs::write(child.join("SKILL.md"), format!("{CHILD_MANUAL}\nChanged.\n"))
+            .expect("changed child manual");
+        assert_ne!(
+            closure(&root)?.get("closure_digest"),
+            first.get("closure_digest"),
+            "changing the child the turn may call changes the closure"
+        );
+        Ok(())
+    }
+
+    #[test]
     fn execution_closure_projects_transitive_environment_requirements()
     -> Result<(), Box<dyn std::error::Error>> {
         let temp = tempfile::tempdir().expect("temporary skill catalog");

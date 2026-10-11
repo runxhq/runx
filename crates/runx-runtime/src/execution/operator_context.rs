@@ -21,7 +21,8 @@ use crate::services::{WorkspaceEnv, merge_inferred_tool_roots};
 use crate::tool_catalogs::{ToolCatalogError, ToolInspectOptions, resolve_local_tool};
 
 use super::graph::{
-    LoadedStepSkill, LoadedStepSkillRegistryProvenance, StepSkillLoadOptions, load_step_skill,
+    LoadedStepSkill, LoadedStepSkillRegistryProvenance, StepSkillLoadOptions, child_skill_steps,
+    load_step_skill,
 };
 use super::skill_context::load_context_skills;
 use super::skill_front::SkillRunError;
@@ -127,7 +128,9 @@ pub struct SkillOperatorContextStep {
     pub context_skills: Vec<SkillOperatorContextContextSkill>,
     pub tool_refs: Vec<String>,
     pub execution_boundary: Option<ExecutionBoundaryObservation>,
-    pub child: Option<Box<SkillOperatorContextNode>>,
+    /// The child skills the step may run: a skill step's target, or each
+    /// child skill an agent turn's allowance names.
+    pub children: Vec<SkillOperatorContextNode>,
 }
 
 impl SkillOperatorContextStep {
@@ -333,24 +336,28 @@ impl ExpansionState {
         // Catalog tool admission and manifest resolution are handled for the
         // containing node after every step is expanded; the kernel admits an
         // operation when it runs.
-        let mut context_skills = Vec::new();
-        let mut child = None;
-        match &step.kind {
-            StepKind::Skill(target) => {
-                let loaded = load_step_skill(graph_dir, step, StepSkillLoadOptions { env })?;
-                child = Some(Box::new(self.expand_loaded_child(
-                    node_path.clone(),
-                    &target.reference,
-                    target.runner.as_deref(),
-                    loaded,
-                    env,
-                    depth + 1,
-                )?));
-            }
-            StepKind::Agent(_) => {
-                context_skills = self.load_step_context(graph_dir, step, env)?;
-            }
-            StepKind::Tool(_) | StepKind::Operation(_) | StepKind::Ask(_) => {}
+        let context_skills = match &step.kind {
+            StepKind::Agent(_) => self.load_step_context(graph_dir, step, env)?,
+            _ => Vec::new(),
+        };
+        let mut children = Vec::new();
+        for child in child_skill_steps(step) {
+            let Some(target) = child.skill() else {
+                continue;
+            };
+            let loaded = load_step_skill(graph_dir, &child, StepSkillLoadOptions { env })?;
+            let child_path = match &step.kind {
+                StepKind::Skill(_) => node_path.clone(),
+                _ => format!("{node_path}[{}]", target.reference),
+            };
+            children.push(self.expand_loaded_child(
+                child_path,
+                &target.reference,
+                target.runner.as_deref(),
+                loaded,
+                env,
+                depth + 1,
+            )?);
         }
         let tool_refs = step_tool_refs(step);
         let execution_boundary = match &step.kind {
@@ -373,7 +380,7 @@ impl ExpansionState {
             context_skills,
             tool_refs,
             execution_boundary,
-            child,
+            children,
         })
     }
 
@@ -829,9 +836,38 @@ runners:
             None,
             SkillOperatorContextOptions::new(BTreeMap::new(), temp.path().to_path_buf()),
         )?;
-        let child = chain.entry.steps[0].child.as_ref().ok_or("missing child")?;
+        let child = chain.entry.steps[0].children.first().ok_or("missing child")?;
         assert_eq!(child.node_path, "entry.review");
         assert_eq!(child.runner.name, "review");
+        assert!(child.skill_markdown.content.contains("# Child contract"));
+        Ok(())
+    }
+
+    #[test]
+    fn operator_context_expands_each_child_a_turn_may_call() -> Result<(), Box<dyn Error>> {
+        let temp = tempdir()?;
+        let entry = temp.path().join("entry");
+        let child = entry.join("child");
+        write_skill(&entry, "entry", "# Entry")?;
+        write_skill(&child, "child", "# Child contract")?;
+        write_file(
+            &child.join("run.yaml"),
+            "skill: child\nrunners:\n  review:\n    default: true\n    outputs:\n      verdict: string\n",
+        )?;
+        write_file(
+            &entry.join("run.yaml"),
+            "skill: entry\nskills: [./child]\nrunners:\n  answer:\n    default: true\n    outputs:\n      answer: string\n",
+        )?;
+
+        let chain = load_skill_operator_context_chain(
+            &entry,
+            None,
+            SkillOperatorContextOptions::new(BTreeMap::new(), temp.path().to_path_buf()),
+        )?;
+        let [child] = chain.entry.steps[0].children.as_slice() else {
+            return Err("the turn's child skill is expanded once".into());
+        };
+        assert_eq!(child.node_path, "entry.answer[./child]");
         assert!(child.skill_markdown.content.contains("# Child contract"));
         Ok(())
     }
@@ -868,7 +904,7 @@ runners:
             None,
             SkillOperatorContextOptions::new(BTreeMap::new(), temp.path().to_path_buf()),
         )?;
-        let child = chain.entry.steps[0].child.as_ref().ok_or("missing child")?;
+        let child = chain.entry.steps[0].children.first().ok_or("missing child")?;
         let context = &child.steps[0].context_skills[0];
         assert_eq!(context.reference, "./context/rubric");
         assert_eq!(
@@ -995,8 +1031,8 @@ runners:
             SkillOperatorContextOptions::new(env, temp.path().to_path_buf()),
         )?;
         let child = chain.entry.steps[0]
-            .child
-            .as_ref()
+            .children
+            .first()
             .ok_or("missing registry child")?;
         let registry = child
             .package
@@ -1080,7 +1116,7 @@ runners:
             SkillOperatorContextOptions::new(BTreeMap::new(), temp.path().to_path_buf()),
         )?;
         assert_eq!(chain.node_count, 3);
-        assert!(chain.entry.steps.iter().all(|step| step.child.is_some()));
+        assert!(chain.entry.steps.iter().all(|step| step.children.len() == 1));
 
         let mut options =
             SkillOperatorContextOptions::new(BTreeMap::new(), temp.path().to_path_buf());

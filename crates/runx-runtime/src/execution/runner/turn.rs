@@ -16,11 +16,9 @@ use runx_contracts::{
     AgentActInvocation, AllowedOperation, JsonObject, JsonValue, ResolutionRequest,
     TurnCallOutcome, TurnCallResult, TurnStatus, TurnTarget, TurnTool,
 };
-use runx_parser::{
-    AgentTask, AskGate, GraphStep, OperationStepTarget, SkillTarget, StepKind, ToolTarget,
-};
+use runx_parser::{AgentTask, AskGate, GraphStep, OperationStepTarget, StepKind, ToolTarget};
 
-use super::super::graph::{StepSkillLoadOptions, load_step_skill};
+use super::super::graph::{StepSkillLoadOptions, load_step_skill, turn_skill_target};
 use super::super::run_record::{
     Answer, CallOutcome, CallRecord, PendingRequest, RecordedCall, call_step_id, request_digest,
     waiting_requests,
@@ -555,10 +553,7 @@ where
                 (StepKind::Operation(target), Vec::new())
             }
             TurnTarget::Skill { skill } => (
-                StepKind::Skill(SkillTarget {
-                    reference: skill.as_str().to_owned(),
-                    runner: None,
-                }),
+                StepKind::Skill(turn_skill_target(skill.as_str())),
                 Vec::new(),
             ),
             TurnTarget::Ask => {

@@ -1,4 +1,5 @@
 // Module rationale: graph loading keeps stage, registry, and local skill resolution together.
+use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -8,7 +9,7 @@ use runx_contracts::{CallAct, JsonObject, JsonValue, sha256_prefixed};
 use runx_core::state_machine::SequentialGraphStepDefinition;
 use runx_parser::{
     Binding, ExecutionGraph, GraphStep, Operand, SkillRunnerDefinition, SkillRunnerManifest,
-    Source, parse_graph_yaml, validate_graph,
+    SkillTarget, Source, StepKind, parse_graph_yaml, validate_graph,
 };
 
 use crate::RuntimeError;
@@ -415,6 +416,45 @@ pub(crate) fn load_step_skill(
         }
     }
     Ok(loaded)
+}
+
+/// The child skills `step` may run, each as the skill step that runs it: a
+/// skill step its own target, and an agent turn one step per child skill its
+/// allowance names, resolved exactly as the turn's call to it is.
+pub(crate) fn child_skill_steps(step: &GraphStep) -> Vec<Cow<'_, GraphStep>> {
+    match &step.kind {
+        StepKind::Skill(_) => vec![Cow::Borrowed(step)],
+        StepKind::Agent(agent) => agent
+            .allowance
+            .skills
+            .iter()
+            .map(|skill| {
+                Cow::Owned(GraphStep {
+                    id: step.id.clone(),
+                    label: None,
+                    kind: StepKind::Skill(turn_skill_target(skill.as_str())),
+                    artifacts: None,
+                    outputs: None,
+                    inputs: JsonObject::new(),
+                    bindings: Vec::new(),
+                    act: None,
+                    context_skills: Vec::new(),
+                    scopes: Vec::new(),
+                    when: None,
+                    duplicates: None,
+                })
+            })
+            .collect(),
+        StepKind::Tool(_) | StepKind::Operation(_) | StepKind::Ask(_) => Vec::new(),
+    }
+}
+
+/// What a turn's call to child skill `reference` runs: its default runner.
+pub(crate) fn turn_skill_target(reference: &str) -> SkillTarget {
+    SkillTarget {
+        reference: reference.to_owned(),
+        runner: None,
+    }
 }
 
 pub(crate) fn load_step_skill_package(

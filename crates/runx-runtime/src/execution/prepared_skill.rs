@@ -700,7 +700,7 @@ fn summarize_node(node: &SkillOperatorContextNode, summary: &mut PreparedGoverna
         {
             summary.idempotency_keys.push(idempotency_key.to_owned());
         }
-        if let Some(child) = &step.child {
+        for child in &step.children {
             summarize_node(child, summary);
         }
     }
@@ -752,7 +752,7 @@ fn collect_node_guards(node: &SkillOperatorContextNode, guards: &mut BTreeMap<Pa
                 guards.insert(PathBuf::from(path), digest.to_owned());
             }
         }
-        if let Some(child) = &step.child {
+        for child in &step.children {
             collect_node_guards(child, guards);
         }
     }
