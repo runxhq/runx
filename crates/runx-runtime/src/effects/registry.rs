@@ -150,7 +150,7 @@ impl RuntimeEffectRegistry {
     pub(crate) fn persist(
         &self,
         request: EffectReceiptRequest<'_>,
-    ) -> Result<(), RuntimeEffectError> {
+    ) -> Result<Option<crate::kernel::custody::Settlement>, RuntimeEffectError> {
         let family = request.admission.family();
         self.require_effect(family)?.persist(request)
     }

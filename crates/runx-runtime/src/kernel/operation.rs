@@ -665,16 +665,19 @@ impl RuntimeEffect for OperationEffect {
         Ok(())
     }
 
-    fn persist(&self, request: EffectReceiptRequest<'_>) -> Result<(), RuntimeEffectError> {
+    fn persist(
+        &self,
+        request: EffectReceiptRequest<'_>,
+    ) -> Result<Option<super::custody::Settlement>, RuntimeEffectError> {
         if !request.output.succeeded() {
-            return Ok(());
+            return Ok(None);
         }
         let context = request
             .admission
             .context::<OperationAdmission>()
             .ok_or_else(|| state("the operation admission is missing"))?;
         let Some(custody) = &context.admitted.custody else {
-            return Ok(());
+            return Ok(None);
         };
         crate::receipts::store::LocalReceiptStore::new(receipt_root(
             request.env,
@@ -682,16 +685,14 @@ impl RuntimeEffect for OperationEffect {
         ))
         .write_receipt(request.receipt, request.signature_policy)
         .map_err(|error| state(error.to_string()))?;
-        custody
-            .finalized(
-                request.receipt.id.as_str().to_owned(),
-                context
-                    .attempt
-                    .as_ref()
-                    .and_then(|plan| plan.standing.as_ref()),
-                &context.admitted.usage_covers,
-            )
-            .map_err(state)
+        Ok(Some(custody.settlement(
+            request.receipt.id.as_str().to_owned(),
+            context
+                .attempt
+                .as_ref()
+                .and_then(|plan| plan.standing.as_ref()),
+            &context.admitted.usage_covers,
+        )))
     }
 
     fn authority(
@@ -882,6 +883,7 @@ pub(crate) fn execute(
                     attempt: plan.number,
                     approval: plan.approval.as_ref(),
                     implementation_digest: implementation_digest.as_deref(),
+                    admitted_at: admitted.custody_head,
                 },
                 plan.standing.as_ref(),
                 &admitted.usage_covers,

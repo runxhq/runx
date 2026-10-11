@@ -84,9 +84,9 @@ pub(super) fn finalize_effect_output_before_success(
 
 pub(super) fn persist_effect_state_for_step(
     context: EffectReceiptContext<'_>,
-) -> Result<(), RuntimeError> {
+) -> Result<Option<crate::kernel::custody::Settlement>, RuntimeError> {
     let Some(authority) = context.authority else {
-        return Ok(());
+        return Ok(None);
     };
     let effects = context.effects;
     let step = context.step;

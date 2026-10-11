@@ -80,6 +80,7 @@ fn step(run_id: &str, step_id: &str) -> StepRun {
         admission_witness: StepAdmissionWitness::local_runtime(step_id, receipt.id.as_str()),
         receipt,
         nested_receipts: Vec::new(),
+        settlement: None,
     }
 }
 
@@ -615,4 +616,54 @@ fn a_run_whose_child_sealed_before_its_step_was_recorded_stays_paused() {
         .unwrap()
         .expect("the parent is still paused, so a continuation can take it further");
     assert!(paused.waiting.is_empty());
+}
+
+/// A step and the effect it settles commit together: a step record that is
+/// refused leaves the act unsettled, so a replay recovers its attempt rather
+/// than sending it again, and the record that lands settles it.
+#[test]
+fn a_step_settles_its_effect_in_the_same_transaction() {
+    use crate::kernel::custody::{Attempt, EffectCustody};
+
+    let (_root, store) = store();
+    let custody = EffectCustody::for_named_act(
+        Arc::clone(&store),
+        "slack",
+        "channel.post",
+        "slack-acme",
+        "slack://T123/C456",
+        "deliver-1",
+    );
+    custody
+        .attempt(
+            &Attempt {
+                intent_digest: "sha256:intent",
+                authority_term_id: "term-1",
+                mandate_ref: None,
+                idempotency_key: "runx:sha256:intent",
+                instance_id: "slack-acme",
+                attempt: 1,
+                approval: None,
+                implementation_digest: None,
+                admitted_at: 0,
+            },
+            None,
+            &[],
+        )
+        .unwrap();
+    let first = RunLog::open(Arc::clone(&store), "run_triage_9").unwrap();
+    start(&first, &JsonObject::new());
+    let stale = RunLog::open(Arc::clone(&store), "run_triage_9").unwrap();
+    first.record_skipped(vec!["other".to_owned()]).unwrap();
+
+    let mut run = step("run_triage_9", "deliver");
+    run.settlement = Some(custody.settlement(run.receipt.id.to_string(), None, &[]));
+    assert!(matches!(
+        stale.record_step(&run, &[]),
+        Err(RunRecordError::Contended { .. })
+    ));
+    assert!(custody.pending().unwrap().is_some(), "a refused step settles nothing");
+
+    first.record_step(&run, &[]).unwrap();
+    assert!(custody.pending().unwrap().is_none(), "the recorded step settled its act");
 }

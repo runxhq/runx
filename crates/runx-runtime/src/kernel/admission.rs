@@ -84,6 +84,9 @@ pub(crate) struct Admitted {
     /// The act's unsettled attempt of this same intent, which this call
     /// recovers.
     pub pending: Option<Pending>,
+    /// The custody stream's version when this call was admitted; its attempt
+    /// appends onto exactly that.
+    pub custody_head: u64,
     /// The evidence use of the attempt sequence this call joins.
     pub use_key: Option<String>,
     pub usage_covers: Vec<UseCover>,
@@ -414,15 +417,16 @@ pub(crate) fn admit(evaluation: &Evaluation<'_>) -> Result<Admitted, AdmitError>
             evaluation.run_id,
         )
     });
-    let (pending, use_key) = match &custody {
+    let (pending, use_key, custody_head) = match &custody {
         Some(custody) => match custody.custody() {
             Ok(state) => (
                 state.pending,
                 Some(custody.use_key(state.sequence, intent_digest.as_str())),
+                state.head,
             ),
             Err(error) => return Err(AdmitError::State(error.to_string())),
         },
-        None => (None, None),
+        None => (None, None, 0),
     };
     if let Some(pending) = &pending {
         held(pending, intent_digest.as_str(), mandate_ref.as_ref())?;
@@ -536,6 +540,7 @@ pub(crate) fn admit(evaluation: &Evaluation<'_>) -> Result<Admitted, AdmitError>
         mandate_ref,
         custody,
         pending,
+        custody_head,
         use_key,
         usage_covers,
         target,

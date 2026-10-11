@@ -296,6 +296,7 @@ fn step_run(step_id: &str, receipt: Receipt) -> StepRun {
         ephemeral_contract: EphemeralValue::default(),
         outcome: skill_output(InvocationStatus::Success).into(),
         admission_witness: StepAdmissionWitness::local_runtime(step_id, receipt.id.as_str()),
+        settlement: None,
         receipt,
         nested_receipts: Vec::new(),
     }
@@ -344,6 +345,7 @@ fn production_step_run(
         receipt,
         nested_receipts: Vec::new(),
         admission_witness: StepAdmissionWitness::local_runtime(step_id, "receipt"),
+        settlement: None,
     })
 }
 

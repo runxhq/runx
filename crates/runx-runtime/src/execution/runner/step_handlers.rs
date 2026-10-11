@@ -520,7 +520,7 @@ where
         effects: &context.runtime.options.effects,
     })
     .map_err(|source| RuntimeError::engine("finalizing a sealed provider effect", source))?;
-    persist_effect_state_for_step(EffectReceiptContext {
+    let settlement = persist_effect_state_for_step(EffectReceiptContext {
         step: context.step,
         graph_dir: context.graph_dir,
         authority: context.authority,
@@ -549,6 +549,7 @@ where
         receipt,
         nested_receipts: receipt_lineage.into_nested_receipts(),
         admission_witness,
+        settlement,
     })
 }
 
@@ -755,6 +756,7 @@ fn seal_agent_act_step<A>(
         receipt,
         nested_receipts: lineage.into_nested_receipts(),
         admission_witness,
+        settlement: None,
     })
 }
 
@@ -1036,6 +1038,7 @@ where
         },
         runtime.options.signature_policy(),
     )?;
+    let mut settlement = None;
     for (persist, context) in [
         (false, "finalizing a sealed effect"),
         (true, "persisting a sealed effect"),
@@ -1052,11 +1055,12 @@ where
             effects: &runtime.options.effects,
         };
         if persist {
-            persist_effect_state_for_step(request)
+            settlement = persist_effect_state_for_step(request)
+                .map_err(|source| RuntimeError::engine(context, source))?;
         } else {
             finalize_effect_output_before_success(request)
+                .map_err(|source| RuntimeError::engine(context, source))?;
         }
-        .map_err(|source| RuntimeError::engine(context, source))?;
     }
     let admission_witness = StepAdmissionWitness::local_runtime(&step.id, receipt.id.as_str());
     Ok(StepRun {
@@ -1071,6 +1075,7 @@ where
         receipt,
         nested_receipts: Vec::new(),
         admission_witness,
+        settlement,
     })
 }
 
@@ -1330,6 +1335,7 @@ where
         receipt,
         nested_receipts: Vec::new(),
         admission_witness,
+        settlement: None,
     })
 }
 
@@ -1512,6 +1518,7 @@ where
         receipt,
         nested_receipts: lineage.into_nested_receipts(),
         admission_witness,
+        settlement: None,
     })
 }
 

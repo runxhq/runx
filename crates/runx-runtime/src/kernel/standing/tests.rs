@@ -111,6 +111,7 @@ fn an_act_counts_as_attempted_once_custody_records_it() {
                 attempt: 1,
                 approval: None,
                 implementation_digest: None,
+                admitted_at: 0,
             },
             Some(&cover),
             &[],

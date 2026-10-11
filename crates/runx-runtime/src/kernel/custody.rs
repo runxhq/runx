@@ -166,6 +166,10 @@ pub(crate) struct Attempt<'a> {
     pub attempt: u32,
     pub approval: Option<&'a ApprovalRecord>,
     pub implementation_digest: Option<&'a str>,
+    /// The stream version admission read. The attempt appends only onto it,
+    /// so a call admitted before another run attempted the same act is
+    /// refused, never sent.
+    pub admitted_at: u64,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -176,13 +180,14 @@ pub(crate) enum CustodyError {
     Store(#[from] KernelStoreError),
 }
 
-/// The act's custody as last recorded: its unsettled attempt, if any, and the
+/// The act's custody as last recorded: its unsettled attempt, if any, the
 /// stream version the attempt's sequence opened from, or the next one opens
-/// from.
+/// from, and the version this read saw.
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct Custody {
     pub pending: Option<Pending>,
     pub sequence: u64,
+    pub head: u64,
 }
 
 /// The custody stream of one act.
@@ -278,14 +283,18 @@ impl EffectCustody {
             )
         });
         if settled {
+            let head = latest.map_or(0, |last| last.version);
             return Ok(Custody {
                 pending: None,
-                sequence: latest.map_or(0, |last| last.version),
+                sequence: head,
+                head,
             });
         }
         let mut sequence = 0;
+        let mut head = 0;
         let mut pending: Option<Pending> = None;
         for recorded in self.store.read::<EffectEvent>(&self.key)? {
+            head = recorded.version;
             match recorded.event {
                 EffectEvent::Attempted {
                     intent_digest,
@@ -335,7 +344,11 @@ impl EffectCustody {
                 }
             }
         }
-        Ok(Custody { pending, sequence })
+        Ok(Custody {
+            pending,
+            sequence,
+            head,
+        })
     }
 
     /// Record an attempt and every evidence use it takes in one commit.
@@ -375,18 +388,29 @@ impl EffectCustody {
         {
             batch.push(append);
         }
-        batch.push(self.append(&EffectEvent::Attempted {
-            intent_digest: attempt.intent_digest.to_owned(),
-            authority_term_id: attempt.authority_term_id.to_owned(),
-            mandate_ref: attempt.mandate_ref.cloned(),
-            idempotency_key: attempt.idempotency_key.to_owned(),
-            instance_id: attempt.instance_id.to_owned(),
-            attempt: attempt.attempt,
-            approval: attempt.approval.cloned(),
-            implementation_digest: attempt.implementation_digest.map(str::to_owned),
-        })?);
-        self.store.append(batch)?;
-        Ok(())
+        batch.push(Self::append_at(
+            &self.key,
+            attempt.admitted_at,
+            &EffectEvent::Attempted {
+                intent_digest: attempt.intent_digest.to_owned(),
+                authority_term_id: attempt.authority_term_id.to_owned(),
+                mandate_ref: attempt.mandate_ref.cloned(),
+                idempotency_key: attempt.idempotency_key.to_owned(),
+                instance_id: attempt.instance_id.to_owned(),
+                attempt: attempt.attempt,
+                approval: attempt.approval.cloned(),
+                implementation_digest: attempt.implementation_digest.map(str::to_owned),
+            },
+        )?);
+        match self.store.append(batch) {
+            Ok(_) => Ok(()),
+            Err(KernelStoreError::Conflict { key, .. }) if key == self.key => {
+                Err(CustodyError::Mismatch(
+                    "another call attempted this act after this one was admitted; run it again to see where it stands",
+                ))
+            }
+            Err(error) => Err(error.into()),
+        }
     }
 
     pub(crate) fn acknowledged(
@@ -433,22 +457,20 @@ impl EffectCustody {
         Ok(())
     }
 
-    pub(crate) fn finalized(
+    /// What settles the act once the step that consumed it is recorded: the
+    /// receipt that sealed it and the evidence uses it consumes.
+    pub(crate) fn settlement(
         &self,
         receipt_id: String,
         standing: Option<&StandingCover>,
         bounded: &[UseCover],
-    ) -> Result<(), CustodyError> {
-        let mut batch = Vec::with_capacity(2 + bounded.len());
-        for cover in bounded {
-            batch.push(cover.consume(&self.store)?);
+    ) -> Settlement {
+        Settlement {
+            custody: self.clone(),
+            receipt_id,
+            standing: standing.cloned(),
+            bounded: bounded.to_vec(),
         }
-        if let Some(cover) = standing {
-            batch.push(cover.consume_append(&self.store)?);
-        }
-        batch.push(self.append(&EffectEvent::Finalized { receipt_id })?);
-        self.store.append(batch)?;
-        Ok(())
     }
 
     fn commit(&self, event: &EffectEvent) -> Result<(), CustodyError> {
@@ -457,9 +479,16 @@ impl EffectCustody {
     }
 
     fn append(&self, event: &EffectEvent) -> Result<Append, KernelStoreError> {
-        let version = self.store.version::<EffectEvent>(&self.key)?;
+        Self::append_at(
+            &self.key,
+            self.store.version::<EffectEvent>(&self.key)?,
+            event,
+        )
+    }
+
+    fn append_at(key: &str, version: u64, event: &EffectEvent) -> Result<Append, KernelStoreError> {
         Append::kernel(
-            self.key.clone(),
+            key.to_owned(),
             if version == 0 {
                 Expected::Absent
             } else {
@@ -467,6 +496,47 @@ impl EffectCustody {
             },
             event,
         )
+    }
+}
+
+/// A sealed act's settlement. The run record commits it in the same
+/// transaction as the step or call that consumed the effect, so a crash
+/// leaves both or neither: a step replayed after one never finds its act
+/// settled and sends it again.
+#[derive(Clone, Debug)]
+pub struct Settlement {
+    custody: EffectCustody,
+    receipt_id: String,
+    standing: Option<StandingCover>,
+    bounded: Vec<UseCover>,
+}
+
+impl Settlement {
+    /// The appends that settle the act, for a batch committed through
+    /// `store`, which must be the store that keeps the act's custody. An act
+    /// this receipt already settled needs none.
+    pub(crate) fn appends(&self, store: &KernelStore) -> Result<Vec<Append>, CustodyError> {
+        if store.path() != self.custody.store.path() {
+            return Err(CustodyError::Mismatch(
+                "the act's custody is kept in another store than the run that consumed it",
+            ));
+        }
+        if let Some(latest) = store.latest::<EffectEvent>(&self.custody.key)?
+            && matches!(&latest.event, EffectEvent::Finalized { receipt_id } if *receipt_id == self.receipt_id)
+        {
+            return Ok(Vec::new());
+        }
+        let mut batch = Vec::with_capacity(2 + self.bounded.len());
+        for cover in &self.bounded {
+            batch.push(cover.consume(store)?);
+        }
+        if let Some(cover) = &self.standing {
+            batch.push(cover.consume_append(store)?);
+        }
+        batch.push(self.custody.append(&EffectEvent::Finalized {
+            receipt_id: self.receipt_id.clone(),
+        })?);
+        Ok(batch)
     }
 }
 

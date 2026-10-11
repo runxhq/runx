@@ -170,6 +170,9 @@ pub struct StepRun {
     /// referenced receipts without embedding child graph output payloads.
     pub nested_receipts: Vec<Receipt>,
     pub admission_witness: StepAdmissionWitness,
+    /// What settles the effect this step consumed, committed with the step
+    /// itself when the run records it.
+    pub settlement: Option<crate::effects::Settlement>,
 }
 
 impl StepRun {
@@ -1259,6 +1262,7 @@ mod tests {
             nested_receipts: Vec::new(),
             admission_witness: StepAdmissionWitness::local_runtime(step_id, receipt.id.as_str()),
             receipt,
+            settlement: None,
         })
     }
 

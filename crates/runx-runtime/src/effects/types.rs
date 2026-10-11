@@ -86,9 +86,14 @@ pub trait RuntimeEffect: Send + Sync {
         Ok(())
     }
 
-    fn persist(&self, request: EffectReceiptRequest<'_>) -> Result<(), RuntimeEffectError> {
+    /// Keep what the sealed effect leaves behind, and return what settles it
+    /// once the step that consumed it is recorded.
+    fn persist(
+        &self,
+        request: EffectReceiptRequest<'_>,
+    ) -> Result<Option<crate::kernel::custody::Settlement>, RuntimeEffectError> {
         let _ = request;
-        Ok(())
+        Ok(None)
     }
 
     /// The authority the step receipt seals for an admission: the grants

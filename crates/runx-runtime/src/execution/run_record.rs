@@ -41,6 +41,7 @@ use thiserror::Error;
 
 use super::runner::{StepOutcome, StepRun};
 use crate::kernel::authority::RunAuthority;
+use crate::kernel::custody::Settlement;
 use crate::kernel::store::{
     Append, Blob, Expected, Head, KernelStore, KernelStoreError, StreamEvent,
 };
@@ -684,7 +685,11 @@ impl RunLog {
         let mut blobs = vec![record, receipt];
         blobs.extend(nested);
         blobs.extend(values);
-        self.append(RunEvent::Step(Box::new(event)), blobs)
+        self.append_settling(
+            RunEvent::Step(Box::new(event)),
+            blobs,
+            step.settlement.as_ref(),
+        )
     }
 
     pub(crate) fn record_skipped(&self, step_ids: Vec<String>) -> Result<(), RunRecordError> {
@@ -761,6 +766,10 @@ impl RunLog {
         let turn = Blob::json(&call.turn.value)?;
         let input = Blob::json(call.input)?;
         let mut blobs = vec![turn, input];
+        let settlement = match call.outcome {
+            CallOutcome::Completed(step) => step.settlement.as_ref(),
+            _ => None,
+        };
         let outcome = match call.outcome {
             CallOutcome::Completed(step) => {
                 let record = Blob::json(&RecordedStep {
@@ -846,7 +855,7 @@ impl RunLog {
                 .collect(),
         };
         blobs.extend(values);
-        self.append(RunEvent::Call(Box::new(event)), blobs)
+        self.append_settling(RunEvent::Call(Box::new(event)), blobs, settlement)
     }
 
     pub(crate) fn record_sealed(
@@ -876,6 +885,17 @@ impl RunLog {
     }
 
     fn append(&self, event: RunEvent, blobs: Vec<Blob>) -> Result<(), RunRecordError> {
+        self.append_settling(event, blobs, None)
+    }
+
+    /// Record `event`, and settle the effect it consumed in the same
+    /// transaction.
+    fn append_settling(
+        &self,
+        event: RunEvent,
+        blobs: Vec<Blob>,
+        settlement: Option<&Settlement>,
+    ) -> Result<(), RunRecordError> {
         let expected = match *self.version() {
             0 => {
                 return Err(RunRecordError::Invalid {
@@ -885,7 +905,18 @@ impl RunLog {
             }
             version => Expected::Version(version),
         };
-        self.append_expected(expected, event, blobs)
+        let settles = match settlement {
+            Some(settlement) => {
+                settlement
+                    .appends(&self.0.store)
+                    .map_err(|error| RunRecordError::Invalid {
+                        run_id: self.0.run_id.clone(),
+                        reason: format!("settling the step's effect: {error}"),
+                    })?
+            }
+            None => Vec::new(),
+        };
+        self.commit(expected, event, blobs, settles)
     }
 
     fn append_expected(
@@ -894,9 +925,21 @@ impl RunLog {
         event: RunEvent,
         blobs: Vec<Blob>,
     ) -> Result<(), RunRecordError> {
+        self.commit(expected, event, blobs, Vec::new())
+    }
+
+    fn commit(
+        &self,
+        expected: Expected,
+        event: RunEvent,
+        blobs: Vec<Blob>,
+        settles: Vec<Append>,
+    ) -> Result<(), RunRecordError> {
         let mut version = self.version();
         let append = Append::kernel(self.0.run_id.clone(), expected, &event)?.with_blobs(blobs);
-        match self.0.store.append(vec![append]) {
+        let mut batch = vec![append];
+        batch.extend(settles);
+        match self.0.store.append(batch) {
             Ok(versions) => {
                 *version = versions.first().copied().unwrap_or(*version + 1);
                 Ok(())
@@ -1288,6 +1331,7 @@ fn step_run(store: &KernelStore, event: StepEvent) -> Result<StepRun, RunRecordE
             .map(|digest| store.blob_json(digest))
             .collect::<Result<_, _>>()?,
         admission_witness: record.admission_witness,
+        settlement: None,
     })
 }
 

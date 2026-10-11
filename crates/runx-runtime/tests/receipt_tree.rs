@@ -356,6 +356,7 @@ fn step_run(
         receipt,
         nested_receipts: Vec::new(),
         admission_witness,
+        settlement: None,
     })
 }
 

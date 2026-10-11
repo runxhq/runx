@@ -8,6 +8,7 @@ pub use error::RuntimeEffectError;
 pub use external_receipt::{
     EXTERNAL_RECEIPT_EFFECT_FAMILY, EXTERNAL_RECEIPT_VERIFY_TOOL, ExternalReceiptEffect,
 };
+pub use crate::kernel::custody::Settlement;
 pub use registry::RuntimeEffectRegistry;
 pub use state::EffectAdmission;
 pub use types::{
