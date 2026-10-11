@@ -138,7 +138,7 @@ export function checkHttpTransportOwnership(findings) {
   const networkPattern = /\bfetch\s*\(|\bXMLHttpRequest\b|\b(?:https?|axios|undici|got)\.(?:get|request)\s*\(|from\s+["'](?:node:)?https?["']|require\(["'](?:node:)?https?["']\)/u;
   const allowed = new Map([
     [
-      "skills/nitrosend/tools/nitrosend/bulk_import/run.mjs",
+      "connectors/nitrosend/tools/nitrosend/bulk_import/run.mjs",
       "runx-architecture-allow: transient-signed-upload",
     ],
   ]);

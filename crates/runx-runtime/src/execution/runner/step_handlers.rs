@@ -1075,7 +1075,7 @@ where
 }
 
 /// The step's runtime, as the kernel's runner for `process` implementations:
-/// the local process tool the implementation names, with the operation's
+/// the installed copy of the tool the connector ships, with the operation's
 /// credential. It keeps what each run observed: where the process ran and
 /// the credential it received, whatever the run returned.
 struct StepTools<'a, A> {
@@ -1091,18 +1091,21 @@ where
     fn run(
         &self,
         tool: &str,
+        manifest: &Path,
         inputs: JsonObject,
         scopes: &[String],
         delivery: &crate::credentials::CredentialDelivery,
     ) -> Result<runx_contracts::JsonValue, String> {
-        let output = crate::tool_catalogs::dispatch::dispatch_process_tool(
-            crate::tool_catalogs::dispatch::ToolDispatchRequest {
+        let directory = manifest.parent().unwrap_or(self.graph_dir);
+        let output = crate::tool_catalogs::dispatch::dispatch_connector_tool(
+            manifest,
+            &crate::tool_catalogs::dispatch::ToolDispatchRequest {
                 tool_ref: Cow::Borrowed(tool),
                 inputs: Cow::Owned(inputs),
                 resolved_inputs: Cow::Owned(JsonObject::new()),
                 scopes,
                 env: &self.runtime.options.env,
-                skill_directory: self.graph_dir,
+                skill_directory: directory,
                 credential_delivery: delivery,
                 local_artifacts: &self.runtime.local_artifacts,
                 skill_name: tool,

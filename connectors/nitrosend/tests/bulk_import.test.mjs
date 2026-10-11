@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { invokeBulkImport } from "./run.mjs";
+import { invokeBulkImport } from "../tools/nitrosend/bulk_import/run.mjs";
 
 function response(status, body) {
   return { ok: status >= 200 && status < 300, status, text: async () => body };

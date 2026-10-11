@@ -43,19 +43,20 @@ background-only runs must return a blocked result if they need that exception.
 
 ## Fixed Brave operator
 
-Use `python3 tools/reddit/brave/brave.py` from this skill directory. The
-package carries it through `tools/reddit/brave/manifest.json`; Runx tool calls
-can supply the same fixed operation and fields as typed inputs. It accepts only
-the commands below; the caller cannot supply JavaScript. It stores a
+Call the `reddit` connector's operations from the research turn. Each runs the
+connector's fixed `reddit.brave` operator, which ships with the connector, under
+the operator's `host_browser` session instance (`runx connector use reddit`),
+and each call is admitted and recorded by runx. The operations accept only the
+fields their input schemas declare; the caller cannot supply JavaScript. It stores a
 non-secret window/tab attachment cache at
 `~/.config/runx/reddit-brave-bindings.json` with owner-only permissions.
 The Runx account record remains authoritative for username, profile label,
 voice, approval and writer state. Match its `profile_ref` and `binding_ref`
 before binding. Never treat the cache as proof of login.
 
-For a new or restarted session, run `tabs` to list Reddit tab IDs and URLs, then
-`bind <account_id> --window-id <id> --tab-id <id> --profile-ref <label>`.
-`bind` and every account command open the rendered user menu, read its single
+For a new or restarted session, call `tabs.list` to list Reddit tab IDs and
+URLs, then `tab.bind` with the account, `window_id`, `tab_id` and `profile_ref`.
+`tab.bind` and every account operation open the rendered user menu, read its single
 View Profile link, compare the username, and close the menu. A logged-in tab
 on any `www.reddit.com` page can be bound if that identity control is present;
 subsequent navigation is restricted to community and user URLs.
@@ -63,29 +64,29 @@ After a browser restart, binding a verified tab to the current account replaces
 any stale account mapping for the same window and tab IDs.
 If several tabs could belong to the account, select the intended tab from the
 operator's known window/profile context; do not choose by URL alone.
-Use `inspect <account_id>` again at the start of each operating turn.
+Call `account.inspect` again at the start of each operating turn.
 
-Read-only target discovery is a sequence, one command at a time:
+Read-only target discovery is a sequence, one operation at a time:
 
 ```text
-python3 tools/reddit/brave/brave.py tabs
-python3 tools/reddit/brave/brave.py inspect example_builder
-python3 tools/reddit/brave/brave.py navigate example_builder 'https://www.reddit.com/r/ClaudeCode/top/?t=day'
-python3 tools/reddit/brave/brave.py feed example_builder
-python3 tools/reddit/brave/brave.py rules example_builder
-python3 tools/reddit/brave/brave.py navigate example_builder 'https://www.reddit.com/r/ClaudeCode/comments/<post-id>/<slug>/'
-python3 tools/reddit/brave/brave.py thread example_builder
-python3 tools/reddit/brave/brave.py composer example_builder
+reddit/tabs.list       {operation: tabs}
+reddit/account.inspect {operation: inspect, account: example_builder}
+reddit/page.navigate   {operation: navigate, account: example_builder, url: 'https://www.reddit.com/r/ClaudeCode/top/?t=day'}
+reddit/feed.read       {operation: feed, account: example_builder}
+reddit/rules.read      {operation: rules, account: example_builder}
+reddit/page.navigate   {operation: navigate, account: example_builder, url: 'https://www.reddit.com/r/ClaudeCode/comments/<post-id>/<slug>/'}
+reddit/thread.read     {operation: thread, account: example_builder}
+reddit/composer.read   {operation: composer, account: example_builder}
 ```
 
-`feed` returns rendered title, score, reply count, creation time and permalink
-for at most twelve visible cards. `rules` returns the current rendered
+`feed.read` returns rendered title, score, reply count, creation time and permalink
+for at most twelve visible cards. `rules.read` returns the current rendered
 community rules; if the rules widget is absent, stop instead of assuming
-permission. `thread` returns the rendered post and at
+permission. `thread.read` returns the rendered post and at
 most thirty top-level replies from the loaded comment set. Lazy loading means
 those are bounded observations, not the whole discussion. An image or link
 post may have no readable body; inspect that media before drafting a factual
-reply. Record the command's
+reply. Record the operation's
 `observed_at` and compare a later snapshot before claiming momentum. Navigate
 only to exact Reddit pages needed for this session. The tool refuses to
 touch the tab when it is the user's foreground tab, including during identity
@@ -96,8 +97,9 @@ operator to switch windows merely to research. It never activates a
 window, changes the active tab, uses a clipboard or sends global keystrokes.
 
 After an approved host submission, if a comment permalink is available,
-write the exact approved body to a local UTF-8 file and run
-`comment-readback <account_id> <comment-permalink> --body-file <file>`. It
+write the exact approved body to a local UTF-8 file and call
+`comment.readback` with the account, the permalink as `url` and the file as
+`body_file`. It
 checks the rendered author and body with layout-aware line breaks in a separate
 page read. The file must contain the exact approved body with no terminal
 newline; use `printf '%s' "$body" > body.txt` when preparing it. The tool
@@ -141,7 +143,7 @@ approved text file is missing, unreadable, too large, or empty; recreate the
 exact text file before readback without resubmitting the comment.
 The tool never falls back to another account or tab.
 If a requested navigation is already loaded, it returns `already_at_url`
-without creating a new page load; take a fresh `feed` or `thread` observation
+without creating a new page load; take a fresh `feed.read` or `thread.read` observation
 before comparing activity.
 
 ## Brave attachment example

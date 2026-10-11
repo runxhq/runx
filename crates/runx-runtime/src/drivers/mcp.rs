@@ -31,6 +31,7 @@ use runx_contracts::connector::{
 };
 use runx_contracts::{JsonObject, JsonValue, sha256_prefixed};
 
+use crate::credentials::SecretTaint;
 use crate::http::{ReqwestHttpTransport, RuntimeHttpHeader};
 use crate::kernel::operation::AdmittedCall;
 use crate::kernel::operation::confirm::{Check, Driver, Observed, Unperformed};
@@ -234,12 +235,16 @@ impl Sessions {
 pub(crate) type ServedTool = (String, Digest, JsonObject);
 
 /// Every tool the server at `url` serves, read through one fresh session over
-/// runx's guarded `http`, for an author to pin.
+/// runx's guarded `http`, for an author to pin. Discovery presents the
+/// operator's credential, so nothing it returns repeats it: a failure's
+/// reason is scrubbed as a governed call's is, and a definition that carries
+/// the credential is refused, never pinned.
 pub(crate) fn served_tools(
     http: &ReqwestHttpTransport,
     url: &str,
     bearer: Option<&str>,
 ) -> Result<Vec<ServedTool>, String> {
+    let taint = SecretTaint::from_values(bearer);
     block_on(http.request_timeout(), async move {
         let credential = bearer
             .map(|token| RuntimeHttpHeader::secret("authorization", format!("Bearer {token}")));
@@ -251,7 +256,24 @@ pub(crate) fn served_tools(
         let tools = list(&service).await;
         service.cancel().await.map_err(|error| error.to_string())?;
         tools
-    })?
+    })
+    .and_then(|tools| tools)
+    .map_err(|reason| taint.redact_output_text(reason))
+    .and_then(|tools| unrepeated(tools, &taint))
+}
+
+/// `tools`, refused when any definition repeats the presented credential.
+fn unrepeated(tools: Vec<ServedTool>, taint: &SecretTaint) -> Result<Vec<ServedTool>, String> {
+    match tools.iter().find(|(_, _, definition)| {
+        let served = JsonValue::Object(definition.clone());
+        taint.redact_value(served.clone()) != served
+    }) {
+        Some((name, _, _)) => Err(format!(
+            "the MCP server's tool {} repeats the credential presented to it, so runx pins none of its tools",
+            taint.redact_text(name.as_str())
+        )),
+        None => Ok(tools),
+    }
 }
 
 /// Every tool the stdio `server` serves, read through one session on a
@@ -785,6 +807,87 @@ mod tests {
         );
         Ok(())
     }
+    /// Discovery presents the operator's bearer; a server that answers
+    /// initialization with an error repeating it never puts it in the reason
+    /// an author reads.
+    #[cfg(feature = "mcp-http-server")]
+    #[test]
+    fn discovery_never_repeats_the_presented_bearer() -> Result<(), String> {
+        use http_body_util::Full;
+        use hyper_util::rt::TokioIo;
+
+        const TOKEN: &str = "presented-discovery-token";
+        let runtime = crate::http::http_runtime().map_err(|error| error.to_string())?;
+        let listener = runtime
+            .block_on(tokio::net::TcpListener::bind("127.0.0.1:0"))
+            .map_err(|error| error.to_string())?;
+        let address = listener.local_addr().map_err(|error| error.to_string())?;
+        runtime.spawn(async move {
+            while let Ok((stream, _)) = listener.accept().await {
+                tokio::spawn(async move {
+                    let service = hyper::service::service_fn(
+                        |request: hyper::Request<hyper::body::Incoming>| async move {
+                            let presented = request
+                                .headers()
+                                .get("authorization")
+                                .and_then(|value| value.to_str().ok())
+                                .unwrap_or_default()
+                                .to_owned();
+                            let body = serde_json::json!({
+                                "jsonrpc": "2.0",
+                                "id": 0,
+                                "error": {"code": -32600, "message": format!("rejected {presented}")},
+                            });
+                            hyper::Response::builder()
+                                .header("content-type", "application/json")
+                                .body(Full::new(bytes::Bytes::from(body.to_string())))
+                        },
+                    );
+                    let _ = hyper::server::conn::http1::Builder::new()
+                        .serve_connection(TokioIo::new(stream), service)
+                        .await;
+                });
+            }
+        });
+        let transport = crate::http::ReqwestHttpTransport::with_private_network_access()
+            .map_err(|error| error.to_string())?;
+        let reason = served_tools(&transport, &format!("http://{address}/mcp"), Some(TOKEN))
+            .err()
+            .ok_or("the server refused initialization")?;
+        // The server's message reached the reason, with the bearer scrubbed.
+        assert!(
+            reason.contains("rejected Bearer [redacted-credential]"),
+            "{reason}"
+        );
+        assert!(!reason.contains(TOKEN), "{reason}");
+        Ok(())
+    }
+
+    /// A served definition that carries the presented credential is refused
+    /// whole, so no manifest is written with it.
+    #[test]
+    fn a_definition_repeating_the_credential_pins_nothing() -> Result<(), String> {
+        let taint = SecretTaint::from_values(Some("presented-discovery-token"));
+        let tool = |description: &str| -> Result<ServedTool, String> {
+            let definition = JsonObject::from([
+                ("name".to_owned(), JsonValue::String("lookup".to_owned())),
+                (
+                    "description".to_owned(),
+                    JsonValue::String(description.to_owned()),
+                ),
+            ]);
+            let digest = mcp_tool_digest(&definition).map_err(|error| error.to_string())?;
+            Ok(("lookup".to_owned(), digest, definition))
+        };
+        assert!(unrepeated(vec![tool("reads a record")?], &taint).is_ok());
+        let refused = unrepeated(vec![tool("reads with presented-discovery-token")?], &taint)
+            .err()
+            .ok_or("a tainted definition was pinned")?;
+        assert!(refused.contains("lookup"), "{refused}");
+        assert!(!refused.contains("presented-discovery-token"), "{refused}");
+        Ok(())
+    }
+
     /// A stdio session reports whether a server process ran, so a receipt
     /// records the credential only when a process received it: never for the
     /// harness's stand-in or a server that failed to start, always for one

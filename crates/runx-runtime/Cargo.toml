@@ -113,6 +113,12 @@ test = false
 bench = false
 
 [[bin]]
+name = "runx-official-connectors"
+path = "src/bin/runx-official-connectors.rs"
+test = false
+bench = false
+
+[[bin]]
 name = "runx-native-capability-snapshot"
 path = "src/bin/runx-native-capability-snapshot.rs"
 test = false

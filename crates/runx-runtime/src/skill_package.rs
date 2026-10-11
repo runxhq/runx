@@ -236,6 +236,32 @@ fn validated_package(
     Ok(validated)
 }
 
+/// A connector's tool package as it ships: every regular file below `dir`,
+/// keyed by its package-relative POSIX path and read within a skill
+/// package's bounds. A link is refused, so the tool that runs is exactly the
+/// bytes its digest names.
+pub(crate) fn read_tool_package(dir: &Path) -> Result<BTreeMap<String, Vec<u8>>, RuntimeError> {
+    let metadata = fs::symlink_metadata(dir)
+        .map_err(|source| RuntimeError::io(format!("reading {}", dir.display()), source))?;
+    if !metadata.is_dir() {
+        return Err(runx_parser::SkillPackageError::invalid(
+            dir.to_string_lossy(),
+            "a connector tool package is a directory, never a link",
+        )
+        .into());
+    }
+    let mut source = SkillPackageSource::default();
+    collect_package_source(dir, dir, &mut source, &mut PackageTotals::default())?;
+    if let Some(link) = source.symlinks.first() {
+        return Err(runx_parser::SkillPackageError::invalid(
+            link.clone(),
+            "a connector tool package holds no links",
+        )
+        .into());
+    }
+    Ok(source.files)
+}
+
 /// Discover executable skill-package roots in a workspace.
 ///
 /// A repository may carry a root `SKILL.md` as its native operator manual while

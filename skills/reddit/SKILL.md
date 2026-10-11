@@ -79,8 +79,8 @@ and records its result; it does not sandbox the host, supply a browser, or
 independently verify agent-authored browser reports. Native provider proof is
 not available from an agent answer. Output labels say `host_observed` for
 that reason. Read references/browser.md before performing browser work. For a configured
-macOS Brave account, use the fixed `tools/reddit/brave/brave.py` commands in that
-guide for attachment, navigation, feed, rules and thread reads, and comment readback.
+macOS Brave account, call the `reddit` connector operations in that guide for
+attachment, navigation, feed, rules and thread reads, and comment readback.
 The local adapter refuses account mismatches and never enters or submits text.
 If the editor has no proven background input path, stop before any submit
 attempt and request one scoped foreground action or a compatible connector.

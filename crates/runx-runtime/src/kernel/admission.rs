@@ -1170,6 +1170,13 @@ operations:
 "#,
             )
             .unwrap();
+            let tool = connector.join("tools/acme/records");
+            std::fs::create_dir_all(&tool).unwrap();
+            std::fs::write(
+                tool.join("manifest.json"),
+                r#"{"schema": "runx.tool.manifest.v1", "name": "acme.records", "version": "0.1.0", "description": "Reads records.", "source": {"command": "node", "args": ["./records.mjs"]}}"#,
+            )
+            .unwrap();
             let loaded = ConnectorScope::for_skill(&skill)
                 .unwrap()
                 .connector("acme")

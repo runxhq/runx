@@ -55,7 +55,7 @@
     "test:heavy:graph": "node scripts/test-workspace.mjs --testTimeout 30000 --hookTimeout 30000 tests/payment-graph-harness.test.ts tests/examples/hello-graph.test.ts",
     "boundary:check": "node scripts/check-boundaries.mjs",
     "test:boundary": "node scripts/test-boundaries.mjs",
-    "test:skills": "node --test \"skills/**/*.test.mjs\"",
+    "test:skills": "node --test \"skills/**/*.test.mjs\" \"connectors/**/*.test.mjs\"",
     "tests:integration-modules:check": "node scripts/check-integration-test-modules.mjs",
     "fixtures:kernel:check": "tsx scripts/generate-kernel-parity-fixtures.ts --check",
     "fixtures:kernel:generate": "tsx scripts/generate-kernel-parity-fixtures.ts",

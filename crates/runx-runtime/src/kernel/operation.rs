@@ -9,7 +9,7 @@
 //! instance, the implementation or the transport.
 
 use std::collections::BTreeMap;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use runx_contracts::connector::{
@@ -231,13 +231,15 @@ impl AdmittedCall<'_> {
     }
 }
 
-/// Runs a declared tool package for a `process` implementation, through the
-/// runtime's tool roots and adapters. The step handler provides it; the
-/// kernel decides everything around the run.
+/// Runs the tool package a `process` implementation names, from the
+/// installed copy of the manifest its connector ships, through the runtime's
+/// adapters. The step handler provides it; the kernel decides which tool and
+/// everything around the run.
 pub(crate) trait ToolRunner {
     fn run(
         &self,
         tool: &str,
+        manifest: &Path,
         inputs: JsonObject,
         scopes: &[String],
         delivery: &crate::credentials::CredentialDelivery,
@@ -253,6 +255,7 @@ impl ToolRunner for NoTools {
     fn run(
         &self,
         tool: &str,
+        _manifest: &Path,
         _inputs: JsonObject,
         _scopes: &[String],
         _delivery: &crate::credentials::CredentialDelivery,
@@ -401,9 +404,49 @@ impl OperationAdmission {
             .local
             .as_ref()
             .and_then(|local| local.mcp_server.as_ref());
-        implementation_digest(implementation, server)
+        let tool = match implementation {
+            Implementation::Process(process) => self
+                .admitted
+                .connector
+                .tools
+                .get(process.tool.as_str())
+                .map(|tool| &tool.digest),
+            _ => None,
+        };
+        implementation_digest(implementation, server, tool)
             .ok()
             .map(|digest| digest.as_str().to_owned())
+    }
+
+    /// The installed copy of the tool a local process operation runs: the
+    /// one its connector ships, at the digest it was loaded with.
+    fn process_tool(
+        &self,
+        env: &BTreeMap<String, String>,
+        cwd: &Path,
+    ) -> Result<Option<PathBuf>, String> {
+        let operation = self.admitted.operation();
+        let (Placement::Local, Some(Implementation::Process(process))) = (
+            self.admitted.instance.instance.placement,
+            operation.implementation.as_ref(),
+        ) else {
+            return Ok(None);
+        };
+        let connector = &self.admitted.connector;
+        connector
+            .tools
+            .get(process.tool.as_str())
+            .ok_or_else(|| {
+                format!(
+                    "connector {} ships no tool {}",
+                    connector.manifest.id, process.tool
+                )
+            })?
+            .installed(
+                &crate::paths::RunxPaths::resolve(env, cwd),
+                process.tool.as_str(),
+            )
+            .map(Some)
     }
 }
 
@@ -815,7 +858,7 @@ pub(crate) fn execute(
 
     // Everything that can fail before the provider is reached runs before
     // the attempt is recorded, so a refusal here uses nothing.
-    let session = prepare(context, env, cwd).map_err(|reason| match context.mutation() {
+    let preflight = |reason: String| match context.mutation() {
         true => RuntimeError::ProviderEffectRejected {
             plan_digest: intent_digest.clone(),
             idempotency_key: provider_key.clone().unwrap_or_default(),
@@ -824,7 +867,9 @@ pub(crate) fn execute(
             reason,
         },
         false => failed(context, reason),
-    })?;
+    };
+    let session = prepare(context, env, cwd).map_err(preflight)?;
+    let tool = context.process_tool(env, cwd).map_err(preflight)?;
     if let Some(custody) = &context.admitted.custody {
         custody
             .attempt(
@@ -848,7 +893,17 @@ pub(crate) fn execute(
 
     // An answer the connector cannot describe as it declares, its effect
     // included, is not trusted: the call holds for reconciliation.
-    let outcome = dispatch(context, session, env, tools, dispatched).and_then(|readback| {
+    let outcome = dispatch(
+        context,
+        session,
+        env,
+        Local {
+            tools,
+            tool: tool.as_deref(),
+        },
+        dispatched,
+    )
+    .and_then(|readback| {
         readback
             .verify(&Expected {
                 connector: admitted.connector.manifest.id.as_str(),
@@ -1037,11 +1092,18 @@ fn signed_in(
     ))
 }
 
+/// What a local process implementation runs with: the step's runner and the
+/// installed copy of the connector's tool.
+struct Local<'a> {
+    tools: &'a dyn ToolRunner,
+    tool: Option<&'a Path>,
+}
+
 fn dispatch(
     context: &OperationAdmission,
     session: Session,
     env: &BTreeMap<String, String>,
-    tools: &dyn ToolRunner,
+    local: Local<'_>,
     dispatched: &mut Option<Dispatched>,
 ) -> Result<Readback, Failure> {
     let admitted = &context.admitted;
@@ -1188,10 +1250,17 @@ fn dispatch(
                     _ => Vec::new(),
                 },
             };
+            let tool = local.tool.ok_or_else(|| {
+                rejected(
+                    "tool_unavailable",
+                    "the connector's tool was not installed".to_owned(),
+                )
+            })?;
             let driver = crate::drivers::process::Process {
-                tools,
+                tools: local.tools,
+                tool: spec.tool.as_str(),
+                manifest: tool,
                 call: &call,
-                spec,
                 scopes: &scopes,
                 delivery: &delivery,
             };

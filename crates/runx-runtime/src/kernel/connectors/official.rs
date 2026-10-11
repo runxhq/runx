@@ -4711,3 +4711,1005 @@ operations:
 "###,
     ),
 ];
+
+/// The files of the tool packages official connectors ship: the connector,
+/// the path below its tools/, and the contents.
+pub(super) const TOOLS: &[(&str, &str, &str)] = &[
+    (
+        "github",
+        "git/push/manifest.json",
+        r###"{
+  "schema": "runx.tool.manifest.v1",
+  "name": "git.push",
+  "version": "0.1.0",
+  "description": "Push an exact local commit to a GitHub branch without forcing it, and read the branch back: the github connector's branch.push implementation.",
+  "source": {
+    "command": "sh",
+    "args": [
+      "./push.sh",
+      "{{phase}}",
+      "{{repository}}",
+      "{{branch}}",
+      "{{commit}}"
+    ]
+  },
+  "inputs": {
+    "repository": {
+      "type": "string",
+      "required": true,
+      "description": "Exact owner/name."
+    },
+    "branch": {
+      "type": "string",
+      "required": true,
+      "description": "Branch to create or confirm."
+    },
+    "commit": {
+      "type": "string",
+      "required": true,
+      "description": "Exact local commit the branch must point at."
+    },
+    "phase": {
+      "type": "string",
+      "required": true,
+      "description": "perform pushes; readback reads the branch."
+    },
+    "acknowledgement": {
+      "type": "json",
+      "required": false,
+      "description": "The recorded push, for readback."
+    }
+  }
+}
+"###,
+    ),
+    (
+        "github",
+        "git/push/push.sh",
+        r###"#!/bin/sh
+# The github connector's branch.push, as a trusted host process. It pushes an
+# exact local commit to a GitHub branch over HTTPS with the instance's token
+# and never forces: a branch already at the commit is left alone, and one at
+# another commit is refused. Run with phase readback, it reports the branch as
+# GitHub has it. Inputs arrive as validated arguments; output is JSON.
+set -eu
+
+phase=$1
+repository=$2
+branch=$3
+commit=$4
+
+invalid() {
+  printf '%s is invalid\n' "$1" >&2
+  exit 2
+}
+case "$repository" in
+  */*/* | /* | */ | *[!A-Za-z0-9_./-]*) invalid repository ;;
+  */*) ;;
+  *) invalid repository ;;
+esac
+case "$branch" in "" | *[!A-Za-z0-9._/-]* | -*) invalid branch ;; esac
+case "$commit" in *[!0-9a-f]*) invalid commit ;; esac
+[ ${#commit} -eq 40 ] || [ ${#commit} -eq 64 ] || invalid commit
+
+remote="https://github.com/$repository.git"
+if [ -n "${GITHUB_TOKEN:-}" ]; then
+  GIT_CONFIG_COUNT=1
+  GIT_CONFIG_KEY_0=http.https://github.com/.extraheader
+  GIT_CONFIG_VALUE_0="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GITHUB_TOKEN" | base64 | tr -d '\n')"
+  export GIT_CONFIG_COUNT GIT_CONFIG_KEY_0 GIT_CONFIG_VALUE_0
+fi
+GIT_TERMINAL_PROMPT=0
+GIT_OPTIONAL_LOCKS=0
+export GIT_TERMINAL_PROMPT GIT_OPTIONAL_LOCKS
+cd "${RUNX_CWD:-.}"
+
+remote_head() {
+  git -c core.fsmonitor=false ls-remote --refs "$remote" "refs/heads/$branch" | {
+    read -r sha _ || true
+    printf '%s' "${sha:-}"
+  }
+}
+
+case "$phase" in
+  readback)
+    printf '{"branch":"%s","commit":"%s"}\n' "$branch" "$(remote_head)"
+    exit 0
+    ;;
+  perform) ;;
+  *) invalid phase ;;
+esac
+
+local_commit=$(git -c core.fsmonitor=false rev-parse --verify "$commit^{commit}" 2>/dev/null || true)
+if [ "$local_commit" != "$commit" ]; then
+  printf '{"refused":"commit %s is not in this workspace"}\n' "$commit"
+  exit 0
+fi
+current=$(remote_head)
+if [ "$current" = "$commit" ]; then
+  printf '{"branch":"%s","commit":"%s","pushed":false}\n' "$branch" "$commit"
+  exit 0
+fi
+if [ -n "$current" ]; then
+  printf '{"refused":"branch %s already points at %s; a push is never forced"}\n' "$branch" "$current"
+  exit 0
+fi
+git -c core.fsmonitor=false push --porcelain "$remote" "$commit:refs/heads/$branch" >/dev/null
+printf '{"branch":"%s","commit":"%s","pushed":true}\n' "$branch" "$commit"
+"###,
+    ),
+    (
+        "nitrosend",
+        "nitrosend/bulk_import/manifest.json",
+        r###"{
+  "schema": "runx.tool.manifest.v1",
+  "name": "nitrosend.bulk_import",
+  "version": "0.1.1",
+  "description": "Reserve, stream, and finalize one consented Nitrosend CSV import without exposing transient signed upload material.",
+  "source": {
+    "command": "node",
+    "args": [
+      "./run.mjs"
+    ]
+  },
+  "inputs": {
+    "csv_path": {
+      "type": "string",
+      "required": true,
+      "description": "Absolute local path to a readable CSV file."
+    },
+    "source_id": {
+      "type": "string",
+      "required": true,
+      "description": "Stable first-party source identifier."
+    },
+    "consent_basis": {
+      "type": "string",
+      "required": true,
+      "description": "Auditable consent basis; purchased or scraped sources are refused."
+    },
+    "columns": {
+      "type": "json",
+      "required": false,
+      "description": "Optional CSV column mapping."
+    },
+    "options": {
+      "type": "json",
+      "required": false,
+      "description": "Optional import settings."
+    },
+    "dry_run": {
+      "type": "boolean",
+      "required": false,
+      "description": "Validate metadata without uploading when true."
+    },
+    "idempotency_key": {
+      "type": "string",
+      "required": false,
+      "description": "runx's provider key for a live import; a preview takes none."
+    },
+    "brand_sid": {
+      "type": "string",
+      "required": false,
+      "description": "Optional public Nitrosend brand SID."
+    },
+    "phase": {
+      "type": "string",
+      "required": false,
+      "description": "perform for a live import; runx sets it when the import runs as a write."
+    }
+  },
+  "scopes": [
+    "nitrosend:write",
+    "net:http",
+    "fs:read"
+  ],
+  "artifacts": {
+    "wrap_as": "provider_evidence"
+  }
+}
+"###,
+    ),
+    (
+        "nitrosend",
+        "nitrosend/bulk_import/run.mjs",
+        r###"#!/usr/bin/env node
+
+import { createHash, randomUUID } from "node:crypto";
+import fs from "node:fs";
+import { isIP } from "node:net";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const API_URL = "https://api.nitrosend.com/mcp";
+const SENSITIVE_KEYS = /authorization|api[_-]?key|bearer|credential|secret|token|signed[_-]?id|direct[_-]?upload/iu;
+const SECRET_VALUE = /\b(?:nskey|wpkey)_(?:live|test)_[A-Za-z0-9_-]+\b/gu;
+const SIGNED_URL = /https:\/\/[^\s"']+\?[^\s"']+/gu;
+
+// runx-architecture-allow: transient-signed-upload
+// This single adapter keeps the provider's signed PUT URL and headers out of graph state and receipts.
+
+export async function invokeBulkImport(inputs, options = {}) {
+  const fetchImpl = options.fetchImpl ?? fetch;
+  const apiKey = options.apiKey ?? process.env.NITROSEND_API_KEY;
+  const invalid = validateInputs(inputs);
+  if (invalid) return packet(invalid.decision, inputs, null, null, invalid.blockers);
+  if (!text(apiKey)) {
+    return packet("needs_input", inputs, null, null, [
+      "Nitrosend credential is missing; configure a Nitrosend Runx credential",
+    ]);
+  }
+
+  const csvPath = inputs.csv_path;
+  const metadata = await fileMetadata(csvPath);
+  if (metadata.error) return packet("needs_input", inputs, null, null, [metadata.error]);
+
+  const reservationCall = await invokeMcp({
+    fetchImpl,
+    apiKey,
+    brandSid: inputs.brand_sid,
+    arguments: providerArguments({
+      upload: metadata.upload,
+      source_id: inputs.source_id,
+      consent_basis: inputs.consent_basis,
+      dry_run: inputs.dry_run === true,
+      idempotency_key: inputs.idempotency_key,
+    }),
+  });
+  const reservation = reservationCall.output;
+  if (reservation.decision !== "ok" || inputs.dry_run === true) {
+    return { ...reservation, operation: "import_contacts_file", source_id: inputs.source_id };
+  }
+
+  const reserved = providerData(reservationCall.rawResult);
+  const directUpload = reserved.direct_upload;
+  const signedId = reserved.signed_id;
+  if (!directUpload?.url || !directUpload?.headers || !signedId) {
+    return packet("provider_error", inputs, reservation.evidence, null, [
+      "Nitrosend did not return a complete authorized upload reservation",
+    ]);
+  }
+
+  let uploadUrl;
+  try {
+    uploadUrl = admittedUploadUrl(directUpload.url);
+  } catch (error) {
+    return packet("provider_error", inputs, reservation.evidence, null, [safeError(error)]);
+  }
+  let uploadResponse;
+  try {
+    const uploadHeaders = new Headers(directUpload.headers);
+    uploadHeaders.set("content-length", String(metadata.upload.byte_size));
+    uploadResponse = await fetchImpl(uploadUrl, {
+      method: "PUT",
+      headers: uploadHeaders,
+      body: fs.createReadStream(csvPath),
+      duplex: "half",
+    });
+  } catch (error) {
+    return packet("provider_error", inputs, reservation.evidence, null, [safeError(error)]);
+  }
+  if (!uploadResponse.ok) {
+    return packet("provider_error", inputs, reservation.evidence, null, [
+      `authorized CSV upload failed with HTTP ${uploadResponse.status}`,
+    ]);
+  }
+
+  const finalizedCall = await invokeMcp({
+    fetchImpl,
+    apiKey,
+    brandSid: inputs.brand_sid,
+    arguments: providerArguments({
+      signed_id: signedId,
+      source_id: inputs.source_id,
+      consent_basis: inputs.consent_basis,
+      resource: "contacts",
+      parser: "default",
+      columns: inputs.columns,
+      options: inputs.options,
+      dry_run: false,
+      idempotency_key: inputs.idempotency_key,
+    }),
+  });
+  const finalized = finalizedCall.output;
+  finalized.operation = "import_contacts_file";
+  finalized.source_id = inputs.source_id;
+  finalized.evidence = {
+    ...finalized.evidence,
+    upload: {
+      filename: metadata.upload.filename,
+      byte_size: metadata.upload.byte_size,
+      checksum_verified: true,
+      signed_url_retained: false,
+    },
+  };
+  return finalized;
+}
+
+async function invokeMcp({ fetchImpl, apiKey, brandSid, arguments: args }) {
+  const requestId = randomUUID();
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 30_000);
+  let response;
+  try {
+    response = await fetchImpl(API_URL, {
+      method: "POST",
+      headers: {
+        accept: "application/json, text/event-stream",
+        authorization: `Bearer ${apiKey}`,
+        "content-type": "application/json",
+        ...(text(brandSid) ? { "x-brand-sid": text(brandSid) } : {}),
+      },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: requestId,
+        method: "tools/call",
+        params: { name: "nitro_import_contacts", arguments: args },
+      }),
+      signal: controller.signal,
+    });
+  } catch (error) {
+    return {
+      output: packet("provider_error", {}, null, null, [safeError(error)]),
+      rawResult: null,
+    };
+  } finally {
+    clearTimeout(timeout);
+  }
+
+  let body;
+  try {
+    body = await response.text();
+  } catch (error) {
+    return {
+      output: packet("provider_error", {}, null, null, [safeError(error)]),
+      rawResult: null,
+    };
+  }
+  const evidence = {
+    request_id: requestId,
+    http_status: response.status,
+    credential_material: "redacted",
+  };
+  if (!response.ok) {
+    const authority = response.status === 401 || response.status === 403;
+    return {
+      output: packet(
+        authority ? "needs_input" : "provider_error",
+        {},
+        evidence,
+        null,
+        [authority ? "Nitrosend rejected the configured credential" : `Nitrosend returned HTTP ${response.status}`],
+      ),
+      rawResult: null,
+    };
+  }
+  try {
+    const rawResult = parseToolContent(parseJsonOrSse(body));
+    const safeResult = redact(rawResult);
+    const providerError = safeResult?.error === true || safeResult?.isError === true;
+    return {
+      output: packet(
+        providerError ? "provider_error" : "ok",
+        {},
+        evidence,
+        safeResult,
+        providerError ? [safeResult?.message || "Nitrosend rejected the import"] : [],
+      ),
+      rawResult,
+    };
+  } catch (error) {
+    return {
+      output: packet("provider_error", {}, evidence, null, [safeError(error)]),
+      rawResult: null,
+    };
+  }
+}
+
+function validateInputs(inputs) {
+  if (!path.isAbsolute(text(inputs.csv_path)) || path.extname(inputs.csv_path).toLowerCase() !== ".csv") {
+    return { decision: "needs_input", blockers: ["csv_path must be an absolute path to a .csv file"] };
+  }
+  if (!text(inputs.source_id) || !text(inputs.consent_basis)) {
+    return { decision: "needs_input", blockers: ["source_id and consent_basis are required"] };
+  }
+  if (/purchased|scraped|data\s*broker/iu.test(inputs.consent_basis)) {
+    return { decision: "refused", blockers: ["purchased, scraped, and data-broker contact sources are not permitted"] };
+  }
+  if (inputs.dry_run !== true && !text(inputs.idempotency_key)) {
+    return { decision: "refused", blockers: ["a real contact import requires idempotency_key"] };
+  }
+  return null;
+}
+
+async function fileMetadata(csvPath) {
+  let stat;
+  try {
+    stat = fs.statSync(csvPath);
+  } catch {
+    return { error: "the CSV file does not exist or is not readable" };
+  }
+  if (!stat.isFile() || stat.size === 0) {
+    return { error: "csv_path must identify a non-empty regular file" };
+  }
+  const hash = createHash("md5");
+  await new Promise((resolve, reject) => {
+    const stream = fs.createReadStream(csvPath);
+    stream.on("data", (chunk) => hash.update(chunk));
+    stream.on("error", reject);
+    stream.on("end", resolve);
+  });
+  return {
+    upload: {
+      filename: path.basename(csvPath),
+      content_type: "text/csv",
+      byte_size: stat.size,
+      checksum: hash.digest("base64"),
+    },
+  };
+}
+
+function admittedUploadUrl(rawUrl) {
+  const url = new URL(rawUrl);
+  if (url.protocol !== "https:") throw new Error("Nitrosend returned a non-HTTPS upload URL");
+  if (url.hostname === "localhost" || isIP(url.hostname)) {
+    throw new Error("Nitrosend returned a disallowed upload host");
+  }
+  return url;
+}
+
+function providerArguments(args) {
+  const { source_id: _sourceId, consent_basis: _consentBasis, ...providerArgs } = args;
+  return providerArgs;
+}
+
+function parseJsonOrSse(body) {
+  const value = body.trim();
+  if (!value) throw new Error("Nitrosend returned an empty MCP response");
+  if (value.startsWith("{")) return JSON.parse(value);
+  const payloads = value
+    .split(/\r?\n/u)
+    .filter((line) => line.startsWith("data:"))
+    .map((line) => line.slice(5).trim())
+    .filter((line) => line && line !== "[DONE]");
+  if (payloads.length === 0) throw new Error("Nitrosend returned an invalid MCP event stream");
+  return JSON.parse(payloads.at(-1));
+}
+
+function parseToolContent(payload) {
+  if (payload.error) throw new Error(payload.error.message || "Nitrosend MCP request failed");
+  const content = payload.result?.content;
+  if (!Array.isArray(content)) return payload.result ?? {};
+  const value = content.find((item) => item?.type === "text")?.text;
+  if (typeof value !== "string") return payload.result ?? {};
+  try {
+    const parsed = JSON.parse(value);
+    if (parsed && typeof parsed === "object" && parsed.meta?.tool && Object.hasOwn(parsed, "result")) {
+      return parsed.result;
+    }
+    return parsed;
+  } catch {
+    return { message: value };
+  }
+}
+
+function packet(decision, inputs, evidence, result, blockers) {
+  const safeResult = redact(result);
+  return {
+    decision,
+    provider: "nitrosend",
+    mode: "act",
+    operation: "import_contacts_file",
+    tool: "nitro_import_contacts",
+    provider_ref: providerReference(safeResult),
+    result: safeResult,
+    evidence,
+    blockers,
+    source_id: text(inputs.source_id) || undefined,
+  };
+}
+
+function providerData(result) {
+  return result?.data ?? result?.result ?? result ?? {};
+}
+
+function providerReference(result) {
+  const data = providerData(result);
+  const id = data.import_id ?? data.id;
+  return id === undefined || id === null ? null : `nitrosend:import_contacts_file:${id}`;
+}
+
+function redact(value) {
+  if (Array.isArray(value)) return value.map(redact);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(Object.entries(value).map(([key, child]) => [
+      key,
+      SENSITIVE_KEYS.test(key) ? "[REDACTED]" : redact(child),
+    ]));
+  }
+  return typeof value === "string" ? redactText(value) : value;
+}
+
+function redactText(value) {
+  return String(value)
+    .replaceAll(SECRET_VALUE, "[REDACTED]")
+    .replaceAll(SIGNED_URL, "[REDACTED_URL]")
+    .slice(0, 2_000);
+}
+
+function safeError(error) {
+  return redactText(error instanceof Error ? error.message : String(error));
+}
+
+function text(value) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+async function main() {
+  const raw = process.env.RUNX_INPUTS_PATH
+    ? fs.readFileSync(process.env.RUNX_INPUTS_PATH, "utf8")
+    : process.env.RUNX_INPUTS_JSON || "{}";
+  process.stdout.write(`${JSON.stringify(await invokeBulkImport(JSON.parse(raw)), null, 2)}\n`);
+}
+
+if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
+  main().catch((error) => {
+    process.stderr.write(`${JSON.stringify({ error: { message: safeError(error) } })}\n`);
+    process.exitCode = 1;
+  });
+}
+"###,
+    ),
+    (
+        "reddit",
+        "reddit/brave/brave.py",
+        r###"#!/usr/bin/env python3
+"""Bound, read-only Brave adapter for the Runx Reddit skill.
+
+This host tool never accepts caller-supplied JavaScript and never submits a
+Reddit form. It reads only the selected account tab through Brave Apple Events.
+"""
+
+import argparse
+import fcntl
+import json
+import os
+import re
+import subprocess
+import sys
+import time
+from datetime import datetime, timezone
+from pathlib import Path
+from urllib.parse import urlsplit
+
+
+BINDINGS_PATH = Path.home() / ".config" / "runx" / "reddit-brave-bindings.json"
+ACCOUNT_RE = re.compile(r"^[A-Za-z0-9_-]{3,20}$")
+ID_RE = re.compile(r"^[0-9]+$")
+PROFILE_RE = re.compile(r"^[A-Za-z0-9_.:-]{1,100}$")
+
+PAGE_JS = "JSON.stringify({url:location.href,title:document.title,ready:document.readyState,loggedIn:document.querySelector('shreddit-app')?.getAttribute('user-logged-in')==='true'})"
+OPEN_MENU_JS = "(function(){const b=document.querySelector('#expand-user-drawer-button');if(!b)return JSON.stringify({error:'unsupported_identity_control'});const opened=b.getAttribute('aria-expanded')!=='true';if(opened)b.click();return JSON.stringify({openedByTool:opened})})()"
+READ_IDENTITY_JS = "(function(){const b=document.querySelector('#expand-user-drawer-button');const a=Array.from(document.querySelectorAll('#user-drawer-content a[href^=\"/user/\"]')).filter(x=>x.textContent.includes('View Profile'));return JSON.stringify({open:b?.getAttribute('aria-expanded')==='true',profiles:a.map(x=>x.getAttribute('href'))})})()"
+CLOSE_MENU_JS = "(function(){const b=document.querySelector('#expand-user-drawer-button');if(b?.getAttribute('aria-expanded')==='true')b.click();return JSON.stringify({closed:true})})()"
+FEED_JS = "JSON.stringify({url:location.href,posts:Array.from(document.querySelectorAll('shreddit-post')).slice(0,12).map(e=>({title:e.getAttribute('post-title'),score:e.getAttribute('score'),comments:e.getAttribute('comment-count'),created:e.getAttribute('created-timestamp'),permalink:e.getAttribute('permalink'),type:e.getAttribute('post-type'),author:e.getAttribute('author')}))})"
+RULES_JS = "JSON.stringify({url:location.href,rules:(function(){const headings=Array.from(document.querySelectorAll('h2')).filter(e=>/^Rule [0-9]+:/.test(e.textContent.trim()));return Array.from(document.querySelectorAll('[id^=\"rule-\"]')).slice(0,20).map((e,i)=>({title:headings[i]?.textContent.trim()||'',body:e.textContent.trim().slice(0,1600)}))})()})"
+THREAD_JS = "JSON.stringify((function(){const p=document.querySelector('shreddit-post');if(!p)return {error:'post_not_rendered'};const c=Array.from(document.querySelectorAll('shreddit-comment'));const body=Array.from(p.querySelectorAll('[slot=\"text-body\"],[slot=\"content\"]')).map(e=>e.textContent.trim()).find(Boolean)||'';return {url:location.href,post:{title:p.getAttribute('post-title'),score:p.getAttribute('score'),comments:p.getAttribute('comment-count'),created:p.getAttribute('created-timestamp'),permalink:p.getAttribute('permalink'),type:p.getAttribute('post-type'),author:p.getAttribute('author'),body:body.slice(0,2400)},loadedComments:c.length,replies:c.filter(e=>e.getAttribute('depth')==='0').slice(0,30).map(e=>({author:e.getAttribute('author'),id:e.getAttribute('thingid'),score:e.getAttribute('score'),body:(e.querySelector('[slot=\"comment\"]')?.textContent||'').trim().slice(0,1500)}))}})())"
+COMPOSER_JS = "JSON.stringify((function(){const p=document.querySelector('shreddit-post');const e=document.querySelector('shreddit-composer [contenteditable=\"true\"][name=\"body\"]');const b=document.querySelector('#comment-composer-submit-button');return {url:location.href,postId:p?.id||null,editorPresent:!!e,editorTextLength:e?.innerText.length||0,submitPresent:!!b,submitDisabled:b?.disabled===true,locked:!!document.querySelector('[data-post-locked=\"true\"]')}})())"
+
+
+class BrowserStop(Exception):
+    pass
+
+
+def apple_string(value):
+    return '"' + value.replace('\\', '\\\\').replace('"', '\\"').replace('\r', '').replace('\n', '\\n') + '"'
+
+
+def osa(source):
+    try:
+        result = subprocess.run(["osascript", "-e", source], capture_output=True, text=True, timeout=15, check=False)
+    except subprocess.TimeoutExpired as error:
+        raise BrowserStop("apple_event_timeout") from error
+    if result.returncode:
+        if "brave_not_running" in result.stderr:
+            raise BrowserStop("brave_not_running")
+        raise BrowserStop("apple_event_failed: " + result.stderr.strip()[:220])
+    return result.stdout.strip()
+
+
+def tab_source(window_id, tab_id, action):
+    if not ID_RE.fullmatch(window_id) or not ID_RE.fullmatch(tab_id):
+        raise BrowserStop("invalid_binding_ids")
+    return ('if not (running of application id "com.brave.Browser") then error "brave_not_running"\n'
+            'tell application id "com.brave.Browser"\n'
+            f'  set w to first window whose id is "{window_id}"\n'
+            '  if mode of w is not "normal" then error "not_normal_window"\n'
+            '  set t to missing value\n'
+            '  repeat with tabIndex from 1 to count of tabs of w\n'
+            '    set candidate to tab tabIndex of w\n'
+            f'    if id of candidate is "{tab_id}" then\n'
+            '      set t to candidate\n'
+            '      exit repeat\n'
+            '    end if\n'
+            '  end repeat\n'
+            '  if t is missing value then error "missing_bound_tab"\n'
+            f'  {action}\nend tell')
+
+
+def execute(binding, js):
+    raw = osa(tab_source(binding["window_id"], binding["tab_id"], "return execute t javascript " + apple_string(js)))
+    try:
+        return json.loads(raw)
+    except ValueError as error:
+        raise BrowserStop("invalid_browser_result") from error
+
+
+def read_bindings():
+    if not BINDINGS_PATH.exists():
+        return {}
+    try:
+        if BINDINGS_PATH.is_symlink() or BINDINGS_PATH.stat().st_mode & 0o077:
+            raise BrowserStop("binding_file_permissions")
+        data = json.loads(BINDINGS_PATH.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, ValueError) as error:
+        raise BrowserStop("invalid_binding_file") from error
+    if not isinstance(data, dict):
+        raise BrowserStop("invalid_binding_file")
+    return data
+
+
+def write_bindings(data):
+    try:
+        BINDINGS_PATH.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        temporary = BINDINGS_PATH.with_suffix(".tmp")
+        descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(descriptor, "w") as file:
+            json.dump(data, file, indent=2, sort_keys=True)
+            file.write("\n")
+        os.replace(temporary, BINDINGS_PATH)
+    except OSError as error:
+        raise BrowserStop("binding_file_write_failed") from error
+
+
+def norm(value):
+    return re.sub(r"\r\n?", "\n", value)
+
+
+def expected_file_body(value):
+    body = norm(value)
+    if body.endswith("\n"):
+        raise BrowserStop("body_file_terminal_newline")
+    return body
+
+
+def ensure_brave_running():
+    if osa('return running of application id "com.brave.Browser"') != "true":
+        raise BrowserStop("brave_not_running")
+
+
+def ensure_account(value):
+    if not ACCOUNT_RE.fullmatch(value):
+        raise BrowserStop("invalid_account_id")
+    return value.lower()
+
+
+def ensure_reddit_url(value, for_identity=False):
+    parsed = urlsplit(value)
+    if parsed.scheme != "https" or parsed.hostname != "www.reddit.com" or parsed.username or parsed.password or parsed.port:
+        raise BrowserStop("non_reddit_url")
+    if for_identity:
+        return value
+    if not re.fullmatch(r"/(?:r/[A-Za-z0-9_]+|user/[A-Za-z0-9_-]+)(?:/[^?#]*)?", parsed.path):
+        raise BrowserStop("unsupported_reddit_url")
+    return value
+
+
+def read_identity(binding):
+    if foreground_target(binding):
+        raise BrowserStop("bound_tab_is_foreground")
+    page = execute(binding, PAGE_JS)
+    ensure_reddit_url(page.get("url", ""), for_identity=True)
+    if not page.get("loggedIn"):
+        raise BrowserStop("not_logged_in")
+    opening = execute(binding, OPEN_MENU_JS)
+    if opening.get("error"):
+        raise BrowserStop(opening["error"])
+    try:
+        for _ in range(5):
+            evidence = execute(binding, READ_IDENTITY_JS)
+            if evidence.get("open") and evidence.get("profiles"):
+                break
+            time.sleep(0.3)
+        else:
+            raise BrowserStop("identity_menu_unreadable")
+        profiles = evidence["profiles"]
+        if len(profiles) != 1:
+            raise BrowserStop("ambiguous_visible_identity")
+        match = re.fullmatch(r"/user/([A-Za-z0-9_-]+)/?", profiles[0])
+        if not match:
+            raise BrowserStop("invalid_visible_identity")
+        username = match.group(1).lower()
+        if username != binding["account_id"]:
+            raise BrowserStop("wrong_visible_account")
+        return page, username
+    finally:
+        if opening.get("openedByTool"):
+            original_error = sys.exc_info()[1]
+            try:
+                execute(binding, CLOSE_MENU_JS)
+            except BrowserStop:
+                if original_error is None:
+                    raise
+
+
+def bound_account(account):
+    account_id = ensure_account(account)
+    data = read_bindings()
+    binding = data.get(account_id)
+    if not isinstance(binding, dict):
+        raise BrowserStop("account_not_bound")
+    if binding.get("account_id") != account_id:
+        raise BrowserStop("binding_account_mismatch")
+    if (not isinstance(binding.get("window_id"), str) or not ID_RE.fullmatch(binding["window_id"])
+            or not isinstance(binding.get("tab_id"), str) or not ID_RE.fullmatch(binding["tab_id"])
+            or not isinstance(binding.get("profile_ref"), str) or not PROFILE_RE.fullmatch(binding["profile_ref"])):
+        raise BrowserStop("invalid_binding_file")
+    return binding
+
+
+def tab_rows():
+    source = '''if not (running of application id "com.brave.Browser") then error "brave_not_running"
+tell application id "com.brave.Browser"
+  set rows to {}
+  repeat with w in windows
+    if mode of w is "normal" then
+      repeat with t in tabs of w
+        set u to URL of t
+        if u starts with "https://www.reddit.com/" then
+          set end of rows to (id of w as text) & (character id 9) & (id of t as text) & (character id 9) & u
+        end if
+      end repeat
+    end if
+  end repeat
+  set AppleScript's text item delimiters to (character id 10)
+  return rows as text
+end tell'''
+    rows = []
+    for line in osa(source).splitlines()[:30]:
+        parts = line.split("\t", 2)
+        if len(parts) == 3 and ID_RE.fullmatch(parts[0]) and ID_RE.fullmatch(parts[1]):
+            rows.append({"window_id": parts[0], "tab_id": parts[1], "url": parts[2]})
+    return rows
+
+
+def foreground_target(binding):
+    try:
+        app = osa('tell application "System Events" to get name of first application process whose frontmost is true')
+        if app != "Brave Browser":
+            return False
+        raw = osa('if not (running of application id "com.brave.Browser") then error "brave_not_running"\n'
+                  'tell application id "com.brave.Browser" to return (id of front window as text) & ":" & (id of active tab of front window as text)')
+        return raw == binding["window_id"] + ":" + binding["tab_id"]
+    except BrowserStop:
+        raise BrowserStop("foreground_state_unknown")
+
+
+def navigate_tab(binding, url):
+    url = ensure_reddit_url(url)
+    if foreground_target(binding):
+        raise BrowserStop("bound_tab_is_foreground")
+    before = execute(binding, PAGE_JS)
+    if before.get("url") == url and before.get("ready") == "complete":
+        read_identity(binding)
+        return {**before, "navigation": "already_at_url"}
+    osa(tab_source(binding["window_id"], binding["tab_id"], "set URL of t to " + apple_string(url)))
+    expected = urlsplit(url)
+    for _ in range(10):
+        time.sleep(0.7)
+        page = execute(binding, PAGE_JS)
+        actual = urlsplit(page.get("url", ""))
+        if (page.get("ready") == "complete"
+                and actual.scheme == expected.scheme
+                and actual.hostname == expected.hostname
+                and actual.path.rstrip("/") == expected.path.rstrip("/")
+                and actual.query == expected.query):
+            break
+    else:
+        raise BrowserStop("navigation_unverified")
+    read_identity(binding)
+    return {**page, "navigation": "loaded"}
+
+
+def output(account_id, data):
+    print(json.dumps({"account_id": account_id, "observed_at": datetime.now(timezone.utc).isoformat(), **data}, ensure_ascii=False))
+
+
+def runx_argv():
+    if len(sys.argv) > 1:
+        return None
+    raw = os.environ.get("RUNX_INPUTS_JSON")
+    path = os.environ.get("RUNX_INPUTS_PATH")
+    if not raw and path:
+        try:
+            source = Path(path)
+            if source.stat().st_size > 16000:
+                raise BrowserStop("invalid_tool_inputs")
+            raw = source.read_text(encoding="utf-8")
+        except (OSError, UnicodeError) as error:
+            raise BrowserStop("invalid_tool_inputs") from error
+    if not raw:
+        return None
+    try:
+        data = json.loads(raw)
+    except ValueError as error:
+        raise BrowserStop("invalid_tool_inputs") from error
+    if not isinstance(data, dict) or not isinstance(data.get("operation"), str):
+        raise BrowserStop("invalid_tool_inputs")
+    operation = data["operation"]
+    if operation == "tabs":
+        return [operation]
+    if operation not in {"bind", "inspect", "navigate", "feed", "rules", "thread", "composer", "comment-readback"}:
+        raise BrowserStop("invalid_tool_inputs")
+    account = data.get("account")
+    if not isinstance(account, str):
+        raise BrowserStop("invalid_tool_inputs")
+    argv = [operation, account]
+    if operation == "bind":
+        for field in ("window_id", "tab_id", "profile_ref"):
+            if not isinstance(data.get(field), str):
+                raise BrowserStop("invalid_tool_inputs")
+            argv.extend(["--" + field.replace("_", "-"), data[field]])
+    elif operation in {"navigate", "comment-readback"}:
+        if not isinstance(data.get("url"), str):
+            raise BrowserStop("invalid_tool_inputs")
+        argv.append(data["url"])
+        if operation == "comment-readback":
+            if not isinstance(data.get("body_file"), str):
+                raise BrowserStop("invalid_tool_inputs")
+            argv.extend(["--body-file", data["body_file"]])
+    return argv
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Bound read-only Brave operator for the Runx Reddit skill")
+    sub = parser.add_subparsers(dest="operation", required=True)
+    sub.add_parser("tabs")
+    bind = sub.add_parser("bind")
+    bind.add_argument("account")
+    bind.add_argument("--window-id", required=True)
+    bind.add_argument("--tab-id", required=True)
+    bind.add_argument("--profile-ref", required=True)
+    for name in ("inspect", "feed", "rules", "thread", "composer"):
+        sub.add_parser(name).add_argument("account")
+    nav = sub.add_parser("navigate")
+    nav.add_argument("account")
+    nav.add_argument("url")
+    comment = sub.add_parser("comment-readback")
+    comment.add_argument("account")
+    comment.add_argument("url")
+    comment.add_argument("--body-file", required=True)
+    args = parser.parse_args(runx_argv())
+    ensure_brave_running()
+    if args.operation == "tabs":
+        print(json.dumps({"tabs": tab_rows()}))
+        return
+    account_id = ensure_account(args.account)
+    if args.operation == "bind":
+        if not PROFILE_RE.fullmatch(args.profile_ref):
+            raise BrowserStop("invalid_profile_ref")
+        binding = {"account_id": account_id, "window_id": args.window_id, "tab_id": args.tab_id, "profile_ref": args.profile_ref}
+        page, _ = read_identity(binding)
+        data = read_bindings()
+        for other, candidate in list(data.items()):
+            if isinstance(candidate, dict) and other != account_id and candidate.get("window_id") == args.window_id and candidate.get("tab_id") == args.tab_id:
+                del data[other]
+        data[account_id] = binding
+        write_bindings(data)
+        output(account_id, {"status": "bound", "url": page["url"], "profile_ref": args.profile_ref})
+        return
+    binding = bound_account(account_id)
+    page, _ = read_identity(binding)
+    if args.operation == "inspect":
+        output(account_id, {"status": "observed", "page": page, "profile_ref": binding["profile_ref"]})
+    elif args.operation == "navigate":
+        page = navigate_tab(binding, args.url)
+        output(account_id, {"status": "already_at_url" if page["navigation"] == "already_at_url" else "navigated", "page": page})
+    elif args.operation == "comment-readback":
+        parts = urlsplit(ensure_reddit_url(args.url)).path.strip("/").split("/")
+        if len(parts) == 6:
+            comment_id = parts[5]
+        elif len(parts) == 7 and parts[5] == "comment":
+            comment_id = parts[6]
+        else:
+            raise BrowserStop("expected_comment_permalink")
+        if parts[0] != "r" or parts[2] != "comments" or not re.fullmatch(r"[a-z0-9]+", comment_id):
+            raise BrowserStop("expected_comment_permalink")
+        body_path = Path(args.body_file)
+        try:
+            if body_path.is_symlink() or not body_path.is_file() or body_path.stat().st_size > 10000:
+                raise BrowserStop("invalid_body_file")
+            expected_body = expected_file_body(body_path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError) as error:
+            raise BrowserStop("invalid_body_file") from error
+        if not expected_body.strip():
+            raise BrowserStop("empty_expected_body")
+        navigate_tab(binding, args.url)
+        js = "JSON.stringify((function(){const e=Array.from(document.querySelectorAll('shreddit-comment')).find(e=>e.getAttribute('thingid')==='t1_" + comment_id + "');return e?{author:e.getAttribute('author')||'',body:e.querySelector('[slot=comment]')?.innerText||''}:null})())"
+        for _ in range(5):
+            observed = execute(binding, js)
+            if observed:
+                break
+            time.sleep(0.7)
+        else:
+            raise BrowserStop("comment_readback_missing")
+        if not isinstance(observed.get("author"), str) or observed["author"].lower() != account_id:
+            raise BrowserStop("comment_readback_wrong_author")
+        if not isinstance(observed.get("body"), str) or norm(observed["body"]) != expected_body:
+            raise BrowserStop("comment_readback_body_mismatch")
+        output(account_id, {"status": "comment_visible_to_account", "url": args.url, "author": observed["author"], "body": observed["body"]})
+    elif args.operation == "feed":
+        result = execute(binding, FEED_JS)
+        if not result.get("posts"):
+            raise BrowserStop("feed_not_rendered")
+        output(account_id, {"status": "observed", **result})
+    elif args.operation == "rules":
+        result = execute(binding, RULES_JS)
+        if not result.get("rules"):
+            raise BrowserStop("rules_not_rendered")
+        output(account_id, {"status": "observed", **result})
+    elif args.operation == "thread":
+        result = execute(binding, THREAD_JS)
+        if result.get("error"):
+            raise BrowserStop(result["error"])
+        output(account_id, {"status": "observed", **result})
+    elif args.operation == "composer":
+        result = execute(binding, COMPOSER_JS)
+        output(account_id, {"status": "observed", **result})
+
+
+if __name__ == "__main__":
+    try:
+        BINDINGS_PATH.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        lock_path = BINDINGS_PATH.with_suffix(".lock")
+        lock_descriptor = os.open(lock_path, os.O_CREAT | os.O_RDWR, 0o600)
+        with os.fdopen(lock_descriptor, "r+"):
+            try:
+                fcntl.flock(lock_descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError as error:
+                raise BrowserStop("browser_operator_busy") from error
+            main()
+    except BrowserStop as error:
+        print(json.dumps({"status": "needs_browser", "reason": str(error)}))
+        sys.exit(2)
+    except OSError:
+        print(json.dumps({"status": "needs_browser", "reason": "binding_file_write_failed"}))
+        sys.exit(2)
+"###,
+    ),
+    (
+        "reddit",
+        "reddit/brave/manifest.json",
+        r###"{
+  "schema": "runx.tool.manifest.v1",
+  "name": "reddit.brave",
+  "version": "0.1.0",
+  "description": "Read a named Reddit session through a fixed, account-bound Brave operator on macOS.",
+  "source": {
+    "command": "python3",
+    "args": ["./brave.py"]
+  },
+  "inputs": {
+    "operation": {"type": "string", "required": true, "description": "One fixed operator command: tabs, bind, inspect, navigate, feed, rules, thread, composer, or comment-readback."},
+    "account": {"type": "string", "required": false, "description": "Configured lowercase Reddit account id."},
+    "window_id": {"type": "string", "required": false, "description": "Bound Brave window id for bind."},
+    "tab_id": {"type": "string", "required": false, "description": "Bound Brave tab id for bind."},
+    "profile_ref": {"type": "string", "required": false, "description": "Configured non-secret browser profile label for bind."},
+    "url": {"type": "string", "required": false, "description": "Exact Reddit navigation or comment permalink URL."},
+    "body_file": {"type": "string", "required": false, "description": "UTF-8 file containing the exact approved body for comment readback."}
+  },
+  "scopes": ["fs:write", "host:browser:read"]
+}
+"###,
+    ),
+];

@@ -1,5 +1,6 @@
-//! The `process` driver: an operation performed by a declared tool package,
-//! a trusted host process that receives the operation's credential.
+//! The `process` driver: an operation performed by the tool package its
+//! connector ships, a trusted host process that receives the operation's
+//! credential. The kernel installs the copy that runs.
 //!
 //! A read runs the tool with the call's input. A write runs it with the input,
 //! `phase: "perform"` and runx's provider key as `idempotency_key`; its output
@@ -9,7 +10,9 @@
 //! prints `{"refused": "<reason>"}` refused to act; any other failure may
 //! have acted.
 
-use runx_contracts::connector::{ProcessImplementation, stable_digest};
+use std::path::Path;
+
+use runx_contracts::connector::stable_digest;
 use runx_contracts::{JsonObject, JsonValue};
 
 use crate::credentials::CredentialDelivery;
@@ -18,8 +21,10 @@ use crate::kernel::operation::{AdmittedCall, ToolRunner};
 
 pub(crate) struct Process<'a> {
     pub tools: &'a dyn ToolRunner,
+    pub tool: &'a str,
+    /// The installed manifest of the connector's tool.
+    pub manifest: &'a Path,
     pub call: &'a AdmittedCall<'a>,
-    pub spec: &'a ProcessImplementation,
     pub scopes: &'a [String],
     pub delivery: &'a CredentialDelivery,
 }
@@ -97,7 +102,7 @@ impl Process<'_> {
             }
         }
         self.tools
-            .run(self.spec.tool.as_str(), inputs, self.scopes, self.delivery)
+            .run(self.tool, self.manifest, inputs, self.scopes, self.delivery)
     }
 }
 
@@ -138,6 +143,7 @@ mod tests {
         fn run(
             &self,
             _tool: &str,
+            _manifest: &Path,
             inputs: JsonObject,
             _scopes: &[String],
             _delivery: &CredentialDelivery,
@@ -155,14 +161,6 @@ mod tests {
         }
     }
 
-    fn spec() -> ProcessImplementation {
-        ProcessImplementation {
-            tool: "git.push".to_owned().into(),
-            runtime_scopes: Vec::new(),
-            readback: None,
-        }
-    }
-
     fn arguments(branch: &str) -> JsonValue {
         JsonValue::Object(JsonObject::from([(
             "branch".to_owned(),
@@ -175,8 +173,8 @@ mod tests {
         let tool = Tool {
             runs: RefCell::new(Vec::new()),
         };
-        let (spec, parameters, env, delivery) = (
-            spec(),
+        let manifest = Path::new("tools/git/push/manifest.json");
+        let (parameters, env, delivery) = (
             JsonObject::new(),
             BTreeMap::new(),
             CredentialDelivery::none(),
@@ -187,8 +185,9 @@ mod tests {
                 AdmittedCall::for_tests(&arguments, &parameters, &env, OperationAccess::Mutate);
             let driver = Process {
                 tools: &tool,
+                tool: "git.push",
+                manifest,
                 call: &call,
-                spec: &spec,
                 scopes: &[],
                 delivery: &delivery,
             };
@@ -213,8 +212,9 @@ mod tests {
         let call = AdmittedCall::for_tests(&feature, &parameters, &env, OperationAccess::Mutate);
         let driver = Process {
             tools: &tool,
+            tool: "git.push",
+            manifest,
             call: &call,
-            spec: &spec,
             scopes: &[],
             delivery: &delivery,
         };
@@ -248,8 +248,9 @@ mod tests {
         let call = AdmittedCall::for_tests(&arguments, &parameters, &env, OperationAccess::Read);
         let read = Process {
             tools: &tool,
+            tool: "git.push",
+            manifest,
             call: &call,
-            spec: &spec,
             scopes: &[],
             delivery: &delivery,
         };

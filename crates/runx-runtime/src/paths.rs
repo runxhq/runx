@@ -136,6 +136,12 @@ impl RunxPaths {
         self.home.join("registry")
     }
 
+    /// The installed copy of a connector tool package, named by its digest.
+    #[must_use]
+    pub fn connector_tool(&self, digest: &str) -> PathBuf {
+        self.home.join("tools").join(digest.replace(':', "-"))
+    }
+
     #[must_use]
     pub fn official_skills(&self) -> PathBuf {
         self.home.join("official-skills")

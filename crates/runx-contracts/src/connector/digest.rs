@@ -5,8 +5,10 @@
 //!   authorizes or what a person approves. Descriptions and implementations
 //!   are excluded, so a copy edit or a fixed implementation is not an
 //!   authority change.
-//! - The implementation digest covers the implementation that ran,
-//!   with the MCP server folded in. It is sealed per call, never pinned.
+//! - The implementation digest covers the implementation that ran, with
+//!   the MCP server folded in, and for a process the exact tool package that
+//!   received the credential. It is sealed per call, never pinned.
+//! - The tool package digest covers every file a connector's tool ships.
 //! - The credential declaration digest covers where a secret may be sent.
 //!
 //! Every digest is written straight from borrowed fields into canonical
@@ -81,11 +83,16 @@ struct ImplementationIdentity<'a> {
     implementation: &'a Implementation,
     #[serde(skip_serializing_if = "Option::is_none")]
     mcp_server: Option<&'a McpServer>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    tool_package: Option<&'a Digest>,
 }
 
+/// The implementation that runs: an MCP operation with its connector's
+/// server, a process with the tool package it runs.
 pub fn implementation_digest(
     implementation: &Implementation,
     mcp_server: Option<&McpServer>,
+    tool_package: Option<&Digest>,
 ) -> Result<Digest, ConnectorDigestError> {
     stable_digest(&ImplementationIdentity {
         implementation,
@@ -93,7 +100,33 @@ pub fn implementation_digest(
             Implementation::Mcp(_) => mcp_server,
             _ => None,
         },
+        tool_package: match implementation {
+            Implementation::Process(_) => tool_package,
+            _ => None,
+        },
     })
+}
+
+#[derive(Serialize)]
+struct ToolPackageFile<'a> {
+    path: &'a str,
+    sha256: String,
+}
+
+/// A connector tool package's digest: each file's package-relative POSIX
+/// path beside the digest of its bytes, in path order.
+pub fn tool_package_digest<'a>(
+    files: impl IntoIterator<Item = (&'a str, &'a [u8])>,
+) -> Result<Digest, ConnectorDigestError> {
+    let mut files = files
+        .into_iter()
+        .map(|(path, bytes)| ToolPackageFile {
+            path,
+            sha256: crate::sha256_hex(bytes),
+        })
+        .collect::<Vec<_>>();
+    files.sort_by(|left, right| left.path.cmp(right.path));
+    stable_digest(&files)
 }
 
 /// What a served MCP tool is pinned by: its name, description, input schema

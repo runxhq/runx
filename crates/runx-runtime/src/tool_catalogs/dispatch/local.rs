@@ -54,6 +54,33 @@ pub(super) fn invoke(
         Err(error) if lookup_miss(&error) => return Ok(None),
         Err(error) => return Err(catalog_error(request.skill_name, error)),
     };
+    run(resolution, request, started).map(Some)
+}
+
+/// Run the tool whose manifest is exactly `manifest`.
+pub(super) fn invoke_manifest(
+    manifest: &Path,
+    request: &ToolDispatchRequest<'_>,
+    started: Instant,
+) -> Result<InvocationOutput, RuntimeError> {
+    let document = crate::tool_catalogs::manifest::read_document(manifest)
+        .map_err(|error| catalog_error(request.skill_name, error))?;
+    run(
+        crate::tool_catalogs::LocalToolResolution {
+            manifest_path: manifest.to_path_buf(),
+            manifest_source: document.source,
+            tool: document.tool,
+        },
+        request,
+        started,
+    )
+}
+
+fn run(
+    resolution: crate::tool_catalogs::LocalToolResolution,
+    request: &ToolDispatchRequest<'_>,
+    started: Instant,
+) -> Result<InvocationOutput, RuntimeError> {
     crate::execution::prepared_skill::verify_prepared_artifact_at_use(
         request.env,
         &resolution.manifest_path,
@@ -67,7 +94,7 @@ pub(super) fn invoke(
         requirements.scopes.iter().map(String::as_str),
         request.scopes,
     ) {
-        return Ok(Some(failure(error.to_string(), started)));
+        return Ok(failure(error.to_string(), started));
     }
     let tool_directory = manifest_directory(&resolution.manifest_path, request.skill_directory);
     let inputs = match crate::input_contract::materialize_tool_inputs(
@@ -77,7 +104,7 @@ pub(super) fn invoke(
     ) {
         Ok(inputs) => inputs,
         Err(error) => {
-            return Ok(Some(failure(error.to_string(), started)));
+            return Ok(failure(error.to_string(), started));
         }
     };
     let invocation = SkillInvocation {
@@ -96,8 +123,7 @@ pub(super) fn invoke(
         env: request.env.clone(),
         credential_delivery: request.credential_delivery.clone(),
     };
-    let output = crate::execution::skill_front::ExecutableAdapter.invoke(invocation)?;
-    Ok(Some(output))
+    crate::execution::skill_front::ExecutableAdapter.invoke(invocation)
 }
 
 fn inspect_options(request: &ToolDispatchRequest<'_>, tool_ref: &str) -> ToolInspectOptions {

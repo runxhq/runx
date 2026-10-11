@@ -77,25 +77,16 @@ pub(crate) fn dispatch_tool(
     invoke_resolved_tool(&mut request, effects, observed_at, started)
 }
 
-/// Run one tool as a process from the local catalog, never a native or effect
-/// capability: a connector's process implementation names a tool package, and
-/// its receipt records that a trusted host process ran it with the
-/// operation's credential.
-pub(crate) fn dispatch_process_tool(
-    request: ToolDispatchRequest<'_>,
+/// Run a connector's tool package as a process from exactly `manifest`, the
+/// installed copy the kernel checked: never a native or effect capability,
+/// and never a tool found from the calling skill. Its receipt records that a
+/// trusted host process ran it with the operation's credential.
+pub(crate) fn dispatch_connector_tool(
+    manifest: &Path,
+    request: &ToolDispatchRequest<'_>,
     started: Instant,
 ) -> Result<InvocationOutput, RuntimeError> {
-    let tool_ref = request.tool_ref.as_ref();
-    if tool_ref.trim().is_empty() || tool_ref.trim().len() != tool_ref.len() {
-        return Ok(failure(
-            "A process tool reference must be one tool name.",
-            started,
-        ));
-    }
-    Ok(match local::invoke(&request, started)? {
-        Some(output) => output,
-        None => missing_imported_tool(tool_ref, started),
-    })
+    local::invoke_manifest(manifest, request, started)
 }
 
 fn invoke_resolved_tool(

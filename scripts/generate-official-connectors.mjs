@@ -1,11 +1,12 @@
 #!/usr/bin/env node
-// Embed the official connector manifests in the runtime, so an installed runx
-// resolves official connectors without the source tree, and in
-// @runxhq/contracts, so runx Connect reads the same declarations. The runtime
-// parses and validates them once per process. Digests are computed in Rust
-// only: the contracts module is what runx-official-connectors prints.
+// Embed the official connector manifests, and the tool packages their process
+// operations run, in the runtime, so an installed runx resolves official
+// connectors without the source tree, and the manifests in @runxhq/contracts,
+// so runx Connect reads the same declarations. The runtime parses and
+// validates them once per process. Digests are computed in Rust only: the
+// contracts module is what runx-official-connectors prints.
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -45,6 +46,42 @@ function manifests() {
     });
 }
 
+// The entries a tool package never ships, as the runtime reads one.
+const IGNORED = new Set([".git", ".runx", "node_modules", "target"]);
+
+// Every file below each connector's tools/, by connector and the path below it.
+function tools() {
+  const files = [];
+  for (const { id } of manifests()) {
+    const root = path.join(connectorsRoot, id, "tools");
+    if (!existsSync(root)) continue;
+    const walk = (dir) => {
+      for (const name of readdirSync(dir).sort()) {
+        if (IGNORED.has(name)) continue;
+        const file = path.join(dir, name);
+        const stat = lstatSync(file);
+        if (stat.isSymbolicLink()) throw new Error(`${path.relative(workspaceRoot, file)} is a link`);
+        if (stat.isDirectory()) walk(file);
+        else {
+          const bytes = readFileSync(file);
+          const source = bytes.toString("utf8");
+          if (!Buffer.from(source, "utf8").equals(bytes)) throw new Error(`${path.relative(workspaceRoot, file)} is not UTF-8`);
+          files.push({ id, path: path.relative(root, file).split(path.sep).join("/"), source });
+        }
+      }
+    };
+    walk(root);
+  }
+  return files;
+}
+
+function toolLiteral({ id, path: file, source }) {
+  if (source.includes(`"${delimiter}`)) {
+    throw new Error(`${id}/tools/${file} contains the raw string delimiter`);
+  }
+  return `    (\n        "${id}",\n        "${file}",\n        r${delimiter}"${source}"${delimiter},\n    ),`;
+}
+
 function literal({ id, source }) {
   if (source.includes(`"${delimiter}`)) {
     throw new Error(`${id} contains the raw string delimiter`);
@@ -63,6 +100,12 @@ function render() {
     ...manifests().map(literal),
     "];",
     "",
+    "/// The files of the tool packages official connectors ship: the connector,",
+    "/// the path below its tools/, and the contents.",
+    "pub(super) const TOOLS: &[(&str, &str, &str)] = &[",
+    ...tools().map(toolLiteral),
+    "];",
+    "",
   ].join("\n");
 }
 
@@ -77,7 +120,7 @@ function renderContracts() {
       "--manifest-path",
       path.join(workspaceRoot, "crates", "Cargo.toml"),
       "-p",
-      "runx-parser",
+      "runx-runtime",
       "--bin",
       "runx-official-connectors",
       "--",
@@ -98,20 +141,18 @@ function renderContracts() {
   ].join("\n");
 }
 
-const outputs = [
-  [outputPath, render()],
-  [contractsPath, renderContracts()],
-];
-let stale = false;
-for (const [file, output] of outputs) {
-  if (check) {
-    const existing = existsSync(file) ? readFileSync(file, "utf8") : "";
-    if (existing !== output) {
-      console.error(`${path.relative(workspaceRoot, file)} is stale; run pnpm official-connectors:generate`);
-      stale = true;
-    }
-  } else {
+// The runtime table first: the contracts module is printed by a runtime that
+// compiles it, so it must be current before that runtime is built.
+function settle(file, output) {
+  if (!check) {
     writeFileSync(file, output);
+    return;
+  }
+  const existing = existsSync(file) ? readFileSync(file, "utf8") : "";
+  if (existing !== output) {
+    console.error(`${path.relative(workspaceRoot, file)} is stale; run pnpm official-connectors:generate`);
+    process.exit(1);
   }
 }
-if (stale) process.exit(1);
+settle(outputPath, render());
+settle(contractsPath, renderContracts());

@@ -21,6 +21,9 @@ use thiserror::Error;
 pub mod messages;
 mod official;
 pub mod references;
+mod tools;
+
+pub use tools::ConnectorTool;
 
 const MAX_MANIFEST_BYTES: u64 = 256 * 1024;
 
@@ -31,6 +34,8 @@ pub struct LoadedConnector {
     pub manifest_digest: Digest,
     pub operation_digests: BTreeMap<OperationName, Digest>,
     pub origin: ConnectorOrigin,
+    /// The tool packages its process operations run, by tool name.
+    pub tools: BTreeMap<String, ConnectorTool>,
 }
 
 impl LoadedConnector {
@@ -101,21 +106,120 @@ fn load_official() -> Result<Official, ConnectorRegistryError> {
             parse_connector_manifest(source).map_err(|error| invalid(id, error.to_string()))?;
         let validated = validate_connector_manifest(manifest)
             .map_err(|errors| invalid(id, format!("{errors:?}")))?;
+        let embedded = official::TOOLS
+            .iter()
+            .filter(|(connector, _, _)| connector == id)
+            .map(|(_, path, contents)| (*path, *contents))
+            .collect::<Vec<_>>();
+        let tools = process_tools(&validated.manifest)
+            .map(|tool| {
+                ConnectorTool::official(&embedded, tool).map(|loaded| (tool.to_owned(), loaded))
+            })
+            .collect::<Result<BTreeMap<_, _>, _>>()
+            .map_err(|message| invalid(id, message))?;
         connectors.insert(
             validated.manifest.id.clone(),
-            Arc::new(loaded(validated, ConnectorOrigin::Official)),
+            Arc::new(loaded(validated, ConnectorOrigin::Official, tools)),
         );
     }
     Ok(Official { connectors })
 }
 
-fn loaded(validated: ValidatedConnector, origin: ConnectorOrigin) -> LoadedConnector {
+fn loaded(
+    validated: ValidatedConnector,
+    origin: ConnectorOrigin,
+    tools: BTreeMap<String, ConnectorTool>,
+) -> LoadedConnector {
     LoadedConnector {
         manifest: validated.manifest,
         manifest_digest: validated.manifest_digest,
         operation_digests: validated.operation_digests,
         origin,
+        tools,
     }
+}
+
+/// Every tool the manifest's process operations name, once each.
+fn process_tools(manifest: &ConnectorManifest) -> impl Iterator<Item = &str> {
+    manifest
+        .operations
+        .values()
+        .filter_map(|operation| match &operation.implementation {
+            Some(runx_contracts::connector::Implementation::Process(process)) => {
+                Some(process.tool.as_str())
+            }
+            _ => None,
+        })
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+}
+
+/// The official connectors as runx Connect reads them: each manifest under
+/// `connectors_dir`, validated, beside its manifest digest and each
+/// operation's operation and implementation digests, the tool packages its
+/// process operations run read the way the runtime reads a plugin's.
+/// `scripts/generate-official-connectors.mjs` writes this into
+/// `@runxhq/contracts`; digests are computed in Rust only.
+pub fn official_connectors_contract(connectors_dir: &Path) -> Result<serde_json::Value, String> {
+    let mut ids = std::fs::read_dir(connectors_dir)
+        .map_err(|error| format!("reading {}: {error}", connectors_dir.display()))?
+        .filter_map(Result::ok)
+        .filter(|entry| entry.path().is_dir())
+        .map(|entry| entry.file_name().to_string_lossy().into_owned())
+        .collect::<Vec<_>>();
+    ids.sort();
+    let mut connectors = Vec::with_capacity(ids.len());
+    for id in ids {
+        let directory = connectors_dir.join(&id);
+        let source = read_bounded(&directory.join("connector.yaml"))?;
+        let validated = parse_connector_manifest(&source)
+            .map_err(|error| error.to_string())
+            .and_then(|manifest| {
+                validate_connector_manifest(manifest).map_err(|errors| format!("{errors:?}"))
+            })
+            .map_err(|message| format!("connectors/{id}: {message}"))?;
+        let manifest = &validated.manifest;
+        let server = manifest
+            .placements
+            .local
+            .as_ref()
+            .and_then(|local| local.mcp_server.as_ref());
+        let tools = process_tools(manifest)
+            .map(|tool| {
+                ConnectorTool::in_plugin(&directory, tool).map(|loaded| (tool, loaded.digest))
+            })
+            .collect::<Result<BTreeMap<_, _>, _>>()
+            .map_err(|message| format!("connectors/{id}: {message}"))?;
+        let mut digests = serde_json::Map::new();
+        for (name, operation) in &manifest.operations {
+            let mut entry = serde_json::Map::from_iter([(
+                "operation".to_owned(),
+                serde_json::Value::from(validated.operation_digests[name].as_str()),
+            )]);
+            if let Some(implementation) = &operation.implementation {
+                let tool = match implementation {
+                    runx_contracts::connector::Implementation::Process(process) => {
+                        tools.get(process.tool.as_str())
+                    }
+                    _ => None,
+                };
+                let digest =
+                    runx_contracts::connector::implementation_digest(implementation, server, tool)
+                        .map_err(|error| error.to_string())?;
+                entry.insert(
+                    "implementation".to_owned(),
+                    serde_json::Value::from(digest.as_str()),
+                );
+            }
+            digests.insert(name.as_str().to_owned(), serde_json::Value::Object(entry));
+        }
+        connectors.push(serde_json::json!({
+            "manifest_digest": validated.manifest_digest.as_str(),
+            "digests": digests,
+            "manifest": serde_json::to_value(manifest).map_err(|error| error.to_string())?,
+        }));
+    }
+    Ok(serde_json::Value::Array(connectors))
 }
 
 /// The connectors one skill may use: official, plus its plugin's.
@@ -329,6 +433,13 @@ fn load_plugin(root: &Path) -> Result<PluginConnectors, ConnectorRegistryError> 
                     .to_owned(),
             ));
         }
+        let directory = path.parent().unwrap_or(root);
+        let tools = process_tools(&validated.manifest)
+            .map(|tool| {
+                ConnectorTool::in_plugin(directory, tool).map(|loaded| (tool.to_owned(), loaded))
+            })
+            .collect::<Result<BTreeMap<_, _>, _>>()
+            .map_err(&invalid)?;
         connectors.insert(
             validated.manifest.id.clone(),
             Arc::new(loaded(
@@ -336,6 +447,7 @@ fn load_plugin(root: &Path) -> Result<PluginConnectors, ConnectorRegistryError> 
                 ConnectorOrigin::Plugin {
                     root: root.to_path_buf(),
                 },
+                tools,
             )),
         );
     }

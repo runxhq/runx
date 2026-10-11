@@ -25,6 +25,9 @@ const MAX_HTTP_HOSTS: usize = 4;
 const MAX_HTTP_RESULT_PATHS: usize = 25;
 const MAX_HTTP_READ_REQUESTS: usize = 50;
 const MAX_HTTP_READBACKS: usize = 10;
+/// A connector process tool's name: lowercase dotted segments, each a
+/// directory below the connector's `tools/`.
+const PROCESS_TOOL_PATTERN: &str = "[a-z][a-z0-9_-]*(?:\\.[a-z][a-z0-9_-]*)+";
 
 /// A manifest that passed every rule, with its digests computed once.
 #[derive(Clone, Debug, PartialEq)]
@@ -701,6 +704,14 @@ fn validate_operation(
             }
         }
         Implementation::Process(process) => {
+            // The tool ships beside the connector, at tools/<segment>/...
+            // named by the reference, so it is a dotted name and never a path.
+            if !whole_match(PROCESS_TOOL_PATTERN).is_ok_and(|tool| tool.is_match(&process.tool)) {
+                errors.push(
+                    &format!("{field}.implementation.process.tool"),
+                    "a process tool is a dotted name of lowercase segments, such as git.push",
+                );
+            }
             match (operation.access(), &process.readback, acknowledged) {
                 (OperationAccess::Read, Some(_), _) => errors.push(
                     &format!("{field}.implementation.process.readback"),

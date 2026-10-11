@@ -70,6 +70,7 @@ mod template;
 pub use digest::{
     ConnectorDigestError, credential_declaration_digest, implementation_digest,
     input_schema_digest, manifest_digest, mcp_tool_digest, operation_digest, stable_digest,
+    tool_package_digest,
 };
 pub use ids::{
     CONNECTOR_ID_PATTERN, CREDENTIAL_NAME_PATTERN, ConnectorId, CredentialName, DIGEST_PATTERN,

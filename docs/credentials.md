@@ -64,6 +64,14 @@ confine where it connects. Runx redacts the credential, and each of its fields,
 from everything that process prints. Bind a credential to a process connector
 only when you trust that program with the account.
 
+The program is the one the connector ships: a process implementation's tool
+lives beside the connector's manifest, at `tools/<segment>/.../manifest.json`
+for its dotted name (`git.push` is `tools/git/push/`), and is never looked up
+from the skill that calls the operation. A connector that names a tool it does
+not ship is refused when it loads. Runx runs each tool from a copy in the runx
+home named by the digest of its files, checked against that digest every time,
+and the operation's implementation digest in the receipt includes it.
+
 ## Binding an account
 
 An instance binds a connector to one account. There are three ways to make

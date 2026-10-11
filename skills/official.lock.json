@@ -239,7 +239,7 @@
   },
   {
     "skill_id": "runx/issue-to-pr",
-    "version": "sha-e6c63d5f61cd",
+    "version": "sha-c8a5940603e4",
     "digest": "f68b43b725bc88d34380be18a8bb6496b057ff65ec4f0e370b2aa5f77297399f",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
@@ -344,7 +344,7 @@
   },
   {
     "skill_id": "runx/nitrosend",
-    "version": "sha-f99f29653316",
+    "version": "sha-08b0f2bf8b9d",
     "digest": "e2eadf5332e8a7480e358c45cdc9226f4a5098df0db31bf3cb9def5d4e5842d4",
     "catalog_visibility": "public",
     "catalog_role": "branded"
@@ -428,8 +428,8 @@
   },
   {
     "skill_id": "runx/reddit",
-    "version": "sha-b97f6e73b7d8",
-    "digest": "1b6358a781fb720860aab11b123b439a25cd6dc65d137682600df1f59843851a",
+    "version": "sha-2656335d7d75",
+    "digest": "c33e3d324ca74d4e0d8ad8ca3c13ae963ecba84487f42b9b893ef672031c4f6c",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
   },
