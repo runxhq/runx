@@ -308,7 +308,6 @@
       },
       "schema": "runx.receipt.v1",
       "seal": {
-        "closed_at": "2026-05-22T00:00:00Z",
         "criteria": [],
         "disposition": "closed",
         "reason_code": "closed"
@@ -350,7 +349,6 @@
       },
       "schema": "runx.receipt.v1",
       "seal": {
-        "closed_at": "2026-05-22T00:00:00Z",
         "criteria": [],
         "disposition": "closed",
         "reason_code": "closed"
@@ -397,7 +395,6 @@
       },
       "schema": "runx.receipt.v1",
       "seal": {
-        "closed_at": "2026-05-22T00:00:00Z",
         "criteria": [],
         "disposition": "closed",
         "reason_code": "closed"
@@ -444,7 +441,6 @@
       },
       "schema": "runx.receipt.v1",
       "seal": {
-        "closed_at": "2026-05-22T00:00:00Z",
         "criteria": [],
         "disposition": "closed",
         "reason_code": "closed"
@@ -486,7 +482,6 @@
       },
       "schema": "runx.receipt.v1",
       "seal": {
-        "closed_at": "2026-05-22T00:00:00Z",
         "criteria": [],
         "disposition": "closed",
         "reason_code": "closed"
@@ -528,7 +523,6 @@
       },
       "schema": "runx.receipt.v1",
       "seal": {
-        "closed_at": "2026-05-22T00:00:00Z",
         "criteria": [],
         "disposition": "closed",
         "reason_code": "closed"
@@ -575,7 +569,6 @@
       },
       "schema": "runx.receipt.v1",
       "seal": {
-        "closed_at": "2026-05-22T00:00:00Z",
         "criteria": [],
         "disposition": "closed",
         "reason_code": "closed"
@@ -622,7 +615,6 @@
       },
       "schema": "runx.receipt.v1",
       "seal": {
-        "closed_at": "2026-05-22T00:00:00Z",
         "criteria": [],
         "disposition": "closed",
         "reason_code": "closed"
@@ -673,7 +665,6 @@
       },
       "schema": "runx.receipt.v1",
       "seal": {
-        "closed_at": "2026-05-22T00:00:00Z",
         "criteria": [],
         "disposition": "closed",
         "reason_code": "closed"
@@ -720,7 +711,6 @@
       },
       "schema": "runx.receipt.v1",
       "seal": {
-        "closed_at": "2026-05-22T00:00:00Z",
         "criteria": [],
         "disposition": "closed",
         "reason_code": "closed"

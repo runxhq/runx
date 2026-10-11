@@ -203,6 +203,7 @@
                     "type": "string"
                   },
                   "size_bytes": {
+                    "minimum": 0,
                     "type": "integer"
                   },
                   "step_id": {
@@ -413,6 +414,7 @@
                     "type": "string"
                   },
                   "size_bytes": {
+                    "minimum": 0,
                     "type": "integer"
                   },
                   "step_id": {

@@ -22,10 +22,6 @@
     "revision_digest": {
       "pattern": "^sha256:[0-9a-f]{64}$",
       "type": "string"
-    },
-    "schema": {
-      "const": "runx.payment.offer_revision_ref.v1",
-      "type": "string"
     }
   },
   "required": [

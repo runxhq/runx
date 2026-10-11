@@ -33,10 +33,6 @@
           "minLength": 1,
           "type": "string"
         },
-        "schema": {
-          "const": "runx.reference.v1",
-          "type": "string"
-        },
         "type": {
           "enum": [
             "thread",
@@ -83,10 +79,6 @@
     },
     "role": {
       "minLength": 1,
-      "type": "string"
-    },
-    "schema": {
-      "const": "runx.reference_link.v1",
       "type": "string"
     }
   },

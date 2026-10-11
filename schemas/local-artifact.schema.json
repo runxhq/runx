@@ -7,13 +7,10 @@
       "type": "string"
     },
     "bytes": {
+      "minimum": 0,
       "type": "integer"
     },
     "media_type": {
-      "type": "string"
-    },
-    "schema": {
-      "const": "runx.local_artifact.v1",
       "type": "string"
     },
     "whole_digest": {

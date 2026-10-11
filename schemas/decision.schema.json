@@ -18,10 +18,6 @@
       "minLength": 1,
       "type": "string"
     },
-    "schema": {
-      "const": "runx.decision.v1",
-      "type": "string"
-    },
     "selected_act_id": {
       "minLength": 1,
       "type": "string"

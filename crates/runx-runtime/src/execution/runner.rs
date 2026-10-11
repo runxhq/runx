@@ -50,12 +50,34 @@ pub(crate) fn child_depth_refusal(options: &RuntimeOptions) -> Option<String> {
         .then(|| format!("the run's delegation lets child runs nest at most {limit} deep"))
 }
 
+/// Where a run reads the time it observes something happen: the system
+/// clock, or one instant a test or harness replay pins so its receipts are
+/// reproducible.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub enum RunClock {
+    #[default]
+    System,
+    Fixed(String),
+}
+
+impl RunClock {
+    /// The time now, as the run observes it.
+    #[must_use]
+    pub fn now(&self) -> String {
+        match self {
+            Self::System => crate::time::now_iso8601(),
+            Self::Fixed(at) => at.clone(),
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct RuntimeOptions {
     pub current_context: Vec<runx_contracts::ContextEntry>,
     pub historical_context: Vec<runx_contracts::ContextEntry>,
     pub run_authority: Option<crate::RunAuthority>,
-    pub created_at: String,
+    /// When the run observes each act it seals and records.
+    pub clock: RunClock,
     pub env: BTreeMap<String, String>,
     pub receipt_signature: RuntimeReceiptSignatureConfig,
     pub effects: RuntimeEffectRegistry,
@@ -93,7 +115,7 @@ impl RuntimeOptions {
             current_context: Vec::new(),
             historical_context: Vec::new(),
             run_authority: None,
-            created_at: crate::time::now_iso8601(),
+            clock: RunClock::System,
             env,
             receipt_signature,
             effects: RuntimeEffectRegistry::default(),
@@ -439,7 +461,7 @@ where
                 let receipt = graph_receipt_with_closure(
                     self.scope(&graph.name),
                     &execution.runs,
-                    &self.options.created_at,
+                    &self.options.clock.now(),
                     GraphClosure::completed(),
                     self.options.signature_policy(),
                 )?;
@@ -456,7 +478,7 @@ where
                 let receipt = graph_receipt_with_closure(
                     self.scope(&graph.name),
                     &execution.runs,
-                    &self.options.created_at,
+                    &self.options.clock.now(),
                     closure,
                     self.options.signature_policy(),
                 )?;
@@ -535,7 +557,7 @@ where
         let receipt = graph_receipt_with_closure(
             self.scope(&graph.name),
             &execution.runs,
-            &self.options.created_at,
+            &self.options.clock.now(),
             crate::receipts::GraphClosure {
                 disposition: ClosureDisposition::Failed,
                 reason_code: "graph_step_failed".to_owned(),
@@ -562,7 +584,7 @@ where
         let receipt = graph_receipt_with_closure(
             self.scope(&graph.name),
             &execution.runs,
-            &self.options.created_at,
+            &self.options.clock.now(),
             closure,
             self.options.signature_policy(),
         )?;
@@ -603,7 +625,7 @@ where
         let receipt = graph_receipt_with_closure(
             self.scope(&graph.name),
             &execution.runs,
-            &self.options.created_at,
+            &self.options.clock.now(),
             closure,
             self.options.signature_policy(),
         )?;

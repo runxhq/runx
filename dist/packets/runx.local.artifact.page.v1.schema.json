@@ -18,15 +18,18 @@
       "type": "boolean"
     },
     "length": {
+      "minimum": 0,
       "type": "integer"
     },
     "media_type": {
       "type": "string"
     },
     "next_offset": {
+      "minimum": 0,
       "type": "integer"
     },
     "offset": {
+      "minimum": 0,
       "type": "integer"
     },
     "range_digest": {
@@ -38,10 +41,6 @@
       },
       "minItems": 1,
       "type": "array"
-    },
-    "schema": {
-      "const": "runx.local_artifact.page.v1",
-      "type": "string"
     },
     "whole_digest": {
       "type": "string"

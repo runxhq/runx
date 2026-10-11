@@ -277,7 +277,6 @@ fn base(id: &str) -> Receipt {
         seal: Seal {
             disposition: ClosureDisposition::Closed,
             reason_code: "closed".into(),
-            closed_at: "2026-05-22T00:00:00Z".into(),
             criteria: Vec::new(),
         },
         lineage: Lineage::default(),

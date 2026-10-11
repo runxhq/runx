@@ -24,9 +24,11 @@
         "additionalProperties": false,
         "properties": {
           "due_after_seconds": {
+            "minimum": 0,
             "type": "integer"
           },
           "due_at_unix_seconds": {
+            "minimum": 0,
             "type": "integer"
           },
           "inputs": {
@@ -49,10 +51,6 @@
         "type": "object"
       },
       "type": "array"
-    },
-    "schema": {
-      "const": "runx.work_outcome.v1",
-      "type": "string"
     },
     "summary": {
       "type": "string"

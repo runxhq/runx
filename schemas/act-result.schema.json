@@ -6,6 +6,7 @@
       "additionalProperties": false,
       "properties": {
         "durationMs": {
+          "minimum": 0,
           "type": "integer"
         },
         "errorMessage": {
@@ -102,6 +103,7 @@
       "additionalProperties": false,
       "properties": {
         "durationMs": {
+          "minimum": 0,
           "type": "integer"
         },
         "errorMessage": {
@@ -430,6 +432,7 @@
                                     "type": "string"
                                   },
                                   "size_bytes": {
+                                    "minimum": 0,
                                     "type": "integer"
                                   },
                                   "step_id": {
@@ -640,6 +643,7 @@
                                     "type": "string"
                                   },
                                   "size_bytes": {
+                                    "minimum": 0,
                                     "type": "integer"
                                   },
                                   "step_id": {
@@ -1061,6 +1065,7 @@
                   "type": "string"
                 },
                 "retry_after_seconds": {
+                  "minimum": 0,
                   "type": "integer"
                 }
               },

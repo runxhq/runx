@@ -419,7 +419,7 @@ impl Error for MessageError {}
 
 fn fixture_runtime_options() -> Result<HarnessOptions, Box<dyn Error>> {
     let mut options = HarnessOptions::new(std::env::vars().collect())?;
-    options.created_at = "2026-05-18T00:00:00Z".to_owned();
+    options.clock = runx_runtime::RunClock::Fixed("2026-05-18T00:00:00Z".to_owned());
     Ok(options)
 }
 

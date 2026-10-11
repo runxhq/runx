@@ -144,7 +144,7 @@ pub(crate) fn fixture_runtime_options(
 
 pub(crate) fn harness_options() -> Result<HarnessOptions, runx_runtime::RuntimeError> {
     let mut options = HarnessOptions::new(std::env::vars().collect())?;
-    options.created_at = TEST_CREATED_AT.to_owned();
+    options.clock = runx_runtime::RunClock::Fixed(TEST_CREATED_AT.to_owned());
     Ok(options)
 }
 

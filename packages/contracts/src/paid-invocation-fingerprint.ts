@@ -80,10 +80,6 @@ function assertRustRequestShape(value: unknown, path = "request"): void {
     return;
   }
   for (const [key, member] of Object.entries(value)) {
-    const memberPath = `${path}[${JSON.stringify(key)}]`;
-    if (key === "schema") {
-      throw new Error(`${memberPath} is not part of the Rust request type`);
-    }
-    assertRustRequestShape(member, memberPath);
+    assertRustRequestShape(member, `${path}[${JSON.stringify(key)}]`);
   }
 }

@@ -12,10 +12,6 @@
     "invocation_id": {
       "minLength": 1,
       "type": "string"
-    },
-    "schema": {
-      "const": "runx.payment.parent_invocation_binding.v1",
-      "type": "string"
     }
   },
   "required": [

@@ -82,10 +82,6 @@
           "minLength": 1,
           "type": "string"
         },
-        "schema": {
-          "const": "runx.reference.v1",
-          "type": "string"
-        },
         "type": {
           "enum": [
             "thread",
@@ -174,10 +170,6 @@
           "minLength": 1,
           "type": "string"
         },
-        "schema": {
-          "const": "runx.reference.v1",
-          "type": "string"
-        },
         "type": {
           "const": "principal",
           "type": "string"
@@ -193,10 +185,6 @@
       ],
       "type": "object",
       "x-runx-schema": "runx.reference.v1"
-    },
-    "schema": {
-      "const": "runx.external_job_schedule.v1",
-      "type": "string"
     },
     "source_run_ref": {
       "$id": "https://schemas.runx.ai/runx/reference/v1.json",
@@ -226,10 +214,6 @@
         },
         "provider": {
           "minLength": 1,
-          "type": "string"
-        },
-        "schema": {
-          "const": "runx.reference.v1",
           "type": "string"
         },
         "type": {
@@ -304,10 +288,6 @@
         },
         "provider": {
           "minLength": 1,
-          "type": "string"
-        },
-        "schema": {
-          "const": "runx.reference.v1",
           "type": "string"
         },
         "type": {

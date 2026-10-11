@@ -383,12 +383,15 @@
           "additionalProperties": false,
           "properties": {
             "max_executable_lines": {
+              "minimum": 0,
               "type": "integer"
             },
             "max_files": {
+              "minimum": 0,
               "type": "integer"
             },
             "max_process_spawns": {
+              "minimum": 0,
               "type": "integer"
             },
             "network_allowed": {

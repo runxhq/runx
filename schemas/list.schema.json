@@ -32,9 +32,11 @@
             "type": "array"
           },
           "fixtures": {
+            "minimum": 0,
             "type": "integer"
           },
           "harness_cases": {
+            "minimum": 0,
             "type": "integer"
           },
           "kind": {
@@ -76,6 +78,7 @@
             "type": "string"
           },
           "steps": {
+            "minimum": 0,
             "type": "integer"
           },
           "wraps": {

@@ -68,7 +68,6 @@ export type ReceiptActContract = DeepReadonly<{
 export type ReceiptSealContract = DeepReadonly<{
   disposition: ClosureDispositionContract;
   reason_code: string;
-  closed_at: string;
   criteria: readonly ReceiptCriterionContract[];
 }>;
 

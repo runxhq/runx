@@ -34,10 +34,6 @@
     "reason": {
       "type": "string"
     },
-    "schema": {
-      "const": "runx.approval.decision.v1",
-      "type": "string"
-    },
     "status": {
       "enum": [
         "approved",

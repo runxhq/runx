@@ -14,8 +14,8 @@
   "canonicalization": "runx.receipt.c14n.v1",
   "created_at": "2026-05-18T00:00:00Z",
   "decisions": [],
-  "digest": "sha256:3ba4d335d8345bd182508af3e4133c47f23af4e2fc33c2b2914a873dc3ddfd6b",
-  "id": "sha256:c7d10fbeb8e7c96d714d823a0cef3cea25d12a15b84f04b4e5d2849156bb8477",
+  "digest": "sha256:6a691e4f56344c52a5bb16c26b2936cab680a7332cabb802678ca8142887ff64",
+  "id": "sha256:76bd97080a924b788480df19d72f6bac2be087523e1d1c40466eee4e851fd0d6",
   "issuer": {
     "kid": "local-87ee73837d4ba020e074790b42767a34f435e8ef60f2d4c9daa773b7c4251a40",
     "public_key_sha256": "sha256:87ee73837d4ba020e074790b42767a34f435e8ef60f2d4c9daa773b7c4251a40",
@@ -26,7 +26,6 @@
   },
   "schema": "runx.receipt.v1",
   "seal": {
-    "closed_at": "2026-05-18T00:00:00Z",
     "criteria": [
       {
         "criterion_id": "step_outcome",
@@ -40,7 +39,7 @@
   },
   "signature": {
     "alg": "Ed25519",
-    "value": "base64:vmwcZFwBkfk34E4HQ3rAU0GTiZEL1ogFuGU4wh2rswZLfCRiHPlB9MiX48oxLyi9WkeBAdEnrSe4OYeKlzbGDw"
+    "value": "base64:1Ae4yDBznd5r9Bt54LJ69WCzWbMynW-IxN75masKEIFxDMFNvVpYgNaT03IXxqsn_ByK7YZoxkNPFRWwTezEBQ"
   },
   "subject": {
     "kind": "skill",

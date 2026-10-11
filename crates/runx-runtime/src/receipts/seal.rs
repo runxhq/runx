@@ -154,7 +154,7 @@ fn step_receipt_with_disposition_projection_authority_and_policy(
         .collect();
     let mut seal_criteria = vec![step_outcome_criterion(output, &evidence)];
     seal_criteria.extend(verification);
-    let seal = seal(disposition, reason_code, created_at, seal_criteria);
+    let seal = seal(disposition, reason_code, seal_criteria);
     let children = child_receipts
         .iter()
         .map(child_receipt_reference)
@@ -470,7 +470,6 @@ fn build_graph_receipt(
         seal: seal(
             closure.disposition.clone(),
             closure.reason_code.clone(),
-            created_at,
             Vec::new(),
         ),
         children,
@@ -695,13 +694,11 @@ fn decision(node_id: &str, choice: DecisionChoice, act: &ReceiptAct) -> Decision
 fn seal(
     disposition: ClosureDisposition,
     reason_code: String,
-    closed_at: &str,
     criteria: Vec<CriterionBinding>,
 ) -> Seal {
     Seal {
         disposition,
         reason_code: reason_code.into(),
-        closed_at: closed_at.into(),
         criteria,
     }
 }

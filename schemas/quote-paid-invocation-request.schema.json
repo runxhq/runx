@@ -75,10 +75,6 @@
           "minLength": 1,
           "type": "string"
         },
-        "schema": {
-          "const": "runx.reference.v1",
-          "type": "string"
-        },
         "type": {
           "enum": [
             "thread",
@@ -282,10 +278,6 @@
         "revision_digest": {
           "pattern": "^sha256:[0-9a-f]{64}$",
           "type": "string"
-        },
-        "schema": {
-          "const": "runx.payment.offer_revision_ref.v1",
-          "type": "string"
         }
       },
       "required": [
@@ -313,10 +305,6 @@
         },
         "invocation_id": {
           "minLength": 1,
-          "type": "string"
-        },
-        "schema": {
-          "const": "runx.payment.parent_invocation_binding.v1",
           "type": "string"
         }
       },
@@ -421,10 +409,6 @@
           "minLength": 1,
           "type": "string"
         },
-        "schema": {
-          "const": "runx.reference.v1",
-          "type": "string"
-        },
         "type": {
           "const": "principal",
           "type": "string"
@@ -440,10 +424,6 @@
       ],
       "type": "object",
       "x-runx-schema": "runx.reference.v1"
-    },
-    "schema": {
-      "const": "runx.payment.quote_paid_invocation.request.v1",
-      "type": "string"
     },
     "vendor_ref": {
       "$id": "https://schemas.runx.ai/runx/reference/v1.json",
@@ -473,10 +453,6 @@
         },
         "provider": {
           "minLength": 1,
-          "type": "string"
-        },
-        "schema": {
-          "const": "runx.reference.v1",
           "type": "string"
         },
         "type": {

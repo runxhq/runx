@@ -29,10 +29,6 @@
             "revision_digest": {
               "pattern": "^sha256:[0-9a-f]{64}$",
               "type": "string"
-            },
-            "schema": {
-              "const": "runx.payment.offer_revision_ref.v1",
-              "type": "string"
             }
           },
           "required": [
@@ -120,10 +116,6 @@
             "revision_digest": {
               "pattern": "^sha256:[0-9a-f]{64}$",
               "type": "string"
-            },
-            "schema": {
-              "const": "runx.payment.offer_revision_ref.v1",
-              "type": "string"
             }
           },
           "required": [
@@ -151,10 +143,6 @@
             },
             "invocation_id": {
               "minLength": 1,
-              "type": "string"
-            },
-            "schema": {
-              "const": "runx.payment.parent_invocation_binding.v1",
               "type": "string"
             }
           },
@@ -197,10 +185,6 @@
             },
             "provider": {
               "minLength": 1,
-              "type": "string"
-            },
-            "schema": {
-              "const": "runx.reference.v1",
               "type": "string"
             },
             "type": {

@@ -551,10 +551,6 @@
       "pattern": "^sha256:[0-9a-f]{64}$",
       "type": "string"
     },
-    "schema": {
-      "const": "runx.marketplace.paid_skill_listing.v1",
-      "type": "string"
-    },
     "skill_digest": {
       "pattern": "^sha256:[0-9a-f]{64}$",
       "type": "string"
@@ -591,10 +587,6 @@
         },
         "provider": {
           "minLength": 1,
-          "type": "string"
-        },
-        "schema": {
-          "const": "runx.reference.v1",
           "type": "string"
         },
         "type": {

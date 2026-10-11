@@ -23,6 +23,7 @@
           "type": "string"
         },
         "index": {
+          "minimum": 0,
           "type": "integer"
         },
         "previous_hash": {
@@ -123,6 +124,7 @@
               "type": "string"
             },
             "size_bytes": {
+              "minimum": 0,
               "type": "integer"
             },
             "step_id": {

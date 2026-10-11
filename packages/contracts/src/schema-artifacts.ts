@@ -127,6 +127,7 @@ export const runxSchemaArtifacts = {
         "additionalProperties": false,
         "properties": {
           "durationMs": {
+            "minimum": 0,
             "type": "integer"
           },
           "errorMessage": {
@@ -223,6 +224,7 @@ export const runxSchemaArtifacts = {
         "additionalProperties": false,
         "properties": {
           "durationMs": {
+            "minimum": 0,
             "type": "integer"
           },
           "errorMessage": {
@@ -551,6 +553,7 @@ export const runxSchemaArtifacts = {
                                       "type": "string"
                                     },
                                     "size_bytes": {
+                                      "minimum": 0,
                                       "type": "integer"
                                     },
                                     "step_id": {
@@ -761,6 +764,7 @@ export const runxSchemaArtifacts = {
                                       "type": "string"
                                     },
                                     "size_bytes": {
+                                      "minimum": 0,
                                       "type": "integer"
                                     },
                                     "step_id": {
@@ -1182,6 +1186,7 @@ export const runxSchemaArtifacts = {
                     "type": "string"
                   },
                   "retry_after_seconds": {
+                    "minimum": 0,
                     "type": "integer"
                   }
                 },
@@ -1281,10 +1286,6 @@ export const runxSchemaArtifacts = {
                       "minLength": 1,
                       "type": "string"
                     },
-                    "schema": {
-                      "const": "runx.reference.v1",
-                      "type": "string"
-                    },
                     "type": {
                       "enum": [
                         "thread",
@@ -1368,10 +1369,6 @@ export const runxSchemaArtifacts = {
                                 "minLength": 1,
                                 "type": "string"
                               },
-                              "schema": {
-                                "const": "runx.reference.v1",
-                                "type": "string"
-                              },
                               "type": {
                                 "enum": [
                                   "thread",
@@ -1451,10 +1448,6 @@ export const runxSchemaArtifacts = {
                                 "minLength": 1,
                                 "type": "string"
                               },
-                              "schema": {
-                                "const": "runx.reference.v1",
-                                "type": "string"
-                              },
                               "type": {
                                 "enum": [
                                   "thread",
@@ -1531,6 +1524,7 @@ export const runxSchemaArtifacts = {
                             "additionalProperties": false,
                             "properties": {
                               "approval_threshold_units": {
+                                "minimum": 0,
                                 "type": "integer"
                               },
                               "authorization_form": {
@@ -1560,12 +1554,15 @@ export const runxSchemaArtifacts = {
                                 "type": "boolean"
                               },
                               "max_per_call_units": {
+                                "minimum": 0,
                                 "type": "integer"
                               },
                               "max_per_period_units": {
+                                "minimum": 0,
                                 "type": "integer"
                               },
                               "max_per_run_units": {
+                                "minimum": 0,
                                 "type": "integer"
                               },
                               "operation": {
@@ -1585,6 +1582,7 @@ export const runxSchemaArtifacts = {
                                 "type": "boolean"
                               },
                               "preflight_ttl_ms": {
+                                "minimum": 0,
                                 "type": "integer"
                               },
                               "realm": {
@@ -1667,15 +1665,18 @@ export const runxSchemaArtifacts = {
                           "type": "array"
                         },
                         "max_child_depth": {
+                          "minimum": 0,
                           "type": "integer"
                         },
                         "max_cost_units": {
                           "type": "number"
                         },
                         "max_fanout": {
+                          "minimum": 0,
                           "type": "integer"
                         },
                         "max_runtime_ms": {
+                          "minimum": 0,
                           "type": "integer"
                         },
                         "network_destinations": {
@@ -1730,9 +1731,11 @@ export const runxSchemaArtifacts = {
                           "additionalProperties": false,
                           "properties": {
                             "per_day": {
+                              "minimum": 0,
                               "type": "integer"
                             },
                             "total": {
+                              "minimum": 0,
                               "type": "integer"
                             }
                           },
@@ -1812,10 +1815,6 @@ export const runxSchemaArtifacts = {
                                 },
                                 "provider": {
                                   "minLength": 1,
-                                  "type": "string"
-                                },
-                                "schema": {
-                                  "const": "runx.reference.v1",
                                   "type": "string"
                                 },
                                 "type": {
@@ -1904,10 +1903,6 @@ export const runxSchemaArtifacts = {
                           "minLength": 1,
                           "type": "string"
                         },
-                        "schema": {
-                          "const": "runx.reference.v1",
-                          "type": "string"
-                        },
                         "type": {
                           "enum": [
                             "thread",
@@ -1987,10 +1982,6 @@ export const runxSchemaArtifacts = {
                           "minLength": 1,
                           "type": "string"
                         },
-                        "schema": {
-                          "const": "runx.reference.v1",
-                          "type": "string"
-                        },
                         "type": {
                           "enum": [
                             "thread",
@@ -2063,10 +2054,6 @@ export const runxSchemaArtifacts = {
                         },
                         "provider": {
                           "minLength": 1,
-                          "type": "string"
-                        },
-                        "schema": {
-                          "const": "runx.reference.v1",
                           "type": "string"
                         },
                         "type": {
@@ -2158,10 +2145,6 @@ export const runxSchemaArtifacts = {
                           "minLength": 1,
                           "type": "string"
                         },
-                        "schema": {
-                          "const": "runx.reference.v1",
-                          "type": "string"
-                        },
                         "type": {
                           "enum": [
                             "thread",
@@ -2205,10 +2188,6 @@ export const runxSchemaArtifacts = {
                       ],
                       "type": "object",
                       "x-runx-schema": "runx.reference.v1"
-                    },
-                    "schema": {
-                      "const": "runx.authority_term.v1",
-                      "type": "string"
                     },
                     "term_id": {
                       "minLength": 1,
@@ -2340,10 +2319,6 @@ export const runxSchemaArtifacts = {
                       "minLength": 1,
                       "type": "string"
                     },
-                    "schema": {
-                      "const": "runx.reference.v1",
-                      "type": "string"
-                    },
                     "type": {
                       "enum": [
                         "thread",
@@ -2418,10 +2393,6 @@ export const runxSchemaArtifacts = {
                       "minLength": 1,
                       "type": "string"
                     },
-                    "schema": {
-                      "const": "runx.reference.v1",
-                      "type": "string"
-                    },
                     "type": {
                       "enum": [
                         "thread",
@@ -2471,10 +2442,6 @@ export const runxSchemaArtifacts = {
                     "subset"
                   ],
                   "type": "string"
-                },
-                "schema": {
-                  "const": "runx.authority_subset_proof.v1",
-                  "type": "string"
                 }
               },
               "required": [
@@ -2488,10 +2455,6 @@ export const runxSchemaArtifacts = {
               "x-runx-schema": "runx.authority_subset_proof.v1"
             },
             "type": "array"
-          },
-          "schema": {
-            "const": "runx.authority_derivation.v1",
-            "type": "string"
           },
           "term_id": {
             "minLength": 1,
@@ -2553,10 +2516,6 @@ export const runxSchemaArtifacts = {
                     },
                     "provider": {
                       "minLength": 1,
-                      "type": "string"
-                    },
-                    "schema": {
-                      "const": "runx.reference.v1",
                       "type": "string"
                     },
                     "type": {
@@ -2638,10 +2597,6 @@ export const runxSchemaArtifacts = {
                       "minLength": 1,
                       "type": "string"
                     },
-                    "schema": {
-                      "const": "runx.reference.v1",
-                      "type": "string"
-                    },
                     "type": {
                       "enum": [
                         "thread",
@@ -2718,6 +2673,7 @@ export const runxSchemaArtifacts = {
                   "additionalProperties": false,
                   "properties": {
                     "approval_threshold_units": {
+                      "minimum": 0,
                       "type": "integer"
                     },
                     "authorization_form": {
@@ -2747,12 +2703,15 @@ export const runxSchemaArtifacts = {
                       "type": "boolean"
                     },
                     "max_per_call_units": {
+                      "minimum": 0,
                       "type": "integer"
                     },
                     "max_per_period_units": {
+                      "minimum": 0,
                       "type": "integer"
                     },
                     "max_per_run_units": {
+                      "minimum": 0,
                       "type": "integer"
                     },
                     "operation": {
@@ -2772,6 +2731,7 @@ export const runxSchemaArtifacts = {
                       "type": "boolean"
                     },
                     "preflight_ttl_ms": {
+                      "minimum": 0,
                       "type": "integer"
                     },
                     "realm": {
@@ -2854,15 +2814,18 @@ export const runxSchemaArtifacts = {
                 "type": "array"
               },
               "max_child_depth": {
+                "minimum": 0,
                 "type": "integer"
               },
               "max_cost_units": {
                 "type": "number"
               },
               "max_fanout": {
+                "minimum": 0,
                 "type": "integer"
               },
               "max_runtime_ms": {
+                "minimum": 0,
                 "type": "integer"
               },
               "network_destinations": {
@@ -2917,9 +2880,11 @@ export const runxSchemaArtifacts = {
                 "additionalProperties": false,
                 "properties": {
                   "per_day": {
+                    "minimum": 0,
                     "type": "integer"
                   },
                   "total": {
+                    "minimum": 0,
                     "type": "integer"
                   }
                 },
@@ -2999,10 +2964,6 @@ export const runxSchemaArtifacts = {
                       },
                       "provider": {
                         "minLength": 1,
-                        "type": "string"
-                      },
-                      "schema": {
-                        "const": "runx.reference.v1",
                         "type": "string"
                       },
                       "type": {
@@ -3091,10 +3052,6 @@ export const runxSchemaArtifacts = {
                 "minLength": 1,
                 "type": "string"
               },
-              "schema": {
-                "const": "runx.reference.v1",
-                "type": "string"
-              },
               "type": {
                 "enum": [
                   "thread",
@@ -3174,10 +3131,6 @@ export const runxSchemaArtifacts = {
                 "minLength": 1,
                 "type": "string"
               },
-              "schema": {
-                "const": "runx.reference.v1",
-                "type": "string"
-              },
               "type": {
                 "enum": [
                   "thread",
@@ -3250,10 +3203,6 @@ export const runxSchemaArtifacts = {
               },
               "provider": {
                 "minLength": 1,
-                "type": "string"
-              },
-              "schema": {
-                "const": "runx.reference.v1",
                 "type": "string"
               },
               "type": {
@@ -3345,10 +3294,6 @@ export const runxSchemaArtifacts = {
                 "minLength": 1,
                 "type": "string"
               },
-              "schema": {
-                "const": "runx.reference.v1",
-                "type": "string"
-              },
               "type": {
                 "enum": [
                   "thread",
@@ -3392,10 +3337,6 @@ export const runxSchemaArtifacts = {
             ],
             "type": "object",
             "x-runx-schema": "runx.reference.v1"
-          },
-          "schema": {
-            "const": "runx.authority_term.v1",
-            "type": "string"
           },
           "term_id": {
             "minLength": 1,
@@ -3456,6 +3397,7 @@ export const runxSchemaArtifacts = {
                 "type": "string"
               },
               "units": {
+                "minimum": 0,
                 "type": "integer"
               }
             },
@@ -3580,10 +3522,6 @@ export const runxSchemaArtifacts = {
                     "minLength": 1,
                     "type": "string"
                   },
-                  "schema": {
-                    "const": "runx.reference.v1",
-                    "type": "string"
-                  },
                   "type": {
                     "enum": [
                       "thread",
@@ -3640,10 +3578,6 @@ export const runxSchemaArtifacts = {
           "type": "object"
         },
         "type": "array"
-      },
-      "schema": {
-        "const": "runx.admission.v1",
-        "type": "string"
       }
     },
     "required": [
@@ -3861,6 +3795,7 @@ export const runxSchemaArtifacts = {
                       "type": "string"
                     },
                     "size_bytes": {
+                      "minimum": 0,
                       "type": "integer"
                     },
                     "step_id": {
@@ -4071,6 +4006,7 @@ export const runxSchemaArtifacts = {
                       "type": "string"
                     },
                     "size_bytes": {
+                      "minimum": 0,
                       "type": "integer"
                     },
                     "step_id": {
@@ -4616,6 +4552,7 @@ export const runxSchemaArtifacts = {
                   "type": "string"
                 },
                 "size_bytes": {
+                  "minimum": 0,
                   "type": "integer"
                 },
                 "step_id": {
@@ -4826,6 +4763,7 @@ export const runxSchemaArtifacts = {
                   "type": "string"
                 },
                 "size_bytes": {
+                  "minimum": 0,
                   "type": "integer"
                 },
                 "step_id": {
@@ -5231,10 +5169,6 @@ export const runxSchemaArtifacts = {
       "reason": {
         "type": "string"
       },
-      "schema": {
-        "const": "runx.approval.decision.v1",
-        "type": "string"
-      },
       "status": {
         "enum": [
           "approved",
@@ -5320,10 +5254,6 @@ export const runxSchemaArtifacts = {
             "minLength": 1,
             "type": "string"
           },
-          "schema": {
-            "const": "runx.reference.v1",
-            "type": "string"
-          },
           "type": {
             "enum": [
               "thread",
@@ -5401,10 +5331,6 @@ export const runxSchemaArtifacts = {
           },
           "provider": {
             "minLength": 1,
-            "type": "string"
-          },
-          "schema": {
-            "const": "runx.reference.v1",
             "type": "string"
           },
           "type": {
@@ -5524,10 +5450,6 @@ export const runxSchemaArtifacts = {
                     "minLength": 1,
                     "type": "string"
                   },
-                  "schema": {
-                    "const": "runx.reference.v1",
-                    "type": "string"
-                  },
                   "type": {
                     "enum": [
                       "thread",
@@ -5609,10 +5531,6 @@ export const runxSchemaArtifacts = {
                 "minLength": 1,
                 "type": "string"
               },
-              "schema": {
-                "const": "runx.reference.v1",
-                "type": "string"
-              },
               "type": {
                 "enum": [
                   "thread",
@@ -5685,10 +5603,6 @@ export const runxSchemaArtifacts = {
               },
               "provider": {
                 "minLength": 1,
-                "type": "string"
-              },
-              "schema": {
-                "const": "runx.reference.v1",
                 "type": "string"
               },
               "type": {
@@ -5765,10 +5679,6 @@ export const runxSchemaArtifacts = {
                 "minLength": 1,
                 "type": "string"
               },
-              "schema": {
-                "const": "runx.reference.v1",
-                "type": "string"
-              },
               "type": {
                 "enum": [
                   "thread",
@@ -5841,10 +5751,6 @@ export const runxSchemaArtifacts = {
               },
               "provider": {
                 "minLength": 1,
-                "type": "string"
-              },
-              "schema": {
-                "const": "runx.reference.v1",
                 "type": "string"
               },
               "type": {
@@ -5925,10 +5831,6 @@ export const runxSchemaArtifacts = {
               "minLength": 1,
               "type": "string"
             },
-            "schema": {
-              "const": "runx.reference.v1",
-              "type": "string"
-            },
             "type": {
               "enum": [
                 "thread",
@@ -5982,6 +5884,7 @@ export const runxSchemaArtifacts = {
         "type": "string"
       },
       "size_bytes": {
+        "minimum": 0,
         "type": "integer"
       },
       "source_refs": {
@@ -6013,10 +5916,6 @@ export const runxSchemaArtifacts = {
             },
             "provider": {
               "minLength": 1,
-              "type": "string"
-            },
-            "schema": {
-              "const": "runx.reference.v1",
               "type": "string"
             },
             "type": {
@@ -6135,10 +6034,6 @@ export const runxSchemaArtifacts = {
                   "minLength": 1,
                   "type": "string"
                 },
-                "schema": {
-                  "const": "runx.reference.v1",
-                  "type": "string"
-                },
                 "type": {
                   "enum": [
                     "thread",
@@ -6222,10 +6117,6 @@ export const runxSchemaArtifacts = {
                             "minLength": 1,
                             "type": "string"
                           },
-                          "schema": {
-                            "const": "runx.reference.v1",
-                            "type": "string"
-                          },
                           "type": {
                             "enum": [
                               "thread",
@@ -6305,10 +6196,6 @@ export const runxSchemaArtifacts = {
                             "minLength": 1,
                             "type": "string"
                           },
-                          "schema": {
-                            "const": "runx.reference.v1",
-                            "type": "string"
-                          },
                           "type": {
                             "enum": [
                               "thread",
@@ -6385,6 +6272,7 @@ export const runxSchemaArtifacts = {
                         "additionalProperties": false,
                         "properties": {
                           "approval_threshold_units": {
+                            "minimum": 0,
                             "type": "integer"
                           },
                           "authorization_form": {
@@ -6414,12 +6302,15 @@ export const runxSchemaArtifacts = {
                             "type": "boolean"
                           },
                           "max_per_call_units": {
+                            "minimum": 0,
                             "type": "integer"
                           },
                           "max_per_period_units": {
+                            "minimum": 0,
                             "type": "integer"
                           },
                           "max_per_run_units": {
+                            "minimum": 0,
                             "type": "integer"
                           },
                           "operation": {
@@ -6439,6 +6330,7 @@ export const runxSchemaArtifacts = {
                             "type": "boolean"
                           },
                           "preflight_ttl_ms": {
+                            "minimum": 0,
                             "type": "integer"
                           },
                           "realm": {
@@ -6521,15 +6413,18 @@ export const runxSchemaArtifacts = {
                       "type": "array"
                     },
                     "max_child_depth": {
+                      "minimum": 0,
                       "type": "integer"
                     },
                     "max_cost_units": {
                       "type": "number"
                     },
                     "max_fanout": {
+                      "minimum": 0,
                       "type": "integer"
                     },
                     "max_runtime_ms": {
+                      "minimum": 0,
                       "type": "integer"
                     },
                     "network_destinations": {
@@ -6584,9 +6479,11 @@ export const runxSchemaArtifacts = {
                       "additionalProperties": false,
                       "properties": {
                         "per_day": {
+                          "minimum": 0,
                           "type": "integer"
                         },
                         "total": {
+                          "minimum": 0,
                           "type": "integer"
                         }
                       },
@@ -6666,10 +6563,6 @@ export const runxSchemaArtifacts = {
                             },
                             "provider": {
                               "minLength": 1,
-                              "type": "string"
-                            },
-                            "schema": {
-                              "const": "runx.reference.v1",
                               "type": "string"
                             },
                             "type": {
@@ -6758,10 +6651,6 @@ export const runxSchemaArtifacts = {
                       "minLength": 1,
                       "type": "string"
                     },
-                    "schema": {
-                      "const": "runx.reference.v1",
-                      "type": "string"
-                    },
                     "type": {
                       "enum": [
                         "thread",
@@ -6841,10 +6730,6 @@ export const runxSchemaArtifacts = {
                       "minLength": 1,
                       "type": "string"
                     },
-                    "schema": {
-                      "const": "runx.reference.v1",
-                      "type": "string"
-                    },
                     "type": {
                       "enum": [
                         "thread",
@@ -6917,10 +6802,6 @@ export const runxSchemaArtifacts = {
                     },
                     "provider": {
                       "minLength": 1,
-                      "type": "string"
-                    },
-                    "schema": {
-                      "const": "runx.reference.v1",
                       "type": "string"
                     },
                     "type": {
@@ -7012,10 +6893,6 @@ export const runxSchemaArtifacts = {
                       "minLength": 1,
                       "type": "string"
                     },
-                    "schema": {
-                      "const": "runx.reference.v1",
-                      "type": "string"
-                    },
                     "type": {
                       "enum": [
                         "thread",
@@ -7059,10 +6936,6 @@ export const runxSchemaArtifacts = {
                   ],
                   "type": "object",
                   "x-runx-schema": "runx.reference.v1"
-                },
-                "schema": {
-                  "const": "runx.authority_term.v1",
-                  "type": "string"
                 },
                 "term_id": {
                   "minLength": 1,
@@ -7194,10 +7067,6 @@ export const runxSchemaArtifacts = {
                   "minLength": 1,
                   "type": "string"
                 },
-                "schema": {
-                  "const": "runx.reference.v1",
-                  "type": "string"
-                },
                 "type": {
                   "enum": [
                     "thread",
@@ -7272,10 +7141,6 @@ export const runxSchemaArtifacts = {
                   "minLength": 1,
                   "type": "string"
                 },
-                "schema": {
-                  "const": "runx.reference.v1",
-                  "type": "string"
-                },
                 "type": {
                   "enum": [
                     "thread",
@@ -7325,10 +7190,6 @@ export const runxSchemaArtifacts = {
                 "subset"
               ],
               "type": "string"
-            },
-            "schema": {
-              "const": "runx.authority_subset_proof.v1",
-              "type": "string"
             }
           },
           "required": [
@@ -7342,10 +7203,6 @@ export const runxSchemaArtifacts = {
           "x-runx-schema": "runx.authority_subset_proof.v1"
         },
         "type": "array"
-      },
-      "schema": {
-        "const": "runx.authority_derivation.v1",
-        "type": "string"
       },
       "term_id": {
         "minLength": 1,
@@ -7435,10 +7292,6 @@ export const runxSchemaArtifacts = {
             "minLength": 1,
             "type": "string"
           },
-          "schema": {
-            "const": "runx.reference.v1",
-            "type": "string"
-          },
           "type": {
             "enum": [
               "thread",
@@ -7513,10 +7366,6 @@ export const runxSchemaArtifacts = {
             "minLength": 1,
             "type": "string"
           },
-          "schema": {
-            "const": "runx.reference.v1",
-            "type": "string"
-          },
           "type": {
             "enum": [
               "thread",
@@ -7565,10 +7414,6 @@ export const runxSchemaArtifacts = {
         "enum": [
           "subset"
         ],
-        "type": "string"
-      },
-      "schema": {
-        "const": "runx.authority_subset_proof.v1",
         "type": "string"
       }
     },
@@ -7619,10 +7464,6 @@ export const runxSchemaArtifacts = {
                 },
                 "provider": {
                   "minLength": 1,
-                  "type": "string"
-                },
-                "schema": {
-                  "const": "runx.reference.v1",
                   "type": "string"
                 },
                 "type": {
@@ -7704,10 +7545,6 @@ export const runxSchemaArtifacts = {
                   "minLength": 1,
                   "type": "string"
                 },
-                "schema": {
-                  "const": "runx.reference.v1",
-                  "type": "string"
-                },
                 "type": {
                   "enum": [
                     "thread",
@@ -7784,6 +7621,7 @@ export const runxSchemaArtifacts = {
               "additionalProperties": false,
               "properties": {
                 "approval_threshold_units": {
+                  "minimum": 0,
                   "type": "integer"
                 },
                 "authorization_form": {
@@ -7813,12 +7651,15 @@ export const runxSchemaArtifacts = {
                   "type": "boolean"
                 },
                 "max_per_call_units": {
+                  "minimum": 0,
                   "type": "integer"
                 },
                 "max_per_period_units": {
+                  "minimum": 0,
                   "type": "integer"
                 },
                 "max_per_run_units": {
+                  "minimum": 0,
                   "type": "integer"
                 },
                 "operation": {
@@ -7838,6 +7679,7 @@ export const runxSchemaArtifacts = {
                   "type": "boolean"
                 },
                 "preflight_ttl_ms": {
+                  "minimum": 0,
                   "type": "integer"
                 },
                 "realm": {
@@ -7920,15 +7762,18 @@ export const runxSchemaArtifacts = {
             "type": "array"
           },
           "max_child_depth": {
+            "minimum": 0,
             "type": "integer"
           },
           "max_cost_units": {
             "type": "number"
           },
           "max_fanout": {
+            "minimum": 0,
             "type": "integer"
           },
           "max_runtime_ms": {
+            "minimum": 0,
             "type": "integer"
           },
           "network_destinations": {
@@ -7983,9 +7828,11 @@ export const runxSchemaArtifacts = {
             "additionalProperties": false,
             "properties": {
               "per_day": {
+                "minimum": 0,
                 "type": "integer"
               },
               "total": {
+                "minimum": 0,
                 "type": "integer"
               }
             },
@@ -8065,10 +7912,6 @@ export const runxSchemaArtifacts = {
                   },
                   "provider": {
                     "minLength": 1,
-                    "type": "string"
-                  },
-                  "schema": {
-                    "const": "runx.reference.v1",
                     "type": "string"
                   },
                   "type": {
@@ -8157,10 +8000,6 @@ export const runxSchemaArtifacts = {
             "minLength": 1,
             "type": "string"
           },
-          "schema": {
-            "const": "runx.reference.v1",
-            "type": "string"
-          },
           "type": {
             "enum": [
               "thread",
@@ -8240,10 +8079,6 @@ export const runxSchemaArtifacts = {
             "minLength": 1,
             "type": "string"
           },
-          "schema": {
-            "const": "runx.reference.v1",
-            "type": "string"
-          },
           "type": {
             "enum": [
               "thread",
@@ -8316,10 +8151,6 @@ export const runxSchemaArtifacts = {
           },
           "provider": {
             "minLength": 1,
-            "type": "string"
-          },
-          "schema": {
-            "const": "runx.reference.v1",
             "type": "string"
           },
           "type": {
@@ -8411,10 +8242,6 @@ export const runxSchemaArtifacts = {
             "minLength": 1,
             "type": "string"
           },
-          "schema": {
-            "const": "runx.reference.v1",
-            "type": "string"
-          },
           "type": {
             "enum": [
               "thread",
@@ -8458,10 +8285,6 @@ export const runxSchemaArtifacts = {
         ],
         "type": "object",
         "x-runx-schema": "runx.reference.v1"
-      },
-      "schema": {
-        "const": "runx.authority_term.v1",
-        "type": "string"
       },
       "term_id": {
         "minLength": 1,
@@ -8532,10 +8355,6 @@ export const runxSchemaArtifacts = {
       },
       "invocation_id": {
         "minLength": 1,
-        "type": "string"
-      },
-      "schema": {
-        "const": "runx.payment.cancel_paid_invocation.request.v1",
         "type": "string"
       }
     },
@@ -8646,10 +8465,6 @@ export const runxSchemaArtifacts = {
                         "minLength": 1,
                         "type": "string"
                       },
-                      "schema": {
-                        "const": "runx.reference.v1",
-                        "type": "string"
-                      },
                       "type": {
                         "enum": [
                           "thread",
@@ -8731,10 +8546,6 @@ export const runxSchemaArtifacts = {
                       },
                       "provider": {
                         "minLength": 1,
-                        "type": "string"
-                      },
-                      "schema": {
-                        "const": "runx.reference.v1",
                         "type": "string"
                       },
                       "type": {
@@ -8827,10 +8638,6 @@ export const runxSchemaArtifacts = {
                       },
                       "provider": {
                         "minLength": 1,
-                        "type": "string"
-                      },
-                      "schema": {
-                        "const": "runx.reference.v1",
                         "type": "string"
                       },
                       "type": {
@@ -9036,10 +8843,6 @@ export const runxSchemaArtifacts = {
                       "revision_digest": {
                         "pattern": "^sha256:[0-9a-f]{64}$",
                         "type": "string"
-                      },
-                      "schema": {
-                        "const": "runx.payment.offer_revision_ref.v1",
-                        "type": "string"
                       }
                     },
                     "required": [
@@ -9075,10 +8878,6 @@ export const runxSchemaArtifacts = {
                       },
                       "invocation_id": {
                         "minLength": 1,
-                        "type": "string"
-                      },
-                      "schema": {
-                        "const": "runx.payment.parent_invocation_binding.v1",
                         "type": "string"
                       }
                     },
@@ -9117,10 +8916,6 @@ export const runxSchemaArtifacts = {
                       },
                       "provider": {
                         "minLength": 1,
-                        "type": "string"
-                      },
-                      "schema": {
-                        "const": "runx.reference.v1",
                         "type": "string"
                       },
                       "type": {
@@ -9206,10 +9001,6 @@ export const runxSchemaArtifacts = {
                         "minLength": 1,
                         "type": "string"
                       },
-                      "schema": {
-                        "const": "runx.reference.v1",
-                        "type": "string"
-                      },
                       "type": {
                         "const": "principal",
                         "type": "string"
@@ -9225,10 +9016,6 @@ export const runxSchemaArtifacts = {
                     ],
                     "type": "object",
                     "x-runx-schema": "runx.reference.v1"
-                  },
-                  "schema": {
-                    "const": "runx.payment.paid_invocation.v1",
-                    "type": "string"
                   },
                   "settlement_family": {
                     "maxLength": 64,
@@ -9269,10 +9056,6 @@ export const runxSchemaArtifacts = {
                       },
                       "provider": {
                         "minLength": 1,
-                        "type": "string"
-                      },
-                      "schema": {
-                        "const": "runx.reference.v1",
                         "type": "string"
                       },
                       "type": {
@@ -10187,6 +9970,7 @@ export const runxSchemaArtifacts = {
                                 "type": "array"
                               },
                               "expected_status": {
+                                "minimum": 0,
                                 "type": "integer"
                               },
                               "matches": {
@@ -10481,6 +10265,7 @@ export const runxSchemaArtifacts = {
                                 "type": "array"
                               },
                               "expected_status": {
+                                "minimum": 0,
                                 "type": "integer"
                               },
                               "matches": {
@@ -11456,10 +11241,6 @@ export const runxSchemaArtifacts = {
               "minLength": 1,
               "type": "string"
             },
-            "schema": {
-              "const": "runx.reference.v1",
-              "type": "string"
-            },
             "type": {
               "enum": [
                 "thread",
@@ -11554,10 +11335,6 @@ export const runxSchemaArtifacts = {
             "minLength": 1,
             "type": "string"
           },
-          "schema": {
-            "const": "runx.reference.v1",
-            "type": "string"
-          },
           "type": {
             "enum": [
               "thread",
@@ -11630,10 +11407,6 @@ export const runxSchemaArtifacts = {
           },
           "provider": {
             "minLength": 1,
-            "type": "string"
-          },
-          "schema": {
-            "const": "runx.reference.v1",
             "type": "string"
           },
           "type": {
@@ -11741,10 +11514,6 @@ export const runxSchemaArtifacts = {
               "minLength": 1,
               "type": "string"
             },
-            "schema": {
-              "const": "runx.reference.v1",
-              "type": "string"
-            },
             "type": {
               "enum": [
                 "thread",
@@ -11836,12 +11605,14 @@ export const runxSchemaArtifacts = {
     "additionalProperties": false,
     "properties": {
       "after_version": {
+        "minimum": 0,
         "type": "integer"
       },
       "aggregate_id": {
         "type": "string"
       },
       "before_version": {
+        "minimum": 0,
         "type": "integer"
       },
       "data_source_ref": {
@@ -11885,9 +11656,11 @@ export const runxSchemaArtifacts = {
         ]
       },
       "limit": {
+        "minimum": 0,
         "type": "integer"
       },
       "next_after_version": {
+        "minimum": 0,
         "type": "integer"
       },
       "operation": {
@@ -12100,10 +11873,6 @@ export const runxSchemaArtifacts = {
         "minLength": 1,
         "type": "string"
       },
-      "schema": {
-        "const": "runx.decision.v1",
-        "type": "string"
-      },
       "selected_act_id": {
         "minLength": 1,
         "type": "string"
@@ -12273,12 +12042,15 @@ export const runxSchemaArtifacts = {
             "additionalProperties": false,
             "properties": {
               "errors": {
+                "minimum": 0,
                 "type": "integer"
               },
               "infos": {
+                "minimum": 0,
                 "type": "integer"
               },
               "warnings": {
+                "minimum": 0,
                 "type": "integer"
               }
             },
@@ -12336,6 +12108,7 @@ export const runxSchemaArtifacts = {
               "type": "array"
             },
             "duration_ms": {
+              "minimum": 0,
               "type": "integer"
             },
             "lane": {
@@ -12554,12 +12327,15 @@ export const runxSchemaArtifacts = {
         "additionalProperties": false,
         "properties": {
           "errors": {
+            "minimum": 0,
             "type": "integer"
           },
           "infos": {
+            "minimum": 0,
             "type": "integer"
           },
           "warnings": {
+            "minimum": 0,
             "type": "integer"
           }
         },
@@ -12637,10 +12413,6 @@ export const runxSchemaArtifacts = {
             "minLength": 1,
             "type": "string"
           },
-          "schema": {
-            "const": "runx.reference.v1",
-            "type": "string"
-          },
           "type": {
             "enum": [
               "thread",
@@ -12684,10 +12456,6 @@ export const runxSchemaArtifacts = {
         ],
         "type": "object",
         "x-runx-schema": "runx.reference.v1"
-      },
-      "schema": {
-        "const": "runx.payment.execute_paid_invocation.request.v1",
-        "type": "string"
       },
       "settlement_family": {
         "maxLength": 64,
@@ -12805,10 +12573,6 @@ export const runxSchemaArtifacts = {
                         "minLength": 1,
                         "type": "string"
                       },
-                      "schema": {
-                        "const": "runx.reference.v1",
-                        "type": "string"
-                      },
                       "type": {
                         "enum": [
                           "thread",
@@ -12890,10 +12654,6 @@ export const runxSchemaArtifacts = {
                       },
                       "provider": {
                         "minLength": 1,
-                        "type": "string"
-                      },
-                      "schema": {
-                        "const": "runx.reference.v1",
                         "type": "string"
                       },
                       "type": {
@@ -12986,10 +12746,6 @@ export const runxSchemaArtifacts = {
                       },
                       "provider": {
                         "minLength": 1,
-                        "type": "string"
-                      },
-                      "schema": {
-                        "const": "runx.reference.v1",
                         "type": "string"
                       },
                       "type": {
@@ -13195,10 +12951,6 @@ export const runxSchemaArtifacts = {
                       "revision_digest": {
                         "pattern": "^sha256:[0-9a-f]{64}$",
                         "type": "string"
-                      },
-                      "schema": {
-                        "const": "runx.payment.offer_revision_ref.v1",
-                        "type": "string"
                       }
                     },
                     "required": [
@@ -13234,10 +12986,6 @@ export const runxSchemaArtifacts = {
                       },
                       "invocation_id": {
                         "minLength": 1,
-                        "type": "string"
-                      },
-                      "schema": {
-                        "const": "runx.payment.parent_invocation_binding.v1",
                         "type": "string"
                       }
                     },
@@ -13276,10 +13024,6 @@ export const runxSchemaArtifacts = {
                       },
                       "provider": {
                         "minLength": 1,
-                        "type": "string"
-                      },
-                      "schema": {
-                        "const": "runx.reference.v1",
                         "type": "string"
                       },
                       "type": {
@@ -13365,10 +13109,6 @@ export const runxSchemaArtifacts = {
                         "minLength": 1,
                         "type": "string"
                       },
-                      "schema": {
-                        "const": "runx.reference.v1",
-                        "type": "string"
-                      },
                       "type": {
                         "const": "principal",
                         "type": "string"
@@ -13384,10 +13124,6 @@ export const runxSchemaArtifacts = {
                     ],
                     "type": "object",
                     "x-runx-schema": "runx.reference.v1"
-                  },
-                  "schema": {
-                    "const": "runx.payment.paid_invocation.v1",
-                    "type": "string"
                   },
                   "settlement_family": {
                     "maxLength": 64,
@@ -13428,10 +13164,6 @@ export const runxSchemaArtifacts = {
                       },
                       "provider": {
                         "minLength": 1,
-                        "type": "string"
-                      },
-                      "schema": {
-                        "const": "runx.reference.v1",
                         "type": "string"
                       },
                       "type": {
@@ -13530,6 +13262,7 @@ export const runxSchemaArtifacts = {
     "additionalProperties": false,
     "properties": {
       "attempts": {
+        "minimum": 0,
         "type": "integer"
       },
       "continuation_id": {
@@ -13627,10 +13360,6 @@ export const runxSchemaArtifacts = {
           },
           "provider": {
             "minLength": 1,
-            "type": "string"
-          },
-          "schema": {
-            "const": "runx.reference.v1",
             "type": "string"
           },
           "type": {
@@ -13745,10 +13474,6 @@ export const runxSchemaArtifacts = {
             "minLength": 1,
             "type": "string"
           },
-          "schema": {
-            "const": "runx.reference.v1",
-            "type": "string"
-          },
           "type": {
             "const": "principal",
             "type": "string"
@@ -13793,10 +13518,6 @@ export const runxSchemaArtifacts = {
           },
           "provider": {
             "minLength": 1,
-            "type": "string"
-          },
-          "schema": {
-            "const": "runx.reference.v1",
             "type": "string"
           },
           "type": {
@@ -13873,10 +13594,6 @@ export const runxSchemaArtifacts = {
             "minLength": 1,
             "type": "string"
           },
-          "schema": {
-            "const": "runx.reference.v1",
-            "type": "string"
-          },
           "type": {
             "enum": [
               "thread",
@@ -13921,10 +13638,6 @@ export const runxSchemaArtifacts = {
         "type": "object",
         "x-runx-schema": "runx.reference.v1"
       },
-      "schema": {
-        "const": "runx.external_job_continuation.v1",
-        "type": "string"
-      },
       "source_run_ref": {
         "$id": "https://schemas.runx.ai/runx/reference/v1.json",
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -13953,10 +13666,6 @@ export const runxSchemaArtifacts = {
           },
           "provider": {
             "minLength": 1,
-            "type": "string"
-          },
-          "schema": {
-            "const": "runx.reference.v1",
             "type": "string"
           },
           "type": {
@@ -14057,10 +13766,6 @@ export const runxSchemaArtifacts = {
             "minLength": 1,
             "type": "string"
           },
-          "schema": {
-            "const": "runx.reference.v1",
-            "type": "string"
-          },
           "type": {
             "enum": [
               "thread",
@@ -14133,10 +13838,6 @@ export const runxSchemaArtifacts = {
           },
           "provider": {
             "minLength": 1,
-            "type": "string"
-          },
-          "schema": {
-            "const": "runx.reference.v1",
             "type": "string"
           },
           "type": {
@@ -14216,10 +13917,6 @@ export const runxSchemaArtifacts = {
           },
           "provider": {
             "minLength": 1,
-            "type": "string"
-          },
-          "schema": {
-            "const": "runx.reference.v1",
             "type": "string"
           },
           "type": {
@@ -14389,10 +14086,6 @@ export const runxSchemaArtifacts = {
             "minLength": 1,
             "type": "string"
           },
-          "schema": {
-            "const": "runx.reference.v1",
-            "type": "string"
-          },
           "type": {
             "enum": [
               "thread",
@@ -14481,10 +14174,6 @@ export const runxSchemaArtifacts = {
             "minLength": 1,
             "type": "string"
           },
-          "schema": {
-            "const": "runx.reference.v1",
-            "type": "string"
-          },
           "type": {
             "const": "principal",
             "type": "string"
@@ -14500,10 +14189,6 @@ export const runxSchemaArtifacts = {
         ],
         "type": "object",
         "x-runx-schema": "runx.reference.v1"
-      },
-      "schema": {
-        "const": "runx.external_job_schedule.v1",
-        "type": "string"
       },
       "source_run_ref": {
         "$id": "https://schemas.runx.ai/runx/reference/v1.json",
@@ -14533,10 +14218,6 @@ export const runxSchemaArtifacts = {
           },
           "provider": {
             "minLength": 1,
-            "type": "string"
-          },
-          "schema": {
-            "const": "runx.reference.v1",
             "type": "string"
           },
           "type": {
@@ -14613,10 +14294,6 @@ export const runxSchemaArtifacts = {
             "minLength": 1,
             "type": "string"
           },
-          "schema": {
-            "const": "runx.reference.v1",
-            "type": "string"
-          },
           "type": {
             "const": "principal",
             "type": "string"
@@ -14667,6 +14344,7 @@ export const runxSchemaArtifacts = {
         "additionalProperties": false,
         "properties": {
           "attempts": {
+            "minimum": 0,
             "type": "integer"
           },
           "continuation_id": {
@@ -14764,10 +14442,6 @@ export const runxSchemaArtifacts = {
               },
               "provider": {
                 "minLength": 1,
-                "type": "string"
-              },
-              "schema": {
-                "const": "runx.reference.v1",
                 "type": "string"
               },
               "type": {
@@ -14882,10 +14556,6 @@ export const runxSchemaArtifacts = {
                 "minLength": 1,
                 "type": "string"
               },
-              "schema": {
-                "const": "runx.reference.v1",
-                "type": "string"
-              },
               "type": {
                 "const": "principal",
                 "type": "string"
@@ -14930,10 +14600,6 @@ export const runxSchemaArtifacts = {
               },
               "provider": {
                 "minLength": 1,
-                "type": "string"
-              },
-              "schema": {
-                "const": "runx.reference.v1",
                 "type": "string"
               },
               "type": {
@@ -15010,10 +14676,6 @@ export const runxSchemaArtifacts = {
                 "minLength": 1,
                 "type": "string"
               },
-              "schema": {
-                "const": "runx.reference.v1",
-                "type": "string"
-              },
               "type": {
                 "enum": [
                   "thread",
@@ -15058,10 +14720,6 @@ export const runxSchemaArtifacts = {
             "type": "object",
             "x-runx-schema": "runx.reference.v1"
           },
-          "schema": {
-            "const": "runx.external_job_continuation.v1",
-            "type": "string"
-          },
           "source_run_ref": {
             "$id": "https://schemas.runx.ai/runx/reference/v1.json",
             "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -15090,10 +14748,6 @@ export const runxSchemaArtifacts = {
               },
               "provider": {
                 "minLength": 1,
-                "type": "string"
-              },
-              "schema": {
-                "const": "runx.reference.v1",
                 "type": "string"
               },
               "type": {
@@ -15194,10 +14848,6 @@ export const runxSchemaArtifacts = {
                 "minLength": 1,
                 "type": "string"
               },
-              "schema": {
-                "const": "runx.reference.v1",
-                "type": "string"
-              },
               "type": {
                 "enum": [
                   "thread",
@@ -15270,10 +14920,6 @@ export const runxSchemaArtifacts = {
               },
               "provider": {
                 "minLength": 1,
-                "type": "string"
-              },
-              "schema": {
-                "const": "runx.reference.v1",
                 "type": "string"
               },
               "type": {
@@ -15355,10 +15001,6 @@ export const runxSchemaArtifacts = {
                 "minLength": 1,
                 "type": "string"
               },
-              "schema": {
-                "const": "runx.reference.v1",
-                "type": "string"
-              },
               "type": {
                 "const": "principal",
                 "type": "string"
@@ -15397,10 +15039,6 @@ export const runxSchemaArtifacts = {
       },
       "operation_key": {
         "pattern": "^sha256:[0-9a-f]{64}$",
-        "type": "string"
-      },
-      "schema": {
-        "const": "runx.external_job_stage.request.v1",
         "type": "string"
       }
     },
@@ -15452,10 +15090,6 @@ export const runxSchemaArtifacts = {
               },
               "provider": {
                 "minLength": 1,
-                "type": "string"
-              },
-              "schema": {
-                "const": "runx.reference.v1",
                 "type": "string"
               },
               "type": {
@@ -15557,10 +15191,6 @@ export const runxSchemaArtifacts = {
                 "minLength": 1,
                 "type": "string"
               },
-              "schema": {
-                "const": "runx.reference.v1",
-                "type": "string"
-              },
               "type": {
                 "enum": [
                   "thread",
@@ -15660,10 +15290,6 @@ export const runxSchemaArtifacts = {
                 "minLength": 1,
                 "type": "string"
               },
-              "schema": {
-                "const": "runx.reference.v1",
-                "type": "string"
-              },
               "type": {
                 "enum": [
                   "thread",
@@ -15738,10 +15364,6 @@ export const runxSchemaArtifacts = {
                 "minLength": 1,
                 "type": "string"
               },
-              "schema": {
-                "const": "runx.reference.v1",
-                "type": "string"
-              },
               "type": {
                 "enum": [
                   "thread",
@@ -15814,10 +15436,6 @@ export const runxSchemaArtifacts = {
               },
               "provider": {
                 "minLength": 1,
-                "type": "string"
-              },
-              "schema": {
-                "const": "runx.reference.v1",
                 "type": "string"
               },
               "type": {
@@ -15913,10 +15531,6 @@ export const runxSchemaArtifacts = {
               },
               "provider": {
                 "minLength": 1,
-                "type": "string"
-              },
-              "schema": {
-                "const": "runx.reference.v1",
                 "type": "string"
               },
               "type": {
@@ -16015,10 +15629,6 @@ export const runxSchemaArtifacts = {
               },
               "provider": {
                 "minLength": 1,
-                "type": "string"
-              },
-              "schema": {
-                "const": "runx.reference.v1",
                 "type": "string"
               },
               "type": {
@@ -16201,10 +15811,6 @@ export const runxSchemaArtifacts = {
       "invocation_id": {
         "minLength": 1,
         "type": "string"
-      },
-      "schema": {
-        "const": "runx.payment.get_paid_invocation.request.v1",
-        "type": "string"
       }
     },
     "required": [
@@ -16333,10 +15939,6 @@ export const runxSchemaArtifacts = {
                         "minLength": 1,
                         "type": "string"
                       },
-                      "schema": {
-                        "const": "runx.reference.v1",
-                        "type": "string"
-                      },
                       "type": {
                         "enum": [
                           "thread",
@@ -16418,10 +16020,6 @@ export const runxSchemaArtifacts = {
                       },
                       "provider": {
                         "minLength": 1,
-                        "type": "string"
-                      },
-                      "schema": {
-                        "const": "runx.reference.v1",
                         "type": "string"
                       },
                       "type": {
@@ -16514,10 +16112,6 @@ export const runxSchemaArtifacts = {
                       },
                       "provider": {
                         "minLength": 1,
-                        "type": "string"
-                      },
-                      "schema": {
-                        "const": "runx.reference.v1",
                         "type": "string"
                       },
                       "type": {
@@ -16723,10 +16317,6 @@ export const runxSchemaArtifacts = {
                       "revision_digest": {
                         "pattern": "^sha256:[0-9a-f]{64}$",
                         "type": "string"
-                      },
-                      "schema": {
-                        "const": "runx.payment.offer_revision_ref.v1",
-                        "type": "string"
                       }
                     },
                     "required": [
@@ -16762,10 +16352,6 @@ export const runxSchemaArtifacts = {
                       },
                       "invocation_id": {
                         "minLength": 1,
-                        "type": "string"
-                      },
-                      "schema": {
-                        "const": "runx.payment.parent_invocation_binding.v1",
                         "type": "string"
                       }
                     },
@@ -16804,10 +16390,6 @@ export const runxSchemaArtifacts = {
                       },
                       "provider": {
                         "minLength": 1,
-                        "type": "string"
-                      },
-                      "schema": {
-                        "const": "runx.reference.v1",
                         "type": "string"
                       },
                       "type": {
@@ -16893,10 +16475,6 @@ export const runxSchemaArtifacts = {
                         "minLength": 1,
                         "type": "string"
                       },
-                      "schema": {
-                        "const": "runx.reference.v1",
-                        "type": "string"
-                      },
                       "type": {
                         "const": "principal",
                         "type": "string"
@@ -16912,10 +16490,6 @@ export const runxSchemaArtifacts = {
                     ],
                     "type": "object",
                     "x-runx-schema": "runx.reference.v1"
-                  },
-                  "schema": {
-                    "const": "runx.payment.paid_invocation.v1",
-                    "type": "string"
                   },
                   "settlement_family": {
                     "maxLength": 64,
@@ -16956,10 +16530,6 @@ export const runxSchemaArtifacts = {
                       },
                       "provider": {
                         "minLength": 1,
-                        "type": "string"
-                      },
-                      "schema": {
-                        "const": "runx.reference.v1",
                         "type": "string"
                       },
                       "type": {
@@ -17030,10 +16600,6 @@ export const runxSchemaArtifacts = {
                   },
                   "provider": {
                     "minLength": 1,
-                    "type": "string"
-                  },
-                  "schema": {
-                    "const": "runx.reference.v1",
                     "type": "string"
                   },
                   "type": {
@@ -17110,10 +16676,6 @@ export const runxSchemaArtifacts = {
                     "minLength": 1,
                     "type": "string"
                   },
-                  "schema": {
-                    "const": "runx.reference.v1",
-                    "type": "string"
-                  },
                   "type": {
                     "enum": [
                       "thread",
@@ -17186,10 +16748,6 @@ export const runxSchemaArtifacts = {
                   },
                   "provider": {
                     "minLength": 1,
-                    "type": "string"
-                  },
-                  "schema": {
-                    "const": "runx.reference.v1",
                     "type": "string"
                   },
                   "type": {
@@ -17267,13 +16825,10 @@ export const runxSchemaArtifacts = {
         "type": "string"
       },
       "bytes": {
+        "minimum": 0,
         "type": "integer"
       },
       "digest": {
-        "type": "string"
-      },
-      "schema": {
-        "const": "runx.git.blob_digest.v1",
         "type": "string"
       }
     },
@@ -17482,6 +17037,7 @@ export const runxSchemaArtifacts = {
         "type": "string"
       },
       "signal_count": {
+        "minimum": 0,
         "type": "integer"
       },
       "status": {
@@ -17557,6 +17113,7 @@ export const runxSchemaArtifacts = {
             "type": "string"
           },
           "index": {
+            "minimum": 0,
             "type": "integer"
           },
           "previous_hash": {
@@ -17657,6 +17214,7 @@ export const runxSchemaArtifacts = {
                 "type": "string"
               },
               "size_bytes": {
+                "minimum": 0,
                 "type": "integer"
               },
               "step_id": {
@@ -17760,9 +17318,11 @@ export const runxSchemaArtifacts = {
               "type": "array"
             },
             "fixtures": {
+              "minimum": 0,
               "type": "integer"
             },
             "harness_cases": {
+              "minimum": 0,
               "type": "integer"
             },
             "kind": {
@@ -17804,6 +17364,7 @@ export const runxSchemaArtifacts = {
               "type": "string"
             },
             "steps": {
+              "minimum": 0,
               "type": "integer"
             },
             "wraps": {
@@ -17869,15 +17430,18 @@ export const runxSchemaArtifacts = {
         "type": "boolean"
       },
       "length": {
+        "minimum": 0,
         "type": "integer"
       },
       "media_type": {
         "type": "string"
       },
       "next_offset": {
+        "minimum": 0,
         "type": "integer"
       },
       "offset": {
+        "minimum": 0,
         "type": "integer"
       },
       "range_digest": {
@@ -17889,10 +17453,6 @@ export const runxSchemaArtifacts = {
         },
         "minItems": 1,
         "type": "array"
-      },
-      "schema": {
-        "const": "runx.local_artifact.page.v1",
-        "type": "string"
       },
       "whole_digest": {
         "type": "string"
@@ -17922,13 +17482,10 @@ export const runxSchemaArtifacts = {
         "type": "string"
       },
       "bytes": {
+        "minimum": 0,
         "type": "integer"
       },
       "media_type": {
-        "type": "string"
-      },
-      "schema": {
-        "const": "runx.local_artifact.v1",
         "type": "string"
       },
       "whole_digest": {
@@ -17968,10 +17525,6 @@ export const runxSchemaArtifacts = {
       },
       "revision_digest": {
         "pattern": "^sha256:[0-9a-f]{64}$",
-        "type": "string"
-      },
-      "schema": {
-        "const": "runx.payment.offer_revision_ref.v1",
         "type": "string"
       }
     },
@@ -18423,10 +17976,6 @@ export const runxSchemaArtifacts = {
               "minLength": 1,
               "type": "string"
             },
-            "schema": {
-              "const": "runx.reference.v1",
-              "type": "string"
-            },
             "type": {
               "enum": [
                 "thread",
@@ -18555,10 +18104,6 @@ export const runxSchemaArtifacts = {
               "minLength": 1,
               "type": "string"
             },
-            "schema": {
-              "const": "runx.reference.v1",
-              "type": "string"
-            },
             "type": {
               "enum": [
                 "thread",
@@ -18649,10 +18194,6 @@ export const runxSchemaArtifacts = {
                 },
                 "provider": {
                   "minLength": 1,
-                  "type": "string"
-                },
-                "schema": {
-                  "const": "runx.reference.v1",
                   "type": "string"
                 },
                 "type": {
@@ -18783,10 +18324,6 @@ export const runxSchemaArtifacts = {
             "minLength": 1,
             "type": "string"
           },
-          "schema": {
-            "const": "runx.reference.v1",
-            "type": "string"
-          },
           "type": {
             "enum": [
               "thread",
@@ -18910,10 +18447,6 @@ export const runxSchemaArtifacts = {
                   "minLength": 1,
                   "type": "string"
                 },
-                "schema": {
-                  "const": "runx.reference.v1",
-                  "type": "string"
-                },
                 "type": {
                   "enum": [
                     "thread",
@@ -18961,10 +18494,6 @@ export const runxSchemaArtifacts = {
             "role": {
               "minLength": 1,
               "type": "string"
-            },
-            "schema": {
-              "const": "runx.reference_link.v1",
-              "type": "string"
             }
           },
           "required": [
@@ -19009,10 +18538,6 @@ export const runxSchemaArtifacts = {
             },
             "provider": {
               "minLength": 1,
-              "type": "string"
-            },
-            "schema": {
-              "const": "runx.reference.v1",
               "type": "string"
             },
             "type": {
@@ -19105,10 +18630,6 @@ export const runxSchemaArtifacts = {
                   },
                   "provider": {
                     "minLength": 1,
-                    "type": "string"
-                  },
-                  "schema": {
-                    "const": "runx.reference.v1",
                     "type": "string"
                   },
                   "type": {
@@ -19213,10 +18734,6 @@ export const runxSchemaArtifacts = {
                   "minLength": 1,
                   "type": "string"
                 },
-                "schema": {
-                  "const": "runx.reference.v1",
-                  "type": "string"
-                },
                 "type": {
                   "enum": [
                     "thread",
@@ -19263,10 +18780,6 @@ export const runxSchemaArtifacts = {
             },
             "role": {
               "minLength": 1,
-              "type": "string"
-            },
-            "schema": {
-              "const": "runx.reference_link.v1",
               "type": "string"
             }
           },
@@ -19325,10 +18838,6 @@ export const runxSchemaArtifacts = {
           },
           "provider": {
             "minLength": 1,
-            "type": "string"
-          },
-          "schema": {
-            "const": "runx.reference.v1",
             "type": "string"
           },
           "type": {
@@ -19405,10 +18914,6 @@ export const runxSchemaArtifacts = {
             "minLength": 1,
             "type": "string"
           },
-          "schema": {
-            "const": "runx.reference.v1",
-            "type": "string"
-          },
           "type": {
             "enum": [
               "thread",
@@ -19482,10 +18987,6 @@ export const runxSchemaArtifacts = {
             },
             "provider": {
               "minLength": 1,
-              "type": "string"
-            },
-            "schema": {
-              "const": "runx.reference.v1",
               "type": "string"
             },
             "type": {
@@ -19586,10 +19087,6 @@ export const runxSchemaArtifacts = {
       "principal_id": {
         "type": "string"
       },
-      "schema": {
-        "const": "runx.orchestrator.execution_context.v1",
-        "type": "string"
-      },
       "source_workflow": {
         "type": "string"
       },
@@ -19654,10 +19151,6 @@ export const runxSchemaArtifacts = {
                 "type": "string"
               },
               "principal_id": {
-                "type": "string"
-              },
-              "schema": {
-                "const": "runx.orchestrator.execution_context.v1",
                 "type": "string"
               },
               "source_workflow": {
@@ -19800,10 +19293,6 @@ export const runxSchemaArtifacts = {
           "reject_duplicate_event_id"
         ],
         "type": "object"
-      },
-      "schema": {
-        "const": "runx.orchestrator.handoff_context.v1",
-        "type": "string"
       },
       "status": {
         "type": "string"
@@ -20019,10 +19508,6 @@ export const runxSchemaArtifacts = {
             "minLength": 1,
             "type": "string"
           },
-          "schema": {
-            "const": "runx.reference.v1",
-            "type": "string"
-          },
           "type": {
             "enum": [
               "thread",
@@ -20104,10 +19589,6 @@ export const runxSchemaArtifacts = {
           },
           "provider": {
             "minLength": 1,
-            "type": "string"
-          },
-          "schema": {
-            "const": "runx.reference.v1",
             "type": "string"
           },
           "type": {
@@ -20200,10 +19681,6 @@ export const runxSchemaArtifacts = {
           },
           "provider": {
             "minLength": 1,
-            "type": "string"
-          },
-          "schema": {
-            "const": "runx.reference.v1",
             "type": "string"
           },
           "type": {
@@ -20409,10 +19886,6 @@ export const runxSchemaArtifacts = {
           "revision_digest": {
             "pattern": "^sha256:[0-9a-f]{64}$",
             "type": "string"
-          },
-          "schema": {
-            "const": "runx.payment.offer_revision_ref.v1",
-            "type": "string"
           }
         },
         "required": [
@@ -20448,10 +19921,6 @@ export const runxSchemaArtifacts = {
           },
           "invocation_id": {
             "minLength": 1,
-            "type": "string"
-          },
-          "schema": {
-            "const": "runx.payment.parent_invocation_binding.v1",
             "type": "string"
           }
         },
@@ -20490,10 +19959,6 @@ export const runxSchemaArtifacts = {
           },
           "provider": {
             "minLength": 1,
-            "type": "string"
-          },
-          "schema": {
-            "const": "runx.reference.v1",
             "type": "string"
           },
           "type": {
@@ -20579,10 +20044,6 @@ export const runxSchemaArtifacts = {
             "minLength": 1,
             "type": "string"
           },
-          "schema": {
-            "const": "runx.reference.v1",
-            "type": "string"
-          },
           "type": {
             "const": "principal",
             "type": "string"
@@ -20598,10 +20059,6 @@ export const runxSchemaArtifacts = {
         ],
         "type": "object",
         "x-runx-schema": "runx.reference.v1"
-      },
-      "schema": {
-        "const": "runx.payment.paid_invocation.v1",
-        "type": "string"
       },
       "settlement_family": {
         "maxLength": 64,
@@ -20642,10 +20099,6 @@ export const runxSchemaArtifacts = {
           },
           "provider": {
             "minLength": 1,
-            "type": "string"
-          },
-          "schema": {
-            "const": "runx.reference.v1",
             "type": "string"
           },
           "type": {
@@ -21240,10 +20693,6 @@ export const runxSchemaArtifacts = {
         "pattern": "^sha256:[0-9a-f]{64}$",
         "type": "string"
       },
-      "schema": {
-        "const": "runx.marketplace.paid_skill_listing.v1",
-        "type": "string"
-      },
       "skill_digest": {
         "pattern": "^sha256:[0-9a-f]{64}$",
         "type": "string"
@@ -21280,10 +20729,6 @@ export const runxSchemaArtifacts = {
           },
           "provider": {
             "minLength": 1,
-            "type": "string"
-          },
-          "schema": {
-            "const": "runx.reference.v1",
             "type": "string"
           },
           "type": {
@@ -21332,10 +20777,6 @@ export const runxSchemaArtifacts = {
       "invocation_id": {
         "minLength": 1,
         "type": "string"
-      },
-      "schema": {
-        "const": "runx.payment.parent_invocation_binding.v1",
-        "type": "string"
       }
     },
     "required": [
@@ -21352,6 +20793,7 @@ export const runxSchemaArtifacts = {
     "additionalProperties": false,
     "properties": {
       "bytes": {
+        "minimum": 0,
         "type": "integer"
       },
       "digest": {
@@ -21571,10 +21013,6 @@ export const runxSchemaArtifacts = {
             "minLength": 1,
             "type": "string"
           },
-          "schema": {
-            "const": "runx.reference.v1",
-            "type": "string"
-          },
           "type": {
             "enum": [
               "thread",
@@ -21778,10 +21216,6 @@ export const runxSchemaArtifacts = {
           "revision_digest": {
             "pattern": "^sha256:[0-9a-f]{64}$",
             "type": "string"
-          },
-          "schema": {
-            "const": "runx.payment.offer_revision_ref.v1",
-            "type": "string"
           }
         },
         "required": [
@@ -21809,10 +21243,6 @@ export const runxSchemaArtifacts = {
           },
           "invocation_id": {
             "minLength": 1,
-            "type": "string"
-          },
-          "schema": {
-            "const": "runx.payment.parent_invocation_binding.v1",
             "type": "string"
           }
         },
@@ -21917,10 +21347,6 @@ export const runxSchemaArtifacts = {
             "minLength": 1,
             "type": "string"
           },
-          "schema": {
-            "const": "runx.reference.v1",
-            "type": "string"
-          },
           "type": {
             "const": "principal",
             "type": "string"
@@ -21936,10 +21362,6 @@ export const runxSchemaArtifacts = {
         ],
         "type": "object",
         "x-runx-schema": "runx.reference.v1"
-      },
-      "schema": {
-        "const": "runx.payment.quote_paid_invocation.request.v1",
-        "type": "string"
       },
       "vendor_ref": {
         "$id": "https://schemas.runx.ai/runx/reference/v1.json",
@@ -21969,10 +21391,6 @@ export const runxSchemaArtifacts = {
           },
           "provider": {
             "minLength": 1,
-            "type": "string"
-          },
-          "schema": {
-            "const": "runx.reference.v1",
             "type": "string"
           },
           "type": {
@@ -22060,10 +21478,6 @@ export const runxSchemaArtifacts = {
               },
               "provider": {
                 "minLength": 1,
-                "type": "string"
-              },
-              "schema": {
-                "const": "runx.reference.v1",
                 "type": "string"
               },
               "type": {
@@ -22230,10 +21644,6 @@ export const runxSchemaArtifacts = {
                         "minLength": 1,
                         "type": "string"
                       },
-                      "schema": {
-                        "const": "runx.reference.v1",
-                        "type": "string"
-                      },
                       "type": {
                         "enum": [
                           "thread",
@@ -22315,10 +21725,6 @@ export const runxSchemaArtifacts = {
                       },
                       "provider": {
                         "minLength": 1,
-                        "type": "string"
-                      },
-                      "schema": {
-                        "const": "runx.reference.v1",
                         "type": "string"
                       },
                       "type": {
@@ -22411,10 +21817,6 @@ export const runxSchemaArtifacts = {
                       },
                       "provider": {
                         "minLength": 1,
-                        "type": "string"
-                      },
-                      "schema": {
-                        "const": "runx.reference.v1",
                         "type": "string"
                       },
                       "type": {
@@ -22620,10 +22022,6 @@ export const runxSchemaArtifacts = {
                       "revision_digest": {
                         "pattern": "^sha256:[0-9a-f]{64}$",
                         "type": "string"
-                      },
-                      "schema": {
-                        "const": "runx.payment.offer_revision_ref.v1",
-                        "type": "string"
                       }
                     },
                     "required": [
@@ -22659,10 +22057,6 @@ export const runxSchemaArtifacts = {
                       },
                       "invocation_id": {
                         "minLength": 1,
-                        "type": "string"
-                      },
-                      "schema": {
-                        "const": "runx.payment.parent_invocation_binding.v1",
                         "type": "string"
                       }
                     },
@@ -22701,10 +22095,6 @@ export const runxSchemaArtifacts = {
                       },
                       "provider": {
                         "minLength": 1,
-                        "type": "string"
-                      },
-                      "schema": {
-                        "const": "runx.reference.v1",
                         "type": "string"
                       },
                       "type": {
@@ -22790,10 +22180,6 @@ export const runxSchemaArtifacts = {
                         "minLength": 1,
                         "type": "string"
                       },
-                      "schema": {
-                        "const": "runx.reference.v1",
-                        "type": "string"
-                      },
                       "type": {
                         "const": "principal",
                         "type": "string"
@@ -22809,10 +22195,6 @@ export const runxSchemaArtifacts = {
                     ],
                     "type": "object",
                     "x-runx-schema": "runx.reference.v1"
-                  },
-                  "schema": {
-                    "const": "runx.payment.paid_invocation.v1",
-                    "type": "string"
                   },
                   "settlement_family": {
                     "maxLength": 64,
@@ -22853,10 +22235,6 @@ export const runxSchemaArtifacts = {
                       },
                       "provider": {
                         "minLength": 1,
-                        "type": "string"
-                      },
-                      "schema": {
-                        "const": "runx.reference.v1",
                         "type": "string"
                       },
                       "type": {
@@ -23040,10 +22418,6 @@ export const runxSchemaArtifacts = {
                     "minLength": 1,
                     "type": "string"
                   },
-                  "schema": {
-                    "const": "runx.reference.v1",
-                    "type": "string"
-                  },
                   "type": {
                     "enum": [
                       "thread",
@@ -23104,10 +22478,6 @@ export const runxSchemaArtifacts = {
       "requirement": {
         "minLength": 1,
         "type": "string"
-      },
-      "schema": {
-        "const": "runx.readiness.v1",
-        "type": "string"
       }
     },
     "required": [
@@ -23158,10 +22528,6 @@ export const runxSchemaArtifacts = {
                   },
                   "provider": {
                     "minLength": 1,
-                    "type": "string"
-                  },
-                  "schema": {
-                    "const": "runx.reference.v1",
                     "type": "string"
                   },
                   "type": {
@@ -23238,10 +22604,6 @@ export const runxSchemaArtifacts = {
                 },
                 "provider": {
                   "minLength": 1,
-                  "type": "string"
-                },
-                "schema": {
-                  "const": "runx.reference.v1",
                   "type": "string"
                 },
                 "type": {
@@ -23332,10 +22694,6 @@ export const runxSchemaArtifacts = {
                           "minLength": 1,
                           "type": "string"
                         },
-                        "schema": {
-                          "const": "runx.reference.v1",
-                          "type": "string"
-                        },
                         "type": {
                           "enum": [
                             "thread",
@@ -23418,10 +22776,6 @@ export const runxSchemaArtifacts = {
                         },
                         "provider": {
                           "minLength": 1,
-                          "type": "string"
-                        },
-                        "schema": {
-                          "const": "runx.reference.v1",
                           "type": "string"
                         },
                         "type": {
@@ -23546,10 +22900,6 @@ export const runxSchemaArtifacts = {
                     "minLength": 1,
                     "type": "string"
                   },
-                  "schema": {
-                    "const": "runx.reference.v1",
-                    "type": "string"
-                  },
                   "type": {
                     "enum": [
                       "thread",
@@ -23640,10 +22990,6 @@ export const runxSchemaArtifacts = {
               },
               "provider": {
                 "minLength": 1,
-                "type": "string"
-              },
-              "schema": {
-                "const": "runx.reference.v1",
                 "type": "string"
               },
               "type": {
@@ -23743,10 +23089,6 @@ export const runxSchemaArtifacts = {
                             "minLength": 1,
                             "type": "string"
                           },
-                          "schema": {
-                            "const": "runx.reference.v1",
-                            "type": "string"
-                          },
                           "type": {
                             "enum": [
                               "thread",
@@ -23830,10 +23172,6 @@ export const runxSchemaArtifacts = {
                                       "minLength": 1,
                                       "type": "string"
                                     },
-                                    "schema": {
-                                      "const": "runx.reference.v1",
-                                      "type": "string"
-                                    },
                                     "type": {
                                       "enum": [
                                         "thread",
@@ -23913,10 +23251,6 @@ export const runxSchemaArtifacts = {
                                       "minLength": 1,
                                       "type": "string"
                                     },
-                                    "schema": {
-                                      "const": "runx.reference.v1",
-                                      "type": "string"
-                                    },
                                     "type": {
                                       "enum": [
                                         "thread",
@@ -23993,6 +23327,7 @@ export const runxSchemaArtifacts = {
                                   "additionalProperties": false,
                                   "properties": {
                                     "approval_threshold_units": {
+                                      "minimum": 0,
                                       "type": "integer"
                                     },
                                     "authorization_form": {
@@ -24022,12 +23357,15 @@ export const runxSchemaArtifacts = {
                                       "type": "boolean"
                                     },
                                     "max_per_call_units": {
+                                      "minimum": 0,
                                       "type": "integer"
                                     },
                                     "max_per_period_units": {
+                                      "minimum": 0,
                                       "type": "integer"
                                     },
                                     "max_per_run_units": {
+                                      "minimum": 0,
                                       "type": "integer"
                                     },
                                     "operation": {
@@ -24047,6 +23385,7 @@ export const runxSchemaArtifacts = {
                                       "type": "boolean"
                                     },
                                     "preflight_ttl_ms": {
+                                      "minimum": 0,
                                       "type": "integer"
                                     },
                                     "realm": {
@@ -24129,15 +23468,18 @@ export const runxSchemaArtifacts = {
                                 "type": "array"
                               },
                               "max_child_depth": {
+                                "minimum": 0,
                                 "type": "integer"
                               },
                               "max_cost_units": {
                                 "type": "number"
                               },
                               "max_fanout": {
+                                "minimum": 0,
                                 "type": "integer"
                               },
                               "max_runtime_ms": {
+                                "minimum": 0,
                                 "type": "integer"
                               },
                               "network_destinations": {
@@ -24192,9 +23534,11 @@ export const runxSchemaArtifacts = {
                                 "additionalProperties": false,
                                 "properties": {
                                   "per_day": {
+                                    "minimum": 0,
                                     "type": "integer"
                                   },
                                   "total": {
+                                    "minimum": 0,
                                     "type": "integer"
                                   }
                                 },
@@ -24274,10 +23618,6 @@ export const runxSchemaArtifacts = {
                                       },
                                       "provider": {
                                         "minLength": 1,
-                                        "type": "string"
-                                      },
-                                      "schema": {
-                                        "const": "runx.reference.v1",
                                         "type": "string"
                                       },
                                       "type": {
@@ -24366,10 +23706,6 @@ export const runxSchemaArtifacts = {
                                 "minLength": 1,
                                 "type": "string"
                               },
-                              "schema": {
-                                "const": "runx.reference.v1",
-                                "type": "string"
-                              },
                               "type": {
                                 "enum": [
                                   "thread",
@@ -24449,10 +23785,6 @@ export const runxSchemaArtifacts = {
                                 "minLength": 1,
                                 "type": "string"
                               },
-                              "schema": {
-                                "const": "runx.reference.v1",
-                                "type": "string"
-                              },
                               "type": {
                                 "enum": [
                                   "thread",
@@ -24525,10 +23857,6 @@ export const runxSchemaArtifacts = {
                               },
                               "provider": {
                                 "minLength": 1,
-                                "type": "string"
-                              },
-                              "schema": {
-                                "const": "runx.reference.v1",
                                 "type": "string"
                               },
                               "type": {
@@ -24620,10 +23948,6 @@ export const runxSchemaArtifacts = {
                                 "minLength": 1,
                                 "type": "string"
                               },
-                              "schema": {
-                                "const": "runx.reference.v1",
-                                "type": "string"
-                              },
                               "type": {
                                 "enum": [
                                   "thread",
@@ -24667,10 +23991,6 @@ export const runxSchemaArtifacts = {
                             ],
                             "type": "object",
                             "x-runx-schema": "runx.reference.v1"
-                          },
-                          "schema": {
-                            "const": "runx.authority_term.v1",
-                            "type": "string"
                           },
                           "term_id": {
                             "minLength": 1,
@@ -24802,10 +24122,6 @@ export const runxSchemaArtifacts = {
                             "minLength": 1,
                             "type": "string"
                           },
-                          "schema": {
-                            "const": "runx.reference.v1",
-                            "type": "string"
-                          },
                           "type": {
                             "enum": [
                               "thread",
@@ -24880,10 +24196,6 @@ export const runxSchemaArtifacts = {
                             "minLength": 1,
                             "type": "string"
                           },
-                          "schema": {
-                            "const": "runx.reference.v1",
-                            "type": "string"
-                          },
                           "type": {
                             "enum": [
                               "thread",
@@ -24933,10 +24245,6 @@ export const runxSchemaArtifacts = {
                           "subset"
                         ],
                         "type": "string"
-                      },
-                      "schema": {
-                        "const": "runx.authority_subset_proof.v1",
-                        "type": "string"
                       }
                     },
                     "required": [
@@ -24950,10 +24258,6 @@ export const runxSchemaArtifacts = {
                     "x-runx-schema": "runx.authority_subset_proof.v1"
                   },
                   "type": "array"
-                },
-                "schema": {
-                  "const": "runx.authority_derivation.v1",
-                  "type": "string"
                 },
                 "term_id": {
                   "minLength": 1,
@@ -25025,10 +24329,6 @@ export const runxSchemaArtifacts = {
                 },
                 "provider": {
                   "minLength": 1,
-                  "type": "string"
-                },
-                "schema": {
-                  "const": "runx.reference.v1",
                   "type": "string"
                 },
                 "type": {
@@ -25107,10 +24407,6 @@ export const runxSchemaArtifacts = {
                 "minLength": 1,
                 "type": "string"
               },
-              "schema": {
-                "const": "runx.reference.v1",
-                "type": "string"
-              },
               "type": {
                 "enum": [
                   "thread",
@@ -25184,10 +24480,6 @@ export const runxSchemaArtifacts = {
                 },
                 "provider": {
                   "minLength": 1,
-                  "type": "string"
-                },
-                "schema": {
-                  "const": "runx.reference.v1",
                   "type": "string"
                 },
                 "type": {
@@ -25276,10 +24568,6 @@ export const runxSchemaArtifacts = {
                             "minLength": 1,
                             "type": "string"
                           },
-                          "schema": {
-                            "const": "runx.reference.v1",
-                            "type": "string"
-                          },
                           "type": {
                             "enum": [
                               "thread",
@@ -25359,10 +24647,6 @@ export const runxSchemaArtifacts = {
                             "minLength": 1,
                             "type": "string"
                           },
-                          "schema": {
-                            "const": "runx.reference.v1",
-                            "type": "string"
-                          },
                           "type": {
                             "enum": [
                               "thread",
@@ -25439,6 +24723,7 @@ export const runxSchemaArtifacts = {
                         "additionalProperties": false,
                         "properties": {
                           "approval_threshold_units": {
+                            "minimum": 0,
                             "type": "integer"
                           },
                           "authorization_form": {
@@ -25468,12 +24753,15 @@ export const runxSchemaArtifacts = {
                             "type": "boolean"
                           },
                           "max_per_call_units": {
+                            "minimum": 0,
                             "type": "integer"
                           },
                           "max_per_period_units": {
+                            "minimum": 0,
                             "type": "integer"
                           },
                           "max_per_run_units": {
+                            "minimum": 0,
                             "type": "integer"
                           },
                           "operation": {
@@ -25493,6 +24781,7 @@ export const runxSchemaArtifacts = {
                             "type": "boolean"
                           },
                           "preflight_ttl_ms": {
+                            "minimum": 0,
                             "type": "integer"
                           },
                           "realm": {
@@ -25575,15 +24864,18 @@ export const runxSchemaArtifacts = {
                       "type": "array"
                     },
                     "max_child_depth": {
+                      "minimum": 0,
                       "type": "integer"
                     },
                     "max_cost_units": {
                       "type": "number"
                     },
                     "max_fanout": {
+                      "minimum": 0,
                       "type": "integer"
                     },
                     "max_runtime_ms": {
+                      "minimum": 0,
                       "type": "integer"
                     },
                     "network_destinations": {
@@ -25638,9 +24930,11 @@ export const runxSchemaArtifacts = {
                       "additionalProperties": false,
                       "properties": {
                         "per_day": {
+                          "minimum": 0,
                           "type": "integer"
                         },
                         "total": {
+                          "minimum": 0,
                           "type": "integer"
                         }
                       },
@@ -25720,10 +25014,6 @@ export const runxSchemaArtifacts = {
                             },
                             "provider": {
                               "minLength": 1,
-                              "type": "string"
-                            },
-                            "schema": {
-                              "const": "runx.reference.v1",
                               "type": "string"
                             },
                             "type": {
@@ -25812,10 +25102,6 @@ export const runxSchemaArtifacts = {
                       "minLength": 1,
                       "type": "string"
                     },
-                    "schema": {
-                      "const": "runx.reference.v1",
-                      "type": "string"
-                    },
                     "type": {
                       "enum": [
                         "thread",
@@ -25895,10 +25181,6 @@ export const runxSchemaArtifacts = {
                       "minLength": 1,
                       "type": "string"
                     },
-                    "schema": {
-                      "const": "runx.reference.v1",
-                      "type": "string"
-                    },
                     "type": {
                       "enum": [
                         "thread",
@@ -25971,10 +25253,6 @@ export const runxSchemaArtifacts = {
                     },
                     "provider": {
                       "minLength": 1,
-                      "type": "string"
-                    },
-                    "schema": {
-                      "const": "runx.reference.v1",
                       "type": "string"
                     },
                     "type": {
@@ -26066,10 +25344,6 @@ export const runxSchemaArtifacts = {
                       "minLength": 1,
                       "type": "string"
                     },
-                    "schema": {
-                      "const": "runx.reference.v1",
-                      "type": "string"
-                    },
                     "type": {
                       "enum": [
                         "thread",
@@ -26113,10 +25387,6 @@ export const runxSchemaArtifacts = {
                   ],
                   "type": "object",
                   "x-runx-schema": "runx.reference.v1"
-                },
-                "schema": {
-                  "const": "runx.authority_term.v1",
-                  "type": "string"
                 },
                 "term_id": {
                   "minLength": 1,
@@ -26205,10 +25475,6 @@ export const runxSchemaArtifacts = {
               "minLength": 1,
               "type": "string"
             },
-            "schema": {
-              "const": "runx.decision.v1",
-              "type": "string"
-            },
             "selected_act_id": {
               "minLength": 1,
               "type": "string"
@@ -26293,10 +25559,6 @@ export const runxSchemaArtifacts = {
                   "minLength": 1,
                   "type": "string"
                 },
-                "schema": {
-                  "const": "runx.reference.v1",
-                  "type": "string"
-                },
                 "type": {
                   "enum": [
                     "thread",
@@ -26373,10 +25635,6 @@ export const runxSchemaArtifacts = {
                 "minLength": 1,
                 "type": "string"
               },
-              "schema": {
-                "const": "runx.reference.v1",
-                "type": "string"
-              },
               "type": {
                 "enum": [
                   "thread",
@@ -26440,11 +25698,6 @@ export const runxSchemaArtifacts = {
       "seal": {
         "additionalProperties": false,
         "properties": {
-          "closed_at": {
-            "minLength": 1,
-            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-            "type": "string"
-          },
           "criteria": {
             "items": {
               "additionalProperties": false,
@@ -26487,10 +25740,6 @@ export const runxSchemaArtifacts = {
                       },
                       "provider": {
                         "minLength": 1,
-                        "type": "string"
-                      },
-                      "schema": {
-                        "const": "runx.reference.v1",
                         "type": "string"
                       },
                       "type": {
@@ -26577,10 +25826,6 @@ export const runxSchemaArtifacts = {
                         "minLength": 1,
                         "type": "string"
                       },
-                      "schema": {
-                        "const": "runx.reference.v1",
-                        "type": "string"
-                      },
                       "type": {
                         "enum": [
                           "thread",
@@ -26659,7 +25904,6 @@ export const runxSchemaArtifacts = {
         "required": [
           "disposition",
           "reason_code",
-          "closed_at",
           "criteria"
         ],
         "type": "object"
@@ -26724,10 +25968,6 @@ export const runxSchemaArtifacts = {
               },
               "provider": {
                 "minLength": 1,
-                "type": "string"
-              },
-              "schema": {
-                "const": "runx.reference.v1",
                 "type": "string"
               },
               "type": {
@@ -26874,10 +26114,6 @@ export const runxSchemaArtifacts = {
             "minLength": 1,
             "type": "string"
           },
-          "schema": {
-            "const": "runx.reference.v1",
-            "type": "string"
-          },
           "type": {
             "enum": [
               "thread",
@@ -26950,10 +26186,6 @@ export const runxSchemaArtifacts = {
           },
           "provider": {
             "minLength": 1,
-            "type": "string"
-          },
-          "schema": {
-            "const": "runx.reference.v1",
             "type": "string"
           },
           "type": {
@@ -27064,10 +26296,6 @@ export const runxSchemaArtifacts = {
             "minLength": 1,
             "type": "string"
           },
-          "schema": {
-            "const": "runx.reference.v1",
-            "type": "string"
-          },
           "type": {
             "enum": [
               "thread",
@@ -27115,10 +26343,6 @@ export const runxSchemaArtifacts = {
       "role": {
         "minLength": 1,
         "type": "string"
-      },
-      "schema": {
-        "const": "runx.reference_link.v1",
-        "type": "string"
       }
     },
     "required": [
@@ -27156,10 +26380,6 @@ export const runxSchemaArtifacts = {
       },
       "provider": {
         "minLength": 1,
-        "type": "string"
-      },
-      "schema": {
-        "const": "runx.reference.v1",
         "type": "string"
       },
       "type": {
@@ -27693,6 +26913,7 @@ export const runxSchemaArtifacts = {
                               "type": "string"
                             },
                             "size_bytes": {
+                              "minimum": 0,
                               "type": "integer"
                             },
                             "step_id": {
@@ -27903,6 +27124,7 @@ export const runxSchemaArtifacts = {
                               "type": "string"
                             },
                             "size_bytes": {
+                              "minimum": 0,
                               "type": "integer"
                             },
                             "step_id": {
@@ -28324,6 +27546,7 @@ export const runxSchemaArtifacts = {
             "type": "string"
           },
           "retry_after_seconds": {
+            "minimum": 0,
             "type": "integer"
           }
         },
@@ -28506,10 +27729,6 @@ export const runxSchemaArtifacts = {
               "revision_digest": {
                 "pattern": "^sha256:[0-9a-f]{64}$",
                 "type": "string"
-              },
-              "schema": {
-                "const": "runx.payment.offer_revision_ref.v1",
-                "type": "string"
               }
             },
             "required": [
@@ -28597,10 +27816,6 @@ export const runxSchemaArtifacts = {
               "revision_digest": {
                 "pattern": "^sha256:[0-9a-f]{64}$",
                 "type": "string"
-              },
-              "schema": {
-                "const": "runx.payment.offer_revision_ref.v1",
-                "type": "string"
               }
             },
             "required": [
@@ -28628,10 +27843,6 @@ export const runxSchemaArtifacts = {
               },
               "invocation_id": {
                 "minLength": 1,
-                "type": "string"
-              },
-              "schema": {
-                "const": "runx.payment.parent_invocation_binding.v1",
                 "type": "string"
               }
             },
@@ -28674,10 +27885,6 @@ export const runxSchemaArtifacts = {
               },
               "provider": {
                 "minLength": 1,
-                "type": "string"
-              },
-              "schema": {
-                "const": "runx.reference.v1",
                 "type": "string"
               },
               "type": {
@@ -28779,10 +27986,6 @@ export const runxSchemaArtifacts = {
                   "minLength": 1,
                   "type": "string"
                 },
-                "schema": {
-                  "const": "runx.reference.v1",
-                  "type": "string"
-                },
                 "type": {
                   "enum": [
                     "thread",
@@ -28860,10 +28063,6 @@ export const runxSchemaArtifacts = {
                 "minLength": 1,
                 "type": "string"
               },
-              "schema": {
-                "const": "runx.reference.v1",
-                "type": "string"
-              },
               "type": {
                 "enum": [
                   "thread",
@@ -28936,10 +28135,6 @@ export const runxSchemaArtifacts = {
               },
               "provider": {
                 "minLength": 1,
-                "type": "string"
-              },
-              "schema": {
-                "const": "runx.reference.v1",
                 "type": "string"
               },
               "type": {
@@ -29015,10 +28210,6 @@ export const runxSchemaArtifacts = {
                 },
                 "provider": {
                   "minLength": 1,
-                  "type": "string"
-                },
-                "schema": {
-                  "const": "runx.reference.v1",
                   "type": "string"
                 },
                 "type": {
@@ -29113,10 +28304,6 @@ export const runxSchemaArtifacts = {
                 "minLength": 1,
                 "type": "string"
               },
-              "schema": {
-                "const": "runx.reference.v1",
-                "type": "string"
-              },
               "type": {
                 "enum": [
                   "thread",
@@ -29201,10 +28388,6 @@ export const runxSchemaArtifacts = {
             },
             "provider": {
               "minLength": 1,
-              "type": "string"
-            },
-            "schema": {
-              "const": "runx.reference.v1",
               "type": "string"
             },
             "type": {
@@ -29300,10 +28483,6 @@ export const runxSchemaArtifacts = {
                 },
                 "provider": {
                   "minLength": 1,
-                  "type": "string"
-                },
-                "schema": {
-                  "const": "runx.reference.v1",
                   "type": "string"
                 },
                 "type": {
@@ -29402,10 +28581,6 @@ export const runxSchemaArtifacts = {
                       "minLength": 1,
                       "type": "string"
                     },
-                    "schema": {
-                      "const": "runx.reference.v1",
-                      "type": "string"
-                    },
                     "type": {
                       "enum": [
                         "thread",
@@ -29482,10 +28657,6 @@ export const runxSchemaArtifacts = {
                       },
                       "provider": {
                         "minLength": 1,
-                        "type": "string"
-                      },
-                      "schema": {
-                        "const": "runx.reference.v1",
                         "type": "string"
                       },
                       "type": {
@@ -29568,10 +28739,6 @@ export const runxSchemaArtifacts = {
                       },
                       "provider": {
                         "minLength": 1,
-                        "type": "string"
-                      },
-                      "schema": {
-                        "const": "runx.reference.v1",
                         "type": "string"
                       },
                       "type": {
@@ -29662,10 +28829,6 @@ export const runxSchemaArtifacts = {
                 "minLength": 1,
                 "type": "string"
               },
-              "schema": {
-                "const": "runx.reference.v1",
-                "type": "string"
-              },
               "type": {
                 "enum": [
                   "thread",
@@ -29739,10 +28902,6 @@ export const runxSchemaArtifacts = {
                 },
                 "provider": {
                   "minLength": 1,
-                  "type": "string"
-                },
-                "schema": {
-                  "const": "runx.reference.v1",
                   "type": "string"
                 },
                 "type": {
@@ -29823,10 +28982,6 @@ export const runxSchemaArtifacts = {
                   "minLength": 1,
                   "type": "string"
                 },
-                "schema": {
-                  "const": "runx.reference.v1",
-                  "type": "string"
-                },
                 "type": {
                   "enum": [
                     "thread",
@@ -29903,10 +29058,6 @@ export const runxSchemaArtifacts = {
                 },
                 "provider": {
                   "minLength": 1,
-                  "type": "string"
-                },
-                "schema": {
-                  "const": "runx.reference.v1",
                   "type": "string"
                 },
                 "type": {
@@ -30006,10 +29157,6 @@ export const runxSchemaArtifacts = {
           },
           "provider": {
             "minLength": 1,
-            "type": "string"
-          },
-          "schema": {
-            "const": "runx.reference.v1",
             "type": "string"
           },
           "type": {
@@ -30179,24 +29326,31 @@ export const runxSchemaArtifacts = {
             "additionalProperties": false,
             "properties": {
               "bytes": {
+                "minimum": 0,
                 "type": "integer"
               },
               "executable_files": {
+                "minimum": 0,
                 "type": "integer"
               },
               "executable_lines": {
+                "minimum": 0,
                 "type": "integer"
               },
               "files": {
+                "minimum": 0,
                 "type": "integer"
               },
               "generated_lines": {
+                "minimum": 0,
                 "type": "integer"
               },
               "production_lines": {
+                "minimum": 0,
                 "type": "integer"
               },
               "test_lines": {
+                "minimum": 0,
                 "type": "integer"
               }
             },
@@ -30248,24 +29402,31 @@ export const runxSchemaArtifacts = {
             "additionalProperties": false,
             "properties": {
               "bytes": {
+                "minimum": 0,
                 "type": "integer"
               },
               "executable_files": {
+                "minimum": 0,
                 "type": "integer"
               },
               "executable_lines": {
+                "minimum": 0,
                 "type": "integer"
               },
               "files": {
+                "minimum": 0,
                 "type": "integer"
               },
               "generated_lines": {
+                "minimum": 0,
                 "type": "integer"
               },
               "production_lines": {
+                "minimum": 0,
                 "type": "integer"
               },
               "test_lines": {
+                "minimum": 0,
                 "type": "integer"
               }
             },
@@ -30720,12 +29881,15 @@ export const runxSchemaArtifacts = {
         "additionalProperties": false,
         "properties": {
           "max_executable_lines": {
+            "minimum": 0,
             "type": "integer"
           },
           "max_files": {
+            "minimum": 0,
             "type": "integer"
           },
           "max_process_spawns": {
+            "minimum": 0,
             "type": "integer"
           },
           "network_allowed": {
@@ -31172,12 +30336,15 @@ export const runxSchemaArtifacts = {
             "additionalProperties": false,
             "properties": {
               "max_executable_lines": {
+                "minimum": 0,
                 "type": "integer"
               },
               "max_files": {
+                "minimum": 0,
                 "type": "integer"
               },
               "max_process_spawns": {
+                "minimum": 0,
                 "type": "integer"
               },
               "network_allowed": {
@@ -31649,12 +30816,15 @@ export const runxSchemaArtifacts = {
             "additionalProperties": false,
             "properties": {
               "max_executable_lines": {
+                "minimum": 0,
                 "type": "integer"
               },
               "max_files": {
+                "minimum": 0,
                 "type": "integer"
               },
               "max_process_spawns": {
+                "minimum": 0,
                 "type": "integer"
               },
               "network_allowed": {
@@ -31929,6 +31099,7 @@ export const runxSchemaArtifacts = {
           "additionalProperties": false,
           "properties": {
             "bytes": {
+              "minimum": 0,
               "type": "integer"
             },
             "digest": {
@@ -31969,6 +31140,7 @@ export const runxSchemaArtifacts = {
         "additionalProperties": false,
         "properties": {
           "bytes": {
+            "minimum": 0,
             "type": "integer"
           },
           "digest": {
@@ -32019,6 +31191,7 @@ export const runxSchemaArtifacts = {
         "additionalProperties": false,
         "properties": {
           "bytes": {
+            "minimum": 0,
             "type": "integer"
           },
           "digest": {
@@ -32132,24 +31305,31 @@ export const runxSchemaArtifacts = {
         "additionalProperties": false,
         "properties": {
           "bytes": {
+            "minimum": 0,
             "type": "integer"
           },
           "executable_files": {
+            "minimum": 0,
             "type": "integer"
           },
           "executable_lines": {
+            "minimum": 0,
             "type": "integer"
           },
           "files": {
+            "minimum": 0,
             "type": "integer"
           },
           "generated_lines": {
+            "minimum": 0,
             "type": "integer"
           },
           "production_lines": {
+            "minimum": 0,
             "type": "integer"
           },
           "test_lines": {
+            "minimum": 0,
             "type": "integer"
           }
         },
@@ -32201,24 +31381,31 @@ export const runxSchemaArtifacts = {
         "additionalProperties": false,
         "properties": {
           "bytes": {
+            "minimum": 0,
             "type": "integer"
           },
           "executable_files": {
+            "minimum": 0,
             "type": "integer"
           },
           "executable_lines": {
+            "minimum": 0,
             "type": "integer"
           },
           "files": {
+            "minimum": 0,
             "type": "integer"
           },
           "generated_lines": {
+            "minimum": 0,
             "type": "integer"
           },
           "production_lines": {
+            "minimum": 0,
             "type": "integer"
           },
           "test_lines": {
+            "minimum": 0,
             "type": "integer"
           }
         },
@@ -32314,10 +31501,6 @@ export const runxSchemaArtifacts = {
                   "minLength": 1,
                   "type": "string"
                 },
-                "schema": {
-                  "const": "runx.reference.v1",
-                  "type": "string"
-                },
                 "type": {
                   "enum": [
                     "thread",
@@ -32395,10 +31578,6 @@ export const runxSchemaArtifacts = {
                 "minLength": 1,
                 "type": "string"
               },
-              "schema": {
-                "const": "runx.reference.v1",
-                "type": "string"
-              },
               "type": {
                 "enum": [
                   "thread",
@@ -32471,10 +31650,6 @@ export const runxSchemaArtifacts = {
               },
               "provider": {
                 "minLength": 1,
-                "type": "string"
-              },
-              "schema": {
-                "const": "runx.reference.v1",
                 "type": "string"
               },
               "type": {
@@ -32550,10 +31725,6 @@ export const runxSchemaArtifacts = {
                 },
                 "provider": {
                   "minLength": 1,
-                  "type": "string"
-                },
-                "schema": {
-                  "const": "runx.reference.v1",
                   "type": "string"
                 },
                 "type": {
@@ -32646,10 +31817,6 @@ export const runxSchemaArtifacts = {
               },
               "provider": {
                 "minLength": 1,
-                "type": "string"
-              },
-              "schema": {
-                "const": "runx.reference.v1",
                 "type": "string"
               },
               "type": {
@@ -32753,10 +31920,6 @@ export const runxSchemaArtifacts = {
                 },
                 "provider": {
                   "minLength": 1,
-                  "type": "string"
-                },
-                "schema": {
-                  "const": "runx.reference.v1",
                   "type": "string"
                 },
                 "type": {
@@ -32867,10 +32030,6 @@ export const runxSchemaArtifacts = {
               "minLength": 1,
               "type": "string"
             },
-            "schema": {
-              "const": "runx.reference.v1",
-              "type": "string"
-            },
             "type": {
               "enum": [
                 "thread",
@@ -32956,10 +32115,6 @@ export const runxSchemaArtifacts = {
           },
           "provider": {
             "minLength": 1,
-            "type": "string"
-          },
-          "schema": {
-            "const": "runx.reference.v1",
             "type": "string"
           },
           "type": {
@@ -33238,6 +32393,7 @@ export const runxSchemaArtifacts = {
             "type": "string"
           },
           "timeout_seconds": {
+            "minimum": 0,
             "type": "integer"
           }
         },
@@ -33264,6 +32420,7 @@ export const runxSchemaArtifacts = {
     "additionalProperties": false,
     "properties": {
       "index": {
+        "minimum": 0,
         "type": "integer"
       },
       "outcome": {
@@ -33655,6 +32812,7 @@ export const runxSchemaArtifacts = {
                                             "type": "string"
                                           },
                                           "size_bytes": {
+                                            "minimum": 0,
                                             "type": "integer"
                                           },
                                           "step_id": {
@@ -33865,6 +33023,7 @@ export const runxSchemaArtifacts = {
                                             "type": "string"
                                           },
                                           "size_bytes": {
+                                            "minimum": 0,
                                             "type": "integer"
                                           },
                                           "step_id": {
@@ -34286,6 +33445,7 @@ export const runxSchemaArtifacts = {
                           "type": "string"
                         },
                         "retry_after_seconds": {
+                          "minimum": 0,
                           "type": "integer"
                         }
                       },
@@ -34406,6 +33566,7 @@ export const runxSchemaArtifacts = {
           "additionalProperties": false,
           "properties": {
             "index": {
+              "minimum": 0,
               "type": "integer"
             },
             "outcome": {
@@ -34797,6 +33958,7 @@ export const runxSchemaArtifacts = {
                                                   "type": "string"
                                                 },
                                                 "size_bytes": {
+                                                  "minimum": 0,
                                                   "type": "integer"
                                                 },
                                                 "step_id": {
@@ -35007,6 +34169,7 @@ export const runxSchemaArtifacts = {
                                                   "type": "string"
                                                 },
                                                 "size_bytes": {
+                                                  "minimum": 0,
                                                   "type": "integer"
                                                 },
                                                 "step_id": {
@@ -35428,6 +34591,7 @@ export const runxSchemaArtifacts = {
                                 "type": "string"
                               },
                               "retry_after_seconds": {
+                                "minimum": 0,
                                 "type": "integer"
                               }
                             },
@@ -35743,6 +34907,7 @@ export const runxSchemaArtifacts = {
                           "type": "string"
                         },
                         "size_bytes": {
+                          "minimum": 0,
                           "type": "integer"
                         },
                         "step_id": {
@@ -35953,6 +35118,7 @@ export const runxSchemaArtifacts = {
                           "type": "string"
                         },
                         "size_bytes": {
+                          "minimum": 0,
                           "type": "integer"
                         },
                         "step_id": {
@@ -36481,9 +35647,11 @@ export const runxSchemaArtifacts = {
           "additionalProperties": false,
           "properties": {
             "due_after_seconds": {
+              "minimum": 0,
               "type": "integer"
             },
             "due_at_unix_seconds": {
+              "minimum": 0,
               "type": "integer"
             },
             "inputs": {
@@ -36506,10 +35674,6 @@ export const runxSchemaArtifacts = {
           "type": "object"
         },
         "type": "array"
-      },
-      "schema": {
-        "const": "runx.work_outcome.v1",
-        "type": "string"
       },
       "summary": {
         "type": "string"

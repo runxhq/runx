@@ -8,10 +8,6 @@
     "invocation_id": {
       "minLength": 1,
       "type": "string"
-    },
-    "schema": {
-      "const": "runx.payment.get_paid_invocation.request.v1",
-      "type": "string"
     }
   },
   "required": [

@@ -10,14 +10,14 @@ expect:
       message: hello from harness
   receipt:
     schema: runx.receipt.v1
-    body_digest: sha256:8a7620f33d552d3b6126361f46a31e61aac9e13f89ed41425176084f5233a714
-    receipt_digest: sha256:6776e2bb0c2ea943c72dc8a80d59aa742b88f29444386188d8a6cdb6accee42b
+    body_digest: sha256:517ce8bb22c3e5c4c78b18b10c68262f8ef1547927475d7d618cbfcb120437a7
+    receipt_digest: sha256:f932250803197870dc77bfdb6eca234b9e541acb96f37addb34261d2def6fe1e
     subject_ref: runx:run:harness-echo-skill
     state: sealed
     disposition: closed
     reason_code: graph_closed
     child_receipt_refs:
-      - runx:receipt:sha256:f260873bafff4b6dca5cfefa41368a1e783268dd28a7cbcd8aa1d47d95d7cac3
+      - runx:receipt:sha256:e660bcc60414be6f28d1e6493cc4e04799677672f819f47a7cb60a211bf486d3
     child_receipt_count: 1
   steps:
     - default

@@ -4,12 +4,14 @@
   "additionalProperties": false,
   "properties": {
     "after_version": {
+      "minimum": 0,
       "type": "integer"
     },
     "aggregate_id": {
       "type": "string"
     },
     "before_version": {
+      "minimum": 0,
       "type": "integer"
     },
     "data_source_ref": {
@@ -53,9 +55,11 @@
       ]
     },
     "limit": {
+      "minimum": 0,
       "type": "integer"
     },
     "next_after_version": {
+      "minimum": 0,
       "type": "integer"
     },
     "operation": {

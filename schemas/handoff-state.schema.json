@@ -45,6 +45,7 @@
       "type": "string"
     },
     "signal_count": {
+      "minimum": 0,
       "type": "integer"
     },
     "status": {

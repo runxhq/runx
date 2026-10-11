@@ -66,24 +66,31 @@
           "additionalProperties": false,
           "properties": {
             "bytes": {
+              "minimum": 0,
               "type": "integer"
             },
             "executable_files": {
+              "minimum": 0,
               "type": "integer"
             },
             "executable_lines": {
+              "minimum": 0,
               "type": "integer"
             },
             "files": {
+              "minimum": 0,
               "type": "integer"
             },
             "generated_lines": {
+              "minimum": 0,
               "type": "integer"
             },
             "production_lines": {
+              "minimum": 0,
               "type": "integer"
             },
             "test_lines": {
+              "minimum": 0,
               "type": "integer"
             }
           },
@@ -106,24 +113,31 @@
           "additionalProperties": false,
           "properties": {
             "bytes": {
+              "minimum": 0,
               "type": "integer"
             },
             "executable_files": {
+              "minimum": 0,
               "type": "integer"
             },
             "executable_lines": {
+              "minimum": 0,
               "type": "integer"
             },
             "files": {
+              "minimum": 0,
               "type": "integer"
             },
             "generated_lines": {
+              "minimum": 0,
               "type": "integer"
             },
             "production_lines": {
+              "minimum": 0,
               "type": "integer"
             },
             "test_lines": {
+              "minimum": 0,
               "type": "integer"
             }
           },

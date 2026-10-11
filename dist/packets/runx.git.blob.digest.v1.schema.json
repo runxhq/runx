@@ -9,13 +9,10 @@
       "type": "string"
     },
     "bytes": {
+      "minimum": 0,
       "type": "integer"
     },
     "digest": {
-      "type": "string"
-    },
-    "schema": {
-      "const": "runx.git.blob_digest.v1",
       "type": "string"
     }
   },

@@ -278,7 +278,7 @@ impl GraphExecution {
             if is_pending {
                 self.apply_state_event(SequentialGraphEvent::StepSkipped {
                     step_id: step_id.clone(),
-                    at: runtime.options.created_at.clone(),
+                    at: runtime.options.clock.now(),
                 });
                 skipped.push(step_id);
             }
@@ -532,13 +532,13 @@ impl GraphExecution {
 
     pub(super) fn start_step<A>(&mut self, runtime: &Runtime<A>, step_id: &str) {
         self.graph_index
-            .start_step(&mut self.state, step_id, runtime.options.created_at.clone());
+            .start_step(&mut self.state, step_id, runtime.options.clock.now());
     }
 
     pub(super) fn succeed_step<A>(&mut self, runtime: &Runtime<A>, run: &StepRun) {
         self.graph_index.succeed_step(
             &mut self.state,
-            runtime.options.created_at.clone(),
+            runtime.options.clock.now(),
             run.admission_witness.clone(),
             Some(run.contract.clone()),
         );
@@ -547,7 +547,7 @@ impl GraphExecution {
     pub(super) fn fail_step<A>(&mut self, runtime: &Runtime<A>, step_id: &str, run: &StepRun) {
         self.apply_state_event(SequentialGraphEvent::StepFailed {
             step_id: step_id.to_owned(),
-            at: runtime.options.created_at.clone(),
+            at: runtime.options.clock.now(),
             error: output_error(run),
         });
     }

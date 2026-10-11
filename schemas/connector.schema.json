@@ -647,6 +647,7 @@
                               "type": "array"
                             },
                             "expected_status": {
+                              "minimum": 0,
                               "type": "integer"
                             },
                             "matches": {
@@ -941,6 +942,7 @@
                               "type": "array"
                             },
                             "expected_status": {
+                              "minimum": 0,
                               "type": "integer"
                             },
                             "matches": {

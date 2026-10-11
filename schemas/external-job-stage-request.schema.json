@@ -13,6 +13,7 @@
       "additionalProperties": false,
       "properties": {
         "attempts": {
+          "minimum": 0,
           "type": "integer"
         },
         "continuation_id": {
@@ -110,10 +111,6 @@
             },
             "provider": {
               "minLength": 1,
-              "type": "string"
-            },
-            "schema": {
-              "const": "runx.reference.v1",
               "type": "string"
             },
             "type": {
@@ -228,10 +225,6 @@
               "minLength": 1,
               "type": "string"
             },
-            "schema": {
-              "const": "runx.reference.v1",
-              "type": "string"
-            },
             "type": {
               "const": "principal",
               "type": "string"
@@ -276,10 +269,6 @@
             },
             "provider": {
               "minLength": 1,
-              "type": "string"
-            },
-            "schema": {
-              "const": "runx.reference.v1",
               "type": "string"
             },
             "type": {
@@ -356,10 +345,6 @@
               "minLength": 1,
               "type": "string"
             },
-            "schema": {
-              "const": "runx.reference.v1",
-              "type": "string"
-            },
             "type": {
               "enum": [
                 "thread",
@@ -404,10 +389,6 @@
           "type": "object",
           "x-runx-schema": "runx.reference.v1"
         },
-        "schema": {
-          "const": "runx.external_job_continuation.v1",
-          "type": "string"
-        },
         "source_run_ref": {
           "$id": "https://schemas.runx.ai/runx/reference/v1.json",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -436,10 +417,6 @@
             },
             "provider": {
               "minLength": 1,
-              "type": "string"
-            },
-            "schema": {
-              "const": "runx.reference.v1",
               "type": "string"
             },
             "type": {
@@ -540,10 +517,6 @@
               "minLength": 1,
               "type": "string"
             },
-            "schema": {
-              "const": "runx.reference.v1",
-              "type": "string"
-            },
             "type": {
               "enum": [
                 "thread",
@@ -616,10 +589,6 @@
             },
             "provider": {
               "minLength": 1,
-              "type": "string"
-            },
-            "schema": {
-              "const": "runx.reference.v1",
               "type": "string"
             },
             "type": {
@@ -701,10 +670,6 @@
               "minLength": 1,
               "type": "string"
             },
-            "schema": {
-              "const": "runx.reference.v1",
-              "type": "string"
-            },
             "type": {
               "const": "principal",
               "type": "string"
@@ -743,10 +708,6 @@
     },
     "operation_key": {
       "pattern": "^sha256:[0-9a-f]{64}$",
-      "type": "string"
-    },
-    "schema": {
-      "const": "runx.external_job_stage.request.v1",
       "type": "string"
     }
   },

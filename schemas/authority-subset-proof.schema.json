@@ -71,10 +71,6 @@
           "minLength": 1,
           "type": "string"
         },
-        "schema": {
-          "const": "runx.reference.v1",
-          "type": "string"
-        },
         "type": {
           "enum": [
             "thread",
@@ -149,10 +145,6 @@
           "minLength": 1,
           "type": "string"
         },
-        "schema": {
-          "const": "runx.reference.v1",
-          "type": "string"
-        },
         "type": {
           "enum": [
             "thread",
@@ -201,10 +193,6 @@
       "enum": [
         "subset"
       ],
-      "type": "string"
-    },
-    "schema": {
-      "const": "runx.authority_subset_proof.v1",
       "type": "string"
     }
   },

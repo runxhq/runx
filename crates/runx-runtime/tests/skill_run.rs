@@ -195,9 +195,11 @@ fn runtime_options_local_development_uses_live_timestamp() -> Result<(), Box<dyn
     let (_root, run) = crate::support::scratch_run("run_live_timestamp")?;
     let options = crate::support::fixture_runtime_options(std::env::vars().collect(), run)?;
 
-    assert_ne!(options.created_at, FIXTURE_CREATED_AT);
-    assert!(options.created_at.ends_with('Z'));
-    assert!(options.created_at.contains('T'));
+    assert_eq!(options.clock, runx_runtime::RunClock::System);
+    let now = options.clock.now();
+    assert_ne!(now, FIXTURE_CREATED_AT);
+    assert!(now.ends_with('Z'));
+    assert!(now.contains('T'));
     Ok(())
 }
 

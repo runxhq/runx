@@ -153,12 +153,15 @@
           "additionalProperties": false,
           "properties": {
             "errors": {
+              "minimum": 0,
               "type": "integer"
             },
             "infos": {
+              "minimum": 0,
               "type": "integer"
             },
             "warnings": {
+              "minimum": 0,
               "type": "integer"
             }
           },
@@ -216,6 +219,7 @@
             "type": "array"
           },
           "duration_ms": {
+            "minimum": 0,
             "type": "integer"
           },
           "lane": {

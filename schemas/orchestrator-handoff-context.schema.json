@@ -41,10 +41,6 @@
             "principal_id": {
               "type": "string"
             },
-            "schema": {
-              "const": "runx.orchestrator.execution_context.v1",
-              "type": "string"
-            },
             "source_workflow": {
               "type": "string"
             },
@@ -185,10 +181,6 @@
         "reject_duplicate_event_id"
       ],
       "type": "object"
-    },
-    "schema": {
-      "const": "runx.orchestrator.handoff_context.v1",
-      "type": "string"
     },
     "status": {
       "type": "string"

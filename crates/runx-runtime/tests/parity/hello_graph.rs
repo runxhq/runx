@@ -27,7 +27,7 @@ fn hello_graph_matches_post_cutover_fixture() -> Result<(), Box<dyn std::error::
     ))?;
     let (_run, run) = crate::support::scratch_run("run_hello_graph_parity")?;
     let mut options = crate::support::fixture_runtime_options(std::env::vars().collect(), run)?;
-    options.created_at = expected.created_at.clone();
+    options.clock = runx_runtime::RunClock::Fixed(expected.created_at.clone());
     let runtime = Runtime::new(ProcessToolAdapter, options);
     let graph_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../../examples/hello-graph/graph.yaml")

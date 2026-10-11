@@ -43,10 +43,6 @@
                 "minLength": 1,
                 "type": "string"
               },
-              "schema": {
-                "const": "runx.reference.v1",
-                "type": "string"
-              },
               "type": {
                 "enum": [
                   "thread",
@@ -124,10 +120,6 @@
               "minLength": 1,
               "type": "string"
             },
-            "schema": {
-              "const": "runx.reference.v1",
-              "type": "string"
-            },
             "type": {
               "enum": [
                 "thread",
@@ -200,10 +192,6 @@
             },
             "provider": {
               "minLength": 1,
-              "type": "string"
-            },
-            "schema": {
-              "const": "runx.reference.v1",
               "type": "string"
             },
             "type": {
@@ -279,10 +267,6 @@
               },
               "provider": {
                 "minLength": 1,
-                "type": "string"
-              },
-              "schema": {
-                "const": "runx.reference.v1",
                 "type": "string"
               },
               "type": {
@@ -375,10 +359,6 @@
             },
             "provider": {
               "minLength": 1,
-              "type": "string"
-            },
-            "schema": {
-              "const": "runx.reference.v1",
               "type": "string"
             },
             "type": {
@@ -482,10 +462,6 @@
               },
               "provider": {
                 "minLength": 1,
-                "type": "string"
-              },
-              "schema": {
-                "const": "runx.reference.v1",
                 "type": "string"
               },
               "type": {
@@ -596,10 +572,6 @@
             "minLength": 1,
             "type": "string"
           },
-          "schema": {
-            "const": "runx.reference.v1",
-            "type": "string"
-          },
           "type": {
             "enum": [
               "thread",
@@ -685,10 +657,6 @@
         },
         "provider": {
           "minLength": 1,
-          "type": "string"
-        },
-        "schema": {
-          "const": "runx.reference.v1",
           "type": "string"
         },
         "type": {

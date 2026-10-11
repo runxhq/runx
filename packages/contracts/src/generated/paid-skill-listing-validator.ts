@@ -6,7 +6,7 @@ import * as func0Module from "ajv/dist/runtime/ucs2length.js";
 "use strict";
 export const validate = validate0;
 export default validate0;
-const schema0 = {"$id":"https://schemas.runx.ai/runx/marketplace/paid-skill-listing/v1.json","$schema":"https://json-schema.org/draft/2020-12/schema","additionalProperties":false,"properties":{"offers":{"additionalProperties":{"anyOf":[{"additionalProperties":false,"properties":{"accepted_settlement_families":{"items":{"maxLength":64,"minLength":1,"pattern":"^[a-z0-9][a-z0-9._-]{0,63}$","type":"string"},"maxItems":16,"minItems":1,"type":"array","uniqueItems":true},"amount_minor":{"maximum":9007199254740991,"minimum":1,"type":"integer"},"currency":{"pattern":"^[A-Z]{3}$","type":"string"},"executor":{"additionalProperties":false,"properties":{"execution_closure_digest":{"pattern":"^sha256:[0-9a-f]{64}$","type":"string"},"package_digest":{"pattern":"^sha256:[0-9a-f]{64}$","type":"string"},"runner":{"minLength":1,"type":"string"},"skill":{"minLength":1,"type":"string"}},"required":["skill","runner","package_digest","execution_closure_digest"],"type":"object"},"mediation":{"additionalProperties":false,"properties":{"currency":{"pattern":"^[A-Z]{3}$","type":"string"},"endpoint_url":{"maxLength":2048,"pattern":"^https://[^\\s@/#?]+[^\\s#]*$","type":"string"},"expected_receipt_class":{"enum":["executed"],"type":"string"},"listing_ref":{"maxLength":512,"pattern":"^runx:listing:[^\\s]+$","type":"string"},"platform_fee_minor":{"maximum":9007199254740991,"minimum":1,"type":"integer"},"prepared_price":{"additionalProperties":false,"properties":{"input_digest":{"pattern":"^sha256:[0-9a-f]{64}$","type":"string"},"source_invocation_id":{"maxLength":128,"minLength":1,"type":"string"}},"required":["source_invocation_id","input_digest"],"type":"object"},"settlement_family":{"maxLength":64,"minLength":1,"pattern":"^[a-z0-9][a-z0-9._-]{0,63}$","type":"string"},"vendor_amount_minor":{"maximum":9007199254740991,"minimum":1,"type":"integer"},"vendor_offer_revision":{"additionalProperties":false,"properties":{"input_schema_digest":{"pattern":"^sha256:[0-9a-f]{64}$","type":"string"},"offer_id":{"minLength":1,"type":"string"},"output_schema_digest":{"pattern":"^sha256:[0-9a-f]{64}$","type":"string"},"revision":{"minLength":1,"type":"string"},"revision_digest":{"pattern":"^sha256:[0-9a-f]{64}$","type":"string"}},"required":["offer_id","revision","revision_digest","input_schema_digest","output_schema_digest"],"type":"object"},"vendor_package_digest":{"pattern":"^sha256:[0-9a-f]{64}$","type":"string"}},"required":["listing_ref","endpoint_url","vendor_offer_revision","vendor_package_digest","vendor_amount_minor","platform_fee_minor","currency","settlement_family","expected_receipt_class"],"type":"object"},"offer_revision":{"additionalProperties":false,"properties":{"input_schema_digest":{"pattern":"^sha256:[0-9a-f]{64}$","type":"string"},"offer_id":{"minLength":1,"type":"string"},"output_schema_digest":{"pattern":"^sha256:[0-9a-f]{64}$","type":"string"},"revision":{"minLength":1,"type":"string"},"revision_digest":{"pattern":"^sha256:[0-9a-f]{64}$","type":"string"}},"required":["offer_id","revision","revision_digest","input_schema_digest","output_schema_digest"],"type":"object"},"presentation":{"additionalProperties":false,"properties":{"description":{"maxLength":500,"minLength":1,"type":"string"},"icon_url":{"maxLength":2048,"minLength":1,"type":"string"},"input_example":{"maxLength":65536,"minLength":1,"type":"string"},"input_schema":{"maxLength":65536,"minLength":1,"type":"string"},"media_type":{"maxLength":200,"minLength":1,"type":"string"},"output_example":{"maxLength":65536,"minLength":1,"type":"string"},"output_schema":{"maxLength":65536,"minLength":1,"type":"string"},"service_name":{"maxLength":120,"minLength":1,"type":"string"},"tags":{"items":{"maxLength":64,"minLength":1,"type":"string"},"minItems":1,"type":"array"}},"required":["service_name","description","media_type","input_example","output_example","input_schema","output_schema"],"type":"object"}},"required":["offer_revision","amount_minor","currency","accepted_settlement_families"],"type":"object"},{"additionalProperties":false,"properties":{"accepted_settlement_families":{"items":{"maxLength":64,"minLength":1,"pattern":"^[a-z0-9][a-z0-9._-]{0,63}$","type":"string"},"maxItems":16,"minItems":1,"type":"array","uniqueItems":true},"currency":{"pattern":"^[A-Z]{3}$","type":"string"},"executor":{"additionalProperties":false,"properties":{"execution_closure_digest":{"pattern":"^sha256:[0-9a-f]{64}$","type":"string"},"package_digest":{"pattern":"^sha256:[0-9a-f]{64}$","type":"string"},"runner":{"minLength":1,"type":"string"},"skill":{"minLength":1,"type":"string"}},"required":["skill","runner","package_digest","execution_closure_digest"],"type":"object"},"mediation":{"additionalProperties":false,"properties":{"currency":{"pattern":"^[A-Z]{3}$","type":"string"},"endpoint_url":{"maxLength":2048,"pattern":"^https://[^\\s@/#?]+[^\\s#]*$","type":"string"},"expected_receipt_class":{"enum":["executed"],"type":"string"},"listing_ref":{"maxLength":512,"pattern":"^runx:listing:[^\\s]+$","type":"string"},"platform_fee_minor":{"maximum":9007199254740991,"minimum":1,"type":"integer"},"settlement_family":{"maxLength":64,"minLength":1,"pattern":"^[a-z0-9][a-z0-9._-]{0,63}$","type":"string"},"vendor_amount_range":{"additionalProperties":false,"properties":{"maximum_minor":{"maximum":9007199254740991,"minimum":1,"type":"integer"},"minimum_minor":{"maximum":9007199254740991,"minimum":1,"type":"integer"}},"required":["minimum_minor","maximum_minor"],"type":"object"},"vendor_offer_revision":{"additionalProperties":false,"properties":{"input_schema_digest":{"pattern":"^sha256:[0-9a-f]{64}$","type":"string"},"offer_id":{"minLength":1,"type":"string"},"output_schema_digest":{"pattern":"^sha256:[0-9a-f]{64}$","type":"string"},"revision":{"minLength":1,"type":"string"},"revision_digest":{"pattern":"^sha256:[0-9a-f]{64}$","type":"string"}},"required":["offer_id","revision","revision_digest","input_schema_digest","output_schema_digest"],"type":"object"},"vendor_package_digest":{"pattern":"^sha256:[0-9a-f]{64}$","type":"string"}},"required":["listing_ref","endpoint_url","vendor_amount_range","vendor_offer_revision","vendor_package_digest","platform_fee_minor","currency","settlement_family","expected_receipt_class"],"type":"object"},"offer_revision":{"additionalProperties":false,"properties":{"input_schema_digest":{"pattern":"^sha256:[0-9a-f]{64}$","type":"string"},"offer_id":{"minLength":1,"type":"string"},"output_schema_digest":{"pattern":"^sha256:[0-9a-f]{64}$","type":"string"},"revision":{"minLength":1,"type":"string"},"revision_digest":{"pattern":"^sha256:[0-9a-f]{64}$","type":"string"}},"required":["offer_id","revision","revision_digest","input_schema_digest","output_schema_digest"],"type":"object"},"presentation":{"additionalProperties":false,"properties":{"description":{"maxLength":500,"minLength":1,"type":"string"},"icon_url":{"maxLength":2048,"minLength":1,"type":"string"},"input_example":{"maxLength":65536,"minLength":1,"type":"string"},"input_schema":{"maxLength":65536,"minLength":1,"type":"string"},"media_type":{"maxLength":200,"minLength":1,"type":"string"},"output_example":{"maxLength":65536,"minLength":1,"type":"string"},"output_schema":{"maxLength":65536,"minLength":1,"type":"string"},"service_name":{"maxLength":120,"minLength":1,"type":"string"},"tags":{"items":{"maxLength":64,"minLength":1,"type":"string"},"minItems":1,"type":"array"}},"required":["service_name","description","media_type","input_example","output_example","input_schema","output_schema"],"type":"object"}},"required":["offer_revision","currency","accepted_settlement_families","mediation","executor"],"type":"object"}]},"maxProperties":64,"minProperties":1,"propertyNames":{"minLength":1},"type":"object"},"package_digest":{"pattern":"^sha256:[0-9a-f]{64}$","type":"string"},"profile_digest":{"pattern":"^sha256:[0-9a-f]{64}$","type":"string"},"schema":{"const":"runx.marketplace.paid_skill_listing.v1","type":"string"},"skill_digest":{"pattern":"^sha256:[0-9a-f]{64}$","type":"string"},"skill_id":{"minLength":1,"type":"string"},"vendor_ref":{"$id":"https://schemas.runx.ai/runx/reference/v1.json","$schema":"https://json-schema.org/draft/2020-12/schema","additionalProperties":false,"properties":{"label":{"minLength":1,"type":"string"},"locator":{"minLength":1,"type":"string"},"observed_at":{"minLength":1,"pattern":"^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$","type":"string"},"proof_kind":{"enum":["effect_evidence","effect_finality","credential_resolution"],"type":"string"},"provider":{"minLength":1,"type":"string"},"schema":{"const":"runx.reference.v1","type":"string"},"type":{"const":"principal","type":"string"},"uri":{"minLength":1,"type":"string"}},"required":["type","uri"],"type":"object","x-runx-schema":"runx.reference.v1"},"version":{"minLength":1,"type":"string"}},"required":["skill_id","version","skill_digest","profile_digest","package_digest","vendor_ref","offers"],"type":"object","x-runx-packet":true,"x-runx-schema":"runx.marketplace.paid_skill_listing.v1"};
+const schema0 = {"$id":"https://schemas.runx.ai/runx/marketplace/paid-skill-listing/v1.json","$schema":"https://json-schema.org/draft/2020-12/schema","additionalProperties":false,"properties":{"offers":{"additionalProperties":{"anyOf":[{"additionalProperties":false,"properties":{"accepted_settlement_families":{"items":{"maxLength":64,"minLength":1,"pattern":"^[a-z0-9][a-z0-9._-]{0,63}$","type":"string"},"maxItems":16,"minItems":1,"type":"array","uniqueItems":true},"amount_minor":{"maximum":9007199254740991,"minimum":1,"type":"integer"},"currency":{"pattern":"^[A-Z]{3}$","type":"string"},"executor":{"additionalProperties":false,"properties":{"execution_closure_digest":{"pattern":"^sha256:[0-9a-f]{64}$","type":"string"},"package_digest":{"pattern":"^sha256:[0-9a-f]{64}$","type":"string"},"runner":{"minLength":1,"type":"string"},"skill":{"minLength":1,"type":"string"}},"required":["skill","runner","package_digest","execution_closure_digest"],"type":"object"},"mediation":{"additionalProperties":false,"properties":{"currency":{"pattern":"^[A-Z]{3}$","type":"string"},"endpoint_url":{"maxLength":2048,"pattern":"^https://[^\\s@/#?]+[^\\s#]*$","type":"string"},"expected_receipt_class":{"enum":["executed"],"type":"string"},"listing_ref":{"maxLength":512,"pattern":"^runx:listing:[^\\s]+$","type":"string"},"platform_fee_minor":{"maximum":9007199254740991,"minimum":1,"type":"integer"},"prepared_price":{"additionalProperties":false,"properties":{"input_digest":{"pattern":"^sha256:[0-9a-f]{64}$","type":"string"},"source_invocation_id":{"maxLength":128,"minLength":1,"type":"string"}},"required":["source_invocation_id","input_digest"],"type":"object"},"settlement_family":{"maxLength":64,"minLength":1,"pattern":"^[a-z0-9][a-z0-9._-]{0,63}$","type":"string"},"vendor_amount_minor":{"maximum":9007199254740991,"minimum":1,"type":"integer"},"vendor_offer_revision":{"additionalProperties":false,"properties":{"input_schema_digest":{"pattern":"^sha256:[0-9a-f]{64}$","type":"string"},"offer_id":{"minLength":1,"type":"string"},"output_schema_digest":{"pattern":"^sha256:[0-9a-f]{64}$","type":"string"},"revision":{"minLength":1,"type":"string"},"revision_digest":{"pattern":"^sha256:[0-9a-f]{64}$","type":"string"}},"required":["offer_id","revision","revision_digest","input_schema_digest","output_schema_digest"],"type":"object"},"vendor_package_digest":{"pattern":"^sha256:[0-9a-f]{64}$","type":"string"}},"required":["listing_ref","endpoint_url","vendor_offer_revision","vendor_package_digest","vendor_amount_minor","platform_fee_minor","currency","settlement_family","expected_receipt_class"],"type":"object"},"offer_revision":{"additionalProperties":false,"properties":{"input_schema_digest":{"pattern":"^sha256:[0-9a-f]{64}$","type":"string"},"offer_id":{"minLength":1,"type":"string"},"output_schema_digest":{"pattern":"^sha256:[0-9a-f]{64}$","type":"string"},"revision":{"minLength":1,"type":"string"},"revision_digest":{"pattern":"^sha256:[0-9a-f]{64}$","type":"string"}},"required":["offer_id","revision","revision_digest","input_schema_digest","output_schema_digest"],"type":"object"},"presentation":{"additionalProperties":false,"properties":{"description":{"maxLength":500,"minLength":1,"type":"string"},"icon_url":{"maxLength":2048,"minLength":1,"type":"string"},"input_example":{"maxLength":65536,"minLength":1,"type":"string"},"input_schema":{"maxLength":65536,"minLength":1,"type":"string"},"media_type":{"maxLength":200,"minLength":1,"type":"string"},"output_example":{"maxLength":65536,"minLength":1,"type":"string"},"output_schema":{"maxLength":65536,"minLength":1,"type":"string"},"service_name":{"maxLength":120,"minLength":1,"type":"string"},"tags":{"items":{"maxLength":64,"minLength":1,"type":"string"},"minItems":1,"type":"array"}},"required":["service_name","description","media_type","input_example","output_example","input_schema","output_schema"],"type":"object"}},"required":["offer_revision","amount_minor","currency","accepted_settlement_families"],"type":"object"},{"additionalProperties":false,"properties":{"accepted_settlement_families":{"items":{"maxLength":64,"minLength":1,"pattern":"^[a-z0-9][a-z0-9._-]{0,63}$","type":"string"},"maxItems":16,"minItems":1,"type":"array","uniqueItems":true},"currency":{"pattern":"^[A-Z]{3}$","type":"string"},"executor":{"additionalProperties":false,"properties":{"execution_closure_digest":{"pattern":"^sha256:[0-9a-f]{64}$","type":"string"},"package_digest":{"pattern":"^sha256:[0-9a-f]{64}$","type":"string"},"runner":{"minLength":1,"type":"string"},"skill":{"minLength":1,"type":"string"}},"required":["skill","runner","package_digest","execution_closure_digest"],"type":"object"},"mediation":{"additionalProperties":false,"properties":{"currency":{"pattern":"^[A-Z]{3}$","type":"string"},"endpoint_url":{"maxLength":2048,"pattern":"^https://[^\\s@/#?]+[^\\s#]*$","type":"string"},"expected_receipt_class":{"enum":["executed"],"type":"string"},"listing_ref":{"maxLength":512,"pattern":"^runx:listing:[^\\s]+$","type":"string"},"platform_fee_minor":{"maximum":9007199254740991,"minimum":1,"type":"integer"},"settlement_family":{"maxLength":64,"minLength":1,"pattern":"^[a-z0-9][a-z0-9._-]{0,63}$","type":"string"},"vendor_amount_range":{"additionalProperties":false,"properties":{"maximum_minor":{"maximum":9007199254740991,"minimum":1,"type":"integer"},"minimum_minor":{"maximum":9007199254740991,"minimum":1,"type":"integer"}},"required":["minimum_minor","maximum_minor"],"type":"object"},"vendor_offer_revision":{"additionalProperties":false,"properties":{"input_schema_digest":{"pattern":"^sha256:[0-9a-f]{64}$","type":"string"},"offer_id":{"minLength":1,"type":"string"},"output_schema_digest":{"pattern":"^sha256:[0-9a-f]{64}$","type":"string"},"revision":{"minLength":1,"type":"string"},"revision_digest":{"pattern":"^sha256:[0-9a-f]{64}$","type":"string"}},"required":["offer_id","revision","revision_digest","input_schema_digest","output_schema_digest"],"type":"object"},"vendor_package_digest":{"pattern":"^sha256:[0-9a-f]{64}$","type":"string"}},"required":["listing_ref","endpoint_url","vendor_amount_range","vendor_offer_revision","vendor_package_digest","platform_fee_minor","currency","settlement_family","expected_receipt_class"],"type":"object"},"offer_revision":{"additionalProperties":false,"properties":{"input_schema_digest":{"pattern":"^sha256:[0-9a-f]{64}$","type":"string"},"offer_id":{"minLength":1,"type":"string"},"output_schema_digest":{"pattern":"^sha256:[0-9a-f]{64}$","type":"string"},"revision":{"minLength":1,"type":"string"},"revision_digest":{"pattern":"^sha256:[0-9a-f]{64}$","type":"string"}},"required":["offer_id","revision","revision_digest","input_schema_digest","output_schema_digest"],"type":"object"},"presentation":{"additionalProperties":false,"properties":{"description":{"maxLength":500,"minLength":1,"type":"string"},"icon_url":{"maxLength":2048,"minLength":1,"type":"string"},"input_example":{"maxLength":65536,"minLength":1,"type":"string"},"input_schema":{"maxLength":65536,"minLength":1,"type":"string"},"media_type":{"maxLength":200,"minLength":1,"type":"string"},"output_example":{"maxLength":65536,"minLength":1,"type":"string"},"output_schema":{"maxLength":65536,"minLength":1,"type":"string"},"service_name":{"maxLength":120,"minLength":1,"type":"string"},"tags":{"items":{"maxLength":64,"minLength":1,"type":"string"},"minItems":1,"type":"array"}},"required":["service_name","description","media_type","input_example","output_example","input_schema","output_schema"],"type":"object"}},"required":["offer_revision","currency","accepted_settlement_families","mediation","executor"],"type":"object"}]},"maxProperties":64,"minProperties":1,"propertyNames":{"minLength":1},"type":"object"},"package_digest":{"pattern":"^sha256:[0-9a-f]{64}$","type":"string"},"profile_digest":{"pattern":"^sha256:[0-9a-f]{64}$","type":"string"},"skill_digest":{"pattern":"^sha256:[0-9a-f]{64}$","type":"string"},"skill_id":{"minLength":1,"type":"string"},"vendor_ref":{"$id":"https://schemas.runx.ai/runx/reference/v1.json","$schema":"https://json-schema.org/draft/2020-12/schema","additionalProperties":false,"properties":{"label":{"minLength":1,"type":"string"},"locator":{"minLength":1,"type":"string"},"observed_at":{"minLength":1,"pattern":"^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$","type":"string"},"proof_kind":{"enum":["effect_evidence","effect_finality","credential_resolution"],"type":"string"},"provider":{"minLength":1,"type":"string"},"type":{"const":"principal","type":"string"},"uri":{"minLength":1,"type":"string"}},"required":["type","uri"],"type":"object","x-runx-schema":"runx.reference.v1"},"version":{"minLength":1,"type":"string"}},"required":["skill_id","version","skill_digest","profile_digest","package_digest","vendor_ref","offers"],"type":"object","x-runx-packet":true,"x-runx-schema":"runx.marketplace.paid_skill_listing.v1"};
 const func0Candidate = func0Module.default;
 const func0 = typeof func0Candidate === "function" ? func0Candidate : func0Candidate.default;
 const func5 = Object.prototype.hasOwnProperty;
@@ -38,7 +38,7 @@ return false;
 else {
 const _errs1 = errors;
 for(const key0 in data){
-if(!((((((((key0 === "offers") || (key0 === "package_digest")) || (key0 === "profile_digest")) || (key0 === "schema")) || (key0 === "skill_digest")) || (key0 === "skill_id")) || (key0 === "vendor_ref")) || (key0 === "version"))){
+if(!(((((((key0 === "offers") || (key0 === "package_digest")) || (key0 === "profile_digest")) || (key0 === "skill_digest")) || (key0 === "skill_id")) || (key0 === "vendor_ref")) || (key0 === "version"))){
 validate0.errors = [{instancePath,schemaPath:"#/additionalProperties",keyword:"additionalProperties",params:{additionalProperty: key0},message:"must NOT have additional properties"}];
 return false;
 break;
@@ -3924,29 +3924,12 @@ else {
 var valid0 = true;
 }
 if(valid0){
-if(data.schema !== undefined){
-let data90 = data.schema;
-const _errs202 = errors;
-if(typeof data90 !== "string"){
-validate0.errors = [{instancePath:instancePath+"/schema",schemaPath:"#/properties/schema/type",keyword:"type",params:{type: "string"},message:"must be string"}];
-return false;
-}
-if("runx.marketplace.paid_skill_listing.v1" !== data90){
-validate0.errors = [{instancePath:instancePath+"/schema",schemaPath:"#/properties/schema/const",keyword:"const",params:{allowedValue: "runx.marketplace.paid_skill_listing.v1"},message:"must be equal to constant"}];
-return false;
-}
-var valid0 = _errs202 === errors;
-}
-else {
-var valid0 = true;
-}
-if(valid0){
 if(data.skill_digest !== undefined){
-let data91 = data.skill_digest;
-const _errs204 = errors;
-if(errors === _errs204){
-if(typeof data91 === "string"){
-if(!pattern2.test(data91)){
+let data90 = data.skill_digest;
+const _errs202 = errors;
+if(errors === _errs202){
+if(typeof data90 === "string"){
+if(!pattern2.test(data90)){
 validate0.errors = [{instancePath:instancePath+"/skill_digest",schemaPath:"#/properties/skill_digest/pattern",keyword:"pattern",params:{pattern: "^sha256:[0-9a-f]{64}$"},message:"must match pattern \""+"^sha256:[0-9a-f]{64}$"+"\""}];
 return false;
 }
@@ -3956,18 +3939,18 @@ validate0.errors = [{instancePath:instancePath+"/skill_digest",schemaPath:"#/pro
 return false;
 }
 }
-var valid0 = _errs204 === errors;
+var valid0 = _errs202 === errors;
 }
 else {
 var valid0 = true;
 }
 if(valid0){
 if(data.skill_id !== undefined){
-let data92 = data.skill_id;
-const _errs206 = errors;
-if(errors === _errs206){
-if(typeof data92 === "string"){
-if(func0(data92) < 1){
+let data91 = data.skill_id;
+const _errs204 = errors;
+if(errors === _errs204){
+if(typeof data91 === "string"){
+if(func0(data91) < 1){
 validate0.errors = [{instancePath:instancePath+"/skill_id",schemaPath:"#/properties/skill_id/minLength",keyword:"minLength",params:{limit: 1},message:"must NOT have fewer than 1 characters"}];
 return false;
 }
@@ -3977,38 +3960,38 @@ validate0.errors = [{instancePath:instancePath+"/skill_id",schemaPath:"#/propert
 return false;
 }
 }
-var valid0 = _errs206 === errors;
+var valid0 = _errs204 === errors;
 }
 else {
 var valid0 = true;
 }
 if(valid0){
 if(data.vendor_ref !== undefined){
-let data93 = data.vendor_ref;
-const _errs208 = errors;
-if(errors === _errs208){
-if(data93 && typeof data93 == "object" && !Array.isArray(data93)){
+let data92 = data.vendor_ref;
+const _errs206 = errors;
+if(errors === _errs206){
+if(data92 && typeof data92 == "object" && !Array.isArray(data92)){
 let missing15;
-if(((data93.type === undefined) && (missing15 = "type")) || ((data93.uri === undefined) && (missing15 = "uri"))){
+if(((data92.type === undefined) && (missing15 = "type")) || ((data92.uri === undefined) && (missing15 = "uri"))){
 validate0.errors = [{instancePath:instancePath+"/vendor_ref",schemaPath:"#/properties/vendor_ref/required",keyword:"required",params:{missingProperty: missing15},message:"must have required property '"+missing15+"'"}];
 return false;
 }
 else {
-const _errs210 = errors;
-for(const key17 in data93){
-if(!((((((((key17 === "label") || (key17 === "locator")) || (key17 === "observed_at")) || (key17 === "proof_kind")) || (key17 === "provider")) || (key17 === "schema")) || (key17 === "type")) || (key17 === "uri"))){
+const _errs208 = errors;
+for(const key17 in data92){
+if(!(((((((key17 === "label") || (key17 === "locator")) || (key17 === "observed_at")) || (key17 === "proof_kind")) || (key17 === "provider")) || (key17 === "type")) || (key17 === "uri"))){
 validate0.errors = [{instancePath:instancePath+"/vendor_ref",schemaPath:"#/properties/vendor_ref/additionalProperties",keyword:"additionalProperties",params:{additionalProperty: key17},message:"must NOT have additional properties"}];
 return false;
 break;
 }
 }
-if(_errs210 === errors){
-if(data93.label !== undefined){
-let data94 = data93.label;
-const _errs211 = errors;
-if(errors === _errs211){
-if(typeof data94 === "string"){
-if(func0(data94) < 1){
+if(_errs208 === errors){
+if(data92.label !== undefined){
+let data93 = data92.label;
+const _errs209 = errors;
+if(errors === _errs209){
+if(typeof data93 === "string"){
+if(func0(data93) < 1){
 validate0.errors = [{instancePath:instancePath+"/vendor_ref/label",schemaPath:"#/properties/vendor_ref/properties/label/minLength",keyword:"minLength",params:{limit: 1},message:"must NOT have fewer than 1 characters"}];
 return false;
 }
@@ -4018,18 +4001,18 @@ validate0.errors = [{instancePath:instancePath+"/vendor_ref/label",schemaPath:"#
 return false;
 }
 }
-var valid24 = _errs211 === errors;
+var valid24 = _errs209 === errors;
 }
 else {
 var valid24 = true;
 }
 if(valid24){
-if(data93.locator !== undefined){
-let data95 = data93.locator;
-const _errs213 = errors;
-if(errors === _errs213){
-if(typeof data95 === "string"){
-if(func0(data95) < 1){
+if(data92.locator !== undefined){
+let data94 = data92.locator;
+const _errs211 = errors;
+if(errors === _errs211){
+if(typeof data94 === "string"){
+if(func0(data94) < 1){
 validate0.errors = [{instancePath:instancePath+"/vendor_ref/locator",schemaPath:"#/properties/vendor_ref/properties/locator/minLength",keyword:"minLength",params:{limit: 1},message:"must NOT have fewer than 1 characters"}];
 return false;
 }
@@ -4039,23 +4022,23 @@ validate0.errors = [{instancePath:instancePath+"/vendor_ref/locator",schemaPath:
 return false;
 }
 }
-var valid24 = _errs213 === errors;
+var valid24 = _errs211 === errors;
 }
 else {
 var valid24 = true;
 }
 if(valid24){
-if(data93.observed_at !== undefined){
-let data96 = data93.observed_at;
-const _errs215 = errors;
-if(errors === _errs215){
-if(typeof data96 === "string"){
-if(func0(data96) < 1){
+if(data92.observed_at !== undefined){
+let data95 = data92.observed_at;
+const _errs213 = errors;
+if(errors === _errs213){
+if(typeof data95 === "string"){
+if(func0(data95) < 1){
 validate0.errors = [{instancePath:instancePath+"/vendor_ref/observed_at",schemaPath:"#/properties/vendor_ref/properties/observed_at/minLength",keyword:"minLength",params:{limit: 1},message:"must NOT have fewer than 1 characters"}];
 return false;
 }
 else {
-if(!pattern34.test(data96)){
+if(!pattern34.test(data95)){
 validate0.errors = [{instancePath:instancePath+"/vendor_ref/observed_at",schemaPath:"#/properties/vendor_ref/properties/observed_at/pattern",keyword:"pattern",params:{pattern: "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$"},message:"must match pattern \""+"^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$"+"\""}];
 return false;
 }
@@ -4066,35 +4049,35 @@ validate0.errors = [{instancePath:instancePath+"/vendor_ref/observed_at",schemaP
 return false;
 }
 }
+var valid24 = _errs213 === errors;
+}
+else {
+var valid24 = true;
+}
+if(valid24){
+if(data92.proof_kind !== undefined){
+let data96 = data92.proof_kind;
+const _errs215 = errors;
+if(typeof data96 !== "string"){
+validate0.errors = [{instancePath:instancePath+"/vendor_ref/proof_kind",schemaPath:"#/properties/vendor_ref/properties/proof_kind/type",keyword:"type",params:{type: "string"},message:"must be string"}];
+return false;
+}
+if(!(((data96 === "effect_evidence") || (data96 === "effect_finality")) || (data96 === "credential_resolution"))){
+validate0.errors = [{instancePath:instancePath+"/vendor_ref/proof_kind",schemaPath:"#/properties/vendor_ref/properties/proof_kind/enum",keyword:"enum",params:{allowedValues: schema0.properties.vendor_ref.properties.proof_kind.enum},message:"must be equal to one of the allowed values"}];
+return false;
+}
 var valid24 = _errs215 === errors;
 }
 else {
 var valid24 = true;
 }
 if(valid24){
-if(data93.proof_kind !== undefined){
-let data97 = data93.proof_kind;
+if(data92.provider !== undefined){
+let data97 = data92.provider;
 const _errs217 = errors;
-if(typeof data97 !== "string"){
-validate0.errors = [{instancePath:instancePath+"/vendor_ref/proof_kind",schemaPath:"#/properties/vendor_ref/properties/proof_kind/type",keyword:"type",params:{type: "string"},message:"must be string"}];
-return false;
-}
-if(!(((data97 === "effect_evidence") || (data97 === "effect_finality")) || (data97 === "credential_resolution"))){
-validate0.errors = [{instancePath:instancePath+"/vendor_ref/proof_kind",schemaPath:"#/properties/vendor_ref/properties/proof_kind/enum",keyword:"enum",params:{allowedValues: schema0.properties.vendor_ref.properties.proof_kind.enum},message:"must be equal to one of the allowed values"}];
-return false;
-}
-var valid24 = _errs217 === errors;
-}
-else {
-var valid24 = true;
-}
-if(valid24){
-if(data93.provider !== undefined){
-let data98 = data93.provider;
-const _errs219 = errors;
-if(errors === _errs219){
-if(typeof data98 === "string"){
-if(func0(data98) < 1){
+if(errors === _errs217){
+if(typeof data97 === "string"){
+if(func0(data97) < 1){
 validate0.errors = [{instancePath:instancePath+"/vendor_ref/provider",schemaPath:"#/properties/vendor_ref/properties/provider/minLength",keyword:"minLength",params:{limit: 1},message:"must NOT have fewer than 1 characters"}];
 return false;
 }
@@ -4104,52 +4087,35 @@ validate0.errors = [{instancePath:instancePath+"/vendor_ref/provider",schemaPath
 return false;
 }
 }
+var valid24 = _errs217 === errors;
+}
+else {
+var valid24 = true;
+}
+if(valid24){
+if(data92.type !== undefined){
+let data98 = data92.type;
+const _errs219 = errors;
+if(typeof data98 !== "string"){
+validate0.errors = [{instancePath:instancePath+"/vendor_ref/type",schemaPath:"#/properties/vendor_ref/properties/type/type",keyword:"type",params:{type: "string"},message:"must be string"}];
+return false;
+}
+if("principal" !== data98){
+validate0.errors = [{instancePath:instancePath+"/vendor_ref/type",schemaPath:"#/properties/vendor_ref/properties/type/const",keyword:"const",params:{allowedValue: "principal"},message:"must be equal to constant"}];
+return false;
+}
 var valid24 = _errs219 === errors;
 }
 else {
 var valid24 = true;
 }
 if(valid24){
-if(data93.schema !== undefined){
-let data99 = data93.schema;
+if(data92.uri !== undefined){
+let data99 = data92.uri;
 const _errs221 = errors;
-if(typeof data99 !== "string"){
-validate0.errors = [{instancePath:instancePath+"/vendor_ref/schema",schemaPath:"#/properties/vendor_ref/properties/schema/type",keyword:"type",params:{type: "string"},message:"must be string"}];
-return false;
-}
-if("runx.reference.v1" !== data99){
-validate0.errors = [{instancePath:instancePath+"/vendor_ref/schema",schemaPath:"#/properties/vendor_ref/properties/schema/const",keyword:"const",params:{allowedValue: "runx.reference.v1"},message:"must be equal to constant"}];
-return false;
-}
-var valid24 = _errs221 === errors;
-}
-else {
-var valid24 = true;
-}
-if(valid24){
-if(data93.type !== undefined){
-let data100 = data93.type;
-const _errs223 = errors;
-if(typeof data100 !== "string"){
-validate0.errors = [{instancePath:instancePath+"/vendor_ref/type",schemaPath:"#/properties/vendor_ref/properties/type/type",keyword:"type",params:{type: "string"},message:"must be string"}];
-return false;
-}
-if("principal" !== data100){
-validate0.errors = [{instancePath:instancePath+"/vendor_ref/type",schemaPath:"#/properties/vendor_ref/properties/type/const",keyword:"const",params:{allowedValue: "principal"},message:"must be equal to constant"}];
-return false;
-}
-var valid24 = _errs223 === errors;
-}
-else {
-var valid24 = true;
-}
-if(valid24){
-if(data93.uri !== undefined){
-let data101 = data93.uri;
-const _errs225 = errors;
-if(errors === _errs225){
-if(typeof data101 === "string"){
-if(func0(data101) < 1){
+if(errors === _errs221){
+if(typeof data99 === "string"){
+if(func0(data99) < 1){
 validate0.errors = [{instancePath:instancePath+"/vendor_ref/uri",schemaPath:"#/properties/vendor_ref/properties/uri/minLength",keyword:"minLength",params:{limit: 1},message:"must NOT have fewer than 1 characters"}];
 return false;
 }
@@ -4159,11 +4125,10 @@ validate0.errors = [{instancePath:instancePath+"/vendor_ref/uri",schemaPath:"#/p
 return false;
 }
 }
-var valid24 = _errs225 === errors;
+var valid24 = _errs221 === errors;
 }
 else {
 var valid24 = true;
-}
 }
 }
 }
@@ -4179,18 +4144,18 @@ validate0.errors = [{instancePath:instancePath+"/vendor_ref",schemaPath:"#/prope
 return false;
 }
 }
-var valid0 = _errs208 === errors;
+var valid0 = _errs206 === errors;
 }
 else {
 var valid0 = true;
 }
 if(valid0){
 if(data.version !== undefined){
-let data102 = data.version;
-const _errs227 = errors;
-if(errors === _errs227){
-if(typeof data102 === "string"){
-if(func0(data102) < 1){
+let data100 = data.version;
+const _errs223 = errors;
+if(errors === _errs223){
+if(typeof data100 === "string"){
+if(func0(data100) < 1){
 validate0.errors = [{instancePath:instancePath+"/version",schemaPath:"#/properties/version/minLength",keyword:"minLength",params:{limit: 1},message:"must NOT have fewer than 1 characters"}];
 return false;
 }
@@ -4200,11 +4165,10 @@ validate0.errors = [{instancePath:instancePath+"/version",schemaPath:"#/properti
 return false;
 }
 }
-var valid0 = _errs227 === errors;
+var valid0 = _errs223 === errors;
 }
 else {
 var valid0 = true;
-}
 }
 }
 }

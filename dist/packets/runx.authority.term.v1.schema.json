@@ -39,10 +39,6 @@
                 "minLength": 1,
                 "type": "string"
               },
-              "schema": {
-                "const": "runx.reference.v1",
-                "type": "string"
-              },
               "type": {
                 "enum": [
                   "thread",
@@ -122,10 +118,6 @@
                 "minLength": 1,
                 "type": "string"
               },
-              "schema": {
-                "const": "runx.reference.v1",
-                "type": "string"
-              },
               "type": {
                 "enum": [
                   "thread",
@@ -202,6 +194,7 @@
             "additionalProperties": false,
             "properties": {
               "approval_threshold_units": {
+                "minimum": 0,
                 "type": "integer"
               },
               "authorization_form": {
@@ -231,12 +224,15 @@
                 "type": "boolean"
               },
               "max_per_call_units": {
+                "minimum": 0,
                 "type": "integer"
               },
               "max_per_period_units": {
+                "minimum": 0,
                 "type": "integer"
               },
               "max_per_run_units": {
+                "minimum": 0,
                 "type": "integer"
               },
               "operation": {
@@ -256,6 +252,7 @@
                 "type": "boolean"
               },
               "preflight_ttl_ms": {
+                "minimum": 0,
                 "type": "integer"
               },
               "realm": {
@@ -338,15 +335,18 @@
           "type": "array"
         },
         "max_child_depth": {
+          "minimum": 0,
           "type": "integer"
         },
         "max_cost_units": {
           "type": "number"
         },
         "max_fanout": {
+          "minimum": 0,
           "type": "integer"
         },
         "max_runtime_ms": {
+          "minimum": 0,
           "type": "integer"
         },
         "network_destinations": {
@@ -401,9 +401,11 @@
           "additionalProperties": false,
           "properties": {
             "per_day": {
+              "minimum": 0,
               "type": "integer"
             },
             "total": {
+              "minimum": 0,
               "type": "integer"
             }
           },
@@ -483,10 +485,6 @@
                 },
                 "provider": {
                   "minLength": 1,
-                  "type": "string"
-                },
-                "schema": {
-                  "const": "runx.reference.v1",
                   "type": "string"
                 },
                 "type": {
@@ -575,10 +573,6 @@
           "minLength": 1,
           "type": "string"
         },
-        "schema": {
-          "const": "runx.reference.v1",
-          "type": "string"
-        },
         "type": {
           "enum": [
             "thread",
@@ -658,10 +652,6 @@
           "minLength": 1,
           "type": "string"
         },
-        "schema": {
-          "const": "runx.reference.v1",
-          "type": "string"
-        },
         "type": {
           "enum": [
             "thread",
@@ -734,10 +724,6 @@
         },
         "provider": {
           "minLength": 1,
-          "type": "string"
-        },
-        "schema": {
-          "const": "runx.reference.v1",
           "type": "string"
         },
         "type": {
@@ -829,10 +815,6 @@
           "minLength": 1,
           "type": "string"
         },
-        "schema": {
-          "const": "runx.reference.v1",
-          "type": "string"
-        },
         "type": {
           "enum": [
             "thread",
@@ -876,10 +858,6 @@
       ],
       "type": "object",
       "x-runx-schema": "runx.reference.v1"
-    },
-    "schema": {
-      "const": "runx.authority_term.v1",
-      "type": "string"
     },
     "term_id": {
       "minLength": 1,

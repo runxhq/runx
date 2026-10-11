@@ -642,10 +642,6 @@ fn closure_output(seal: &runx_contracts::Seal) -> JsonObject {
         "reason_code".to_owned(),
         JsonValue::String(seal.reason_code.to_string()),
     );
-    closure.insert(
-        "closed_at".to_owned(),
-        JsonValue::String(seal.closed_at.to_string()),
-    );
     closure
 }
 

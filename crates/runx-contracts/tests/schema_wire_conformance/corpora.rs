@@ -934,7 +934,6 @@ pub(super) fn receipt_corpus() -> Vec<(&'static str, Value)> {
         "seal": {
             "disposition": "closed",
             "reason_code": "process_closed",
-            "closed_at": "2026-01-01T00:00:00Z",
             "criteria": [],
         },
         "lineage": { "children": [] },
@@ -1029,7 +1028,6 @@ pub(super) fn receipt_corpus() -> Vec<(&'static str, Value)> {
                     "disposition": "closed",
                     "reason_code": "process_closed",
                     "summary": "closed",
-                    "closed_at": "2026-01-01T00:00:00Z",
                     "criteria": [],
                 }),
             ),
@@ -1042,7 +1040,6 @@ pub(super) fn receipt_corpus() -> Vec<(&'static str, Value)> {
                 json!({
                     "disposition": "closed",
                     "reason_code": "process_closed",
-                    "closed_at": "2026-01-01T00:00:00Z",
                     "criteria": [{
                         "criterion_id": "c1",
                         "status": "verified",
@@ -2019,7 +2016,6 @@ fn an_intent() -> Value {
 
 pub(super) fn decision_corpus() -> Vec<(&'static str, Value)> {
     let valid = json!({
-        "schema": "runx.decision.v1",
         "decision_id": "dec_1",
         "choice": "continue",
         "selected_act_id": "act_1",
@@ -2504,7 +2500,7 @@ pub(super) fn reference_corpus() -> Vec<(&'static str, Value)> {
             }),
         ),
         (
-            "optional schema marker",
+            "a schema marker the reader refuses",
             json!({ "schema": "runx.reference.v1", "type": "act", "uri": "x" }),
         ),
         ("missing uri", json!({ "type": "act" })),

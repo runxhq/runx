@@ -651,7 +651,6 @@ describe("@runxhq/contracts", () => {
       seal: {
         disposition: "closed",
         reason_code: "step_closed",
-        closed_at: "2026-05-18T00:03:00Z",
         criteria: [outcome],
       },
       lineage: {

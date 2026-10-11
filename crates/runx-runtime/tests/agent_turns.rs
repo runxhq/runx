@@ -363,6 +363,30 @@ fn a_turn_answer_waits_until_its_calls_settle() -> TestResult {
     Ok(())
 }
 
+/// A run that waits seals at the time it closes, not the time it started.
+#[test]
+fn a_run_answered_later_seals_at_the_time_it_closes() -> TestResult {
+    let temp = tempdir()?;
+    let paused = Paused::start(temp.path(), write_turn_skill(temp.path())?, TURN)?;
+    std::thread::sleep(std::time::Duration::from_millis(20));
+    let answered_at = runx_runtime::RunClock::System.now();
+    let sealed = paused
+        .open()?
+        .complete(TURN, input(serde_json::json!({"answer": "later"}))?)?;
+    let output = object(&sealed.output)?;
+    let receipt_id = text(output, "receipt_id").ok_or("missing receipt_id")?;
+    let graph = crate::support::read_test_signed_receipt(&paused.receipts, receipt_id)?;
+    let step = crate::support::read_test_first_step_receipt(&paused.receipts, &graph)?;
+    for receipt in [&graph, &step] {
+        assert!(
+            receipt.created_at.as_str() >= answered_at.as_str(),
+            "sealed {} before the answer at {answered_at}",
+            receipt.created_at.as_str()
+        );
+    }
+    Ok(())
+}
+
 /// A runner with no steps is one agent turn, handed the run's inputs.
 #[test]
 fn a_one_turn_runner_hands_its_agent_the_run_inputs() -> TestResult {

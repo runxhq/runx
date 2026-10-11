@@ -132,12 +132,13 @@ pub struct ReceiptAct {
 }
 
 /// Exactly one seal. `deferred` expresses a suspended (waiting/delegated) run.
+/// It closes when the receipt is created, so the receipt's `created_at` is
+/// its one time.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Seal {
     pub disposition: ClosureDisposition,
     pub reason_code: NonEmptyString,
-    pub closed_at: IsoDateTime,
     pub criteria: Vec<CriterionBinding>,
 }
 

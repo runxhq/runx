@@ -354,7 +354,7 @@ where
         nested.skill,
         nested.inputs,
         nested.act,
-        &runtime.options.created_at,
+        &runtime.options.clock.now(),
     )?;
     if let Some(record) = existing.filter(|record| record.sealed.is_some()) {
         return super::sealed_graph_run(graph, record);
@@ -497,7 +497,7 @@ where
             attempt: context.attempt,
             output: &output,
             claim: &projection.outputs,
-            created_at: &context.runtime.options.created_at,
+            created_at: &context.runtime.options.clock.now(),
             authority: seal_authority,
             call: None,
             approval_refs: context.policy_approval_refs,
@@ -729,7 +729,7 @@ fn seal_agent_act_step<A>(
             attempt,
             output: &output,
             claim: &projection.outputs,
-            created_at: &runtime.options.created_at,
+            created_at: &runtime.options.clock.now(),
             authority: crate::receipts::SealAuthority::default(),
             call: None,
             approval_refs: Vec::new(),
@@ -803,7 +803,7 @@ where
             graph_dir,
             &step.context_skills,
             &runtime.options.env,
-            &runtime.options.created_at,
+            &runtime.options.clock.now(),
         )?,
         provenance,
         skill_directory: graph_dir.to_path_buf(),
@@ -949,7 +949,7 @@ where
     let output = crate::tool_catalogs::dispatch::dispatch_tool(
         tool_request,
         &runtime.options.effects,
-        &runtime.options.created_at,
+        &runtime.options.clock.now(),
         Instant::now(),
     )?;
     seal_effect_step(
@@ -1027,7 +1027,7 @@ where
             attempt,
             output: &output,
             claim: effect_claim,
-            created_at: &runtime.options.created_at,
+            created_at: &runtime.options.clock.now(),
             authority: seal_authority,
             call,
             approval_refs: policy_approval_refs,
@@ -1311,7 +1311,7 @@ where
             attempt,
             output: &output,
             claim: &projection.outputs,
-            created_at: &runtime.options.created_at,
+            created_at: &runtime.options.clock.now(),
             authority: crate::receipts::SealAuthority::default(),
             call: None,
             approval_refs: Vec::new(),
@@ -1491,7 +1491,7 @@ where
             attempt,
             output: &output,
             claim: &projection.outputs,
-            created_at: &runtime.options.created_at,
+            created_at: &runtime.options.clock.now(),
             authority: crate::receipts::SealAuthority::default(),
             call: None,
             approval_refs: Vec::new(),

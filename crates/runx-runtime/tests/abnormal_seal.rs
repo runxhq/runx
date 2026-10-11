@@ -193,6 +193,6 @@ impl Drop for TempCase {
 
 fn runtime_options() -> Result<HarnessOptions, runx_runtime::RuntimeError> {
     let mut options = HarnessOptions::new(std::env::vars().collect())?;
-    options.created_at = FIXTURE_CREATED_AT.to_owned();
+    options.clock = runx_runtime::RunClock::Fixed(FIXTURE_CREATED_AT.to_owned());
     Ok(options)
 }

@@ -141,6 +141,7 @@
           "type": "string"
         },
         "timeout_seconds": {
+          "minimum": 0,
           "type": "integer"
         }
       },

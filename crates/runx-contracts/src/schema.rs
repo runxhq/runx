@@ -145,15 +145,9 @@ pub fn object_schema(
         props.insert(property.name.to_owned(), property.schema);
     }
 
-    let (mut schema, logical) = identity_envelope(identity);
-    if let Some(logical) = logical {
-        // Every top-level contract carries an optional `schema` discriminant
-        // whose const equals its logical name. Emit it from the identity so no
-        // type needs a redundant marker field.
-        props
-            .entry("schema".to_owned())
-            .or_insert_with(|| const_string(logical));
-    }
+    // The schema names exactly the fields the type reads: a contract with a
+    // `schema` discriminant declares it as a field, so none is injected.
+    let (mut schema, _) = identity_envelope(identity);
     schema.insert("additionalProperties".to_owned(), json!(!deny_unknown));
     schema.insert("type".to_owned(), json!("object"));
     if !required.is_empty() {
@@ -215,12 +209,7 @@ pub fn object_schema_with_flatten(
         }
     }
 
-    let (mut schema, logical) = identity_envelope(identity);
-    if let Some(logical) = logical {
-        props
-            .entry("schema".to_owned())
-            .or_insert_with(|| const_string(logical));
-    }
+    let (mut schema, _) = identity_envelope(identity);
     schema.insert("additionalProperties".to_owned(), json!(!deny_unknown));
     schema.insert("type".to_owned(), json!("object"));
     if !required.is_empty() {
@@ -395,7 +384,19 @@ macro_rules! integer_schema {
         })+
     };
 }
-integer_schema!(i8, i16, i32, i64, isize, u8, u16, u32, u64, usize);
+integer_schema!(i8, i16, i32, i64, isize);
+
+/// An unsigned integer: the reader refuses a negative one, so the schema does.
+macro_rules! unsigned_schema {
+    ($($ty:ty),+) => {
+        $(impl RunxSchema for $ty {
+            fn json_schema() -> Value {
+                json!({ "type": "integer", "minimum": 0 })
+            }
+        })+
+    };
+}
+unsigned_schema!(u8, u16, u32, u64, usize);
 
 impl RunxSchema for std::num::NonZeroU64 {
     fn json_schema() -> Value {
@@ -721,13 +722,11 @@ pub const ISO_DATETIME_PATTERN: &str = r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:
 pub struct IsoDateTime(String);
 
 impl IsoDateTime {
+    /// `value`, when it is an instant in the one form a contract writes:
+    /// `YYYY-MM-DDTHH:MM:SS`, optional fractional seconds, then `Z`.
     pub fn new(value: impl Into<String>) -> Option<Self> {
         let value = value.into();
-        if value.is_empty() {
-            None
-        } else {
-            Some(Self(value))
-        }
+        is_iso_datetime(&value).then_some(Self(value))
     }
 
     pub fn as_str(&self) -> &str {
@@ -806,12 +805,75 @@ impl<'de> Deserialize<'de> for IsoDateTime {
         D: serde::Deserializer<'de>,
     {
         let value = String::deserialize(deserializer)?;
-        Self::new(value).ok_or_else(|| serde::de::Error::custom("datetime must be non-empty"))
+        Self::new(value).ok_or_else(|| {
+            serde::de::Error::custom("datetime must be YYYY-MM-DDTHH:MM:SS[.fraction]Z")
+        })
     }
+}
+
+/// Whether `value` matches [`ISO_DATETIME_PATTERN`], read without a regex.
+fn is_iso_datetime(value: &str) -> bool {
+    let bytes = value.as_bytes();
+    let digits = |from: usize, to: usize| {
+        bytes
+            .get(from..to)
+            .is_some_and(|run| run.iter().all(u8::is_ascii_digit))
+    };
+    let at = |index: usize, byte: u8| bytes.get(index) == Some(&byte);
+    let stamp = digits(0, 4)
+        && at(4, b'-')
+        && digits(5, 7)
+        && at(7, b'-')
+        && digits(8, 10)
+        && at(10, b'T')
+        && digits(11, 13)
+        && at(13, b':')
+        && digits(14, 16)
+        && at(16, b':')
+        && digits(17, 19);
+    stamp
+        && match bytes.get(19..) {
+            Some([b'Z']) => true,
+            Some([b'.', fraction @ .., b'Z']) => {
+                !fraction.is_empty() && fraction.iter().all(u8::is_ascii_digit)
+            }
+            _ => false,
+        }
 }
 
 impl RunxSchema for IsoDateTime {
     fn json_schema() -> Value {
         json!({ "minLength": 1, "pattern": ISO_DATETIME_PATTERN, "type": "string" })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::IsoDateTime;
+
+    #[test]
+    fn a_datetime_is_read_only_in_its_one_form() {
+        for valid in ["2026-10-12T01:02:03Z", "2026-10-12T01:02:03.456Z"] {
+            assert!(IsoDateTime::new(valid).is_some(), "{valid}");
+            assert!(
+                serde_json::from_value::<IsoDateTime>(valid.into()).is_ok(),
+                "{valid}"
+            );
+        }
+        for invalid in [
+            "",
+            "tomorrow",
+            "2026-10-12",
+            "2026-10-12T01:02:03",
+            "2026-10-12T01:02:03+00:00",
+            "2026-10-12T01:02:03.Z",
+            "2026-10-12 01:02:03Z",
+        ] {
+            assert!(IsoDateTime::new(invalid).is_none(), "{invalid}");
+            assert!(
+                serde_json::from_value::<IsoDateTime>(invalid.into()).is_err(),
+                "{invalid}"
+            );
+        }
     }
 }

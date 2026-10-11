@@ -215,7 +215,7 @@ fn runtime(
         BTreeMap::new(),
         crate::support::run_in(workspace, run_id)?,
     )?;
-    options.created_at = CREATED_AT.to_owned();
+    options.clock = runx_runtime::RunClock::Fixed(CREATED_AT.to_owned());
     Ok(Runtime::new(ProcessToolAdapter, options))
 }
 

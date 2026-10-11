@@ -78,9 +78,9 @@ fn parses_harness_graph_fixture_contract() -> Result<(), Box<dyn std::error::Err
     assert_eq!(
         receipt.child_receipt_refs,
         Some(vec![
-            "runx:receipt:sha256:9e306f67c8356113050d4224c2be3453b0af604fd0bafdf9c0b49e7a013e0aa5"
+            "runx:receipt:sha256:29ef9a7302fa318b112fc44ae50a6b27784b9d61fdb28290df0931d0843a6021"
                 .to_owned(),
-            "runx:receipt:sha256:b69153cb9170c4bc878a31d0c729d2d0fb91cfccaece4c0d0358dfe701fc11ff"
+            "runx:receipt:sha256:0b231dbaf8767a447711e2131c4106a9d44aef64fa37efc7f72ec45b9e2b4055"
                 .to_owned()
         ])
     );
@@ -264,7 +264,7 @@ fn run_fixture_with_test_adapter(
 
 fn fixture_runtime_options() -> Result<HarnessOptions, runx_runtime::RuntimeError> {
     let mut options = HarnessOptions::new(std::env::vars().collect())?;
-    options.created_at = FIXTURE_CREATED_AT.to_owned();
+    options.clock = runx_runtime::RunClock::Fixed(FIXTURE_CREATED_AT.to_owned());
     Ok(options)
 }
 

@@ -84,17 +84,18 @@ describe("paid invocation request fingerprints", () => {
   it("rejects identity discriminants that Rust request types do not admit", () => {
     const base = quoteBaseRequest();
 
+    // The schema names only the fields the Rust type reads, so it refuses them.
     expect(() => fingerprintQuotePaidInvocationRequest({
       ...base,
       schema: "runx.payment.quote_paid_invocation.request.v1",
-    } as QuotePaidInvocationRequestContract)).toThrow(/request\["schema"\]/u);
+    } as QuotePaidInvocationRequestContract)).toThrow(/request must match/u);
     expect(() => fingerprintQuotePaidInvocationRequest({
       ...base,
       principal: {
         ...base.principal,
         schema: "runx.reference.v1",
       },
-    } as QuotePaidInvocationRequestContract)).toThrow(/principal.*schema/u);
+    } as QuotePaidInvocationRequestContract)).toThrow(/request\.principal must match/u);
   });
 
   it("rejects present undefined members instead of normalizing the replay preimage", () => {

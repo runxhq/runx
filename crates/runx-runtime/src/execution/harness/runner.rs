@@ -25,7 +25,7 @@ use crate::adapter::{InvocationOutput, SkillAdapter};
 use crate::effects::RuntimeEffectRegistry;
 use crate::execution::output_projection::project_step_claim;
 use crate::execution::run_record::RunLog;
-use crate::execution::runner::{GraphRun, Runtime, RuntimeOptions, StepRun};
+use crate::execution::runner::{GraphRun, RunClock, Runtime, RuntimeOptions, StepRun};
 use crate::host::Host;
 use crate::http::HarnessExchanges;
 use crate::kernel::store::KernelStore;
@@ -43,7 +43,7 @@ pub struct HarnessOptions {
     pub env: BTreeMap<String, String>,
     pub receipt_signature: RuntimeReceiptSignatureConfig,
     pub effects: RuntimeEffectRegistry,
-    pub created_at: String,
+    pub clock: RunClock,
 }
 
 impl HarnessOptions {
@@ -60,7 +60,7 @@ impl HarnessOptions {
                 }
             })?,
             effects: RuntimeEffectRegistry::default(),
-            created_at: crate::time::DEFAULT_CREATED_AT.to_owned(),
+            clock: RunClock::Fixed(crate::time::DEFAULT_CREATED_AT.to_owned()),
         })
     }
 
@@ -85,13 +85,13 @@ impl HarnessOptions {
             run_id,
             &fixture.name,
             &target.to_string_lossy(),
-            &self.created_at,
+            &self.clock.now(),
         )?;
         Ok(RuntimeOptions {
             current_context: Vec::new(),
             historical_context: Vec::new(),
             run_authority: None,
-            created_at: self.created_at,
+            clock: self.clock,
             env: self.env,
             receipt_signature: self.receipt_signature,
             effects: self.effects,
@@ -350,8 +350,7 @@ fn seed_harness_sessions(
         crate::KernelStore::for_project(&crate::paths::RunxPaths::resolve(&env, target_path))
             .map_err(|error| setup(error.to_string()))?,
     );
-    let scope =
-        crate::ConnectorScope::at(target_path).map_err(|error| setup(error.to_string()))?;
+    let scope = crate::ConnectorScope::at(target_path).map_err(|error| setup(error.to_string()))?;
     for connector in &fixture.setup.sessions {
         let connector = scope
             .connector(connector.as_str())
@@ -388,8 +387,7 @@ fn seed_harness_credentials(
         crate::KernelStore::for_project(&crate::paths::RunxPaths::resolve(&env, target_path))
             .map_err(|error| setup(error.to_string()))?,
     );
-    let scope =
-        crate::ConnectorScope::at(target_path).map_err(|error| setup(error.to_string()))?;
+    let scope = crate::ConnectorScope::at(target_path).map_err(|error| setup(error.to_string()))?;
     for connector in &fixture.setup.credentials {
         let connector = scope
             .connector(connector.as_str())
@@ -511,7 +509,7 @@ fn seal_admission_failure(
             step_id: runner_name,
             attempt: 1,
             output: &output,
-            created_at: &options.created_at,
+            created_at: &options.clock.now(),
             disposition: ClosureDisposition::Failed,
             reason_code: "input_contract_invalid".to_owned(),
         },

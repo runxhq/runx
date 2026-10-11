@@ -90,7 +90,7 @@ impl BoundRun {
             current: request.current_context.clone(),
             historical: request.historical_context.clone(),
         };
-        let (created_at, graph_inputs, run_act, run_context, run_authority) = match &existing {
+        let (graph_inputs, run_act, run_context, run_authority) = match &existing {
             Some(record) => {
                 let started = continuation_identity(
                     record,
@@ -102,7 +102,6 @@ impl BoundRun {
                 )?;
                 host.check_driver(log.run_id(), started.driver)?;
                 (
-                    record.created_at.clone(),
                     record.inputs.clone(),
                     record.act.clone(),
                     record.context.clone(),
@@ -116,7 +115,6 @@ impl BoundRun {
                 )));
             }
             None => {
-                let created_at = crate::time::now_iso8601();
                 let inputs = request
                     .inputs
                     .iter()
@@ -137,10 +135,9 @@ impl BoundRun {
                     } else {
                         Driver::Attached
                     },
-                    created_at: &created_at,
+                    created_at: &crate::time::now_iso8601(),
                 })?;
                 (
-                    created_at,
                     inputs,
                     request.act.clone(),
                     request_context,
@@ -188,7 +185,7 @@ impl BoundRun {
                 Hold::Request(_) | Hold::Child(_) => {}
             }
         }
-        let runtime = self.runtime(&log, &created_at, run_context, run_authority);
+        let runtime = self.runtime(&log, run_context, run_authority);
         let graph = bind_run_inputs(self.runner.graph.clone(), &graph_inputs, run_act.as_ref())?;
         let run = Driven {
             bound: self,
@@ -277,7 +274,6 @@ impl BoundRun {
     fn runtime(
         &self,
         log: &RunLog,
-        created_at: &str,
         context: RunContext,
         run_authority: Option<RunAuthority>,
     ) -> Runtime<ExecutableAdapter> {
@@ -295,7 +291,7 @@ impl BoundRun {
             current_context: context.current,
             historical_context: context.historical,
             run_authority,
-            created_at: created_at.to_owned(),
+            clock: crate::execution::runner::RunClock::System,
             env,
             receipt_signature: self.receipts.signature_config().clone(),
             effects: self.effects.clone(),
@@ -977,7 +973,8 @@ steps:
                 )?;
             }
             let mut options = RuntimeOptions::new(env.clone(), signature.clone(), log.clone());
-            options.created_at = "2026-07-24T00:00:00Z".to_owned();
+            options.clock =
+                crate::execution::runner::RunClock::Fixed("2026-07-24T00:00:00Z".to_owned());
             let runtime = Runtime::new(ExecutableAdapter, options);
             let error = ManagedAgentError::bounded_failure(
                 "round_budget_exhausted",

@@ -77,7 +77,7 @@ const preparedContext = evidenceRefs.find(
 const preparedContextDigest = preparedContext?.locator ?? preparedContext?.uri.split('operator_context:').at(-1);
 
 const [router, ...lanes] = children;
-const sealedDate = (root.seal?.closed_at ?? '').slice(0, 10);
+const sealedDate = (root.created_at ?? '').slice(0, 10);
 const signatureAlg = root.signature?.alg ?? 'unsigned';
 const treeCount = 1 + children.length;
 
