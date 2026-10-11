@@ -57,7 +57,7 @@ importers:
   packages/extension-sdk:
     dependencies:
       '@runxhq/contracts':
-        specifier: workspace:^0.3.0
+        specifier: workspace:^0.4.1
         version: link:../contracts
 
   packages/langchain:
