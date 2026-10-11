@@ -1,0 +1,47 @@
+name: vague-brief-needs-input
+kind: skill
+target: ..
+runner: author
+inputs:
+  governance_brief: Set up governance for our repos.
+  objective: Author a policy from the brief.
+caller:
+  answers:
+    agent.policy-draft-draft.output:
+      policy_proposal:
+        decision: needs_input
+        policy: null
+        rationale: The brief names neither repositories, trusted source locators, owners, nor a runner binding.
+        blockers: []
+        needs_input:
+          - Which repositories should the policy govern?
+          - Which source locators are trusted?
+          - Who owns each target and which runner is available?
+        success_checkpoint:
+          milestone: awaiting_governance_inputs
+          description: Stop before drafting an unbounded policy.
+expect:
+  status: sealed
+  steps:
+    - draft
+    - prepare
+    - finalize-stop
+  step_outputs:
+    finalize-stop:
+      subset:
+        policy_proposal_packet:
+          data:
+            policy_proposal:
+              decision: needs_input
+              policy: null
+              validation:
+                status: not_run
+                engine: runx policy
+  receipt:
+    schema: runx.receipt.v1
+    state: sealed
+    disposition: closed
+metadata:
+  public_skill: policy-draft
+  source_case: vague-brief-needs-input
+  source: skills-fixture

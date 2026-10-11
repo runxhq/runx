@@ -111,7 +111,7 @@ const surfaceDefinitions: readonly RuntimeSurfaceDefinition[] = [
   surface("authority", "runx-core/policy", "schema-exact", "Grant, scope, and authority-kind policy remains machine-checkable without OSS brokerage."),
   surface("policy", "runx-core/policy", "schema-exact", "Policy inspection and linting stay machine-checkable before mutation gates run."),
   surface("caller-mediated-resolution", "runx-runtime", "fixture-backed", "Required input, approvals, and agent work keep the same continuation contract."),
-  surface("skill-authoring", "runx-runtime + skill-lab", "fixture-backed", "Skill creation uses one digest-bound inspect, plan, bind, validate, harness, and transactional apply lane."),
+  surface("skill-authoring", "runx-runtime + skill-build", "fixture-backed", "Skill creation uses one digest-bound inspect, plan, bind, validate, harness, and transactional apply lane."),
   surface("workspace-init", "runx-runtime", "semantic", "Deterministic project and global workspace initialization remains separate from skill authoring."),
   surface("official-skills", "runx-cli", "schema-exact", "Prefetch and lockfile behavior stays fixture-backed."),
   surface("list", "runx-cli", "semantic", "Inventory output for tools, skills, graphs, packets, and overlays stays represented."),

@@ -13,7 +13,7 @@ These three skills are the canonical examples referenced in the operator-skill p
 | Directory | Purpose |
 |---|---|
 | `release/` | Prepare, gate, publish, and verify a versioned release of a runx project through governed phases. |
-| `ledger/` | Answer a cross-run audit question against the receipt ledger and produce a sealed finding. |
+| `receipt-query/` | Answer a cross-run audit question against the receipt ledger and produce a sealed finding. |
 | `send-as/` | Govern a message or campaign send on behalf of a principal, with scoped egress and gating. |
 
 ## Agency & Operations
@@ -25,7 +25,7 @@ Skills that run a standing mandate, route work, or operate a project workspace.
 | `agency/` | Run a standing team with a mandate, advanced one governed case at a time. |
 | `business-ops/` | Route one business signal through a replayable governed ops chain. |
 | `ops-desk/` | Operate a project, workspace, or account from an agent or machine principal. |
-| `policy-author/` | Turn a plain-English governance brief into one validated runx policy. |
+| `policy-draft/` | Turn a plain-English governance brief into one validated runx policy. |
 | `lead-qualify/` | Assess supplied ICP criteria against factual lead context; keep contact eligibility separate. |
 | `cold-outreach/` | Prepare relevant first-contact copy from evidence and scoped brand/taste context. |
 | `lead-enrichment/` | Normalize fresh matched professional facts, preserving missing and conflicting fields. |
@@ -41,11 +41,11 @@ Skills that enforce policy, audit receipts, or review skill quality.
 
 | Directory | Purpose |
 |---|---|
-| `audit-receipt/` | Audit a sealed runx receipt for governance, comparing the authority chain to the evidence. |
+| `receipt-audit/` | Audit a sealed runx receipt for governance, comparing the authority chain to the evidence. |
 | `run-history/` | Produce a read-only report over runx's own run history, summarizing sealed runs. |
-| `review-skill/` | Inspect, safely test, and assess a skill package for capability, trust, and operator risk. |
+| `skill-review/` | Inspect, safely test, and assess a skill package for capability, trust, and operator risk. |
 | `diagnose-skill-run/` | Diagnose failed skill runs from receipts and harness evidence, then propose bounded improvements. |
-| `least-privilege/` | Compare granted scopes against the scopes a subject actually used. |
+| `least-privilege/` | Review exact attributable authority recorded in verified receipts; retain the grant until policy and usage evidence support narrowing. |
 | `sign-receipt/` | Prepare an evidence-bound attestation of an off-runtime act. |
 
 ## Content & Research
@@ -122,8 +122,8 @@ paths, not alternative operator choices.
 
 | Directory | Purpose |
 |---|---|
-| `skill-lab/` | Design, build, improve, and add validated harness coverage to Runx skills. |
-| `adopt-skill/` | Adopt a pinned third-party SKILL.md as a governed native Runx binding bundle. |
+| `skill-build/` | Design, build, improve, and add validated harness coverage to Runx skills. |
+| `skill-adopt/` | Adopt a pinned third-party SKILL.md as a governed native Runx binding bundle. |
 | `moltbook/` | Scan for posting opportunities and prepare governed Moltbook entries. |
 
 ## SQL & Structured Data

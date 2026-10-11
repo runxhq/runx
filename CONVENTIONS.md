@@ -61,7 +61,7 @@ become prerequisites for an otherwise portable skill.
 Promote behavior into native code only for a runtime/security invariant or two
 independent existing consumers. Keep domain policy in its owning skill, delete
 the displaced path in the same cutover, and never expose fixture or package
-layout through a generic API. `skills/skill-lab/SKILL.md` owns the full skill
+layout through a generic API. `skills/skill-build/SKILL.md` owns the full skill
 authoring contract; `docs/skill-quality-standard.md` owns the review standard.
 
 ## Packet Artifact Eligibility

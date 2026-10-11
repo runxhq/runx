@@ -1,0 +1,135 @@
+name: wrap-local-skill-with-native-binding
+kind: skill
+target: ..
+runner: generate
+operator_journeys:
+  - mode: standalone
+    confusors: [skill-build, skill-review]
+    request: Adopt this pinned third-party summarizer as a native Runx skill binding.
+    expected_outcome: Return a validated binding bundle with exact source pins, bounded authority, and isolated harness proof.
+  - mode: composed
+    request: Continue adoption from this reviewed upstream skill and pinned provenance.
+    expected_outcome: Reuse the supplied source and provenance to return the same validated binding bundle without reassessing or refetching upstream.
+    prior_evidence:
+      - The reviewed upstream SKILL.md, commit, blob SHA, registry owner, and scope intent supplied in the fixture.
+    must_not_repeat:
+      - Do not fetch the upstream repository again.
+      - Do not repeat third-party skill assessment already supplied by skill-review.
+inputs:
+  skill_path: skill://fixtures/upstream/summarize/SKILL.md
+  upstream:
+    host: github.com
+    owner: example
+    repo: borrowed-skills
+    path: SKILL.md
+    commit: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    blob_sha: 66cececa3c93fc6b128e9d4341ecfe2a208cd2b9
+    source_of_truth: true
+    html_url: https://github.com/example/borrowed-skills/blob/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/SKILL.md
+    raw_url: https://raw.githubusercontent.com/example/borrowed-skills/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/SKILL.md
+  registry:
+    owner: example
+    trust_tier: community
+    version: upstream-aaaaaaaa
+  objective: Govern the borrowed summarizer through a native Runx binding.
+  scope_intent: Read supplied content without filesystem or network access.
+  tags:
+    - summarization
+caller:
+  answers:
+    agent.overlay-binding-profile.output:
+      profile_draft:
+        decision: ready
+        profile_document: |
+          skill: summarize
+          version: 0.1.0
+          runners:
+            summarize:
+              default: true
+              inputs:
+                content:
+                  type: string
+                  required: true
+                  description: Text to summarize.
+              steps:
+                - id: summarize
+                  agent: { role: analyst, task: borrowed-summarize }
+                  inputs:
+                    content: $input.content
+                  outputs:
+                    summary: string
+                    caveats: array
+          harness:
+            cases:
+              - name: summarize-ready
+                inputs:
+                  content: The launch is delayed one week because the audit is still open.
+                caller:
+                  answers:
+                    agent.borrowed-summarize.output:
+                      summary: The launch is delayed one week pending the audit.
+                      caveats:
+                        - The audit outcome is not yet known.
+                expect:
+                  status: sealed
+                  receipt:
+                    schema: runx.receipt.v1
+              - name: summarize-missing-source
+                inputs:
+                  content: ""
+                caller:
+                  answers:
+                    agent.borrowed-summarize.output:
+                      summary: No summary was produced.
+                      caveats:
+                        - Source text is required.
+                expect:
+                  status: sealed
+                  receipt:
+                    schema: runx.receipt.v1
+        rationale: The upstream skill only reasons over supplied content, so it needs no tools and one read-only content scope.
+        blockers: []
+expect:
+  status: sealed
+  steps:
+    - plan-source
+    - read-source
+    - digest-source
+    - inspect-source
+    - profile
+    - prepare-binding
+    - validate
+    - assemble
+    - digest-profile
+    - digest-binding
+    - finalize
+  step_outputs:
+    finalize:
+      subset:
+        binding_bundle:
+          data:
+            decision: ready
+            binding_path: bindings/example/summarize
+            source:
+              name: summarize
+              sha256: sha256:c7f551aad2e356ba7114910b7ecf27832dd195fcce49a7b3b329de03a7814e71
+              git_blob_sha: 66cececa3c93fc6b128e9d4341ecfe2a208cd2b9
+            files:
+              - path: bindings/example/summarize/binding.json
+              - path: bindings/example/summarize/run.yaml
+            validation:
+              status: pass
+              harness:
+                status: passed
+                case_count: 2
+                case_names:
+                  - summarize-ready
+                  - summarize-missing-source
+            success_checkpoint:
+              milestone: binding_bundle_ready
+  receipt:
+    schema: runx.receipt.v1
+metadata:
+  public_skill: skill-adopt
+  source_case: wrap-local-skill-with-native-binding
+  source: skills-fixture

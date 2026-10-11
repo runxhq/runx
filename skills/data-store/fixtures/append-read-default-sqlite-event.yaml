@@ -3,7 +3,7 @@ kind: skill
 target: ..
 operator_journeys:
   - mode: standalone
-    confusors: [sql-analyst, ledger]
+    confusors: [sql-analyst, receipt-query]
     request: Append this event to the local Runx data source and read the resulting stream state.
     expected_outcome: Apply one idempotent declared data transition and return the persisted version and event projection.
   - mode: composed

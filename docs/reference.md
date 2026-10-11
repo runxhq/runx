@@ -84,7 +84,7 @@ a runx workspace; bare skill names resolve from the current workspace's
 runx --help
 runx skill /path/to/runx/oss/fixtures/skills/echo --message hello --json
 cd /path/to/runx/oss
-runx skill ./skills/skill-lab design --objective "build sourcey docs skill" --json
+runx skill ./skills/skill-build design --objective "build sourcey docs skill" --json
 ```
 
 Recommended flows:
@@ -103,7 +103,7 @@ runx turn <run-id>
 runx history
 runx history <receipt-id> --detail --json
 runx mcp serve ./fixtures/skills/echo
-runx skill ./skills/skill-lab design --objective "build github review skill"
+runx skill ./skills/skill-build design --objective "build github review skill"
 runx harness ./fixtures/harness/echo-skill.yaml
 runx config set agent.provider openai
 printf '%s' "$OPENAI_API_KEY" | runx config set agent.api_key --from-stdin
@@ -351,7 +351,7 @@ Command-surface ownership:
 | policy, authority, payment, x402 | Rust core/runtime policy | published type mirrors and product UX |
 | governed data operations | the store connector's native driver | generated types, helper SDKs |
 | non-execution extension protocols | lane-specific Rust/cloud owners | generated types, helper SDKs, provider glue |
-| skill authoring and `runx new` | `runx-runtime` authoring service plus `skill-lab` | npm launcher only |
+| skill authoring and `runx new` | `runx-runtime` authoring service plus `skill-build` | npm launcher only |
 | marketplace and docs projection | Rust-owned catalog/contracts | generated docs and client views |
 
 Stateful product work should use the governed data-plane shape in
@@ -575,7 +575,7 @@ for the package belong in `SKILL.md`; external guides belong under `docs/`.
 
 See `../docs/skill-profile-model.md` for resolution rules, publication modes, trust tiers, MCP export, and composite skill behavior.
 
-Use `work-plan` for bounded change planning, `skill-lab` for skill-package
+Use `work-plan` for bounded change planning, `skill-build` for skill-package
 design and improvement, and the named downstream execution lane for mutation.
 
 ## Tool Authoring
@@ -624,8 +624,8 @@ or import uncompiled TypeScript.
 The official catalog is explicit about why each package is public:
 
 - canonical governed skills: `charge`, `dispute-respond`,
-  `skill-lab`, `review-skill`, `least-privilege`, `adopt-skill`,
-  `policy-author`, `audit-receipt`, `refund`, `ops-desk`, `send-as`, `spend`,
+  `skill-build`, `skill-review`, `least-privilege`, `skill-adopt`,
+  `policy-draft`, `receipt-audit`, `refund`, `ops-desk`, `send-as`, `spend`,
   `weather-forecast`
 - branded provider skills: `nitrosend`, `nws-weather-forecast`, `stripe-pay`,
   `x402-pay`

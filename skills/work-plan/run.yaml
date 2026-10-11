@@ -230,7 +230,7 @@ harness:
                 findings:
                   - code: phase.unknown_dependency
                     path: workspace_change_plan.phases[0].depends_on[0]
-    - name: work-plan-skill-package-requires-skill-lab
+    - name: work-plan-skill-package-requires-skill-build
       inputs:
         objective: Add a new Runx operator skill.
         repo_root: fixtures/workspace
@@ -299,7 +299,7 @@ harness:
               validation:
                 status: hold
                 findings:
-                  - code: skill_package.skill_lab_required
+                  - code: skill_package.skill_build_required
                     path: orchestration_steps
 runners:
   work-plan-agent:

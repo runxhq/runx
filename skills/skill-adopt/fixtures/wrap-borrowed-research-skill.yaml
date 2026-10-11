@@ -1,0 +1,41 @@
+name: upstream-blob-drift-stops
+kind: skill
+target: ..
+runner: generate
+inputs:
+  skill_path: skill://fixtures/upstream/summarize/SKILL.md
+  upstream:
+    host: github.com
+    owner: example
+    repo: borrowed-skills
+    path: SKILL.md
+    commit: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    blob_sha: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    source_of_truth: true
+    html_url: https://github.com/example/borrowed-skills/blob/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/SKILL.md
+    raw_url: https://raw.githubusercontent.com/example/borrowed-skills/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/SKILL.md
+  registry:
+    owner: example
+    trust_tier: community
+    version: upstream-aaaaaaaa
+expect:
+  status: sealed
+  steps:
+    - plan-source
+    - read-source
+    - digest-source
+    - inspect-source
+    - reject-source
+  step_outputs:
+    reject-source:
+      subset:
+        binding_bundle:
+          data:
+            decision: reject
+            files: []
+            validation:
+              status: hold
+metadata:
+  public_skill: skill-adopt
+  source_case: upstream-blob-drift-stops
+  source: skills-fixture

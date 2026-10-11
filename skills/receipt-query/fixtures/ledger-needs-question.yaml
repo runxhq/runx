@@ -1,0 +1,13 @@
+name: ledger-needs-question
+kind: skill
+target: ..
+runner: read
+inputs: {}
+expect:
+  status: sealed
+  receipt:
+    schema: runx.receipt.v1
+metadata:
+  public_skill: receipt-query
+  source_case: ledger-needs-question
+  source: skills-fixture

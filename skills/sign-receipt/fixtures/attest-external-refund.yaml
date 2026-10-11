@@ -4,7 +4,7 @@ target: ..
 runner: sign-receipt
 operator_journeys:
   - mode: standalone
-    confusors: [audit-receipt, ledger]
+    confusors: [receipt-audit, receipt-query]
     request: Seal an auditable attestation for this manual provider refund without claiming Runx verified the refund itself.
     expected_outcome: Return a signed Runx receipt that binds the exact claim to opaque evidence references and states the external proof boundary truthfully.
   - mode: composed

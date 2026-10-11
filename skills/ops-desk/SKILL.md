@@ -104,7 +104,7 @@ Ops desk packets name existing execution surfaces; they do not implement them.
 
 - `release` owns release preparation, approval, publish handoff, and
   post-release verification.
-- `ledger`, `audit-receipt`, and `run-history` own proof questions.
+- `receipt-query`, `receipt-audit`, and `run-history` own proof questions.
 - `send-as` owns authority for live communications; branded provider skills and
   their connectors own provider-specific execution details.
 - `spend`, `charge`, `refund`, and branded payment skills own money movement.
@@ -141,7 +141,7 @@ product gap. Do not invent a private workaround.
 3. Route to governed lanes.
    - Release questions route to `release` plus the project release profile and
      existing release workflow/commands.
-   - Audit questions route to `ledger`, `audit-receipt`, `run-history`,
+   - Audit questions route to `receipt-query`, `receipt-audit`, `run-history`,
      or `least-privilege`.
    - Live communication routes through `send-as` and then the provider's
      connector.

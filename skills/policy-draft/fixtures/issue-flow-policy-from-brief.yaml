@@ -1,0 +1,163 @@
+name: issue-flow-policy-from-brief
+kind: skill
+target: ..
+runner: author
+operator_journeys:
+  - mode: standalone
+    confusors: [least-privilege, work-plan]
+    request: Author a fail-closed Runx issue-flow policy from this governance brief.
+    expected_outcome: Return a native-policy-validated contract covering sources, owners, merge authority, and close-after-verification rules.
+  - mode: composed
+    request: Compile this approved issue-flow governance brief into an operational policy.
+    expected_outcome: Reuse the supplied repositories, trust sources, owners, and merge constraints without re-planning governance.
+    prior_evidence:
+      - The approved governance brief supplied in the fixture.
+    must_not_repeat:
+      - Do not rediscover repository ownership.
+      - Do not weaken or reinterpret the supplied merge and closure constraints.
+inputs:
+  governance_brief: "Govern issue intake across acme/acme, acme/api, and acme/app. Trust GitHub issues and Sentry alerts. Kam owns platform; Chong owns product. Never auto-merge, require a human merge, and close source issues only after verification."
+  objective: Stand up a fail-closed issue-flow policy for the three repos.
+caller:
+  answers:
+    agent.policy-draft-draft.output:
+      policy_proposal:
+        decision: ready
+        policy:
+          schema: runx.operational_policy.v1
+          schema_version: runx.operational_policy.v1
+          policy_id: acme-issue-flow
+          sources:
+            - source_id: github-issues
+              provider: github
+              allowed_locators:
+                - github://acme/acme/issues
+                - github://acme/api/issues
+                - github://acme/app/issues
+              allowed_actions:
+                - issue-intake
+                - issue-to-pr
+                - pr-review
+              source_thread:
+                required: true
+                publish_mode: comment
+                missing_behavior: fail_closed
+              minimum_confidence: 0.72
+            - source_id: sentry-alerts
+              provider: sentry
+              allowed_locators:
+                - sentry://acme/production
+              allowed_actions:
+                - issue-intake
+                - issue-to-pr
+              source_thread:
+                required: true
+                publish_mode: reply
+                missing_behavior: fail_closed
+              minimum_confidence: 0.82
+          runners:
+            - runner_id: local-review
+              kind: local
+              state: available
+              allowed_actions:
+                - issue-intake
+                - issue-to-pr
+                - pr-review
+              target_repos:
+                - acme/acme
+                - acme/api
+                - acme/app
+              scafld_required: true
+          owner_routes:
+            - route_id: platform-owner
+              owners:
+                - kam
+              target_repos:
+                - acme/acme
+                - acme/api
+            - route_id: product-owner
+              owners:
+                - chong
+              target_repos:
+                - acme/app
+          targets:
+            - repo: acme/acme
+              runner_ids:
+                - local-review
+              allowed_actions:
+                - issue-intake
+                - issue-to-pr
+                - pr-review
+              default_owner_route: platform-owner
+              scafld_required: true
+              base_branch: main
+            - repo: acme/api
+              runner_ids:
+                - local-review
+              allowed_actions:
+                - issue-intake
+                - issue-to-pr
+                - pr-review
+              default_owner_route: platform-owner
+              scafld_required: true
+              base_branch: main
+            - repo: acme/app
+              runner_ids:
+                - local-review
+              allowed_actions:
+                - issue-intake
+                - issue-to-pr
+                - pr-review
+              default_owner_route: product-owner
+              scafld_required: true
+              base_branch: main
+          dedupe:
+            strategy: source_fingerprint
+            key_fields:
+              - source.provider
+              - source.locator
+              - signal.fingerprint
+            on_duplicate: reuse
+          outcomes:
+            observe_provider: true
+            verification_required: true
+            close_source_issue: when_verified
+            publish_final_source_thread_update: true
+          permissions:
+            auto_merge: false
+            mutate_target_repo: true
+            require_human_merge_gate: true
+        rationale: The policy binds every source, target, runner, and owner while keeping mutation behind human review.
+        blockers: []
+        needs_input: []
+        success_checkpoint:
+          milestone: policy_drafted
+          description: The draft is ready for native validation.
+expect:
+  status: sealed
+  steps:
+    - draft
+    - prepare
+    - lint
+    - finalize-lint
+  step_outputs:
+    finalize-lint:
+      subset:
+        policy_proposal_packet:
+          data:
+            policy_proposal:
+              decision: ready
+              policy:
+                schema: runx.operational_policy.v1
+                policy_id: acme-issue-flow
+              validation:
+                status: pass
+                engine: runx policy
+  receipt:
+    schema: runx.receipt.v1
+    state: sealed
+    disposition: closed
+metadata:
+  public_skill: policy-draft
+  source_case: issue-flow-policy-from-brief
+  source: skills-fixture

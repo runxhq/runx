@@ -3,7 +3,7 @@ kind: skill
 target: ..
 operator_journeys:
   - mode: standalone
-    confusors: [least-privilege, policy-author]
+    confusors: [least-privilege, policy-draft]
     request: Unseal one scoped time-bounded opaque vault handle for this principal.
     expected_outcome: Issue the approved opaque handle once, verify it through provider readback, and never expose secret material.
 inputs:

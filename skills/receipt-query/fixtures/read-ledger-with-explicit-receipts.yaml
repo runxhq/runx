@@ -1,0 +1,23 @@
+name: read-ledger-with-explicit-receipts
+kind: skill
+target: ..
+runner: read
+inputs:
+  question: Which spend runs sealed in the supplied ledger slice?
+  filter:
+    skill_ref: runx/spend
+    status:
+      - sealed
+  receipts:
+    - receipt_id: rcpt_01HZX5K2spend
+      skill_ref: runx/spend
+      status: sealed
+      created_at: "2026-06-03T14:21:08Z"
+expect:
+  status: sealed
+  receipt:
+    schema: runx.receipt.v1
+metadata:
+  public_skill: receipt-query
+  source_case: read-ledger-with-explicit-receipts
+  source: skills-fixture

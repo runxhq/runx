@@ -29,7 +29,7 @@ The console may show:
 - access and least-privilege review state.
 
 The console must not add bespoke mutation routes for convenience. A dashboard
-button maps to a governed lane such as `send-as`, `ledger`, `refund`,
+button maps to a governed lane such as `send-as`, `receipt-query`, `refund`,
 `provider.send`, `least-privilege`, or a product skill.
 If the lane ultimately runs a CLI command, connector operation, or repository
 workflow, the dashboard and agent both reference that existing interface. They

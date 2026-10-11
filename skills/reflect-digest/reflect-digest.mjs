@@ -84,8 +84,8 @@ export function buildHandoffs(inputs) {
   });
   return {
     proposals: normalized,
-    skill_lab_handoffs: normalized.map((proposal) => ({
-      skill: "skill-lab",
+    skill_build_handoffs: normalized.map((proposal) => ({
+      skill: "skill-build",
       runner: "improve",
       target_skill_ref: proposal.skill_ref,
       supporting_receipt_ids: proposal.supporting_receipt_ids,

@@ -11,6 +11,48 @@ packages. This page is the maintainer-curated map: it explains how to search,
 which category slugs are canonical, and what evidence a new skill proposal must
 include before it belongs in the runx repo.
 
+## Runx foundation and optional packages
+
+The maintained foundation is `skill-build`, `skill-review`, `skill-adopt`,
+`diagnose-skill-run`, `run-history`, `receipt-query`, `receipt-audit`,
+`least-privilege`, `policy-draft`, and `sign-receipt`, alongside the root
+`runx` orientation manual. Their complete packages ship inside Runx and work
+offline without a registry download or source checkout. Each uses the ordinary
+package, execution, authority, and receipt contracts. Bundling adds no privilege.
+
+Users can load their own skills and connectors directly from local files.
+For example, `runx skill ./skills/my-skill` loads a local skill; its plugin can
+carry connector manifests in `connectors/<id>/connector.yaml` and their declared
+tool packages. Local use requires no publication or registry account. Bundled,
+local and registry sources share native validation and execution contracts.
+`RUNX_SKILL_ROOTS` adds directories containing local skill packages, separated
+with the platform's path separator; execution and export read the same roots.
+For example, a package under `<root>/my-team/review` can be invoked or exported
+as `my-team/review`. Multiple installed versions require an exact package path.
+Export the shipped orientation manual with `runx export codex runx`, or a core
+package with `runx export codex runx/receipt-query`. Both resolve from the
+installed runtime without a checkout or registry download.
+CLI outputs identify the resolved source in `entry_provenance`; bundled
+packages identify `bundled:runx` without implying a registry trust tier.
+
+Public distribution of optional domain procedures and product integrations
+uses the registry. Their publisher follows the actual maintainer: Runx-maintained packages can
+remain under `runx/`; product-owned packages publish from their owning product
+repository. Being optional does not make a skill personally owned. A connector
+retains its own publisher even when a differently owned skill composes it.
+
+Source location, CLI distribution, and registry publication are separate facts.
+Keeping an optional package in this repository for maintenance does not require
+bundling it into the executable. Removing it from a distribution does not
+publish it. A source transfer needs the authenticated publisher, complete
+package and connector closure, updated callers, and exact-version readback
+before the old maintained source is removed. Existing suspended runs retain
+their original bound closure.
+
+The names above describe the maintained source. Registry availability and the
+CLI packaging cutover require separate verification; this list is not a claim
+that those changes are deployed.
+
 ## Where to look first
 
 Use the public catalog when you want to browse or share a package:
@@ -139,7 +181,7 @@ evidence, not copied into the repo by default.
 
 | Category | Maintained packages |
 | --- | --- |
-| `authoring` | `adopt-skill`, `diagnose-skill-run`, `policy-author`, `prior-art`, `review-skill`, `skill-lab`, `work-plan` |
+| `authoring` | `skill-adopt`, `diagnose-skill-run`, `policy-draft`, `prior-art`, `skill-review`, `skill-build`, `work-plan` |
 | `code` | `github-pr-review`, `release`, `schema-guard` |
 | `content` | `brand-voice`, `content-pipeline`, `contract-drafter`, `ghostwrite`, `moltbook` |
 | `data` | `data-store`, `product-analytics`, `run-history`, `sql-analyst` |
@@ -147,7 +189,7 @@ evidence, not copied into the repo by default.
 | `ops` | `github-sync`, `governed-outbound`, `chief-of-staff`, `issue-intake`, `issue-triage`, `n8n-handoff`, `ops-desk`, `postmortem-maker`, `send-as`, `zapier-handoff` |
 | `payments` | `charge`, `dispute-respond`, `mock-charge`, `mock-pay`, `mock-refund`, `purchase-approval`, `refund`, `settle-invoice`, `spend`, `stripe-pay`, `x402-pay` |
 | `research` | `ecosystem-brief`, `research`, `web-search` |
-| `security` | `cve-audit`, `sbom-maker`, `vuln-triage`, `vuln-disclosure`, `data-subject-request`, `least-privilege`, `audit-receipt`, `redact-pii`, `sign-receipt`, `vault-unseal` |
+| `security` | `cve-audit`, `sbom-maker`, `vuln-triage`, `vuln-disclosure`, `data-subject-request`, `least-privilege`, `receipt-audit`, `redact-pii`, `sign-receipt`, `vault-unseal` |
 
 Graph stages, harness fixtures, context-only packages, and provider bindings are
 not listed here unless they are meant to be run as catalog packages. Their

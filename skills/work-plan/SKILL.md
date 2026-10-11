@@ -10,14 +10,14 @@ Turn one objective into a plan that downstream runners can consume without reint
 ## Procedure
 
 1. Start from `objective`. When `change_set` is supplied by `issue-intake`, preserve it exactly; do not rewrite its target surfaces, invariants, success criteria, or commencement decision.
-2. Classify the plan as `workspace_change` or `skill_package`. Skill-package authoring belongs to `skill-lab`; do not route it through a generic repo-change step.
+2. Classify the plan as `workspace_change` or `skill_package`. Skill-package authoring belongs to `skill-build`; do not route it through a generic repo-change step.
 3. Split work at authority, mutation, dependency, and review boundaries. Keep steps coarse enough to produce a meaningful artifact.
 4. Declare ordered phases and repo change requests. Parallel work must have no dependency or shared mutation target.
 5. Declare orchestration steps with exact skill references, scopes, mutation flags, inputs, and prior-step context references.
 6. Return `blocked` when a question must be answered before mutation. Never turn uncertainty into an executable plan.
 7. Native catalog inspection supplies the actual installed skill set. The
    domain validator then verifies source preservation, ordered DAGs, mutation
-   declarations, context references, catalog ownership, and the `skill-lab`
+   declarations, context references, catalog ownership, and the `skill-build`
    boundary. Invalid candidates are withheld and returned as a blocked packet.
 
 This skill does not approve or execute mutations. A `mutating: true` field describes authority a future step will need.
@@ -58,4 +58,4 @@ supplied change_set exactly. Split at authority, mutation, dependency, and revie
 not split for cognitive convenience. Every phase, repo request, and orchestration step needs an
 id, ordered dependencies, and an explicit mutation flag. A ready plan has no blocking open
 questions. Use plan_kind skill_package for Runx skill authoring and route that work through
-skill-lab. This runner plans only and never claims downstream execution.
+skill-build. This runner plans only and never claims downstream execution.

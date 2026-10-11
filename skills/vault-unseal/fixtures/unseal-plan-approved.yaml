@@ -4,7 +4,7 @@ target: ..
 runner: vault-unseal
 operator_journeys:
   - mode: standalone
-    confusors: [least-privilege, policy-author]
+    confusors: [least-privilege, policy-draft]
     request: Unseal this vault reference for one ten-minute Drive export operation.
     expected_outcome: Return an exact approved time-bounded request and opaque handle metadata without exposing secret material.
   - mode: composed

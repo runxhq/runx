@@ -1,6 +1,6 @@
 [
   {
-    "skill": "skill-lab",
+    "skill": "skill-build",
     "artifact": "Based on the provided catalog evidence, the machine should create a skill. UNRESOLVED_INPUTS",
     "expected_codes": ["machine_framing", "builder_framing", "unresolved_placeholder"]
   },

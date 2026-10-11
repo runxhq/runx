@@ -1,0 +1,89 @@
+name: skill-build-stops-for-earned-core-gap
+kind: skill
+target: ..
+runner: build
+inputs:
+  objective: Add a digest-bound compare-and-swap bundle primitive required by two existing skills
+  repo_root: .
+  target_dir: skills/fixture-core-gap
+caller:
+  answers:
+    agent.skill-build-architecture.output:
+      architecture_decision:
+        schema: runx.skill.architecture_decision.v1
+        disposition: needs_core
+        objective: Add a digest-bound compare-and-swap bundle primitive required by two existing skills.
+        operator_value: Give independent skills one atomic stale-write-safe mutation primitive.
+        knowledge_contract:
+          purpose: Stop package work and surface an earned native capability gap.
+          evidence_required:
+            - Two independent consumers of digest-bound file transactions.
+          decision_logic:
+            - Promote path admission, stale-write rejection, and rollback to native ownership.
+          stop_conditions:
+            - Stop when package code would duplicate a runtime security boundary.
+          recovery:
+            - Add and validate the native primitive before resuming package authoring.
+        required_behaviors: []
+        native_reuse:
+          inspected_capabilities:
+            - runx.skill.inspect
+            - runx.skill.plan
+            - runx.skill.bind
+            - runx.skill.apply
+          selected_capabilities: []
+          missing_capabilities:
+            - fs.compare_and_swap_bundle
+        effects:
+          - effect: read
+            authority_scopes:
+              - fs.read
+            approval: none
+            provider_boundary: false
+        skill_chain:
+          context_skills: []
+          routes:
+            - Resume Skill Build after the native capability exists.
+        resource_budget:
+          max_files: 0
+          max_executable_lines: 0
+          max_process_spawns: 0
+          network_allowed: false
+        preservation_obligations:
+          - Do not hide filesystem admission in package-local code.
+        deletions: []
+        proof_plan: []
+    agent.skill-build-author.output:
+      change_draft:
+        schema: runx.skill.change_draft.v1
+        decision: needs_core
+        summary: Stop package authoring because the missing primitive has independent consumers.
+        non_goals:
+          - Do not add package-local filesystem code.
+        writes: []
+        deletes: []
+        expected_outputs: []
+expect:
+  status: sealed
+  receipt:
+    schema: runx.receipt.v1
+  steps:
+    - inspect
+    - architect
+    - plan
+    - author
+    - bind
+    - apply
+  step_outputs:
+    apply:
+      subset:
+        apply_result:
+          data:
+            decision: needs_core
+            verdict: needs_core
+            changed_paths: []
+            deleted_paths: []
+metadata:
+  public_skill: skill-build
+  source_case: build-needs-core
+  source: skills-fixture

@@ -1,20 +1,16 @@
 ---
 name: runx
 description: "Governed runtime for agent skills: discover and install portable skills, run bounded skill graphs with explicit authority, and inspect signed receipts for what happened."
-runx:
-  tags:
-    - runtime
-    - meta
-links:
-  spec: https://runx.ai/spec
-  catalog: https://runx.ai/x
-  doctrine: https://runx.ai/doctrine
-  what: https://runx.ai/what
-  source: https://github.com/runxhq/runx
+metadata:
+  tags: runtime, meta
 license: Apache-2.0
 ---
 
 # runx
+
+References: [spec](https://runx.ai/spec), [catalog](https://runx.ai/x),
+[doctrine](https://runx.ai/doctrine), [overview](https://runx.ai/what),
+[source](https://github.com/runxhq/runx).
 
 runx is the governed runtime for agent skills. Use it when an agent needs to do
 real work through a portable skill while preserving four properties:
@@ -76,6 +72,7 @@ understand objective -> choose skill -> inspect authority -> run -> verify recei
      is ambiguous, ask before running.
 
 2. **Choose the smallest skill**
+   - Discover the shipped foundation and local packages with `runx list skills --json`.
    - Search the catalog with `runx registry search <query>` or browse <https://runx.ai/x>.
    - Prefer a comprehensive domain skill over many tiny private steps when the
      domain skill already models the full workflow.
@@ -84,6 +81,7 @@ understand objective -> choose skill -> inspect authority -> run -> verify recei
      directly, such as `x402-pay`, `stripe-pay`, or a hosted communication lane.
 
 3. **Install or reference the skill**
+   - The Runx foundation ships with the runtime. Run it directly, for example `runx skill runx/receipt-query`; it needs no download.
    - Install catalog skills with `runx add <publisher>/<skill>@<version>` or run an exact registry ref with `runx skill <publisher>/<skill>@<version>`.
    - Run local skills from the checked-out package path when developing.
    - Treat local files as the user's workspace context, but do not publish or
@@ -108,7 +106,7 @@ understand objective -> choose skill -> inspect authority -> run -> verify recei
      profiles and project bindings are the durable multi-account path.
 
 6. **Verify the result**
-   - Inspect receipts with `runx history` or `runx history <receipt-id> --json`.
+   - List runs with `runx history`. Inspect an exact receipt with `runx history <receipt-id> --detail --json` and verify its signed tree with `runx verify <receipt-id> --json`.
    - Check that the receipt says the same action the user approved.
    - Confirm any effect through the skill's readback: provider status, published
      URL, transaction hash, delivered message id, deployment id, or denial.

@@ -8,7 +8,7 @@ description: Diagnose a failed or suspicious Runx skill execution from receipts 
 Diagnose what went wrong in a skill or graph execution and propose the
 smallest change that fixes it.
 
-Resolve `receipt_id` through the native `ledger read` runner, then combine its
+Resolve `receipt_id` through the native `receipt-query read` runner, then combine its
 redacted receipt detail with the supplied failure summary or harness output.
 The native detail is authoritative for status, verification, authority, acts,
 decisions, criterion status, references, and seal posture. It deliberately
@@ -44,7 +44,7 @@ Classify the failure:
 
 <!-- Generated from the native execution closure; run pnpm core-skills:composes:generate. -->
 
-- `ledger#read`
+- `receipt-query#read`
 
 ## Agent-mediated suspension is not a failure
 
@@ -64,11 +64,11 @@ cause. Do not bundle unrelated improvements.
 
 ## Output
 
-The stable failure packet is consumed directly by `skill-lab improve`. Its
+The stable failure packet is consumed directly by `skill-build improve`. Its
 output shape is formalised as JSON Schema at
 [review-receipt-output.schema.json](../../schemas/review-receipt-output.schema.json).
 Agents should self-validate before returning, and downstream
-consumers (notably the `skill-lab improve` runner) may validate on receipt.
+consumers (notably the `skill-build improve` runner) may validate on receipt.
 
 - `verdict`: `pass`, `needs_update`, or `blocked`.
 - `failure_summary`: which step, which failure class, what root cause.

@@ -12,9 +12,9 @@ transcribe counts.
 
 Use it for operational questions about recent Runx activity, failed or blocked
 runs, paused runs, frequently run skills, and skill entries without fixtures or
-inline harness cases. Use `audit-receipt` or `diagnose-skill-run` to
+inline harness cases. Use `receipt-audit` or `diagnose-skill-run` to
 inspect one suspicious run, and `least-privilege` when receipt-backed authority
-usage is available for grant attenuation.
+evidence is available for grant review; actual usage and policy semantics are still needed before attenuation.
 
 ## Evidence boundary
 
@@ -41,8 +41,8 @@ usage is available for grant attenuation.
 - sealed and paused run counts, disposition counts, closed/refusal rates;
 - the most frequently run skills;
 - catalog entry and test-coverage counts;
-- bounded recommendations routed to `diagnose-skill-run`, `audit-receipt`, or
-  `skill-lab harness`;
+- bounded recommendations routed to `diagnose-skill-run`, `receipt-audit`, or
+  `skill-build harness`;
 - limitations when native projections cannot support a stronger claim.
 
 This skill never executes another skill, changes a grant, or changes a run.

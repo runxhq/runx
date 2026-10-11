@@ -1,0 +1,189 @@
+skill: skill-review
+version: "0.3.3"
+
+catalog:
+  owner: runx
+  kind: graph
+  audience: builder
+  visibility: public
+  role: canonical
+  execution: read
+  completion: runtime_receipt
+  requires_adapter: false
+  approval: none
+  category: authoring
+
+harness:
+  cases:
+    - name: skill-review-collects-native-evidence
+      operator_journeys:
+        - mode: standalone
+          confusors: [diagnose-skill-run, skill-build]
+          request: Review diagnose-skill-run for capability, trust, and operator readiness.
+          expected_outcome: Collect native inspection and harness evidence, then return a bounded adoption or improvement recommendation.
+        - mode: composed
+          request: Assess this skill from the native evidence already collected by the catalog review.
+          expected_outcome: Reuse inspection and harness evidence without rerunning provider effects or rebuilding the skill.
+          prior_evidence:
+            - The native package inspection, harness result, objective, and test constraints supplied in the fixture.
+          must_not_repeat:
+            - Do not rerun live provider operations.
+            - Do not rediscover package contracts already present in native inspection.
+      runner: review
+      inputs:
+        skill_ref: ../diagnose-skill-run
+        objective: Decide whether receipt diagnosis has bounded evidence and stop behavior
+        test_constraints: Run only local read-only harnesses.
+      caller:
+        answers:
+          agent.skill-review-assess.output:
+            capability_profile:
+              skill_ref: ../diagnose-skill-run
+              summary: Diagnoses one receipt or harness failure into a bounded recommendation.
+            trust_assessment:
+              tier: local_harness
+              caveats:
+                - Provider effects are outside this skill's claim.
+            test_matrix:
+              - check: native harness
+                status: passed
+            recommendation_report:
+              recommendation: adopt_with_caveats
+              rationale: The bounded read-only contract and local harness are proven.
+      expect:
+        status: sealed
+        receipt:
+          schema: runx.receipt.v1
+        steps:
+          - collect-evidence
+          - assess
+        step_outputs:
+          collect-evidence:
+            subset:
+              skill_validation:
+                data:
+                  verdict: tested
+                  inspect:
+                    status: ok
+                    name: diagnose-skill-run
+                  harness:
+                    status: passed
+
+    - name: skill-review-assesses-supplied-evidence
+      runner: assess
+      inputs:
+        skill_ref: example/skill
+        evidence_pack:
+          inspect:
+            status: ok
+          harness:
+            status: passed
+      caller:
+        answers:
+          agent.skill-review-assess.output:
+            capability_profile:
+              skill_ref: example/skill
+              summary: Bounded example capability.
+            trust_assessment:
+              tier: supplied_local_evidence
+              caveats: []
+            test_matrix:
+              - check: supplied harness
+                status: passed
+            recommendation_report:
+              recommendation: improve
+              rationale: Supplied evidence is useful but lacks independent provider proof.
+      expect:
+        status: sealed
+        receipt:
+          schema: runx.receipt.v1
+
+    - name: skill-review-assess-needs-evidence
+      runner: assess
+      inputs:
+        skill_ref: example/skill
+      expect:
+        status: needs_agent
+
+runners:
+  review:
+    default: true
+    inputs:
+      skill_ref:
+        type: string
+        required: true
+        description: Workspace- or owning-skill-relative local package path.
+      objective:
+        type: string
+        required: false
+        description: Specific decision the evaluation should support.
+      evidence_pack:
+        type: json
+        required: false
+        description: Additional receipts, docs, provider evidence, or source notes.
+      test_constraints:
+        type: string
+        required: false
+        description: Time, environment, or safety constraints on evaluation.
+    result_from: [assess]
+    steps:
+      - id: collect-evidence
+        label: inspect target and run safe native harness
+        tool: runx.skill.validate
+        scopes:
+          - fs.read
+        inputs:
+          skill_ref: $input.skill_ref
+          allow_execute_harness: false
+      - id: assess
+        skill: .
+        runner: assess
+        inputs:
+          skill_ref: $input.skill_ref
+          objective: $input.objective
+          evidence_pack: $input.evidence_pack
+          test_constraints: $input.test_constraints
+          native_validation: $steps.collect-evidence.skill_validation
+
+  assess:
+    runx:
+      post_run:
+        reflect: never
+    inputs:
+      skill_ref:
+        type: string
+        required: true
+        description: Skill package path, registry id, or marketplace id.
+      objective:
+        type: string
+        required: false
+        description: Specific decision the evaluation should support.
+      evidence_pack:
+        type: json
+        required: false
+        description: Native inspection, harness, receipts, docs, or source notes.
+      native_validation:
+        type: json
+        required: false
+        description: Native runx.skill.validate evidence collected by the default runner.
+      test_constraints:
+        type: string
+        required: false
+        description: Time, environment, or safety constraints on evaluation.
+    steps:
+      - id: assess
+        agent: { role: reviewer, task: skill-review-assess }
+        inputs:
+          skill_ref: $input.skill_ref
+          objective: $input.objective
+          evidence_pack: $input.evidence_pack
+          native_validation: $input.native_validation
+          test_constraints: $input.test_constraints
+        outputs:
+          capability_profile: object
+          trust_assessment: object
+          test_matrix: array
+          recommendation_report: object
+        artifacts:
+          wrap_as: skill_evaluation_packet
+          packet: runx.skill.evaluation.v1

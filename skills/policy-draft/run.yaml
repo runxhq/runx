@@ -1,0 +1,194 @@
+skill: policy-draft
+version: "0.2.3"
+catalog:
+  owner: runx
+  kind: graph
+  audience: operator
+  visibility: public
+  role: canonical
+  execution: plan
+  completion: plan
+  requires_adapter: false
+  approval: none
+runners:
+  author:
+    default: true
+    inputs:
+      governance_brief:
+        type: string
+        required: true
+        description: The governance intent in prose.
+      existing_policy:
+        type: json
+        required: false
+        description: A current runx.operational_policy.v1 to tighten without widening authority.
+      target_repos:
+        type: json
+        required: false
+        description: Explicit repository list when not stated in the brief.
+      objective:
+        type: string
+        required: false
+        description: Operator intent that focuses the pass.
+    result_from: [finalize-lint, finalize-stop]
+    steps:
+      - id: draft
+        label: draft the narrowest operational policy
+        agent: { role: builder, task: policy-draft-draft }
+        outputs:
+          policy_proposal:
+            type: object
+            schema:
+              required: [decision, policy, rationale, blockers, needs_input, success_checkpoint]
+              additionalProperties: false
+              properties:
+                decision: { type: string, enum: [ready, needs_input, reject] }
+                policy:
+                  type: [object, "null"]
+                  required: [schema]
+                  properties:
+                    schema: { const: runx.operational_policy.v1 }
+                  additionalProperties: true
+                rationale: { type: string }
+                blockers: { type: array, items: { type: string } }
+                needs_input: { type: array, items: { type: string } }
+                success_checkpoint:
+                  type: object
+                  properties:
+                    milestone: { type: string }
+                    description: { type: string }
+                  additionalProperties: true
+        inputs:
+          governance_brief: $input.governance_brief
+          existing_policy: $input.existing_policy
+          target_repos: $input.target_repos
+          objective: $input.objective
+        artifacts:
+          named_emits:
+            policy_proposal: policy_proposal
+      - id: prepare
+        label: enforce the attenuation boundary
+        inputs:
+          existing_policy: $input.existing_policy
+          policy_proposal: $steps.draft.policy_proposal
+        tool: { module: policy-draft.mjs, export: preparePolicy }
+        outputs:
+          policy_context: object
+        artifacts:
+          named_emits:
+            policy_context: policy_context
+      - id: lint
+        label: lint the exact policy with the native contract engine
+        when:
+          value: $steps.prepare.policy_context.path
+          equals: lint
+        tool: policy.lint
+        inputs:
+          policy: $steps.prepare.policy_context.policy
+      - id: finalize-lint
+        label: finalize the native lint verdict
+        when:
+          value: $steps.prepare.policy_context.path
+          equals: lint
+        tool: { module: policy-draft.mjs, export: finalizePolicy }
+        outputs:
+          policy_proposal:
+            type: object
+            schema:
+              required: [decision, policy, validation, rationale, blockers, needs_input, success_checkpoint]
+              additionalProperties: false
+              properties:
+                decision: { type: string, enum: [ready, needs_input, reject] }
+                policy:
+                  type: [object, "null"]
+                  required: [schema]
+                  properties:
+                    schema: { const: runx.operational_policy.v1 }
+                  additionalProperties: true
+                validation:
+                  type: object
+                  required: [status, engine, findings, readback, reason]
+                  additionalProperties: false
+                  properties:
+                    status: { type: string, enum: [pass, fail, not_run] }
+                    engine: { const: runx policy }
+                    findings:
+                      type: array
+                      items:
+                        type: object
+                        required: [code, path, message]
+                        additionalProperties: false
+                        properties:
+                          code: { type: string }
+                          path: { type: string }
+                          message: { type: string }
+                    readback: { type: [object, "null"], additionalProperties: true }
+                    reason: { type: string }
+                rationale: { type: string }
+                blockers: { type: array, items: { type: string } }
+                needs_input: { type: array, items: { type: string } }
+                success_checkpoint:
+                  type: object
+                  properties:
+                    milestone: { type: string }
+                    description: { type: string }
+                  additionalProperties: true
+        inputs:
+          policy_context: $steps.prepare.policy_context
+          policy_lint: $steps.lint.policy_lint
+        artifacts:
+          wrap_as: policy_proposal_packet
+          packet: runx.policy_proposal.v1
+      - id: finalize-stop
+        label: seal missing-input or attenuation refusal
+        when:
+          value: $steps.prepare.policy_context.path
+          equals: stop
+        tool: { module: policy-draft.mjs, export: finalizePolicy }
+        outputs:
+          policy_proposal:
+            type: object
+            schema:
+              required: [decision, policy, validation, rationale, blockers, needs_input, success_checkpoint]
+              additionalProperties: false
+              properties:
+                decision: { type: string, enum: [ready, needs_input, reject] }
+                policy:
+                  type: [object, "null"]
+                  required: [schema]
+                  properties:
+                    schema: { const: runx.operational_policy.v1 }
+                  additionalProperties: true
+                validation:
+                  type: object
+                  required: [status, engine, findings, readback, reason]
+                  additionalProperties: false
+                  properties:
+                    status: { type: string, enum: [pass, fail, not_run] }
+                    engine: { const: runx policy }
+                    findings:
+                      type: array
+                      items:
+                        type: object
+                        required: [code, path, message]
+                        additionalProperties: false
+                        properties:
+                          code: { type: string }
+                          path: { type: string }
+                          message: { type: string }
+                    readback: { type: [object, "null"], additionalProperties: true }
+                    reason: { type: string }
+                rationale: { type: string }
+                blockers: { type: array, items: { type: string } }
+                needs_input: { type: array, items: { type: string } }
+                success_checkpoint:
+                  type: object
+                  properties:
+                    milestone: { type: string }
+                    description: { type: string }
+                  additionalProperties: true
+        inputs:
+          policy_context: $steps.prepare.policy_context
+        artifacts:
+          wrap_as: policy_proposal_packet
+          packet: runx.policy_proposal.v1

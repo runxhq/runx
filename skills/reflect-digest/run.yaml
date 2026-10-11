@@ -54,7 +54,7 @@ harness:
         receipt:
           schema: runx.receipt.v1
 
-    - name: reflect-digest-builds-skill-lab-handoff
+    - name: reflect-digest-builds-skill-build-handoff
       inputs:
         min_support: 2
         reflect_projections:
@@ -116,8 +116,8 @@ harness:
                       supporting_receipt_ids:
                         - rx_sourcey_1
                         - rx_sourcey_2
-                  skill_lab_handoffs:
-                    - skill: skill-lab
+                  skill_build_handoffs:
+                    - skill: skill-build
                       runner: improve
                       target_skill_ref: sourcey
                       supporting_receipt_ids:
@@ -225,14 +225,14 @@ runners:
           packets:
             proposals: runx.reflect.improvement_proposals.v1
       - id: build-handoffs
-        label: validate and build skill-lab handoffs
+        label: validate and build skill-build handoffs
         inputs:
           grouped_reflections: $steps.group-reflect-projections.grouped_reflections_packet.items
           proposals: $steps.draft-digest.proposals
         tool: { module: reflect-digest.mjs, export: buildHandoffs }
         outputs:
           proposals: array
-          skill_lab_handoffs: array
+          skill_build_handoffs: array
         artifacts:
           wrap_as: reflect_digest_packet
           packet: runx.reflect.digest.v1

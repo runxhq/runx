@@ -2,6 +2,7 @@ skill: run-history
 version: "0.2.7"
 
 catalog:
+  owner: runx
   kind: skill
   audience: operator
   visibility: public
@@ -17,7 +18,7 @@ harness:
     - name: reports-native-history-and-catalog-coverage
       operator_journeys:
         - mode: standalone
-          confusors: [ledger, audit-receipt]
+          confusors: [receipt-query, receipt-audit]
           request: Summarize recent Runx outcomes and catalog test coverage for this project.
           expected_outcome: Return deterministic bounded run outcomes, paused runs, and catalog coverage facts with truthful follow-ups.
         - mode: composed

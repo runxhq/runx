@@ -16,7 +16,7 @@ harness:
     - name: schema-guard-additive-change-proposes
       operator_journeys:
         - mode: standalone
-          confusors: [extract, review-skill]
+          confusors: [extract, skill-review]
           request: Check whether this proposed contract change breaks existing callers before the schema is published.
           expected_outcome: Return a compatibility verdict with per-sample validation and a gated publish proposal, with no live write.
         - mode: composed

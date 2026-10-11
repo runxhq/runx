@@ -79,7 +79,7 @@ Projects should operate themselves through the same surfaces they ship:
 
 - use `release` for release preparation, approval, publication handoff, and
   verification;
-- use `ledger` and receipt skills for proof and after-action review;
+- use `receipt-query` and receipt skills for proof and after-action review;
 - use `send-as` for live communications;
 - use provider/branded skills for provider-specific work;
 - use project-owned operator skills as the desk that diagnoses, routes, and

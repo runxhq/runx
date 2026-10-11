@@ -1,6 +1,7 @@
 skill: least-privilege
 version: "0.3.4"
 catalog:
+  owner: runx
   kind: graph
   audience: operator
   visibility: public
@@ -17,7 +18,7 @@ runners:
       subject:
         type: string
         required: false
-        description: Skill, grant, or principal being audited.
+        description: Exact skill, actor, or grant reference matching the receipt detail; labels alone cannot bind evidence.
       granted_scopes:
         type: json
         required: true
@@ -42,7 +43,7 @@ runners:
     steps:
       - id: evidence
         label: resolve receipt evidence
-        skill: ../ledger
+        skill: ../receipt-query
         runner: read
         inputs:
           question: Resolve the receipts supporting this least-privilege audit.
@@ -52,7 +53,7 @@ runners:
           receipts: $input.receipt_rows
           receipt_details: $input.receipt_details
       - id: analyze
-        label: compare grant with receipt-backed usage
+        label: review grant against attributable recorded authority
         inputs:
           subject: $input.subject
           granted_scopes: $input.granted_scopes
@@ -64,78 +65,45 @@ runners:
           audit_report:
             type: object
             schema:
-              required: [status, subject, evidence, scope_diff, attenuated_grant, removed_scopes, narrowed_scopes, kept_scopes, deferred_scopes, residual_risk, reviewer_action, receipt_expectations]
+              required: [status, subject, evidence, scope_diff, retained_grant, not_recorded_scopes, reviewer_action]
               additionalProperties: false
               properties:
-                status: { type: string, enum: [needs_more_evidence, attenuation_proposed, no_change] }
+                status: { type: string, enum: [needs_more_evidence, review_required] }
                 subject: { type: string, minLength: 1 }
                 evidence:
                   type: object
-                  required: [receipt_ids, matched_receipt_ids, missing_receipt_ids, chain_verification, observation_source, grant_source, limitations]
+                  required: [receipt_ids, matched_receipt_ids, missing_receipt_ids, missing_detail_ids, invalid_detail_ids, chain_verification, observation_source, limitations]
                   additionalProperties: false
                   properties:
                     receipt_ids: { type: array, items: { type: string }, uniqueItems: true }
                     matched_receipt_ids: { type: array, items: { type: string }, uniqueItems: true }
                     missing_receipt_ids: { type: array, items: { type: string }, uniqueItems: true }
+                    missing_detail_ids: { type: array, items: { type: string }, uniqueItems: true }
+                    invalid_detail_ids: { type: array, items: { type: string }, uniqueItems: true }
                     chain_verification: { type: object, additionalProperties: true }
                     observation_source: { type: string, enum: [native_receipt_detail, none] }
-                    grant_source: { type: [string, "null"] }
                     limitations: { type: array, items: { type: string } }
                 scope_diff:
                   type: array
                   items:
                     type: object
-                    required: [granted_scope, normalized, observed_use, classification, proposal, rationale]
+                    required: [granted_scope, classification, recorded_authority, rationale]
+                    additionalProperties: false
                     properties:
                       granted_scope: { type: string }
-                      normalized:
+                      classification: { type: string, enum: [recorded, not_recorded, defer] }
+                      recorded_authority:
                         type: object
-                        required: [verb, resource, conditions]
+                        required: [receipt_count, receipt_refs, sources]
                         additionalProperties: false
                         properties:
-                          verb: { type: [string, "null"] }
-                          resource: { type: [string, "null"] }
-                          conditions:
-                            type: [object, "null"]
-                            additionalProperties: true
-                      observed_use:
-                        type: object
-                        required: [count, verbs, resources, receipt_refs, scopes]
-                        additionalProperties: false
-                        properties:
-                          count: { type: integer, minimum: 0 }
-                          verbs: { type: array, items: { type: string }, uniqueItems: true }
-                          resources: { type: array, items: { type: string }, uniqueItems: true }
+                          receipt_count: { type: integer, minimum: 0 }
                           receipt_refs: { type: array, items: { type: string }, uniqueItems: true }
-                          scopes: { type: array, items: { type: string }, uniqueItems: true }
-                      classification: { type: string, enum: [keep, narrow, remove, defer] }
-                      proposal: { type: [string, "null"] }
+                          sources: { type: array, items: { type: string }, uniqueItems: true }
                       rationale: { type: string }
-                    additionalProperties: false
-                attenuated_grant: { type: array, items: { type: string }, uniqueItems: true }
-                removed_scopes: { type: array, items: { type: string }, uniqueItems: true }
-                narrowed_scopes:
-                  type: array
-                  items:
-                    type: object
-                    required: [from, to]
-                    properties: { from: { type: string }, to: { type: string } }
-                    additionalProperties: false
-                kept_scopes: { type: array, items: { type: string }, uniqueItems: true }
-                deferred_scopes: { type: array, items: { type: string }, uniqueItems: true }
-                residual_risk:
-                  type: array
-                  maxItems: 100
-                  items: { type: string, minLength: 1, maxLength: 4000 }
-                reviewer_action: { type: string, enum: [applyable_now, gather_more_receipts, none] }
-                receipt_expectations:
-                  type: object
-                  required: [classification_counts, stop_status, unresolved_questions]
-                  properties:
-                    classification_counts: { type: object, additionalProperties: { type: integer, minimum: 0 } }
-                    stop_status: { type: string }
-                    unresolved_questions: { type: array, items: { type: string } }
-                  additionalProperties: false
+                retained_grant: { type: array, items: { type: string }, uniqueItems: true }
+                not_recorded_scopes: { type: array, items: { type: string }, uniqueItems: true }
+                reviewer_action: { type: string, enum: [review_policy_and_coverage, gather_verified_evidence] }
           attenuation_proposals: array
           verdict: string
         artifacts:

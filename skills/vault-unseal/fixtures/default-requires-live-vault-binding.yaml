@@ -3,7 +3,7 @@ kind: skill
 target: ..
 operator_journeys:
   - mode: refusal
-    confusors: [least-privilege, policy-author]
+    confusors: [least-privilege, policy-draft]
     request: Unseal one opaque vault handle without configuring a compatible vault binding.
     expected_outcome: Refuse at the provider boundary without exposing secret material.
 inputs:

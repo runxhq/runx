@@ -1,0 +1,27 @@
+name: missing-upstream-source-fails
+kind: skill
+target: ..
+runner: generate
+inputs:
+  upstream:
+    host: github.com
+  registry:
+    owner: example
+expect:
+  status: sealed
+  steps:
+    - plan-source
+    - reject-input
+  step_outputs:
+    reject-input:
+      subset:
+        binding_bundle:
+          data:
+            decision: reject
+            files: []
+            validation:
+              status: hold
+metadata:
+  public_skill: skill-adopt
+  source_case: missing-upstream-source-fails
+  source: skills-fixture

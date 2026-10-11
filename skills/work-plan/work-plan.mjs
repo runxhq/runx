@@ -103,8 +103,8 @@ function validateDraft(value, state) {
       });
     }
   }
-  if (planKind === "skill_package" && !steps.some((step) => normalizedSkillName(step.skill) === "skill-lab")) {
-    findings.push({ code: "skill_package.skill_lab_required", path: "orchestration_steps", message: "Runx skill-package authoring must use the canonical skill-lab lane." });
+  if (planKind === "skill_package" && !steps.some((step) => normalizedSkillName(step.skill) === "skill-build")) {
+    findings.push({ code: "skill_package.skill_build_required", path: "orchestration_steps", message: "Runx skill-package authoring must use the canonical skill-build lane." });
   }
 
   const openQuestions = strings(value.open_questions, "open_questions");

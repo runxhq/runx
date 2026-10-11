@@ -20,7 +20,7 @@ inputs:
       ttl_expired: false
     last_action: reviewer confirmed bounty 26 delivered and verified.
   candidate_roster:
-    - { role: reviewer, skill: review-skill, scope: [board.read] }
+    - { role: reviewer, skill: skill-review, scope: [board.read] }
     - { role: payer, skill: spend, scope: [payment.payout] }
   scope_ref: board:runx
   approval_context:

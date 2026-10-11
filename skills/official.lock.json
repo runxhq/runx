@@ -1,12 +1,5 @@
 [
   {
-    "skill_id": "runx/adopt-skill",
-    "version": "sha-139fda332740",
-    "digest": "b77c5cec2b8f1ba7213dcfbbfd48747d0d57ec50e768c226c170bf04ff7d56b3",
-    "catalog_visibility": "public",
-    "catalog_role": "canonical"
-  },
-  {
     "skill_id": "runx/agency",
     "version": "sha-12404e8a9fa9",
     "digest": "a9e044b94838bfa317c19ad4c934ffd28056cce092f077dbc2402fb062b2058a",
@@ -26,13 +19,6 @@
     "digest": "af1e2b04b83eba49e4d115b9bd0274e8bb84664d85a870b6019fd48502a009e6",
     "catalog_visibility": "public",
     "catalog_role": "context"
-  },
-  {
-    "skill_id": "runx/audit-receipt",
-    "version": "sha-6cf9eab69503",
-    "digest": "2c50184a7ecc9d4b284e3295691375a332677f26b8852f04231e1a872fd7c9de",
-    "catalog_visibility": "public",
-    "catalog_role": "canonical"
   },
   {
     "skill_id": "runx/brand-voice",
@@ -134,8 +120,8 @@
   },
   {
     "skill_id": "runx/diagnose-skill-run",
-    "version": "sha-2818eb2657d2",
-    "digest": "65a652ad038996f8aff81c97677876e5b833194b45906b302257b9630bacb19d",
+    "version": "sha-b2fda89d6402",
+    "digest": "44d25338b1d8e16b5f0ded7f2d30967e9d94a48d25389f4c30efa4bba2aeda26",
     "catalog_visibility": "public",
     "catalog_role": "context"
   },
@@ -274,15 +260,8 @@
   },
   {
     "skill_id": "runx/least-privilege",
-    "version": "sha-a2f341a9f0ff",
-    "digest": "003dbf550ce5db466d32a9d89fcf0a9ecfbb92e8193dd9a6de68ad91e59c2aa9",
-    "catalog_visibility": "public",
-    "catalog_role": "canonical"
-  },
-  {
-    "skill_id": "runx/ledger",
-    "version": "sha-e89a90179479",
-    "digest": "d5066879e42dceaac65cd7cb78ec28a7c679d259b0a986672570e9b59defb548",
+    "version": "sha-5d46eeaf4817",
+    "digest": "ff78ad15c4ffadfa3b9525403ec7e326429541d81ba080840fb6899ede4b9614",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
   },
@@ -372,8 +351,8 @@
   },
   {
     "skill_id": "runx/ops-desk",
-    "version": "sha-25338704b636",
-    "digest": "74fb4e24f9e05aa463733142b1da4dbe666805bea866a39147c54b468b978447",
+    "version": "sha-32bb63cce50b",
+    "digest": "c5bb364e756d84ec151633246451b55453e458936079540333e96d7493ec3285",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
   },
@@ -385,9 +364,9 @@
     "catalog_role": "canonical"
   },
   {
-    "skill_id": "runx/policy-author",
-    "version": "sha-7758febcb04d",
-    "digest": "532275a4dfd535e0574fecd0018be972d658d93ecfac3899e2f4826a717ff646",
+    "skill_id": "runx/policy-draft",
+    "version": "sha-024d85f7658a",
+    "digest": "b578e64770d098cc1f00fff2cc39d71fd7791d35a9c58272f55862b34d32b4a0",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
   },
@@ -420,6 +399,20 @@
     "catalog_role": "canonical"
   },
   {
+    "skill_id": "runx/receipt-audit",
+    "version": "sha-0c4d6b40b05e",
+    "digest": "748291a481831ea9544f679ab43c1f3e1b55ab8174e8a25d5b7a47f1ac275a1d",
+    "catalog_visibility": "public",
+    "catalog_role": "canonical"
+  },
+  {
+    "skill_id": "runx/receipt-query",
+    "version": "sha-901e5946de4f",
+    "digest": "bb4edc5f7ddee9a267bd8dd72c3fe61fae74b2b61690d4979fe95ebbb7e68345",
+    "catalog_visibility": "public",
+    "catalog_role": "canonical"
+  },
+  {
     "skill_id": "runx/redact-pii",
     "version": "sha-620bb6bc8b0e",
     "digest": "2358e19a81b07f70bdefee629290d7d132592b8b9f6491abedd44d4bf6837810",
@@ -435,8 +428,8 @@
   },
   {
     "skill_id": "runx/reflect-digest",
-    "version": "sha-dab0f6751636",
-    "digest": "e55a3ae35d24570b49b917c57c055cf8ca64e2c8a357384d192c042ea7993c5d",
+    "version": "sha-636c30b426d3",
+    "digest": "9ab69bf41dfd3cceb2e1764a742cd28155f251f0d1ac39fb986a890c2dcce8bb",
     "catalog_visibility": "internal",
     "catalog_role": "context"
   },
@@ -462,16 +455,9 @@
     "catalog_role": "context"
   },
   {
-    "skill_id": "runx/review-skill",
-    "version": "sha-467230b6b90a",
-    "digest": "f6698561fb2669e3bdeb64a3bd48325433e77b21c6d320b63b1ab4e77de07e28",
-    "catalog_visibility": "public",
-    "catalog_role": "canonical"
-  },
-  {
     "skill_id": "runx/run-history",
-    "version": "sha-4fb749581d66",
-    "digest": "b18ac001b8c93573cf5f9634c3e9fada7134df9c1452368810060a57bedf8f60",
+    "version": "sha-fb1d083ae713",
+    "digest": "982774cf21a91c76a5b45d9315d5e72b3ecd5ea256c62789dd0ce47222952cb5",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
   },
@@ -484,7 +470,7 @@
   },
   {
     "skill_id": "runx/schema-guard",
-    "version": "sha-61f4948b092c",
+    "version": "sha-8099ca8f6490",
     "digest": "8cf85c86e819c47d9ff7a088a8c7b0124d2b6236a1d5ededb1def8a41bd714f9",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
@@ -505,15 +491,29 @@
   },
   {
     "skill_id": "runx/sign-receipt",
-    "version": "sha-48170631a265",
+    "version": "sha-2f72a4f5f6bc",
     "digest": "725492d3f1b3340354460add6420cd205cd8576c4c008a3881ec34d2d13da7a9",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
   },
   {
-    "skill_id": "runx/skill-lab",
-    "version": "sha-2cfab9d3c7b7",
-    "digest": "224454b75de87588703c3e7a7a9b52b03c3dd334c7e0a05e3ddd0e1a887bcce9",
+    "skill_id": "runx/skill-adopt",
+    "version": "sha-3041a8931205",
+    "digest": "06171bfd77a287555ccc1bc5753468f432531fb0c7f309c8d590797317c8ad52",
+    "catalog_visibility": "public",
+    "catalog_role": "canonical"
+  },
+  {
+    "skill_id": "runx/skill-build",
+    "version": "sha-a29817e6b66f",
+    "digest": "b89156254798ecbb20f79108844d4dda49e7f8bca2d8e485907c1be3cc27b8ed",
+    "catalog_visibility": "public",
+    "catalog_role": "canonical"
+  },
+  {
+    "skill_id": "runx/skill-review",
+    "version": "sha-79922c5528f9",
+    "digest": "f77e9abe7b9057ddac93b4e1f15b507dd7f73f51b7be186793f5e6fe57ec9ecb",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
   },
@@ -617,8 +617,8 @@
   },
   {
     "skill_id": "runx/work-plan",
-    "version": "sha-79788881a4d0",
-    "digest": "fbd52df58519912f55968c849fe041fd94b70edd05064977e4fd9dc4b501b5fc",
+    "version": "sha-90236662069f",
+    "digest": "65aa6457645c6671e3eaa82da2d7e3c34d39336abb2393af19c61231d1a837c5",
     "catalog_visibility": "public",
     "catalog_role": "context"
   },

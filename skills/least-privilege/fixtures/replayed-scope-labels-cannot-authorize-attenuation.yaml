@@ -1,0 +1,80 @@
+name: replayed-scope-labels-cannot-authorize-attenuation
+kind: skill
+target: ..
+runner: audit
+operator_journeys:
+  - mode: standalone
+    confusors: [receipt-audit, policy-draft]
+    request: Review the grant without treating replayed authority labels as native proof.
+    expected_outcome: Retain the grant and request verified attributable evidence; unrecorded scopes are not proved removable.
+  - mode: composed
+    request: Review this grant using the cited receipt projections.
+    expected_outcome: Reuse the supplied projections without replaying provider operations or claiming successful native verification.
+    prior_evidence:
+      - The normalized authority usage, granted scopes, and cited receipt rows supplied in the fixture.
+    must_not_repeat:
+      - Do not replay the operations that exercised authority.
+      - Do not infer scope use not present in verified receipts.
+inputs:
+  subject: growth/lifecycle-campaign-send
+  granted_scopes:
+    - email:send
+    - repo:write
+    - payment:spend
+  receipt_ids:
+    - rcpt_campaign_1
+  receipt_rows:
+    - receipt_id: rcpt_campaign_1
+      skill_ref: growth/lifecycle-campaign-send
+      status: closed
+      created_at: "2026-07-01T00:00:00Z"
+      verification_status: verified
+  receipt_details:
+    - id: rcpt_campaign_1
+      subject_kind: skill
+      subject_ref: growth/lifecycle-campaign-send
+      created_at: "2026-07-01T00:00:00Z"
+      status: closed
+      verification:
+        status: verified
+      authority:
+        exercised_scopes:
+          - scope: email:send
+            source: scope_ref
+          - scope: repo:read
+            source: scope_ref
+      acts: []
+      decisions: []
+  objective: Tighten the campaign sender before renewal.
+expect:
+  status: sealed
+  receipt:
+    schema: runx.receipt.v1
+  steps:
+    - evidence
+    - analyze
+  step_outputs:
+    evidence:
+      subset:
+        ledger_answer_packet:
+          data:
+            ledger_answer:
+              decision: answered
+            chain_verification:
+              checked: true
+    analyze:
+      subset:
+        least_privilege_packet:
+          data:
+            audit_report:
+              status: needs_more_evidence
+              subject: growth/lifecycle-campaign-send
+              retained_grant:
+                - email:send
+                - repo:write
+                - payment:spend
+              reviewer_action: gather_verified_evidence
+metadata:
+  public_skill: least-privilege
+  source_case: replayed-scope-labels-cannot-authorize-attenuation
+  source: skills-fixture

@@ -16,20 +16,6 @@
     "audit_report": {
       "additionalProperties": false,
       "properties": {
-        "attenuated_grant": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array",
-          "uniqueItems": true
-        },
-        "deferred_scopes": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array",
-          "uniqueItems": true
-        },
         "evidence": {
           "additionalProperties": false,
           "properties": {
@@ -37,11 +23,12 @@
               "additionalProperties": true,
               "type": "object"
             },
-            "grant_source": {
-              "type": [
-                "string",
-                "null"
-              ]
+            "invalid_detail_ids": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array",
+              "uniqueItems": true
             },
             "limitations": {
               "items": {
@@ -50,6 +37,13 @@
               "type": "array"
             },
             "matched_receipt_ids": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array",
+              "uniqueItems": true
+            },
+            "missing_detail_ids": {
               "items": {
                 "type": "string"
               },
@@ -82,87 +76,32 @@
             "receipt_ids",
             "matched_receipt_ids",
             "missing_receipt_ids",
+            "missing_detail_ids",
+            "invalid_detail_ids",
             "chain_verification",
             "observation_source",
-            "grant_source",
             "limitations"
           ],
           "type": "object"
         },
-        "kept_scopes": {
+        "not_recorded_scopes": {
           "items": {
             "type": "string"
           },
           "type": "array",
           "uniqueItems": true
         },
-        "narrowed_scopes": {
-          "items": {
-            "additionalProperties": false,
-            "properties": {
-              "from": {
-                "type": "string"
-              },
-              "to": {
-                "type": "string"
-              }
-            },
-            "required": [
-              "from",
-              "to"
-            ],
-            "type": "object"
-          },
-          "type": "array"
-        },
-        "receipt_expectations": {
-          "additionalProperties": false,
-          "properties": {
-            "classification_counts": {
-              "additionalProperties": {
-                "minimum": 0,
-                "type": "integer"
-              },
-              "type": "object"
-            },
-            "stop_status": {
-              "type": "string"
-            },
-            "unresolved_questions": {
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
-            }
-          },
-          "required": [
-            "classification_counts",
-            "stop_status",
-            "unresolved_questions"
-          ],
-          "type": "object"
-        },
-        "removed_scopes": {
+        "retained_grant": {
           "items": {
             "type": "string"
           },
           "type": "array",
           "uniqueItems": true
-        },
-        "residual_risk": {
-          "items": {
-            "maxLength": 4000,
-            "minLength": 1,
-            "type": "string"
-          },
-          "maxItems": 100,
-          "type": "array"
         },
         "reviewer_action": {
           "enum": [
-            "applyable_now",
-            "gather_more_receipts",
-            "none"
+            "review_policy_and_coverage",
+            "gather_verified_evidence"
           ],
           "type": "string"
         },
@@ -172,9 +111,8 @@
             "properties": {
               "classification": {
                 "enum": [
-                  "keep",
-                  "narrow",
-                  "remove",
+                  "recorded",
+                  "not_recorded",
                   "defer"
                 ],
                 "type": "string"
@@ -182,40 +120,13 @@
               "granted_scope": {
                 "type": "string"
               },
-              "normalized": {
-                "additionalProperties": false,
-                "properties": {
-                  "conditions": {
-                    "additionalProperties": true,
-                    "type": [
-                      "object",
-                      "null"
-                    ]
-                  },
-                  "resource": {
-                    "type": [
-                      "string",
-                      "null"
-                    ]
-                  },
-                  "verb": {
-                    "type": [
-                      "string",
-                      "null"
-                    ]
-                  }
-                },
-                "required": [
-                  "verb",
-                  "resource",
-                  "conditions"
-                ],
-                "type": "object"
+              "rationale": {
+                "type": "string"
               },
-              "observed_use": {
+              "recorded_authority": {
                 "additionalProperties": false,
                 "properties": {
-                  "count": {
+                  "receipt_count": {
                     "minimum": 0,
                     "type": "integer"
                   },
@@ -226,21 +137,7 @@
                     "type": "array",
                     "uniqueItems": true
                   },
-                  "resources": {
-                    "items": {
-                      "type": "string"
-                    },
-                    "type": "array",
-                    "uniqueItems": true
-                  },
-                  "scopes": {
-                    "items": {
-                      "type": "string"
-                    },
-                    "type": "array",
-                    "uniqueItems": true
-                  },
-                  "verbs": {
+                  "sources": {
                     "items": {
                       "type": "string"
                     },
@@ -249,30 +146,17 @@
                   }
                 },
                 "required": [
-                  "count",
-                  "verbs",
-                  "resources",
+                  "receipt_count",
                   "receipt_refs",
-                  "scopes"
+                  "sources"
                 ],
                 "type": "object"
-              },
-              "proposal": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "rationale": {
-                "type": "string"
               }
             },
             "required": [
               "granted_scope",
-              "normalized",
-              "observed_use",
               "classification",
-              "proposal",
+              "recorded_authority",
               "rationale"
             ],
             "type": "object"
@@ -282,8 +166,7 @@
         "status": {
           "enum": [
             "needs_more_evidence",
-            "attenuation_proposed",
-            "no_change"
+            "review_required"
           ],
           "type": "string"
         },
@@ -297,14 +180,9 @@
         "subject",
         "evidence",
         "scope_diff",
-        "attenuated_grant",
-        "removed_scopes",
-        "narrowed_scopes",
-        "kept_scopes",
-        "deferred_scopes",
-        "residual_risk",
-        "reviewer_action",
-        "receipt_expectations"
+        "retained_grant",
+        "not_recorded_scopes",
+        "reviewer_action"
       ],
       "type": "object"
     },

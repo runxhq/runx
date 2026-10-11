@@ -2,6 +2,7 @@ skill: sign-receipt
 version: "0.3.0"
 
 catalog:
+  owner: runx
   kind: skill
   audience: public
   visibility: public

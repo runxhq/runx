@@ -327,7 +327,7 @@ Skill authoring must decide ownership before it writes files:
 `runx.skill.apply` fail-closes on objective facts: bounded paths, secret-like
 material, package parsing, exact-candidate inspection, isolated harness replay,
 target drift, and transactional application. Architectural judgment remains in
-the `skill-lab` operating contract and review; native code does not pretend to
+the `skill-build` operating contract and review; native code does not pretend to
 validate it by counting model-authored prose fields.
 
 ## Catalog and review policy

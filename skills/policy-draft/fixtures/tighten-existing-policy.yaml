@@ -1,0 +1,161 @@
+name: tighten-existing-policy
+kind: skill
+target: ..
+runner: author
+inputs:
+  governance_brief: Tighten the current policy after an audit found auto-merge enabled and source confidence too low.
+  existing_policy:
+    schema: runx.operational_policy.v1
+    schema_version: runx.operational_policy.v1
+    policy_id: acme-review-flow
+    sources:
+      - source_id: github-issues
+        provider: github
+        allowed_locators:
+          - github://acme/acme/issues
+        allowed_actions:
+          - issue-intake
+          - issue-to-pr
+        source_thread:
+          required: true
+          publish_mode: comment
+          missing_behavior: fail_closed
+        minimum_confidence: 0.6
+    runners:
+      - runner_id: local-review
+        kind: local
+        state: available
+        allowed_actions:
+          - issue-intake
+          - issue-to-pr
+        target_repos:
+          - acme/acme
+        scafld_required: true
+    owner_routes:
+      - route_id: maintainers
+        owners:
+          - kam
+        target_repos:
+          - acme/acme
+    targets:
+      - repo: acme/acme
+        runner_ids:
+          - local-review
+        allowed_actions:
+          - issue-intake
+          - issue-to-pr
+        default_owner_route: maintainers
+        scafld_required: true
+    dedupe:
+      strategy: source_fingerprint
+      key_fields:
+        - source.provider
+        - source.locator
+        - signal.fingerprint
+      on_duplicate: reuse
+    outcomes:
+      observe_provider: true
+      verification_required: true
+      close_source_issue: when_verified
+      publish_final_source_thread_update: true
+    permissions:
+      auto_merge: true
+      mutate_target_repo: true
+      require_human_merge_gate: false
+  objective: Narrow the policy to close the audit findings; do not widen anything.
+caller:
+  answers:
+    agent.policy-draft-draft.output:
+      policy_proposal:
+        decision: ready
+        policy:
+          schema: runx.operational_policy.v1
+          schema_version: runx.operational_policy.v1
+          policy_id: acme-review-flow
+          sources:
+            - source_id: github-issues
+              provider: github
+              allowed_locators:
+                - github://acme/acme/issues
+              allowed_actions:
+                - issue-intake
+                - issue-to-pr
+              source_thread:
+                required: true
+                publish_mode: comment
+                missing_behavior: fail_closed
+              minimum_confidence: 0.72
+          runners:
+            - runner_id: local-review
+              kind: local
+              state: available
+              allowed_actions:
+                - issue-intake
+                - issue-to-pr
+              target_repos:
+                - acme/acme
+              scafld_required: true
+          owner_routes:
+            - route_id: maintainers
+              owners:
+                - kam
+              target_repos:
+                - acme/acme
+          targets:
+            - repo: acme/acme
+              runner_ids:
+                - local-review
+              allowed_actions:
+                - issue-intake
+                - issue-to-pr
+              default_owner_route: maintainers
+              scafld_required: true
+          dedupe:
+            strategy: source_fingerprint
+            key_fields:
+              - source.provider
+              - source.locator
+              - signal.fingerprint
+            on_duplicate: reuse
+          outcomes:
+            observe_provider: true
+            verification_required: true
+            close_source_issue: when_verified
+            publish_final_source_thread_update: true
+          permissions:
+            auto_merge: false
+            mutate_target_repo: true
+            require_human_merge_gate: true
+        rationale: The confidence floor rises, auto-merge is disabled, and human review becomes mandatory without adding any scope.
+        blockers: []
+        needs_input: []
+        success_checkpoint:
+          milestone: policy_tightened
+          description: The draft narrows the audited policy.
+expect:
+  status: sealed
+  steps:
+    - draft
+    - prepare
+    - lint
+    - finalize-lint
+  step_outputs:
+    finalize-lint:
+      subset:
+        policy_proposal_packet:
+          data:
+            policy_proposal:
+              decision: ready
+              policy:
+                policy_id: acme-review-flow
+              validation:
+                status: pass
+                engine: runx policy
+  receipt:
+    schema: runx.receipt.v1
+    state: sealed
+    disposition: closed
+metadata:
+  public_skill: policy-draft
+  source_case: tighten-existing-policy
+  source: skills-fixture

@@ -6,13 +6,13 @@
   "type": "object",
   "required": [
     "proposals",
-    "skill_lab_handoffs"
+    "skill_build_handoffs"
   ],
   "properties": {
     "proposals": {
       "type": "array"
     },
-    "skill_lab_handoffs": {
+    "skill_build_handoffs": {
       "type": "array"
     }
   },

@@ -1,0 +1,48 @@
+name: replay-cannot-prove-minimal-grant
+kind: skill
+target: ..
+runner: audit
+inputs:
+  subject: code/governed-issue-to-pr
+  granted_scopes:
+    - repo:read
+  receipt_ids:
+    - rcpt_repo_read
+  receipt_rows:
+    - receipt_id: rcpt_repo_read
+      skill_ref: code/governed-issue-to-pr
+      status: closed
+      created_at: "2026-07-01T00:00:00Z"
+      verification_status: verified
+  receipt_details:
+    - id: rcpt_repo_read
+      subject_kind: skill
+      subject_ref: code/governed-issue-to-pr
+      created_at: "2026-07-01T00:00:00Z"
+      status: closed
+      verification:
+        status: verified
+      authority:
+        exercised_scopes:
+          - scope: repo:read
+            source: scope_ref
+      acts: []
+      decisions: []
+  objective: Review the recorded grant without claiming the replay proves it minimal.
+expect:
+  status: sealed
+  receipt:
+    schema: runx.receipt.v1
+  step_outputs:
+    analyze:
+      subset:
+        least_privilege_packet:
+          data:
+            audit_report:
+              status: needs_more_evidence
+              retained_grant: [repo:read]
+              reviewer_action: gather_verified_evidence
+metadata:
+  public_skill: least-privilege
+  source_case: replay-cannot-prove-minimal-grant
+  source: skills-fixture

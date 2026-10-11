@@ -1,0 +1,118 @@
+name: clean-run-within-grant
+kind: skill
+target: ..
+runner: audit
+operator_journeys:
+  - mode: standalone
+    confusors: [receipt-query, least-privilege]
+    request: Audit this sealed Runx receipt for authority over-reach and approval inconsistency.
+    expected_outcome: Return a governance verdict grounded in verified receipt authority, acts, decisions, and seal evidence.
+  - mode: composed
+    request: Continue governance review from this verified receipt detail.
+    expected_outcome: Reuse the supplied receipt projection and return the same audit without hydrating or replaying the original run.
+    prior_evidence:
+      - The verified receipt row and redacted receipt detail supplied in the fixture.
+    must_not_repeat:
+      - Do not rerun the audited operation.
+      - Do not fetch receipt bodies already present in the native detail projection.
+inputs:
+  receipt_id: rcpt_issue_triage_4471
+  receipt_rows:
+    - receipt_id: rcpt_issue_triage_4471
+      skill_ref: issue-triage
+      status: closed
+      created_at: "2026-07-16T00:00:00Z"
+      verification_status: verified
+  receipt_details:
+    - id: rcpt_issue_triage_4471
+      receipt_ref: runx:receipt:rcpt_issue_triage_4471
+      subject_kind: skill
+      subject_ref: issue-triage
+      created_at: "2026-07-16T00:00:00Z"
+      status: closed
+      verification:
+        status: verified
+      authority:
+        actor_ref: runx:principal:operator
+        grant_refs:
+          - runx:grant:repo-read
+        scope_refs:
+          - runx:scope_admission:repo.read
+        exercised_scopes:
+          - scope: repo:read
+            source: scope_ref
+            term_id: null
+            resource_ref: runx:scope_admission:repo.read
+        approval_refs: []
+        term_count: 0
+        credential_ref_count: 0
+      decisions: []
+      acts:
+        - id: act_read
+          form: observation
+          purpose: Read the issue thread.
+          legitimacy: Held repo.read.
+          summary: Read issue evidence.
+          disposition: closed
+          reason_code: process_closed
+          target_refs: []
+          artifact_refs: []
+          criterion_statuses: []
+          context_ref_present: false
+      artifact_refs: []
+      lineage_refs: []
+      seal_reason_code: process_closed
+      seal_summary: Read completed.
+  granted_scopes:
+    - repo:read
+  objective: Confirm the triage run stayed within its read-only grant.
+caller:
+  answers:
+    agent.receipt-audit.output:
+      receipt_audit:
+        decision: ready
+        run_ref: rcpt_issue_triage_4471
+        granted_scopes:
+          - repo:read
+        exercised_scopes:
+          - repo:read
+        refusals: []
+        findings:
+          - id: receipt.clean
+            severity: info
+            message: Exercised authority (repo:read) is within the grant; no declared approval is unresolved; no credential material is exposed.
+        verdict: clean
+        rationale: The only exercised scope, repo:read, is covered by the proof. No signed evidence declares an unresolved approval requirement, and no credential material is projected. The run honored its bound.
+        recommendations: []
+        success_checkpoint:
+          milestone: audit_clean
+          description: A sealed read-only run audited as within its granted authority.
+expect:
+  status: sealed
+  steps:
+    - evidence
+    - audit
+  step_outputs:
+    evidence:
+      subset:
+        ledger_answer_packet:
+          data:
+            ledger_answer:
+              decision: answered
+            matched_receipts:
+              - receipt_id: rcpt_issue_triage_4471
+                verification_status: verified
+            receipt_details:
+              - id: rcpt_issue_triage_4471
+                subject_ref: issue-triage
+                authority:
+                  exercised_scopes:
+                    - scope: repo:read
+  receipt:
+    schema: runx.receipt.v1
+    state: sealed
+    disposition: closed
+metadata:
+  public_skill: receipt-audit
+  source_case: clean-run-within-grant
+  source: skills-fixture

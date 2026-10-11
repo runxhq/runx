@@ -11,7 +11,7 @@ steps:
       mandate: keep the published docs current and accurate
       roster:
         - { role: writer, skill: ghostwrite, scope: [docs.write] }
-        - { role: reviewer, skill: review-skill, scope: [docs.read] }
+        - { role: reviewer, skill: skill-review, scope: [docs.read] }
       limits:
         max_turns: 50
       signal: docs drift detected on the API reference
