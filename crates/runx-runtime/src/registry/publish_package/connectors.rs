@@ -205,9 +205,9 @@ fn ship_connector(
     let validated = validate_connector_manifest(parsed)
         .map_err(|errors| invalid(format!("manifest is invalid: {errors:?}")))?;
     if validated.manifest_digest != connector.manifest_digest {
-        return Err(invalid(format!(
-            "manifest changed after the connector was loaded"
-        )));
+        return Err(invalid(
+            "manifest changed after the connector was loaded".to_owned(),
+        ));
     }
     super::files::insert_source_file(files, MANIFEST_FILE, manifest.as_bytes())?;
     let namespace = PublisherNamespace::new(connector.connector_ref.namespace())

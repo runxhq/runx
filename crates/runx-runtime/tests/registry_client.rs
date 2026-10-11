@@ -4,7 +4,7 @@ use std::path::Path;
 use base64::Engine;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use ring::signature::KeyPair;
-use runx_contracts::{CopyableCommand, sha256_prefixed};
+use runx_contracts::sha256_prefixed;
 use runx_runtime::registry::{
     AcquireOptions, InstallCandidate, InstallError, InstallLocalSkillOptions, InstallStatus,
     RegistryClient, RegistryClientError, RegistryManifestSignature, RegistryManifestSigner,
@@ -422,11 +422,10 @@ fn search_skill(skill_id: &str, name: &str, version: &str) -> serde_json::Value 
     })
 }
 
-/// A copyable command as the registry serves it.
+/// A copyable command as the registry serves it. Fixture words are all bare,
+/// so the rendering is the words joined; the reader checks it against `argv`.
 fn command(argv: &[&str]) -> serde_json::Value {
-    let command = CopyableCommand::posix(argv.iter().map(|word| (*word).to_owned()).collect())
-        .expect("fixture command");
-    serde_json::to_value(command).expect("serialize command")
+    json!({ "shell": "posix", "argv": argv, "copy_text": argv.join(" ") })
 }
 
 fn install_candidate() -> Result<InstallCandidate, Box<dyn std::error::Error>> {
