@@ -174,9 +174,6 @@ describe("operator-inbox skill", () => {
         env: {
           ...process.env,
           RUNX_CWD: workspace,
-          RUNX_RECEIPT_SIGN_KID: "operator-inbox-test-key",
-          RUNX_RECEIPT_SIGN_ED25519_SEED_BASE64: "QkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkI=",
-          RUNX_RECEIPT_SIGN_ISSUER_TYPE: "hosted",
         },
       });
       expect(result.status, result.stderr).toBe(0);

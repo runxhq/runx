@@ -7,7 +7,6 @@ import { spawnSync } from "node:child_process";
 
 const ROOT = resolve(new URL("../../..", import.meta.url).pathname);
 const EXAMPLE = resolve(new URL("..", import.meta.url).pathname);
-const DEFAULT_SEED = "QkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkI=";
 
 function findRunx() {
   const candidate = process.env.RUNX_BIN || join(ROOT, "crates/target/debug/runx");
@@ -23,13 +22,7 @@ function findRunx() {
 function runCommand(command, args, options = {}) {
   const result = spawnSync(command, args, {
     cwd: ROOT,
-    env: {
-      ...process.env,
-      RUNX_RECEIPT_SIGN_KID: process.env.RUNX_RECEIPT_SIGN_KID || "hosted-receipt-3097e2dee2cb4a34",
-      RUNX_RECEIPT_SIGN_ED25519_SEED_BASE64:
-        process.env.RUNX_RECEIPT_SIGN_ED25519_SEED_BASE64 || DEFAULT_SEED,
-      RUNX_RECEIPT_SIGN_ISSUER_TYPE: process.env.RUNX_RECEIPT_SIGN_ISSUER_TYPE || "hosted",
-    },
+    env: process.env,
     encoding: "utf8",
   });
   if (!options.allowExitCodes?.includes(result.status) && result.status !== 0) {

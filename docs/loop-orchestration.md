@@ -139,14 +139,10 @@ Run it from the OSS workspace:
 sh examples/loop-orchestration/run.sh
 ```
 
-For a repeatable harness check, use a clean receipt directory and the demo
-signing identity:
+For a repeatable harness check, use a clean receipt directory:
 
 ```sh
 tmpdir="$(mktemp -d)"
-RUNX_RECEIPT_SIGN_KID=hosted-receipt-3097e2dee2cb4a34 \
-RUNX_RECEIPT_SIGN_ED25519_SEED_BASE64=QkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkI= \
-RUNX_RECEIPT_SIGN_ISSUER_TYPE=hosted \
 "${RUNX_BIN:-crates/target/debug/runx}" harness examples/loop-orchestration \
   --receipt-dir "$tmpdir" \
   --json

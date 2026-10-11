@@ -8,14 +8,8 @@ Run them directly instead.
 For a curated list of runnable proof demos and offline receipt verification, see
 `docs/demos.md`.
 
-Most need a receipt-signing identity (runx mandates signed receipts). A demo-only
-identity:
-
-```sh
-export RUNX_RECEIPT_SIGN_KID=hosted-receipt-3097e2dee2cb4a34
-export RUNX_RECEIPT_SIGN_ED25519_SEED_BASE64=QkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkI=
-export RUNX_RECEIPT_SIGN_ISSUER_TYPE=hosted
-```
+Each run seals its receipts under your runx home's own local key, created on
+first use; `runx verify <receipt-id>` checks them.
 
 ## Featured demos
 

@@ -36,15 +36,11 @@ The output prints each run id, receipt id, decision, and next-turn reason.
 
 ## Check The Harness
 
-For the repeatable inline harness, use a fresh receipt store and the demo
-signing identity. A clean store avoids mixing receipts signed by different local
-test issuers.
+For the repeatable inline harness, use a fresh receipt store, so its receipts
+are not mixed with earlier runs'.
 
 ```sh
 tmpdir="$(mktemp -d)"
-RUNX_RECEIPT_SIGN_KID=hosted-receipt-3097e2dee2cb4a34 \
-RUNX_RECEIPT_SIGN_ED25519_SEED_BASE64=QkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkI= \
-RUNX_RECEIPT_SIGN_ISSUER_TYPE=hosted \
 "${RUNX_BIN:-crates/target/debug/runx}" harness examples/loop-orchestration \
   --receipt-dir "$tmpdir" \
   --json

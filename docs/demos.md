@@ -1,17 +1,14 @@
 # Demo Gallery
 
-These demos are runnable from this repository and produce signed receipts. Use the
-standalone verifier at `tools/verify/verify.mjs` with the demo issuer key in
-`tools/verify/runx-demo-jwks.json`.
+These demos are runnable from this repository and produce signed receipts, sealed
+under your runx home's own local key; `runx verify <receipt-id>` checks them. The
+standalone verifier at `tools/verify/verify.mjs` checks the committed fixture
+receipts against the fixture key in `tools/verify/runx-demo-jwks.json`. That key's
+seed is public, so the file lists it only as a `local` fixture identity, never as
+`hosted`.
 
 `docs/demo-inventory.json` is the machine-checked source of truth for featured
 demos, runnable previews, and fixture support.
-
-```sh
-export RUNX_RECEIPT_SIGN_KID=hosted-receipt-3097e2dee2cb4a34
-export RUNX_RECEIPT_SIGN_ED25519_SEED_BASE64=QkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkI=
-export RUNX_RECEIPT_SIGN_ISSUER_TYPE=hosted
-```
 
 ## Shipped Demos
 
