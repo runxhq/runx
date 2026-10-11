@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { createRunxClient, executionBindingFromInspection, RunxClientError } from "./index.js";
 import { invoke } from "./process.js";
 import { decodeSkill } from "./decode.js";
+import { receiptCommitments } from "./receipt-tree.js";
 
 const roots: string[] = [];
 afterEach(async () => { await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true }))); });
@@ -98,24 +99,34 @@ describe("native invocation and decoding", () => {
   });
   it("reads the sealed run's receipt tree, each child the one its parent signed", async () => {
     const { config, receiptDir } = await setup();
-    const address = (fill: string) => `sha256:${fill.repeat(64)}`;
-    const child = { ...receiptFixture, id: address("c"), digest: address("d") };
-    const tree = (children: readonly unknown[]) => ({ ...receiptFixture, id: address("a"), digest: address("b"), lineage: { children } });
+    // As a runtime seals: the id addresses the body, then the digest commits the body with its id.
+    const seal = (receipt: Record<string, unknown>) => {
+      const addressed = { ...receipt, id: receiptCommitments(receipt as never).id };
+      return { ...addressed, digest: receiptCommitments(addressed as never).digest };
+    };
+    const child = seal({ ...receiptFixture, created_at: "2026-02-02T00:00:00Z", lineage: { children: [] } });
+    const tree = (children: readonly unknown[]) => seal({ ...receiptFixture, lineage: { children } });
     const link = { type: "receipt", uri: `runx:receipt:${child.id}`, locator: child.digest };
-    const store = async (receipt: { id: string }) => writeFile(path.join(receiptDir, `${receipt.id.replace(":", "-")}.json`), JSON.stringify(receipt));
+    const store = async (receipt: Record<string, unknown> & { id: string }) => writeFile(path.join(receiptDir, `${receipt.id.replace(":", "-")}.json`), JSON.stringify(receipt));
     const settings = { projectDir: config.projectDir, receiptDir, maxArtifactBytes: 100000 };
-    const sealed = { exitCode: 0, stdout: JSON.stringify(output("sealed", "completed", { closure: { disposition: "closed" }, result: {}, receipt_id: address("a") })), stderr: "" };
+    const run = (root: { id: string }) => decodeSkill({ exitCode: 0, stdout: JSON.stringify(output("sealed", "completed", { closure: { disposition: "closed" }, result: {}, receipt_id: root.id })), stderr: "" }, settings);
 
-    await store(tree([link]));
-    await expect(decodeSkill(sealed, settings)).rejects.toThrow(/ENOENT|no such file/u);
+    const root = tree([link]);
+    await store(root);
+    await expect(run(root)).rejects.toThrow(/ENOENT|no such file/u);
     await store(child);
-    await expect(decodeSkill(sealed, settings)).resolves.toMatchObject({
-      receiptTree: { root: { id: address("a") }, descendants: [{ id: child.id }] },
+    await expect(run(root)).resolves.toMatchObject({
+      receiptTree: { root: { id: root.id }, descendants: [{ id: child.id }] },
     });
-    await store(tree([{ ...link, locator: address("e") }]));
-    await expect(decodeSkill(sealed, settings)).rejects.toThrow("differs from the one");
-    await store(tree([link, link]));
-    await expect(decodeSkill(sealed, settings)).rejects.toThrow("appears twice");
+    const repointed = tree([{ ...link, locator: root.digest }]);
+    await store(repointed);
+    await expect(run(repointed)).rejects.toThrow("differs from the one");
+    const twice = tree([link, link]);
+    await store(twice);
+    await expect(run(twice)).rejects.toThrow("appears twice");
+    // A body changed under its id and digest is not the receipt they commit.
+    await store({ ...root, created_at: "2026-01-01T00:00:00Z" });
+    await expect(run(root)).rejects.toThrow("not the content address of its body");
   });
   it("hydrates spilled requests and rejects digest drift", async () => {
     const { config, receiptDir } = await setup();
