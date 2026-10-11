@@ -254,7 +254,7 @@ pub(crate) enum PacketSchemaCatalogError {
     },
 }
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub(crate) struct PacketSchemaCatalog {
     entries: BTreeMap<String, PacketSchemaEntry>,
 }
@@ -264,6 +264,17 @@ impl PacketSchemaCatalog {
     /// catalog. Product packages consume these contracts by id and never carry
     /// private copies of Runx-owned schema bytes.
     pub(crate) fn native_public() -> Result<Self, PacketSchemaCatalogError> {
+        // The contracts are compiled in, so the catalog is the same for the
+        // whole process: built once, then copied for each caller to extend.
+        static NATIVE: std::sync::OnceLock<PacketSchemaCatalog> = std::sync::OnceLock::new();
+        if let Some(catalog) = NATIVE.get() {
+            return Ok(catalog.clone());
+        }
+        let catalog = Self::build_native_public()?;
+        Ok(NATIVE.get_or_init(|| catalog).clone())
+    }
+
+    fn build_native_public() -> Result<Self, PacketSchemaCatalogError> {
         let mut catalog = Self::default();
         for artifact in runx_contracts::generated_schema_artifacts() {
             if !artifact.native_packet {
@@ -434,7 +445,39 @@ pub(crate) fn read_packet_schema(
     packet_schema_entry(path.to_path_buf(), source)
 }
 
+/// A schema file's entry, parsed once per exact path and bytes: every output
+/// check of a run reads the same packet directories, and a changed file is
+/// another source.
 pub(crate) fn packet_schema_entry(
+    path: PathBuf,
+    source: String,
+) -> Result<Option<PacketSchemaEntry>, PacketSchemaCatalogError> {
+    use sha2::{Digest, Sha256};
+    use std::sync::{Mutex, OnceLock};
+
+    type Parsed = BTreeMap<(PathBuf, [u8; 32]), Option<PacketSchemaEntry>>;
+    const RETAINED: usize = 1024;
+    static PARSED: OnceLock<Mutex<Parsed>> = OnceLock::new();
+
+    let key = (
+        path.clone(),
+        <[u8; 32]>::from(Sha256::digest(source.as_bytes())),
+    );
+    let cache = PARSED.get_or_init(Mutex::default);
+    if let Some(entry) = cache.lock().ok().and_then(|cache| cache.get(&key).cloned()) {
+        return Ok(entry);
+    }
+    let entry = parse_packet_schema_entry(path, source)?;
+    if let Ok(mut cache) = cache.lock() {
+        if cache.len() >= RETAINED {
+            cache.clear();
+        }
+        cache.insert(key, entry.clone());
+    }
+    Ok(entry)
+}
+
+fn parse_packet_schema_entry(
     path: PathBuf,
     source: String,
 ) -> Result<Option<PacketSchemaEntry>, PacketSchemaCatalogError> {

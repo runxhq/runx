@@ -179,7 +179,7 @@ pub fn load_validated_skill_package(path: &Path) -> Result<LoadedSkillPackage, R
     let mut source = SkillPackageSource::default();
     let mut totals = PackageTotals::default();
     collect_package_source(&package_root, &package_root, &mut source, &mut totals)?;
-    let mut package = validate_skill_package(source)?;
+    let mut package = validated_package(source)?;
     let profile_path = selected_profile_path(&package_root, &directory)?
         .filter(|path| package.manifest_at(path).is_some());
     let resolved_input_packet_schemas = crate::packet_schemas::hydrate_packet_input_contracts(
@@ -194,6 +194,46 @@ pub fn load_validated_skill_package(path: &Path) -> Result<LoadedSkillPackage, R
         package,
         resolved_input_packet_schemas,
     })
+}
+
+/// A package's validation, once per exact source. Validation is a pure
+/// function of the package bytes, and one run loads the same package for every
+/// step and module call that names it, so each distinct source is parsed once
+/// per process. Any changed byte is another source.
+fn validated_package(
+    source: SkillPackageSource,
+) -> Result<runx_parser::ValidatedSkillPackage, runx_parser::SkillPackageError> {
+    use sha2::{Digest, Sha256};
+    use std::sync::{Mutex, OnceLock};
+
+    const RETAINED: usize = 64;
+    static VALIDATED: OnceLock<Mutex<BTreeMap<[u8; 32], runx_parser::ValidatedSkillPackage>>> =
+        OnceLock::new();
+
+    let mut hasher = Sha256::new();
+    for (path, bytes) in &source.files {
+        hasher.update((path.len() as u64).to_le_bytes());
+        hasher.update(path.as_bytes());
+        hasher.update((bytes.len() as u64).to_le_bytes());
+        hasher.update(bytes);
+    }
+    for link in &source.symlinks {
+        hasher.update((link.len() as u64).to_le_bytes());
+        hasher.update(link.as_bytes());
+    }
+    let key: [u8; 32] = hasher.finalize().into();
+    let cache = VALIDATED.get_or_init(Mutex::default);
+    if let Some(validated) = cache.lock().ok().and_then(|cache| cache.get(&key).cloned()) {
+        return Ok(validated);
+    }
+    let validated = validate_skill_package(source)?;
+    if let Ok(mut cache) = cache.lock() {
+        if cache.len() >= RETAINED {
+            cache.clear();
+        }
+        cache.insert(key, validated.clone());
+    }
+    Ok(validated)
 }
 
 /// Discover executable skill-package roots in a workspace.
