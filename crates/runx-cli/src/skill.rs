@@ -1,4 +1,4 @@
-// Module rationale: skill command keeps parse, inspect, registry provenance, and execution wiring together until the native skill UX settles.
+// Module rationale: skill command keeps parse, inspect, entry provenance, and execution wiring together until the native skill UX settles.
 use std::collections::BTreeMap;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
@@ -84,7 +84,7 @@ pub fn run_native_skill_with_workspace(plan: SkillPlan, workspace: &WorkspaceEnv
             &skill_path,
             plan.runner.as_deref(),
             plan.json,
-            registry_provenance(&resolved),
+            entry_provenance(&resolved),
             &env,
             &cwd,
         );
@@ -98,7 +98,7 @@ pub fn run_native_skill_with_workspace(plan: SkillPlan, workspace: &WorkspaceEnv
                     plan.json,
                     "input_error",
                     1,
-                    registry_provenance(&resolved),
+                    entry_provenance(&resolved),
                 );
             }
         },
@@ -118,11 +118,11 @@ pub fn run_native_skill_with_workspace(plan: SkillPlan, workspace: &WorkspaceEnv
                     plan.json,
                     "marketplace_error",
                     1,
-                    registry_provenance(&resolved),
+                    entry_provenance(&resolved),
                 );
             }
         };
-        attach_registry_provenance(&mut output, &resolved);
+        attach_entry_provenance(&mut output, &resolved);
         let exit_code = ExitCode::from(2);
         return write_skill_output(
             &output,
@@ -162,7 +162,7 @@ pub fn run_native_skill_with_workspace(plan: SkillPlan, workspace: &WorkspaceEnv
                 plan.json,
                 "skill_error",
                 1,
-                registry_provenance(&resolved),
+                entry_provenance(&resolved),
             );
         }
     };
@@ -193,7 +193,7 @@ pub fn run_native_skill_with_workspace(plan: SkillPlan, workspace: &WorkspaceEnv
                     plan.json,
                     "skill_error",
                     1,
-                    registry_provenance(&resolved),
+                    entry_provenance(&resolved),
                 );
             }
         };
@@ -205,7 +205,7 @@ pub fn run_native_skill_with_workspace(plan: SkillPlan, workspace: &WorkspaceEnv
                 plan.json,
                 "skill_error",
                 1,
-                registry_provenance(&resolved),
+                entry_provenance(&resolved),
             );
         }
         if prepared.report().status == PreparedSkillRunStatus::Blocked {
@@ -231,7 +231,7 @@ pub fn run_native_skill_with_workspace(plan: SkillPlan, workspace: &WorkspaceEnv
                 plan.json,
                 "operator_context_blocked",
                 1,
-                registry_provenance(&resolved),
+                entry_provenance(&resolved),
                 detail,
             );
         }
@@ -241,14 +241,14 @@ pub fn run_native_skill_with_workspace(plan: SkillPlan, workspace: &WorkspaceEnv
                 plan.json,
                 "operator_context_admission_error",
                 1,
-                registry_provenance(&resolved),
+                entry_provenance(&resolved),
             );
         }
         orchestrator.run_prepared_skill(&prepared)
     };
     match result {
         Ok(mut result) => {
-            attach_registry_provenance(&mut result.output, &resolved);
+            attach_entry_provenance(&mut result.output, &resolved);
             write_run_result(
                 &result,
                 RunOutput {
@@ -265,7 +265,7 @@ pub fn run_native_skill_with_workspace(plan: SkillPlan, workspace: &WorkspaceEnv
             plan.json,
             "skill_error",
             1,
-            registry_provenance(&resolved),
+            entry_provenance(&resolved),
         ),
     }
 }
@@ -308,19 +308,28 @@ fn prepared_entry_provenance(
             resolver::SkillRefKind::ExportedShim => "exported_shim",
             resolver::SkillRefKind::WorkspaceLocal => "workspace_local",
             resolver::SkillRefKind::Installed => "installed",
-            resolver::SkillRefKind::Official => "official",
+            resolver::SkillRefKind::Bundled => "bundled",
             resolver::SkillRefKind::Registry => "registry",
         }
         .to_owned(),
         reference: resolved.skill_id.clone(),
-        source: resolved
-            .registry_source
-            .clone()
-            .unwrap_or_else(|| "local-path".to_owned()),
+        source: resolved.registry_source.clone().unwrap_or_else(|| {
+            if resolved.kind == resolver::SkillRefKind::Bundled {
+                "bundled:runx".to_owned()
+            } else {
+                "local-path".to_owned()
+            }
+        }),
         source_label: resolved
             .registry_source_fingerprint
             .clone()
-            .unwrap_or_else(|| resolved.runnable_path.to_string_lossy().into_owned()),
+            .unwrap_or_else(|| {
+                if resolved.kind == resolver::SkillRefKind::Bundled {
+                    "Bundled Runx core".to_owned()
+                } else {
+                    resolved.runnable_path.to_string_lossy().into_owned()
+                }
+            }),
         skill_id: resolved.skill_id.clone(),
         version: resolved.version.clone(),
         digest: resolved.digest.clone(),
@@ -365,10 +374,7 @@ fn inspect_skill(
         return Err("native skill inspection returned a non-object".to_owned());
     };
     if let Some(provenance) = provenance {
-        object.insert(
-            "registry_provenance".to_owned(),
-            JsonValue::Object(provenance),
-        );
+        object.insert("entry_provenance".to_owned(), JsonValue::Object(provenance));
     }
     let mut readiness = Vec::new();
     if object.get("runner").is_some() {
@@ -528,34 +534,27 @@ fn object_string<'a>(object: &'a JsonObject, key: &str) -> Option<&'a str> {
     object.get(key).and_then(JsonValue::as_str)
 }
 
-fn attach_registry_provenance(output: &mut JsonValue, resolved: &ResolvedSkillRef) {
-    let Some(provenance) = registry_provenance(resolved) else {
+fn attach_entry_provenance(output: &mut JsonValue, resolved: &ResolvedSkillRef) {
+    let Some(provenance) = entry_provenance(resolved) else {
         return;
     };
     let JsonValue::Object(object) = output else {
         return;
     };
-    object.insert(
-        "registry_provenance".to_owned(),
-        JsonValue::Object(provenance),
-    );
+    object.insert("entry_provenance".to_owned(), JsonValue::Object(provenance));
 }
 
-fn registry_provenance(resolved: &ResolvedSkillRef) -> Option<JsonObject> {
-    let skill_id = resolved.skill_id.as_ref()?;
-    let mut provenance = JsonObject::new();
-    provenance.insert("skill_id".to_owned(), JsonValue::String(skill_id.clone()));
-    insert_optional(&mut provenance, "version", resolved.version.as_ref());
-    insert_optional(&mut provenance, "digest", resolved.digest.as_ref());
+fn entry_provenance(resolved: &ResolvedSkillRef) -> Option<JsonObject> {
+    resolved.skill_id.as_ref()?;
+    let JsonValue::Object(mut provenance) =
+        JsonValue::from_serialize(&prepared_entry_provenance(resolved, None)).ok()?
+    else {
+        return None;
+    };
     insert_optional(
         &mut provenance,
         "profile_digest",
         resolved.profile_digest.as_ref(),
-    );
-    insert_optional(
-        &mut provenance,
-        "package_digest",
-        resolved.package_digest.as_ref(),
     );
     insert_optional(
         &mut provenance,
@@ -567,7 +566,6 @@ fn registry_provenance(resolved: &ResolvedSkillRef) -> Option<JsonObject> {
         "registry_source_fingerprint",
         resolved.registry_source_fingerprint.as_ref(),
     );
-    insert_optional(&mut provenance, "trust_tier", resolved.trust_tier.as_ref());
     insert_optional(
         &mut provenance,
         "registry_key_id",
@@ -692,10 +690,7 @@ fn skill_json_failure_output(
     output.insert("status".to_owned(), JsonValue::String("failure".to_owned()));
     output.insert("error".to_owned(), JsonValue::Object(error));
     if let Some(provenance) = provenance {
-        output.insert(
-            "registry_provenance".to_owned(),
-            JsonValue::Object(provenance),
-        );
+        output.insert("entry_provenance".to_owned(), JsonValue::Object(provenance));
     }
     serde_json::to_string_pretty(&JsonValue::Object(output))
         .map(|json| format!("{json}\n"))

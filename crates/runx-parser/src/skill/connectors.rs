@@ -9,7 +9,7 @@
 use std::collections::BTreeMap;
 
 use runx_contracts::JsonValue;
-use runx_contracts::connector::{ConnectorId, OperationName, is_connector_id};
+use runx_contracts::connector::{Digest, OperationName, is_connector_id, is_connector_ref};
 use serde::{Deserialize, Serialize};
 
 use crate::ValidationError;
@@ -21,12 +21,15 @@ use super::SkillRunnerDefinition;
 #[serde(deny_unknown_fields)]
 pub struct ConnectorRequirement {
     pub operations: Vec<OperationName>,
+    /// The exact manifest required by a qualified fixed connector reference.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub manifest_digest: Option<Digest>,
     /// `$input.<path>`: where a run-time choice of connector is read from.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub connector_from: Option<String>,
     /// The connectors a run-time choice may name.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub allowed_connectors: Vec<ConnectorId>,
+    pub allowed_connectors: Vec<String>,
 }
 
 impl ConnectorRequirement {
@@ -52,10 +55,10 @@ pub(crate) fn validate_connector_requirements(
         .map_err(|error| invalid("connectors", format!("connectors is invalid: {error}")))?;
     for (key, requirement) in &requirements {
         let field = format!("connectors.{key}");
-        if !is_connector_id(key) {
+        if !is_connector_id(key) && !is_connector_ref(key) {
             return Err(invalid(
                 &field,
-                format!("{field} key must be a connector id or alias."),
+                format!("{field} key must be a connector id, qualified reference or alias."),
             ));
         }
         if requirement.operations.is_empty() {
@@ -74,6 +77,12 @@ pub(crate) fn validate_connector_requirements(
         }
         match &requirement.connector_from {
             None => {
+                if is_connector_ref(key) && requirement.manifest_digest.is_none() {
+                    return Err(invalid(
+                        &field,
+                        format!("{field} needs manifest_digest for its qualified connector."),
+                    ));
+                }
                 if !requirement.allowed_connectors.is_empty() {
                     return Err(invalid(
                         &field,
@@ -84,6 +93,14 @@ pub(crate) fn validate_connector_requirements(
                 }
             }
             Some(from) => {
+                if is_connector_ref(key) || requirement.manifest_digest.is_some() {
+                    return Err(invalid(
+                        &field,
+                        format!(
+                            "{field} chooses a connector at run time; its key must be an alias and cannot pin one manifest."
+                        ),
+                    ));
+                }
                 let path_valid = from.strip_prefix("$input.").is_some_and(|path| {
                     !path.is_empty() && path.split('.').all(|segment| !segment.is_empty())
                 });
@@ -100,6 +117,18 @@ pub(crate) fn validate_connector_requirements(
                             "{field} needs allowed_connectors listing the connectors it may choose."
                         ),
                     ));
+                }
+                for (index, reference) in requirement.allowed_connectors.iter().enumerate() {
+                    if (!is_connector_id(reference) && !is_connector_ref(reference))
+                        || requirement.allowed_connectors[..index].contains(reference)
+                    {
+                        return Err(invalid(
+                            &field,
+                            format!(
+                                "{field}.allowed_connectors must contain unique connector ids or qualified references."
+                            ),
+                        ));
+                    }
                 }
             }
         }

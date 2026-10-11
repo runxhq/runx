@@ -169,7 +169,11 @@ fn run_admitted_inline_harness_case(
     // effect custody and instances never reach another case or the operator.
     crate::paths::isolate(&mut request.env, case_root);
     request.inputs = inputs;
-    match crate::execution::harness::provider_env(&case.caller) {
+    let scope = match crate::ConnectorScope::at(context.skill_dir) {
+        Ok(scope) => scope,
+        Err(error) => return inline_harness_case_error(&case.name, error),
+    };
+    match crate::execution::harness::provider_env(&case.caller, &scope) {
         Ok(env) => request.env.extend(env),
         Err(error) => return inline_harness_case_error(&case.name, error),
     }

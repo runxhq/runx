@@ -2184,13 +2184,23 @@
           "type": "string"
         },
         "connector": {
-          "maxLength": 64,
-          "pattern": "^[a-z][a-z0-9-]{0,62}[a-z0-9]$",
+          "maxLength": 129,
+          "pattern": "^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?/[a-z0-9][a-z0-9-]{0,62}[a-z0-9]$",
+          "type": "string"
+        },
+        "connector_digest": {
+          "maxLength": 71,
+          "pattern": "^sha256:[0-9a-f]{64}$",
           "type": "string"
         },
         "instance_id": {
           "maxLength": 128,
           "pattern": "^[a-z0-9][a-z0-9._-]{0,127}$",
+          "type": "string"
+        },
+        "manifest_digest": {
+          "maxLength": 71,
+          "pattern": "^sha256:[0-9a-f]{64}$",
           "type": "string"
         },
         "operation": {
@@ -2220,6 +2230,8 @@
       },
       "required": [
         "connector",
+        "manifest_digest",
+        "connector_digest",
         "operation",
         "operation_digest",
         "instance_id",

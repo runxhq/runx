@@ -28,8 +28,9 @@ fn hosted(id: &str, connector: &LoadedConnector) -> ConnectorInstance {
     ConnectorInstance {
         schema: ConnectorInstanceSchema::V1,
         instance_id: InstanceId::new(id).expect("id"),
-        connector: connector.manifest.id.clone(),
-        plugin_root: None,
+        connector: connector.connector_ref.clone(),
+        manifest_digest: connector.manifest_digest.clone(),
+        connector_digest: connector.connector_digest.clone(),
         placement: Placement::Hosted,
         principal_ref: "runx:principal:operator".into(),
         account_ref: Some("T123/U456".into()),
@@ -100,7 +101,7 @@ fn an_instance_id_cannot_move_to_another_connector() {
         .connector("github")
         .unwrap();
     let mut moved = hosted("shared-id", &github);
-    moved.connector = github.manifest.id.clone();
+    moved.connector = github.connector_ref.clone();
     assert!(matches!(
         instances.confirm(moved, false),
         Err(InstanceError::WrongConnector { .. })
@@ -131,6 +132,10 @@ fn an_injected_grant_wins_and_must_be_complete() {
     let mut env = BTreeMap::from([
         (INJECTED_GRANT_ID_ENV.to_owned(), "grant_hosted".to_owned()),
         (
+            INJECTED_CONNECTOR_BINDING_ENV.to_owned(),
+            serde_json::to_string(&slack.binding()).unwrap(),
+        ),
+        (
             INJECTED_GRANTED_SCOPES_ENV.to_owned(),
             encode_injected_scopes(&["channel.post".to_owned()]).unwrap(),
         ),
@@ -146,7 +151,10 @@ fn an_injected_grant_wins_and_must_be_complete() {
             granted_scopes: vec!["channel.post".to_owned()]
         }
     );
-    assert_eq!(resolved.instance.instance_id.as_str(), "injected.slack");
+    assert_eq!(
+        resolved.instance.instance_id,
+        instance_id(&["injected", slack.connector_ref.as_str()]).unwrap()
+    );
 
     // A hosted grant cannot stand for a connector with no hosted placement.
     let web = ConnectorScope::official_only()

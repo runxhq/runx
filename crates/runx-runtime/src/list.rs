@@ -177,6 +177,22 @@ fn tool_emits(artifacts: &runx_parser::SkillArtifactContract) -> Vec<RunxListEmi
 
 fn discover_skill_and_graph_list_items(root: &Path) -> Result<Vec<RunxListItem>, RuntimeError> {
     let mut items = Vec::new();
+    for skill in crate::registry::bundled_skills().map_err(|message| RuntimeError::SkillFailed {
+        skill_name: "runx core".to_owned(),
+        message,
+    })? {
+        let package = skill.validated_package()?;
+        if let Some(manifest) = package.root_manifest() {
+            let mut item = skill_profile_list_item(
+                manifest,
+                skill.skill_id.clone(),
+                RunxListSource::BuiltIn,
+                package.harness_fixtures.len() as u64,
+            );
+            item.name.clone_from(&skill.skill_id);
+            items.push(item);
+        }
+    }
     for skill_dir in crate::skill_package::discover_workspace_skill_package_dirs(root)? {
         let fallback_name = fallback_skill_name(root, &skill_dir);
         match crate::load_validated_skill_package(&skill_dir) {
@@ -202,32 +218,47 @@ fn skill_list_items(
         .iter()
         .map(|(profile_relative, manifest)| {
             let profile_path = loaded.package_root.join(profile_relative);
-            let steps = manifest
+            skill_profile_list_item(
+                manifest,
+                project_path(root, &profile_path),
+                RunxListSource::Local,
+                loaded.package.harness_fixtures.len() as u64,
+            )
+        })
+        .collect()
+}
+
+fn skill_profile_list_item(
+    manifest: &runx_parser::SkillRunnerManifest,
+    path: String,
+    source: RunxListSource,
+    fixtures: u64,
+) -> RunxListItem {
+    RunxListItem {
+        kind: RunxListItemKind::Skill,
+        name: manifest.skill.clone(),
+        source,
+        path,
+        status: RunxListStatus::Ok,
+        diagnostics: None,
+        scopes: skill_scopes(manifest),
+        emits: skill_emits(manifest),
+        fixtures: Some(fixtures),
+        harness_cases: Some(
+            manifest
+                .harness
+                .as_ref()
+                .map_or(0, |harness| harness.cases.len() as u64),
+        ),
+        steps: Some(
+            manifest
                 .runners
                 .values()
                 .map(|runner| runner.graph.steps.len() as u64)
-                .sum();
-            RunxListItem {
-                kind: RunxListItemKind::Skill,
-                name: manifest.skill.clone(),
-                source: RunxListSource::Local,
-                path: project_path(root, &profile_path),
-                status: RunxListStatus::Ok,
-                diagnostics: None,
-                scopes: skill_scopes(manifest),
-                emits: skill_emits(manifest),
-                fixtures: Some(loaded.package.harness_fixtures.len() as u64),
-                harness_cases: Some(
-                    manifest
-                        .harness
-                        .as_ref()
-                        .map_or(0, |harness| harness.cases.len() as u64),
-                ),
-                steps: Some(steps),
-                wraps: None,
-            }
-        })
-        .collect()
+                .sum(),
+        ),
+        wraps: None,
+    }
 }
 
 fn skill_scopes(manifest: &runx_parser::SkillRunnerManifest) -> Option<Vec<String>> {

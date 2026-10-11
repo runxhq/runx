@@ -21,6 +21,7 @@ fn official_connectors_load_with_digests() {
 #[test]
 fn a_plugin_connector_cannot_shadow_an_official_one() {
     let root = tempfile::tempdir().unwrap();
+    std::fs::write(root.path().join("plugin.json"), r#"{"namespace":"runx"}"#).unwrap();
     let skill = root.path().join("skills/notify");
     std::fs::create_dir_all(&skill).unwrap();
     let connector = root.path().join("connectors/slack");
@@ -31,6 +32,7 @@ fn a_plugin_connector_cannot_shadow_an_official_one() {
 id: slack
 name: Not Slack
 description: A lookalike.
+runtime_capability: false
 auth: {none: {}}
 placements: {local: {auth: [none]}}
 operations:
@@ -51,6 +53,7 @@ operations:
 #[test]
 fn plugin_connectors_are_visible_to_their_plugin_only() {
     let root = tempfile::tempdir().unwrap();
+    std::fs::write(root.path().join("plugin.json"), r#"{"namespace":"acme"}"#).unwrap();
     let skill = root.path().join("skills/forecast");
     std::fs::create_dir_all(&skill).unwrap();
     let connector = root.path().join("connectors/acme-weather");
@@ -61,6 +64,7 @@ fn plugin_connectors_are_visible_to_their_plugin_only() {
 id: acme-weather
 name: Acme Weather
 description: Forecasts.
+runtime_capability: false
 auth: {none: {}}
 placements: {local: {auth: [none]}}
 operations:
@@ -84,8 +88,9 @@ operations:
 }
 
 #[test]
-fn a_plugin_connector_declares_no_reference_kinds() {
+fn a_plugin_connector_owns_its_reference_kinds() {
     let root = tempfile::tempdir().unwrap();
+    std::fs::write(root.path().join("plugin.json"), r#"{"namespace":"acme"}"#).unwrap();
     let skill = root.path().join("skills/track");
     std::fs::create_dir_all(&skill).unwrap();
     let connector = root.path().join("connectors/acme-tracker");
@@ -96,6 +101,7 @@ fn a_plugin_connector_declares_no_reference_kinds() {
 id: acme-tracker
 name: Acme Tracker
 description: Tickets.
+runtime_capability: false
 auth: {none: {}}
 placements: {local: {auth: [none]}}
 references:
@@ -109,16 +115,20 @@ operations:
 "#,
     )
     .unwrap();
-    assert!(matches!(
-        ConnectorScope::at(&skill),
-        Err(ConnectorRegistryError::InvalidManifest { message, .. })
-            if message.contains("declares no references")
-    ));
+    let loaded = ConnectorScope::at(&skill)
+        .unwrap()
+        .connector("acme/acme-tracker")
+        .unwrap();
+    assert_eq!(
+        super::references::bound_reference_kind(&loaded.manifest, "acme://tickets/7"),
+        runx_contracts::ReferenceType::TrackingItem
+    );
 }
 
 #[test]
 fn a_missing_connector_says_where_it_was_looked_for() {
     let root = tempfile::tempdir().unwrap();
+    std::fs::write(root.path().join("plugin.json"), r#"{"namespace":"acme"}"#).unwrap();
     let root = root.path().canonicalize().unwrap();
     let outside = root.join("elsewhere");
     std::fs::create_dir_all(&outside).unwrap();
@@ -148,6 +158,7 @@ fn a_plugin_whose_connectors_cannot_be_read_is_an_error_not_an_empty_plugin() {
     use std::os::unix::fs::PermissionsExt;
 
     let root = tempfile::tempdir().unwrap();
+    std::fs::write(root.path().join("plugin.json"), r#"{"namespace":"acme"}"#).unwrap();
     let skill = root.path().join("skills/forecast");
     std::fs::create_dir_all(&skill).unwrap();
     let connectors = root.path().join("connectors");
@@ -175,38 +186,59 @@ fn write_plugin_connector(connectors: &Path, directory: &str, id: &str) {
 }
 
 #[test]
-fn a_bundled_package_is_its_own_plugin() {
+fn a_bundled_package_sees_only_the_snapshots_its_bundle_binds() {
     let root = tempfile::tempdir().unwrap();
     let root = root.path().canonicalize().unwrap();
+    std::fs::write(root.join("plugin.json"), r#"{"namespace":"acme"}"#).unwrap();
     // A source plugin above the bundle is never reached from inside it.
     write_plugin_connector(&root.join("connectors"), "acme-above", "acme-above");
     let package = root.join("installed");
     let dependency = package.join("dependencies/beta");
     std::fs::create_dir_all(&dependency).unwrap();
-    std::fs::write(
-        package.join("runx.package.json"),
-        "{\"schema\": \"runx.registry.package_bundle.v1\", \"dependencies\": []}\n",
-    )
-    .unwrap();
     std::fs::write(package.join("SKILL.md"), "# Root\n").unwrap();
     std::fs::write(dependency.join("SKILL.md"), "# Beta\n").unwrap();
-    write_plugin_connector(&package.join("connectors"), "acme", "acme");
+    write_plugin_connector(&package.join("connectors/acme"), "acme", "acme");
+    let snapshot = load_directory(
+        &package.join("connectors/acme/acme"),
+        &package,
+        &PublisherNamespace::new("acme").unwrap(),
+        false,
+    )
+    .unwrap();
+    let descriptor = serde_json::json!({
+        "schema": "runx.registry.package_bundle.v1",
+        "dependencies": [],
+        "connectors": [{
+            "from": ".",
+            "connector": "acme/acme",
+            "manifest_digest": snapshot.manifest_digest,
+            "connector_digest": snapshot.connector_digest,
+        }],
+    });
+    std::fs::write(package.join("runx.package.json"), descriptor.to_string()).unwrap();
 
     let own = ConnectorScope::at(&package).unwrap();
-    assert!(own.connector("acme").is_ok());
+    assert_eq!(
+        own.connector("acme/acme").unwrap().connector_digest,
+        snapshot.connector_digest
+    );
     assert!(matches!(
         own.connector("acme-above"),
-        Err(ConnectorRegistryError::NotInPlugin { root, .. }) if root == package
+        Err(ConnectorRegistryError::Unavailable { .. })
     ));
+    // The dependency's own bindings are none; its composer's are not its own.
     assert!(matches!(
-        ConnectorScope::at(&dependency).unwrap().connector("acme"),
-        Err(ConnectorRegistryError::NotInPlugin { root, .. }) if root == dependency
+        ConnectorScope::at(&dependency)
+            .unwrap()
+            .connector("acme/acme"),
+        Err(ConnectorRegistryError::Unavailable { .. })
     ));
 }
 
 #[test]
 fn a_plugin_connector_lives_in_the_directory_its_id_names() {
     let root = tempfile::tempdir().unwrap();
+    std::fs::write(root.path().join("plugin.json"), r#"{"namespace":"acme"}"#).unwrap();
     let skill = root.path().join("skills/records");
     std::fs::create_dir_all(&skill).unwrap();
     write_plugin_connector(&root.path().join("connectors"), "acme", "acme-records");

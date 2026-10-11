@@ -391,10 +391,7 @@ fn explicit_ref_exports_official_source_skill() -> Result<(), Box<dyn std::error
     let fixture = ExportFixture::new("runx-export-official-ref")?;
     let official_root = fixture.write_official_skill_with_runner_inputs("work-plan")?;
     let mut env = fixture.env.clone();
-    env.insert(
-        "RUNX_OFFICIAL_SKILLS_SOURCE_DIR".to_owned(),
-        path_string(&official_root)?,
-    );
+    env.insert("RUNX_SKILL_ROOTS".to_owned(), path_string(&official_root)?);
 
     let report = run_export_command(
         &ExportPlan {

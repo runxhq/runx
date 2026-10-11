@@ -508,7 +508,7 @@ fn verify_notary_document(document: &[u8], trusted_keys: &[Vec<u8>]) -> NotaryVe
         ));
         return notary_verdict(schema, "missing", "missing", trusted_keys.len(), findings);
     };
-    let canonical_payload = match serde_json::to_string(payload) {
+    let canonical_payload = match runx_contracts::canonical_stable_json(payload) {
         Ok(value) => value,
         Err(error) => {
             findings.push(finding(
@@ -605,8 +605,8 @@ fn verify_counter_seal_signature(
         return "missing";
     };
     let signature_bytes = match decode_signature(signature_value) {
-        Ok(bytes) if bytes.len() == 64 => bytes,
-        Ok(_) | Err(_) => {
+        Some(bytes) if bytes.len() == 64 => bytes,
+        Some(_) | None => {
             findings.push(finding(
                 "counter_seal_signature_malformed",
                 "notary_verification.counter_seal.signature.value",
@@ -816,11 +816,10 @@ fn ed25519_public_key_from_spki_pem(pem: &str) -> Result<Vec<u8>, String> {
     Ok(der[ED25519_SPKI_PREFIX.len()..].to_vec())
 }
 
-fn decode_signature(value: &str) -> Result<Vec<u8>, base64::DecodeError> {
-    let encoded = value.strip_prefix("base64:").unwrap_or(value);
-    URL_SAFE_NO_PAD
-        .decode(encoded)
-        .or_else(|_| STANDARD.decode(encoded))
+/// A counter seal's signature is `base64:` and unpadded base64url, as the
+/// notary writes it and as a receipt's is; no other spelling is read.
+fn decode_signature(value: &str) -> Option<Vec<u8>> {
+    URL_SAFE_NO_PAD.decode(value.strip_prefix("base64:")?).ok()
 }
 
 fn notary_verdict(
@@ -1507,6 +1506,21 @@ mod tests {
     }
 
     #[test]
+    fn a_counter_seal_signature_has_one_spelling() {
+        let signature = [7_u8; 64];
+        assert_eq!(
+            super::decode_signature(&format!("base64:{}", URL_SAFE_NO_PAD.encode(signature))),
+            Some(signature.to_vec())
+        );
+        for other in [
+            URL_SAFE_NO_PAD.encode(signature),
+            format!("base64:{}", STANDARD.encode(signature)),
+        ] {
+            assert_eq!(super::decode_signature(&other), None, "{other}");
+        }
+    }
+
+    #[test]
     fn verifies_hosted_notary_counter_seal_from_stdin() -> Result<(), io::Error> {
         let temp = tempfile_dir()?;
         let key_pair = ring::signature::Ed25519KeyPair::from_seed_unchecked(&FIXTURE_SEED)
@@ -1524,7 +1538,8 @@ mod tests {
             "schema": "runx.hosted_notary_counter_seal_payload.v1",
             "verdict_digest": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
         });
-        let canonical_payload = serde_json::to_string(&payload).map_err(io::Error::other)?;
+        let canonical_payload = runx_contracts::canonical_stable_json(&payload)
+            .map_err(|error| io::Error::other(error.to_string()))?;
         let signature = key_pair.sign(canonical_payload.as_bytes());
         let notary = test_json::json!({
             "notary_verification": {
@@ -1534,7 +1549,7 @@ mod tests {
                     "digest": sha256_prefixed(canonical_payload.as_bytes()),
                     "signature": {
                         "alg": "Ed25519",
-                        "value": format!("base64:{}", base64_standard(signature.as_ref()))
+                        "value": format!("base64:{}", URL_SAFE_NO_PAD.encode(signature.as_ref()))
                     }
                 },
                 "signer_public_keys": [{
@@ -1648,7 +1663,8 @@ mod tests {
             "schema": "runx.hosted_notary_counter_seal_payload.v1",
             "verdict_digest": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
         });
-        let canonical_payload = serde_json::to_string(&payload).map_err(io::Error::other)?;
+        let canonical_payload = runx_contracts::canonical_stable_json(&payload)
+            .map_err(|error| io::Error::other(error.to_string()))?;
         let signature = signer.sign(canonical_payload.as_bytes());
         let notary = test_json::json!({
             "notary_verification": {
@@ -1658,7 +1674,7 @@ mod tests {
                     "digest": sha256_prefixed(canonical_payload.as_bytes()),
                     "signature": {
                         "alg": "Ed25519",
-                        "value": format!("base64:{}", base64_standard(signature.as_ref()))
+                        "value": format!("base64:{}", URL_SAFE_NO_PAD.encode(signature.as_ref()))
                     }
                 },
                 "signer_public_keys": [{
@@ -1725,7 +1741,8 @@ mod tests {
             "schema": "runx.hosted_notary_counter_seal_payload.v1",
             "verdict_digest": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
         });
-        let canonical_payload = serde_json::to_string(&payload).map_err(io::Error::other)?;
+        let canonical_payload = runx_contracts::canonical_stable_json(&payload)
+            .map_err(|error| io::Error::other(error.to_string()))?;
         let signature = key_pair.sign(canonical_payload.as_bytes());
         let document = test_json::json!({
             "receipt": {
@@ -1740,7 +1757,7 @@ mod tests {
                         "digest": sha256_prefixed(canonical_payload.as_bytes()),
                         "signature": {
                             "alg": "Ed25519",
-                            "value": format!("base64:{}", base64_standard(signature.as_ref()))
+                            "value": format!("base64:{}", URL_SAFE_NO_PAD.encode(signature.as_ref()))
                         }
                     },
                     "signer_public_keys": [{

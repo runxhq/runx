@@ -180,6 +180,23 @@ fn step_receipt_with_disposition_projection_authority_and_policy(
         .map(|kind| ExecutionBoundaryObservation { kind });
     receipt.as_mut().metadata =
         receipt_metadata_with_execution_limits(receipt_metadata, &output.observations)?;
+    if let Some(intent) = call
+        .as_ref()
+        .and_then(|call| call.operation_intent.as_ref())
+    {
+        receipt
+            .as_mut()
+            .metadata
+            .get_or_insert_with(JsonObject::new)
+            .insert(
+                "operation_intent".to_owned(),
+                runx_contracts::JsonValue::from_serialize(intent).map_err(|error| {
+                    RuntimeError::ReceiptInvalid {
+                        message: format!("encoding admitted operation intent: {error}"),
+                    }
+                })?,
+            );
+    }
     let receipt = receipt.seal(signature_policy)?;
     if !child_receipts.is_empty() {
         validate_receipt_tree_with_policy(
@@ -1049,6 +1066,7 @@ mod tests {
                 descendant_receipts: &[],
                 authority: SealAuthority::default(),
                 call: Some(SealedCall {
+                    operation_intent: None,
                     act: None,
                     description: "Post one message.".into(),
                     term_id: "term_call".to_owned(),

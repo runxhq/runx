@@ -147,6 +147,7 @@ impl ModelAuthMode {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct NotificationProfile {
+    pub(crate) connector_binding: runx_contracts::connector::ConnectorBinding,
     pub(crate) authority_id: String,
     pub(crate) skill: String,
     pub(crate) provider: String,
@@ -339,11 +340,17 @@ pub(crate) fn notification_approval(
     let instance = notification
         .instance_id
         .clone()
-        .unwrap_or_else(|| format!("injected.{}", notification.provider));
+        .map(Ok)
+        .unwrap_or_else(|| {
+            runx_runtime::kernel::instances::instance_id(&[
+                "injected",
+                notification.connector_binding.connector.as_str(),
+            ])
+            .map(|id| id.into_string())
+        })?;
     Ok(StandingApproval {
         approval_id: notification.authority_id.clone(),
-        connector: runx_contracts::connector::ConnectorId::new(notification.provider.as_str())
-            .ok_or("the notification provider is not a connector id")?,
+        connector: notification.connector_binding.connector.clone(),
         operation: runx_contracts::connector::OperationName::new("channel.post")
             .ok_or("channel.post is an operation name")?,
         instance_id: runx_contracts::connector::InstanceId::new(instance)
@@ -769,6 +776,7 @@ fn validate_profile(profile: &AssistantProfile) -> Result<(), String> {
     }
     if let Some(notification) = &profile.notification {
         if notification.authority_id.trim().is_empty()
+            || notification.connector_binding.connector.id() != notification.provider
             || !valid_skill_ref(&notification.skill)
             || notification.provider.is_empty()
             || notification.provider.len() > 80

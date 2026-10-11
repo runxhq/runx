@@ -533,8 +533,50 @@ fn resolve_step_skill_directory(
                 registry: None,
             });
         }
+        let directory = graph_dir.join(skill);
+        // An installed package's descriptor owns its dependency identities.
+        // Only source packages may discover additional local or bundled skills.
+        if !directory.exists()
+            && crate::registry::package_bundle::package_bundle_root(graph_dir)
+                .map_err(|reason| RuntimeError::InvalidRunStep {
+                    step_id: step.id.clone(),
+                    reason,
+                })?
+                .is_none()
+        {
+            let paths = crate::RunxPaths::resolve(options.env, graph_dir);
+            if let Some(directory) = crate::resolve_local_skill_reference(
+                &paths,
+                Path::new(skill),
+                &paths.skill_roots(options.env),
+            )? {
+                return Ok(ResolvedStepSkillDirectory {
+                    directory,
+                    registry: None,
+                });
+            }
+            if let Some(installed) = crate::registry::materialize_bundled_skill(skill, &paths, None)
+                .map_err(|reason| RuntimeError::InvalidRunStep {
+                    step_id: step.id.clone(),
+                    reason,
+                })?
+            {
+                let directory =
+                    installed
+                        .destination
+                        .parent()
+                        .ok_or_else(|| RuntimeError::InvalidRunStep {
+                            step_id: step.id.clone(),
+                            reason: "bundled skill has no package directory".to_owned(),
+                        })?;
+                return Ok(ResolvedStepSkillDirectory {
+                    directory: directory.to_path_buf(),
+                    registry: None,
+                });
+            }
+        }
         return Ok(ResolvedStepSkillDirectory {
-            directory: graph_dir.join(skill),
+            directory,
             registry: None,
         });
     }

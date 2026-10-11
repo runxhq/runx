@@ -3413,13 +3413,23 @@ export const runxSchemaArtifacts = {
             "type": "string"
           },
           "connector": {
-            "maxLength": 64,
-            "pattern": "^[a-z][a-z0-9-]{0,62}[a-z0-9]$",
+            "maxLength": 129,
+            "pattern": "^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?/[a-z0-9][a-z0-9-]{0,62}[a-z0-9]$",
+            "type": "string"
+          },
+          "connector_digest": {
+            "maxLength": 71,
+            "pattern": "^sha256:[0-9a-f]{64}$",
             "type": "string"
           },
           "instance_id": {
             "maxLength": 128,
             "pattern": "^[a-z0-9][a-z0-9._-]{0,127}$",
+            "type": "string"
+          },
+          "manifest_digest": {
+            "maxLength": 71,
+            "pattern": "^sha256:[0-9a-f]{64}$",
             "type": "string"
           },
           "operation": {
@@ -3449,6 +3459,8 @@ export const runxSchemaArtifacts = {
         },
         "required": [
           "connector",
+          "manifest_digest",
+          "connector_digest",
           "operation",
           "operation_digest",
           "instance_id",
@@ -9256,8 +9268,13 @@ export const runxSchemaArtifacts = {
         "type": "string"
       },
       "connector": {
-        "maxLength": 64,
-        "pattern": "^[a-z][a-z0-9-]{0,62}[a-z0-9]$",
+        "maxLength": 129,
+        "pattern": "^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?/[a-z0-9][a-z0-9-]{0,62}[a-z0-9]$",
+        "type": "string"
+      },
+      "connector_digest": {
+        "maxLength": 71,
+        "pattern": "^sha256:[0-9a-f]{64}$",
         "type": "string"
       },
       "credential_declaration_digest": {
@@ -9268,6 +9285,11 @@ export const runxSchemaArtifacts = {
       "instance_id": {
         "maxLength": 128,
         "pattern": "^[a-z0-9][a-z0-9._-]{0,127}$",
+        "type": "string"
+      },
+      "manifest_digest": {
+        "maxLength": 71,
+        "pattern": "^sha256:[0-9a-f]{64}$",
         "type": "string"
       },
       "operation_digests": {
@@ -9293,10 +9315,6 @@ export const runxSchemaArtifacts = {
         ],
         "type": "string"
       },
-      "plugin_root": {
-        "minLength": 1,
-        "type": "string"
-      },
       "principal_ref": {
         "minLength": 1,
         "type": "string"
@@ -9312,6 +9330,8 @@ export const runxSchemaArtifacts = {
       "schema",
       "instance_id",
       "connector",
+      "manifest_digest",
+      "connector_digest",
       "placement",
       "principal_ref",
       "authority",
@@ -9492,6 +9512,10 @@ export const runxSchemaArtifacts = {
           }
         },
         "type": "object"
+      },
+      "category": {
+        "minLength": 1,
+        "type": "string"
       },
       "description": {
         "minLength": 1,
@@ -11113,6 +11137,9 @@ export const runxSchemaArtifacts = {
         "minItems": 1,
         "type": "array"
       },
+      "runtime_capability": {
+        "type": "boolean"
+      },
       "schema": {
         "enum": [
           "runx.connector.v1"
@@ -11125,6 +11152,7 @@ export const runxSchemaArtifacts = {
       "id",
       "name",
       "description",
+      "runtime_capability",
       "auth",
       "placements",
       "operations"
@@ -22334,8 +22362,8 @@ export const runxSchemaArtifacts = {
     "additionalProperties": false,
     "properties": {
       "connector": {
-        "maxLength": 64,
-        "pattern": "^[a-z][a-z0-9-]{0,62}[a-z0-9]$",
+        "maxLength": 129,
+        "pattern": "^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?/[a-z0-9][a-z0-9-]{0,62}[a-z0-9]$",
         "type": "string"
       },
       "instance_id": {
@@ -26464,9 +26492,6 @@ export const runxSchemaArtifacts = {
       "registry": {
         "additionalProperties": true,
         "properties": {
-          "install_command": {
-            "type": "string"
-          },
           "materialized_package_is_registry_artifact": {
             "const": true
           },
@@ -26474,9 +26499,6 @@ export const runxSchemaArtifacts = {
             "type": "string"
           },
           "profile_path": {
-            "type": "string"
-          },
-          "run_command": {
             "type": "string"
           },
           "trust_tier": {
@@ -29286,24 +29308,31 @@ export const runxSchemaArtifacts = {
             "additionalProperties": false,
             "properties": {
               "bytes": {
+                "minimum": 0,
                 "type": "integer"
               },
               "executable_files": {
+                "minimum": 0,
                 "type": "integer"
               },
               "executable_lines": {
+                "minimum": 0,
                 "type": "integer"
               },
               "files": {
+                "minimum": 0,
                 "type": "integer"
               },
               "generated_lines": {
+                "minimum": 0,
                 "type": "integer"
               },
               "production_lines": {
+                "minimum": 0,
                 "type": "integer"
               },
               "test_lines": {
+                "minimum": 0,
                 "type": "integer"
               }
             },
@@ -29402,31 +29431,24 @@ export const runxSchemaArtifacts = {
             "additionalProperties": false,
             "properties": {
               "bytes": {
-                "minimum": 0,
                 "type": "integer"
               },
               "executable_files": {
-                "minimum": 0,
                 "type": "integer"
               },
               "executable_lines": {
-                "minimum": 0,
                 "type": "integer"
               },
               "files": {
-                "minimum": 0,
                 "type": "integer"
               },
               "generated_lines": {
-                "minimum": 0,
                 "type": "integer"
               },
               "production_lines": {
-                "minimum": 0,
                 "type": "integer"
               },
               "test_lines": {
-                "minimum": 0,
                 "type": "integer"
               }
             },
@@ -31265,24 +31287,31 @@ export const runxSchemaArtifacts = {
         "additionalProperties": false,
         "properties": {
           "bytes": {
+            "minimum": 0,
             "type": "integer"
           },
           "executable_files": {
+            "minimum": 0,
             "type": "integer"
           },
           "executable_lines": {
+            "minimum": 0,
             "type": "integer"
           },
           "files": {
+            "minimum": 0,
             "type": "integer"
           },
           "generated_lines": {
+            "minimum": 0,
             "type": "integer"
           },
           "production_lines": {
+            "minimum": 0,
             "type": "integer"
           },
           "test_lines": {
+            "minimum": 0,
             "type": "integer"
           }
         },
@@ -31381,31 +31410,24 @@ export const runxSchemaArtifacts = {
         "additionalProperties": false,
         "properties": {
           "bytes": {
-            "minimum": 0,
             "type": "integer"
           },
           "executable_files": {
-            "minimum": 0,
             "type": "integer"
           },
           "executable_lines": {
-            "minimum": 0,
             "type": "integer"
           },
           "files": {
-            "minimum": 0,
             "type": "integer"
           },
           "generated_lines": {
-            "minimum": 0,
             "type": "integer"
           },
           "production_lines": {
-            "minimum": 0,
             "type": "integer"
           },
           "test_lines": {
-            "minimum": 0,
             "type": "integer"
           }
         },

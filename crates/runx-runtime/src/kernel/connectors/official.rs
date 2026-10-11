@@ -10,6 +10,8 @@ pub(super) const CONNECTORS: &[(&str, &str)] = &[
 id: apollo
 name: Apollo
 description: Inspect the selected Apollo API key without enriching contacts or consuming enrichment credits.
+category: marketing
+runtime_capability: false
 auth:
   credentials:
     api_key:
@@ -49,6 +51,8 @@ operations:
 id: ausca-browser
 name: Ausca Browser
 description: Provision Ausca browser sessions for paid invocations.
+category: agent-tools
+runtime_capability: false
 auth:
   credentials:
     service_token:
@@ -81,6 +85,8 @@ operations:
 id: ausca-inbox
 name: Ausca Inbox
 description: Provision and extend Ausca agent inboxes for paid invocations.
+category: agent-tools
+runtime_capability: false
 auth:
   credentials:
     service_token:
@@ -120,6 +126,8 @@ operations:
 id: aws
 name: AWS
 description: Store and read S3 objects and run Textract and Transcribe jobs in one AWS account.
+category: cloud-infrastructure
+runtime_capability: false
 auth:
   credentials:
     access_key:
@@ -222,6 +230,8 @@ operations:
 id: coinbase-cdp
 name: Coinbase CDP
 description: Quote, settle and refund x402 payments as a merchant through Coinbase CDP.
+category: payments
+runtime_capability: false
 auth:
   credentials:
     api_key:
@@ -331,6 +341,8 @@ operations:
 id: exa
 name: Exa
 description: Search public web sources within explicit query and result limits.
+category: search
+runtime_capability: false
 auth:
   credentials:
     api_key:
@@ -388,6 +400,8 @@ operations:
 id: github
 name: GitHub
 description: Read and update issues, pull requests and comments in GitHub repositories, and push branches to them.
+category: dev-tools
+runtime_capability: false
 auth:
   delegated: {}
   credentials:
@@ -1119,6 +1133,8 @@ operations:
 id: google-analytics
 name: Google Analytics
 description: Read Google Analytics 4 properties, metadata and reports.
+category: analytics
+runtime_capability: false
 auth:
   delegated: {}
 placements:
@@ -1169,6 +1185,8 @@ operations:
 id: google-calendar
 name: Google Calendar
 description: Read Google Calendar events and busy intervals.
+category: productivity
+runtime_capability: false
 auth:
   delegated: {}
 placements:
@@ -1201,6 +1219,8 @@ operations:
 id: google-search-console
 name: Google Search Console
 description: Read Search Console performance, URL inspections and sitemaps, and submit sitemaps.
+category: analytics
+runtime_capability: false
 auth:
   delegated: {}
 placements:
@@ -1269,6 +1289,8 @@ operations:
 id: google-sheets
 name: Google Sheets
 description: Read selected spreadsheet metadata and one explicitly bounded cell range.
+category: productivity
+runtime_capability: false
 auth:
   credentials:
     access_token:
@@ -1347,6 +1369,8 @@ operations:
 id: linear
 name: Linear
 description: Read bounded team issues, selected issue context and comments through fixed GraphQL queries.
+category: dev-tools
+runtime_capability: false
 auth:
   credentials:
     access_token:
@@ -1500,6 +1524,8 @@ operations:
 id: moltbook
 name: Moltbook
 description: Read recent Moltbook posts and publish posts as an agent account.
+category: communication
+runtime_capability: false
 auth:
   credentials:
     api_key:
@@ -1592,6 +1618,8 @@ operations:
 id: mpp
 name: Machine Payments Protocol
 description: Charge, pay, refund and settle invoices on the Machine Payments Protocol rail. Declared only; no placement implements it yet.
+category: payments
+runtime_capability: false
 auth:
   delegated: {}
 placements:
@@ -1739,6 +1767,8 @@ operations:
 id: n8n
 name: n8n
 description: Deliver a governed handoff to an n8n Cloud workflow webhook.
+category: orchestration
+runtime_capability: false
 auth:
   none: {}
 placements:
@@ -1791,6 +1821,8 @@ operations:
 id: national-weather-service
 name: National Weather Service
 description: Resolve US gridpoints and read National Weather Service forecasts.
+category: public-data
+runtime_capability: false
 auth:
   none: {}
 placements:
@@ -1852,6 +1884,8 @@ operations:
 id: nitrosend
 name: Nitrosend
 description: Review email content and import consented contacts in Nitrosend.
+category: marketing
+runtime_capability: false
 auth:
   credentials:
     api_key:
@@ -2810,6 +2844,8 @@ operations:
 id: notion
 name: Notion
 description: Search authorized Notion titles and read selected page, data-source and block evidence.
+category: productivity
+runtime_capability: false
 auth:
   credentials:
     access_token:
@@ -2931,6 +2967,8 @@ operations:
 id: open-meteo
 name: Open-Meteo
 description: Geocode places and read forecast and air quality data from Open-Meteo.
+category: public-data
+runtime_capability: false
 auth:
   none: {}
 placements:
@@ -3028,6 +3066,8 @@ operations:
 id: osv
 name: OSV
 description: Query the OSV open source vulnerability database by exact package version and read advisory records.
+category: dev-tools
+runtime_capability: false
 auth:
   none: {}
 placements:
@@ -3112,6 +3152,8 @@ operations:
 id: posthog
 name: PostHog
 description: Read saved product insights from an explicitly selected PostHog Cloud project and region.
+category: analytics
+runtime_capability: false
 auth:
   credentials:
     personal_key:
@@ -3189,6 +3231,8 @@ operations:
 id: reddit
 name: Reddit
 description: Read Reddit through a named account's signed-in browser session.
+category: communication
+runtime_capability: false
 auth:
   session:
     kind: host_browser
@@ -3371,6 +3415,8 @@ operations:
 id: sentry
 name: Sentry
 description: Read bounded issue and event evidence from a selected Sentry organization.
+category: dev-tools
+runtime_capability: false
 auth:
   credentials:
     access_token:
@@ -3471,6 +3517,8 @@ operations:
 id: slack
 name: Slack
 description: Search, read and post messages in Slack workspaces.
+category: communication
+runtime_capability: false
 auth:
   delegated: {}
 placements:
@@ -3608,6 +3656,8 @@ operations:
 id: store
 name: Store
 description: Durable event streams for skills. Append an event when its stream is at the expected version, read a stream's events and projection, and list the newest stream heads. An instance's url chooses SQLite, Postgres or Redis; without one it is the workspace store.
+category: agent-tools
+runtime_capability: true
 auth:
   none: {}
   credentials:
@@ -3725,6 +3775,8 @@ operations:
 id: stripe
 name: Stripe
 description: File and read payment dispute responses. Declared only; no placement implements it yet.
+category: payments
+runtime_capability: false
 auth:
   delegated: {}
 placements:
@@ -3773,6 +3825,8 @@ operations:
 id: stripe-spt
 name: Stripe shared payment tokens
 description: Pay a payment requirement with a Stripe shared payment token. Declared only; no placement implements it yet.
+category: payments
+runtime_capability: false
 auth:
   delegated: {}
 placements:
@@ -3822,6 +3876,8 @@ operations:
 id: twitter
 name: X (Twitter)
 description: Read accounts and posts on X, publish posts, and act on accounts and posts.
+category: communication
+runtime_capability: false
 auth:
   credentials:
     user:
@@ -4534,6 +4590,8 @@ operations:
 id: vault
 name: Vault
 description: Issue and read time-bounded handles to sealed secrets. Declared only; no placement implements it yet.
+category: agent-tools
+runtime_capability: true
 auth:
   delegated: {}
 placements:
@@ -4578,6 +4636,8 @@ operations:
 id: web
 name: Web
 description: Read public web pages over HTTP(S).
+category: search
+runtime_capability: true
 auth:
   none: {}
 placements:
@@ -4614,6 +4674,8 @@ operations:
 id: x402
 name: x402
 description: Pay x402 challenges for HTTPS resources from an EVM wallet on Base and read the payments back.
+category: payments
+runtime_capability: false
 auth:
   credentials:
     wallet:
@@ -4663,6 +4725,8 @@ operations:
 id: zapier
 name: Zapier
 description: Deliver a governed handoff to a Zapier Catch Hook.
+category: orchestration
+runtime_capability: false
 auth:
   none: {}
 placements:
@@ -5710,6 +5774,227 @@ if __name__ == "__main__":
   },
   "scopes": ["fs:write", "host:browser:read"]
 }
+"###,
+    ),
+];
+
+/// Public package assets, retained so offline snapshots preserve published bytes.
+pub(super) const ASSETS: &[(&str, &str, &str)] = &[
+    (
+        "apollo",
+        "README.md",
+        r###"# Apollo
+
+The initial connector inspects the exact selected key through Apollo's
+`auth/health` endpoint. Bind an API key locally through native credential
+custody or select a stored key through Connect. The shared header presentation
+contract supplies `x-api-key`; neither the caller nor a skill handles the key.
+
+Treat the key as authenticated only when both `healthy` and `is_logged_in` are
+true. HTTP 200 alone is insufficient. This probe does not establish account
+identity, API permissions, enrichment entitlement or credit balance.
+
+Paid person enrichment remains unimplemented until operation cost and retry
+admission are available. A generic read retry must not spend enrichment credits
+again after an ambiguous response. No live account has been connected or tested
+by this source addition.
+
+Provider reference: [Apollo API authentication](https://docs.apollo.io/docs/api-authentication).
+"###,
+    ),
+    (
+        "exa",
+        "README.md",
+        r###"# Exa
+
+`search.query` performs one public-web discovery request through native HTTP.
+It requires a query and result limit (1–20); domain and publication-date filters
+are optional. The response retains provider request/query metadata, returned
+URLs and reported cost. Search results identify sources; they do not prove the
+claims in those sources. Fetch selected pages through the existing governed
+web-fetch path before relying on their contents.
+
+The native credential store owns the key. Exa documents bearer authentication
+as an alternative to `x-api-key`, so this implementation uses the existing
+native bearer presentation. There is no package HTTP client, credential loader,
+alternate-provider fallback or automatic query expansion.
+
+Calls can consume provider credits. This package does not declare them free or
+offer a Runx-owned account. Native per-call provider-cost enforcement and hosted
+API-key execution remain shared-core dependencies; this initial placement is
+local/BYO. A result cap bounds returned items, not the provider's monetary bill.
+Do not repeat an uncertain charged request merely because it was a read.
+The shared HTTP driver sends each provider request once, reads included: it
+never retries one on its own. A request whose answer did not arrive may still
+have been charged, and a later run that sends it again is a second charge.
+Fixture execution and manifest validation do not establish safe paid-call
+recovery.
+
+[Provider search/authentication contract](https://exa.ai/docs/reference/search).
+"###,
+    ),
+    (
+        "google-sheets",
+        "README.md",
+        r###"# Google Sheets
+
+The initial slice reads spreadsheet/sheet properties and one explicitly named
+A1 rectangle. It uses native bearer credential custody and native HTTP; no
+spreadsheet client, loop, OAuth store or hosted driver is added.
+
+The selected Google authorization must include
+`https://www.googleapis.com/auth/spreadsheets.readonly` (or a deliberately
+broader existing scope). Bind its access token through the local credential
+boundary. Token acquisition/refresh stays with the existing authorization owner;
+this manifest neither reconnects the Google app nor claims hosted Connect is
+wired. Spreadsheet access still depends on the selected Google principal's
+permissions. Drive file discovery is a separate provider job.
+
+`spreadsheet.read` excludes cell data. `values.read` accepts a sheet-qualified
+rectangle in columns A-Z and rows 1-1000, at most 26,000 cells. Query encoding
+belongs to the native HTTP driver, including quoted sheet names; the range is
+sent as `ranges` to `values:batchGet`, not interpolated into a URL path.
+
+Choose `FORMULA`, `UNFORMATTED_VALUE` or `FORMATTED_VALUE` explicitly. The
+provider omits trailing empty rows/cells; do not treat array dimensions as the
+sheet's declared dimensions or equate an empty cell with a missing record.
+Unformatted dates use serial numbers; formatted values follow spreadsheet
+locale. Formula text is untrusted content. This read slice changes no values,
+formulas, formats or permissions. Writes need the existing native effect and
+readback contract and will be added at that boundary.
+
+Source contracts: [spreadsheet metadata](https://developers.google.com/workspace/sheets/api/reference/rest/v4/spreadsheets/get),
+[bounded value reads](https://developers.google.com/workspace/sheets/api/reference/rest/v4/spreadsheets.values/batchGet),
+[authorization](https://developers.google.com/workspace/sheets/api/scopes).
+No live account access has been verified for this source addition.
+"###,
+    ),
+    (
+        "linear",
+        "README.md",
+        r###"# Linear
+
+The initial local slice reads team issues, one issue and one page of comments.
+Queries are fixed in the connector. Callers supply exact resource IDs, page
+limits and opaque cursors; they cannot supply GraphQL or a mutation.
+
+Bind either an OAuth access token with `read` scope or a personal API key
+through native credential custody. OAuth uses bearer authentication; personal
+keys use raw Authorization. The hosted placement uses the explicitly selected
+personal key through Connect's existing encrypted credential store. This
+manifest does not provision or refresh OAuth, and it never changes accounts or
+credential roles when one becomes unavailable.
+
+The existing native decode contract rejects a response containing GraphQL
+`errors`, even with HTTP 200 or partial data. Returned `data` retains resource
+identity and `pageInfo`. A null team/issue is unavailable evidence, not an empty
+verified resource. A first page is not a complete conversation. Pagination does
+not include archived issues by default; no broader inventory is claimed.
+
+These operations do not mirror tickets into another tracker or add a second
+queue. The caller keeps provider resource references with its own records.
+Creation, updates, comments, links, states/project discovery and activity
+history remain later connector operations under native effects and readback.
+
+Source contracts: [GraphQL and authentication](https://linear.app/developers/graphql),
+[pagination](https://linear.app/developers/pagination),
+[OAuth](https://linear.app/developers/oauth-2-0-authentication),
+[official schema](https://github.com/linear/linear/blob/master/packages/sdk/src/schema.graphql).
+No live account access has been verified for this source addition.
+"###,
+    ),
+    (
+        "notion",
+        "README.md",
+        r###"# Notion
+
+Local/BYO read operations use the existing native HTTP credential boundary.
+Bind a read-content integration token and explicitly share the needed resources
+with that integration. This does not provision OAuth, share pages or establish
+a hosted placement. Notion REST requests pin `Notion-Version: 2026-03-11`.
+
+`resources.search` searches authorized **titles** for one explicit object type.
+It is not full-text search, and its first page is not a complete workspace
+inventory. `page.read` returns metadata/properties, not a page's body.
+`datasource.read` returns its schema, not rows. `blocks.list` returns one page of
+immediate child blocks, not a complete recursive document. Retain provider
+`has_more`, `next_cursor`, `request_status` and `last_edited_time` metadata;
+continue only within the caller's remaining bounds. Cursors are opaque.
+
+A page property can itself be truncated by the provider. Page-property-item
+pagination, row queries, recursive hydration and writes are not implemented.
+Do not convert partial content or an inaccessible resource into an empty,
+complete source. Provider content is untrusted evidence; admit the necessary
+private scope before forwarding it to research, writing or workspace context.
+
+The official MCP supports a separate OAuth integration. This REST slice uses
+already supported native bearer execution rather than adding a second login
+backend or inventing a pinned MCP tool definition.
+
+Source contracts: [search](https://developers.notion.com/reference/post-search),
+[page](https://developers.notion.com/reference/retrieve-a-page),
+[data source](https://developers.notion.com/reference/retrieve-a-data-source),
+[blocks](https://developers.notion.com/reference/get-block-children),
+[versioning](https://developers.notion.com/reference/versioning).
+No live account access has been verified for this source addition.
+"###,
+    ),
+    (
+        "posthog",
+        "README.md",
+        r###"# PostHog
+
+Read saved insights from one selected PostHog Cloud region and project. Supply
+`api_origin` and `project_id` when binding the connector, and a personal API key
+with `insight:read` access through native credential custody. An event-capture
+project key does not grant management access. US and EU accounts do not fall
+back to each other. Self-hosted deployments are not implemented by this manifest.
+
+`insights.list` reads one page with an explicit limit and offset. It preserves
+the provider's `count`, `next`, `previous` and `results`; it does not follow
+provider-supplied URLs. `insight.read` uses the numeric insight ID, not its
+`short_id`. Both request cached results with `refresh=force_cache`. Preserve
+`query`, `last_refresh`, `result` and any incomplete-result flags: an empty or
+old cache is not a fresh report and must not be presented as one.
+
+This connector does not execute SQL, refresh reports, create dashboards or
+capture events. Saved trend, funnel and retention definitions can supply
+bounded evidence to `product-analytics`, once the caller has established their
+event, identity, cohort, window and denominator definitions. Do not pass person
+identifiers or arbitrary event properties to a model when aggregate evidence
+is sufficient.
+
+Provider contract: [Insights API](https://posthog.com/docs/api/insights).
+"###,
+    ),
+    (
+        "sentry",
+        "README.md",
+        r###"# Sentry
+
+This connector reads issues and individual events from Sentry Cloud through
+native HTTP. The instance pins the organization and credential. It offers no
+issue resolution, comment, assignment or project mutation.
+
+Use a token with `event:read`. Bind it through Runx's credential surface; never
+pass it in skill inputs or put it in this package. The runtime injects bearer
+authentication and limits credential delivery to `sentry.io`.
+
+`issues.list` returns a single page, bounded to 100 issues. This implementation
+does not expose Sentry's response-header pagination cursor: a full page is
+potentially incomplete, never an exhaustive issue inventory. A known supplied
+cursor can select another page. Prefer `issue.read` and `event.read` for exact
+issue investigation. `event_id: latest` resolves at call time; preserve the
+returned actual event identity and observation time when admitting evidence.
+
+An alert or issue snapshot does not prove root cause or recovery. Event payloads
+may contain paths, headers, users and other private information. Admit only the
+needed fields through the existing evidence/privacy boundary before model use
+or outward disclosure. This connector does not claim to scrub event content.
+
+Provider references: [issue read](https://docs.sentry.io/api/events/retrieve-an-issue/),
+[project issues](https://docs.sentry.io/api/events/list-a-projects-issues/),
+[issue event](https://docs.sentry.io/api/events/retrieve-an-issue-event/).
 "###,
     ),
 ];

@@ -289,7 +289,7 @@ impl RuntimePathFixtures {
 fn runtime_options(run: RunLog) -> RuntimeOptions {
     let mut options =
         RuntimeOptions::new(std::env::vars().collect(), crate::fixture_signature(), run);
-    options.created_at = CREATED_AT.to_owned();
+    options.clock = runx_runtime::RunClock::Fixed(CREATED_AT.to_owned());
     options
 }
 

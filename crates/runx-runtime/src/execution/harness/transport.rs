@@ -68,11 +68,14 @@ pub(super) fn harness_transport(caller: &HarnessCaller) -> HarnessTransport {
 
 /// The environment a case's provider fixture runs under: the harness's hosted
 /// API and the fixture's grant, injected the way a hosted worker injects one.
-pub(crate) fn provider_env(caller: &HarnessCaller) -> Result<BTreeMap<String, String>, String> {
+pub(crate) fn provider_env(
+    caller: &HarnessCaller,
+    scope: &crate::ConnectorScope,
+) -> Result<BTreeMap<String, String>, String> {
     let Some(provider) = &caller.provider_responses else {
         return Ok(BTreeMap::new());
     };
-    let mut env = injected_grant_env(provider)?;
+    let mut env = injected_grant_env(provider, scope)?;
     env.insert(
         crate::HOSTED_API_BASE_URL_ENV.to_owned(),
         HARNESS_PROVIDER_BASE_URL.to_owned(),

@@ -7,6 +7,7 @@ use std::sync::OnceLock;
 
 use regex::Regex;
 use runx_contracts::ReferenceType;
+use runx_contracts::connector::ConnectorManifest;
 
 use super::ConnectorScope;
 
@@ -49,6 +50,23 @@ pub fn reference_kind(provider: Option<&str>, locator: &str) -> ReferenceType {
         .filter(|(id, _, _)| provider.is_none_or(|provider| id == provider))
         .find(|(_, _, pattern)| pattern.is_match(locator))
         .map_or(ReferenceType::ExternalUrl, |(_, kind, _)| kind.clone())
+}
+
+/// The admitted connector owns its locator vocabulary, including a connector
+/// supplied by an external publisher. An act may also target a resource from
+/// another provider, which retains the runtime's standard classification.
+#[must_use]
+pub(crate) fn bound_reference_kind(connector: &ConnectorManifest, locator: &str) -> ReferenceType {
+    connector
+        .references
+        .iter()
+        .find_map(|reference| {
+            runx_parser::whole_match(reference.locator.as_str())
+                .ok()
+                .filter(|pattern| pattern.is_match(locator))
+                .map(|_| ReferenceType::from(reference.kind))
+        })
+        .unwrap_or_else(|| reference_kind(None, locator))
 }
 
 #[cfg(test)]

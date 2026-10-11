@@ -82,6 +82,13 @@ function toolLiteral({ id, path: file, source }) {
   return `    (\n        "${id}",\n        "${file}",\n        r${delimiter}"${source}"${delimiter},\n    ),`;
 }
 
+function assets() {
+  return manifests().flatMap(({ id }) => ["README.md", "mark.svg"].flatMap((file) => {
+    const source = path.join(connectorsRoot, id, file);
+    return existsSync(source) ? [{ id, path: file, source: readFileSync(source, "utf8") }] : [];
+  }));
+}
+
 function literal({ id, source }) {
   if (source.includes(`"${delimiter}`)) {
     throw new Error(`${id} contains the raw string delimiter`);
@@ -104,6 +111,11 @@ function render() {
     "/// the path below its tools/, and the contents.",
     "pub(super) const TOOLS: &[(&str, &str, &str)] = &[",
     ...tools().map(toolLiteral),
+    "];",
+    "",
+    "/// Public package assets, retained so offline snapshots preserve published bytes.",
+    "pub(super) const ASSETS: &[(&str, &str, &str)] = &[",
+    ...assets().map(toolLiteral),
     "];",
     "",
   ].join("\n");

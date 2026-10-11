@@ -175,6 +175,59 @@ identifier!(
     "connector id"
 );
 identifier!(
+    /// A declared publisher namespace; naming is independent of authority.
+    PublisherNamespace,
+    "^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$",
+    64,
+    is_publisher_namespace,
+    "publisher namespace"
+);
+identifier!(
+    /// A connector's stable identity, `publisher/id`.
+    ConnectorRef,
+    "^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?/[a-z0-9][a-z0-9-]{0,62}[a-z0-9]$",
+    129,
+    is_connector_ref,
+    "qualified connector reference"
+);
+
+pub fn is_publisher_namespace(value: &str) -> bool {
+    let bytes = value.as_bytes();
+    (1..=64).contains(&bytes.len())
+        && bytes
+            .first()
+            .is_some_and(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit())
+        && bytes
+            .last()
+            .is_some_and(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit())
+        && bytes
+            .iter()
+            .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || *byte == b'-')
+}
+
+pub fn is_connector_ref(value: &str) -> bool {
+    value
+        .split_once('/')
+        .is_some_and(|(namespace, id)| is_publisher_namespace(namespace) && is_connector_id(id))
+}
+
+impl ConnectorRef {
+    #[must_use]
+    pub fn qualified(namespace: &PublisherNamespace, id: &ConnectorId) -> Self {
+        Self(format!("{namespace}/{id}"))
+    }
+
+    #[must_use]
+    pub fn namespace(&self) -> &str {
+        self.0.split('/').next().unwrap_or_default()
+    }
+
+    #[must_use]
+    pub fn id(&self) -> &str {
+        self.0.rsplit('/').next().unwrap_or_default()
+    }
+}
+identifier!(
     /// A connector operation name such as `channel.post` or `reports.run_realtime`.
     OperationName,
     OPERATION_NAME_PATTERN,

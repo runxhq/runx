@@ -5,6 +5,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Component, Path, PathBuf};
 use std::sync::Arc;
 
+use runx_contracts::connector::{ConnectorRef, Digest};
 use runx_contracts::{EnvironmentRequirements, JsonValue, sha256_prefixed};
 use runx_parser::{GraphStep, StepKind, ToolTarget};
 use serde::Serialize;
@@ -19,6 +20,7 @@ struct ClosureAccumulator {
     direct_external_skill_edges: BTreeSet<DirectExternalSkillEdge>,
     unresolved_skill_edges: BTreeSet<String>,
     package_bindings: BTreeSet<ExecutionPackageBinding>,
+    connector_bindings: BTreeSet<ExecutionConnectorBinding>,
     local_packages: BTreeMap<PathBuf, BTreeSet<String>>,
     local_skill_edges: BTreeSet<LocalSkillEdge>,
     profiles: BTreeSet<String>,
@@ -62,6 +64,7 @@ struct ExecutionClosure {
     direct_external_skill_edges: Vec<DirectExternalSkillEdge>,
     unresolved_skill_edges: Vec<String>,
     package_bindings: Vec<ExecutionPackageBinding>,
+    connector_bindings: Vec<ExecutionConnectorBinding>,
     agent_acts: u64,
     declared_artifact: bool,
     profiles: Vec<String>,
@@ -79,6 +82,13 @@ struct ExecutionPackageBinding {
     input_packet_schemas: Vec<InputPacketSchemaBinding>,
     source_path: String,
     source_files: Vec<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+struct ExecutionConnectorBinding {
+    connector: ConnectorRef,
+    manifest_digest: Digest,
+    connector_digest: Digest,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize)]
@@ -334,6 +344,37 @@ impl<'a> ExecutionClosureInspector<'a> {
             return Ok(());
         }
         let package_root = canonical_directory(&loaded.package_root, "bound skill package")?;
+        let scope = crate::kernel::connectors::ConnectorScope::at(&package_root)
+            .map_err(|error| SkillInspectionError::ConnectorBinding(error.to_string()))?;
+        for (key, requirement) in loaded
+            .manifest()
+            .into_iter()
+            .flat_map(|manifest| &manifest.connectors)
+        {
+            let references = if requirement.connector_from.is_some() {
+                requirement
+                    .allowed_connectors
+                    .iter()
+                    .map(String::as_str)
+                    .collect::<Vec<_>>()
+            } else {
+                vec![key.as_str()]
+            };
+            for reference in references {
+                let connector = scope
+                    .connector(reference)
+                    .map_err(|error| SkillInspectionError::ConnectorBinding(error.to_string()))?;
+                crate::kernel::admission::required_manifest(requirement, &connector)
+                    .map_err(SkillInspectionError::ConnectorBinding)?;
+                walk.closure
+                    .connector_bindings
+                    .insert(ExecutionConnectorBinding {
+                        connector: connector.connector_ref.clone(),
+                        manifest_digest: connector.manifest_digest.clone(),
+                        connector_digest: connector.connector_digest.clone(),
+                    });
+            }
+        }
         let runner = loaded
             .manifest()
             .and_then(|manifest| manifest.runners.get(&runner_name))
@@ -677,12 +718,17 @@ fn serialize_closure(closure: ClosureAccumulator) -> Result<JsonValue, SkillInsp
     };
     let components = closure.components.into_iter().collect::<Vec<_>>();
     let package_bindings = closure.package_bindings.into_iter().collect::<Vec<_>>();
+    let connector_bindings = closure.connector_bindings.into_iter().collect::<Vec<_>>();
     let unresolved_skill_edges = closure
         .unresolved_skill_edges
         .into_iter()
         .collect::<Vec<_>>();
     let output = ExecutionClosure {
-        closure_digest: execution_closure_digest(&package_bindings, &unresolved_skill_edges),
+        closure_digest: execution_closure_digest(
+            &package_bindings,
+            &connector_bindings,
+            &unresolved_skill_edges,
+        ),
         runtime_release: crate::EXECUTION_RUNTIME_RELEASE.to_owned(),
         fully_bound: unresolved_skill_edges.is_empty(),
         summary: execution_summary(&components, closure.agent_acts, closure.declared_artifact),
@@ -691,6 +737,7 @@ fn serialize_closure(closure: ClosureAccumulator) -> Result<JsonValue, SkillInsp
         direct_external_skill_edges: closure.direct_external_skill_edges.into_iter().collect(),
         unresolved_skill_edges,
         package_bindings,
+        connector_bindings,
         agent_acts: u64::try_from(closure.agent_acts).unwrap_or(u64::MAX),
         declared_artifact: closure.declared_artifact,
         profiles: closure.profiles.into_iter().collect(),
@@ -708,6 +755,7 @@ fn serialize_closure(closure: ClosureAccumulator) -> Result<JsonValue, SkillInsp
 
 fn execution_closure_digest(
     package_bindings: &[ExecutionPackageBinding],
+    connector_bindings: &[ExecutionConnectorBinding],
     unresolved_skill_edges: &[String],
 ) -> String {
     let mut canonical = Vec::new();
@@ -721,6 +769,12 @@ fn execution_closure_digest(
             append_digest_field(&mut canonical, packet.packet.as_bytes());
             append_digest_field(&mut canonical, packet.schema_digest.as_bytes());
         }
+    }
+    for binding in connector_bindings {
+        append_digest_field(&mut canonical, b"connector");
+        append_digest_field(&mut canonical, binding.connector.as_str().as_bytes());
+        append_digest_field(&mut canonical, binding.manifest_digest.as_str().as_bytes());
+        append_digest_field(&mut canonical, binding.connector_digest.as_str().as_bytes());
     }
     for edge in unresolved_skill_edges {
         append_digest_field(&mut canonical, b"unresolved");

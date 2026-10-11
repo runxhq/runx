@@ -11,9 +11,7 @@ use std::ffi::OsString;
 use std::process::ExitCode;
 use std::sync::Arc;
 
-use runx_contracts::connector::{
-    ConnectorId, ConnectorManifest, Digest, Implementation, InstanceId, OperationName,
-};
+use runx_contracts::connector::{ConnectorManifest, Implementation, InstanceId, OperationName};
 use runx_contracts::schema::NonEmptyString;
 use runx_contracts::{ConnectorInstance, JsonObject, JsonValue, Readiness};
 use runx_runtime::kernel::{admission, setup};
@@ -283,12 +281,12 @@ fn execute(plan: &ConnectorPlan, workspace: &WorkspaceEnv) -> Result<String, Str
                     .map(|connector| {
                         let manifest = &connector.manifest;
                         ConnectorSummary {
-                            id: &manifest.id,
+                            connector_binding: connector.binding(),
                             name: &manifest.name,
                             description: &manifest.description,
                             placements: placements(manifest),
                             operations: manifest.operations.keys().collect(),
-                            selected_instance: selected(manifest.id.as_str()),
+                            selected_instance: selected(connector.connector_ref.as_str()),
                         }
                     })
                     .collect();
@@ -299,11 +297,11 @@ fn execute(plan: &ConnectorPlan, workspace: &WorkspaceEnv) -> Result<String, Str
                 let manifest = &connector.manifest;
                 out.push_str(&format!(
                     "{}  {}  [{}]  {} operations{}\n",
-                    manifest.id,
+                    connector.connector_ref,
                     manifest.name,
                     placements(manifest).join(", "),
                     manifest.operations.len(),
-                    selected(manifest.id.as_str())
+                    selected(connector.connector_ref.as_str())
                         .map(|instance| format!("  using {instance}"))
                         .unwrap_or_default()
                 ));
@@ -319,12 +317,12 @@ fn execute(plan: &ConnectorPlan, workspace: &WorkspaceEnv) -> Result<String, Str
             )?;
             let records = records(&instances)?
                 .into_iter()
-                .filter(|record| record.instance.connector == connector.manifest.id)
+                .filter(|record| record.instance.connector == connector.connector_ref)
                 .collect::<Vec<_>>();
             if plan.json {
                 return render_json(&Output::Inspect {
                     connector: &connector.manifest,
-                    manifest_digest: &connector.manifest_digest,
+                    connector_binding: connector.binding(),
                     instances: records.iter().map(InstanceView::from).collect(),
                     readiness: &readiness,
                 });
@@ -442,10 +440,10 @@ fn select(
         .get(instance_id)
         .map_err(|error| error.to_string())?
         .ok_or_else(|| format!("instance {instance_id} does not exist"))?;
-    if record.instance.connector != connector.manifest.id {
+    if record.instance.connector != connector.connector_ref {
         return Err(format!(
             "instance {instance_id} belongs to connector {}, not {}",
-            record.instance.connector, connector.manifest.id
+            record.instance.connector, connector.connector_ref
         ));
     }
     instances
@@ -585,7 +583,7 @@ enum Output<'a> {
     },
     Inspect {
         connector: &'a ConnectorManifest,
-        manifest_digest: &'a Digest,
+        connector_binding: runx_contracts::connector::ConnectorBinding,
         instances: Vec<InstanceView<'a>>,
         readiness: &'a [Readiness],
     },
@@ -605,7 +603,7 @@ enum Output<'a> {
 
 #[derive(Serialize)]
 struct ConnectorSummary<'a> {
-    id: &'a ConnectorId,
+    connector_binding: runx_contracts::connector::ConnectorBinding,
     name: &'a NonEmptyString,
     description: &'a NonEmptyString,
     placements: Vec<&'static str>,

@@ -347,7 +347,9 @@ pub(crate) fn admit(evaluation: &Evaluation<'_>) -> Result<Admitted, AdmitError>
         // the act's: a changed act is another call.
         let act_digest = call.act.as_ref().map(digest).transpose()?;
         let intent = OperationIntent {
-            connector: manifest.id.clone(),
+            connector: connector.connector_ref.clone(),
+            manifest_digest: connector.manifest_digest.clone(),
+            connector_digest: connector.connector_digest.clone(),
             operation: operation_name.clone(),
             operation_digest,
             instance_id: instance.instance.instance_id.clone(),
@@ -379,7 +381,7 @@ pub(crate) fn admit(evaluation: &Evaluation<'_>) -> Result<Admitted, AdmitError>
     let term_request = term_request(
         &instance,
         actor_ref.clone(),
-        manifest.id.as_str(),
+        connector.connector_ref.as_str(),
         &operation_name,
         operation_spec,
         &target,
@@ -593,12 +595,13 @@ pub fn connector_readiness(
     let scope = ConnectorScope::at(cwd).map_err(|error| error.to_string())?;
     let requirement = ConnectorRequirement {
         operations: connector.manifest.operations.keys().cloned().collect(),
+        manifest_digest: Some(connector.manifest_digest.clone()),
         connector_from: None,
         allowed_connectors: Vec::new(),
     };
     project(
         &scope,
-        &BTreeMap::from([(connector.manifest.id.as_str().to_owned(), requirement)]),
+        &BTreeMap::from([(connector.connector_ref.as_str().to_owned(), requirement)]),
         env,
         cwd,
     )
@@ -686,7 +689,11 @@ fn readiness(
             return finish(readiness, reasons);
         }
     };
-    readiness.connector = Some(connector.manifest.id.clone());
+    readiness.connector = Some(connector.connector_ref.clone());
+    if let Err(reason) = required_manifest(requirement, &connector) {
+        reasons.push(AdmissionCheck::Requirement, CheckOutcome::Fail, reason);
+        return finish(readiness, reasons);
+    }
     let Some((operation_name, spec, operation_digest)) = connector.operation(operation.as_str())
     else {
         reasons.push(
@@ -839,7 +846,25 @@ fn requirement(
         .scope
         .connector(connector_id)
         .map_err(|error| error.to_string())?;
+    required_manifest(declared, &connector)?;
     Ok((connector, operation))
+}
+
+pub(crate) fn required_manifest(
+    requirement: &ConnectorRequirement,
+    connector: &LoadedConnector,
+) -> Result<(), String> {
+    if requirement
+        .manifest_digest
+        .as_ref()
+        .is_some_and(|digest| digest != &connector.manifest_digest)
+    {
+        return Err(format!(
+            "connector {} does not match the required manifest digest",
+            connector.connector_ref
+        ));
+    }
+    Ok(())
 }
 
 /// The instance still means what it meant when it was confirmed, and the
@@ -851,17 +876,21 @@ fn pins_current(
     instance: &ResolvedInstance,
 ) -> Result<(), String> {
     let instance = &instance.instance;
-    let origin = super::instances::plugin_root(connector);
-    if instance.plugin_root.as_ref().map(|root| root.as_str()) != origin.as_deref() {
+    if instance.connector != connector.connector_ref {
         return Err(format!(
-            "instance {} was confirmed for the {} connector of {}, not of {}; confirm one here",
+            "instance {} was confirmed for connector {}, not {}; confirm one for {}",
             instance.instance_id,
-            connector.manifest.id,
-            instance
-                .plugin_root
-                .as_ref()
-                .map_or("runx", |root| root.as_str()),
-            origin.as_deref().unwrap_or("runx"),
+            instance.connector,
+            connector.connector_ref,
+            connector.connector_ref
+        ));
+    }
+    if instance.manifest_digest != connector.manifest_digest
+        || instance.connector_digest != connector.connector_digest
+    {
+        return Err(format!(
+            "connector {} changed since instance {} was confirmed; confirm its binding again",
+            connector.connector_ref, instance.instance_id
         ));
     }
     if instance.operation_digests.get(operation) != Some(operation_digest) {
@@ -1142,9 +1171,14 @@ mod tests {
     /// Its process tool is each plugin's own code, so an account confirmed
     /// for one plugin's connector never serves the other's.
     #[test]
-    fn an_instance_serves_only_the_plugin_it_was_confirmed_for() {
-        let plugin = || {
+    fn an_instance_serves_only_the_connector_identity_it_was_confirmed_for() {
+        let plugin = |namespace: &str| {
             let root = tempfile::tempdir().unwrap();
+            std::fs::write(
+                root.path().join("plugin.json"),
+                format!(r#"{{"namespace":"{namespace}"}}"#),
+            )
+            .unwrap();
             let skill = root.path().join("skills/sync");
             std::fs::create_dir_all(&skill).unwrap();
             let connector = root.path().join("connectors/acme");
@@ -1155,6 +1189,7 @@ mod tests {
 id: acme
 name: Acme
 description: Syncs records.
+runtime_capability: false
 auth:
   credentials:
     key:
@@ -1188,8 +1223,8 @@ operations:
                 .unwrap();
             (root, loaded)
         };
-        let (_first_root, first) = plugin();
-        let (_second_root, second) = plugin();
+        let (_first_root, first) = plugin("acme");
+        let (_second_root, second) = plugin("other");
         assert_eq!(first.operation_digests, second.operation_digests);
 
         let instance = ResolvedInstance {
@@ -1211,6 +1246,6 @@ operations:
         let (name, _, digest) = first.operation("records.read").unwrap();
         pins_current(&first, name, digest, &instance).unwrap();
         let refused = pins_current(&second, name, digest, &instance).unwrap_err();
-        assert!(refused.contains("confirm one here"), "{refused}");
+        assert!(refused.contains("not other/acme"), "{refused}");
     }
 }

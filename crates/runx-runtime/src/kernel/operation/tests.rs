@@ -232,6 +232,10 @@ struct Fixture {
 
 impl Fixture {
     fn new(scopes: &[&str]) -> Self {
+        Self::for_connector("runx/slack", scopes)
+    }
+
+    fn for_connector(connector: &str, scopes: &[&str]) -> Self {
         let root = tempfile::tempdir().unwrap();
         let manifest = runx_parser::validate_runner_manifest(
             runx_parser::parse_runner_manifest_yaml(SKILL).unwrap(),
@@ -263,6 +267,17 @@ impl Fixture {
             (
                 crate::INJECTED_GRANT_ID_ENV.to_owned(),
                 "grant_slack".to_owned(),
+            ),
+            (
+                crate::INJECTED_CONNECTOR_BINDING_ENV.to_owned(),
+                serde_json::to_string(
+                    &crate::ConnectorScope::official_only()
+                        .unwrap()
+                        .connector(connector)
+                        .unwrap()
+                        .binding(),
+                )
+                .unwrap(),
             ),
             (
                 crate::INJECTED_GRANTED_SCOPES_ENV.to_owned(),
@@ -498,15 +513,17 @@ fn acting_for_another_principal_requires_a_bounded_delegation() {
 
     authority.delegations.push(AttenuationRequest {
         principal_ref: actor_ref,
-        resource_ref: Reference::with_uri(
+        resource_ref: Reference::runx(
             ReferenceType::ConnectorInstance,
-            "runx:connector_instance:injected.slack",
+            crate::kernel::instances::instance_id(&["injected", "runx/slack"])
+                .unwrap()
+                .as_str(),
         ),
         resource_family: AuthorityResourceFamily::Connector,
         verbs: vec![AuthorityVerb::Read],
         capabilities: Vec::new(),
         bounds: AuthorityBounds {
-            operations: vec!["slack/channel.post.read".into()],
+            operations: vec!["runx/slack/channel.post.read".into()],
             scopes: vec!["channel.post.read".into()],
             targets: vec!["slack://T123/C456".into()],
             ..AuthorityBounds::default()
@@ -682,7 +699,7 @@ fn a_definite_rejection_settles_and_the_next_attempt_starts_fresh() {
 
 #[test]
 fn a_standing_approval_covers_only_the_pinned_post() {
-    use runx_contracts::connector::{ConnectorId, InstanceId, OperationName};
+    use runx_contracts::connector::{ConnectorRef, OperationName};
 
     let mut fixture = Fixture::new(&["channel.post"]);
     let delegate = format!("sha256:{}", "a".repeat(64));
@@ -699,9 +716,9 @@ fn a_standing_approval_covers_only_the_pinned_post() {
     )
     .grant(StandingApproval {
         approval_id: "notify".to_owned(),
-        connector: ConnectorId::new("slack").unwrap(),
+        connector: ConnectorRef::new("runx/slack").unwrap(),
         operation: OperationName::new("channel.post").unwrap(),
-        instance_id: InstanceId::new("injected.slack").unwrap(),
+        instance_id: crate::kernel::instances::instance_id(&["injected", "runx/slack"]).unwrap(),
         target: "slack://T123/C456".to_owned(),
         delegate_digest: delegate.clone(),
         expires_at_unix_seconds: now + 3_600,
@@ -807,7 +824,7 @@ fn paid_job_authority_cannot_satisfy_an_approval_floor() {
 
 #[test]
 fn paid_job_authority_cannot_satisfy_an_explicit_call_gate() {
-    let mut fixture = Fixture::new(&["aws.transcribe.execute"]);
+    let mut fixture = Fixture::for_connector("runx/aws", &["aws.transcribe.execute"]);
     fixture
         .env
         .insert(PAID_EXTERNAL_JOB_AUTHORITY_ENV.to_owned(), "{}".to_owned());
@@ -823,7 +840,7 @@ fn paid_job_authority_cannot_satisfy_an_explicit_call_gate() {
 
 #[test]
 fn an_enforced_operation_resends_after_an_unknown_outcome() {
-    let fixture = Fixture::new(&["aws.transcribe.execute"]);
+    let fixture = Fixture::for_connector("runx/aws", &["aws.transcribe.execute"]);
     let start: JsonObject = serde_json::from_value(serde_json::json!({
         "input": {"target": "s3://media/interview.mp3"},
         "idempotency_key": "transcribe-1",
@@ -852,7 +869,7 @@ fn an_enforced_operation_resends_after_an_unknown_outcome() {
 /// holds it, even where resending would be safe, and nothing is sent.
 #[test]
 fn an_unknown_write_is_held_when_its_instance_was_rebound() {
-    let mut fixture = Fixture::new(&["aws.transcribe.execute"]);
+    let mut fixture = Fixture::for_connector("runx/aws", &["aws.transcribe.execute"]);
     let start: JsonObject = serde_json::from_value(serde_json::json!({
         "input": {"target": "s3://media/interview.mp3"},
         "idempotency_key": "transcribe-1",
@@ -874,7 +891,7 @@ fn an_unknown_write_is_held_when_its_instance_was_rebound() {
 
 #[test]
 fn a_later_refusal_does_not_settle_an_earlier_unknown_attempt() {
-    let fixture = Fixture::new(&["aws.transcribe.execute"]);
+    let fixture = Fixture::for_connector("runx/aws", &["aws.transcribe.execute"]);
     let call: JsonObject = serde_json::from_value(serde_json::json!({
         "input": {"target": "s3://media/interview.mp3"},
         "idempotency_key": "transcribe-1",
@@ -900,7 +917,7 @@ fn a_later_refusal_does_not_settle_an_earlier_unknown_attempt() {
 
 #[test]
 fn a_standing_use_is_released_when_the_provider_refuses_before_executing() {
-    use runx_contracts::connector::{ConnectorId, InstanceId, OperationName};
+    use runx_contracts::connector::{ConnectorRef, OperationName};
 
     let mut fixture = Fixture::new(&["channel.post"]);
     let delegate = format!("sha256:{}", "a".repeat(64));
@@ -918,9 +935,10 @@ fn a_standing_use_is_released_when_the_provider_refuses_before_executing() {
     approvals
         .grant(StandingApproval {
             approval_id: "notify".to_owned(),
-            connector: ConnectorId::new("slack").unwrap(),
+            connector: ConnectorRef::new("runx/slack").unwrap(),
             operation: OperationName::new("channel.post").unwrap(),
-            instance_id: InstanceId::new("injected.slack").unwrap(),
+            instance_id: crate::kernel::instances::instance_id(&["injected", "runx/slack"])
+                .unwrap(),
             target: "slack://T123/C456".to_owned(),
             delegate_digest: delegate.clone(),
             expires_at_unix_seconds: now + 3_600,
@@ -950,7 +968,7 @@ fn a_standing_use_is_released_when_the_provider_refuses_before_executing() {
 
 #[test]
 fn a_hosted_declared_write_sends_each_request_through_connect_and_reads_it_back() {
-    let fixture = Fixture::new(&["repo.write"]);
+    let fixture = Fixture::for_connector("runx/github", &["repo.write"]);
     let inputs: JsonObject = serde_json::from_value(serde_json::json!({
         "input": {"repository": "acme/app", "updates": [{"number": 7, "patch": {"title": "ready"}}]},
         "idempotency_key": "update-1",
@@ -993,7 +1011,7 @@ fn a_hosted_declared_write_sends_each_request_through_connect_and_reads_it_back(
 
 #[test]
 fn a_hosted_declared_read_sends_one_request_per_item() {
-    let fixture = Fixture::new(&["repo.read"]);
+    let fixture = Fixture::for_connector("runx/github", &["repo.read"]);
     let inputs: JsonObject = serde_json::from_value(serde_json::json!({
         "input": {"repository": "acme/app", "numbers": [7, 8]},
     }))
@@ -1107,6 +1125,7 @@ fn a_stdio_mcp_server_receives_the_instance_credential_and_no_operator_secret() 
 id: probe-mcp
 name: Probe
 description: Reads its own environment.
+runtime_capability: false
 auth:
   credentials:
     key:
@@ -1396,6 +1415,7 @@ fn an_effect_renders_from_the_result_and_is_checked_only_against_declared_patter
 id: acme
 name: Acme
 description: A plugin-shaped connector.
+runtime_capability: false
 auth: {{none: {{}}}}
 placements: {{local: {{auth: [none]}}}}
 {references}

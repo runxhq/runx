@@ -15,7 +15,7 @@ use super::types::{
     StepAct, StepKind,
 };
 use crate::{ValidationError, skill::validate_skill_artifact_contract};
-use runx_contracts::connector::{OperationName, is_connector_id};
+use runx_contracts::connector::{OperationName, is_connector_id, is_connector_ref};
 
 /// The five step kinds; a step declares exactly one.
 const KIND_FIELDS: &[&str] = &["agent", "tool", "operation", "ask", "skill"];
@@ -287,11 +287,12 @@ fn parse_operation_target(
     field: &str,
 ) -> Result<OperationStepTarget, ValidationError> {
     let value = non_empty(value, &format!("{field}.operation"))?;
-    let (requirement, operation) = match value.split_once('/') {
+    let (requirement, operation) = match value.rsplit_once('/') {
+        _ if is_connector_ref(&value) => (value.as_str(), None),
         Some((requirement, operation)) => (requirement, Some(operation)),
         None => (value.as_str(), None),
     };
-    if !is_connector_id(requirement) {
+    if !is_connector_id(requirement) && !is_connector_ref(requirement) {
         return Err(validation_error(format!(
             "{field}.operation requirement '{requirement}' must be a connectors key."
         )));

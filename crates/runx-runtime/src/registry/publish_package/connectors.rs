@@ -18,7 +18,8 @@ use super::RegistryPublishPackageError;
 use crate::LoadedSkillPackage;
 use crate::kernel::connectors::{
     ConnectorScope, ConnectorTool, LoadedConnector, MANIFEST_FILE, PLUGIN_METADATA_FILE,
-    PluginMetadata, embedded_asset, embedded_manifest, load_connector_directory, plugin_root, read_bounded,
+    PluginMetadata, embedded_asset, embedded_manifest, load_connector_directory, plugin_root,
+    read_bounded,
 };
 use crate::registry::RegistryPackageFile;
 use crate::registry::package_metadata::{RegistryConnectorMetadata, declared_connectors};
@@ -208,11 +209,7 @@ fn ship_connector(
             "manifest changed after the connector was loaded"
         )));
     }
-    super::files::insert_source_file(
-        files,
-        MANIFEST_FILE,
-        manifest.as_bytes(),
-    )?;
+    super::files::insert_source_file(files, MANIFEST_FILE, manifest.as_bytes())?;
     let namespace = PublisherNamespace::new(connector.connector_ref.namespace())
         .ok_or_else(|| invalid("connector namespace is invalid".to_owned()))?;
     let metadata = serde_json::to_vec(&PluginMetadata { namespace })
@@ -222,27 +219,25 @@ fn ship_connector(
     for (name, tool) in &connector.tools {
         let tool_path = ConnectorTool::package_path(name);
         for (path, bytes) in tool.files(name).map_err(&invalid)? {
-            super::files::insert_source_file(
-                files,
-                &format!("{tool_path}/{path}"),
-                &bytes,
-            )?;
+            super::files::insert_source_file(files, &format!("{tool_path}/{path}"), &bytes)?;
         }
     }
 
-    if let Some(readme) = package_asset(connector, directory, README_FILE).map_err(&invalid)?
-    {
+    if let Some(readme) = package_asset(connector, directory, README_FILE).map_err(&invalid)? {
         super::files::insert_source_file(files, README_FILE, &readme)?;
     }
-    if let Some(mark) = package_asset(connector, directory, MARK_FILE).map_err(&invalid)?
-    {
+    if let Some(mark) = package_asset(connector, directory, MARK_FILE).map_err(&invalid)? {
         validate_mark_svg(&mark).map_err(|error| invalid(format!("{MARK_FILE}: {error}")))?;
         super::files::insert_source_file(files, MARK_FILE, &mark)?;
     }
     Ok(())
 }
 
-fn package_asset(connector: &LoadedConnector, directory: Option<&Path>, path: &str) -> Result<Option<Vec<u8>>, String> {
+fn package_asset(
+    connector: &LoadedConnector,
+    directory: Option<&Path>,
+    path: &str,
+) -> Result<Option<Vec<u8>>, String> {
     match directory {
         Some(directory) => read_optional(&directory.join(path)),
         None => Ok(embedded_asset(connector, path).map(<[u8]>::to_vec)),

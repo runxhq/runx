@@ -169,6 +169,7 @@ schema: runx.connector.v1
 id: forge
 name: Forge
 description: A forge reached with the token its CLI prints.
+runtime_capability: false
 auth:
   credentials:
     token:

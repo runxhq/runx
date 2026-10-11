@@ -8,6 +8,7 @@ use std::collections::BTreeMap;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
+use runx_contracts::connector::ConnectorBinding;
 use runx_contracts::{JsonNumber, JsonValue, PrincipalReference};
 
 use super::Failure;
@@ -24,12 +25,28 @@ type Transport = Arc<dyn RuntimeHttpTransport + Send + Sync>;
 /// A grant as evidence: the listing's view plus the principal holding it.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct HostedGrant {
+    pub connector_binding: ConnectorBinding,
     pub grant_id: String,
     pub provider: String,
     pub scopes: Vec<String>,
     pub status: String,
     pub target_locator: Option<String>,
     pub principal_ref: String,
+}
+
+impl HostedGrant {
+    pub(crate) fn check_binding(
+        &self,
+        connector: &crate::kernel::connectors::LoadedConnector,
+    ) -> Result<(), String> {
+        if self.connector_binding != connector.binding() {
+            return Err(format!(
+                "hosted grant {} does not bind connector {} at its loaded revision",
+                self.grant_id, connector.connector_ref
+            ));
+        }
+        Ok(())
+    }
 }
 
 /// An authenticated hosted session.
@@ -120,6 +137,7 @@ impl HostedClient {
             .and_then(|(_, grants)| grants.iter().find(|grant| grant.grant_id == grant_id))
             .ok_or_else(|| "the authenticated principal holds no such grant".to_owned())?;
         Ok(HostedGrant {
+            connector_binding: grant.connector_binding.clone(),
             grant_id: grant.grant_id.clone(),
             provider: grant.provider.clone(),
             scopes: grant.scopes.clone(),
@@ -164,6 +182,7 @@ impl HostedClient {
 /// grant's credential through the provider gateway, so the kernel drives the
 /// same exchange, checks and custody on both placements.
 pub(crate) struct Gateway<'a> {
+    pub connector_binding: &'a ConnectorBinding,
     pub session: &'a HostedSession,
     pub grant_id: &'a str,
     pub operation: &'a str,
@@ -193,6 +212,7 @@ impl Gateway<'_> {
             self.session.transport.as_ref(),
             &self.session.environment,
             &crate::provider_operations::ProviderRequest {
+                connector_binding: self.connector_binding,
                 grant_id: self.grant_id,
                 operation: self.operation,
                 operation_digest: self.operation_digest,

@@ -18,7 +18,6 @@ pub mod list;
 pub mod login;
 mod managed_agent;
 pub mod mcp;
-mod official_skills;
 pub mod parser;
 pub mod policy;
 mod project;

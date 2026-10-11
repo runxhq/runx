@@ -19,6 +19,7 @@ use runx_contracts::{
 /// admitted under, what it produced, and the context the run was prepared
 /// with.
 pub(crate) struct SealedCall {
+    pub(crate) operation_intent: Option<runx_contracts::OperationIntent>,
     pub(crate) act: Option<CallAct>,
     /// The operation's declared description: the call's purpose when its
     /// caller states none.

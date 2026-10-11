@@ -64,6 +64,7 @@ fn credential_command_binds_a_connector_of_the_workspace_plugin()
 id: notes
 name: Notes
 description: A plugin's own notes service.
+runtime_capability: false
 auth:
   credentials:
     token:
@@ -120,6 +121,7 @@ fn write_notes_plugin(root: &std::path::Path) -> Result<(), Box<dyn std::error::
 id: notes
 name: Notes
 description: A plugin's own notes service, read by a local tool.
+runtime_capability: false
 auth:
   credentials:
     token:

@@ -63,12 +63,7 @@ pub(crate) fn evidence(request: &CapabilityRequest<'_>) -> Result<Capability, St
                 .hosted
                 .grant(request.env, request.cwd, grant_id.as_str())
                 .map_err(|error| format!("hosted grant {grant_id} is unavailable: {error}"))?;
-            if grant.provider != connector.id.as_str() {
-                return Err(format!(
-                    "hosted grant {grant_id} belongs to {}, not {}",
-                    grant.provider, connector.id
-                ));
-            }
+            grant.check_binding(request.connector)?;
             if grant.status != "active" {
                 return Err(format!("hosted grant {grant_id} is {}", grant.status));
             }
@@ -98,7 +93,7 @@ pub(crate) fn evidence(request: &CapabilityRequest<'_>) -> Result<Capability, St
             super::operation::credentials::check_profile(
                 request.env,
                 request.cwd,
-                connector,
+                request.connector,
                 &super::operation::credentials::ProfileBinding {
                     profile,
                     credential,
@@ -200,7 +195,10 @@ fn capability(
         resource_family: AuthorityResourceFamily::Connector,
         verbs: unique_verbs,
         bounds: AuthorityBounds {
-            operations: vec![NonEmptyString::from(format!("{}/*", connector.manifest.id))],
+            operations: vec![NonEmptyString::from(format!(
+                "{}/*",
+                connector.connector_ref
+            ))],
             scopes: scopes
                 .iter()
                 .map(|scope| NonEmptyString::from(scope.as_str()))

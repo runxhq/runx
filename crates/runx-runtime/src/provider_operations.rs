@@ -1,4 +1,4 @@
-use runx_contracts::connector::OperationAccess;
+use runx_contracts::connector::{ConnectorBinding, OperationAccess};
 use runx_contracts::{JsonObject, JsonValue};
 
 use crate::hosted_api::{
@@ -13,6 +13,7 @@ pub use error::ProviderOperationError;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ProviderOperationRequest {
+    pub connector_binding: ConnectorBinding,
     pub grant_id: String,
     pub operation: String,
     /// What the caller admitted the operation as; the route refuses a digest
@@ -27,6 +28,7 @@ pub struct ProviderOperationRequest {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct HostedProviderGrant {
+    pub connector_binding: ConnectorBinding,
     pub grant_id: String,
     pub provider: String,
     pub scopes: Vec<String>,
@@ -73,6 +75,20 @@ fn parse_provider_grant(value: &JsonValue) -> Result<HostedProviderGrant, Provid
     let grant_id = required_response_string(grant, "grant_id")?.to_owned();
     validate_provider_grant_id(&grant_id)?;
     let provider = required_response_string(grant, "provider")?.to_owned();
+    let connector_binding = grant
+        .get("connector_binding")
+        .ok_or_else(|| {
+            ProviderOperationError::InvalidResponse(
+                "provider grant omitted its connector binding".to_owned(),
+            )
+        })?
+        .clone()
+        .deserialize_into::<ConnectorBinding>()
+        .map_err(|error| {
+            ProviderOperationError::InvalidResponse(format!(
+                "provider grant connector binding is invalid: {error}"
+            ))
+        })?;
     let status = required_response_string(grant, "status")?.to_owned();
     let target_locator = grant
         .get("target_locator")
@@ -102,6 +118,7 @@ fn parse_provider_grant(value: &JsonValue) -> Result<HostedProviderGrant, Provid
         })
         .collect::<Result<Vec<_>, _>>()?;
     Ok(HostedProviderGrant {
+        connector_binding,
         grant_id,
         provider,
         scopes,
@@ -121,6 +138,11 @@ pub(crate) fn invoke_provider_operation<T: Transport + ?Sized>(
         return Err(ProviderOperationError::InvalidScopes);
     }
     let body = JsonObject::from([
+        (
+            "connector_binding".to_owned(),
+            JsonValue::from_serialize(&request.connector_binding)
+                .map_err(|error| ProviderOperationError::InvalidResponse(error.to_string()))?,
+        ),
         (
             "grant_id".to_owned(),
             JsonValue::String(request.grant_id.clone()),
@@ -178,6 +200,7 @@ pub(crate) fn invoke_provider_operation<T: Transport + ?Sized>(
 /// its own copy of the declaration, refuses one whose digests differ from
 /// what the caller admitted, and sends it through the provider gateway.
 pub(crate) struct ProviderRequest<'a> {
+    pub connector_binding: &'a ConnectorBinding,
     pub grant_id: &'a str,
     pub operation: &'a str,
     pub operation_digest: &'a str,
@@ -211,6 +234,11 @@ pub(crate) fn send_provider_request<T: Transport + ?Sized>(
     validate_provider_operation(request.operation)?;
     let text = |value: &str| JsonValue::String(value.to_owned());
     let mut body = JsonObject::from([
+        (
+            "connector_binding".to_owned(),
+            JsonValue::from_serialize(request.connector_binding)
+                .map_err(|error| ProviderOperationError::InvalidResponse(error.to_string()))?,
+        ),
         ("grant_id".to_owned(), text(request.grant_id)),
         ("operation".to_owned(), text(request.operation)),
         (

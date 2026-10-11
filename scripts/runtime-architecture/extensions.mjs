@@ -6,9 +6,9 @@ import { relative, walk, workspaceRoot } from "./context.mjs";
 export function checkAuthoringOwnership(findings) {
   const projectPath = path.join(workspaceRoot, "crates/runx-cli/src/project.rs");
   const projectSource = existsSync(projectPath) ? readFileSync(projectPath, "utf8") : "";
-  for (const token of ["PathBuf::from(\"skill-lab\")", "runner: Some(\"build\".to_owned())"] ) {
+  for (const token of ["PathBuf::from(\"runx/skill-build\")", "runner: Some(\"build\".to_owned())"] ) {
     if (!projectSource.includes(token)) {
-      findings.push(`${relative(projectPath)} must delegate runx new to skill-lab build`);
+      findings.push(`${relative(projectPath)} must delegate runx new to skill-build build`);
     }
   }
 }

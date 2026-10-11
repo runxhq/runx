@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::JsonObject;
 use crate::connector::{
-    ConnectorDigestError, ConnectorId, CredentialName, Digest, InstanceId, OperationName,
+    ConnectorDigestError, ConnectorRef, CredentialName, Digest, InstanceId, OperationName,
     Placement, SessionKind, stable_digest,
 };
 use crate::schema::{IsoDateTime, NonEmptyString, RunxSchema};
@@ -32,12 +32,9 @@ pub enum ConnectorInstanceSchema {
 pub struct ConnectorInstance {
     pub schema: ConnectorInstanceSchema,
     pub instance_id: InstanceId,
-    pub connector: ConnectorId,
-    /// The root of the plugin whose connector the instance was confirmed
-    /// for; absent for an official connector. Another plugin's connector of
-    /// the same id is a different connector, and the instance never serves it.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub plugin_root: Option<NonEmptyString>,
+    pub connector: ConnectorRef,
+    pub manifest_digest: Digest,
+    pub connector_digest: Digest,
     pub placement: Placement,
     /// The principal the instance acts for. Free of secret material.
     pub principal_ref: NonEmptyString,
@@ -66,7 +63,8 @@ impl ConnectorInstance {
             schema: self.schema,
             instance_id: &self.instance_id,
             connector: &self.connector,
-            plugin_root: &self.plugin_root,
+            manifest_digest: &self.manifest_digest,
+            connector_digest: &self.connector_digest,
             placement: self.placement,
             principal_ref: &self.principal_ref,
             account_ref: &self.account_ref,
@@ -82,8 +80,9 @@ impl ConnectorInstance {
 struct BindingIdentity<'a> {
     schema: ConnectorInstanceSchema,
     instance_id: &'a InstanceId,
-    connector: &'a ConnectorId,
-    plugin_root: &'a Option<NonEmptyString>,
+    connector: &'a ConnectorRef,
+    manifest_digest: &'a Digest,
+    connector_digest: &'a Digest,
     placement: Placement,
     principal_ref: &'a NonEmptyString,
     account_ref: &'a Option<NonEmptyString>,

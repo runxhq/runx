@@ -134,8 +134,9 @@ pub use kernel::connectors::{
     ConnectorOrigin, ConnectorRegistryError, ConnectorScope, LoadedConnector,
 };
 pub use kernel::instances::{
-    INJECTED_GRANT_ID_ENV, INJECTED_GRANTED_SCOPES_ENV, INJECTED_PRINCIPAL_REF_ENV, InstanceError,
-    InstanceRecord, Instances, decode_injected_scopes, encode_injected_scopes,
+    INJECTED_CONNECTOR_BINDING_ENV, INJECTED_GRANT_ID_ENV, INJECTED_GRANTED_SCOPES_ENV,
+    INJECTED_PRINCIPAL_REF_ENV, InstanceError, InstanceRecord, Instances,
+    decode_injected_connector_binding, decode_injected_scopes, encode_injected_scopes,
 };
 pub use kernel::operation::egress::{
     CONFIDENTIAL_TERMS_ENV, REQUIRE_MUTATION_APPROVAL_ENV, outbound_text_is_safe,
@@ -201,12 +202,12 @@ pub use services::{
     VerifiedReceiptStore, WorkspaceEnv, WorkspaceEnvError, WorkspaceFileError, read_workspace_text,
 };
 pub use skill_front::PackageHarnessReport;
-pub use skill_package::inspect_connector_readiness;
 pub use skill_package::{
     LoadedSkillPackage, SkillInspectionError, SkillRetentionError, inspect_local_skill_binding,
     inspect_skill_package, load_validated_skill_package, resolve_retained_skill_binding,
     retain_skill_binding,
 };
+pub use skill_package::{inspect_connector_readiness, resolve_local_skill_reference};
 pub use tool_catalogs::{
     ToolBuildOptions, ToolCatalogError, ToolInspectOptions, ToolSearchOptions, build_tool_catalogs,
     inspect_tool, inspect_tool_with_effects, search_tools, search_tools_with_effects,

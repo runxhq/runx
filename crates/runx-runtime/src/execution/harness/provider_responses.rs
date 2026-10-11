@@ -15,6 +15,7 @@ pub(crate) const HARNESS_PROVIDER_TOKEN: &str = "runx-harness-provider-token";
 /// run resolves it as its instance.
 pub(crate) fn injected_grant_env(
     fixture: &HarnessProviderResponsesFixture,
+    scope: &crate::ConnectorScope,
 ) -> Result<BTreeMap<String, String>, String> {
     let grant = &fixture.grant;
     let principal_id = runx_contracts::RunxPrincipalId::new(fixture.principal_id.clone())
@@ -25,6 +26,16 @@ pub(crate) fn injected_grant_env(
         .as_str()
         .to_owned();
     Ok(BTreeMap::from([
+        (
+            crate::INJECTED_CONNECTOR_BINDING_ENV.to_owned(),
+            serde_json::to_string(
+                &scope
+                    .connector(&grant.provider)
+                    .map_err(|error| error.to_string())?
+                    .binding(),
+            )
+            .map_err(|error| error.to_string())?,
+        ),
         (
             crate::INJECTED_GRANT_ID_ENV.to_owned(),
             grant.grant_id.clone(),

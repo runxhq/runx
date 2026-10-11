@@ -19,6 +19,7 @@ use runx_contracts::connector::{Digest, tool_package_digest};
 use crate::paths::RunxPaths;
 
 const MANIFEST: &str = "manifest.json";
+const TOOLS_DIR: &str = "tools";
 
 /// One tool package a connector ships, and its digest.
 #[derive(Debug, PartialEq)]
@@ -36,13 +37,15 @@ enum ToolFiles {
 }
 
 impl ConnectorTool {
+    /// Where the tool `tool` sits below its connector's directory: `tools/`,
+    /// then one directory per segment of its dotted name.
+    pub(crate) fn package_path(tool: &str) -> String {
+        format!("{TOOLS_DIR}/{}", tool.replace('.', "/"))
+    }
+
     /// The tool `tool` the plugin connector at `connector_dir` ships.
     pub(crate) fn in_plugin(connector_dir: &Path, tool: &str) -> Result<Self, String> {
-        let directory = tool
-            .split('.')
-            .fold(connector_dir.join("tools"), |dir, segment| {
-                dir.join(segment)
-            });
+        let directory = connector_dir.join(Self::package_path(tool));
         let files = read(&directory, tool)?;
         Ok(Self {
             digest: digest(&files)?,
@@ -80,9 +83,9 @@ impl ConnectorTool {
         })
     }
 
-    /// The manifest of this tool's copy under the home of `paths`, written
-    /// when absent, from bytes that still match its digest.
-    pub(crate) fn installed(&self, paths: &RunxPaths, tool: &str) -> Result<PathBuf, String> {
+    /// Every file of this tool package, by its path below the package, from
+    /// bytes that still match its digest.
+    pub(crate) fn files(&self, tool: &str) -> Result<BTreeMap<String, Vec<u8>>, String> {
         let files = match &self.files {
             ToolFiles::Directory(directory) => read(directory, tool)?,
             ToolFiles::Embedded(files) => files
@@ -95,6 +98,13 @@ impl ConnectorTool {
                 "tool {tool} changed after its connector was loaded; run again to load it"
             ));
         }
+        Ok(files)
+    }
+
+    /// The manifest of this tool's copy under the home of `paths`, written
+    /// when absent, from bytes that still match its digest.
+    pub(crate) fn installed(&self, paths: &RunxPaths, tool: &str) -> Result<PathBuf, String> {
+        let files = self.files(tool)?;
         let copy = paths.connector_tool(self.digest.as_str());
         if !copy.exists() {
             install(&copy, &files)?;

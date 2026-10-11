@@ -318,12 +318,17 @@ fn wire_operations(
     options.effects =
         super::transport::effects_over(&options.effects, transport.clone(), &fixture.caller)
             .map_err(|error| RuntimeError::effect_state("wiring the harness transport", error))?;
-    let provider_env = super::transport::provider_env(&fixture.caller).map_err(|message| {
-        HarnessFixtureError::Parser(runx_parser::harness_fixture::HarnessFixtureError::Invalid {
-            field: "caller.provider_responses.principal_id".to_owned(),
-            message,
-        })
-    })?;
+    let scope = crate::ConnectorScope::at(target_path.parent().unwrap_or(target_path))
+        .map_err(|error| RuntimeError::effect_state("resolving harness connector scope", error))?;
+    let provider_env =
+        super::transport::provider_env(&fixture.caller, &scope).map_err(|message| {
+            HarnessFixtureError::Parser(
+                runx_parser::harness_fixture::HarnessFixtureError::Invalid {
+                    field: "caller.provider_responses.principal_id".to_owned(),
+                    message,
+                },
+            )
+        })?;
     fixture.env.extend(provider_env);
     seed_harness_sessions(fixture, target_path, options, &transport)?;
     seed_harness_credentials(fixture, target_path, options)?;

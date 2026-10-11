@@ -4,7 +4,7 @@
 
 use std::collections::BTreeSet;
 
-use runx_contracts::connector::{ConnectorId, OperationName};
+use runx_contracts::connector::OperationName;
 use runx_contracts::{CallAct, JsonObject, OperationAmount};
 use serde::Deserialize;
 
@@ -19,7 +19,7 @@ pub(crate) struct OperationCall {
     /// The connector a run-time requirement chose. Bound by the parser from
     /// the requirement's `connector_from`; never written by an author.
     #[serde(default)]
-    pub connector: Option<ConnectorId>,
+    pub connector: Option<String>,
     /// The operation chosen at run time, when the step names only its
     /// requirement.
     #[serde(default)]

@@ -19,6 +19,8 @@ use crate::RuntimeError;
 
 #[derive(Debug, Error)]
 pub enum SkillInspectionError {
+    #[error("connector execution binding is invalid: {0}")]
+    ConnectorBinding(String),
     #[error(transparent)]
     Runtime(Box<RuntimeError>),
     #[error("skill has no runner '{runner}'")]

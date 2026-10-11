@@ -20,7 +20,7 @@ impl Messages {
     /// The rules connector `id` declares, as the skill in `skill_dir` sees
     /// it: an official connector or one of the skill's plugin.
     pub fn for_skill(skill_dir: &Path, id: &str) -> Result<Self, String> {
-        let connector = ConnectorScope::for_skill(skill_dir)
+        let connector = ConnectorScope::at(skill_dir)
             .and_then(|scope| scope.connector(id))
             .map_err(|error| error.to_string())?;
         Self::of(&connector)

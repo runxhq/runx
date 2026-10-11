@@ -47,6 +47,7 @@ pub fn generated_schema_artifacts() -> Vec<SchemaArtifact> {
         public_packet_artifact::<WorkOutcome>("work-outcome.schema.json"),
         public_packet_artifact::<DecisionObservation>("decision-observation.schema.json"),
         schema_artifact::<ConnectorManifest>("connector.schema.json"),
+        schema_artifact::<crate::connector::ConnectorBinding>("connector-binding.schema.json"),
         schema_artifact::<ConnectorInstance>("connector-instance.schema.json"),
         public_packet_artifact::<Admission>("admission.schema.json"),
         public_packet_artifact::<Readiness>("readiness.schema.json"),

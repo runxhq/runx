@@ -74,6 +74,28 @@ impl RunxPaths {
         &self.workspace
     }
 
+    /// Local directories containing skill packages. Additional roots are
+    /// explicitly configured with the platform-separated RUNX_SKILL_ROOTS.
+    #[must_use]
+    pub fn skill_roots(&self, env: &BTreeMap<String, String>) -> Vec<PathBuf> {
+        let mut roots = Vec::new();
+        let configured = env
+            .get("RUNX_SKILL_ROOTS")
+            .into_iter()
+            .flat_map(std::env::split_paths)
+            .filter(|path| !path.as_os_str().is_empty())
+            .map(|path| self.in_workspace(path));
+        for root in [self.cwd.join("skills"), self.workspace.join("skills")]
+            .into_iter()
+            .chain(configured)
+        {
+            if !roots.contains(&root) {
+                roots.push(root);
+            }
+        }
+        roots
+    }
+
     #[must_use]
     pub fn project(&self) -> &Path {
         &self.project

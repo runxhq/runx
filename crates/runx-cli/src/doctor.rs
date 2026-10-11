@@ -9,12 +9,13 @@ use runx_contracts::{
     DoctorStatus, DoctorSummary, JsonObject, JsonValue,
 };
 use runx_runtime::{
-    HostedApiEnvironment, INJECTED_GRANT_ID_ENV, INJECTED_GRANTED_SCOPES_ENV,
-    INJECTED_PRINCIPAL_REF_ENV, RUNX_RECEIPT_SIGN_ED25519_SEED_BASE64_ENV,
-    RUNX_RECEIPT_SIGN_ISSUER_TYPE_ENV, RUNX_RECEIPT_SIGN_KID_ENV,
-    RUNX_RECEIPT_VERIFY_ED25519_PUBLIC_KEY_BASE64_ENV, RUNX_RECEIPT_VERIFY_ISSUER_TYPE_ENV,
-    RUNX_RECEIPT_VERIFY_KID_ENV, ReceiptTrust, ReceiptTrustSource, RuntimeError, RunxPaths,
-    WorkspaceEnv, decode_injected_scopes, default_doctor_options, load_managed_agent_config,
+    HostedApiEnvironment, INJECTED_CONNECTOR_BINDING_ENV, INJECTED_GRANT_ID_ENV,
+    INJECTED_GRANTED_SCOPES_ENV, INJECTED_PRINCIPAL_REF_ENV,
+    RUNX_RECEIPT_SIGN_ED25519_SEED_BASE64_ENV, RUNX_RECEIPT_SIGN_ISSUER_TYPE_ENV,
+    RUNX_RECEIPT_SIGN_KID_ENV, RUNX_RECEIPT_VERIFY_ED25519_PUBLIC_KEY_BASE64_ENV,
+    RUNX_RECEIPT_VERIFY_ISSUER_TYPE_ENV, RUNX_RECEIPT_VERIFY_KID_ENV, ReceiptTrust,
+    ReceiptTrustSource, RuntimeError, RunxPaths, WorkspaceEnv, decode_injected_connector_binding,
+    decode_injected_scopes, default_doctor_options, load_managed_agent_config,
     load_runx_config_file, receipt_signer, receipt_trust, run_doctor,
 };
 
@@ -783,20 +784,39 @@ fn provider_grant_diagnostic(env: &BTreeMap<String, String>, cwd: &Path) -> Doct
         explicit_scope_value.is_some_and(|value| decode_injected_scopes(value).is_none());
     let explicit_scopes = explicit_scope_value.is_some() && !malformed_scopes;
     let explicit_principal = env_contains_non_empty(env, INJECTED_PRINCIPAL_REF_ENV);
-    let explicit_complete = explicit_grant && explicit_scopes && explicit_principal;
+    let connector_binding = env
+        .get(INJECTED_CONNECTOR_BINDING_ENV)
+        .and_then(|value| decode_injected_connector_binding(value));
+    let injected = explicit_grant
+        || explicit_scope_value.is_some()
+        || explicit_principal
+        || env.contains_key(INJECTED_CONNECTOR_BINDING_ENV);
+    let explicit_complete =
+        explicit_grant && explicit_scopes && explicit_principal && connector_binding.is_some();
     let connect_available = HostedApiEnvironment::resolve(None, env, cwd)
         .and_then(|environment| environment.require_token().map(|_| ()))
         .is_ok();
-    let configured = !malformed_scopes && (explicit_complete || connect_available);
-    let message = provider_grant_message(
-        explicit_grant,
-        explicit_scopes,
-        explicit_principal,
-        malformed_scopes,
-        connect_available,
-    );
+    let configured = if injected {
+        explicit_complete
+    } else {
+        connect_available
+    };
+    let message = if injected && connector_binding.is_none() {
+        format!(
+            "{INJECTED_CONNECTOR_BINDING_ENV} must bind a qualified connector and exact manifest and connector digests."
+        )
+    } else {
+        provider_grant_message(
+            explicit_grant,
+            explicit_scopes,
+            explicit_principal,
+            malformed_scopes,
+            connect_available,
+        )
+    };
     let mut evidence = authority_evidence(
         &[
+            INJECTED_CONNECTOR_BINDING_ENV,
             INJECTED_GRANT_ID_ENV,
             INJECTED_GRANTED_SCOPES_ENV,
             INJECTED_PRINCIPAL_REF_ENV,
@@ -809,6 +829,10 @@ fn provider_grant_diagnostic(env: &BTreeMap<String, String>, cwd: &Path) -> Doct
         JsonValue::Bool(connect_available),
     );
     evidence.insert("explicit_grant".to_owned(), JsonValue::Bool(explicit_grant));
+    evidence.insert(
+        "exact_connector_binding".to_owned(),
+        JsonValue::Bool(connector_binding.is_some()),
+    );
     evidence.insert(
         "explicit_principal".to_owned(),
         JsonValue::Bool(explicit_principal),
@@ -842,11 +866,12 @@ fn provider_grant_diagnostic(env: &BTreeMap<String, String>, cwd: &Path) -> Doct
             vec![manual_env_repair(
                 "runx.authority.provider_grant.configure",
                 &[
+                    INJECTED_CONNECTOR_BINDING_ENV,
                     INJECTED_GRANT_ID_ENV,
                     INJECTED_GRANTED_SCOPES_ENV,
                     INJECTED_PRINCIPAL_REF_ENV,
                 ],
-                "Configure Runx Connect for automatic grant discovery, or inject a complete provider grant, JSON scope array, and principal reference from the operator host.",
+                "Configure Runx Connect for grant discovery, or inject a complete provider grant, JSON scope array, principal reference and exact connector binding from the operator host.",
                 DoctorRepairRisk::Sensitive,
             )]
         },

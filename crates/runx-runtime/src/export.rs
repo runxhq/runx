@@ -46,7 +46,7 @@ pub struct RunxExportRunner {
 pub struct RunxExportLoadOptions<'a> {
     pub root: &'a Path,
     pub refs: &'a [String],
-    pub official_roots: Vec<PathBuf>,
+    pub source_roots: Vec<PathBuf>,
     pub execution_env: Option<&'a BTreeMap<String, String>>,
 }
 
@@ -78,7 +78,7 @@ pub fn load_export_skills(
     load_export_skills_with_options(RunxExportLoadOptions {
         root,
         refs,
-        official_roots: Vec::new(),
+        source_roots: Vec::new(),
         execution_env: None,
     })
 }
@@ -91,7 +91,14 @@ pub fn load_export_skills_with_options(
         options
             .refs
             .iter()
-            .map(|reference| resolve_skill_ref(options.root, reference, &options.official_roots))
+            .map(|reference| {
+                resolve_skill_ref(
+                    options.root,
+                    reference,
+                    &options.source_roots,
+                    options.execution_env,
+                )
+            })
             .collect::<Result<Vec<_>, _>>()?
     } else {
         discover_skill_paths(options.root)?

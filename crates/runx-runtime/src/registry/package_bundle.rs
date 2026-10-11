@@ -10,6 +10,7 @@ use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Component, Path, PathBuf};
 
+use runx_contracts::connector::{ConnectorRef, Digest};
 use serde::{Deserialize, Serialize};
 
 pub(crate) const PACKAGE_BUNDLE_FILE: &str = "runx.package.json";
@@ -29,14 +30,34 @@ pub(crate) struct PackageBundleDependency {
 struct PackageBundleDescriptor {
     schema: String,
     dependencies: Vec<PackageBundleDependency>,
+    connectors: Vec<PackageBundleConnector>,
+}
+
+/// The exact connector snapshot owned by one package in the bundle. Its
+/// location is derived from the qualified identity, never a filesystem origin.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct PackageBundleConnector {
+    pub from: String,
+    pub connector: ConnectorRef,
+    pub manifest_digest: Digest,
+    pub connector_digest: Digest,
+}
+
+impl PackageBundleConnector {
+    pub(crate) fn relative_path(&self) -> String {
+        format!("connectors/{}", self.connector)
+    }
 }
 
 pub(crate) fn encode_package_bundle(
     dependencies: BTreeSet<PackageBundleDependency>,
+    connectors: BTreeSet<PackageBundleConnector>,
 ) -> Result<String, String> {
     let descriptor = PackageBundleDescriptor {
         schema: PACKAGE_BUNDLE_SCHEMA.to_owned(),
         dependencies: dependencies.into_iter().collect(),
+        connectors: connectors.into_iter().collect(),
     };
     validate_descriptor(&descriptor)?;
     serde_json::to_string_pretty(&descriptor)
@@ -104,6 +125,47 @@ pub(crate) fn resolve_bundled_skill(
 
 pub(crate) fn package_bundle_root(directory: &Path) -> Result<Option<PathBuf>, String> {
     find_bundle(directory).map(|bundle| bundle.map(|(root, _descriptor)| root))
+}
+
+/// The current package's bindings only. A bundled package never reaches a
+/// composer's connectors or the ambient source tree.
+pub(crate) fn bundled_connectors(
+    directory: &Path,
+) -> Result<Option<Vec<(PackageBundleConnector, PathBuf)>>, String> {
+    let Some((root, descriptor)) = find_bundle(directory)? else {
+        return Ok(None);
+    };
+    let package_root = crate::skill_package::find_owning_package_root(directory)
+        .ok_or("bundled connector scope has no owning skill package")?;
+    let relative = package_root
+        .strip_prefix(&root)
+        .map_err(|_| "connector package lies outside its bundle")?;
+    let from = if relative.as_os_str().is_empty() {
+        ".".to_owned()
+    } else {
+        relative.to_string_lossy().replace('\\', "/")
+    };
+    descriptor
+        .connectors
+        .into_iter()
+        .filter(|binding| binding.from == from)
+        .map(|binding| {
+            let path = package_root
+                .join(binding.relative_path())
+                .canonicalize()
+                .map_err(|error| {
+                    format!(
+                        "connector snapshot {} is unavailable: {error}",
+                        binding.connector
+                    )
+                })?;
+            if !path.starts_with(&package_root) {
+                return Err("connector snapshot escapes its package".to_owned());
+            }
+            Ok((binding, path))
+        })
+        .collect::<Result<Vec<_>, _>>()
+        .map(Some)
 }
 
 fn find_bundle(
@@ -176,6 +238,16 @@ fn validate_descriptor(descriptor: &PackageBundleDescriptor) -> Result<(), Strin
             ));
         }
     }
+    let mut connector_keys = BTreeSet::new();
+    for binding in &descriptor.connectors {
+        validate_bundle_relative_path(&binding.from, true)?;
+        if !connector_keys.insert((&binding.from, &binding.connector)) {
+            return Err(format!(
+                "registry package bundle duplicates connector {}:{}",
+                binding.from, binding.connector
+            ));
+        }
+    }
     Ok(())
 }
 
@@ -232,7 +304,7 @@ mod tests {
                 path: "dependencies/skills/alpha".to_owned(),
             },
         ]);
-        let document = encode_package_bundle(dependencies)?;
+        let document = encode_package_bundle(dependencies, BTreeSet::new())?;
         assert!(document.find("../alpha") < document.find("../beta"));
         let descriptor: PackageBundleDescriptor =
             serde_json::from_str(&document).map_err(|error| error.to_string())?;

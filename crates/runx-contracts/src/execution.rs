@@ -55,6 +55,22 @@ impl InputDefinition {
         }
     }
 
+    /// The value command-line `text` gives this input, read by its declared
+    /// type and never guessed: a `string` is the text itself; any other type
+    /// is the text read as JSON, which must be of that type.
+    pub fn value_from_text(&self, text: &str) -> Result<JsonValue, String> {
+        if self.input_type == "string" {
+            return Ok(JsonValue::String(text.to_owned()));
+        }
+        let value = serde_json::from_str::<JsonValue>(text)
+            .map_err(|error| format!("is {}, written as JSON: {error}", self.input_type))?;
+        if self.accepts_value(&value) {
+            Ok(value)
+        } else {
+            Err(format!("is {}, not {text}", self.input_type))
+        }
+    }
+
     /// Produce the complete schema consumed by inspection, adapters, exports,
     /// and runtime validation from the one authored input declaration.
     #[must_use]

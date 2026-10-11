@@ -1466,6 +1466,7 @@ runners:
             )
         };
         let receipt = seal(Some(SealedCall {
+            operation_intent: None,
             act: None,
             description: "Post one message.".into(),
             term_id: "term_prepared".to_owned(),

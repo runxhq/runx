@@ -134,7 +134,7 @@ pub fn run_export_command(
     let skills = runx_runtime::export::load_export_skills_with_options(RunxExportLoadOptions {
         root: &root,
         refs: &plan.refs,
-        official_roots: official_skill_roots(env, cwd, &runx_bin),
+        source_roots: runx_runtime::RunxPaths::resolve(env, cwd).skill_roots(env),
         execution_env: Some(env),
     })?;
     let skill_dir = target_skill_dir(plan.target, plan.project, cwd, env);
@@ -177,50 +177,6 @@ fn exported_runx_binary(env: &BTreeMap<String, String>) -> Result<PathBuf, Expor
         context: "resolving current runx binary for export shim".to_owned(),
         source,
     })
-}
-
-fn official_skill_roots(
-    env: &BTreeMap<String, String>,
-    cwd: &Path,
-    runx_bin: &Path,
-) -> Vec<PathBuf> {
-    let mut roots = Vec::new();
-    if let Some(value) = env
-        .get("RUNX_OFFICIAL_SKILLS_SOURCE_DIR")
-        .filter(|value| !value.trim().is_empty())
-    {
-        roots.push(resolve_user_path(value, env, cwd));
-    }
-    if let Some(value) = env
-        .get("RUNX_OFFICIAL_SKILLS_DIR")
-        .filter(|value| !value.trim().is_empty())
-    {
-        roots.push(resolve_user_path(value, env, cwd));
-    }
-    if let Some(root) = discover_checkout_official_skills_root(runx_bin) {
-        roots.push(root);
-    }
-    dedupe_paths(roots)
-}
-
-fn discover_checkout_official_skills_root(runx_bin: &Path) -> Option<PathBuf> {
-    for ancestor in runx_bin.ancestors() {
-        let candidate = ancestor.join("skills");
-        if candidate.join("send-as").join("SKILL.md").exists() {
-            return Some(candidate);
-        }
-    }
-    None
-}
-
-fn dedupe_paths(paths: Vec<PathBuf>) -> Vec<PathBuf> {
-    let mut deduped = Vec::new();
-    for path in paths {
-        if !deduped.iter().any(|existing| existing == &path) {
-            deduped.push(path);
-        }
-    }
-    deduped
 }
 
 fn validate_export_plan(plan: &ExportPlan) -> Result<(), ExportError> {
@@ -308,18 +264,6 @@ fn home_dir(env: &BTreeMap<String, String>, cwd: &Path) -> PathBuf {
     env.get("HOME")
         .map(PathBuf::from)
         .unwrap_or_else(|| cwd.to_path_buf())
-}
-
-fn resolve_user_path(value: &str, env: &BTreeMap<String, String>, cwd: &Path) -> PathBuf {
-    let path = PathBuf::from(value);
-    if path.is_absolute() {
-        path
-    } else {
-        runx_runtime::RunxPaths::resolve(env, cwd)
-            .workspace()
-            .to_path_buf()
-            .join(path)
-    }
 }
 
 fn scope_name(project: bool) -> &'static str {

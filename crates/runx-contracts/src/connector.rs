@@ -68,15 +68,26 @@ mod ids;
 mod template;
 
 pub use digest::{
-    ConnectorDigestError, credential_declaration_digest, implementation_digest,
+    ConnectorDigestError, connector_digest, credential_declaration_digest, implementation_digest,
     input_schema_digest, manifest_digest, mcp_tool_digest, operation_digest, stable_digest,
     tool_package_digest,
 };
 pub use ids::{
-    CONNECTOR_ID_PATTERN, CREDENTIAL_NAME_PATTERN, ConnectorId, CredentialName, DIGEST_PATTERN,
-    Digest, ENV_NAME_PATTERN, EnvName, INSTANCE_ID_PATTERN, InstanceId, OPERATION_NAME_MAX_LENGTH,
-    OPERATION_NAME_PATTERN, OperationName, is_connector_id, is_operation_name,
+    CONNECTOR_ID_PATTERN, CREDENTIAL_NAME_PATTERN, ConnectorId, ConnectorRef, CredentialName,
+    DIGEST_PATTERN, Digest, ENV_NAME_PATTERN, EnvName, INSTANCE_ID_PATTERN, InstanceId,
+    OPERATION_NAME_MAX_LENGTH, OPERATION_NAME_PATTERN, OperationName, PublisherNamespace,
+    is_connector_id, is_connector_ref, is_operation_name, is_publisher_namespace,
 };
+
+/// An exact connector revision. Acquisition, grant delivery and hosted calls
+/// carry this same binding; a publisher label alone cannot substitute bytes.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ConnectorBinding {
+    pub connector: ConnectorRef,
+    pub manifest_digest: Digest,
+    pub connector_digest: Digest,
+}
 pub use template::{Template, TemplateError, TemplateInputs};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
@@ -94,6 +105,14 @@ pub struct ConnectorManifest {
     pub id: ConnectorId,
     pub name: NonEmptyString,
     pub description: NonEmptyString,
+    /// The connector category it declares from the registry taxonomy
+    /// (`registry/taxonomy.json`); a connector that declares none is
+    /// uncategorized.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub category: Option<NonEmptyString>,
+    /// Whether the connector is the runtime's own capability (a store, the
+    /// web, a vault) rather than an outside service. Declared, never inferred.
+    pub runtime_capability: bool,
     pub auth: ConnectorAuth,
     /// The JSON Schema of what an instance pins besides its authority, such
     /// as a store's location. Templates bind them as `$parameter`.

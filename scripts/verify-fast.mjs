@@ -141,6 +141,7 @@ if (rustBuild.status === 0) {
     [
       step("catalog version drift", "pnpm", ["catalog:check"]),
       step("official skill lock", "pnpm", ["official-lock:check"]),
+      step("bundled core skills", "pnpm", ["bundled-skills:check"]),
       step("official connectors", "pnpm", ["official-connectors:check"]),
       step("registry taxonomy", "pnpm", ["registry-taxonomy:check"]),
       step("build workspace", "node", ["scripts/build-workspace.mjs"]),

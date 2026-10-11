@@ -1,4 +1,4 @@
-// Module rationale: skill resolution centralizes local, official, installed, and registry paths.
+// Module rationale: skill resolution centralizes explicit, bundled, installed, and verified registry packages.
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -10,7 +10,6 @@ use runx_runtime::registry::{
     materialization_digest_marker, parse_registry_ref, split_skill_id,
 };
 
-use crate::official_skills::official_skill_entry_by_name;
 use crate::registry::{self, RegistryAction, RegistryPlan};
 
 pub(super) struct SkillResolverOptions<'a> {
@@ -25,7 +24,7 @@ pub(crate) enum SkillRefKind {
     ExportedShim,
     WorkspaceLocal,
     Installed,
-    Official,
+    Bundled,
     Registry,
 }
 
@@ -57,9 +56,10 @@ pub(crate) fn resolve_skill_ref_details(
     cwd: &Path,
     options: SkillResolverOptions<'_>,
 ) -> Result<ResolvedSkillRef, String> {
-    if skill_ref.exists() {
-        let path = resolve_exported_skill_shim(skill_ref)?;
-        let kind = if path == skill_ref {
+    let local_path = runx_runtime::RunxPaths::resolve(options.env, cwd).existing_input(skill_ref);
+    if local_path.exists() {
+        let path = resolve_exported_skill_shim(&local_path)?;
+        let kind = if path == local_path {
             SkillRefKind::ExplicitPath
         } else {
             SkillRefKind::ExportedShim
@@ -79,11 +79,20 @@ pub(crate) fn resolve_skill_ref_details(
         return resolve_registry_skill(&parsed.skill_id, parsed.version.as_deref(), cwd, options);
     }
 
+    if let Some(resolved) = resolve_installed_or_workspace_skill(&raw_ref, cwd, &options)? {
+        return Ok(resolved);
+    }
+
     if is_bare_skill_ref(skill_ref) {
         return resolve_bare_skill_ref(skill_ref, &raw_ref, cwd, options);
     }
 
     if is_explicit_registry_ref(&raw_ref, &parsed.skill_id) {
+        if let Some(resolved) =
+            resolve_bundled_skill(&parsed.skill_id, parsed.version.as_deref(), cwd, &options)?
+        {
+            return Ok(resolved);
+        }
         return resolve_registry_skill(&parsed.skill_id, parsed.version.as_deref(), cwd, options);
     }
 
@@ -99,11 +108,11 @@ fn resolve_bare_skill_ref(
     cwd: &Path,
     options: SkillResolverOptions<'_>,
 ) -> Result<ResolvedSkillRef, String> {
-    if let Some(path) = resolve_installed_or_workspace_skill(raw_ref, cwd, &options)? {
-        return Ok(path);
-    }
-    if let Some(entry) = official_skill_entry_by_name(raw_ref) {
-        return resolve_official_skill(entry.skill_id, entry.version, entry.digest, cwd, options);
+    let parsed = parse_registry_ref(raw_ref);
+    if let Some(resolved) =
+        resolve_bundled_skill(&parsed.skill_id, parsed.version.as_deref(), cwd, &options)?
+    {
+        return Ok(resolved);
     }
     Err(format!(
         "could not resolve skill ref '{}'; tried {} and {}. Search with `runx registry search {}` or run a registry ref directly with `runx skill <owner>/<name>@<version>`.",
@@ -119,108 +128,84 @@ fn resolve_bare_skill_ref(
     ))
 }
 
+fn resolve_bundled_skill(
+    skill_id: &str,
+    version: Option<&str>,
+    cwd: &Path,
+    options: &SkillResolverOptions<'_>,
+) -> Result<Option<ResolvedSkillRef>, String> {
+    let paths = runx_runtime::RunxPaths::resolve(options.env, cwd);
+    let reference = version.map_or_else(
+        || skill_id.to_owned(),
+        |version| format!("{skill_id}@{version}"),
+    );
+    let Some(installed) = runx_runtime::registry::materialize_bundled_skill(
+        &reference,
+        &paths,
+        options.expected_digest,
+    )?
+    else {
+        return Ok(None);
+    };
+    let runnable_path = installed
+        .destination
+        .parent()
+        .ok_or_else(|| {
+            format!(
+                "bundled skill has invalid destination {}",
+                installed.destination.display()
+            )
+        })?
+        .to_path_buf();
+    let mut resolved = local_resolved(SkillRefKind::Bundled, runnable_path);
+    resolved.skill_id = installed.skill_id;
+    resolved.version = installed.version;
+    resolved.digest = Some(installed.digest);
+    resolved.profile_digest = installed.profile_digest;
+    Ok(Some(resolved))
+}
+
 fn resolve_installed_or_workspace_skill(
     name: &str,
     cwd: &Path,
     options: &SkillResolverOptions<'_>,
 ) -> Result<Option<ResolvedSkillRef>, String> {
-    for root in installed_roots(cwd, options.env) {
-        let candidate = root.join(name);
-        if candidate.exists() {
-            let path = resolve_exported_skill_shim(&candidate)?;
-            let kind = if path == candidate {
-                if root == cwd.join("skills") {
-                    SkillRefKind::WorkspaceLocal
-                } else {
-                    SkillRefKind::Installed
-                }
-            } else {
-                SkillRefKind::ExportedShim
-            };
-            return Ok(Some(local_resolved(kind, path)));
-        }
-    }
-    Ok(None)
-}
-
-fn installed_roots(cwd: &Path, env: &BTreeMap<String, String>) -> Vec<PathBuf> {
-    let mut roots = vec![cwd.join("skills")];
-    let workspace_root = runx_runtime::RunxPaths::resolve(env, cwd)
-        .workspace()
-        .to_path_buf()
-        .join("skills");
-    if !roots.contains(&workspace_root) {
-        roots.push(workspace_root);
-    }
-    roots
-}
-
-fn resolve_official_skill(
-    skill_id: &str,
-    version: &str,
-    digest: &str,
-    cwd: &Path,
-    options: SkillResolverOptions<'_>,
-) -> Result<ResolvedSkillRef, String> {
-    let registry_override = official_registry_override(options.env, options.registry);
-    let expected_digest = options.expected_digest.unwrap_or(digest);
-    materialize_trusted_registry_skill(
-        RegistryMaterializationRequest {
-            skill_id,
-            version: Some(version),
-            cache_root: CacheRoot::Official,
-            registry_override: Some(&registry_override),
-            expected_digest: Some(expected_digest),
-            kind: SkillRefKind::Official,
-            cwd,
-        },
-        options,
+    let paths = runx_runtime::RunxPaths::resolve(options.env, cwd);
+    let Some(candidate) = runx_runtime::resolve_local_skill_reference(
+        &paths,
+        Path::new(name),
+        &paths.skill_roots(options.env),
     )
+    .map_err(|error| error.to_string())?
+    else {
+        return Ok(None);
+    };
+    let path = resolve_exported_skill_shim(&candidate)?;
+    let kind = if path != candidate {
+        SkillRefKind::ExportedShim
+    } else if candidate.starts_with(cwd.join("skills")) {
+        SkillRefKind::WorkspaceLocal
+    } else {
+        SkillRefKind::Installed
+    };
+    Ok(Some(local_resolved(kind, path)))
 }
 
+// Function rationale: registry materialization is kept atomic around trust, cache, and digest checks.
 fn resolve_registry_skill(
     skill_id: &str,
     version: Option<&str>,
     cwd: &Path,
     options: SkillResolverOptions<'_>,
 ) -> Result<ResolvedSkillRef, String> {
-    materialize_trusted_registry_skill(
-        RegistryMaterializationRequest {
-            skill_id,
-            version,
-            cache_root: CacheRoot::Registry,
-            registry_override: None,
-            expected_digest: options.expected_digest,
-            kind: SkillRefKind::Registry,
-            cwd,
-        },
-        options,
-    )
-}
-
-// Function rationale: registry materialization is kept atomic around trust, cache, and digest checks.
-fn materialize_trusted_registry_skill(
-    request: RegistryMaterializationRequest<'_>,
-    options: SkillResolverOptions<'_>,
-) -> Result<ResolvedSkillRef, String> {
-    let RegistryMaterializationRequest {
-        skill_id,
-        version,
-        cache_root,
-        registry_override,
-        expected_digest,
-        kind,
-        cwd,
-    } = request;
     let env = options.env;
-    let registry = registry_override.or(options.registry);
-    let mut plan = RegistryPlan {
+    let plan = RegistryPlan {
         action: RegistryAction::Install,
         subject: skill_id.to_owned(),
-        registry: registry.map(ToOwned::to_owned),
+        registry: options.registry.map(ToOwned::to_owned),
         registry_dir: None,
         version: version.map(ToOwned::to_owned),
-        expected_digest: expected_digest.map(ToOwned::to_owned),
+        expected_digest: options.expected_digest.map(ToOwned::to_owned),
         destination: None,
         owner: None,
         profile: None,
@@ -242,15 +227,9 @@ fn materialize_trusted_registry_skill(
     let paid_listing = acquisition
         .as_ref()
         .and_then(|acquired| acquired.paid_listing.clone());
-    if cache_root == CacheRoot::Official {
-        candidate.manifest_source_authority =
-            Some(runx_runtime::registry::RegistryManifestSourceAuthority::OfficialRunx);
-    }
     canonicalize_candidate_ref(&mut candidate);
     let identity = registry_cache_identity(&candidate)?;
-    let destination_root =
-        destination_root_for_cache(cache_root, env, cwd, &source_fingerprint, &identity)?;
-    plan.expected_digest = expected_digest.map(ToOwned::to_owned);
+    let destination_root = destination_root_for_cache(env, cwd, &source_fingerprint, &identity)?;
     let install = runx_runtime::registry::install_local_skill(
         &candidate,
         &InstallLocalSkillOptions {
@@ -278,11 +257,8 @@ fn materialize_trusted_registry_skill(
                 install.destination.display()
             )
         })?;
-    if cache_root == CacheRoot::Official {
-        sync_packaged_official_skill_assets(&runnable_path, skill_id)?;
-    }
     Ok(ResolvedSkillRef {
-        kind,
+        kind: SkillRefKind::Registry,
         skill_id: identity.skill_id,
         version: identity.version,
         digest: Some(install.digest),
@@ -305,24 +281,7 @@ fn materialize_trusted_registry_skill(
     })
 }
 
-struct RegistryMaterializationRequest<'a> {
-    skill_id: &'a str,
-    version: Option<&'a str>,
-    cache_root: CacheRoot,
-    registry_override: Option<&'a str>,
-    expected_digest: Option<&'a str>,
-    kind: SkillRefKind,
-    cwd: &'a Path,
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum CacheRoot {
-    Official,
-    Registry,
-}
-
 fn destination_root_for_cache(
-    cache_root: CacheRoot,
     env: &BTreeMap<String, String>,
     cwd: &Path,
     source_fingerprint: &str,
@@ -342,10 +301,7 @@ fn destination_root_for_cache(
         .as_deref()
         .ok_or_else(|| "registry skill is missing signed digest".to_owned())?;
     let paths = runx_runtime::RunxPaths::resolve(env, cwd);
-    let root = match cache_root {
-        CacheRoot::Official => registry::official_skills_cache_root(&paths, env),
-        CacheRoot::Registry => paths.registry_skills().join(source_fingerprint),
-    };
+    let root = paths.registry_skills().join(source_fingerprint);
     Ok(materialization_cache_path(
         &root,
         owner,
@@ -413,134 +369,6 @@ fn registry_source_fingerprint(target: &registry::RegistryTarget) -> String {
         .chars()
         .take(16)
         .collect()
-}
-
-fn official_registry_override(
-    env: &BTreeMap<String, String>,
-    override_value: Option<&str>,
-) -> String {
-    override_value
-        .or_else(|| env.get("RUNX_REGISTRY_URL").map(String::as_str))
-        .or_else(|| env.get("RUNX_REGISTRY_DIR").map(String::as_str))
-        .unwrap_or("https://runx.ai")
-        .to_owned()
-}
-
-// Function rationale: asset sync preserves packaged official-skill cache invariants in one pass.
-fn sync_packaged_official_skill_assets(
-    target_skill_dir: &Path,
-    skill_id: &str,
-) -> Result<(), String> {
-    let Some(packaged_skill_dir) = packaged_official_skill_dir(skill_id)? else {
-        return Ok(());
-    };
-    for entry in fs::read_dir(&packaged_skill_dir).map_err(|error| {
-        format!(
-            "failed to read packaged official skill {}: {error}",
-            packaged_skill_dir.display()
-        )
-    })? {
-        let entry = entry.map_err(|error| {
-            format!(
-                "failed to read packaged official skill entry {}: {error}",
-                packaged_skill_dir.display()
-            )
-        })?;
-        let entry_name = entry.file_name();
-        if entry_name == "SKILL.md" {
-            continue;
-        }
-        let source_path = entry.path();
-        let target_path = target_skill_dir.join(&entry_name);
-        let file_type = entry.file_type().map_err(|error| {
-            format!(
-                "failed to stat packaged official skill entry {}: {error}",
-                source_path.display()
-            )
-        })?;
-        if file_type.is_dir() {
-            if target_path.exists() {
-                fs::remove_dir_all(&target_path).map_err(|error| {
-                    format!(
-                        "failed to replace official skill asset directory {}: {error}",
-                        target_path.display()
-                    )
-                })?;
-            }
-            copy_dir_all(&source_path, &target_path)?;
-        } else if file_type.is_file() {
-            if let Some(parent) = target_path.parent() {
-                fs::create_dir_all(parent).map_err(|error| {
-                    format!(
-                        "failed to create official skill asset parent {}: {error}",
-                        parent.display()
-                    )
-                })?;
-            }
-            fs::copy(&source_path, &target_path).map_err(|error| {
-                format!(
-                    "failed to copy official skill asset {} to {}: {error}",
-                    source_path.display(),
-                    target_path.display()
-                )
-            })?;
-        }
-    }
-    Ok(())
-}
-
-fn packaged_official_skill_dir(skill_id: &str) -> Result<Option<PathBuf>, String> {
-    let (_owner, name) = split_skill_id(skill_id).map_err(|error| error.to_string())?;
-    Ok(packaged_official_skill_roots()
-        .into_iter()
-        .map(|root| root.join(name))
-        .find(|candidate| candidate.exists()))
-}
-
-fn packaged_official_skill_roots() -> Vec<PathBuf> {
-    vec![PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../skills")]
-}
-
-fn copy_dir_all(source: &Path, target: &Path) -> Result<(), String> {
-    fs::create_dir_all(target).map_err(|error| {
-        format!(
-            "failed to create official skill asset directory {}: {error}",
-            target.display()
-        )
-    })?;
-    for entry in fs::read_dir(source).map_err(|error| {
-        format!(
-            "failed to read official skill asset directory {}: {error}",
-            source.display()
-        )
-    })? {
-        let entry = entry.map_err(|error| {
-            format!(
-                "failed to read official skill asset entry {}: {error}",
-                source.display()
-            )
-        })?;
-        let source_path = entry.path();
-        let target_path = target.join(entry.file_name());
-        let file_type = entry.file_type().map_err(|error| {
-            format!(
-                "failed to stat official skill asset {}: {error}",
-                source_path.display()
-            )
-        })?;
-        if file_type.is_dir() {
-            copy_dir_all(&source_path, &target_path)?;
-        } else if file_type.is_file() {
-            fs::copy(&source_path, &target_path).map_err(|error| {
-                format!(
-                    "failed to copy official skill asset {} to {}: {error}",
-                    source_path.display(),
-                    target_path.display()
-                )
-            })?;
-        }
-    }
-    Ok(())
 }
 
 fn is_bare_skill_ref(skill_ref: &Path) -> bool {
@@ -654,21 +482,6 @@ mod tests {
         assert_ne!(without_profile, with_profile);
         assert!(without_profile.starts_with("sha256:"));
         assert!(with_profile.starts_with("sha256:"));
-    }
-
-    #[test]
-    fn official_packaged_skill_assets_do_not_use_workspace_shadow_roots() {
-        let roots = packaged_official_skill_roots();
-        let untrusted_project = Path::new("/tmp/untrusted-project");
-
-        assert!(
-            !roots.contains(&PathBuf::from("/tmp/untrusted-project/skills")),
-            "official skill companion assets must not be copied from the caller workspace"
-        );
-        assert!(
-            !roots.iter().any(|root| root.starts_with(untrusted_project)),
-            "official skill companion assets must not be copied from caller-controlled roots"
-        );
     }
 
     #[test]

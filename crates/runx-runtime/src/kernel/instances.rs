@@ -19,7 +19,7 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use runx_contracts::connector::{
-    ConnectorId, InstanceId, Placement, credential_declaration_digest,
+    ConnectorRef, InstanceId, Placement, credential_declaration_digest,
 };
 use runx_contracts::connector_instance::ConnectorInstanceSchema;
 use runx_contracts::schema::IsoDateTime;
@@ -35,6 +35,7 @@ use super::store::{Append, Expected, KernelStore, KernelStoreError, StreamEvent}
 pub const INJECTED_GRANT_ID_ENV: &str = "RUNX_PROVIDER_PERMISSION_GRANT_ID";
 pub const INJECTED_GRANTED_SCOPES_ENV: &str = "RUNX_PROVIDER_PERMISSION_GRANTED_SCOPES";
 pub const INJECTED_PRINCIPAL_REF_ENV: &str = "RUNX_PROVIDER_PERMISSION_PRINCIPAL_REF";
+pub const INJECTED_CONNECTOR_BINDING_ENV: &str = "RUNX_PROVIDER_PERMISSION_CONNECTOR_BINDING";
 
 const PAGE: usize = 500;
 
@@ -84,7 +85,7 @@ pub enum InstanceError {
     #[error(
         "no instance is selected for connector {connector}; `runx connector inspect {connector}` shows how to set one up"
     )]
-    NotSelected { connector: ConnectorId },
+    NotSelected { connector: ConnectorRef },
     #[error("instance {instance_id} does not exist")]
     Missing { instance_id: String },
     #[error("instance {instance_id} was revoked")]
@@ -92,15 +93,15 @@ pub enum InstanceError {
     #[error("instance {instance_id} belongs to connector {actual}, not {expected}")]
     WrongConnector {
         instance_id: String,
-        expected: ConnectorId,
-        actual: ConnectorId,
+        expected: ConnectorRef,
+        actual: ConnectorRef,
     },
     #[error(
         "instance {instance_id} uses the {placement} placement, which connector {connector} does not support"
     )]
     PlacementUnsupported {
         instance_id: String,
-        connector: ConnectorId,
+        connector: ConnectorRef,
         placement: &'static str,
     },
     #[error(
@@ -108,7 +109,7 @@ pub enum InstanceError {
     )]
     AuthorityUnsupported {
         instance_id: String,
-        connector: ConnectorId,
+        connector: ConnectorRef,
         placement: &'static str,
         authority: &'static str,
     },
@@ -249,13 +250,12 @@ impl Instances {
         connector: &LoadedConnector,
         env: &BTreeMap<String, String>,
     ) -> Result<ResolvedInstance, InstanceError> {
-        let manifest = &connector.manifest;
         if let Some(injected) = injected(connector, env)? {
             return Ok(injected);
         }
-        let Some(instance_id) = self.selected(manifest.id.as_str())? else {
+        let Some(instance_id) = self.selected(connector.connector_ref.as_str())? else {
             return public(connector).ok_or_else(|| InstanceError::NotSelected {
-                connector: manifest.id.clone(),
+                connector: connector.connector_ref.clone(),
             });
         };
         let record = self
@@ -277,7 +277,7 @@ impl Instances {
 
     fn selection_append(
         &self,
-        connector: &ConnectorId,
+        connector: &ConnectorRef,
         instance_id: &InstanceId,
     ) -> Result<Append, InstanceError> {
         let version = self.store.version::<SelectionEvent>(connector.as_str())?;
@@ -319,16 +319,16 @@ pub(crate) fn check_supported(
     instance: &ConnectorInstance,
 ) -> Result<(), InstanceError> {
     let manifest = &connector.manifest;
-    if instance.connector != manifest.id {
+    if instance.connector != connector.connector_ref {
         return Err(InstanceError::WrongConnector {
             instance_id: instance.instance_id.as_str().to_owned(),
-            expected: manifest.id.clone(),
+            expected: connector.connector_ref.clone(),
             actual: instance.connector.clone(),
         });
     }
     let unsupported_placement = || InstanceError::PlacementUnsupported {
         instance_id: instance.instance_id.as_str().to_owned(),
-        connector: manifest.id.clone(),
+        connector: connector.connector_ref.clone(),
         placement: instance.placement.as_str(),
     };
     let accepted = match instance.placement {
@@ -377,7 +377,7 @@ pub(crate) fn check_supported(
     } else {
         Err(InstanceError::AuthorityUnsupported {
             instance_id: instance.instance_id.as_str().to_owned(),
-            connector: manifest.id.clone(),
+            connector: connector.connector_ref.clone(),
             placement: instance.placement.as_str(),
             authority: instance.authority.kind(),
         })
@@ -398,27 +398,39 @@ fn injected(
             .map(|value| value.trim())
             .filter(|value| !value.is_empty())
     };
-    let (grant_id, scopes, principal_ref) = match (
+    let (grant_id, scopes, principal_ref, binding) = match (
         value(INJECTED_GRANT_ID_ENV),
         value(INJECTED_GRANTED_SCOPES_ENV),
         value(INJECTED_PRINCIPAL_REF_ENV),
+        value(INJECTED_CONNECTOR_BINDING_ENV),
     ) {
-        (None, None, None) => return Ok(None),
-        (Some(grant_id), Some(scopes), Some(principal_ref)) => (grant_id, scopes, principal_ref),
+        (None, None, None, None) => return Ok(None),
+        (Some(grant_id), Some(scopes), Some(principal_ref), Some(binding)) => {
+            (grant_id, scopes, principal_ref, binding)
+        }
         _ => {
             return Err(InstanceError::InjectedIncomplete(
-                "set the grant id, granted scopes and principal together",
+                "set the grant id, granted scopes, principal and exact connector binding together",
             ));
         }
     };
+    let binding =
+        decode_injected_connector_binding(binding).ok_or(InstanceError::InjectedIncomplete(
+            "the connector binding must name a qualified connector and exact digests",
+        ))?;
+    if binding != connector.binding() {
+        return Err(InstanceError::InjectedIncomplete(
+            "the injected grant does not bind this connector revision",
+        ));
+    }
     let granted_scopes =
         decode_injected_scopes(scopes).ok_or(InstanceError::InjectedIncomplete(
             "the granted scopes must be a JSON array of non-blank strings",
         ))?;
-    let manifest = &connector.manifest;
-    let instance_id = InstanceId::new(format!("injected.{}", manifest.id.as_str())).ok_or(
-        InstanceError::InjectedIncomplete("the connector id is not an instance id"),
-    )?;
+    let instance_id =
+        instance_id(&["injected", connector.connector_ref.as_str()]).map_err(|_| {
+            InstanceError::InjectedIncomplete("the connector reference is not an instance id")
+        })?;
     let instance = pinned(
         connector,
         instance_id,
@@ -450,7 +462,7 @@ fn public(connector: &LoadedConnector) -> Option<ResolvedInstance> {
     if !admits_none {
         return None;
     }
-    let instance_id = InstanceId::new(format!("public.{}", manifest.id.as_str()))?;
+    let instance_id = instance_id(&["public", connector.connector_ref.as_str()]).ok()?;
     let mut instance = pinned(
         connector,
         instance_id,
@@ -487,17 +499,6 @@ pub(crate) fn delivered_credential<'a>(
     }
 }
 
-/// Where a connector comes from, as an instance pins it: its plugin's root,
-/// or none for an official connector.
-pub(crate) fn plugin_root(connector: &LoadedConnector) -> Option<String> {
-    match &connector.origin {
-        super::connectors::ConnectorOrigin::Official => None,
-        super::connectors::ConnectorOrigin::Plugin { root } => {
-            Some(root.to_string_lossy().into_owned())
-        }
-    }
-}
-
 pub(crate) fn pinned(
     connector: &LoadedConnector,
     instance_id: InstanceId,
@@ -512,8 +513,9 @@ pub(crate) fn pinned(
     ConnectorInstance {
         schema: ConnectorInstanceSchema::V1,
         instance_id,
-        connector: connector.manifest.id.clone(),
-        plugin_root: plugin_root(connector).map(Into::into),
+        connector: connector.connector_ref.clone(),
+        manifest_digest: connector.manifest_digest.clone(),
+        connector_digest: connector.connector_digest.clone(),
         placement,
         principal_ref: principal_ref.into(),
         account_ref: account_ref.map(Into::into),
@@ -541,6 +543,13 @@ pub fn decode_injected_scopes(value: &str) -> Option<Vec<String>> {
         .filter(|scopes| valid_scopes(scopes))
 }
 
+#[must_use]
+pub fn decode_injected_connector_binding(
+    value: &str,
+) -> Option<runx_contracts::connector::ConnectorBinding> {
+    serde_json::from_str(value).ok()
+}
+
 fn valid_scopes(scopes: &[String]) -> bool {
     !scopes.is_empty() && scopes.iter().all(|scope| !scope.trim().is_empty())
 }
@@ -565,3 +574,13 @@ fn expected(len: usize) -> Expected {
 
 #[cfg(test)]
 mod tests;
+
+/// Instance keys bind exact components without lossy normalization or leaking
+/// account labels. Namespace separators cannot collide with connector names.
+pub fn instance_id(parts: &[&str]) -> Result<InstanceId, String> {
+    let kind = parts.first().ok_or("instance kind is missing")?;
+    let digest =
+        runx_contracts::connector::stable_digest(&parts).map_err(|error| error.to_string())?;
+    InstanceId::new(format!("{kind}.{}", &digest.as_str()[7..]))
+        .ok_or_else(|| "instance kind is invalid".to_owned())
+}

@@ -1,3 +1,4 @@
+mod bundled;
 mod http;
 mod index;
 mod install;
@@ -15,6 +16,8 @@ mod types;
 
 use runx_contracts::{JsonNumber, JsonObject, JsonValue};
 
+pub(crate) use bundled::bundled_skills;
+pub use bundled::{bundled_runx_manual, materialize_bundled_skill};
 pub use http::{AcquireOptions, RegistryClient, RegistryClientError};
 pub use index::{
     IndexError, IndexRepositoryOptions, IndexResponse, IndexWarning, IndexedListing, IndexedRepo,

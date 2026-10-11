@@ -16,7 +16,8 @@ use runx_core::policy::{ScopeGrantPolicy, missing_granted_scopes};
 use tokio::sync::mpsc;
 
 use crate::kernel::instances::{
-    INJECTED_GRANT_ID_ENV, INJECTED_GRANTED_SCOPES_ENV, decode_injected_scopes,
+    INJECTED_CONNECTOR_BINDING_ENV, INJECTED_GRANT_ID_ENV, INJECTED_GRANTED_SCOPES_ENV,
+    decode_injected_connector_binding, decode_injected_scopes,
 };
 
 use super::server_skill::{execute_mcp_server_skill, identifier_segment};
@@ -337,6 +338,15 @@ fn admit_mcp_tool_scopes(
         })
         .transpose()?
         .unwrap_or_default();
+    if env
+        .get(INJECTED_CONNECTOR_BINDING_ENV)
+        .and_then(|value| decode_injected_connector_binding(value))
+        .is_none()
+    {
+        return Err(rmcp_invalid_params(format!(
+            "MCP tool '{tool_name}' needs an exact connector binding in {INJECTED_CONNECTOR_BINDING_ENV}"
+        )));
+    }
     let missing = missing_granted_scopes(
         required_scopes,
         &granted_scopes,

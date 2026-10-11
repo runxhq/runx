@@ -21,7 +21,7 @@ fn approvals() -> (
 fn approval(total: u32, daily: u32) -> StandingApproval {
     StandingApproval {
         approval_id: "assistant-notify".to_owned(),
-        connector: ConnectorId::new("slack").unwrap(),
+        connector: ConnectorRef::new("runx/slack").unwrap(),
         operation: OperationName::new("channel.post").unwrap(),
         instance_id: InstanceId::new("slack-acme").unwrap(),
         target: "slack://T123/C456".to_owned(),
@@ -36,7 +36,7 @@ fn approval(total: u32, daily: u32) -> StandingApproval {
 
 fn call<'a>(key: &'a str, text: &'a str) -> StandingCall<'a> {
     StandingCall {
-        connector: "slack",
+        connector: "runx/slack",
         operation: "channel.post",
         instance_id: "slack-acme",
         target: "slack://T123/C456",
@@ -90,7 +90,7 @@ fn an_act_counts_as_attempted_once_custody_records_it() {
     assert!(!approvals.attempted("assistant-notify", "k1").unwrap());
     let custody = EffectCustody::for_named_act(
         std::sync::Arc::clone(&store),
-        "slack",
+        "runx/slack",
         "channel.post",
         "slack-acme",
         "slack://T123/C456",

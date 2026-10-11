@@ -8,6 +8,20 @@
 import { Ajv2020, type ValidateFunction } from "ajv/dist/2020.js";
 
 import { officialConnectors } from "./generated/official-connectors.js";
+import { generatedSchema, validateContractSchema } from "./internal.js";
+
+/** Exact revision identity, validated by the Rust-owned binding schema. */
+export interface ConnectorBinding {
+  readonly connector: string;
+  readonly manifest_digest: string;
+  readonly connector_digest: string;
+}
+
+export const connectorBindingSchema = generatedSchema<ConnectorBinding>("connector-binding.schema.json");
+
+export function validateConnectorBinding(value: unknown, label = "connector_binding"): ConnectorBinding {
+  return validateContractSchema(connectorBindingSchema, value, label);
+}
 
 export type JsonValue =
   | null
@@ -132,6 +146,10 @@ export interface ConnectorManifest {
   readonly id: string;
   readonly name: string;
   readonly description: string;
+  /** A connector category of the registry taxonomy; absent means uncategorized. */
+  readonly category?: string;
+  /** Whether the connector is the runtime's own capability rather than an outside service. */
+  readonly runtime_capability: boolean;
   readonly auth: {
     readonly credentials?: { readonly [name: string]: CredentialDeclaration };
     readonly delegated?: JsonObject;
@@ -180,6 +198,7 @@ export interface ReferenceDeclaration {
 
 /** An official connector with the digests Rust computed for it. */
 export interface OfficialConnector {
+  readonly connector_binding: ConnectorBinding;
   readonly manifest_digest: string;
   readonly digests: {
     readonly [operation: string]: {

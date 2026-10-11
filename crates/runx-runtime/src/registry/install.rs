@@ -143,7 +143,29 @@ pub fn install_local_skill(
     candidate: &InstallCandidate,
     options: &InstallLocalSkillOptions,
 ) -> Result<InstallLocalSkillResult, InstallError> {
-    let validated = validate_install_candidate(candidate, options)?;
+    install_skill(
+        candidate,
+        options,
+        allows_unsigned_local_registry_candidate(candidate),
+    )
+}
+
+// Bundled bytes are authenticated by the installed runtime artifact. They use
+// the same package validation and file transaction as acquired packages, but
+// do not require a registry signature or contact a registry.
+pub(super) fn install_bundled_skill(
+    candidate: &InstallCandidate,
+    options: &InstallLocalSkillOptions,
+) -> Result<InstallLocalSkillResult, InstallError> {
+    install_skill(candidate, options, true)
+}
+
+fn install_skill(
+    candidate: &InstallCandidate,
+    options: &InstallLocalSkillOptions,
+    allow_unsigned: bool,
+) -> Result<InstallLocalSkillResult, InstallError> {
+    let validated = validate_install_candidate(candidate, options, allow_unsigned)?;
     let paths = install_paths(candidate, options, &validated.install.skill.name);
     let write_plan = prepare_install_write_plan(
         &paths,
@@ -210,8 +232,8 @@ struct PackageFileWritePlan {
 fn validate_install_candidate(
     candidate: &InstallCandidate,
     options: &InstallLocalSkillOptions,
+    allow_unsigned_local: bool,
 ) -> Result<ValidatedLocalInstall, InstallError> {
-    let allow_unsigned_local = allows_unsigned_local_registry_candidate(candidate);
     let actual_digest = verify_signed_manifest_anchor(candidate, options, allow_unsigned_local)?;
     let profile_digest = validate_candidate_profile_digest(candidate, allow_unsigned_local)?;
     validate_candidate_package_digest(candidate, allow_unsigned_local)?;

@@ -9,7 +9,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
-use runx_contracts::connector::{CredentialName, InstanceId, LocalAuth, Placement, SessionKind};
+use runx_contracts::connector::credential_declaration_digest;
+use runx_contracts::connector::{CredentialName, LocalAuth, Placement, SessionKind};
 use runx_contracts::{ConnectorInstance, InstanceAuthority, JsonObject, sha256_prefixed};
 
 use super::connectors::LoadedConnector;
@@ -56,7 +57,11 @@ pub(crate) fn confirm_session_over(
             let principal = session.principal(&token, transport)?;
             pinned(
                 connector,
-                instance_id(&["session", manifest.id.as_str(), &principal.login])?,
+                super::instances::instance_id(&[
+                    "session",
+                    connector.connector_ref.as_str(),
+                    &principal.login,
+                ])?,
                 Placement::Local,
                 principal.principal_ref(manifest.id.as_str()),
                 Some(principal.login),
@@ -89,7 +94,6 @@ pub fn set_credential(
     parameters: JsonObject,
     workspace: &WorkspaceEnv,
 ) -> Result<ConnectorInstance, String> {
-    let manifest = &connector.manifest;
     let parameters = instance_parameters(connector, parameters)?;
     let declaration = credential_declaration(connector, credential)?;
     credentials::fields(declaration, secret).map_err(|reason| format!("the secret {reason}"))?;
@@ -97,7 +101,8 @@ pub fn set_credential(
     let material_ref = set_local_credential_profile(
         workspace,
         profile,
-        manifest.id.as_str(),
+        &connector.connector_ref,
+        &credential_declaration_digest(declaration).map_err(|error| error.to_string())?,
         credential.as_str(),
         secret,
     )
@@ -131,15 +136,22 @@ pub fn confirm_credential_profile(
         .credentials
         .and_then(|credentials| credentials.profiles.get(profile).cloned())
         .ok_or_else(|| format!("credential profile {profile} is not configured"))?;
-    if stored.connector != connector.manifest.id.as_str() {
+    if stored.connector != connector.connector_ref {
         return Err(format!(
             "credential profile {profile} belongs to {}, not {}",
-            stored.connector, connector.manifest.id
+            stored.connector, connector.connector_ref
         ));
     }
     let credential = CredentialName::new(stored.credential.clone())
         .ok_or_else(|| format!("credential profile {profile} has an invalid credential name"))?;
     let declaration = credential_declaration(connector, &credential)?;
+    if stored.credential_declaration_digest
+        != credential_declaration_digest(declaration).map_err(|error| error.to_string())?
+    {
+        return Err(format!(
+            "credential profile {profile} was stored for a different credential declaration; set it again"
+        ));
+    }
     let scopes = credential_scopes(connector, &credential, scopes)?;
     let secret = load_local_credential_secret(workspace.paths(), &stored.secret_ref)
         .map_err(|error| format!("credential profile {profile} cannot be read: {error}"))?;
@@ -180,7 +192,7 @@ pub fn confirm_public(
         sha256_prefixed(&serde_json::to_vec(&parameters).map_err(|error| error.to_string())?);
     let mut instance = pinned(
         connector,
-        instance_id(&[
+        super::instances::instance_id(&[
             "public",
             manifest.id.as_str(),
             &digest.trim_start_matches("sha256:")[..12],
@@ -303,7 +315,7 @@ fn confirm_credential_instance(
     let manifest = &connector.manifest;
     let mut instance = pinned(
         connector,
-        instance_id(&["credential", manifest.id.as_str(), profile])?,
+        super::instances::instance_id(&["credential", connector.connector_ref.as_str(), profile])?,
         Placement::Local,
         format!("runx:principal:local-credential:{}:{profile}", manifest.id),
         None,
@@ -326,20 +338,14 @@ pub fn confirm_grant(
     env: &BTreeMap<String, String>,
     cwd: &Path,
 ) -> Result<ConnectorInstance, String> {
-    let manifest = &connector.manifest;
     let grant = HostedClient::default().grant(env, cwd, grant_id)?;
-    if grant.provider != manifest.id.as_str() {
-        return Err(format!(
-            "grant {grant_id} belongs to {}, not {}",
-            grant.provider, manifest.id
-        ));
-    }
+    grant.check_binding(connector)?;
     if grant.status != "active" {
         return Err(format!("grant {grant_id} is {}", grant.status));
     }
     let instance = pinned(
         connector,
-        instance_id(&["hosted", manifest.id.as_str(), grant_id])?,
+        super::instances::instance_id(&["hosted", connector.connector_ref.as_str(), grant_id])?,
         Placement::Hosted,
         grant.principal_ref,
         None,
@@ -360,23 +366,6 @@ fn confirm(
         .confirm(instance.clone(), true)
         .map_err(|error| error.to_string())?;
     Ok(instance)
-}
-
-/// `<kind>.<connector>.<name>`, lowercased; any other character becomes `-`.
-fn instance_id(parts: &[&str]) -> Result<InstanceId, String> {
-    let id = parts
-        .iter()
-        .map(|part| {
-            part.chars()
-                .map(|character| match character.to_ascii_lowercase() {
-                    lower @ ('a'..='z' | '0'..='9' | '_' | '-') => lower,
-                    _ => '-',
-                })
-                .collect::<String>()
-        })
-        .collect::<Vec<_>>()
-        .join(".");
-    InstanceId::new(id.clone()).ok_or_else(|| format!("{id} is not a valid instance id"))
 }
 
 /// A tool an MCP server serves, with the digest a connector pins it by.

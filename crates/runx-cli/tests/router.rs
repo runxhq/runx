@@ -929,10 +929,15 @@ fn rejects_unsafe_registry_version() {
     assert_eq!(
         plan(&["registry", "install", "acme/echo@../bad"]),
         RouterAction::Error(
-            "registry version may only contain ASCII letters, numbers, '.', '_', '-', or '+'"
-                .to_owned()
+            runx_contracts::validate_registry_version("../bad")
+                .err()
+                .unwrap_or_default()
         )
     );
+    assert!(matches!(
+        plan(&["registry", "install", "acme/echo@-rf"]),
+        RouterAction::Error(message) if message.contains("starts with an ASCII letter or digit")
+    ));
 }
 
 #[test]

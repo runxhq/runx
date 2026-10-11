@@ -153,6 +153,52 @@ pub(crate) fn execute_bound_skill_run_with_overrides(
     .execute()
 }
 
+/// The inputs command-line `texts` give the runner of `skill_path` that a run
+/// with `runner` selects: each read by its declaration, never guessed. A text
+/// for an input the runner does not declare is refused.
+pub fn runner_inputs_from_text(
+    skill_path: &Path,
+    runner: Option<&str>,
+    texts: &BTreeMap<String, String>,
+) -> Result<JsonObject, SkillRunError> {
+    let loaded = crate::load_validated_skill_package(skill_path)?;
+    let manifest = loaded.manifest().ok_or_else(|| {
+        invalid(format!(
+            "skill package {} does not declare run.yaml runners",
+            loaded.directory.display(),
+        ))
+    })?;
+    let runner = selected_runner(manifest, runner)?;
+    texts
+        .iter()
+        .map(|(name, text)| {
+            let declared = runner.inputs.get(name).ok_or_else(|| {
+                invalid(format!(
+                    "runner {} declares no input {name}; it takes {}",
+                    runner.name,
+                    declared_names(runner)
+                ))
+            })?;
+            declared
+                .value_from_text(text)
+                .map(|value| (name.clone(), value))
+                .map_err(|reason| invalid(format!("input {name} {reason}")))
+        })
+        .collect()
+}
+
+fn declared_names(runner: &SkillRunnerDefinition) -> String {
+    if runner.inputs.is_empty() {
+        return "no inputs".to_owned();
+    }
+    runner
+        .inputs
+        .keys()
+        .map(String::as_str)
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
 /// Load the request's skill, verify it against the digests a caller pins,
 /// and bind the run to it.
 pub(crate) fn bind_skill_run(

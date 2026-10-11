@@ -10,7 +10,9 @@ use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::path::Path;
 
+use crate::kernel::connectors::LoadedConnector;
 use runx_contracts::JsonValue;
+use runx_contracts::connector::credential_declaration_digest;
 use runx_contracts::connector::{ConnectorManifest, CredentialDeclaration, CredentialName};
 
 use crate::config::{load_local_credential_secret, load_runx_config_file};
@@ -74,10 +76,10 @@ impl CredentialSecret {
 pub(crate) fn check_profile(
     env: &BTreeMap<String, String>,
     cwd: &Path,
-    connector: &ConnectorManifest,
+    connector: &LoadedConnector,
     binding: &ProfileBinding<'_>,
 ) -> Result<(), String> {
-    declaration(connector, binding.credential)?;
+    declaration(&connector.manifest, binding.credential)?;
     stored_profile(env, cwd, connector, binding).map(|_| ())
 }
 
@@ -85,10 +87,10 @@ pub(crate) fn check_profile(
 pub(crate) fn deliver(
     env: &BTreeMap<String, String>,
     cwd: &Path,
-    connector: &ConnectorManifest,
+    connector: &LoadedConnector,
     binding: &ProfileBinding<'_>,
 ) -> Result<CredentialSecret, String> {
-    let declaration = declaration(connector, binding.credential)?;
+    let declaration = declaration(&connector.manifest, binding.credential)?;
     let (paths, stored) = stored_profile(env, cwd, connector, binding)?;
     let profile = binding.profile;
     let value = SecretString::new(
@@ -111,7 +113,7 @@ pub(crate) struct ProfileBinding<'a> {
 fn stored_profile(
     env: &BTreeMap<String, String>,
     cwd: &Path,
-    connector: &ConnectorManifest,
+    connector: &LoadedConnector,
     binding: &ProfileBinding<'_>,
 ) -> Result<(RunxPaths, crate::config::RunxCredentialProfile), String> {
     let profile = binding.profile;
@@ -123,11 +125,20 @@ fn stored_profile(
         .profiles
         .remove(profile)
         .ok_or_else(|| format!("credential profile {profile} is not configured"))?;
-    if stored.connector != connector.id.as_str() || stored.credential != binding.credential.as_str()
+    if stored.connector != connector.connector_ref
+        || stored.credential != binding.credential.as_str()
     {
         return Err(format!(
             "credential profile {profile} holds {}'s {} credential, not {}'s {}",
-            stored.connector, stored.credential, connector.id, binding.credential
+            stored.connector, stored.credential, connector.connector_ref, binding.credential
+        ));
+    }
+    let declaration = declaration(&connector.manifest, binding.credential)?;
+    if stored.credential_declaration_digest
+        != credential_declaration_digest(declaration).map_err(|error| error.to_string())?
+    {
+        return Err(format!(
+            "credential profile {profile} was stored for a different credential declaration; set it again"
         ));
     }
     // The profile was set again since this instance was bound, here or in
@@ -135,7 +146,7 @@ fn stored_profile(
     if stored.secret_ref != binding.material_ref {
         return Err(format!(
             "credential profile {profile} was replaced after {} was bound to it; bind it again here with `runx connector use {} --profile {profile}`",
-            connector.id, connector.id
+            connector.connector_ref, connector.connector_ref
         ));
     }
     Ok((paths, stored))
@@ -264,11 +275,11 @@ mod tests {
             credential: &credential,
             material_ref: first_ref.as_str(),
         };
-        let secret = deliver(&first, root.path(), &connector.manifest, &binding).unwrap();
+        let secret = deliver(&first, root.path(), &connector, &binding).unwrap();
         assert_eq!(secret.field("api_key").unwrap(), "first-account-key");
 
         let (_, second_ref) = bind("b", "second-account-key");
-        let refused = deliver(&first, root.path(), &connector.manifest, &binding).unwrap_err();
+        let refused = deliver(&first, root.path(), &connector, &binding).unwrap_err();
         assert!(refused.contains("was replaced"), "{refused}");
         assert_ne!(first_ref, second_ref);
     }

@@ -13,7 +13,7 @@
 
 use std::sync::Arc;
 
-use runx_contracts::connector::{ConnectorId, InstanceId, OperationName};
+use runx_contracts::connector::{ConnectorRef, InstanceId, OperationName};
 use runx_contracts::{AuthorityUseLimit, sha256_prefixed};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -34,7 +34,7 @@ const MAX_LIFETIME_SECONDS: u64 = 30 * 24 * 60 * 60;
 #[serde(deny_unknown_fields)]
 pub struct StandingApproval {
     pub approval_id: String,
-    pub connector: ConnectorId,
+    pub connector: ConnectorRef,
     pub operation: OperationName,
     /// The instance whose capability the approved calls run under.
     pub instance_id: InstanceId,

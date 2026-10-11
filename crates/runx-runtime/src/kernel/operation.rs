@@ -352,11 +352,15 @@ impl OperationAdmission {
             .and_then(|act| act.target.as_ref())
             .map(|target| {
                 Reference::with_uri(
-                    super::connectors::references::reference_kind(None, target.as_str()),
+                    super::connectors::references::bound_reference_kind(
+                        &self.admitted.connector.manifest,
+                        target.as_str(),
+                    ),
                     target.as_str().to_owned(),
                 )
             });
         Ok(crate::receipts::SealedCall {
+            operation_intent: Some(self.admitted.intent().clone()),
             act: self.call.act.clone(),
             description: self.admitted.operation().description.clone(),
             term_id: term.term_id.as_str().to_owned(),
@@ -1026,7 +1030,7 @@ fn prepare(
             } => credentials::deliver(
                 env,
                 cwd,
-                &admitted.connector.manifest,
+                &admitted.connector,
                 &credentials::ProfileBinding {
                     profile,
                     credential,
@@ -1172,7 +1176,7 @@ fn dispatch(
     };
     let outcome = match implementation {
         Implementation::Http(spec) => {
-            let (direct, gateway, implementation_digest);
+            let (direct, gateway, implementation_digest, connector_binding);
             let egress = match &hosted {
                 Some(session) => {
                     implementation_digest = context.implementation_digest().ok_or_else(|| {
@@ -1181,7 +1185,9 @@ fn dispatch(
                             "the declared requests have no digest".to_owned(),
                         )
                     })?;
+                    connector_binding = admitted.connector.binding();
                     gateway = hosted::Gateway {
+                        connector_binding: &connector_binding,
                         session,
                         grant_id: hosted_grant(admitted)?,
                         operation: admitted.operation.as_str(),
@@ -1321,6 +1327,7 @@ fn private_driver(
     HostedClient::call(
         session,
         &ProviderOperationRequest {
+            connector_binding: admitted.connector.binding(),
             grant_id: hosted_grant(admitted)?.to_owned(),
             operation: admitted.operation.as_str().to_owned(),
             operation_digest: admitted.intent().operation_digest.as_str().to_owned(),
@@ -1976,7 +1983,7 @@ fn standing_cover(
         .cover(
             approval_id,
             &StandingCall {
-                connector: admitted.connector.manifest.id.as_str(),
+                connector: admitted.connector.connector_ref.as_str(),
                 operation: admitted.operation.as_str(),
                 instance_id: admitted.instance.instance.instance_id.as_str(),
                 target: &admitted.target,

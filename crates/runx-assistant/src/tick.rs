@@ -18,10 +18,11 @@ use runx_runtime::kernel::store::{
     Append, Expected as StoreExpected, HostRecords, HostSnapshot, StreamEvent,
 };
 use runx_runtime::{
-    CONFIDENTIAL_TERMS_ENV, INJECTED_GRANT_ID_ENV, INJECTED_GRANTED_SCOPES_ENV,
-    INJECTED_PRINCIPAL_REF_ENV, ManagedAgentPolicy, REQUIRE_MUTATION_APPROVAL_ENV,
-    STANDING_APPROVAL_ID_ENV, STANDING_DELEGATE_DIGEST_ENV, SkillRunRequest, WorkspaceEnv,
-    encode_injected_scopes, now_iso8601, outbound_text_is_safe as private_text_is_safe,
+    CONFIDENTIAL_TERMS_ENV, INJECTED_CONNECTOR_BINDING_ENV, INJECTED_GRANT_ID_ENV,
+    INJECTED_GRANTED_SCOPES_ENV, INJECTED_PRINCIPAL_REF_ENV, ManagedAgentPolicy,
+    REQUIRE_MUTATION_APPROVAL_ENV, STANDING_APPROVAL_ID_ENV, STANDING_DELEGATE_DIGEST_ENV,
+    SkillRunRequest, WorkspaceEnv, encode_injected_scopes, now_iso8601,
+    outbound_text_is_safe as private_text_is_safe,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -794,6 +795,11 @@ fn run_skill_with_resolution(
                 super::instance_digest(workspace, instance_id)?;
             }
             None => {
+                env.insert(
+                    INJECTED_CONNECTOR_BINDING_ENV.to_owned(),
+                    serde_json::to_string(&notify.connector_binding)
+                        .map_err(|error| error.to_string())?,
+                );
                 env.insert(
                     INJECTED_GRANT_ID_ENV.to_owned(),
                     notify.provider_grant_id.clone(),
@@ -6016,8 +6022,9 @@ mod tests {
         let instance = |id: &str| ConnectorInstance {
             schema: ConnectorInstanceSchema::V1,
             instance_id: InstanceId::new(id).unwrap_or_else(|| unreachable!()),
-            connector: slack.manifest.id.clone(),
-            plugin_root: None,
+            connector: slack.connector_ref.clone(),
+            manifest_digest: slack.manifest_digest.clone(),
+            connector_digest: slack.connector_digest.clone(),
             placement: Placement::Hosted,
             principal_ref: "runx:principal:operator".into(),
             account_ref: None,

@@ -514,7 +514,7 @@ fn native_skill_registry_run_reports_provenance() -> Result<(), Box<dyn std::err
         ])
         .output()?;
     let output_json = assert_json(&json_output, Some(2))?;
-    let provenance = output_json["registry_provenance"]
+    let provenance = output_json["entry_provenance"]
         .as_object()
         .ok_or("missing registry provenance")?;
     assert_eq!(provenance["skill_id"], "acme/echo");
@@ -583,7 +583,7 @@ fn native_skill_registry_run_reports_provenance_on_execution_error()
         .output()?;
     let output_json = assert_json(&json_output, Some(1))?;
     assert_eq!(output_json["status"], "failure");
-    let provenance = output_json["registry_provenance"]
+    let provenance = output_json["entry_provenance"]
         .as_object()
         .ok_or("missing registry provenance")?;
     assert_eq!(provenance["skill_id"], "acme/echo");

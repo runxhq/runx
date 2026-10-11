@@ -271,7 +271,7 @@ fn a_plugin_connector_binds_from_inside_its_plugin() -> TestResult {
     fs::write(root.join("pnpm-workspace.yaml"), "packages: []\n")?;
     fs::write(
         manifest.join("connector.yaml"),
-        "schema: runx.connector.v1\nid: acme\nname: Acme\ndescription: Read Acme widgets.\n\
+        "schema: runx.connector.v1\nid: acme\nname: Acme\ndescription: Read Acme widgets.\nruntime_capability: false\n\
          auth:\n  credentials:\n    token:\n      kind: bearer_token\n      fields:\n        - {name: token, label: Acme token}\n\
          \x20     delivery:\n        env: ACME_TOKEN\n      audience: [api.acme.test]\n\
          placements:\n  local:\n    auth: [credentials]\n\

@@ -72,7 +72,7 @@ pub(super) fn assert_allowed_package_delete_path(
     let basename = relative.rsplit('/').next().unwrap_or(relative);
     if is_auxiliary_doc(basename) {
         return Err(invalid_skill_change(format!(
-            "{basename} is an existing public package surface and cannot be deleted by skill-lab"
+            "{basename} is an existing public package surface and cannot be deleted by skill-build"
         )));
     }
     assert_harness_path(relative, mode)

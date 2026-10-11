@@ -4,6 +4,7 @@
 
 use std::io;
 
+use runx_contracts::connector::{ConnectorRef, Digest};
 use serde::Serialize;
 use thiserror::Error;
 
@@ -16,7 +17,8 @@ use crate::services::WorkspaceEnv;
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct CredentialProfileSummary {
     pub name: String,
-    pub connector: String,
+    pub connector: ConnectorRef,
+    pub credential_declaration_digest: Digest,
     pub credential: String,
 }
 
@@ -24,8 +26,6 @@ pub struct CredentialProfileSummary {
 pub enum CredentialProfileError {
     #[error("credential profile name must not be empty")]
     EmptyProfileName,
-    #[error("credential connector must not be empty")]
-    EmptyConnector,
     #[error("connector credential name must not be empty")]
     EmptyCredential,
     #[error("credential secret must not be empty")]
@@ -42,12 +42,12 @@ pub enum CredentialProfileError {
 pub fn set_local_credential_profile(
     workspace: &WorkspaceEnv,
     name: &str,
-    connector: &str,
+    connector: &ConnectorRef,
+    credential_declaration_digest: &Digest,
     credential: &str,
     secret: &str,
 ) -> Result<String, CredentialProfileError> {
     let name = required(name, CredentialProfileError::EmptyProfileName)?;
-    let connector = required(connector, CredentialProfileError::EmptyConnector)?;
     let credential = required(credential, CredentialProfileError::EmptyCredential)?;
     if secret.trim().is_empty() {
         return Err(CredentialProfileError::EmptySecret);
@@ -64,7 +64,8 @@ pub fn set_local_credential_profile(
     credentials.profiles.insert(
         name.to_owned(),
         RunxCredentialProfile {
-            connector: connector.to_owned(),
+            connector: connector.clone(),
+            credential_declaration_digest: credential_declaration_digest.clone(),
             credential: credential.to_owned(),
             secret_ref: secret_ref.clone(),
         },
@@ -88,6 +89,7 @@ pub fn list_local_credential_profiles(
         .map(|(name, profile)| CredentialProfileSummary {
             name,
             connector: profile.connector,
+            credential_declaration_digest: profile.credential_declaration_digest,
             credential: profile.credential,
         })
         .collect())

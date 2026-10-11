@@ -3,6 +3,14 @@ use std::collections::BTreeMap;
 use std::path::Path;
 
 use super::*;
+
+fn slack_binding() -> ConnectorBinding {
+    crate::ConnectorScope::official_only()
+        .expect("official connectors load")
+        .connector("runx/slack")
+        .expect("slack is official")
+        .binding()
+}
 use crate::HostedApiEnvironment;
 use crate::http::{
     RuntimeHttpError, RuntimeHttpRequest as HttpRequest, RuntimeHttpResponse as HttpResponse,
@@ -80,6 +88,7 @@ fn a_provider_read_is_sent_once_never_through_the_repeating_lane() {
         &transport,
         &environment,
         &ProviderOperationRequest {
+            connector_binding: slack_binding(),
             grant_id: "grant_x402_1".to_owned(),
             operation: "payment.x402.read".to_owned(),
             operation_digest: format!("sha256:{}", "a".repeat(64)),
@@ -135,6 +144,7 @@ fn provider_operation_authenticates_and_returns_bounded_readback() {
         &transport,
         &environment,
         &ProviderOperationRequest {
+            connector_binding: slack_binding(),
             grant_id: "grant_slack_1".to_owned(),
             operation: "thread.reply".to_owned(),
             operation_digest: format!("sha256:{}", "a".repeat(64)),
@@ -192,6 +202,7 @@ fn provider_grant_listing_returns_only_bounded_authority_metadata() {
                 "grants": [{
                     "grant_id": "grant_slack_1",
                     "provider": "slack",
+                    "connector_binding": slack_binding(),
                     "scopes": [
                         "channel.post",
                         "https://provider.example/auth/custom.scope?mode=read,write",
@@ -215,6 +226,7 @@ fn provider_grant_listing_returns_only_bounded_authority_metadata() {
     assert_eq!(
         grants,
         vec![HostedProviderGrant {
+            connector_binding: slack_binding(),
             grant_id: "grant_slack_1".to_owned(),
             provider: "slack".to_owned(),
             scopes: vec![
@@ -235,6 +247,7 @@ fn provider_grant_listing_returns_only_bounded_authority_metadata() {
 #[test]
 fn provider_operation_rejects_mismatched_access_before_trusting_result() {
     let request = ProviderOperationRequest {
+        connector_binding: slack_binding(),
         grant_id: "grant_slack_1".to_owned(),
         operation: "thread.reply".to_owned(),
         operation_digest: format!("sha256:{}", "a".repeat(64)),
@@ -262,6 +275,7 @@ fn provider_operation_rejects_mismatched_access_before_trusting_result() {
 #[test]
 fn provider_operation_requires_explicit_success_status() {
     let request = ProviderOperationRequest {
+        connector_binding: slack_binding(),
         grant_id: "grant_slack_1".to_owned(),
         operation: "thread.read".to_owned(),
         operation_digest: format!("sha256:{}", "a".repeat(64)),
@@ -288,6 +302,7 @@ fn provider_operation_requires_explicit_success_status() {
 #[test]
 fn provider_operation_requires_readback_evidence() {
     let request = ProviderOperationRequest {
+        connector_binding: slack_binding(),
         grant_id: "grant_slack_1".to_owned(),
         operation: "thread.read".to_owned(),
         operation_digest: format!("sha256:{}", "a".repeat(64)),

@@ -495,11 +495,11 @@ fn write_skill_text(
         writeln!(writer, "receipt_id: {receipt_id}")?;
     }
     if let Some(provenance) = object
-        .get("registry_provenance")
+        .get("entry_provenance")
         .and_then(JsonValue::as_object)
     {
-        writeln!(writer, "registry:")?;
-        write_registry_provenance(writer, provenance)?;
+        writeln!(writer, "entry:")?;
+        write_entry_provenance(writer, provenance)?;
     }
     if let Some(reason) = stop_reason(object) {
         writeln!(writer, "reason: {}", truncate_chars(reason))?;
@@ -584,8 +584,11 @@ fn write_indented_json(writer: &mut dyn Write, value: &JsonValue) -> io::Result<
     Ok(())
 }
 
-fn write_registry_provenance(writer: &mut dyn Write, object: &JsonObject) -> io::Result<()> {
+fn write_entry_provenance(writer: &mut dyn Write, object: &JsonObject) -> io::Result<()> {
     for key in [
+        "kind",
+        "source",
+        "source_label",
         "skill_id",
         "version",
         "digest",

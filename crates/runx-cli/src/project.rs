@@ -36,7 +36,7 @@ pub fn run_native_new_with_workspace(plan: NewPlan, workspace: &WorkspaceEnv) ->
     crate::skill::run_native_skill_with_workspace(
         SkillPlan {
             action: SkillAction::Run,
-            skill_path: PathBuf::from("skill-lab"),
+            skill_path: PathBuf::from("runx/skill-build"),
             runner: Some("build".to_owned()),
             receipt_dir: plan.receipt_dir,
             run_id: None,
