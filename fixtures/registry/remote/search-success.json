@@ -12,8 +12,16 @@
       "required_scopes": [],
       "tags": ["utility"],
       "trust_tier": "verified",
-      "install_command": "runx add acme/echo@1.0.0",
-      "run_command": "runx skill acme/echo@1.0.0"
+      "install_command": {
+        "shell": "posix",
+        "argv": ["runx", "add", "acme/echo@1.0.0"],
+        "copy_text": "runx add acme/echo@1.0.0"
+      },
+      "run_command": {
+        "shell": "posix",
+        "argv": ["runx", "skill", "acme/echo@1.0.0"],
+        "copy_text": "runx skill acme/echo@1.0.0"
+      }
     }
   ]
 }

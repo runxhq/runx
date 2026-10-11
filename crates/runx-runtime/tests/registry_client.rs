@@ -4,7 +4,7 @@ use std::path::Path;
 use base64::Engine;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use ring::signature::KeyPair;
-use runx_contracts::sha256_prefixed;
+use runx_contracts::{CopyableCommand, sha256_prefixed};
 use runx_runtime::registry::{
     AcquireOptions, InstallCandidate, InstallError, InstallLocalSkillOptions, InstallStatus,
     RegistryClient, RegistryClientError, RegistryManifestSignature, RegistryManifestSigner,
@@ -92,8 +92,8 @@ fn search_rejects_unknown_trust_tier_with_field_path() -> Result<(), Box<dyn std
             "required_scopes": [],
             "tags": [],
             "trust_tier": "owner_derived",
-            "install_command": "runx add acme/echo@1.0.0",
-            "run_command": "runx skill acme/echo@1.0.0"
+            "install_command": command(&["runx", "add", "acme/echo@1.0.0"]),
+            "run_command": command(&["runx", "skill", "acme/echo@1.0.0"])
         }]
     }));
     let client = RegistryClient::with_transport("https://registry.example", &transport)?;
@@ -417,9 +417,16 @@ fn search_skill(skill_id: &str, name: &str, version: &str) -> serde_json::Value 
         "required_scopes": [],
         "tags": [],
         "trust_tier": "community",
-        "install_command": format!("runx add {skill_id}@{version}"),
-        "run_command": format!("runx skill {skill_id}@{version}")
+        "install_command": command(&["runx", "add", &format!("{skill_id}@{version}")]),
+        "run_command": command(&["runx", "skill", &format!("{skill_id}@{version}")])
     })
+}
+
+/// A copyable command as the registry serves it.
+fn command(argv: &[&str]) -> serde_json::Value {
+    let command = CopyableCommand::posix(argv.iter().map(|word| (*word).to_owned()).collect())
+        .expect("fixture command");
+    serde_json::to_value(command).expect("serialize command")
 }
 
 fn install_candidate() -> Result<InstallCandidate, Box<dyn std::error::Error>> {
