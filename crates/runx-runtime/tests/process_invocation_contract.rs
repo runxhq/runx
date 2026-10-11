@@ -18,7 +18,7 @@ fn trusted_host_process_receives_exact_argv_cwd_and_declared_environment()
         vec![
             "{{message}}".to_owned(),
             "{{env.REGION}}".to_owned(),
-            "{{env.UNDECLARED_SECRET}}".to_owned(),
+            "--at={{env.REGION}}/{{message}}".to_owned(),
         ],
     );
     tool.environment = EnvironmentRequirements {
@@ -40,7 +40,7 @@ fn trusted_host_process_receives_exact_argv_cwd_and_declared_environment()
     assert_eq!(process.command, "/usr/bin/printf");
     assert_eq!(
         process.args,
-        ["hello", "ap-southeast-2", "{{env.UNDECLARED_SECRET}}"]
+        ["hello", "ap-southeast-2", "--at=ap-southeast-2/hello"]
     );
     assert_eq!(process.cwd, fs::canonicalize(&skill)?);
     assert_eq!(
@@ -50,6 +50,51 @@ fn trusted_host_process_receives_exact_argv_cwd_and_declared_environment()
     assert!(!process.env.contains_key("UNDECLARED_SECRET"));
     assert!(!process.env.contains_key("HTTPS_PROXY"));
     assert_eq!(process.boundary, ExecutionBoundaryKind::TrustedHostProcess);
+    Ok(())
+}
+
+#[test]
+fn a_process_argument_is_filled_once_from_declared_values() -> Result<(), Box<dyn std::error::Error>>
+{
+    let workspace = tempfile::tempdir()?;
+    let skill = workspace.path().join("skill");
+    fs::create_dir_all(&skill)?;
+    let env = environment(
+        workspace.path(),
+        [("REGION", "ap-southeast-2"), ("UNDECLARED_SECRET", "blocked")],
+    );
+    let declared = EnvironmentRequirements {
+        required: vec!["REGION".to_owned()],
+        optional: Vec::new(),
+    };
+    let prepare = |arg: &str, message: &str| {
+        let mut tool = tool(Some("."), vec![arg.to_owned()]);
+        tool.environment = declared.clone();
+        let inputs =
+            JsonObject::from([("message".to_owned(), JsonValue::String(message.to_owned()))]);
+        prepare_process_invocation(&tool, &skill, &inputs, &env).map(|process| process.args.clone())
+    };
+
+    assert_eq!(
+        prepare("{{message}}", "{{env.REGION}}")?,
+        ["{{env.REGION}}"],
+        "an input's value is never expanded again"
+    );
+    for refused in [
+        "{{env.UNDECLARED_SECRET}}",
+        "{{missing}}",
+        "{{ message }}",
+        "{{message",
+    ] {
+        let error = match prepare(refused, "hello") {
+            Err(error) => error.to_string(),
+            Ok(args) => return Err(format!("{refused} filled as {args:?}").into()),
+        };
+        assert!(
+            error.contains("neither a provided input nor a declared environment value"),
+            "{refused}: {error}"
+        );
+    }
     Ok(())
 }
 

@@ -134,7 +134,7 @@ pub fn prepare_process_invocation(
         .args
         .iter()
         .map(|arg| resolve_template(arg, inputs, &declared_environment))
-        .collect();
+        .collect::<Result<Vec<_>, _>>()?;
     let mut cleanup_paths = Vec::new();
     let env = match child_env(
         &declared_environment,

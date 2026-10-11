@@ -150,7 +150,10 @@ avoided other host filesystem or network access.
 ## Process
 
 The runtime starts the declared command with `shell: false` semantics. Arguments
-are resolved before spawn. The skill process runs with piped stdin, stdout, and
+are resolved before spawn, in one pass: `{{name}}` is the input `name` and
+`{{env.NAME}}` the declared environment value `NAME`. A filled value is never
+read again, and a placeholder that names neither refuses the call before spawn.
+The skill process runs with piped stdin, stdout, and
 stderr. Stdout and stderr are drained completely while the process runs; each
 stream retains a bounded 8 MiB prefix without emitting broken UTF-8. The process
 supervisor also counts and hashes the complete stream, so a digest-mode native
