@@ -101,10 +101,10 @@
   "devDependencies": {
     "@runxhq/contracts": "workspace:^0.3.0",
     "@runxhq/extension-sdk": "workspace:^0.1.0",
-    "@types/node": "^26.5.1",
-    "@x402/core": "2.27.0",
+    "@types/node": "^26.6.4",
+    "@x402/core": "2.28.0",
     "ajv": "^8.20.0",
-    "tsx": "^4.23.13",
+    "tsx": "^4.23.15",
     "typescript": "^7.0.2",
     "vitest": "^4.1.11",
     "@runxhq/client": "workspace:^"
