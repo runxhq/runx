@@ -224,10 +224,6 @@ jobs:
 
       - name: Official skill harness sweep
         if: needs.classify.outputs.skills == 'true'
-        env:
-          RUNX_RECEIPT_SIGN_KID: ci-skill-harness
-          RUNX_RECEIPT_SIGN_ED25519_SEED_BASE64: QkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkI=
-          RUNX_RECEIPT_SIGN_ISSUER_TYPE: hosted
         run: node scripts/harness-sweep.mjs --runx-bin crates/target/debug/runx --no-build
 
   windows-process-lifecycle:

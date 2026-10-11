@@ -10,20 +10,23 @@ use crate::receipts::paths::{
 };
 use crate::receipts::store::{LocalReceiptStore, ReceiptStoreError};
 use crate::receipts::{
-    Ed25519ReceiptVerifier, RuntimeReceiptSignatureConfig, RuntimeReceiptSigningError,
-    receipt_verifier_from_env,
+    Ed25519ReceiptVerifier, ReceiptTrust, RuntimeReceiptSignatureConfig,
+    RuntimeReceiptSignaturePolicy, RuntimeReceiptSigningError, receipt_verifier,
 };
+use crate::services::WorkspaceEnv;
 
 #[derive(Clone, Debug)]
 pub(crate) struct ReceiptServices {
     signature_config: RuntimeReceiptSignatureConfig,
 }
 
+/// A receipt store and the keys its receipts are checked against: the
+/// selected home's own key and every configured key.
 pub(crate) struct ReceiptReadContext {
     store: LocalReceiptStore,
     paths: RunxPaths,
     resolved: ResolvedReceiptPath,
-    verifier: Option<Ed25519ReceiptVerifier>,
+    verifier: Ed25519ReceiptVerifier,
 }
 
 impl ReceiptReadContext {
@@ -31,8 +34,9 @@ impl ReceiptReadContext {
         env: &BTreeMap<String, String>,
         cwd: &Path,
     ) -> Result<Self, RuntimeError> {
-        let verifier = production_receipt_verifier(env)?;
         let paths = RunxPaths::resolve(env, cwd);
+        let verifier = receipt_verifier(env, &paths, ReceiptTrust::HomeAndConfigured)
+            .map_err(|error| receipt_read_error(error.to_string()))?;
         let resolved = resolve_receipt_path(ReceiptPathInputs {
             explicit_dir: None,
             runtime_config: Some(&RuntimeReceiptConfig::default()),
@@ -59,41 +63,21 @@ impl ReceiptReadContext {
         &self.resolved
     }
 
-    pub(crate) const fn signature_mode(&self) -> &'static str {
-        if self.verifier.is_some() {
-            "production"
-        } else {
-            "local-development"
-        }
-    }
-
-    pub(crate) fn signature_policy(&self) -> crate::receipts::RuntimeReceiptSignaturePolicy<'_> {
-        self.verifier.as_ref().map_or_else(
-            crate::receipts::RuntimeReceiptSignaturePolicy::local_development,
-            |verifier| crate::receipts::RuntimeReceiptSignaturePolicy::production(verifier),
-        )
+    pub(crate) fn signature_policy(&self) -> RuntimeReceiptSignaturePolicy<'_> {
+        RuntimeReceiptSignaturePolicy::verifying(&self.verifier)
     }
 }
 
 impl ReceiptServices {
-    pub(crate) fn from_env(
-        env: &BTreeMap<String, String>,
-    ) -> Result<Self, RuntimeReceiptSigningError> {
+    /// The identity a run in `workspace` seals under: a configured signer,
+    /// else the selected home's own key.
+    pub(crate) fn resolve(workspace: &WorkspaceEnv) -> Result<Self, RuntimeReceiptSigningError> {
         Ok(Self {
-            signature_config: RuntimeReceiptSignatureConfig::from_env(env)?,
+            signature_config: RuntimeReceiptSignatureConfig::resolve(
+                workspace.env(),
+                workspace.paths(),
+            )?,
         })
-    }
-
-    pub(crate) fn from_env_or_local_development(
-        env: &BTreeMap<String, String>,
-    ) -> Result<Self, RuntimeReceiptSigningError> {
-        match RuntimeReceiptSignatureConfig::from_env(env) {
-            Ok(signature_config) => Ok(Self { signature_config }),
-            Err(RuntimeReceiptSigningError::MissingSigningEnv) => Ok(Self {
-                signature_config: RuntimeReceiptSignatureConfig::local_development(),
-            }),
-            Err(error) => Err(error),
-        }
     }
 
     pub(crate) fn signature_config(&self) -> &RuntimeReceiptSignatureConfig {
@@ -110,7 +94,7 @@ impl ReceiptServices {
         path: &ResolvedReceiptPath,
     ) -> Result<(), ReceiptStoreError> {
         LocalReceiptStore::new(&path.path)
-            .write_receipt_with_policy(receipt, self.signature_config.signature_policy())
+            .write_receipt(receipt, self.signature_config.signature_policy())
     }
 
     pub(crate) fn write_local_receipts<'a>(
@@ -119,15 +103,14 @@ impl ReceiptServices {
         receipt_dir: &Path,
     ) -> Result<(), ReceiptStoreError> {
         LocalReceiptStore::new(receipt_dir)
-            .write_receipts_with_policy(receipts, self.signature_config.signature_policy())
+            .write_receipts(receipts, self.signature_config.signature_policy())
     }
 
     pub(crate) fn list_local_receipts(
         &self,
         receipt_dir: &Path,
     ) -> Result<Vec<Receipt>, ReceiptStoreError> {
-        LocalReceiptStore::new(receipt_dir)
-            .list_with_policy(self.signature_config.signature_policy())
+        LocalReceiptStore::new(receipt_dir).list(self.signature_config.signature_policy())
     }
 
     pub(crate) fn read_local_receipt(
@@ -136,16 +119,8 @@ impl ReceiptServices {
         receipt_dir: &Path,
     ) -> Result<Receipt, ReceiptStoreError> {
         LocalReceiptStore::new(receipt_dir)
-            .read_exact_with_policy(receipt_id, self.signature_config.signature_policy())
+            .read_exact(receipt_id, self.signature_config.signature_policy())
     }
-}
-
-fn production_receipt_verifier(
-    env: &BTreeMap<String, String>,
-) -> Result<Option<Ed25519ReceiptVerifier>, RuntimeError> {
-    receipt_verifier_from_env(env)
-        .map(|resolved| resolved.map(|verifier| verifier.into_verifier()))
-        .map_err(|error| receipt_read_error(error.to_string()))
 }
 
 fn receipt_read_error(message: impl Into<String>) -> RuntimeError {

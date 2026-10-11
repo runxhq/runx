@@ -109,17 +109,18 @@ caller-authored settlement claim for hosted admission and provider readback.
 
 ## Offline Receipt Verification
 
-`runx verify [receipt-id] [--receipt-dir dir] [--receipt <path|->] [--json]`
+`runx verify [receipt-id] [--receipt-dir dir] [--receipt <path|->] [--trust home|configured] [--json]`
 re-checks sealed receipts from disk with no runtime or network dependency:
 canonical body digests, content-addressed ids, linked-tree parent/child
-integrity, scope adherence for privileged effects, and — when
-`RUNX_RECEIPT_VERIFY_KID` and
-`RUNX_RECEIPT_VERIFY_ED25519_PUBLIC_KEY_BASE64` are set — production Ed25519
-signatures against the operator-trusted key. When those explicit verifier
-variables are absent, a complete `RUNX_RECEIPT_SIGN_*` identity supplies its
-own public verifier; explicit verifier configuration always takes precedence.
-This lets the signing operator verify its own local store without duplicating
-key configuration while independent verifiers need only the public key. Store
+integrity, scope adherence for privileged effects, and Ed25519 signatures
+against trusted keys. A trusted key is named by issuer type, key id and public
+key: the selected runx home's own key, a complete `RUNX_RECEIPT_SIGN_*`
+identity's public key, and the key `RUNX_RECEIPT_VERIFY_ISSUER_TYPE`,
+`RUNX_RECEIPT_VERIFY_KID` and `RUNX_RECEIPT_VERIFY_ED25519_PUBLIC_KEY_BASE64`
+name. `--trust configured` leaves out the home's key, as a host verifying
+receipts it did not issue does. A receipt verifies only under a trusted key of
+its own issuer type and key id; a verified `local` issuer means a runx home's
+own key signed it, and whether that suffices is the reader's call. Store
 mode groups receipts into
 trees by lineage; a chain that points at a receipt missing from the store is
 reported as incomplete and fails verification. Single-receipt mode emits one

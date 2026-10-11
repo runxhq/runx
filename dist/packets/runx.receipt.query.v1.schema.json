@@ -14,9 +14,8 @@
     "receipt_details": { "type": "array", "maxItems": 100, "items": { "type": "object", "additionalProperties": true } },
     "verification": {
       "type": "object",
-      "required": ["signature_mode", "checked", "intact", "trees", "findings"],
+      "required": ["checked", "intact", "trees", "findings"],
       "properties": {
-        "signature_mode": { "enum": ["production", "local-development"] },
         "checked": { "type": "boolean" },
         "intact": { "type": ["boolean", "null"] },
         "trees": { "type": "array", "items": { "type": "object", "additionalProperties": true } },

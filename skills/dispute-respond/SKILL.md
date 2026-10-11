@@ -32,8 +32,9 @@ settlement cannot be proven, gather that evidence before contesting.
 2. Resolve the exact original charge and every prior refund by content-addressed
    Runx receipt id. Caller-supplied receipt rows or summary projections are not
    accepted as substitutes.
-3. Require complete production-signature verification and redacted native
-   detail for each linked receipt tree.
+3. Require complete signature verification, a hosted or CI issuer, and
+   redacted native detail for each linked receipt tree. A receipt signed by a
+   runx home's own local key proves only that operator's word.
 4. Admit external evidence only as bounded ref, SHA-256 digest, kind, and
    summary. Raw provider payloads and credentials remain outside the packet.
 5. Draft one posture using only admitted receipt ids and evidence refs.
@@ -71,7 +72,7 @@ the configured adapter boundary; they never belong in skill inputs or output.
 
 ## Stop conditions
 
-- Return `needs_more_evidence` for missing, invalid, local-development, or
+- Return `needs_more_evidence` for missing, invalid, locally signed, or
   incompletely verified receipt trees.
 - Refuse caller-authored receipt detail, raw provider evidence, credentials, or
   citations not present in the admitted set.

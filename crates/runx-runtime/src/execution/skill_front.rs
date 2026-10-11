@@ -328,7 +328,7 @@ pub(super) fn seal_skill_preflight_refusal(
 ) -> Result<String, SkillRunError> {
     let workspace =
         WorkspaceEnv::new(request.env.clone(), request.cwd.clone()).map_err(RuntimeError::from)?;
-    let receipts = ReceiptServices::from_env_or_local_development(workspace.env())
+    let receipts = ReceiptServices::resolve(&workspace)
         .map_err(|error| SkillRunError::Invalid(error.to_string()))?;
     let run_id = match &request.run_id {
         Some(run_id) => crate::execution::run_record::validate_run_id(run_id)?.to_owned(),
@@ -369,7 +369,7 @@ fn prepare_skill_execution(
     let mut request = request.clone();
     let raw_workspace =
         WorkspaceEnv::new(request.env.clone(), request.cwd.clone()).map_err(RuntimeError::from)?;
-    let receipts = ReceiptServices::from_env_or_local_development(raw_workspace.env())
+    let receipts = ReceiptServices::resolve(&raw_workspace)
         .map_err(|error| SkillRunError::Invalid(error.to_string()))?;
     restore_continuation_inputs(&mut request, &raw_workspace)?;
     crate::input_contract::apply_defaults(&runner.inputs, &mut request.inputs);

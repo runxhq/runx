@@ -61,7 +61,7 @@ fn render_shim(
         "Run the declared runner through runx; do not bypass work that the runner owns. Runx governs policy, approvals, provider effects, and the signed receipt. Report an external mutation only when the result contains provider evidence.\n\n",
     );
     output.push_str(
-        "Runx uses its local-development receipt identity when no explicit signer is configured. If any `RUNX_RECEIPT_SIGN_*` variable is present, the complete signer tuple must be present or runx fails closed. Never invent, copy, or print signing keys.\n\n",
+        "Runx signs receipts with this home's own local key when no signer is configured. If any `RUNX_RECEIPT_SIGN_*` variable is present, the complete signer tuple must be present or runx fails closed. Never invent, copy, or print signing keys.\n\n",
     );
     output.push_str(&render_source_manual(skill));
 

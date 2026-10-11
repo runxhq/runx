@@ -23,11 +23,26 @@ fn completed_invalid_verification_has_distinct_exit_code() -> Result<(), Box<dyn
 {
     let receipt = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../fixtures/receipt-verify/tampered-signature/receipt.json");
+    let corpus = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../fixtures/receipt-verify/verifier.json");
+    let corpus: serde_json::Value = serde_json::from_slice(&std::fs::read(corpus)?)?;
+    let hosted = corpus["keys"]
+        .as_array()
+        .and_then(|keys| keys.iter().find(|key| key["issuer_type"] == "hosted"))
+        .ok_or("the corpus has no hosted key")?;
     let output = crate::support::isolated_runx_command("verify-invalid-verdict")?
+        .env("RUNX_RECEIPT_VERIFY_ISSUER_TYPE", "hosted")
+        .env(
+            "RUNX_RECEIPT_VERIFY_KID",
+            hosted["kid"].as_str().unwrap_or_default(),
+        )
+        .env(
+            "RUNX_RECEIPT_VERIFY_ED25519_PUBLIC_KEY_BASE64",
+            hosted["public_key_base64"].as_str().unwrap_or_default(),
+        )
         .arg("verify")
         .arg("--receipt")
         .arg(receipt)
-        .arg("--allow-local-development-signatures")
         .arg("--json")
         .output()?;
 

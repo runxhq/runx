@@ -33,7 +33,6 @@ use crate::receipts::{
     RunScope, RuntimeReceiptSignatureConfig, RuntimeReceiptSignaturePolicy,
     StepReceiptWithDisposition, step_receipt_with_declared_claim_and_policy,
 };
-use crate::services::ReceiptServices;
 
 /// What a harness replay runs with. Each case runs as a run of its own, in a
 /// kernel of its own, built from these options once the case is isolated.
@@ -46,49 +45,21 @@ pub struct HarnessOptions {
 }
 
 impl HarnessOptions {
-    /// Local development signing, at the harness's fixed instant.
-    #[must_use]
-    pub fn local_development(env: BTreeMap<String, String>) -> Self {
-        Self::with_signature(env, RuntimeReceiptSignatureConfig::local_development())
-    }
-
-    /// Production signing from the environment when it is configured, local
-    /// development signing otherwise.
-    pub fn from_env(env: BTreeMap<String, String>) -> Result<Self, RuntimeError> {
-        let services = ReceiptServices::from_env_or_local_development(&env).map_err(|error| {
-            RuntimeError::ReceiptInvalid {
-                message: error.to_string(),
-            }
-        })?;
-        Ok(Self::with_signature(
-            env,
-            services.signature_config().clone(),
-        ))
-    }
-
-    /// Production signing from the environment, which must configure it.
-    pub fn signed(env: BTreeMap<String, String>) -> Result<Self, RuntimeError> {
-        let services =
-            ReceiptServices::from_env(&env).map_err(|error| RuntimeError::ReceiptInvalid {
-                message: error.to_string(),
-            })?;
-        Ok(Self::with_signature(
-            env,
-            services.signature_config().clone(),
-        ))
-    }
-
-    fn with_signature(
-        mut env: BTreeMap<String, String>,
-        receipt_signature: RuntimeReceiptSignatureConfig,
-    ) -> Self {
+    /// A replay at the harness's fixed instant, sealed under the public
+    /// fixture identity so its receipts are deterministic. The environment's
+    /// signing variables are dropped: a replay proves only that a case ran.
+    pub fn new(mut env: BTreeMap<String, String>) -> Result<Self, RuntimeError> {
         strip_receipt_signing_env(&mut env);
-        Self {
+        Ok(Self {
             env,
-            receipt_signature,
+            receipt_signature: RuntimeReceiptSignatureConfig::fixture().map_err(|error| {
+                RuntimeError::ReceiptInvalid {
+                    message: error.to_string(),
+                }
+            })?,
             effects: RuntimeEffectRegistry::default(),
             created_at: crate::time::DEFAULT_CREATED_AT.to_owned(),
-        }
+        })
     }
 
     #[must_use]
@@ -218,7 +189,7 @@ pub fn run_harness_fixture(
     run_harness_fixture_with_adapter(
         fixture_path,
         crate::execution::skill_front::ExecutableAdapter,
-        HarnessOptions::from_env(env)?,
+        HarnessOptions::new(env)?,
     )
 }
 
@@ -911,11 +882,12 @@ mod tests {
     use std::path::Path;
 
     #[test]
-    fn overlay_harness_env_preserves_operator_env_and_allows_fixture_override() {
-        let mut options = HarnessOptions::local_development(BTreeMap::from([
+    fn overlay_harness_env_preserves_operator_env_and_allows_fixture_override()
+    -> Result<(), crate::RuntimeError> {
+        let mut options = HarnessOptions::new(BTreeMap::from([
             ("OPERATOR_ENV".to_owned(), "preserved".to_owned()),
             ("FIXTURE_OVERRIDE".to_owned(), "operator".to_owned()),
-        ]));
+        ]))?;
         let fixture_env = BTreeMap::from([
             ("FIXTURE_OVERRIDE".to_owned(), "fixture".to_owned()),
             ("FIXTURE_ONLY".to_owned(), "fixture".to_owned()),
@@ -932,6 +904,7 @@ mod tests {
             Some(&"fixture".to_owned())
         );
         assert_eq!(options.env.get("FIXTURE_ONLY"), Some(&"fixture".to_owned()));
+        Ok(())
     }
 
     #[test]

@@ -1,5 +1,5 @@
 skill: dispute-respond
-version: "0.5.5"
+version: "0.6.0"
 
 catalog:
   kind: graph
@@ -236,12 +236,12 @@ runners:
                 open_questions: { type: array, maxItems: 100, items: { type: string, minLength: 1, maxLength: 1000 } }
                 receipt_verification:
                   type: object
-                  required: [matched_receipt_ids, original_receipt_status, signature_mode, tree_status]
+                  required: [matched_receipt_ids, original_receipt_status, issuer_types, tree_status]
                   additionalProperties: false
                   properties:
                     matched_receipt_ids: { type: array, maxItems: 101, uniqueItems: true, items: { type: string, minLength: 1, maxLength: 256 } }
                     original_receipt_status: { type: string, minLength: 1, maxLength: 100 }
-                    signature_mode: { type: string, enum: [production, local-development, unverified] }
+                    issuer_types: { type: array, maxItems: 101, items: { type: string, enum: [local, hosted, ci] } }
                     tree_status: { type: string, enum: [intact, unverified] }
                 validation:
                   type: object
@@ -329,7 +329,7 @@ runners:
           receipt_verification:
             matched_receipt_ids: [receipt:charge:demo-001]
             original_receipt_status: verified
-            signature_mode: production
+            issuer_types: [hosted]
             tree_status: intact
           validation: { status: pass, findings: [] }
           filing:

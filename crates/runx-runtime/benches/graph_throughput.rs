@@ -12,7 +12,7 @@ use runx_core::state_machine::{
 };
 use runx_runtime::{
     EphemeralValue, InvocationOutput, RuntimeReceiptSignatureConfig, StepRun,
-    receipts::{graph_receipt_with_signature_policy, step_receipt_with_signature_policy},
+    receipts::{graph_receipt, step_receipt},
 };
 use tempfile::TempDir;
 
@@ -40,17 +40,12 @@ fn bench_graph_throughput(c: &mut Criterion) {
     });
 
     c.bench_function("graph_receipt_sealing", |b| {
-        let signature = RuntimeReceiptSignatureConfig::local_development();
+        let signature = fixture_signature();
         let template = synthetic_step_runs(&signature, 32);
         b.iter(|| {
             let steps = black_box(template.clone());
-            graph_receipt_with_signature_policy(
-                SCOPE,
-                &steps,
-                CREATED_AT,
-                signature.signature_policy(),
-            )
-            .map(|receipt| receipt.digest)
+            graph_receipt(SCOPE, &steps, CREATED_AT, signature.signature_policy())
+                .map(|receipt| receipt.digest)
         })
     });
 
@@ -116,15 +111,15 @@ fn record_resource_metric(name: &str, metric: JsonValue) -> Result<(), Box<dyn s
 
 fn register_receipt_store_append(c: &mut Criterion, name: &str, count: usize) {
     c.bench_function(name, |b| {
-        let signature = RuntimeReceiptSignatureConfig::local_development();
+        let signature = fixture_signature();
         let mut receipts = synthetic_receipts(&signature, count.saturating_add(1));
         let pending = receipts.pop();
         b.iter_batched(
-            || prepare_receipt_append(&receipts),
+            || prepare_receipt_append(&signature, &receipts),
             |prepared| match (prepared, pending.as_ref()) {
                 (Ok(fixture), Some(receipt)) => fixture
                     .store
-                    .write_receipt(black_box(receipt))
+                    .write_receipt(black_box(receipt), signature.signature_policy())
                     .map(|()| black_box(fixture.directory.path().to_path_buf()))
                     .map_err(|error| error.to_string()),
                 (Err(message), _) => Err(message),
@@ -141,19 +136,20 @@ struct ReceiptAppendFixture {
 }
 
 fn prepare_receipt_append(
+    signature: &RuntimeReceiptSignatureConfig,
     history: &[runx_contracts::Receipt],
 ) -> Result<ReceiptAppendFixture, String> {
     let directory = TempDir::new().map_err(|source| source.to_string())?;
     let store = runx_runtime::LocalReceiptStore::new(directory.path().join("receipts"));
     store
-        .write_receipts(history)
+        .write_receipts(history, signature.signature_policy())
         .map_err(|error| error.to_string())?;
     Ok(ReceiptAppendFixture { directory, store })
 }
 
 fn register_receipt_store_index(c: &mut Criterion, name: &str, count: usize) {
     c.bench_function(name, |b| {
-        let signature = RuntimeReceiptSignatureConfig::local_development();
+        let signature = fixture_signature();
         let receipts = synthetic_receipts(&signature, count);
         let temp_dir = TempDir::new().map_err(|source| source.to_string());
         let temp_dir = match temp_dir {
@@ -161,12 +157,12 @@ fn register_receipt_store_index(c: &mut Criterion, name: &str, count: usize) {
             Err(message) => return b.iter(|| Err::<usize, String>(message.clone())),
         };
         let store = runx_runtime::LocalReceiptStore::new(temp_dir.path().join("receipts"));
-        if let Err(error) = store.write_receipts(&receipts) {
+        if let Err(error) = store.write_receipts(&receipts, signature.signature_policy()) {
             return b.iter(|| Err::<usize, String>(error.to_string()));
         }
         b.iter(|| {
             store
-                .rebuild_index()
+                .rebuild_index(signature.signature_policy())
                 .map(|index| black_box(index.entries.len()))
                 .map_err(|error| error.to_string())
         })
@@ -257,6 +253,14 @@ fn succeed_step(
     state
 }
 
+/// The public fixture identity a benchmark seals under, as a replayed run is.
+fn fixture_signature() -> RuntimeReceiptSignatureConfig {
+    match RuntimeReceiptSignatureConfig::fixture() {
+        Ok(signature) => signature,
+        Err(_error) => std::process::exit(2),
+    }
+}
+
 fn synthetic_step_runs(signature: &RuntimeReceiptSignatureConfig, count: usize) -> Vec<StepRun> {
     (0..count)
         .map(|index| {
@@ -268,7 +272,7 @@ fn synthetic_step_runs(signature: &RuntimeReceiptSignatureConfig, count: usize) 
             let output = skill_output(&format!(
                 r#"{{"nested":{{"value":{index}}},"status":"ok"}}"#
             ));
-            let receipt = match step_receipt_with_signature_policy(
+            let receipt = match step_receipt(
                 SCOPE,
                 &step_id,
                 1,

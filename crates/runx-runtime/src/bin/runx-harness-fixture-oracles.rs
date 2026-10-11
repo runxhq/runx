@@ -74,7 +74,7 @@ fn process_fixture(
     let output = match replay(
         &fixture_path,
         FixtureOracleAdapter,
-        fixture_runtime_options(),
+        fixture_runtime_options()?,
     ) {
         Ok(output) => output,
         Err(error) => {
@@ -417,10 +417,10 @@ impl Display for MessageError {
 
 impl Error for MessageError {}
 
-fn fixture_runtime_options() -> HarnessOptions {
-    let mut options = HarnessOptions::local_development(std::env::vars().collect());
+fn fixture_runtime_options() -> Result<HarnessOptions, Box<dyn Error>> {
+    let mut options = HarnessOptions::new(std::env::vars().collect())?;
     options.created_at = "2026-05-18T00:00:00Z".to_owned();
-    options
+    Ok(options)
 }
 
 struct FixtureOracleAdapter;

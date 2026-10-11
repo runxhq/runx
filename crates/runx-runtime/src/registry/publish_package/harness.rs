@@ -7,15 +7,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use super::RegistryPublishPackageError;
 use crate::registry::{RegistryPackageFile, RegistryPublishHarnessReport};
-use crate::{
-    LoadedSkillPackage, LocalOrchestrator, PackageHarnessRequest,
-    RUNX_RECEIPT_SIGN_ED25519_SEED_BASE64_ENV, RUNX_RECEIPT_SIGN_ISSUER_TYPE_ENV,
-    RUNX_RECEIPT_SIGN_KID_ENV,
-};
-
-const SIGNING_KID: &str = "runx-publish-harness-local";
-const SIGNING_SEED_BASE64: &str = "QkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkI=";
-const SIGNING_ISSUER_TYPE: &str = "ci";
+use crate::{LoadedSkillPackage, LocalOrchestrator, PackageHarnessRequest};
 
 pub(super) struct PublishHarnessPackage {
     root: TempDirectory,
@@ -166,29 +158,7 @@ fn publish_harness_env(
         crate::RUNX_CWD_ENV.to_owned(),
         harness_path.to_string_lossy().into_owned(),
     );
-    ensure_signing_env(&mut env);
     env
-}
-
-fn ensure_signing_env(env: &mut BTreeMap<String, String>) {
-    if [
-        RUNX_RECEIPT_SIGN_KID_ENV,
-        RUNX_RECEIPT_SIGN_ED25519_SEED_BASE64_ENV,
-        RUNX_RECEIPT_SIGN_ISSUER_TYPE_ENV,
-    ]
-    .iter()
-    .all(|name| env.get(*name).is_none_or(|value| value.trim().is_empty()))
-    {
-        env.insert(RUNX_RECEIPT_SIGN_KID_ENV.to_owned(), SIGNING_KID.to_owned());
-        env.insert(
-            RUNX_RECEIPT_SIGN_ED25519_SEED_BASE64_ENV.to_owned(),
-            SIGNING_SEED_BASE64.to_owned(),
-        );
-        env.insert(
-            RUNX_RECEIPT_SIGN_ISSUER_TYPE_ENV.to_owned(),
-            SIGNING_ISSUER_TYPE.to_owned(),
-        );
-    }
 }
 
 struct TempDirectory(PathBuf);
@@ -225,21 +195,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn signing_defaults_do_not_mask_partial_configuration() {
-        let mut env = BTreeMap::from([(
-            RUNX_RECEIPT_SIGN_KID_ENV.to_owned(),
-            "explicit-kid".to_owned(),
-        )]);
-        ensure_signing_env(&mut env);
-        assert_eq!(
-            env.get(RUNX_RECEIPT_SIGN_KID_ENV).map(String::as_str),
-            Some("explicit-kid")
-        );
-        assert!(!env.contains_key(RUNX_RECEIPT_SIGN_ED25519_SEED_BASE64_ENV));
-        assert!(!env.contains_key(RUNX_RECEIPT_SIGN_ISSUER_TYPE_ENV));
-    }
-
-    #[test]
     fn harness_environment_removes_hosted_and_agent_credentials() {
         let workspace_env = BTreeMap::from([
             ("RUNX_HOSTED_API_KEY".to_owned(), "hosted-secret".to_owned()),
@@ -268,6 +223,8 @@ mod tests {
             env.get(crate::RUNX_CWD_ENV).map(String::as_str),
             Some("/tmp/runx-publish-workspace")
         );
-        assert!(env.contains_key(RUNX_RECEIPT_SIGN_KID_ENV));
+        // The harness seals under its own home's key: no identity is
+        // invented for it.
+        assert!(!env.contains_key(crate::RUNX_RECEIPT_SIGN_KID_ENV));
     }
 }

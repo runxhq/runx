@@ -4,6 +4,16 @@
       "kty": "OKP",
       "crv": "Ed25519",
       "kid": "runx-demo-key",
+      "issuer_type": "hosted",
+      "alg": "EdDSA",
+      "use": "sig",
+      "x": "IVL40Zt5HSRFMkLhXy6rbLfP-ntqXtMAl5YOBpiB2xI"
+    },
+    {
+      "kty": "OKP",
+      "crv": "Ed25519",
+      "kid": "local-3097e2dee2cb4a34b53840cdb705aed71067c36f68db0e0f559c3f3fa043315f",
+      "issuer_type": "local",
       "alg": "EdDSA",
       "use": "sig",
       "x": "IVL40Zt5HSRFMkLhXy6rbLfP-ntqXtMAl5YOBpiB2xI"

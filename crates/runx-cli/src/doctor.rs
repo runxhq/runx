@@ -11,17 +11,15 @@ use runx_contracts::{
 use runx_runtime::{
     HostedApiEnvironment, INJECTED_GRANT_ID_ENV, INJECTED_GRANTED_SCOPES_ENV,
     INJECTED_PRINCIPAL_REF_ENV, RUNX_RECEIPT_SIGN_ED25519_SEED_BASE64_ENV,
-    RUNX_RECEIPT_SIGN_ISSUER_TYPE_ENV, RUNX_RECEIPT_SIGN_KID_ENV, RuntimeError,
-    RuntimeReceiptSignatureConfig, RuntimeReceiptVerifierSource, RunxPaths, WorkspaceEnv,
-    decode_injected_scopes, default_doctor_options, load_managed_agent_config,
-    load_runx_config_file, receipt_verifier_from_env, run_doctor,
+    RUNX_RECEIPT_SIGN_ISSUER_TYPE_ENV, RUNX_RECEIPT_SIGN_KID_ENV,
+    RUNX_RECEIPT_VERIFY_ED25519_PUBLIC_KEY_BASE64_ENV, RUNX_RECEIPT_VERIFY_ISSUER_TYPE_ENV,
+    RUNX_RECEIPT_VERIFY_KID_ENV, ReceiptTrust, ReceiptTrustSource, RuntimeError, RunxPaths,
+    WorkspaceEnv, decode_injected_scopes, default_doctor_options, load_managed_agent_config,
+    load_runx_config_file, receipt_signer, receipt_trust, run_doctor,
 };
 
 use crate::registry::{self, RegistryAction, RegistryPlan};
 use crate::router::{DoctorMode, DoctorPlan};
-use runx_runtime::{
-    RUNX_RECEIPT_VERIFY_ED25519_PUBLIC_KEY_BASE64_ENV, RUNX_RECEIPT_VERIFY_KID_ENV,
-};
 
 const OFFICIAL_SKILLS_DIR_ENV: &str = "RUNX_OFFICIAL_SKILLS_DIR";
 
@@ -612,9 +610,10 @@ fn registry_remote_install_diagnostic(
 }
 
 fn run_authority_doctor(env: &BTreeMap<String, String>, cwd: &Path) -> DoctorReport {
+    let paths = RunxPaths::resolve(env, cwd);
     let diagnostics = vec![
-        receipt_signer_diagnostic(env),
-        receipt_verification_diagnostic(env),
+        receipt_signer_diagnostic(env, &paths),
+        receipt_verification_diagnostic(env, &paths),
         provider_grant_diagnostic(env, cwd),
     ];
     DoctorReport {
@@ -625,28 +624,37 @@ fn run_authority_doctor(env: &BTreeMap<String, String>, cwd: &Path) -> DoctorRep
     }
 }
 
-fn receipt_signer_diagnostic(env: &BTreeMap<String, String>) -> DoctorDiagnostic {
+/// The identity runs seal receipts under: a configured signer, else this
+/// home's own key. Reading it never creates a key.
+fn receipt_signer_diagnostic(
+    env: &BTreeMap<String, String>,
+    paths: &RunxPaths,
+) -> DoctorDiagnostic {
     const ENV_NAMES: &[&str] = &[
         RUNX_RECEIPT_SIGN_KID_ENV,
         RUNX_RECEIPT_SIGN_ED25519_SEED_BASE64_ENV,
         RUNX_RECEIPT_SIGN_ISSUER_TYPE_ENV,
     ];
 
-    let resolution = RuntimeReceiptSignatureConfig::from_env(env);
-    let configured = resolution.is_ok();
-    let message = match resolution {
-        Ok(_) => format!(
-            "Receipt signer configured; key id: {}.",
-            env.get(RUNX_RECEIPT_SIGN_KID_ENV)
-                .map_or("<missing>", String::as_str)
+    let resolution = receipt_signer(env, paths);
+    let ready = resolution.is_ok();
+    let message = match &resolution {
+        Ok(Some(source)) => format!("Receipts are signed by {}.", trusted_key_label(source)),
+        Ok(None) => format!(
+            "Receipts will be signed by this home's local key, created at {} on the first run.",
+            paths.local_receipt_key().display()
         ),
         Err(error) => format!("Receipt signer not ready: {error}."),
     };
+    let mut evidence = authority_evidence(ENV_NAMES, ready, None);
+    if let Ok(Some(source)) = &resolution {
+        evidence.insert("signer".to_owned(), trusted_key_evidence(source));
+    }
 
     DoctorDiagnostic {
         id: "runx.authority.signer".to_owned(),
         instance_id: "runx:doctor-authority:runx.authority.signer".to_owned(),
-        severity: if configured {
+        severity: if ready {
             DoctorDiagnosticSeverity::Info
         } else {
             DoctorDiagnosticSeverity::Warning
@@ -661,69 +669,53 @@ fn receipt_signer_diagnostic(env: &BTreeMap<String, String>) -> DoctorDiagnostic
             path: "environment".to_owned(),
             json_pointer: None,
         },
-        evidence: Some(authority_evidence(
-            ENV_NAMES,
-            configured,
-            configured.then_some(RUNX_RECEIPT_SIGN_KID_ENV),
-        )),
-        repairs: if configured {
+        evidence: Some(evidence),
+        repairs: if ready {
             Vec::new()
         } else {
             vec![manual_env_repair(
                 "runx.authority.signer.configure_env",
                 ENV_NAMES,
-                "Configure one complete valid receipt signing identity.",
+                "Configure one complete valid receipt signing identity, or unset it to sign with this home's local key.",
                 DoctorRepairRisk::Sensitive,
             )]
         },
     }
 }
 
-fn receipt_verification_diagnostic(env: &BTreeMap<String, String>) -> DoctorDiagnostic {
+/// The keys `runx verify` trusts here: this home's own key and every
+/// configured key.
+fn receipt_verification_diagnostic(
+    env: &BTreeMap<String, String>,
+    paths: &RunxPaths,
+) -> DoctorDiagnostic {
     const VERIFY_ENV: &[&str] = &[
+        RUNX_RECEIPT_VERIFY_ISSUER_TYPE_ENV,
         RUNX_RECEIPT_VERIFY_KID_ENV,
         RUNX_RECEIPT_VERIFY_ED25519_PUBLIC_KEY_BASE64_ENV,
-    ];
-    const ALL_ENV: &[&str] = &[
-        RUNX_RECEIPT_VERIFY_KID_ENV,
-        RUNX_RECEIPT_VERIFY_ED25519_PUBLIC_KEY_BASE64_ENV,
-        RUNX_RECEIPT_SIGN_KID_ENV,
-        RUNX_RECEIPT_SIGN_ED25519_SEED_BASE64_ENV,
-        RUNX_RECEIPT_SIGN_ISSUER_TYPE_ENV,
     ];
 
-    let resolution = receipt_verifier_from_env(env);
-    let configured = matches!(&resolution, Ok(Some(_)));
-    let (source, source_label, key_id_env) = match resolution
-        .as_ref()
-        .ok()
-        .and_then(Option::as_ref)
-        .map(|resolved| resolved.source())
-    {
-        Some(RuntimeReceiptVerifierSource::ExplicitVerifier) => (
-            "explicit_verifier",
-            "explicit verifier",
-            Some(RUNX_RECEIPT_VERIFY_KID_ENV),
+    let resolution = receipt_trust(env, paths, ReceiptTrust::HomeAndConfigured);
+    let configured = matches!(&resolution, Ok(sources) if !sources.is_empty());
+    let message = match &resolution {
+        Ok(sources) if sources.is_empty() => "No receipt key is trusted yet: this home has no local key and no verifier is configured.".to_owned(),
+        Ok(sources) => format!(
+            "Receipts verify against {}.",
+            sources
+                .iter()
+                .map(trusted_key_label)
+                .collect::<Vec<_>>()
+                .join("; ")
         ),
-        Some(RuntimeReceiptVerifierSource::SigningIdentity) => (
-            "signing_identity",
-            "signing identity",
-            Some(RUNX_RECEIPT_SIGN_KID_ENV),
-        ),
-        None => ("unavailable", "unavailable source", None),
-    };
-    let message = match resolution {
-        Ok(Some(_)) => format!(
-            "Receipt verification configured from {source_label}; key id: {}.",
-            key_id_env
-                .and_then(|name| env.get(name))
-                .map_or("<missing>", String::as_str)
-        ),
-        Ok(None) => "Receipt verification not configured; set an explicit public verifier or a complete signing identity.".to_owned(),
         Err(error) => format!("Receipt verification configuration is invalid: {error}."),
     };
-    let mut evidence = authority_evidence(ALL_ENV, configured, key_id_env);
-    evidence.insert("source".to_owned(), string_value(source));
+    let mut evidence = authority_evidence(VERIFY_ENV, configured, None);
+    if let Ok(sources) = &resolution {
+        evidence.insert(
+            "trusted_keys".to_owned(),
+            JsonValue::Array(sources.iter().map(trusted_key_evidence).collect()),
+        );
+    }
 
     DoctorDiagnostic {
         id: "runx.authority.verify_key".to_owned(),
@@ -750,11 +742,35 @@ fn receipt_verification_diagnostic(env: &BTreeMap<String, String>) -> DoctorDiag
             vec![manual_env_repair(
                 "runx.authority.verify_key.configure_env",
                 VERIFY_ENV,
-                "Set an independent public verifier, or configure the complete receipt signing identity already used by this operator.",
+                "Run once to create this home's local key, or configure the public key of the issuer whose receipts this operator verifies.",
                 DoctorRepairRisk::Sensitive,
             )]
         },
     }
+}
+
+fn trusted_key_label(source: &ReceiptTrustSource) -> String {
+    let origin = match source.origin {
+        runx_runtime::ReceiptTrustOrigin::ConfiguredVerifier => "the configured verifier",
+        runx_runtime::ReceiptTrustOrigin::ConfiguredSigner => "the configured signer",
+        runx_runtime::ReceiptTrustOrigin::Home => "this home's local key",
+    };
+    format!(
+        "{origin} ({} key {})",
+        source.key.issuer_type().label(),
+        source.key.kid()
+    )
+}
+
+fn trusted_key_evidence(source: &ReceiptTrustSource) -> JsonValue {
+    JsonValue::Object(object([
+        ("origin", string_value(source.origin.label())),
+        (
+            "issuer_type",
+            string_value(source.key.issuer_type().label()),
+        ),
+        ("kid", string_value(source.key.kid())),
+    ]))
 }
 
 fn provider_grant_diagnostic(env: &BTreeMap<String, String>, cwd: &Path) -> DoctorDiagnostic {

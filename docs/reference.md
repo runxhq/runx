@@ -23,9 +23,10 @@ On macOS 26, complete the
 [Developer Tools permission prerequisite](../CONTRIBUTING.md#macos-developer-tools-permission)
 if the initial build stalls.
 
-When no production signer environment is configured, local `runx skill` and
-inline `runx harness` runs seal local-development receipts. Publishing and
-hosted verification require real authority.
+When no signer is configured, local `runx skill` and inline `runx harness` runs
+sign with the runx home's own key; harness fixture replay signs with the public
+fixture key so its receipts stay deterministic. Publishing and hosted
+verification require a hosted issuer.
 
 Then inspect the emitted receipt. The full walkthrough is in
 [getting-started.md](getting-started.md), and the next step is

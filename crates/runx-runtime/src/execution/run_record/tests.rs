@@ -9,7 +9,11 @@ use runx_core::state_machine::StepAdmissionWitness;
 use super::*;
 use crate::adapter::InvocationOutput;
 use crate::execution::runner::StepRun;
-use crate::receipts::{RunScope, graph_receipt, step_receipt};
+use crate::receipts::{RunScope, RuntimeReceiptSignatureConfig, graph_receipt, step_receipt};
+
+fn signature() -> RuntimeReceiptSignatureConfig {
+    RuntimeReceiptSignatureConfig::fixture().expect("fixture signer")
+}
 
 fn store() -> (tempfile::TempDir, Arc<KernelStore>) {
     let root = tempfile::tempdir().expect("tempdir");
@@ -61,6 +65,7 @@ fn step(run_id: &str, step_id: &str) -> StepRun {
         &output,
         &claim,
         "2026-10-09T00:00:00.000Z",
+        signature().signature_policy(),
     )
     .expect("receipt");
     StepRun {
@@ -239,6 +244,7 @@ fn a_sealed_run_holds_its_receipt_and_waits_on_nothing() {
         },
         &[read],
         "2026-10-09T00:00:00.000Z",
+        signature().signature_policy(),
     )
     .unwrap();
     log.record_sealed(&receipt, None).unwrap();
@@ -599,6 +605,7 @@ fn a_run_whose_child_sealed_before_its_step_was_recorded_stays_paused() {
         },
         &[read],
         "2026-10-09T00:00:00.000Z",
+        signature().signature_policy(),
     )
     .unwrap();
     child.record_sealed(&receipt, None).unwrap();

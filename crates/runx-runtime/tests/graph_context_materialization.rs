@@ -2,9 +2,7 @@ use std::path::Path;
 use std::sync::{Arc, Mutex};
 
 use runx_contracts::{JsonObject, JsonValue, ProvenanceEntry};
-use runx_runtime::{
-    InvocationOutput, Runtime, RuntimeError, RuntimeOptions, SkillAdapter, SkillInvocation,
-};
+use runx_runtime::{InvocationOutput, Runtime, RuntimeError, SkillAdapter, SkillInvocation};
 
 #[derive(Clone, Default)]
 struct RecordingAdapter {
@@ -45,7 +43,7 @@ fn graph_context_materialization_reaches_the_target_invocation()
     let (_run, run) = crate::support::scratch_run("run_context_materialization")?;
     let runtime = Runtime::new(
         adapter.clone(),
-        RuntimeOptions::local_development(std::env::vars().collect(), run),
+        crate::support::fixture_runtime_options(std::env::vars().collect(), run)?,
     );
     let graph_path =
         Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/graphs/sequential/graph.yaml");

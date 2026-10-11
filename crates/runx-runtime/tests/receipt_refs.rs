@@ -16,6 +16,7 @@ fn stdout_payload_refs_are_not_promoted_to_receipt_proof_refs()
         &output,
         &JsonObject::new(),
         CREATED_AT,
+        crate::support::fixture_policy()?,
     )?;
     let refs = receipt
         .seal

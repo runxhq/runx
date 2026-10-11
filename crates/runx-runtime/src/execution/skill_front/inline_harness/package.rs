@@ -60,7 +60,7 @@ fn replay_conventional_fixtures(
     if fixture_paths.is_empty() {
         return Ok(());
     }
-    let mut base_options = HarnessOptions::from_env(harness.env.clone())?;
+    let mut base_options = HarnessOptions::new(harness.env.clone())?;
     base_options.effects = effects.clone();
     let receipt_services =
         ReceiptServices::from_signature_config(base_options.receipt_signature.clone());

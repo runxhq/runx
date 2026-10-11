@@ -162,7 +162,10 @@ fn the_invokers_act_is_sealed_in_the_call_receipt_with_admitted_authority_and_ef
         format!("runx:authority_term:{}", term.term_id)
     );
     // Who acted is admission's: the term's principal, under its grant.
-    assert_eq!(term.principal_ref, receipt.authority.actor_ref);
+    assert_eq!(
+        Some(&term.principal_ref),
+        receipt.authority.actor_ref.as_ref()
+    );
     assert!(
         receipt
             .authority

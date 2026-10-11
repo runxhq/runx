@@ -33,8 +33,8 @@
   "receipt_id": "sha256:68f8c14aa2b052721737caf789fe5fcc1ed6e95f35af8df19d06bee3c56867f2",
   "schema": "runx.verify_verdict.v1",
   "signature": {
+    "issuer_type": "hosted",
     "kid": "unknown-fixture-key",
-    "mode": "production",
     "status": "invalid"
   },
   "valid": false

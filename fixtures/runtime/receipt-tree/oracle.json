@@ -287,10 +287,6 @@
     "child_a": {
       "acts": [],
       "authority": {
-        "actor_ref": {
-          "type": "principal",
-          "uri": "runx:principal:local_runtime"
-        },
         "derivations": [],
         "enforcement": {},
         "grant_refs": [],
@@ -319,7 +315,7 @@
       },
       "signature": {
         "alg": "Ed25519",
-        "value": "sig:pending"
+        "value": "unsealed"
       },
       "subject": {
         "kind": "skill",
@@ -333,10 +329,6 @@
     "child_a_duplicate": {
       "acts": [],
       "authority": {
-        "actor_ref": {
-          "type": "principal",
-          "uri": "runx:principal:local_runtime"
-        },
         "derivations": [],
         "enforcement": {},
         "grant_refs": [],
@@ -365,7 +357,7 @@
       },
       "signature": {
         "alg": "Ed25519",
-        "value": "sig:pending"
+        "value": "unsealed"
       },
       "subject": {
         "kind": "skill",
@@ -379,10 +371,6 @@
     "child_a_self_cycle": {
       "acts": [],
       "authority": {
-        "actor_ref": {
-          "type": "principal",
-          "uri": "runx:principal:local_runtime"
-        },
         "derivations": [],
         "enforcement": {},
         "grant_refs": [],
@@ -416,7 +404,7 @@
       },
       "signature": {
         "alg": "Ed25519",
-        "value": "sig:pending"
+        "value": "unsealed"
       },
       "subject": {
         "kind": "skill",
@@ -430,10 +418,6 @@
     "child_a_to_b": {
       "acts": [],
       "authority": {
-        "actor_ref": {
-          "type": "principal",
-          "uri": "runx:principal:local_runtime"
-        },
         "derivations": [],
         "enforcement": {},
         "grant_refs": [],
@@ -467,7 +451,7 @@
       },
       "signature": {
         "alg": "Ed25519",
-        "value": "sig:pending"
+        "value": "unsealed"
       },
       "subject": {
         "kind": "skill",
@@ -481,10 +465,6 @@
     "child_b": {
       "acts": [],
       "authority": {
-        "actor_ref": {
-          "type": "principal",
-          "uri": "runx:principal:local_runtime"
-        },
         "derivations": [],
         "enforcement": {},
         "grant_refs": [],
@@ -513,7 +493,7 @@
       },
       "signature": {
         "alg": "Ed25519",
-        "value": "sig:pending"
+        "value": "unsealed"
       },
       "subject": {
         "kind": "skill",
@@ -527,10 +507,6 @@
     "root_empty": {
       "acts": [],
       "authority": {
-        "actor_ref": {
-          "type": "principal",
-          "uri": "runx:principal:local_runtime"
-        },
         "derivations": [],
         "enforcement": {},
         "grant_refs": [],
@@ -559,7 +535,7 @@
       },
       "signature": {
         "alg": "Ed25519",
-        "value": "sig:pending"
+        "value": "unsealed"
       },
       "subject": {
         "kind": "skill",
@@ -573,10 +549,6 @@
     "root_malformed_uri": {
       "acts": [],
       "authority": {
-        "actor_ref": {
-          "type": "principal",
-          "uri": "runx:principal:local_runtime"
-        },
         "derivations": [],
         "enforcement": {},
         "grant_refs": [],
@@ -610,7 +582,7 @@
       },
       "signature": {
         "alg": "Ed25519",
-        "value": "sig:pending"
+        "value": "unsealed"
       },
       "subject": {
         "kind": "skill",
@@ -624,10 +596,6 @@
     "root_to_a": {
       "acts": [],
       "authority": {
-        "actor_ref": {
-          "type": "principal",
-          "uri": "runx:principal:local_runtime"
-        },
         "derivations": [],
         "enforcement": {},
         "grant_refs": [],
@@ -661,7 +629,7 @@
       },
       "signature": {
         "alg": "Ed25519",
-        "value": "sig:pending"
+        "value": "unsealed"
       },
       "subject": {
         "kind": "skill",
@@ -675,10 +643,6 @@
     "root_to_a_b": {
       "acts": [],
       "authority": {
-        "actor_ref": {
-          "type": "principal",
-          "uri": "runx:principal:local_runtime"
-        },
         "derivations": [],
         "enforcement": {},
         "grant_refs": [],
@@ -716,7 +680,7 @@
       },
       "signature": {
         "alg": "Ed25519",
-        "value": "sig:pending"
+        "value": "unsealed"
       },
       "subject": {
         "kind": "skill",
@@ -730,10 +694,6 @@
     "root_wrong_namespace": {
       "acts": [],
       "authority": {
-        "actor_ref": {
-          "type": "principal",
-          "uri": "runx:principal:local_runtime"
-        },
         "derivations": [],
         "enforcement": {},
         "grant_refs": [],
@@ -767,7 +727,7 @@
       },
       "signature": {
         "alg": "Ed25519",
-        "value": "sig:pending"
+        "value": "unsealed"
       },
       "subject": {
         "kind": "skill",

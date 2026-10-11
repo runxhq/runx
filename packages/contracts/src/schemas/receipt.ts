@@ -41,7 +41,8 @@ export type ReceiptEnforcementContract = DeepReadonly<{
 }>;
 
 export type ReceiptAuthorityContract = DeepReadonly<{
-  actor_ref: ReferenceContract;
+  /** The principal an act was admitted for, when the run was given one. */
+  actor_ref?: ReferenceContract;
   grant_refs: readonly ReferenceContract[];
   scope_refs: readonly ReferenceContract[];
   mandate_ref?: ReferenceContract;

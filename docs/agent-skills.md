@@ -98,8 +98,8 @@ execution. Runx remains the authority boundary on both surfaces.
 
 - **The runx binary.** The shim calls runx by path, so that binary must be
   present.
-- **Receipt identity.** Local development uses Runx's local-development receipt
-  identity. Hosted and CI execution must configure the complete
+- **Receipt identity.** Local runs sign with the runx home's own key, created
+  on the first run. Hosted and CI execution must configure the complete
   `RUNX_RECEIPT_SIGN_*` tuple; a partial tuple fails closed. See
   [Getting Started](./getting-started.md#production-receipt-signing).
 - **Provider accounts.** Bind them once as connector instances with

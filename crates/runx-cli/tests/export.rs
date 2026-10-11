@@ -137,7 +137,7 @@ fn codex_global_writes_shim_and_idempotent_permission_block()
     assert!(shim.contains("name: visible"));
     assert!(!shim.contains("allowed-tools"));
     assert!(shim.contains(r#"--input-json objective '"fixture"'"#));
-    assert!(shim.contains("local-development receipt identity"));
+    assert!(shim.contains("this home's own local key"));
     assert!(shim.contains("complete signer tuple"));
     assert!(shim.contains("If runx returns `needs_agent` or `needs_approval`"));
     assert!(shim.contains("digest-bound request artifact"));

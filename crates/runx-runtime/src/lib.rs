@@ -174,15 +174,16 @@ pub use receipts::store::{
 };
 pub use receipts::tree::{
     RuntimeReceiptResolver, validate_runtime_receipt_tree, verify_runtime_receipt_tree,
-    verify_runtime_receipt_tree_with_policy,
 };
 pub use receipts::{
-    Ed25519ReceiptSigner, Ed25519ReceiptVerifier, ProductionReceiptKey,
-    RUNX_RECEIPT_SIGN_ED25519_SEED_BASE64_ENV, RUNX_RECEIPT_SIGN_ISSUER_TYPE_ENV,
-    RUNX_RECEIPT_SIGN_KID_ENV, RUNX_RECEIPT_VERIFY_ED25519_PUBLIC_KEY_BASE64_ENV,
-    RUNX_RECEIPT_VERIFY_KID_ENV, ResolvedReceiptVerifier, RuntimeReceiptSignatureConfig,
-    RuntimeReceiptSignaturePolicy, RuntimeReceiptSigner, RuntimeReceiptSigningError,
-    RuntimeReceiptVerifierSource, receipt_verifier_from_env,
+    Ed25519ReceiptSigner, Ed25519ReceiptVerifier, FIXTURE_RECEIPT_SEED, LOCAL_RECEIPT_KEY_SCHEMA,
+    LocalReceiptKeyFault, RUNX_RECEIPT_SIGN_ED25519_SEED_BASE64_ENV,
+    RUNX_RECEIPT_SIGN_ISSUER_TYPE_ENV, RUNX_RECEIPT_SIGN_KID_ENV,
+    RUNX_RECEIPT_VERIFY_ED25519_PUBLIC_KEY_BASE64_ENV, RUNX_RECEIPT_VERIFY_ISSUER_TYPE_ENV,
+    RUNX_RECEIPT_VERIFY_KID_ENV, ReceiptTrust, ReceiptTrustOrigin, ReceiptTrustSource,
+    RuntimeReceiptSignatureConfig, RuntimeReceiptSignaturePolicy, RuntimeReceiptSigner,
+    RuntimeReceiptSigningError, TrustedReceiptKey, local_receipt_kid, receipt_signer,
+    receipt_trust, receipt_verifier,
 };
 pub use registry::{RegistryInstallMetadataInput, registry_install_receipt_metadata};
 pub use run_record::{RunLog, RunRecordError, RunState, RunSummary};

@@ -87,12 +87,11 @@ match and a verified chain walk, not an aggregate health report.
    engine's tree-rooted native proof report, not a hand-rolled link
    walk: `intact` follows the report's overall validity, and each `break` is
    derived from a tree's missing parent or a verification finding, named by the
-   receipt ids involved. When the engine has no verify keys
-   (`RUNX_RECEIPT_VERIFY_KID` / `RUNX_RECEIPT_VERIFY_ED25519_PUBLIC_KEY_BASE64`
-   absent), it cannot prove production signatures, so the chain is reported
-   unverified (`checked: true`, `intact: null`), never silently intact. When
-   `proof` is absent, set `chain_verification.checked` to false and leave
-   `intact` null.
+   receipt ids involved. The engine checks signatures against this home's
+   own key and any configured verify key; a receipt no trusted key signed is a
+   break, never silently intact. When the proof is bounded out, the chain is
+   reported unverified (`checked: true`, `intact: null`). When `proof` is
+   absent, set `chain_verification.checked` to false and leave `intact` null.
 6. Write a one or two sentence `summary` that answers the question from the
    matched set and the verification result only. The question bounds the answer;
    do not generalize from the matched slice to the whole ledger.

@@ -1,14 +1,31 @@
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::Path;
+use std::sync::LazyLock;
 
-use runx_contracts::Receipt;
-use runx_runtime::{HarnessOptions, RuntimeOptions};
+use runx_contracts::{Receipt, ReceiptIssuerType};
 use runx_runtime::{
-    KernelStore, LocalReceiptStore, RUNX_RECEIPT_SIGN_ED25519_SEED_BASE64_ENV,
-    RUNX_RECEIPT_SIGN_ISSUER_TYPE_ENV, RUNX_RECEIPT_SIGN_KID_ENV, RunLog,
-    RuntimeReceiptSignatureConfig,
+    Ed25519ReceiptSigner, HarnessOptions, KernelStore, LocalReceiptStore,
+    RUNX_RECEIPT_SIGN_ED25519_SEED_BASE64_ENV, RUNX_RECEIPT_SIGN_ISSUER_TYPE_ENV,
+    RUNX_RECEIPT_SIGN_KID_ENV, RunLog, RuntimeOptions, RuntimeReceiptSignatureConfig,
+    RuntimeReceiptSignaturePolicy, RuntimeReceiptSigningError,
 };
+
+static FIXTURE_SIGNATURE: LazyLock<
+    Result<RuntimeReceiptSignatureConfig, RuntimeReceiptSigningError>,
+> = LazyLock::new(RuntimeReceiptSignatureConfig::fixture);
+
+/// The public fixture identity: what a replayed harness case seals under.
+pub(crate) fn fixture_signature()
+-> Result<&'static RuntimeReceiptSignatureConfig, RuntimeReceiptSigningError> {
+    FIXTURE_SIGNATURE.as_ref().map_err(Clone::clone)
+}
+
+/// Seal under, and check against, the fixture identity.
+pub(crate) fn fixture_policy()
+-> Result<RuntimeReceiptSignaturePolicy<'static>, RuntimeReceiptSigningError> {
+    fixture_signature().map(RuntimeReceiptSignatureConfig::signature_policy)
+}
 
 pub(crate) const TEST_CREATED_AT: &str = "2026-05-18T00:00:00Z";
 pub(crate) const TEST_SIGNING_KID: &str = "runx-runtime-prod-fixture-key";
@@ -50,9 +67,15 @@ pub(crate) fn insert_test_signing_env(env: &mut BTreeMap<String, String>) {
     }
 }
 
+/// The hosted identity `test_signing_env` configures.
 pub(crate) fn test_signature_config()
--> Result<RuntimeReceiptSignatureConfig, Box<dyn std::error::Error>> {
-    Ok(RuntimeReceiptSignatureConfig::from_env(&test_signing_env())?)
+-> Result<RuntimeReceiptSignatureConfig, RuntimeReceiptSigningError> {
+    Ed25519ReceiptSigner::from_seed_base64(
+        TEST_SIGNING_KID,
+        ReceiptIssuerType::Hosted,
+        TEST_SIGNING_SEED_BASE64,
+    )
+    .map(RuntimeReceiptSignatureConfig::signing)
 }
 
 /// A project directory of this test's own under the target's test scratch
@@ -99,16 +122,30 @@ pub(crate) fn scratch_run(
 
 pub(crate) fn signed_runtime_options(
     run: RunLog,
-) -> Result<RuntimeOptions, runx_runtime::RuntimeError> {
-    let mut env = std::env::vars().collect();
-    insert_test_signing_env(&mut env);
-    RuntimeOptions::from_env(env, run)
+) -> Result<RuntimeOptions, RuntimeReceiptSigningError> {
+    Ok(RuntimeOptions::new(
+        std::env::vars().collect(),
+        test_signature_config()?,
+        run,
+    ))
 }
 
-pub(crate) fn local_harness_options() -> HarnessOptions {
-    let mut options = HarnessOptions::local_development(std::env::vars().collect());
+/// A run sealed under the public fixture identity.
+pub(crate) fn fixture_runtime_options(
+    env: BTreeMap<String, String>,
+    run: RunLog,
+) -> Result<RuntimeOptions, RuntimeReceiptSigningError> {
+    Ok(RuntimeOptions::new(
+        env,
+        RuntimeReceiptSignatureConfig::fixture()?,
+        run,
+    ))
+}
+
+pub(crate) fn harness_options() -> Result<HarnessOptions, runx_runtime::RuntimeError> {
+    let mut options = HarnessOptions::new(std::env::vars().collect())?;
     options.created_at = TEST_CREATED_AT.to_owned();
-    options
+    Ok(options)
 }
 
 pub(crate) fn read_test_signed_receipt(
@@ -117,7 +154,7 @@ pub(crate) fn read_test_signed_receipt(
 ) -> Result<Receipt, Box<dyn std::error::Error>> {
     let signature_config = test_signature_config()?;
     Ok(LocalReceiptStore::new(receipt_dir)
-        .read_exact_with_policy(receipt_id, signature_config.signature_policy())?)
+        .read_exact(receipt_id, signature_config.signature_policy())?)
 }
 
 /// The graph receipt's first step receipt: where a one-step runner's act lives.

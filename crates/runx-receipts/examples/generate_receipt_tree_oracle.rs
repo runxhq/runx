@@ -255,7 +255,7 @@ fn base(id: &str) -> Receipt {
         },
         signature: ReceiptSignature {
             alg: SignatureAlgorithm::Ed25519,
-            value: "sig:pending".into(),
+            value: "unsealed".into(),
         },
         digest: format!("sha256:{}", "9".repeat(64)).into(),
         subject: Subject {
@@ -264,7 +264,7 @@ fn base(id: &str) -> Receipt {
             outcome: runx_contracts::connector::Digest::of(id.as_bytes()),
         },
         authority: ReceiptAuthority {
-            actor_ref: Reference::runx(ReferenceType::Principal, "local_runtime"),
+            actor_ref: None,
             grant_refs: Vec::new(),
             scope_refs: Vec::new(),
             terms: Vec::new(),

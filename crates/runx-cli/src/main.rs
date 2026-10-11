@@ -8,7 +8,7 @@ use std::process::ExitCode;
 
 use runx_cli::router::{HarnessPlan, RouterAction, command_help_text, help_text};
 
-const HARNESS_SIGNING_HINT: &str = "runx: hint: harnesses seal signed receipts; set RUNX_RECEIPT_SIGN_KID, RUNX_RECEIPT_SIGN_ED25519_SEED_BASE64, and RUNX_RECEIPT_SIGN_ISSUER_TYPE together, or unset all three to use local-development receipts.";
+const HARNESS_SIGNING_HINT: &str = "runx: hint: harnesses seal signed receipts; set RUNX_RECEIPT_SIGN_KID, RUNX_RECEIPT_SIGN_ED25519_SEED_BASE64, and RUNX_RECEIPT_SIGN_ISSUER_TYPE together, or unset all three to sign with this home's local key.";
 const HARNESS_STALE_RECEIPT_STORE_HINT: &str = "runx: hint: the receipt store contains entries that do not verify with the current issuer; retry with --receipt-dir .runx/harness-receipts for an isolated project-local harness run.";
 
 fn main() -> ExitCode {
@@ -450,9 +450,9 @@ fn package_harness_report_hint(
 }
 
 fn is_receipt_signing_error(message: &str) -> bool {
-    message.contains("governed runtime receipt signing requires")
-        || message.contains("production receipt signing requires")
-        || message.contains("production receipt signer")
+    message.contains("configured receipt signing requires")
+        || message.contains("receipt signer key material")
+        || message.contains("receipt signer issuer type")
 }
 
 fn write_stdout(message: &str) -> ExitCode {
@@ -511,7 +511,7 @@ mod tests {
     #[test]
     fn package_harness_report_hint_recognizes_missing_signer() {
         let report = failed_package_harness_report(
-            "smoke: skill run failed: governed runtime receipt signing requires RUNX_RECEIPT_SIGN_KID, RUNX_RECEIPT_SIGN_ED25519_SEED_BASE64, and RUNX_RECEIPT_SIGN_ISSUER_TYPE",
+            "smoke: skill run failed: configured receipt signing requires RUNX_RECEIPT_SIGN_KID, RUNX_RECEIPT_SIGN_ED25519_SEED_BASE64, and RUNX_RECEIPT_SIGN_ISSUER_TYPE to be set together",
         );
 
         assert_eq!(

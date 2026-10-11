@@ -83,7 +83,7 @@ export function createRunxClient(configuration: RunxClientConfig): RunxClient {
     },
     receipts: {
       verify: async (options) => {
-        const output = parseJson(await execute(["verify", "--receipt", "-", ...(options.allowLocalDevelopmentSignatures ? ["--allow-local-development-signatures"] : []), "--json"], options, options.receipt), [0, 3]);
+        const output = parseJson(await execute(["verify", "--receipt", "-", "--trust", options.trust ?? "home", "--json"], options, options.receipt), [0, 3]);
         if (output.schema !== "runx.verify_verdict.v1" || typeof output.valid !== "boolean" || (output.receipt_id !== null && typeof output.receipt_id !== "string")) throw new RunxClientError("contract", "Invalid native receipt verification verdict.");
         return output as ReceiptVerifyOutput;
       },

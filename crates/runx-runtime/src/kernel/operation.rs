@@ -637,7 +637,7 @@ impl RuntimeEffect for OperationEffect {
             request.env,
             request.graph_dir,
         ))
-        .write_receipt_with_policy(request.receipt, request.signature_policy)
+        .write_receipt(request.receipt, request.signature_policy)
         .map_err(|error| state(error.to_string()))?;
         custody
             .finalized(

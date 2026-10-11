@@ -1,3 +1,6 @@
+const ISSUER_TYPES = new Set(["local", "hosted", "ci"]);
+const INDEPENDENT_ISSUERS = new Set(["hosted", "ci"]);
+
 export function admitDispute(inputs) {
   const findings = [];
   const add = (code, message) => findings.push({ code, message });
@@ -41,14 +44,16 @@ export function finalizeResponse(inputs) {
 
   if (context.path === "review") {
     if (!sameSet(requestedIds, expectedReceiptIds)) add("receipt.request_mismatch", "native receipt proof did not evaluate the exact admitted receipt ids");
-    if (receiptProof.decision !== "verified") add("receipt.proof_unverified", "linked receipts require complete production-signature verification");
-    if (verification.signature_mode !== "production") add("receipt.signature_mode", "linked receipts were not checked with a production verifier");
+    if (receiptProof.decision !== "verified") add("receipt.proof_unverified", "linked receipts require complete signature verification");
     if (verification.intact !== true) add("receipt.tree_unverified", "one or more requested receipt trees are incomplete or invalid");
     for (const receiptId of expectedReceiptIds) {
       if (!matchedIds.includes(receiptId)) add("receipt.unresolved", `native receipt store did not resolve receipt: ${receiptId}`);
       const detail = details.find((item) => text(item.id, 256) === receiptId);
       if (!detail) add("receipt.detail_missing", `redacted native detail is missing for receipt: ${receiptId}`);
-      else if (object(detail.verification).status !== "verified") add("receipt.detail_unverified", `receipt detail is not production verified: ${receiptId}`);
+      else if (object(detail.verification).status !== "verified") add("receipt.detail_unverified", `receipt detail is not verified: ${receiptId}`);
+      // A dispute cites receipts a party other than this operator can rely
+      // on: a hosted or CI issuer's, never a runx home's own local key.
+      else if (!INDEPENDENT_ISSUERS.has(detail.issuer_type)) add("receipt.local_issuer", `receipt is not signed by a hosted or CI issuer: ${receiptId}`);
     }
     validateDraft({ context, draft, expectedReceiptIds, add });
   }
@@ -77,7 +82,7 @@ export function finalizeResponse(inputs) {
       receipt_verification: {
         matched_receipt_ids: matchedIds,
         original_receipt_status: details.find((item) => item.id === context.original_receipt_id)?.verification?.status || "unresolved",
-        signature_mode: text(verification.signature_mode, 64) || "unverified",
+        issuer_types: matchedIds.map((receiptId) => details.find((item) => item.id === receiptId)?.issuer_type).filter((issuerType) => ISSUER_TYPES.has(issuerType)),
         tree_status: verification.intact === true ? "intact" : "unverified",
       },
       validation: { status: ready ? "pass" : "fail", findings },

@@ -12,13 +12,13 @@ use runx_runtime::receipts::archive::{
 };
 use runx_runtime::receipts::inspection::inspect_local_receipt;
 use runx_runtime::receipts::{
-    Ed25519ReceiptSigner, Ed25519ReceiptVerifier, RunScope, RuntimeReceiptSignaturePolicy,
-    step_receipt_with_signature_policy,
+    Ed25519ReceiptSigner, Ed25519ReceiptVerifier, FIXTURE_RECEIPT_SEED, RunScope,
+    RuntimeReceiptSignaturePolicy, RuntimeReceiptSigner, step_receipt,
 };
 use runx_runtime::{InvocationOutput, InvocationStatus, LocalReceiptStore, RunxPaths};
 use serde_json::json;
 
-const SIGNED_LOCAL_ACTOR: &str = "runx:principal:local_runtime";
+const ADMITTED_ACTOR: &str = "runx:principal:operator";
 const SIGNED_RUNTIME_SUBJECT: &str = "runx:run:run_receipt-archive#strict-proof";
 const SCOPE: RunScope<'static> = RunScope {
     run_id: "run_receipt-archive",
@@ -37,13 +37,9 @@ fn list(
     store: &LocalReceiptStore,
     workspace: &Path,
     filter: &ReceiptFilter,
+    policy: RuntimeReceiptSignaturePolicy<'_>,
 ) -> Result<ReceiptListing, ReceiptListingError> {
-    list_receipts(
-        store,
-        &paths(workspace),
-        filter,
-        RuntimeReceiptSignaturePolicy::local_development(),
-    )
+    list_receipts(store, &paths(workspace), filter, policy)
 }
 
 #[test]
@@ -52,7 +48,12 @@ fn missing_history_store_projects_empty_safe_result() -> Result<(), Box<dyn std:
     let workspace = temp.path().join("workspace");
     let store = LocalReceiptStore::new(paths(&workspace).receipts());
 
-    let history = list(&store, &workspace, &ReceiptFilter::default())?;
+    let history = list(
+        &store,
+        &workspace,
+        &ReceiptFilter::default(),
+        crate::support::fixture_policy()?,
+    )?;
 
     assert_eq!(history.projector_id, RECEIPT_LISTING_PROJECTOR_ID);
     assert_eq!(history.store_label, ".runx/receipts");
@@ -84,8 +85,8 @@ fn history_lists_receipts_newest_first_with_safe_refs_and_filters()
         "runner-b",
     )?;
     let expected_order = vec![receipt_uri(&new_receipt.id), receipt_uri(&old_receipt.id)];
-    store.write_receipt(&old_receipt)?;
-    store.write_receipt(&new_receipt)?;
+    store.write_receipt(&old_receipt, crate::support::fixture_policy()?)?;
+    store.write_receipt(&new_receipt, crate::support::fixture_policy()?)?;
 
     let history = list(
         &store,
@@ -97,6 +98,7 @@ fn history_lists_receipts_newest_first_with_safe_refs_and_filters()
             limit: Some(2),
             ..ReceiptFilter::default()
         },
+        crate::support::fixture_policy()?,
     )?;
     assert_eq!(
         history
@@ -108,7 +110,8 @@ fn history_lists_receipts_newest_first_with_safe_refs_and_filters()
     );
     assert_eq!(history.receipts[0].subject_ref, SIGNED_RUNTIME_SUBJECT);
     assert_eq!(history.receipts[0].issuer_type, "local");
-    assert_eq!(history.receipts[1].actor, SIGNED_LOCAL_ACTOR);
+    // A step that made no admitted call states no actor.
+    assert_eq!(history.receipts[1].actor, None);
     assert!(
         history.receipts[0]
             .receipt_ref
@@ -123,21 +126,29 @@ fn history_display_identity_ignores_unsigned_metadata() -> Result<(), Box<dyn st
     let temp = TestDir::new()?;
     let workspace = temp.path().join("workspace");
     let store = LocalReceiptStore::new(paths(&workspace).receipts());
-    store.write_receipt(&receipt_with_metadata(
-        InvocationStatus::Success,
-        "rcpt_forged_metadata",
-        "2026-05-18T00:00:01Z",
-        "Forged Skill",
-        "forged-source",
-        "forged-runner",
-    )?)?;
+    store.write_receipt(
+        &receipt_with_metadata(
+            InvocationStatus::Success,
+            "rcpt_forged_metadata",
+            "2026-05-18T00:00:01Z",
+            "Forged Skill",
+            "forged-source",
+            "forged-runner",
+        )?,
+        crate::support::fixture_policy()?,
+    )?;
 
-    let history = list(&store, &workspace, &ReceiptFilter::default())?;
+    let history = list(
+        &store,
+        &workspace,
+        &ReceiptFilter::default(),
+        crate::support::fixture_policy()?,
+    )?;
 
     assert_eq!(history.receipts[0].subject_ref, SIGNED_RUNTIME_SUBJECT);
     assert_eq!(history.receipts[0].name, "receipt-archive");
     assert_eq!(history.receipts[0].issuer_type, "local");
-    assert_eq!(history.receipts[0].actor, SIGNED_LOCAL_ACTOR);
+    assert_eq!(history.receipts[0].actor, None);
     Ok(())
 }
 
@@ -153,9 +164,14 @@ fn receipt_inspection_projects_signed_governance_without_execution_bodies()
         "runx:scope_admission:repo.read",
     ));
     reseal_receipt(&mut receipt)?;
-    store.write_receipt(&receipt)?;
+    store.write_receipt(&receipt, crate::support::fixture_policy()?)?;
 
-    let inspection = inspect_local_receipt(&store, &paths(&workspace), receipt.id.as_str())?;
+    let inspection = inspect_local_receipt(
+        &store,
+        &paths(&workspace),
+        receipt.id.as_str(),
+        crate::support::fixture_policy()?,
+    )?;
     assert_eq!(inspection.receipt.id, receipt.id.to_string());
     assert_eq!(
         inspection.receipt.authority.exercised_scopes[0].scope,
@@ -181,7 +197,7 @@ fn history_filter_matches_actor_status_skill_and_date() -> Result<(), Box<dyn st
     let temp = TestDir::new()?;
     let workspace = temp.path().join("workspace");
     let store = LocalReceiptStore::new(paths(&workspace).receipts());
-    let revision = receipt_with_metadata(
+    let mut revision = receipt_with_metadata(
         InvocationStatus::Success,
         "rcpt_revision",
         "2026-05-18T00:01:00Z",
@@ -189,16 +205,24 @@ fn history_filter_matches_actor_status_skill_and_date() -> Result<(), Box<dyn st
         "local",
         "runner-a",
     )?;
+    revision.authority.actor_ref = Some(Reference::with_uri(
+        ReferenceType::Principal,
+        ADMITTED_ACTOR,
+    ));
+    reseal_receipt(&mut revision)?;
     let revision_id = revision.id.to_string();
-    store.write_receipt(&revision)?;
-    store.write_receipt(&receipt_with_metadata(
-        InvocationStatus::Failure,
-        "rcpt_deploy",
-        "2026-05-19T00:01:00Z",
-        "Deploy Skill",
-        "local",
-        "runner-b",
-    )?)?;
+    store.write_receipt(&revision, crate::support::fixture_policy()?)?;
+    store.write_receipt(
+        &receipt_with_metadata(
+            InvocationStatus::Failure,
+            "rcpt_deploy",
+            "2026-05-19T00:01:00Z",
+            "Deploy Skill",
+            "local",
+            "runner-b",
+        )?,
+        crate::support::fixture_policy()?,
+    )?;
 
     let history = list(
         &store,
@@ -206,10 +230,11 @@ fn history_filter_matches_actor_status_skill_and_date() -> Result<(), Box<dyn st
         &ReceiptFilter {
             skill: Some("receipt-archive".to_owned()),
             status: Some("closed".to_owned()),
-            actor: Some(SIGNED_LOCAL_ACTOR.to_owned()),
+            actor: Some(ADMITTED_ACTOR.to_owned()),
             until: Some("2026-05-18T23:59:59Z".to_owned()),
             ..ReceiptFilter::default()
         },
+        crate::support::fixture_policy()?,
     )?;
 
     assert_eq!(history.receipts.len(), 1);
@@ -233,25 +258,31 @@ fn history_filter_intersects_skill_status_issuer_and_date_range()
         "runner-a",
     )?;
     let matching_id = matching.id.to_string();
-    store.write_receipt(&matching)?;
+    store.write_receipt(&matching, crate::support::fixture_policy()?)?;
 
-    store.write_receipt(&receipt_with_metadata(
-        InvocationStatus::Failure,
-        "rcpt_wrong_status",
-        "2026-05-18T12:30:00Z",
-        "Deploy Skill",
-        "local",
-        "runner-a",
-    )?)?;
+    store.write_receipt(
+        &receipt_with_metadata(
+            InvocationStatus::Failure,
+            "rcpt_wrong_status",
+            "2026-05-18T12:30:00Z",
+            "Deploy Skill",
+            "local",
+            "runner-a",
+        )?,
+        crate::support::fixture_policy()?,
+    )?;
 
-    store.write_receipt(&receipt_with_metadata(
-        InvocationStatus::Success,
-        "rcpt_outside_window",
-        "2026-05-19T00:00:01Z",
-        "Deploy Skill",
-        "local",
-        "runner-a",
-    )?)?;
+    store.write_receipt(
+        &receipt_with_metadata(
+            InvocationStatus::Success,
+            "rcpt_outside_window",
+            "2026-05-19T00:00:01Z",
+            "Deploy Skill",
+            "local",
+            "runner-a",
+        )?,
+        crate::support::fixture_policy()?,
+    )?;
 
     let history = list(
         &store,
@@ -264,6 +295,7 @@ fn history_filter_intersects_skill_status_issuer_and_date_range()
             until: Some("2026-05-19T00:00:00Z".to_owned()),
             ..ReceiptFilter::default()
         },
+        crate::support::fixture_policy()?,
     )?;
 
     assert_eq!(
@@ -289,6 +321,7 @@ fn history_rejects_invalid_date_filters() -> Result<(), Box<dyn std::error::Erro
             since: Some("not-a-date".to_owned()),
             ..ReceiptFilter::default()
         },
+        crate::support::fixture_policy()?,
     );
 
     assert!(matches!(
@@ -305,7 +338,12 @@ fn malformed_history_store_remains_typed_error() -> Result<(), Box<dyn std::erro
     fs::create_dir_all(temp.path())?;
     fs::write(store.receipt_path(&valid_content_receipt_id())?, "{")?;
 
-    let result = list(&store, temp.path(), &ReceiptFilter::default());
+    let result = list(
+        &store,
+        temp.path(),
+        &ReceiptFilter::default(),
+        crate::support::fixture_policy()?,
+    );
 
     assert!(matches!(
         result,
@@ -327,7 +365,12 @@ fn history_projection_fails_structurally_valid_stale_receipt_digest()
     assert!(runx_receipts::verify_receipt(&receipt).valid);
     write_receipt_json(store.root(), &receipt)?;
 
-    let history = list(&store, &workspace, &ReceiptFilter::default())?;
+    let history = list(
+        &store,
+        &workspace,
+        &ReceiptFilter::default(),
+        crate::support::fixture_policy()?,
+    )?;
 
     // History lists every receipt and labels trust (verified/unverified/invalid)
     // rather than failing closed: a structurally-valid but tamper-detected
@@ -343,11 +386,16 @@ fn history_projection_fails_structurally_valid_tampered_receipt_signature()
     let workspace = temp.path().join("workspace");
     let store = LocalReceiptStore::new(paths(&workspace).receipts());
     let mut receipt = generated_runtime_receipt()?;
-    receipt.signature.value = "sig:sha256:tampered".into();
+    receipt.signature.value = format!("base64:{}", "A".repeat(86)).into();
     assert!(runx_receipts::verify_receipt(&receipt).valid);
     write_receipt_json(store.root(), &receipt)?;
 
-    let history = list(&store, &workspace, &ReceiptFilter::default())?;
+    let history = list(
+        &store,
+        &workspace,
+        &ReceiptFilter::default(),
+        crate::support::fixture_policy()?,
+    )?;
 
     // History lists every receipt and labels trust (verified/unverified/invalid)
     // rather than failing closed: a structurally-valid but tamper-detected
@@ -361,8 +409,8 @@ fn runtime_generated_receipts_project_verified() -> Result<(), Box<dyn std::erro
     let temp = TestDir::new()?;
     let workspace = temp.path().join("workspace");
     let store = LocalReceiptStore::new(paths(&workspace).receipts());
-    // "verified" is reserved for production-signed receipts confirmed by a real
-    // verifier; a local pseudo-signature can never earn it (see dod3).
+    // "verified" means the receipt's proof checks under a key the reader
+    // trusts.
     let signer = fixture_signer()?;
     let verifier = fixture_verifier(&signer);
     let receipt = production_generated_receipt(&signer, &verifier)?;
@@ -372,7 +420,7 @@ fn runtime_generated_receipts_project_verified() -> Result<(), Box<dyn std::erro
         &store,
         &paths(&workspace),
         &ReceiptFilter::default(),
-        RuntimeReceiptSignaturePolicy::production(&verifier),
+        RuntimeReceiptSignaturePolicy::verifying(&verifier),
     )?;
     assert_eq!(history.receipts[0].verification.status, "verified");
     Ok(())
@@ -434,6 +482,7 @@ fn generated_runtime_receipt_with(
         &output,
         &claim,
         created_at,
+        crate::support::fixture_policy()?,
     )?;
     reseal_receipt(&mut receipt)?;
     Ok(receipt)
@@ -443,7 +492,8 @@ fn reseal_receipt(receipt: &mut Receipt) -> Result<(), Box<dyn std::error::Error
     receipt.id = runx_receipts::content_addressed_receipt_id(receipt)?.into();
     let digest = runx_receipts::canonical_receipt_body_digest(receipt)?;
     receipt.digest = digest.clone().into();
-    receipt.signature.value = format!("sig:{digest}").into();
+    receipt.signature =
+        Ed25519ReceiptSigner::local(&FIXTURE_RECEIPT_SEED)?.sign_receipt_body(&digest)?;
     Ok(())
 }
 
@@ -460,7 +510,7 @@ fn fixture_signer() -> Result<Ed25519ReceiptSigner, Box<dyn std::error::Error>> 
 }
 
 fn fixture_verifier(signer: &Ed25519ReceiptSigner) -> Ed25519ReceiptVerifier {
-    Ed25519ReceiptVerifier::new([signer.production_key()])
+    Ed25519ReceiptVerifier::new([signer.trusted_key()])
 }
 
 fn production_generated_receipt(
@@ -479,14 +529,14 @@ fn production_generated_receipt(
         .as_object()
         .cloned()
         .ok_or("fixture output must be an object")?;
-    Ok(step_receipt_with_signature_policy(
+    Ok(step_receipt(
         SCOPE,
         "strict-proof",
         1,
         &output,
         &claim,
         "2026-05-18T00:00:01Z",
-        RuntimeReceiptSignaturePolicy::production_signing(signer, verifier),
+        RuntimeReceiptSignaturePolicy::signing(signer, verifier),
     )?)
 }
 

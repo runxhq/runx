@@ -2019,7 +2019,7 @@ pub(super) fn retry_work(
     {
         return Err("retry source instance is no longer configured".to_owned());
     }
-    receipt_tree_has_no_external_authority(&super::receipt_root(workspace), &receipt)?;
+    receipt_tree_has_no_external_authority(workspace, &receipt)?;
     pinned_skill_path(
         workspace,
         &loaded.profile.skill_path(&item.turn.route.skill),
@@ -2061,8 +2061,17 @@ pub(super) fn retry_work(
     Ok(json!({"status":"work_retry_admitted","work_id":work_id,"previous_receipt":receipt}))
 }
 
-fn receipt_tree_has_no_external_authority(root: &Path, receipt_id: &str) -> Result<(), String> {
-    let store = runx_runtime::LocalReceiptStore::new(root);
+fn receipt_tree_has_no_external_authority(
+    workspace: &WorkspaceEnv,
+    receipt_id: &str,
+) -> Result<(), String> {
+    let store = runx_runtime::LocalReceiptStore::new(super::receipt_root(workspace));
+    let verifier = runx_runtime::receipt_verifier(
+        workspace.env(),
+        workspace.paths(),
+        runx_runtime::ReceiptTrust::HomeAndConfigured,
+    )
+    .map_err(|error| format!("reading failed run proof: {error}"))?;
     let mut pending = vec![receipt_id.to_owned()];
     let mut seen = BTreeSet::new();
     while let Some(id) = pending.pop() {
@@ -2070,7 +2079,10 @@ fn receipt_tree_has_no_external_authority(root: &Path, receipt_id: &str) -> Resu
             return Err("failed run receipt tree is cyclic or exceeds the bound".to_owned());
         }
         let receipt = store
-            .read_exact(&id)
+            .read_exact(
+                &id,
+                runx_runtime::RuntimeReceiptSignaturePolicy::verifying(&verifier),
+            )
             .map_err(|error| format!("reading failed run proof: {error}"))?;
         if id == receipt_id
             && !matches!(

@@ -123,23 +123,9 @@ pub fn validate_runtime_receipt_tree(
     root: &Receipt,
     receipts: impl IntoIterator<Item = Receipt>,
     config: ReceiptTreeConfig,
-) -> Result<(), ReceiptVerification> {
-    let verification = verify_runtime_receipt_tree(root, receipts, config);
-    if verification.valid {
-        Ok(())
-    } else {
-        Err(verification)
-    }
-}
-
-pub fn validate_runtime_receipt_tree_with_policy(
-    root: &Receipt,
-    receipts: impl IntoIterator<Item = Receipt>,
-    config: ReceiptTreeConfig,
     signature_policy: RuntimeReceiptSignaturePolicy<'_>,
 ) -> Result<(), ReceiptVerification> {
-    let verification =
-        verify_runtime_receipt_tree_with_policy(root, receipts, config, signature_policy);
+    let verification = verify_runtime_receipt_tree(root, receipts, config, signature_policy);
     if verification.valid {
         Ok(())
     } else {
@@ -147,14 +133,13 @@ pub fn validate_runtime_receipt_tree_with_policy(
     }
 }
 
-pub(crate) fn validate_runtime_receipt_tree_refs_with_policy<'a>(
+pub(crate) fn validate_runtime_receipt_tree_refs<'a>(
     root: &Receipt,
     receipts: impl IntoIterator<Item = &'a Receipt>,
     config: ReceiptTreeConfig,
     signature_policy: RuntimeReceiptSignaturePolicy<'_>,
 ) -> Result<(), ReceiptVerification> {
-    let verification =
-        verify_runtime_receipt_tree_refs_with_policy(root, receipts, config, signature_policy);
+    let verification = verify_runtime_receipt_tree_refs(root, receipts, config, signature_policy);
     if verification.valid {
         Ok(())
     } else {
@@ -167,20 +152,6 @@ pub fn verify_runtime_receipt_tree(
     root: &Receipt,
     receipts: impl IntoIterator<Item = Receipt>,
     config: ReceiptTreeConfig,
-) -> ReceiptVerification {
-    verify_runtime_receipt_tree_with_policy(
-        root,
-        receipts,
-        config,
-        RuntimeReceiptSignaturePolicy::local_development(),
-    )
-}
-
-#[must_use]
-pub fn verify_runtime_receipt_tree_with_policy(
-    root: &Receipt,
-    receipts: impl IntoIterator<Item = Receipt>,
-    config: ReceiptTreeConfig,
     signature_policy: RuntimeReceiptSignaturePolicy<'_>,
 ) -> ReceiptVerification {
     let resolver = RuntimeReceiptResolver::new(receipts);
@@ -188,7 +159,7 @@ pub fn verify_runtime_receipt_tree_with_policy(
     verify_receipt_tree_proof_with_resolver(root, &resolver, config, &proof_contexts)
 }
 
-fn verify_runtime_receipt_tree_refs_with_policy<'a>(
+fn verify_runtime_receipt_tree_refs<'a>(
     root: &Receipt,
     receipts: impl IntoIterator<Item = &'a Receipt>,
     config: ReceiptTreeConfig,

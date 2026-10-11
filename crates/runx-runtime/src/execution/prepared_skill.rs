@@ -1113,10 +1113,12 @@ mod tests {
             .refusal_receipt_id
             .as_deref()
             .ok_or("blocked preparation did not expose its refusal receipt")?;
-        let receipts = crate::services::ReceiptServices::from_env_or_local_development(
-            &prepared.request().env,
-        )?
-        .list_local_receipts(&receipt_dir)?;
+        let receipts =
+            crate::services::ReceiptServices::resolve(&crate::services::WorkspaceEnv::new(
+                prepared.request().env.clone(),
+                prepared.request().cwd.clone(),
+            )?)?
+            .list_local_receipts(&receipt_dir)?;
         assert!(
             receipts
                 .iter()
@@ -1147,10 +1149,12 @@ mod tests {
         let prepared = prepare_skill_run(request, None, PreparedEntryProvenance::default())?;
         assert_eq!(prepared.report().status, PreparedSkillRunStatus::Blocked);
         assert!(prepared.report().refusal_receipt_id.is_some());
-        let receipts = crate::services::ReceiptServices::from_env_or_local_development(
-            &prepared.request().env,
-        )?
-        .list_local_receipts(&receipt_dir)?;
+        let receipts =
+            crate::services::ReceiptServices::resolve(&crate::services::WorkspaceEnv::new(
+                prepared.request().env.clone(),
+                prepared.request().cwd.clone(),
+            )?)?
+            .list_local_receipts(&receipt_dir)?;
         let public = serde_json::to_string(&(prepared.report(), receipts))?;
         assert!(!public.contains(sentinel));
         assert!(public.contains("/secret_ref"));
@@ -1421,9 +1425,11 @@ runners:
     -> Result<(), Box<dyn Error>> {
         use crate::adapter::InvocationOutput;
         use crate::receipts::{
-            RuntimeReceiptSignaturePolicy, SealedCall, StepSeal, StepSealClosure, seal_step,
+            RuntimeReceiptSignatureConfig, SealedCall, StepSeal, StepSealClosure, seal_step,
         };
         use runx_contracts::ClosureDisposition;
+
+        let signature = RuntimeReceiptSignatureConfig::fixture()?;
 
         let mut env = BTreeMap::new();
         env.insert(
@@ -1456,7 +1462,7 @@ runners:
                     }),
                     receipt_metadata: None,
                 },
-                RuntimeReceiptSignaturePolicy::local_development(),
+                signature.signature_policy(),
             )
         };
         let receipt = seal(Some(SealedCall {

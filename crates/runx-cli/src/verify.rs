@@ -11,15 +11,14 @@ use base64::engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD};
 use ring::signature::{ED25519, UnparsedPublicKey};
 use runx_contracts::{Receipt, Reference, ReferenceType, sha256_prefixed};
 use runx_receipts::{
-    ReceiptProofContext, ReceiptVerifySignatureMode, ReceiptVerifyVerdict,
-    SignatureVerificationFailure, SignatureVerifier, receipt_edge_references,
+    ReceiptProofContext, ReceiptVerifyVerdict, receipt_edge_references,
     verify_receipt_document_verdict,
 };
 use runx_runtime::{
     Ed25519ReceiptVerifier, RUNX_RECEIPT_VERIFY_ED25519_PUBLIC_KEY_BASE64_ENV,
-    RUNX_RECEIPT_VERIFY_KID_ENV, ReceiptPathInputs, ReceiptTreeConfig, RuntimeReceiptConfig,
-    RuntimeReceiptSignaturePolicy, receipt_verifier_from_env, resolve_receipt_path,
-    verify_runtime_receipt_tree_with_policy,
+    RUNX_RECEIPT_VERIFY_ISSUER_TYPE_ENV, RUNX_RECEIPT_VERIFY_KID_ENV, ReceiptPathInputs,
+    ReceiptTreeConfig, ReceiptTrust, RuntimeReceiptConfig, RuntimeReceiptSignaturePolicy,
+    RunxPaths, resolve_receipt_path, verify_runtime_receipt_tree,
 };
 use serde::Serialize;
 
@@ -61,8 +60,17 @@ struct ParsedVerifyArgs {
     receipt: Option<ReceiptInput>,
     notary: Option<ReceiptInput>,
     notary_keys: Vec<PathBuf>,
-    allow_local_development_signatures: bool,
+    trust: Option<ReceiptTrust>,
     json: bool,
+}
+
+impl ParsedVerifyArgs {
+    /// The keys a receipt is checked against: the selected home's own key
+    /// and every configured key, unless the caller trusts configured keys
+    /// only.
+    fn trust(&self) -> ReceiptTrust {
+        self.trust.unwrap_or(ReceiptTrust::HomeAndConfigured)
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -74,7 +82,6 @@ enum ReceiptInput {
 #[derive(Clone, Debug, Serialize)]
 struct VerifyReport {
     receipt_dir: String,
-    signature_mode: &'static str,
     trees: Vec<TreeReport>,
     unreadable_files: Vec<FileIssue>,
     valid: bool,
@@ -137,27 +144,16 @@ pub fn run_verify_command_with_stdin<R: Read>(
         return run_notary_verify(input, &parsed.notary_keys, parsed.json, cwd, stdin);
     }
     if let Some(input) = parsed.receipt.as_ref() {
-        return run_single_receipt_verify(
-            input,
-            parsed.json,
-            parsed.allow_local_development_signatures,
-            env,
-            cwd,
-            stdin,
-        );
+        return run_single_receipt_verify(input, parsed.json, parsed.trust(), env, cwd, stdin);
     }
+    let paths = RunxPaths::resolve(env, cwd);
     let receipt_config = RuntimeReceiptConfig::default();
     let resolved = resolve_receipt_path(ReceiptPathInputs {
         explicit_dir: parsed.receipt_dir.as_deref(),
         runtime_config: Some(&receipt_config),
-        paths: &runx_runtime::RunxPaths::resolve(env, cwd),
+        paths: &paths,
     });
-    let verifier = receipt_verifier(env, parsed.allow_local_development_signatures)?;
-    let signature_mode = if verifier.is_some() {
-        "production"
-    } else {
-        "local-development"
-    };
+    let verifier = receipt_verifier(env, &paths, parsed.trust())?;
 
     let (receipts, unreadable_files) = load_receipts(&resolved.path)?;
     let trees = group_trees(&receipts);
@@ -181,10 +177,7 @@ pub fn run_verify_command_with_stdin<R: Read>(
 
     let mut tree_reports = Vec::new();
     for tree in selected {
-        let policy = match verifier.as_ref() {
-            Some(verifier) => RuntimeReceiptSignaturePolicy::production(verifier),
-            None => RuntimeReceiptSignaturePolicy::local_development(),
-        };
+        let policy = RuntimeReceiptSignaturePolicy::verifying(&verifier);
         // Supplied receipts are the candidate children; the root itself is the
         // traversal anchor and must not be offered as its own child.
         let members: Vec<Receipt> = tree
@@ -194,12 +187,8 @@ pub fn run_verify_command_with_stdin<R: Read>(
             .filter_map(|id| receipts.iter().find(|receipt| receipt.id.as_str() == id))
             .cloned()
             .collect();
-        let verification = verify_runtime_receipt_tree_with_policy(
-            &tree.root,
-            members,
-            ReceiptTreeConfig::default(),
-            policy,
-        );
+        let verification =
+            verify_runtime_receipt_tree(&tree.root, members, ReceiptTreeConfig::default(), policy);
         tree_reports.push(TreeReport {
             root_receipt_id: tree.root.id.to_string(),
             receipt_count: tree.member_ids.len(),
@@ -219,7 +208,6 @@ pub fn run_verify_command_with_stdin<R: Read>(
     let valid = tree_reports.iter().all(|tree| tree.valid) && unreadable_files.is_empty();
     let report = VerifyReport {
         receipt_dir: resolved.path.display().to_string(),
-        signature_mode,
         trees: tree_reports,
         unreadable_files,
         valid,
@@ -250,8 +238,14 @@ fn parse_verify_args(args: &[OsString]) -> Result<ParsedVerifyArgs, VerifyCliErr
         };
         match text {
             "--json" | "-j" => parsed.json = true,
-            "--allow-local-development-signatures" => {
-                parsed.allow_local_development_signatures = true;
+            "--trust" => {
+                let value = iter
+                    .next()
+                    .ok_or_else(|| invalid_args("--trust requires home or configured"))?;
+                parsed.trust = Some(parse_trust(value.to_str().unwrap_or_default())?);
+            }
+            other if other.starts_with("--trust=") => {
+                parsed.trust = Some(parse_trust(other.trim_start_matches("--trust="))?);
             }
             "--receipt-dir" => {
                 let value = iter
@@ -325,12 +319,20 @@ fn parse_verify_args(args: &[OsString]) -> Result<ParsedVerifyArgs, VerifyCliErr
             "--notary requires at least one external trusted public key via --notary-key",
         ));
     }
-    if parsed.notary.is_some() && parsed.allow_local_development_signatures {
+    if parsed.notary.is_some() && parsed.trust.is_some() {
         return Err(invalid_args(
-            "--allow-local-development-signatures is only valid for receipt verification",
+            "--trust selects receipt keys; a notary counter-seal is checked against --notary-key",
         ));
     }
     Ok(parsed)
+}
+
+fn parse_trust(value: &str) -> Result<ReceiptTrust, VerifyCliError> {
+    match value {
+        "home" => Ok(ReceiptTrust::HomeAndConfigured),
+        "configured" => Ok(ReceiptTrust::Configured),
+        _ => Err(invalid_args("--trust requires home or configured")),
+    }
 }
 
 fn parse_receipt_input(value: &OsString) -> Result<ReceiptInput, VerifyCliError> {
@@ -354,7 +356,7 @@ fn parse_receipt_input_text(value: &str) -> Result<ReceiptInput, VerifyCliError>
 fn run_single_receipt_verify<R: Read>(
     input: &ReceiptInput,
     json: bool,
-    allow_local_development_signatures: bool,
+    trust: ReceiptTrust,
     env: &BTreeMap<String, String>,
     cwd: &Path,
     stdin: R,
@@ -364,23 +366,14 @@ fn run_single_receipt_verify<R: Read>(
     // keys: you do not need a verifier to report that bytes are not a receipt.
     // Keys are required only to verify the signature of a well-formed receipt.
     let verifier = if runx_receipts::decode_receipt(&document).is_ok() {
-        receipt_verifier(env, allow_local_development_signatures)?
+        receipt_verifier(env, &RunxPaths::resolve(env, cwd), trust)?
     } else {
-        None
+        Ed25519ReceiptVerifier::default()
     };
-    let local_verifier = LocalDevelopmentReceiptVerifier;
-    let (signature_mode, signature_verifier): (ReceiptVerifySignatureMode, &dyn SignatureVerifier) =
-        match verifier.as_ref() {
-            Some(verifier) => (ReceiptVerifySignatureMode::Production, verifier),
-            None => (
-                ReceiptVerifySignatureMode::LocalDevelopment,
-                &local_verifier,
-            ),
-        };
     let context = ReceiptProofContext {
-        signature_verifier: Some(signature_verifier),
+        signature_verifier: Some(&verifier),
     };
-    let verdict = verify_receipt_document_verdict(&document, &context, signature_mode);
+    let verdict = verify_receipt_document_verdict(&document, &context);
     let output = if json {
         format!(
             "{}\n",
@@ -883,17 +876,25 @@ fn render_notary_verdict(verdict: &NotaryVerifyVerdict) -> String {
     output
 }
 
+/// The keys `trust` selects. None at all is an error, not a report of every
+/// signature failing: there is nothing to check a receipt against.
 fn receipt_verifier(
     env: &BTreeMap<String, String>,
-    allow_local_development_signatures: bool,
-) -> Result<Option<Ed25519ReceiptVerifier>, VerifyCliError> {
-    let verifier = receipt_verifier_from_env(env)
-        .map(|resolved| resolved.map(|verifier| verifier.into_verifier()))
+    paths: &RunxPaths,
+    trust: ReceiptTrust,
+) -> Result<Ed25519ReceiptVerifier, VerifyCliError> {
+    let verifier = runx_runtime::receipt_verifier(env, paths, trust)
         .map_err(|error| VerifyCliError::InvalidReceiptVerifier(error.to_string()))?;
-    if verifier.is_none() && !allow_local_development_signatures {
-        return Err(VerifyCliError::InvalidReceiptVerifier(format!(
-            "runx verify requires a trusted receipt verifier. Set both {RUNX_RECEIPT_VERIFY_KID_ENV} and {RUNX_RECEIPT_VERIFY_ED25519_PUBLIC_KEY_BASE64_ENV}, configure a complete RUNX_RECEIPT_SIGN_* identity, or pass --allow-local-development-signatures for local fixture receipts only."
-        )));
+    if verifier.keys().is_empty() {
+        return Err(VerifyCliError::InvalidReceiptVerifier(match trust {
+            ReceiptTrust::HomeAndConfigured => format!(
+                "runx verify has no trusted receipt key: the runx home at {} has no local key, and no verifier is configured. Set {RUNX_RECEIPT_VERIFY_ISSUER_TYPE_ENV}, {RUNX_RECEIPT_VERIFY_KID_ENV} and {RUNX_RECEIPT_VERIFY_ED25519_PUBLIC_KEY_BASE64_ENV} to trust a receipt from another home or host.",
+                paths.home().display()
+            ),
+            ReceiptTrust::Configured => format!(
+                "runx verify --trust configured requires {RUNX_RECEIPT_VERIFY_ISSUER_TYPE_ENV}, {RUNX_RECEIPT_VERIFY_KID_ENV} and {RUNX_RECEIPT_VERIFY_ED25519_PUBLIC_KEY_BASE64_ENV}, or a configured RUNX_RECEIPT_SIGN_* identity."
+            ),
+        }));
     }
     Ok(verifier)
 }
@@ -1081,15 +1082,7 @@ fn referenced_receipt_id(reference: &Reference) -> Option<&str> {
 
 fn render_report(report: &VerifyReport) -> String {
     let mut output = String::new();
-    output.push_str(&format!(
-        "receipt dir: {}\nsignature mode: {}\n",
-        report.receipt_dir, report.signature_mode
-    ));
-    if report.signature_mode == "local-development" {
-        output.push_str(
-            "note: local-development signatures were accepted only because --allow-local-development-signatures was set; set RUNX_RECEIPT_VERIFY_KID and RUNX_RECEIPT_VERIFY_ED25519_PUBLIC_KEY_BASE64 to verify production signatures\n",
-        );
-    }
+    output.push_str(&format!("receipt dir: {}\n", report.receipt_dir));
     if report.trees.is_empty() {
         output.push_str("no receipts found\n");
     }
@@ -1133,8 +1126,12 @@ fn render_single_receipt_verdict(verdict: &ReceiptVerifyVerdict) -> String {
         verdict.receipt_id.as_deref().unwrap_or("<unparsed>")
     ));
     output.push_str(&format!(
-        "signature: {} ({})\n",
-        verdict.signature.status, verdict.signature.mode
+        "signature: {}{}\n",
+        verdict.signature.status,
+        match (&verdict.signature.issuer_type, &verdict.signature.kid) {
+            (Some(issuer_type), Some(kid)) => format!(" ({} key {kid})", issuer_type.label()),
+            _ => String::new(),
+        }
     ));
     output.push_str(&format!("digest: {}\n", verdict.digest.status));
     output.push_str(&format!(
@@ -1162,26 +1159,6 @@ fn render_single_receipt_verdict(verdict: &ReceiptVerifyVerdict) -> String {
     output
 }
 
-struct LocalDevelopmentReceiptVerifier;
-
-impl SignatureVerifier for LocalDevelopmentReceiptVerifier {
-    fn verify(
-        &self,
-        _issuer: &runx_contracts::ReceiptIssuer,
-        signature: &runx_contracts::ReceiptSignature,
-        body_digest: &str,
-    ) -> Result<(), SignatureVerificationFailure> {
-        if !signature.value.starts_with("sig:sha256:") {
-            return Err(SignatureVerificationFailure::MalformedSignature);
-        }
-        if signature.value == format!("sig:{body_digest}") {
-            Ok(())
-        } else {
-            Err(SignatureVerificationFailure::SignatureMismatch)
-        }
-    }
-}
-
 fn single_receipt_too_large() -> VerifyCliError {
     invalid_args(format!(
         "--receipt input exceeds {SINGLE_RECEIPT_MAX_BYTES} bytes"
@@ -1200,7 +1177,7 @@ mod tests {
     use super::*;
     use ring::signature::KeyPair;
     use runx_contracts::ReceiptIssuerType;
-    use runx_runtime::receipts::step_receipt_with_signature_policy;
+    use runx_runtime::receipts::step_receipt;
     use runx_runtime::{
         Ed25519ReceiptSigner, InvocationOutput, LocalReceiptStore,
         RUNX_RECEIPT_SIGN_ED25519_SEED_BASE64_ENV, RUNX_RECEIPT_SIGN_ISSUER_TYPE_ENV,
@@ -1217,6 +1194,12 @@ mod tests {
 
     #[derive(Debug, Deserialize)]
     struct CorpusVerifier {
+        keys: Vec<CorpusKey>,
+    }
+
+    #[derive(Debug, Deserialize)]
+    struct CorpusKey {
+        issuer_type: String,
         kid: String,
         public_key_base64: String,
     }
@@ -1226,22 +1209,22 @@ mod tests {
         name: String,
         receipt: String,
         expected: String,
-        signature_mode: String,
+        issuer_type: Option<String>,
     }
 
     #[test]
-    fn verifies_production_signed_receipt_store_from_verifier_or_signer_environment()
-    -> Result<(), io::Error> {
+    fn verifies_signed_receipt_store_from_verifier_or_signer_environment() -> Result<(), io::Error>
+    {
         let temp = tempfile_dir()?;
         let receipt_dir = temp.join("receipts");
         let signer = fixture_signer().map_err(io::Error::other)?;
-        let verifier = Ed25519ReceiptVerifier::new([signer.production_key()]);
+        let verifier = Ed25519ReceiptVerifier::new([signer.trusted_key()]);
         let receipt = production_signed_receipt(&signer)
             .map_err(|error| io::Error::other(error.to_string()))?;
         LocalReceiptStore::new(&receipt_dir)
-            .write_receipt_with_policy(
+            .write_receipt(
                 &receipt,
-                RuntimeReceiptSignaturePolicy::production(&verifier),
+                RuntimeReceiptSignaturePolicy::verifying(&verifier),
             )
             .map_err(|error| io::Error::other(error.to_string()))?;
 
@@ -1266,7 +1249,6 @@ mod tests {
             let report: JsonValue =
                 serde_json::from_str(&result.output).map_err(io::Error::other)?;
             assert_eq!(report["valid"], JsonValue::Bool(true));
-            assert_eq!(report["signature_mode"], "production");
         }
         Ok(())
     }
@@ -1276,13 +1258,13 @@ mod tests {
         let temp = tempfile_dir()?;
         let receipt_dir = temp.join("receipts");
         let signer = fixture_signer().map_err(io::Error::other)?;
-        let verifier = Ed25519ReceiptVerifier::new([signer.production_key()]);
+        let verifier = Ed25519ReceiptVerifier::new([signer.trusted_key()]);
         let receipt = production_signed_receipt(&signer)
             .map_err(|error| io::Error::other(error.to_string()))?;
         LocalReceiptStore::new(&receipt_dir)
-            .write_receipt_with_policy(
+            .write_receipt(
                 &receipt,
-                RuntimeReceiptSignaturePolicy::production(&verifier),
+                RuntimeReceiptSignaturePolicy::verifying(&verifier),
             )
             .map_err(|error| io::Error::other(error.to_string()))?;
         fs::write(
@@ -1342,13 +1324,13 @@ mod tests {
         let temp = tempfile_dir()?;
         let receipt_dir = temp.join("receipts");
         let signer = fixture_signer().map_err(io::Error::other)?;
-        let verifier = Ed25519ReceiptVerifier::new([signer.production_key()]);
+        let verifier = Ed25519ReceiptVerifier::new([signer.trusted_key()]);
         let receipt = production_signed_receipt(&signer)
             .map_err(|error| io::Error::other(error.to_string()))?;
         LocalReceiptStore::new(&receipt_dir)
-            .write_receipt_with_policy(
+            .write_receipt(
                 &receipt,
-                RuntimeReceiptSignaturePolicy::production(&verifier),
+                RuntimeReceiptSignaturePolicy::verifying(&verifier),
             )
             .map_err(|error| io::Error::other(error.to_string()))?;
 
@@ -1386,15 +1368,15 @@ mod tests {
         let temp = tempfile_dir()?;
         let receipt_dir = temp.join("receipts");
         fs::create_dir_all(&receipt_dir)?;
+        let signer = fixture_signer().map_err(io::Error::other)?;
         let error = match run_verify_command(
             &[
                 "verify".into(),
-                "--allow-local-development-signatures".into(),
                 "receipt_missing".into(),
                 "--receipt-dir".into(),
                 receipt_dir.into_os_string(),
             ],
-            &BTreeMap::new(),
+            &verifier_env(&signer),
             &temp,
         ) {
             Ok(result) => {
@@ -1405,7 +1387,10 @@ mod tests {
             }
             Err(error) => error,
         };
-        assert!(matches!(error, VerifyCliError::InvalidArgs(_)));
+        assert!(
+            matches!(&error, VerifyCliError::InvalidArgs(message) if message.contains("was not found")),
+            "expected an unknown receipt id error, got {error}"
+        );
         Ok(())
     }
 
@@ -1445,7 +1430,7 @@ mod tests {
             verdict["receipt_id"],
             JsonValue::String(receipt.id.to_string())
         );
-        assert_eq!(verdict["signature"]["mode"], "production");
+        assert_eq!(verdict["signature"]["issuer_type"], "hosted");
         assert_eq!(verdict["signature"]["status"], "valid");
         assert_eq!(verdict["digest"]["status"], "valid");
         assert_eq!(verdict["content_address"]["status"], "valid");
@@ -1516,7 +1501,7 @@ mod tests {
             Err(error) => error,
         };
         assert!(
-            matches!(error, VerifyCliError::InvalidReceiptVerifier(message) if message.contains("requires a trusted receipt verifier"))
+            matches!(error, VerifyCliError::InvalidReceiptVerifier(message) if message.contains("has no trusted receipt key"))
         );
         Ok(())
     }
@@ -1868,22 +1853,19 @@ mod tests {
     #[test]
     fn receipt_verify_corpus_replays_through_cli_surface() -> Result<(), io::Error> {
         let root = PathBuf::from(CORPUS_ROOT);
-        let production_env = corpus_production_env(&root)?;
         for (case_dir, case) in corpus_cases(&root)? {
-            let env = if case.signature_mode == "production" {
-                production_env.clone()
-            } else {
-                BTreeMap::new()
+            // Each case is verified under the corpus key its receipt names,
+            // configured as an operator configures one.
+            let env = match &case.issuer_type {
+                Some(issuer_type) => corpus_key_env(&root, issuer_type)?,
+                None => BTreeMap::new(),
             };
-            let mut args = vec!["verify".into()];
-            if case.signature_mode == "local-development" {
-                args.push("--allow-local-development-signatures".into());
-            }
-            args.extend([
+            let args = vec![
+                "verify".into(),
                 "--receipt".into(),
                 case_dir.join(&case.receipt).into_os_string(),
                 "--json".into(),
-            ]);
+            ];
             let result = run_verify_command(&args, &env, &root)
                 .map_err(|error| io::Error::other(error.to_string()))?;
             let actual: JsonValue =
@@ -1901,15 +1883,194 @@ mod tests {
         Ok(())
     }
 
-    fn corpus_production_env(root: &Path) -> Result<BTreeMap<String, String>, io::Error> {
+    #[cfg(unix)]
+    #[test]
+    fn verifies_selected_home_local_receipt() -> Result<(), io::Error> {
+        let temp = tempfile_dir()?;
+        let env = home_env(&temp.join("home"));
+        let receipt = home_signed_receipt(&env, &temp)?;
+        let receipt_file = temp.join("receipt.json");
+        fs::write(
+            &receipt_file,
+            serde_json::to_vec(&receipt).map_err(io::Error::other)?,
+        )?;
+
+        let result = verify_receipt_file(&receipt_file, &env, &temp, &[])
+            .map_err(|error| io::Error::other(error.to_string()))?;
+
+        assert!(
+            !result.failed,
+            "home receipt must verify: {}",
+            result.output
+        );
+        let verdict: JsonValue = serde_json::from_str(&result.output).map_err(io::Error::other)?;
+        assert_eq!(verdict["signature"]["issuer_type"], "local");
+        assert_eq!(verdict["signature"]["kid"], receipt.issuer.kid.as_str());
+        Ok(())
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn moved_local_receipt_requires_explicit_public_key() -> Result<(), io::Error> {
+        let temp = tempfile_dir()?;
+        let source = home_env(&temp.join("source-home"));
+        let receipt = home_signed_receipt(&source, &temp)?;
+        let receipt_file = temp.join("receipt.json");
+        fs::write(
+            &receipt_file,
+            serde_json::to_vec(&receipt).map_err(io::Error::other)?,
+        )?;
+
+        // Another home, with a key of its own, does not trust it.
+        let mut destination = home_env(&temp.join("destination-home"));
+        home_signed_receipt(&destination, &temp)?;
+        let untrusted = verify_receipt_file(&receipt_file, &destination, &temp, &[])
+            .map_err(|error| io::Error::other(error.to_string()))?;
+        assert!(untrusted.failed);
+        assert!(untrusted.output.contains("signature_key_missing"));
+
+        // Its public key, configured explicitly, does.
+        let public_key = runx_runtime::receipt_trust(
+            &source,
+            &runx_runtime::RunxPaths::resolve(&source, &temp),
+            ReceiptTrust::HomeAndConfigured,
+        )
+        .map_err(io::Error::other)?
+        .pop()
+        .ok_or_else(|| io::Error::other("the source home has no key"))?
+        .key;
+        destination.extend(trust_env(
+            "local",
+            public_key.kid(),
+            public_key.public_key(),
+        ));
+        let trusted = verify_receipt_file(&receipt_file, &destination, &temp, &[])
+            .map_err(|error| io::Error::other(error.to_string()))?;
+        assert!(
+            !trusted.failed,
+            "configured key must verify: {}",
+            trusted.output
+        );
+        Ok(())
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn configured_only_trust_rejects_local_receipt() -> Result<(), io::Error> {
+        let temp = tempfile_dir()?;
+        let mut env = home_env(&temp.join("home"));
+        let receipt = home_signed_receipt(&env, &temp)?;
+        let receipt_file = temp.join("receipt.json");
+        fs::write(
+            &receipt_file,
+            serde_json::to_vec(&receipt).map_err(io::Error::other)?,
+        )?;
+
+        let Err(VerifyCliError::InvalidReceiptVerifier(message)) =
+            verify_receipt_file(&receipt_file, &env, &temp, &["--trust", "configured"])
+        else {
+            return Err(io::Error::other(
+                "configured trust must not fall back to the home key",
+            ));
+        };
+        assert!(message.contains("--trust configured requires"));
+
+        let signer = fixture_signer().map_err(io::Error::other)?;
+        env.extend(verifier_env(&signer));
+        let result = verify_receipt_file(&receipt_file, &env, &temp, &["--trust", "configured"])
+            .map_err(|error| io::Error::other(error.to_string()))?;
+        assert!(result.failed);
+        assert!(result.output.contains("signature_key_missing"));
+        Ok(())
+    }
+
+    fn home_env(home: &Path) -> BTreeMap<String, String> {
+        BTreeMap::from([(
+            runx_runtime::RUNX_HOME_ENV.to_owned(),
+            home.display().to_string(),
+        )])
+    }
+
+    /// A receipt sealed under the home `env` selects, its key created on
+    /// first use.
+    fn home_signed_receipt(
+        env: &BTreeMap<String, String>,
+        cwd: &Path,
+    ) -> Result<Receipt, io::Error> {
+        let signature = runx_runtime::RuntimeReceiptSignatureConfig::resolve(
+            env,
+            &runx_runtime::RunxPaths::resolve(env, cwd),
+        )
+        .map_err(io::Error::other)?;
+        step_receipt(
+            runx_runtime::receipts::RunScope {
+                run_id: "run_cli-home",
+                graph_name: "cli-home",
+            },
+            "home-signed",
+            1,
+            &InvocationOutput::runtime_success(
+                runx_contracts::JsonValue::Object(BTreeMap::new()),
+                1,
+            ),
+            &BTreeMap::new(),
+            "2026-10-11T00:00:00Z",
+            signature.signature_policy(),
+        )
+        .map_err(|error| io::Error::other(error.to_string()))
+    }
+
+    fn verify_receipt_file(
+        receipt_file: &Path,
+        env: &BTreeMap<String, String>,
+        cwd: &Path,
+        extra: &[&str],
+    ) -> Result<VerifyCliResult, VerifyCliError> {
+        let mut args: Vec<OsString> = vec![
+            "verify".into(),
+            "--receipt".into(),
+            receipt_file.as_os_str().to_owned(),
+            "--json".into(),
+        ];
+        args.extend(extra.iter().map(OsString::from));
+        run_verify_command(&args, env, cwd)
+    }
+
+    fn trust_env(issuer_type: &str, kid: &str, public_key: &[u8]) -> BTreeMap<String, String> {
+        BTreeMap::from([
+            (
+                RUNX_RECEIPT_VERIFY_ISSUER_TYPE_ENV.to_owned(),
+                issuer_type.to_owned(),
+            ),
+            (RUNX_RECEIPT_VERIFY_KID_ENV.to_owned(), kid.to_owned()),
+            (
+                RUNX_RECEIPT_VERIFY_ED25519_PUBLIC_KEY_BASE64_ENV.to_owned(),
+                base64_standard(public_key),
+            ),
+        ])
+    }
+
+    fn corpus_key_env(
+        root: &Path,
+        issuer_type: &str,
+    ) -> Result<BTreeMap<String, String>, io::Error> {
         let verifier: CorpusVerifier =
             serde_json::from_str(&fs::read_to_string(root.join("verifier.json"))?)
                 .map_err(io::Error::other)?;
+        let key = verifier
+            .keys
+            .into_iter()
+            .find(|key| key.issuer_type == issuer_type)
+            .ok_or_else(|| io::Error::other("the corpus has no key of that issuer type"))?;
         Ok(BTreeMap::from([
-            (RUNX_RECEIPT_VERIFY_KID_ENV.to_owned(), verifier.kid),
+            (
+                RUNX_RECEIPT_VERIFY_ISSUER_TYPE_ENV.to_owned(),
+                key.issuer_type,
+            ),
+            (RUNX_RECEIPT_VERIFY_KID_ENV.to_owned(), key.kid),
             (
                 RUNX_RECEIPT_VERIFY_ED25519_PUBLIC_KEY_BASE64_ENV.to_owned(),
-                verifier.public_key_base64,
+                key.public_key_base64,
             ),
         ]))
     }
@@ -1939,16 +2100,7 @@ mod tests {
     }
 
     fn verifier_env(signer: &Ed25519ReceiptSigner) -> BTreeMap<String, String> {
-        BTreeMap::from([
-            (
-                RUNX_RECEIPT_VERIFY_KID_ENV.to_owned(),
-                FIXTURE_KID.to_owned(),
-            ),
-            (
-                RUNX_RECEIPT_VERIFY_ED25519_PUBLIC_KEY_BASE64_ENV.to_owned(),
-                base64_standard(signer.public_key()),
-            ),
-        ])
+        trust_env("hosted", FIXTURE_KID, signer.public_key())
     }
 
     fn signer_env() -> BTreeMap<String, String> {
@@ -1970,7 +2122,7 @@ mod tests {
     }
 
     fn production_signed_receipt(signer: &Ed25519ReceiptSigner) -> Result<Receipt, RuntimeError> {
-        let verifier = Ed25519ReceiptVerifier::new([signer.production_key()]);
+        let verifier = Ed25519ReceiptVerifier::new([signer.trusted_key()]);
         let output = InvocationOutput::runtime_success(
             runx_contracts::JsonValue::Object(BTreeMap::from([(
                 "message".to_owned(),
@@ -1986,7 +2138,7 @@ mod tests {
                 .ok_or_else(|| RuntimeError::ReceiptInvalid {
                     message: "verify fixture output must be an object".to_owned(),
                 })?;
-        step_receipt_with_signature_policy(
+        step_receipt(
             runx_runtime::receipts::RunScope {
                 run_id: "run_cli-verify",
                 graph_name: "cli-verify",
@@ -1996,7 +2148,7 @@ mod tests {
             &output,
             &claim,
             "2026-06-10T00:00:00Z",
-            RuntimeReceiptSignaturePolicy::production_signing(signer, &verifier),
+            RuntimeReceiptSignaturePolicy::signing(signer, &verifier),
         )
     }
 

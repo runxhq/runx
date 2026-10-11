@@ -875,7 +875,7 @@ where
         {
             continue;
         }
-        crate::receipts::tree::validate_runtime_receipt_tree_with_policy(
+        crate::receipts::tree::validate_runtime_receipt_tree(
             &approval_run.receipt,
             std::iter::empty::<runx_contracts::Receipt>(),
             runx_receipts::ReceiptTreeConfig::default(),

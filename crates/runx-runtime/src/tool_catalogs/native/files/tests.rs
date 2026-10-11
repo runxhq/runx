@@ -292,7 +292,8 @@ fn file_tool_cannot_replace_lock_while_a_receipt_write_waits()
     let workspace = tempfile::tempdir()?;
     let receipt_dir = workspace.path().join("receipts");
     fs::create_dir_all(&receipt_dir)?;
-    crate::LocalReceiptStore::new(&receipt_dir).rebuild_index()?;
+    let signature = crate::receipts::RuntimeReceiptSignatureConfig::fixture()?;
+    crate::LocalReceiptStore::new(&receipt_dir).rebuild_index(signature.signature_policy())?;
     let lock_path = receipt_dir.join(".receipt-store.lock");
     let lock = OpenOptions::new().read(true).write(true).open(&lock_path)?;
     lock.lock_exclusive()?;
@@ -302,9 +303,11 @@ fn file_tool_cannot_replace_lock_while_a_receipt_write_waits()
     let (sender, receiver) = mpsc::channel();
     let worker_root = receipt_dir.clone();
     let worker_started = Arc::clone(&started);
+    let worker_signature = signature.clone();
     let worker = std::thread::spawn(move || {
         worker_started.wait();
-        let result = crate::LocalReceiptStore::new(&worker_root).rebuild_index();
+        let result = crate::LocalReceiptStore::new(&worker_root)
+            .rebuild_index(worker_signature.signature_policy());
         let _ignored = sender.send(result);
     });
     started.wait();

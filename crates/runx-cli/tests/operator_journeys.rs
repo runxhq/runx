@@ -856,7 +856,7 @@ fn assert_receipt_verifies(root: &Path, receipt_dir: &Path, receipt_id: &str) ->
         .arg(receipt_id)
         .arg("--receipt-dir")
         .arg(receipt_dir)
-        .args(["--allow-local-development-signatures", "--json"])
+        .arg("--json")
         .output()?;
     let verify = assert_json(&verify, 0)?;
     assert_eq!(verify["valid"], true);
@@ -893,10 +893,9 @@ fn assert_history_contains_local_receipt(
         .output()?;
     let detail = assert_json(&detail, 0)?;
     assert_eq!(detail["receipt"]["id"], receipt_id);
-    // Inspection does not silently opt into local-development signature
-    // trust. The explicit verify step above proves the receipt; passive
-    // inspection stays fail-closed and labels the local receipt unverified.
-    assert_eq!(detail["receipt"]["verification"]["status"], "unverified");
+    // The run sealed under this home's key, so this home verifies it.
+    assert_eq!(detail["receipt"]["verification"]["status"], "verified");
+    assert_eq!(detail["receipt"]["issuer_type"], "local");
     Ok(history)
 }
 

@@ -93,7 +93,10 @@ pub struct ReceiptEnforcement {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ReceiptAuthority {
-    pub actor_ref: Reference,
+    /// The principal an act was admitted for, when the run was given one.
+    /// A receipt with no admitted actor states none.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub actor_ref: Option<Reference>,
     pub grant_refs: Vec<Reference>,
     pub scope_refs: Vec<Reference>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -154,6 +157,26 @@ pub enum ReceiptIssuerType {
     Local,
     Hosted,
     Ci,
+}
+
+impl ReceiptIssuerType {
+    /// Stable string label, identical to the serde `snake_case` representation.
+    #[must_use]
+    pub fn label(&self) -> &'static str {
+        match self {
+            Self::Local => "local",
+            Self::Hosted => "hosted",
+            Self::Ci => "ci",
+        }
+    }
+
+    /// The issuer type a label names.
+    #[must_use]
+    pub fn from_label(label: &str) -> Option<Self> {
+        [Self::Local, Self::Hosted, Self::Ci]
+            .into_iter()
+            .find(|issuer_type| issuer_type.label() == label)
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]

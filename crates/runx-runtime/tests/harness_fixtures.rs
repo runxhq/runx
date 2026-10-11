@@ -78,9 +78,9 @@ fn parses_harness_graph_fixture_contract() -> Result<(), Box<dyn std::error::Err
     assert_eq!(
         receipt.child_receipt_refs,
         Some(vec![
-            "runx:receipt:sha256:a57873675b9d7e554c4e12d3e804f41af9904d226b820c85aaa7ab5f3213fd39"
+            "runx:receipt:sha256:9e306f67c8356113050d4224c2be3453b0af604fd0bafdf9c0b49e7a013e0aa5"
                 .to_owned(),
-            "runx:receipt:sha256:163be9db290a8acf34176d8d5947d981c01ee6a8b29c0ad2f94729b246c0bb02"
+            "runx:receipt:sha256:b69153cb9170c4bc878a31d0c729d2d0fb91cfccaece4c0d0358dfe701fc11ff"
                 .to_owned()
         ])
     );
@@ -198,7 +198,7 @@ fn harness_setup_refuses_a_receipt_not_in_wire_form() -> Result<(), Box<dyn std:
          setup:\n  receipts:\n    - receipts/seed.json\nexpect:\n  status: sealed\n",
     )?;
 
-    let error = run_harness_fixture_with_adapter(&fixture, TestAdapter, fixture_runtime_options())
+    let error = run_harness_fixture_with_adapter(&fixture, TestAdapter, fixture_runtime_options()?)
         .err()
         .ok_or("a receipt outside its wire form must be refused")?;
     assert!(
@@ -220,14 +220,14 @@ fn run_fixture_with_test_adapter(
     run_harness_fixture_with_adapter(
         fixture_path(relative_path),
         TestAdapter,
-        fixture_runtime_options(),
+        fixture_runtime_options()?,
     )
 }
 
-fn fixture_runtime_options() -> HarnessOptions {
-    let mut options = HarnessOptions::local_development(std::env::vars().collect());
+fn fixture_runtime_options() -> Result<HarnessOptions, runx_runtime::RuntimeError> {
+    let mut options = HarnessOptions::new(std::env::vars().collect())?;
     options.created_at = FIXTURE_CREATED_AT.to_owned();
-    options
+    Ok(options)
 }
 
 struct TestAdapter;

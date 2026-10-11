@@ -6,19 +6,20 @@
 // the Ed25519 signature yourself, with a tool you already have.
 //
 // Usage:
-//   node verify.mjs <receipt.json> [--pubkey <base64-raw-ed25519>] [--seed <base64-32-byte-seed>]
-//   node verify.mjs <receipt.json> [--jwks <jwks-file-or-url>] [--walk-ancestry] [--receipt-dir <dir>]
+//   node verify.mjs <receipt.json> --issuer-type <local|hosted|ci> --kid <kid> --pubkey <base64-raw-ed25519>
+//   node verify.mjs <receipt.json> --jwks <jwks-file-or-url>
+//   [--walk-ancestry] [--receipt-dir <dir>]
 //   [--schema <receipt.schema.json>]  (default: this repository's schemas/receipt.schema.json)
 //
-// If neither --pubkey nor --seed is given, the public demo seed is used (the
-// same throwaway test key the demo signs with). For a real deployment you pass
-// the issuer's published --pubkey and trust nothing else.
+// You name the keys you trust: one issuer type, key id and public key, or a
+// JWKS whose keys each carry a `kid` and an `issuer_type`. A receipt verifies
+// only under a trusted key of its own issuer type and key id; nothing is
+// trusted by default.
 //
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 
-const DEMO_SEED_B64 = "QkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkI="; // public test key
 const MAX_ANCESTRY_DEPTH = 64;
 
 function arg(name) {
@@ -155,14 +156,6 @@ function readReceiptSchema() {
   return JSON.parse(fs.readFileSync(schemaPath, "utf8"));
 }
 
-function publicKeyFromSeed(seedB64) {
-  const seed = Buffer.from(seedB64, "base64");
-  if (seed.length !== 32) throw new Error("seed must be 32 bytes");
-  const pkcs8 = Buffer.concat([Buffer.from("302e020100300506032b657004220420", "hex"), seed]);
-  const priv = crypto.createPrivateKey({ key: pkcs8, format: "der", type: "pkcs8" });
-  return crypto.createPublicKey(priv);
-}
-
 function publicKeyFromRaw(rawB64) {
   return publicKeyFromRawBytes(Buffer.from(rawB64, "base64"));
 }
@@ -173,40 +166,47 @@ function publicKeyFromRawBytes(raw) {
   return crypto.createPublicKey({ key: spki, format: "der", type: "spki" });
 }
 
-function rawPubBytes(keyObj) {
-  return keyObj.export({ format: "der", type: "spki" }).subarray(-32);
-}
-
+const USAGE = "usage: node verify.mjs <receipt.json> (--issuer-type <type> --kid <kid> --pubkey <b64> | --jwks <path-or-url>) [--walk-ancestry] [--receipt-dir <dir>] [--schema <path>]";
 const receiptPath = process.argv[2];
 if (!receiptPath || receiptPath.startsWith("--")) {
-  console.error("usage: node verify.mjs <receipt.json> [--pubkey <b64>] [--seed <b64>] [--jwks <path-or-url>] [--walk-ancestry] [--receipt-dir <dir>] [--schema <path>]");
+  console.error(USAGE);
   process.exit(2);
 }
-let pub;
+let trustedKeys;
 let receiptSchema;
 let walkAncestry = false;
 let ancestryIndex = new Map();
 
-async function resolvePublicKey(receipt) {
-  if (arg("--pubkey")) return publicKeyFromRaw(arg("--pubkey"));
-  if (arg("--jwks")) return publicKeyFromJwks(arg("--jwks"), receipt.issuer);
-  return publicKeyFromSeed(arg("--seed") ?? DEMO_SEED_B64);
+/** The keys the caller trusts, each with the issuer type and key id it signs as. */
+async function resolveTrustedKeys() {
+  if (arg("--pubkey")) {
+    const issuerType = arg("--issuer-type");
+    const kid = arg("--kid");
+    if (!issuerType || !kid) throw new Error("--pubkey requires --issuer-type and --kid");
+    return [trustedKey(issuerType, kid, Buffer.from(arg("--pubkey"), "base64"))];
+  }
+  if (arg("--jwks")) return trustedKeysFromJwks(arg("--jwks"));
+  throw new Error(USAGE);
 }
 
-async function publicKeyFromJwks(locator, issuer) {
+async function trustedKeysFromJwks(locator) {
   const jwks = JSON.parse(await readText(locator));
   if (!Array.isArray(jwks.keys)) {
     throw new Error("JWKS must contain a keys array");
   }
-  for (const key of jwks.keys) {
-    if (key?.kty !== "OKP" || key?.crv !== "Ed25519" || typeof key?.x !== "string") continue;
-    if (issuer?.kid && key.kid !== issuer.kid) continue;
-    const raw = Buffer.from(key.x, "base64url");
-    const keyHash = "sha256:" + crypto.createHash("sha256").update(raw).digest("hex");
-    if (issuer?.public_key_sha256 && keyHash !== issuer.public_key_sha256) continue;
-    return publicKeyFromRawBytes(raw);
-  }
-  throw new Error(`JWKS did not contain Ed25519 key ${issuer?.kid ?? "<unknown>"}`);
+  return jwks.keys
+    .filter((key) => key?.kty === "OKP" && key?.crv === "Ed25519" && typeof key?.x === "string"
+      && typeof key?.kid === "string" && typeof key?.issuer_type === "string")
+    .map((key) => trustedKey(key.issuer_type, key.kid, Buffer.from(key.x, "base64url")));
+}
+
+function trustedKey(issuerType, kid, raw) {
+  return {
+    issuerType,
+    kid,
+    key: publicKeyFromRawBytes(raw),
+    sha256: "sha256:" + crypto.createHash("sha256").update(raw).digest("hex"),
+  };
 }
 
 async function readText(locator) {
@@ -322,10 +322,12 @@ function verifyOne(filePath, depth, seen, receipt) {
   const faults = schemaFaults(receiptSchema, r, "", []);
   check("document has the runx.receipt.v1 shape", faults.length === 0, faults.join("; "));
 
-  // 2. The named key matches the public key we are verifying with.
-  const ourKeyHash = "sha256:" + crypto.createHash("sha256").update(rawPubBytes(pub)).digest("hex");
-  check("issuer key matches the public key", ourKeyHash === r.issuer?.public_key_sha256,
-    `issuer=${r.issuer?.public_key_sha256} ours=${ourKeyHash}`);
+  // 2. The receipt names a key we trust: its issuer type and key id select
+  // it, and the key hash it carries is that key's.
+  const trusted = trustedKeys.find((key) => key.issuerType === r.issuer?.type && key.kid === r.issuer?.kid);
+  check("issuer is a trusted key", Boolean(trusted), `issuer=${r.issuer?.type}/${r.issuer?.kid}`);
+  check("issuer key matches the trusted public key", trusted?.sha256 === r.issuer?.public_key_sha256,
+    `issuer=${r.issuer?.public_key_sha256} trusted=${trusted?.sha256}`);
 
   // 3. The digest is the canonical hash of THIS receipt's body (content binding).
   const recomputed = sha256Prefixed(canon(receiptBody(r)));
@@ -340,8 +342,13 @@ function verifyOne(filePath, depth, seen, receipt) {
   // 5. The Ed25519 signature is valid over that digest.
   let sigOk = false, sigDetail = "";
   try {
-    const sig = Buffer.from(r.signature.value.split("base64:")[1], "base64url");
-    sigOk = sig.length === 64 && crypto.verify(null, Buffer.from(r.digest), pub, sig);
+    // One wire form: "base64:" and the canonical unpadded URL-safe encoding.
+    const encoded = r.signature.value.startsWith("base64:") ? r.signature.value.slice("base64:".length) : "";
+    const sig = Buffer.from(encoded, "base64url");
+    if (!/^[A-Za-z0-9_-]+$/.test(encoded) || sig.toString("base64url") !== encoded) {
+      throw new Error("signature is not base64: canonical unpadded URL-safe Base64");
+    }
+    sigOk = Boolean(trusted) && sig.length === 64 && crypto.verify(null, Buffer.from(r.digest), trusted.key, sig);
     sigDetail = `alg=${r.signature.alg} sigBytes=${sig.length}`;
   } catch (e) { sigDetail = String(e); }
   check("signature is valid over the digest", sigOk, sigDetail);
@@ -378,7 +385,7 @@ function verifyOne(filePath, depth, seen, receipt) {
 async function main() {
   const rootPath = path.resolve(receiptPath);
   const rootReceipt = readReceipt(rootPath);
-  pub = await resolvePublicKey(rootReceipt);
+  trustedKeys = await resolveTrustedKeys();
   receiptSchema = readReceiptSchema();
   walkAncestry = hasFlag("--walk-ancestry");
   const receiptDir = arg("--receipt-dir") ?? path.dirname(rootPath);
@@ -388,8 +395,8 @@ async function main() {
   console.log("");
   console.log(allPass
     ? (walkAncestry
-      ? "VERIFIED: runx signed this receipt tree. Ancestry was walked offline with the Node standard library, trusting nothing from runx."
-      : "VERIFIED: runx signed exactly this receipt content. Verified with the Node standard library, trusting nothing from runx.")
+      ? "VERIFIED: a trusted key signed this receipt tree. Ancestry was walked offline with the Node standard library, trusting nothing from runx."
+      : "VERIFIED: a trusted key signed exactly this receipt content. Verified with the Node standard library, trusting nothing from runx.")
     : "NOT VERIFIED.");
   process.exit(allPass ? 0 : 1);
 }

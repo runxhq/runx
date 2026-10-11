@@ -23,13 +23,11 @@ impl VerifiedReceiptStore {
     pub fn read_exact(&self, receipt_id: &str) -> Result<Receipt, ReceiptStoreError> {
         self.context
             .store()
-            .read_exact_with_policy(receipt_id, self.context.signature_policy())
+            .read_exact(receipt_id, self.context.signature_policy())
     }
 
     pub fn list(&self) -> Result<Vec<Receipt>, ReceiptStoreError> {
-        self.context
-            .store()
-            .list_with_policy(self.context.signature_policy())
+        self.context.store().list(self.context.signature_policy())
     }
 
     pub(crate) fn write_all<'a>(
@@ -38,6 +36,6 @@ impl VerifiedReceiptStore {
     ) -> Result<(), ReceiptStoreError> {
         self.context
             .store()
-            .write_receipts_with_policy(receipts, self.context.signature_policy())
+            .write_receipts(receipts, self.context.signature_policy())
     }
 }

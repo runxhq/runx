@@ -47,9 +47,10 @@ runx skill .\examples\hello-world --message "hello from Windows" --json
 
 The `runx.skill_run.v1` response should report `status: "sealed"` and include a
 `receipt_id`.
-For local development, no production signer is required: when the signer
-environment is absent, runx seals local-development receipts. Publishing and
-hosted verification still require real authority.
+Runx signs every receipt. With no signer configured, it signs with this runx
+home's own Ed25519 key, which it creates at `~/.runx/keys/local-receipt-ed25519.json`
+on the first run, readable only by you, and never replaces. Publishing and
+hosted verification still require a hosted issuer.
 
 ## Inspect The Receipt
 
@@ -69,8 +70,8 @@ does not reproduce the execution input or output body.
 
 ## Production Receipt Signing
 
-For production-trusted receipts, replace the demo key with an Ed25519 signing
-key before running skills, graphs, harness replay, or MCP server calls:
+For receipts a hosted or CI identity signs, configure its Ed25519 signing key
+before running skills, graphs or MCP server calls:
 
 ```bash
 export RUNX_RECEIPT_SIGN_KID="hosted-prod-key"
@@ -79,17 +80,18 @@ export RUNX_RECEIPT_SIGN_ISSUER_TYPE="hosted"
 ```
 
 All three variables must be set together. `RUNX_RECEIPT_SIGN_ISSUER_TYPE` must
-be `hosted` or `ci`; production receipts are never stamped as local issuers.
-When configured, the runtime signs each receipt body digest with Ed25519 and
-writes the matching public key hash in the issuer metadata. `runx history --detail`
-and `runx verify` derive the matching verifier from that complete signing identity,
-so the operator that created local receipts does not configure the same key
+be `hosted` or `ci`; a local identity is only ever the home's own key. When
+configured, the runtime signs each receipt body digest with Ed25519 and writes
+the matching public key hash in the issuer metadata. `runx history --detail`
+and `runx verify` trust this home's own key and the configured signer's public
+key, so the operator that created the receipts does not configure the same key
 twice.
 
-For independent or read-only verification where the signing seed is
-intentionally unavailable, provide the public verification key instead:
+To verify receipts another home or a hosted issuer signed, configure its public
+key, named by issuer type and key id:
 
 ```bash
+export RUNX_RECEIPT_VERIFY_ISSUER_TYPE="hosted"
 export RUNX_RECEIPT_VERIFY_KID="hosted-prod-key"
 export RUNX_RECEIPT_VERIFY_ED25519_PUBLIC_KEY_BASE64="<32-byte-ed25519-public-key-base64>"
 runx history <receipt-id> --detail --json

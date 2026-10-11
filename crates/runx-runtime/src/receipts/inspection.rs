@@ -1,6 +1,6 @@
 use std::collections::BTreeSet;
 
-use runx_contracts::{AuthorityTerm, CriterionBinding, Receipt, Reference};
+use runx_contracts::{AuthorityTerm, CriterionBinding, Receipt, ReceiptIssuerType, Reference};
 use serde::{Deserialize, Serialize};
 
 use super::RuntimeReceiptSignaturePolicy;
@@ -30,6 +30,9 @@ pub struct ReceiptInspection {
     pub subject_ref: String,
     pub created_at: String,
     pub status: String,
+    /// The kind of identity that signed the receipt. A verified local issuer
+    /// is a runx home's own key; whether that suffices is the reader's call.
+    pub issuer_type: ReceiptIssuerType,
     pub verification: ReceiptVerification,
     pub authority: ReceiptAuthorityInspection,
     pub decisions: Vec<ReceiptDecisionInspection>,
@@ -44,7 +47,7 @@ pub struct ReceiptInspection {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ReceiptAuthorityInspection {
-    pub actor_ref: String,
+    pub actor_ref: Option<String>,
     pub grant_refs: Vec<String>,
     pub scope_refs: Vec<String>,
     pub exercised_scopes: Vec<ReceiptExercisedScope>,
@@ -94,19 +97,6 @@ pub fn inspect_local_receipt(
     store: &LocalReceiptStore,
     paths: &RunxPaths,
     receipt_reference: &str,
-) -> Result<ReceiptInspectionProjection, ReceiptStoreError> {
-    inspect_local_receipt_with_policy(
-        store,
-        paths,
-        receipt_reference,
-        RuntimeReceiptSignaturePolicy::local_development(),
-    )
-}
-
-pub fn inspect_local_receipt_with_policy(
-    store: &LocalReceiptStore,
-    paths: &RunxPaths,
-    receipt_reference: &str,
     signature_policy: RuntimeReceiptSignaturePolicy<'_>,
 ) -> Result<ReceiptInspectionProjection, ReceiptStoreError> {
     let receipt_id = exact_receipt_id(receipt_reference);
@@ -116,20 +106,12 @@ pub fn inspect_local_receipt_with_policy(
         schema: RECEIPT_INSPECTION_SCHEMA.to_owned(),
         projector_id: RECEIPT_INSPECTION_PROJECTOR_ID.to_owned(),
         store_label: store_label.as_str().to_owned(),
-        receipt: project_receipt_inspection_with_policy(&receipt, signature_policy),
+        receipt: project_receipt_inspection(&receipt, signature_policy),
     })
 }
 
 #[must_use]
-pub fn project_receipt_inspection(receipt: &Receipt) -> ReceiptInspection {
-    project_receipt_inspection_with_policy(
-        receipt,
-        RuntimeReceiptSignaturePolicy::local_development(),
-    )
-}
-
-#[must_use]
-pub fn project_receipt_inspection_with_policy(
+pub fn project_receipt_inspection(
     receipt: &Receipt,
     signature_policy: RuntimeReceiptSignaturePolicy<'_>,
 ) -> ReceiptInspection {
@@ -144,6 +126,7 @@ pub fn project_receipt_inspection_with_policy(
         subject_ref: receipt.subject.reference.uri.to_string(),
         created_at: receipt.created_at.to_string(),
         status: closure_status(&receipt.seal.disposition),
+        issuer_type: receipt.issuer.issuer_type.clone(),
         verification: ReceiptVerification {
             status: verification_status(receipt, signature_policy),
         },
@@ -245,7 +228,10 @@ fn authority_inspection(receipt: &Receipt) -> ReceiptAuthorityInspection {
         .into_iter()
         .collect();
     ReceiptAuthorityInspection {
-        actor_ref: authority.actor_ref.uri.to_string(),
+        actor_ref: authority
+            .actor_ref
+            .as_ref()
+            .map(|actor| actor.uri.to_string()),
         grant_refs: refs(&authority.grant_refs),
         scope_refs,
         exercised_scopes,

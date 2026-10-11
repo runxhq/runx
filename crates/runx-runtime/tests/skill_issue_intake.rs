@@ -94,7 +94,7 @@ fn run_case(case_name: &str) -> Result<HarnessReplayOutput, Box<dyn std::error::
     Ok(run_harness_fixture_with_adapter(
         case_path(case_name),
         ProcessToolAdapter,
-        crate::support::local_harness_options(),
+        crate::support::harness_options()?,
     )?)
 }
 

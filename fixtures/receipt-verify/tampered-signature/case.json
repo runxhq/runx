@@ -1,6 +1,6 @@
 {
   "expected": "expected.json",
+  "issuer_type": "hosted",
   "name": "tampered-signature",
-  "receipt": "receipt.json",
-  "signature_mode": "production"
+  "receipt": "receipt.json"
 }

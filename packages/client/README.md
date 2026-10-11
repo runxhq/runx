@@ -41,7 +41,7 @@ Directory separation is not an operating-system sandbox.
 | `turns.server({ runId, receiptDir })` | `turn` (started by your MCP client) |
 | `packages.materialize({ skillPath })` | `registry package` |
 | `harness.run({ skillPath, receiptDir })` | `harness` |
-| `receipts.verify({ receipt, allowLocalDevelopmentSignatures? })` | `verify --receipt -` |
+| `receipts.verify({ receipt, trust? })` | `verify --receipt - --trust home\|configured` |
 
 Each operation accepts `signal`. Configuration sets `timeoutMs`, combined
 `maxOutputBytes`, `maxInputBytes`, a total `maxArtifactBytes` budget and

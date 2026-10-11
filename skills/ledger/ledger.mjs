@@ -82,9 +82,7 @@ function packet({ decision, question, query, matched, details, chain, summary })
 
 function chainVerification({ requested, replay, native }) {
   if (!requested) return { checked: false, intact: null, breaks: [] };
-  if (replay || native.signature_mode !== "production") {
-    return { checked: true, intact: null, breaks: [] };
-  }
+  if (replay) return { checked: true, intact: null, breaks: [] };
   const breaks = records(native.findings).map((finding) => ({
     from_receipt_id: stringValue(finding.root_receipt_id) || "",
     to_receipt_id: stringValue(finding.path) || "",
@@ -137,7 +135,7 @@ function projectReceiptDetail(value) {
 function projectAuthority(value) {
   const authority = record(value);
   return {
-    actor_ref: stringValue(authority.actor_ref) || "",
+    actor_ref: stringValue(authority.actor_ref),
     grant_refs: stringArray(authority.grant_refs, 500),
     scope_refs: stringArray(authority.scope_refs, 500),
     exercised_scopes: records(authority.exercised_scopes).map((entry) => ({
@@ -208,7 +206,7 @@ function renderSummary({ decision, matched, chain, proofRequested, query }) {
   }
   const noun = matched.length === 1 ? "receipt" : "receipts";
   if (!proofRequested) return `${matched.length} ${noun} matched the resolved query; chain verification was not requested.`;
-  if (chain.intact === null) return `${matched.length} ${noun} matched the resolved query; the chain is unverified because production verify keys or bounded proof evidence were unavailable.`;
+  if (chain.intact === null) return `${matched.length} ${noun} matched the resolved query; the chain is unverified because bounded proof evidence was unavailable.`;
   if (chain.intact) return `${matched.length} ${noun} matched the resolved query, and the engine's tree-rooted verify verdict is intact.`;
   return `${matched.length} ${noun} matched the resolved query, but the engine's tree-rooted verify verdict reports ${chain.breaks.length} break(s).`;
 }

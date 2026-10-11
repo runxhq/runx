@@ -23,8 +23,8 @@
   "receipt_id": null,
   "schema": "runx.verify_verdict.v1",
   "signature": {
+    "issuer_type": null,
     "kid": null,
-    "mode": "local-development",
     "status": "not_evaluated"
   },
   "valid": false

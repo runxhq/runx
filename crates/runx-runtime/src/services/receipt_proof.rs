@@ -4,10 +4,10 @@ use std::path::Path;
 use runx_contracts::{JsonObject, JsonValue};
 
 use crate::receipts::RuntimeReceiptSignaturePolicy;
-use crate::receipts::inspection::project_receipt_inspection_with_policy;
+use crate::receipts::inspection::project_receipt_inspection;
 use crate::receipts::store::LocalReceiptStore;
 use crate::services::ReceiptReadContext;
-use crate::{ReceiptTreeConfig, RuntimeError, verify_runtime_receipt_tree_with_policy};
+use crate::{ReceiptTreeConfig, RuntimeError, verify_runtime_receipt_tree};
 
 mod projection;
 mod tree;
@@ -43,7 +43,7 @@ impl ProofProjection {
         store_label: &crate::ReceiptStoreLabel,
         policy: RuntimeReceiptSignaturePolicy<'_>,
     ) -> Result<(), RuntimeError> {
-        let root = match store.read_exact_with_policy(receipt_id, policy) {
+        let root = match store.read_exact(receipt_id, policy) {
             Ok(receipt) => receipt,
             Err(error) => {
                 store_finding(&mut self.findings, receipt_id, &error, store_label);
@@ -52,7 +52,7 @@ impl ProofProjection {
         };
         let (children, load_findings) = load_children(store, &root, policy);
         self.findings.extend(load_findings);
-        let verification = verify_runtime_receipt_tree_with_policy(
+        let verification = verify_runtime_receipt_tree(
             &root,
             children.clone(),
             ReceiptTreeConfig::default(),
@@ -60,7 +60,7 @@ impl ProofProjection {
         );
         let tree_findings = tree_findings(&verification.findings);
         self.findings.extend(tree_findings.clone());
-        let inspection = project_receipt_inspection_with_policy(&root, policy);
+        let inspection = project_receipt_inspection(&root, policy);
         self.matched.push(matched_receipt(&inspection));
         self.details.push(to_json_value(&inspection)?);
         self.trees.push(tree_projection(
@@ -112,7 +112,6 @@ pub(crate) fn prove_receipts_with_context(
     Ok(proof_packet(
         receipt_ids,
         projection,
-        context.signature_mode(),
         resolved.label.as_str(),
         complete,
         trees_valid,

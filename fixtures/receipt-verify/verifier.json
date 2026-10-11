@@ -1,4 +1,14 @@
 {
-  "kid": "runx-cli-verify-fixture-key",
-  "public_key_base64": "IBLLkMpg6OXY2vZuInLSIz4EhtVX6MZhQe2JIBd9frc="
+  "keys": [
+    {
+      "issuer_type": "hosted",
+      "kid": "runx-cli-verify-fixture-key",
+      "public_key_base64": "IBLLkMpg6OXY2vZuInLSIz4EhtVX6MZhQe2JIBd9frc="
+    },
+    {
+      "issuer_type": "local",
+      "kid": "local-87ee73837d4ba020e074790b42767a34f435e8ef60f2d4c9daa773b7c4251a40",
+      "public_key_base64": "IBLLkMpg6OXY2vZuInLSIz4EhtVX6MZhQe2JIBd9frc="
+    }
+  ]
 }

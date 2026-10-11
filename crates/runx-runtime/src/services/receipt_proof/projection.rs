@@ -7,15 +7,15 @@ use crate::receipts::inspection::ReceiptInspection;
 pub(super) fn proof_packet(
     receipt_ids: Vec<String>,
     projection: ProofProjection,
-    signature_mode: &str,
     store_label: &str,
     complete: bool,
     trees_valid: bool,
 ) -> JsonObject {
-    let decision = match (signature_mode == "production", complete && trees_valid) {
-        (true, true) => "verified",
-        (false, true) => "unverified",
-        _ => "needs_more_evidence",
+    let intact = complete && trees_valid;
+    let decision = if intact {
+        "verified"
+    } else {
+        "needs_more_evidence"
     };
     let ProofProjection {
         matched,
@@ -23,8 +23,7 @@ pub(super) fn proof_packet(
         trees,
         findings,
     } = projection;
-    let verification =
-        verification_object(signature_mode, complete && trees_valid, trees, findings);
+    let verification = verification_object(intact, trees, findings);
     JsonObject::from([
         (
             "schema".to_owned(),
@@ -52,23 +51,13 @@ pub(super) fn proof_packet(
 }
 
 fn verification_object(
-    signature_mode: &str,
-    verified: bool,
+    intact: bool,
     trees: Vec<JsonValue>,
     findings: Vec<JsonValue>,
 ) -> JsonObject {
-    let intact = if signature_mode == "production" {
-        JsonValue::Bool(verified)
-    } else {
-        JsonValue::Null
-    };
     JsonObject::from([
-        (
-            "signature_mode".to_owned(),
-            JsonValue::String(signature_mode.to_owned()),
-        ),
         ("checked".to_owned(), JsonValue::Bool(true)),
-        ("intact".to_owned(), intact),
+        ("intact".to_owned(), JsonValue::Bool(intact)),
         ("trees".to_owned(), JsonValue::Array(trees)),
         ("findings".to_owned(), JsonValue::Array(findings)),
     ])

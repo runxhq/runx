@@ -9,19 +9,18 @@ use std::path::Path;
 
 use base64::Engine;
 use base64::engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD};
-use ring::signature::{ED25519, Ed25519KeyPair, KeyPair, UnparsedPublicKey};
-use runx_contracts::{
-    Receipt, ReceiptIssuer, ReceiptIssuerType, ReceiptSignature, SignatureAlgorithm,
-    sha256_prefixed,
-};
-use runx_receipts::{
-    ReceiptProofContext, ReceiptVerifySignatureMode, SignatureVerificationFailure,
-    SignatureVerifier, canonical_receipt_body_digest, content_addressed_receipt_id,
-    verify_receipt_document_verdict,
-};
+use runx_contracts::{Receipt, ReceiptIssuerType};
+use runx_receipts::{ReceiptProofContext, verify_receipt_document_verdict};
 
-const FIXTURE_SEED: [u8; 32] = [0x52; 32];
-const FIXTURE_KID: &str = "runx-cli-verify-fixture-key";
+#[path = "../tests/fixture_key.rs"]
+mod fixture_key;
+
+use fixture_key::{FixtureKey, FixtureKeys};
+
+/// The corpus's own key, apart from the harness's: the corpus pins the
+/// verifier, not any one runtime identity.
+const CORPUS_SEED: [u8; 32] = [0x52; 32];
+const HOSTED_KID: &str = "runx-cli-verify-fixture-key";
 
 fn main() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -30,19 +29,23 @@ fn main() {
         .parent()
         .unwrap()
         .join("fixtures/receipt-verify");
-    let key_pair = Ed25519KeyPair::from_seed_unchecked(&FIXTURE_SEED).unwrap();
-    let public_key = key_pair.public_key().as_ref().to_vec();
+    let hosted = FixtureKey::new(CORPUS_SEED, ReceiptIssuerType::Hosted, HOSTED_KID);
+    let local = FixtureKey::local(CORPUS_SEED);
+    let keys = [&hosted, &local].map(|key| {
+        serde_json::json!({
+            "issuer_type": key.issuer().issuer_type,
+            "kid": key.kid(),
+            "public_key_base64": STANDARD.encode(key.public_key()),
+        })
+    });
     write_json(
         &root.join("verifier.json"),
-        &serde_json::json!({
-            "kid": FIXTURE_KID,
-            "public_key_base64": STANDARD.encode(&public_key),
-        }),
+        &serde_json::json!({ "keys": keys }),
     );
 
     let valid_path = root.join("valid-production/receipt.json");
     let mut valid = read_receipt(&valid_path);
-    seal_production(&mut valid, &key_pair);
+    hosted.seal(&mut valid).unwrap();
     write_receipt(&valid_path, &valid);
 
     let mut tampered_body = valid.clone();
@@ -76,7 +79,7 @@ fn main() {
         "issued_by_ref": { "type": "principal", "uri": "runx:principal:local_runtime" },
     }]);
     let mut wide: Receipt = serde_json::from_value(wide).unwrap();
-    seal_production(&mut wide, &key_pair);
+    hosted.seal(&mut wide).unwrap();
     write_receipt(&root.join("valid-wide-keys/receipt.json"), &wide);
 
     let mut unknown_kid = valid.clone();
@@ -84,11 +87,11 @@ fn main() {
     write_receipt(&root.join("unknown-kid/receipt.json"), &unknown_kid);
 
     let local_path = root.join("broken-lineage-reference/receipt.json");
-    let mut local = read_receipt(&local_path);
-    seal_local(&mut local);
-    write_receipt(&local_path, &local);
+    let mut local_receipt = read_receipt(&local_path);
+    local.seal(&mut local_receipt).unwrap();
+    write_receipt(&local_path, &local_receipt);
 
-    write_expected_verdicts(&root, &public_key);
+    write_expected_verdicts(&root, &FixtureKeys(vec![&hosted, &local]));
     println!("regenerated strict receipt verify corpus");
 }
 
@@ -96,69 +99,21 @@ fn read_receipt(path: &Path) -> Receipt {
     serde_json::from_slice(&fs::read(path).unwrap()).unwrap()
 }
 
-fn seal_local(receipt: &mut Receipt) {
-    receipt.issuer.issuer_type = ReceiptIssuerType::Local;
-    receipt.signature = ReceiptSignature {
-        alg: SignatureAlgorithm::Ed25519,
-        value: "sig:pending".into(),
+fn write_expected_verdicts(root: &Path, keys: &FixtureKeys<'_>) {
+    let context = ReceiptProofContext {
+        signature_verifier: Some(keys),
     };
-    receipt.id = content_addressed_receipt_id(receipt).unwrap().into();
-    let digest = canonical_receipt_body_digest(receipt).unwrap();
-    receipt.digest = digest.clone().into();
-    receipt.signature.value = format!("sig:{digest}").into();
-}
-
-fn seal_production(receipt: &mut Receipt, key_pair: &Ed25519KeyPair) {
-    let public_key = key_pair.public_key().as_ref();
-    receipt.issuer = ReceiptIssuer {
-        issuer_type: ReceiptIssuerType::Hosted,
-        kid: FIXTURE_KID.into(),
-        public_key_sha256: sha256_prefixed(public_key).into(),
-    };
-    receipt.signature = ReceiptSignature {
-        alg: SignatureAlgorithm::Ed25519,
-        value: "base64:pending".into(),
-    };
-    receipt.id = content_addressed_receipt_id(receipt).unwrap().into();
-    let digest = canonical_receipt_body_digest(receipt).unwrap();
-    receipt.digest = digest.clone().into();
-    receipt.signature.value = format!(
-        "base64:{}",
-        URL_SAFE_NO_PAD.encode(key_pair.sign(digest.as_bytes()).as_ref())
-    )
-    .into();
-}
-
-fn write_expected_verdicts(root: &Path, public_key: &[u8]) {
-    let production = CorpusVerifier {
-        kid: FIXTURE_KID,
-        public_key,
-    };
-    let local = LocalVerifier;
-    for (name, mode) in [
-        ("valid-production", ReceiptVerifySignatureMode::Production),
-        ("valid-wide-keys", ReceiptVerifySignatureMode::Production),
-        ("tampered-body", ReceiptVerifySignatureMode::Production),
-        ("tampered-signature", ReceiptVerifySignatureMode::Production),
-        ("unknown-kid", ReceiptVerifySignatureMode::Production),
-        (
-            "broken-lineage-reference",
-            ReceiptVerifySignatureMode::LocalDevelopment,
-        ),
-        (
-            "malformed-json",
-            ReceiptVerifySignatureMode::LocalDevelopment,
-        ),
+    for name in [
+        "valid-production",
+        "valid-wide-keys",
+        "tampered-body",
+        "tampered-signature",
+        "unknown-kid",
+        "broken-lineage-reference",
+        "malformed-json",
     ] {
         let bytes = fs::read(root.join(name).join("receipt.json")).unwrap();
-        let context = ReceiptProofContext {
-            signature_verifier: Some(if mode == ReceiptVerifySignatureMode::Production {
-                &production
-            } else {
-                &local
-            }),
-        };
-        let verdict = verify_receipt_document_verdict(&bytes, &context, mode);
+        let verdict = verify_receipt_document_verdict(&bytes, &context);
         write_json(
             &root.join(name).join("expected.json"),
             &serde_json::to_value(verdict).unwrap(),
@@ -176,52 +131,4 @@ fn write_json(path: &Path, value: &serde_json::Value) {
         format!("{}\n", serde_json::to_string_pretty(value).unwrap()),
     )
     .unwrap();
-}
-
-struct CorpusVerifier<'a> {
-    kid: &'a str,
-    public_key: &'a [u8],
-}
-
-impl SignatureVerifier for CorpusVerifier<'_> {
-    fn verify(
-        &self,
-        issuer: &ReceiptIssuer,
-        signature: &ReceiptSignature,
-        body_digest: &str,
-    ) -> Result<(), SignatureVerificationFailure> {
-        if issuer.kid.as_str() != self.kid {
-            return Err(SignatureVerificationFailure::MissingKey);
-        }
-        if issuer.public_key_sha256.as_str() != sha256_prefixed(self.public_key) {
-            return Err(SignatureVerificationFailure::KeyHashMismatch);
-        }
-        let encoded = signature
-            .value
-            .strip_prefix("base64:")
-            .ok_or(SignatureVerificationFailure::MalformedSignature)?;
-        let signature = URL_SAFE_NO_PAD
-            .decode(encoded)
-            .map_err(|_| SignatureVerificationFailure::MalformedSignature)?;
-        UnparsedPublicKey::new(&ED25519, self.public_key)
-            .verify(body_digest.as_bytes(), &signature)
-            .map_err(|_| SignatureVerificationFailure::SignatureMismatch)
-    }
-}
-
-struct LocalVerifier;
-
-impl SignatureVerifier for LocalVerifier {
-    fn verify(
-        &self,
-        _issuer: &ReceiptIssuer,
-        signature: &ReceiptSignature,
-        body_digest: &str,
-    ) -> Result<(), SignatureVerificationFailure> {
-        if signature.value == format!("sig:{body_digest}") {
-            Ok(())
-        } else {
-            Err(SignatureVerificationFailure::SignatureMismatch)
-        }
-    }
 }

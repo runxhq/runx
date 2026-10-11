@@ -60,10 +60,6 @@ const evalBinEnv = {
   RUNX_PAID_INVOCATION_FIXTURES_BIN: rustPaidInvocationFixturesBin,
   RUNX_PRINCIPAL_ID_FIXTURES_BIN: rustPrincipalIdFixturesBin,
   RUNX_X402_FIXTURES_BIN: rustX402FixturesBin,
-  RUNX_RECEIPT_SIGN_KID: process.env.RUNX_RECEIPT_SIGN_KID ?? "verify-fast-test-key",
-  RUNX_RECEIPT_SIGN_ED25519_SEED_BASE64:
-    process.env.RUNX_RECEIPT_SIGN_ED25519_SEED_BASE64 ?? "QkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkI=",
-  RUNX_RECEIPT_SIGN_ISSUER_TYPE: process.env.RUNX_RECEIPT_SIGN_ISSUER_TYPE ?? "hosted",
 };
 const rustBuildEnv = {
   CARGO_BUILD_JOBS: process.env.CARGO_BUILD_JOBS ?? defaultCargoBuildJobs(),

@@ -607,11 +607,6 @@ function harnessEnv(runxBin, tempRoot, workspaceDir) {
     RUNX_TOOL_ROOTS: process.env.RUNX_TOOL_ROOTS
       ? `${process.env.RUNX_TOOL_ROOTS}${path.delimiter}${toolRoots}`
       : toolRoots,
-    RUNX_RECEIPT_SIGN_KID: process.env.RUNX_RECEIPT_SIGN_KID ?? "harness-sweep-test-key",
-    RUNX_RECEIPT_SIGN_ED25519_SEED_BASE64:
-      process.env.RUNX_RECEIPT_SIGN_ED25519_SEED_BASE64
-        ?? "QkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkI=",
-    RUNX_RECEIPT_SIGN_ISSUER_TYPE: process.env.RUNX_RECEIPT_SIGN_ISSUER_TYPE ?? "hosted",
   };
 }
 

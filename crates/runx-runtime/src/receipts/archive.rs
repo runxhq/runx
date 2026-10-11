@@ -59,8 +59,8 @@ pub struct ReceiptRow {
     /// Why the receipt's seal closed as it did.
     pub reason_code: String,
     pub issuer_type: String,
-    /// The actor the receipt's authority names.
-    pub actor: String,
+    /// The actor the receipt's authority names, when it names one.
+    pub actor: Option<String>,
     pub verification: ReceiptVerification,
 }
 
@@ -143,15 +143,11 @@ pub(crate) fn verification_status(
     let context = proof_contexts.proof_context(receipt);
     let verification = verify_receipt_proof(receipt, &context);
     if verification.findings.is_empty() {
-        if signature_policy.can_report_production_verified() {
-            "verified".to_owned()
-        } else {
-            "unverified".to_owned()
-        }
+        "verified".to_owned()
     } else if verification
         .findings
         .iter()
-        .all(|finding| matches!(finding.code, ReceiptFindingCode::SignatureVerifierMissing))
+        .all(|finding| matches!(finding.code, ReceiptFindingCode::SignatureKeyMissing))
     {
         "unverified".to_owned()
     } else {
@@ -228,7 +224,10 @@ impl ResolvedFilter {
                 || subject.contains(query)
                 || row.id.to_lowercase().contains(query)
                 || row.issuer_type.to_lowercase().contains(query)
-                || row.actor.to_lowercase().contains(query)
+                || row
+                    .actor
+                    .as_ref()
+                    .is_some_and(|actor| actor.to_lowercase().contains(query))
         }) && self.skill.as_ref().is_none_or(|skill| name.contains(skill))
             && self
                 .status
@@ -238,10 +237,11 @@ impl ResolvedFilter {
                 .issuer
                 .as_ref()
                 .is_none_or(|issuer| row.issuer_type.to_lowercase() == *issuer)
-            && self
-                .actor
-                .as_ref()
-                .is_none_or(|actor| row.actor.to_lowercase() == *actor)
+            && self.actor.as_ref().is_none_or(|actor| {
+                row.actor
+                    .as_ref()
+                    .is_some_and(|row_actor| row_actor.to_lowercase() == *actor)
+            })
             && self.within_window(&row.created_at)
     }
 

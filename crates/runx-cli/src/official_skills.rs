@@ -112,8 +112,8 @@ pub(crate) const OFFICIAL_SKILLS: &[OfficialSkillLockEntry] = &[
     },
     OfficialSkillLockEntry {
         skill_id: "runx/dispute-respond",
-        version: "sha-1b7a955ff00c",
-        digest: "d75b2930a769cfca66c50a876f508b036d0c96913494fa3995f11bbde614d7cb",
+        version: "sha-75da20d40470",
+        digest: "d8983097f5622263771a2de1494ae0247b746e1159440816c59572291a10826e",
     },
     OfficialSkillLockEntry {
         skill_id: "runx/ecosystem-brief",
@@ -212,8 +212,8 @@ pub(crate) const OFFICIAL_SKILLS: &[OfficialSkillLockEntry] = &[
     },
     OfficialSkillLockEntry {
         skill_id: "runx/ledger",
-        version: "sha-2991bb11a4a6",
-        digest: "3fd036c44b8f43b5df7bc5e8e2305cf0d86f0f019756a0795040c17675d9231b",
+        version: "sha-e89a90179479",
+        digest: "d5066879e42dceaac65cd7cb78ec28a7c679d259b0a986672570e9b59defb548",
     },
     OfficialSkillLockEntry {
         skill_id: "runx/list-hygiene-judge",

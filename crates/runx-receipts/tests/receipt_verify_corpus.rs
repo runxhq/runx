@@ -4,52 +4,60 @@ use std::path::{Path, PathBuf};
 use base64::Engine;
 use base64::engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD};
 use ring::signature::{ED25519, UnparsedPublicKey};
-use runx_contracts::{ReceiptIssuer, ReceiptSignature, sha256_prefixed};
+use runx_contracts::{ReceiptIssuer, ReceiptIssuerType, ReceiptSignature, sha256_prefixed};
 use runx_receipts::{
-    ReceiptProofContext, ReceiptVerifySignatureMode, SignatureVerificationFailure,
-    SignatureVerifier, verify_receipt_document_verdict,
+    ReceiptProofContext, SignatureVerificationFailure, SignatureVerifier,
+    verify_receipt_document_verdict,
 };
 use serde::Deserialize;
 
 const CORPUS_ROOT: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../fixtures/receipt-verify");
 
+/// The public keys the corpus's receipts are verified under.
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct CorpusVerifier {
+    keys: Vec<CorpusKey>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CorpusKey {
+    issuer_type: ReceiptIssuerType,
     kid: String,
     public_key_base64: String,
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct CorpusCase {
     name: String,
     receipt: String,
     expected: String,
-    signature_mode: String,
+    /// The issuer the case's receipt names; none for a document that is not
+    /// a receipt.
+    issuer_type: Option<ReceiptIssuerType>,
 }
 
 #[test]
 fn receipt_verify_corpus_replays_through_library_api() -> Result<(), Box<dyn std::error::Error>> {
     let root = PathBuf::from(CORPUS_ROOT);
-    let production_verifier = CorpusEd25519Verifier::from_fixture(&root)?;
-    let local_verifier = LocalDevelopmentReceiptVerifier;
+    let verifier = CorpusEd25519Verifier::from_fixture(&root)?;
+    let context = ReceiptProofContext {
+        signature_verifier: Some(&verifier),
+    };
 
     for (case_dir, case) in corpus_cases(&root)? {
         let document = fs::read(case_dir.join(&case.receipt))?;
-        let actual = if case.signature_mode == "production" {
-            let context = proof_context(&production_verifier);
-            serde_json::to_value(verify_receipt_document_verdict(
-                &document,
-                &context,
-                ReceiptVerifySignatureMode::Production,
-            ))?
-        } else {
-            let context = proof_context(&local_verifier);
-            serde_json::to_value(verify_receipt_document_verdict(
-                &document,
-                &context,
-                ReceiptVerifySignatureMode::LocalDevelopment,
-            ))?
-        };
+        assert_eq!(
+            runx_receipts::decode_receipt(&document)
+                .ok()
+                .map(|receipt| receipt.issuer.issuer_type),
+            case.issuer_type,
+            "corpus case {} names another issuer",
+            case.name
+        );
+        let actual = serde_json::to_value(verify_receipt_document_verdict(&document, &context))?;
         let expected: serde_json::Value =
             serde_json::from_str(&fs::read_to_string(case_dir.join(&case.expected))?)?;
 
@@ -76,15 +84,8 @@ fn corpus_cases(root: &Path) -> Result<Vec<(PathBuf, CorpusCase)>, Box<dyn std::
     Ok(cases)
 }
 
-fn proof_context<'a>(verifier: &'a dyn SignatureVerifier) -> ReceiptProofContext<'a> {
-    ReceiptProofContext {
-        signature_verifier: Some(verifier),
-    }
-}
-
 struct CorpusEd25519Verifier {
-    kid: String,
-    public_key: Vec<u8>,
+    keys: Vec<(ReceiptIssuerType, String, Vec<u8>)>,
 }
 
 impl CorpusEd25519Verifier {
@@ -92,8 +93,15 @@ impl CorpusEd25519Verifier {
         let fixture: CorpusVerifier =
             serde_json::from_str(&fs::read_to_string(root.join("verifier.json"))?)?;
         Ok(Self {
-            kid: fixture.kid,
-            public_key: STANDARD.decode(fixture.public_key_base64)?,
+            keys: fixture
+                .keys
+                .into_iter()
+                .map(|key| {
+                    STANDARD
+                        .decode(key.public_key_base64)
+                        .map(|public_key| (key.issuer_type, key.kid, public_key))
+                })
+                .collect::<Result<_, _>>()?,
         })
     }
 }
@@ -105,10 +113,12 @@ impl SignatureVerifier for CorpusEd25519Verifier {
         signature: &ReceiptSignature,
         body_digest: &str,
     ) -> Result<(), SignatureVerificationFailure> {
-        if issuer.kid.as_str() != self.kid {
+        let Some((_, _, public_key)) = self.keys.iter().find(|(issuer_type, kid, _)| {
+            *issuer_type == issuer.issuer_type && kid == issuer.kid.as_str()
+        }) else {
             return Err(SignatureVerificationFailure::MissingKey);
-        }
-        if issuer.public_key_sha256.as_str() != sha256_prefixed(&self.public_key) {
+        };
+        if issuer.public_key_sha256.as_str() != sha256_prefixed(public_key) {
             return Err(SignatureVerificationFailure::KeyHashMismatch);
         }
         let Some(signature) = signature.value.strip_prefix("base64:") else {
@@ -117,28 +127,8 @@ impl SignatureVerifier for CorpusEd25519Verifier {
         let signature = URL_SAFE_NO_PAD
             .decode(signature)
             .map_err(|_| SignatureVerificationFailure::MalformedSignature)?;
-        UnparsedPublicKey::new(&ED25519, &self.public_key)
+        UnparsedPublicKey::new(&ED25519, public_key)
             .verify(body_digest.as_bytes(), &signature)
             .map_err(|_| SignatureVerificationFailure::SignatureMismatch)
-    }
-}
-
-struct LocalDevelopmentReceiptVerifier;
-
-impl SignatureVerifier for LocalDevelopmentReceiptVerifier {
-    fn verify(
-        &self,
-        _issuer: &ReceiptIssuer,
-        signature: &ReceiptSignature,
-        body_digest: &str,
-    ) -> Result<(), SignatureVerificationFailure> {
-        if !signature.value.starts_with("sig:sha256:") {
-            return Err(SignatureVerificationFailure::MalformedSignature);
-        }
-        if signature.value == format!("sig:{body_digest}") {
-            Ok(())
-        } else {
-            Err(SignatureVerificationFailure::SignatureMismatch)
-        }
     }
 }

@@ -32,7 +32,6 @@ use crate::receipts::{
     GraphClosure, RunScope, RuntimeReceiptSignatureConfig, RuntimeReceiptSignaturePolicy,
     graph_receipt_with_closure,
 };
-use crate::services::ReceiptServices;
 
 mod admission;
 mod dispatch;
@@ -65,41 +64,26 @@ pub struct RuntimeOptions {
 }
 
 impl RuntimeOptions {
-    #[must_use]
-    pub fn local_development(env: BTreeMap<String, String>, run: RunLog) -> Self {
-        Self::from_env_and_signature(env, RuntimeReceiptSignatureConfig::local_development(), run)
-    }
-
-    pub fn from_env(env: BTreeMap<String, String>, run: RunLog) -> Result<Self, RuntimeError> {
-        let receipt_services =
-            ReceiptServices::from_env(&env).map_err(|error| RuntimeError::ReceiptInvalid {
-                message: error.to_string(),
-            })?;
-        Ok(Self::from_env_and_signature(
-            env,
-            receipt_services.signature_config().clone(),
-            run,
-        ))
-    }
-
-    pub fn from_env_or_local_development(
+    /// Options for a run in `paths`, sealing under a configured signer, else
+    /// the selected home's own key.
+    pub fn resolve(
         env: BTreeMap<String, String>,
+        paths: &crate::paths::RunxPaths,
         run: RunLog,
     ) -> Result<Self, RuntimeError> {
-        let receipt_services =
-            ReceiptServices::from_env_or_local_development(&env).map_err(|error| {
+        let receipt_signature =
+            RuntimeReceiptSignatureConfig::resolve(&env, paths).map_err(|error| {
                 RuntimeError::ReceiptInvalid {
                     message: error.to_string(),
                 }
             })?;
-        Ok(Self::from_env_and_signature(
-            env,
-            receipt_services.signature_config().clone(),
-            run,
-        ))
+        Ok(Self::new(env, receipt_signature, run))
     }
 
-    fn from_env_and_signature(
+    /// Options sealing under `receipt_signature`. The environment's signing
+    /// variables are dropped: no step sees the key a run seals under.
+    #[must_use]
+    pub fn new(
         mut env: BTreeMap<String, String>,
         receipt_signature: RuntimeReceiptSignatureConfig,
         run: RunLog,
@@ -883,51 +867,66 @@ mod tests {
     };
     use crate::adapter::{EphemeralValue, InvocationOutput};
     use crate::execution::run_record::scratch_log;
+    use crate::paths::{RUNX_HOME_ENV, RunxPaths};
     use crate::receipts::{
         RUNX_RECEIPT_SIGN_ED25519_SEED_BASE64_ENV, RUNX_RECEIPT_SIGN_ISSUER_TYPE_ENV,
-        RUNX_RECEIPT_SIGN_KID_ENV, RunScope, graph_receipt, step_receipt,
+        RUNX_RECEIPT_SIGN_KID_ENV, RunScope, RuntimeReceiptSignatureConfig, graph_receipt,
+        step_receipt,
     };
-    use runx_contracts::{JsonObject, JsonValue};
+    use runx_contracts::{JsonObject, JsonValue, ReceiptIssuerType};
     use runx_core::state_machine::{GraphStatus, SequentialGraphState, StepAdmissionWitness};
     use runx_parser::{ExecutionGraph, RawGraphIr};
     use std::collections::BTreeMap;
 
     const TEST_CREATED_AT: &str = "2026-07-24T00:00:00Z";
 
+    /// Paths whose home is a fresh directory of its own.
+    fn fresh_home() -> Result<(tempfile::TempDir, RunxPaths), std::io::Error> {
+        let home = tempfile::tempdir()?;
+        let paths = RunxPaths::resolve(
+            &BTreeMap::from([(RUNX_HOME_ENV.to_owned(), home.path().display().to_string())]),
+            home.path(),
+        );
+        Ok((home, paths))
+    }
+
     #[test]
-    fn runtime_options_reject_incomplete_production_signing_env() -> Result<(), String> {
+    fn runtime_options_reject_incomplete_signing_env() -> Result<(), Box<dyn std::error::Error>> {
         let env = [(RUNX_RECEIPT_SIGN_KID_ENV.to_owned(), "kid_prod".to_owned())]
             .into_iter()
             .collect::<BTreeMap<_, _>>();
+        let (_home, paths) = fresh_home()?;
 
         let (_root, run) = scratch_log("run_options");
-        let error = RuntimeOptions::from_env(env, run)
+        let error = RuntimeOptions::resolve(env, &paths, run)
             .err()
-            .ok_or_else(|| "incomplete signing env unexpectedly succeeded".to_owned())?;
-        assert!(
-            error
-                .to_string()
-                .contains("production receipt signing requires")
-        );
+            .ok_or("incomplete signing env unexpectedly succeeded")?;
+        assert!(error.to_string().contains("to be set together"));
+        assert!(!paths.local_receipt_key().exists());
+        Ok(())
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn runtime_options_seal_under_the_home_key_without_signing_env()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let (_home, paths) = fresh_home()?;
+
+        let (_root, run) = scratch_log("run_options");
+        let options = RuntimeOptions::resolve(BTreeMap::new(), &paths, run)?;
+
+        let issuer = options.receipt_signature.issuer();
+        assert_eq!(issuer.issuer_type, ReceiptIssuerType::Local);
+        assert!(issuer.kid.starts_with("local-"));
+        assert!(paths.local_receipt_key().is_file());
+        let (_root, run) = scratch_log("run_options_again");
+        let again = RuntimeOptions::resolve(BTreeMap::new(), &paths, run)?;
+        assert_eq!(again.receipt_signature.issuer(), issuer);
         Ok(())
     }
 
     #[test]
-    fn runtime_options_reject_missing_production_signing_env() -> Result<(), String> {
-        let (_root, run) = scratch_log("run_options");
-        let error = RuntimeOptions::from_env(BTreeMap::new(), run)
-            .err()
-            .ok_or_else(|| "missing signing env unexpectedly succeeded".to_owned())?;
-        assert!(
-            error
-                .to_string()
-                .contains("governed runtime receipt signing")
-        );
-        Ok(())
-    }
-
-    #[test]
-    fn runtime_options_reject_malformed_production_signing_seed() -> Result<(), String> {
+    fn runtime_options_reject_malformed_signing_seed() -> Result<(), Box<dyn std::error::Error>> {
         let env = [
             (RUNX_RECEIPT_SIGN_KID_ENV.to_owned(), "kid_prod".to_owned()),
             (
@@ -941,21 +940,23 @@ mod tests {
         ]
         .into_iter()
         .collect::<BTreeMap<_, _>>();
+        let (_home, paths) = fresh_home()?;
 
         let (_root, run) = scratch_log("run_options");
-        let error = RuntimeOptions::from_env(env, run)
+        let error = RuntimeOptions::resolve(env, &paths, run)
             .err()
-            .ok_or_else(|| "malformed signing env unexpectedly succeeded".to_owned())?;
+            .ok_or("malformed signing env unexpectedly succeeded")?;
         assert!(
             error
                 .to_string()
-                .contains("production receipt signer key material is malformed")
+                .contains("receipt signer key material is malformed")
         );
         Ok(())
     }
 
     #[test]
-    fn runtime_options_strip_receipt_signing_env_after_signer_construction() -> Result<(), String> {
+    fn runtime_options_strip_receipt_signing_env_after_signer_construction()
+    -> Result<(), Box<dyn std::error::Error>> {
         let env = [
             (RUNX_RECEIPT_SIGN_KID_ENV.to_owned(), "kid_prod".to_owned()),
             (
@@ -970,10 +971,15 @@ mod tests {
         ]
         .into_iter()
         .collect::<BTreeMap<_, _>>();
+        let (_home, paths) = fresh_home()?;
 
         let (_root, run) = scratch_log("run_options");
-        let options = RuntimeOptions::from_env(env, run).map_err(|error| error.to_string())?;
+        let options = RuntimeOptions::resolve(env, &paths, run)?;
 
+        assert_eq!(
+            options.receipt_signature.issuer().issuer_type,
+            ReceiptIssuerType::Hosted
+        );
         assert!(!options.env.contains_key(RUNX_RECEIPT_SIGN_KID_ENV));
         assert!(
             !options
@@ -982,6 +988,7 @@ mod tests {
         );
         assert!(!options.env.contains_key(RUNX_RECEIPT_SIGN_ISSUER_TYPE_ENV));
         assert_eq!(options.env.get("RUNX_CWD"), Some(&"/workspace".to_owned()));
+        assert!(!paths.local_receipt_key().exists());
         Ok(())
     }
 
@@ -1187,7 +1194,11 @@ mod tests {
         let (_first_root, first_log) = scratch_log("run_hello_first");
         let first = super::Runtime::new(
             ProcessToolAdapter,
-            RuntimeOptions::local_development(std::env::vars().collect(), first_log),
+            RuntimeOptions::new(
+                std::env::vars().collect(),
+                RuntimeReceiptSignatureConfig::fixture()?,
+                first_log,
+            ),
         )
         .run_graph_file(&graph_path)?;
         assert_eq!(first.state.status, GraphStatus::Succeeded);
@@ -1198,7 +1209,11 @@ mod tests {
         log.record_step(&first.steps[0], &[])?;
         let continued = super::Runtime::new(
             ProcessToolAdapter,
-            RuntimeOptions::local_development(std::env::vars().collect(), log),
+            RuntimeOptions::new(
+                std::env::vars().collect(),
+                RuntimeReceiptSignatureConfig::fixture()?,
+                log,
+            ),
         )
         .run_graph_file(&graph_path)?;
         assert_eq!(continued.state.status, GraphStatus::Succeeded);
@@ -1230,6 +1245,7 @@ mod tests {
             &output,
             &contract,
             TEST_CREATED_AT,
+            RuntimeReceiptSignatureConfig::fixture()?.signature_policy(),
         )?;
         Ok(StepRun {
             step_id: step_id.to_owned(),
@@ -1259,6 +1275,7 @@ mod tests {
             },
             &steps,
             TEST_CREATED_AT,
+            RuntimeReceiptSignatureConfig::fixture()?.signature_policy(),
         )?;
         Ok(GraphRun {
             graph: ExecutionGraph {

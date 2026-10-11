@@ -29,13 +29,16 @@ pub use verify::{
     ReceiptError, ReceiptFinding, ReceiptFindingCode, ReceiptProofContext,
     ReceiptProofFindingSummary, ReceiptProofStatus, ReceiptProofStatusKind, ReceiptVerification,
     ReceiptVerifyCheck, ReceiptVerifyFinding, ReceiptVerifyLineageCheck,
-    ReceiptVerifySignatureCheck, ReceiptVerifySignatureMode, ReceiptVerifyVerdict,
-    SignatureVerificationFailure, SignatureVerifier, VERIFY_VERDICT_SCHEMA,
-    receipt_id_is_content_addressed, receipt_proof_status, validate_receipt,
-    validate_receipt_proof, verify_receipt, verify_receipt_document_verdict, verify_receipt_proof,
-    verify_receipt_verdict,
+    ReceiptVerifySignatureCheck, ReceiptVerifyVerdict, SignatureVerificationFailure,
+    SignatureVerifier, VERIFY_VERDICT_SCHEMA, receipt_id_is_content_addressed,
+    receipt_proof_status, validate_receipt, validate_receipt_proof, verify_receipt,
+    verify_receipt_document_verdict, verify_receipt_proof, verify_receipt_verdict,
 };
 pub use wire::{ReceiptDecodeError, decode_receipt, decode_receipt_value};
+
+// The shared fixture key names this crate as its tests and examples do.
+#[cfg(test)]
+extern crate self as runx_receipts;
 
 #[cfg(test)]
 mod tests {

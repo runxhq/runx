@@ -1,4 +1,4 @@
-use runx_contracts::Receipt;
+use runx_contracts::{Receipt, ReceiptIssuerType};
 use serde::Serialize;
 
 use crate::{canonical_receipt_body_digest, content_addressed_receipt_id};
@@ -6,22 +6,6 @@ use crate::{canonical_receipt_body_digest, content_addressed_receipt_id};
 use super::{ReceiptFinding, ReceiptFindingCode, ReceiptProofContext, verify_receipt_proof};
 
 pub const VERIFY_VERDICT_SCHEMA: &str = "runx.verify_verdict.v1";
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ReceiptVerifySignatureMode {
-    LocalDevelopment,
-    Production,
-}
-
-impl ReceiptVerifySignatureMode {
-    #[must_use]
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Self::LocalDevelopment => "local-development",
-            Self::Production => "production",
-        }
-    }
-}
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct ReceiptVerifyVerdict {
@@ -44,8 +28,9 @@ pub struct ReceiptVerifyCheck {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct ReceiptVerifySignatureCheck {
-    pub mode: &'static str,
     pub status: &'static str,
+    /// The kind of identity the receipt names as its signer.
+    pub issuer_type: Option<ReceiptIssuerType>,
     pub kid: Option<String>,
 }
 
@@ -66,11 +51,10 @@ pub struct ReceiptVerifyFinding {
 pub fn verify_receipt_document_verdict(
     document: &[u8],
     context: &ReceiptProofContext<'_>,
-    signature_mode: ReceiptVerifySignatureMode,
 ) -> ReceiptVerifyVerdict {
     match crate::decode_receipt(document) {
-        Ok(receipt) => verify_receipt_verdict(&receipt, context, signature_mode),
-        Err(error) => parse_error_verdict(error.to_string(), signature_mode),
+        Ok(receipt) => verify_receipt_verdict(&receipt, context),
+        Err(error) => parse_error_verdict(error.to_string()),
     }
 }
 
@@ -78,7 +62,6 @@ pub fn verify_receipt_document_verdict(
 pub fn verify_receipt_verdict(
     receipt: &Receipt,
     context: &ReceiptProofContext<'_>,
-    signature_mode: ReceiptVerifySignatureMode,
 ) -> ReceiptVerifyVerdict {
     let digest = digest_check(receipt);
     let content_address = content_address_check(receipt);
@@ -88,7 +71,7 @@ pub fn verify_receipt_verdict(
         .iter()
         .map(verdict_finding)
         .collect::<Vec<_>>();
-    let signature = signature_check(receipt, signature_mode, &verification.findings);
+    let signature = signature_check(receipt, &verification.findings);
     let valid = verification.valid
         && digest.status == "valid"
         && content_address.status == "valid"
@@ -106,10 +89,7 @@ pub fn verify_receipt_verdict(
     }
 }
 
-fn parse_error_verdict(
-    message: String,
-    signature_mode: ReceiptVerifySignatureMode,
-) -> ReceiptVerifyVerdict {
+fn parse_error_verdict(message: String) -> ReceiptVerifyVerdict {
     ReceiptVerifyVerdict {
         schema: VERIFY_VERDICT_SCHEMA,
         receipt_id: None,
@@ -117,8 +97,8 @@ fn parse_error_verdict(
         digest: not_evaluated_check(),
         content_address: not_evaluated_check(),
         signature: ReceiptVerifySignatureCheck {
-            mode: signature_mode.as_str(),
             status: "not_evaluated",
+            issuer_type: None,
             kid: None,
         },
         lineage: lineage_check(),
@@ -176,13 +156,8 @@ fn not_evaluated_check() -> ReceiptVerifyCheck {
     }
 }
 
-fn signature_check(
-    receipt: &Receipt,
-    signature_mode: ReceiptVerifySignatureMode,
-    findings: &[ReceiptFinding],
-) -> ReceiptVerifySignatureCheck {
+fn signature_check(receipt: &Receipt, findings: &[ReceiptFinding]) -> ReceiptVerifySignatureCheck {
     ReceiptVerifySignatureCheck {
-        mode: signature_mode.as_str(),
         status: if findings
             .iter()
             .any(|finding| is_signature_finding(finding.code))
@@ -191,6 +166,7 @@ fn signature_check(
         } else {
             "valid"
         },
+        issuer_type: Some(receipt.issuer.issuer_type.clone()),
         kid: if receipt.issuer.kid.is_empty() {
             None
         } else {

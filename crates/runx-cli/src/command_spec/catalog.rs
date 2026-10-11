@@ -48,15 +48,17 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
         name: "verify",
         top_level_usage: &[],
         usage: &[
-            "runx verify [receipt-id] [--receipt-dir dir] [--receipt <path|->] [--notary <path|-> --notary-key trusted.pem] [-j|--json]",
+            "runx verify [receipt-id] [--receipt-dir dir] [--receipt <path|->] [--trust home|configured] [--notary <path|-> --notary-key trusted.pem] [-j|--json]",
         ],
-        notes: &[],
+        notes: &[
+            "Receipts verify against this home's local key and any key RUNX_RECEIPT_VERIFY_ISSUER_TYPE, RUNX_RECEIPT_VERIFY_KID and RUNX_RECEIPT_VERIFY_ED25519_PUBLIC_KEY_BASE64 configure.",
+        ],
         options: &[
             "--receipt-dir dir",
             "--receipt <path|->",
+            "--trust home|configured  Trust this home's key and configured keys, or configured keys only",
             "--notary <path|->",
             "--notary-key trusted.pem",
-            "--allow-local-development-signatures  Accept local fixture signatures only; never for production verification",
             "-j, --json",
         ],
     },

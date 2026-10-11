@@ -120,6 +120,11 @@ export interface RunxClient {
   readonly packages: { materialize(options: InvocationOptions & { readonly skillPath: string }): Promise<NativePackageOutput> };
   readonly harness: { run(options: InvocationOptions & { readonly skillPath: string; readonly receiptDir: string }): Promise<NativeHarnessOutput> };
   readonly receipts: {
-    verify(options: InvocationOptions & { readonly receipt: string; readonly allowLocalDevelopmentSignatures?: boolean }): Promise<ReceiptVerifyOutput>;
+    /**
+     * `trust: "home"` (the default) verifies against the selected runx home's
+     * own key and every configured key; `"configured"` against configured
+     * keys only, as a host verifying receipts it did not issue does.
+     */
+    verify(options: InvocationOptions & { readonly receipt: string; readonly trust?: "home" | "configured" }): Promise<ReceiptVerifyOutput>;
   };
 }

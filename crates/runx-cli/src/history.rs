@@ -4,14 +4,11 @@ use std::fmt;
 use std::path::{Path, PathBuf};
 
 use crate::cli_args;
-use runx_runtime::receipts::inspection::{
-    ReceiptInspectionProjection, inspect_local_receipt, inspect_local_receipt_with_policy,
-};
+use runx_runtime::receipts::inspection::{ReceiptInspectionProjection, inspect_local_receipt};
 use runx_runtime::run_record::{RunFilter, RunListing, RunRecordError, RunState, list_runs};
 use runx_runtime::{
-    Ed25519ReceiptVerifier, LocalReceiptStore, ReceiptPathInputs, ReceiptStoreError,
-    RuntimeReceiptConfig, RuntimeReceiptSignaturePolicy, receipt_verifier_from_env,
-    resolve_receipt_path,
+    LocalReceiptStore, ReceiptPathInputs, ReceiptStoreError, ReceiptTrust, RuntimeReceiptConfig,
+    RuntimeReceiptSignaturePolicy, receipt_verifier, resolve_receipt_path,
 };
 
 // Module rationale: the native history command keeps
@@ -108,19 +105,14 @@ fn run_receipt_detail(
         paths: &paths,
     });
     let store = LocalReceiptStore::new(&resolved.path);
-    let verifier: Option<Ed25519ReceiptVerifier> = receipt_verifier_from_env(env)
-        .map(|resolved| resolved.map(|verifier| verifier.into_verifier()))
+    let verifier = receipt_verifier(env, &paths, ReceiptTrust::HomeAndConfigured)
         .map_err(|error| HistoryCliError::InvalidReceiptVerifier(error.to_string()))?;
-    let inspection = if let Some(verifier) = verifier.as_ref() {
-        inspect_local_receipt_with_policy(
-            &store,
-            &paths,
-            receipt_reference,
-            RuntimeReceiptSignaturePolicy::production(verifier),
-        )
-    } else {
-        inspect_local_receipt(&store, &paths, receipt_reference)
-    }
+    let inspection = inspect_local_receipt(
+        &store,
+        &paths,
+        receipt_reference,
+        RuntimeReceiptSignaturePolicy::verifying(&verifier),
+    )
     .map_err(HistoryCliError::Receipt)?;
     let output = if parsed.json {
         format!(
@@ -269,7 +261,14 @@ fn render_receipt_inspection(inspection: &ReceiptInspectionProjection) -> String
             receipt.status, receipt.verification.status, receipt.id
         ),
         format!("  subject  {}", receipt.subject_ref),
-        format!("  actor  {}", receipt.authority.actor_ref),
+        format!(
+            "  actor  {}",
+            receipt
+                .authority
+                .actor_ref
+                .as_deref()
+                .unwrap_or("none stated")
+        ),
         format!(
             "  authority  {} scope(s), {} grant(s), {} approval(s)",
             receipt.authority.exercised_scopes.len(),
@@ -296,9 +295,10 @@ mod tests {
 
     use super::*;
     use runx_contracts::ReceiptIssuerType;
-    use runx_runtime::receipts::step_receipt_with_signature_policy;
+    use runx_runtime::receipts::step_receipt;
     use runx_runtime::{
-        Ed25519ReceiptSigner, InvocationOutput, RUNX_RECEIPT_VERIFY_ED25519_PUBLIC_KEY_BASE64_ENV,
+        Ed25519ReceiptSigner, Ed25519ReceiptVerifier, InvocationOutput,
+        RUNX_RECEIPT_VERIFY_ED25519_PUBLIC_KEY_BASE64_ENV, RUNX_RECEIPT_VERIFY_ISSUER_TYPE_ENV,
         RUNX_RECEIPT_VERIFY_KID_ENV, RuntimeError,
     };
 
@@ -376,16 +376,20 @@ mod tests {
         let receipt = production_signed_receipt(&signer)
             .map_err(|error| io::Error::other(error.to_string()))?;
         let store = LocalReceiptStore::new(&receipt_dir);
-        let verifier = Ed25519ReceiptVerifier::new([signer.production_key()]);
+        let verifier = Ed25519ReceiptVerifier::new([signer.trusted_key()]);
         store
-            .write_receipt_with_policy(
+            .write_receipt(
                 &receipt,
-                RuntimeReceiptSignaturePolicy::production(&verifier),
+                RuntimeReceiptSignaturePolicy::verifying(&verifier),
             )
             .map_err(|error| io::Error::other(error.to_string()))?;
 
         let mut env = BTreeMap::new();
         env.insert("RUNX_CWD".to_owned(), temp.to_string_lossy().to_string());
+        env.insert(
+            RUNX_RECEIPT_VERIFY_ISSUER_TYPE_ENV.to_owned(),
+            "hosted".to_owned(),
+        );
         env.insert(
             RUNX_RECEIPT_VERIFY_KID_ENV.to_owned(),
             FIXTURE_KID.to_owned(),
@@ -440,7 +444,7 @@ mod tests {
     fn production_signed_receipt(
         signer: &Ed25519ReceiptSigner,
     ) -> Result<runx_contracts::Receipt, RuntimeError> {
-        let verifier = Ed25519ReceiptVerifier::new([signer.production_key()]);
+        let verifier = Ed25519ReceiptVerifier::new([signer.trusted_key()]);
         let output = InvocationOutput::runtime_success(
             runx_contracts::JsonValue::Object(BTreeMap::from([(
                 "message".to_owned(),
@@ -456,7 +460,7 @@ mod tests {
                 .ok_or_else(|| RuntimeError::ReceiptInvalid {
                     message: "history fixture output must be an object".to_owned(),
                 })?;
-        step_receipt_with_signature_policy(
+        step_receipt(
             runx_runtime::receipts::RunScope {
                 run_id: "run_cli-history",
                 graph_name: "cli-history",
@@ -466,7 +470,7 @@ mod tests {
             &output,
             &claim,
             "2026-05-25T00:00:00Z",
-            RuntimeReceiptSignaturePolicy::production_signing(signer, &verifier),
+            RuntimeReceiptSignaturePolicy::signing(signer, &verifier),
         )
     }
 

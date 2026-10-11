@@ -23,9 +23,13 @@ use runx_contracts::{
 };
 use runx_receipts::{
     canonical_receipt_body_digest, canonical_receipt_digest, canonical_receipt_json,
-    content_addressed_receipt_id,
 };
 use serde_json::{Value, json};
+
+#[path = "../tests/fixture_key.rs"]
+mod fixture_key;
+
+use fixture_key::{FIXTURE_SEED, FixtureKey};
 
 fn main() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -97,11 +101,9 @@ fn oracle_case(name: &str, fixture: &str, receipt: &Receipt) -> Value {
     })
 }
 
+/// Sealed under the harness's fixture identity, as a replayed run is.
 fn sealed(mut receipt: Receipt) -> Receipt {
-    receipt.id = content_addressed_receipt_id(&receipt).unwrap().into();
-    let digest = canonical_receipt_body_digest(&receipt).unwrap();
-    receipt.digest = digest.clone().into();
-    receipt.signature.value = format!("sig:{digest}").into();
+    FixtureKey::local(FIXTURE_SEED).seal(&mut receipt).unwrap();
     receipt
 }
 
@@ -118,7 +120,7 @@ fn base(id: &str, kind: NonEmptyString, subject_id: &str) -> Receipt {
         },
         signature: ReceiptSignature {
             alg: SignatureAlgorithm::Ed25519,
-            value: "sig:pending".into(),
+            value: "unsealed".into(),
         },
         digest: "sha256:pending".into(),
         subject: Subject {
@@ -129,7 +131,7 @@ fn base(id: &str, kind: NonEmptyString, subject_id: &str) -> Receipt {
             outcome: Digest::of(subject_id.as_bytes()),
         },
         authority: ReceiptAuthority {
-            actor_ref: Reference::runx(ReferenceType::Principal, "local_runtime"),
+            actor_ref: None,
             grant_refs: Vec::new(),
             scope_refs: Vec::new(),
             terms: Vec::new(),
@@ -161,7 +163,7 @@ fn call_authority(receipt: &mut Receipt) {
     receipt.authority.enforcement.execution_boundary = Some(ExecutionBoundaryObservation {
         kind: ExecutionBoundaryKind::RemoteProvider,
     });
-    receipt.authority.actor_ref = principal.clone();
+    receipt.authority.actor_ref = Some(principal.clone());
     receipt.authority.grant_refs = vec![Reference::runx(ReferenceType::Grant, "grant_echo")];
     receipt.authority.terms = vec![AuthorityTerm {
         term_id: TERM_ID.into(),

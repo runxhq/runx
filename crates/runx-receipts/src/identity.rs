@@ -9,7 +9,7 @@ pub struct SignedDisplayIdentity {
     pub subject_kind: String,
     pub subject_ref: String,
     pub issuer_type: String,
-    pub actor: String,
+    pub actor: Option<String>,
 }
 
 #[must_use]
@@ -18,7 +18,11 @@ pub fn signed_display_identity(receipt: &Receipt) -> SignedDisplayIdentity {
         subject_kind: receipt.subject.kind.to_string(),
         subject_ref: receipt.subject.reference.uri.to_string(),
         issuer_type: issuer_type_name(&receipt.issuer.issuer_type).to_owned(),
-        actor: receipt.authority.actor_ref.uri.to_string(),
+        actor: receipt
+            .authority
+            .actor_ref
+            .as_ref()
+            .map(|actor| actor.uri.to_string()),
     }
 }
 

@@ -49,7 +49,6 @@ pub(super) fn render_query(
     request: QueryRequest,
     history: Option<ReceiptListing>,
     proof: Option<JsonObject>,
-    signature_mode: &str,
     resolved_store_label: &str,
     proof_limit_exceeded: bool,
     proof_count: usize,
@@ -81,7 +80,7 @@ pub(super) fn render_query(
         history_ids
     };
     let receipt_details = proof_array(&proof, "receipt_details");
-    let verification = verification(&proof, signature_mode, proof_limit_exceeded, proof_count);
+    let verification = verification(&proof, proof_limit_exceeded, proof_count);
     let store_label = history
         .as_ref()
         .map(|history| history.store_label.clone())
@@ -99,18 +98,9 @@ pub(super) fn render_query(
     .into_packet())
 }
 
-fn verification(
-    proof: &Option<JsonObject>,
-    signature_mode: &str,
-    limit_exceeded: bool,
-    proof_count: usize,
-) -> JsonValue {
+fn verification(proof: &Option<JsonObject>, limit_exceeded: bool, proof_count: usize) -> JsonValue {
     if limit_exceeded {
         return JsonValue::Object(JsonObject::from([
-            (
-                "signature_mode".to_owned(),
-                JsonValue::String(signature_mode.to_owned()),
-            ),
             ("checked".to_owned(), JsonValue::Bool(true)),
             ("intact".to_owned(), JsonValue::Null),
             ("trees".to_owned(), JsonValue::Array(Vec::new())),
@@ -135,15 +125,11 @@ fn verification(
         .as_ref()
         .and_then(|value| value.get("verification"))
         .cloned()
-        .unwrap_or_else(|| unchecked_verification(signature_mode))
+        .unwrap_or_else(unchecked_verification)
 }
 
-fn unchecked_verification(signature_mode: &str) -> JsonValue {
+fn unchecked_verification() -> JsonValue {
     JsonValue::Object(JsonObject::from([
-        (
-            "signature_mode".to_owned(),
-            JsonValue::String(signature_mode.to_owned()),
-        ),
         ("checked".to_owned(), JsonValue::Bool(false)),
         ("intact".to_owned(), JsonValue::Null),
         ("trees".to_owned(), JsonValue::Array(Vec::new())),

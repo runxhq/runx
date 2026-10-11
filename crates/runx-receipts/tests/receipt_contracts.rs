@@ -4,16 +4,16 @@
 
 use serde::Deserialize;
 
+use crate::fixture_key::{FIXTURE_SEED, FixtureKey};
 use runx_contracts::{
     ClosureDisposition, ProofKind, Receipt, ReceiptIssuer, ReceiptIssuerType, ReceiptSignature,
     Reference, ReferenceType,
 };
 use runx_receipts::{
     ReceiptFindingCode, ReceiptProofContext, ReceiptProofStatusKind, ReceiptVerification,
-    SignatureVerificationFailure, SignatureVerifier, canonical_receipt_body_digest,
-    canonical_receipt_digest, canonical_receipt_json, receipt_proof_status, validate_receipt,
-    validate_receipt_proof, validate_receipt_tree, verify_receipt, verify_receipt_proof,
-    verify_receipt_tree,
+    SignatureVerificationFailure, SignatureVerifier, canonical_receipt_digest,
+    canonical_receipt_json, receipt_proof_status, validate_receipt, validate_receipt_proof,
+    validate_receipt_tree, verify_receipt, verify_receipt_proof, verify_receipt_tree,
 };
 
 const SUCCESS_RECEIPT: &str =
@@ -246,7 +246,7 @@ fn an_issuer_type_no_issuer_signs_as_is_refused() {
 #[test]
 fn strict_proof_accepts_recomputed_digest_and_signature() -> Result<(), serde_json::Error> {
     let receipt = proof_receipt()?;
-    let verifier = FixtureSignatureVerifier;
+    let verifier = fixture_key();
     let context = proof_context(&verifier);
 
     assert!(validate_receipt_proof(&receipt, &context).is_ok());
@@ -269,7 +269,7 @@ fn structural_validation_does_not_claim_strict_proof() -> Result<(), serde_json:
 fn strict_proof_rejects_tampered_body_digest() -> Result<(), serde_json::Error> {
     let mut receipt = proof_receipt()?;
     receipt.acts[0].intent.purpose = "tampered".into();
-    let verifier = FixtureSignatureVerifier;
+    let verifier = fixture_key();
     let context = proof_context(&verifier);
 
     let verification = verify_receipt_proof(&receipt, &context);
@@ -292,8 +292,8 @@ fn strict_proof_requires_signature_verifier() -> Result<(), serde_json::Error> {
 #[test]
 fn strict_proof_rejects_tampered_signature() -> Result<(), serde_json::Error> {
     let mut receipt = proof_receipt()?;
-    receipt.signature.value = "sig:tampered".into();
-    let verifier = FixtureSignatureVerifier;
+    receipt.signature.value = format!("base64:{}", "A".repeat(86)).into();
+    let verifier = fixture_key();
     let context = proof_context(&verifier);
 
     let verification = verify_receipt_proof(&receipt, &context);
@@ -305,8 +305,9 @@ fn strict_proof_rejects_tampered_signature() -> Result<(), serde_json::Error> {
 #[test]
 fn strict_proof_reports_unsupported_issuer() -> Result<(), serde_json::Error> {
     let mut receipt = proof_receipt()?;
-    receipt.issuer.issuer_type = ReceiptIssuerType::Ci;
-    refresh_proof_digest_and_signature(&mut receipt)?;
+    FixtureKey::new(FIXTURE_SEED, ReceiptIssuerType::Ci, "ci-fixture-key")
+        .seal(&mut receipt)
+        .map_err(|error| serde_json::Error::io(std::io::Error::other(error.to_string())))?;
     let verifier = UnsupportedIssuerVerifier;
     let context = ReceiptProofContext {
         signature_verifier: Some(&verifier),
@@ -353,7 +354,7 @@ fn inline_decision_integrity_accepts_real_selected_act_id() -> Result<(), serde_
 #[test]
 fn proof_status_projects_safe_public_summary() -> Result<(), serde_json::Error> {
     let receipt = proof_receipt()?;
-    let verifier = FixtureSignatureVerifier;
+    let verifier = fixture_key();
     let verification = verify_receipt_proof(&receipt, &proof_context(&verifier));
 
     let status = receipt_proof_status(&receipt, &verification);
@@ -395,33 +396,18 @@ fn proof_receipt() -> Result<Receipt, serde_json::Error> {
 }
 
 fn refresh_proof_digest_and_signature(receipt: &mut Receipt) -> Result<(), serde_json::Error> {
-    let digest = canonical_receipt_body_digest(receipt)
-        .map_err(|error| serde_json::Error::io(std::io::Error::other(error.to_string())))?;
-    receipt.digest = digest.clone().into();
-    receipt.signature.value = format!("sig:{digest}").into();
-    Ok(())
+    fixture_key()
+        .seal(receipt)
+        .map_err(|error| serde_json::Error::io(std::io::Error::other(error.to_string())))
 }
 
-fn proof_context(verifier: &FixtureSignatureVerifier) -> ReceiptProofContext<'_> {
+fn fixture_key() -> FixtureKey {
+    FixtureKey::local(FIXTURE_SEED)
+}
+
+fn proof_context(verifier: &FixtureKey) -> ReceiptProofContext<'_> {
     ReceiptProofContext {
         signature_verifier: Some(verifier),
-    }
-}
-
-struct FixtureSignatureVerifier;
-
-impl SignatureVerifier for FixtureSignatureVerifier {
-    fn verify(
-        &self,
-        _issuer: &ReceiptIssuer,
-        signature: &ReceiptSignature,
-        body_digest: &str,
-    ) -> Result<(), SignatureVerificationFailure> {
-        if signature.value == format!("sig:{body_digest}") {
-            Ok(())
-        } else {
-            Err(SignatureVerificationFailure::SignatureMismatch)
-        }
     }
 }
 

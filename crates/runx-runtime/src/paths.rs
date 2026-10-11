@@ -107,6 +107,13 @@ impl RunxPaths {
         self.home.join("keys")
     }
 
+    /// The home's own receipt signing key: the local identity its receipts
+    /// are sealed under.
+    #[must_use]
+    pub fn local_receipt_key(&self) -> PathBuf {
+        self.keys().join("local-receipt-ed25519.json")
+    }
+
     #[must_use]
     pub fn install_state(&self) -> PathBuf {
         self.home.join("install.json")

@@ -5,9 +5,7 @@ use runx_contracts::{
 };
 #[cfg(feature = "agent")]
 use runx_runtime::adapters::agent::{AgentExecutionTelemetry, ManagedAgentError};
-use runx_runtime::{
-    Host, InvocationOutput, Runtime, RuntimeError, RuntimeOptions, SkillAdapter, SkillInvocation,
-};
+use runx_runtime::{Host, InvocationOutput, Runtime, RuntimeError, SkillAdapter, SkillInvocation};
 
 #[derive(Default)]
 struct RecordingHost {
@@ -92,10 +90,10 @@ fn graph_execution_binds_managed_failure_to_the_owning_step()
     )?;
     let runtime = Runtime::new(
         UnusedAdapter,
-        RuntimeOptions::local_development(
+        crate::support::fixture_runtime_options(
             std::env::vars().collect(),
             crate::support::run_in(temp.path(), "run_manual_context")?,
-        ),
+        )?,
     );
 
     let error = match runtime.run_graph_file_with_host(
@@ -137,10 +135,10 @@ fn skill_manual_context_is_exact_digest_bound_and_progressive()
     )?;
     let runtime = Runtime::new(
         UnusedAdapter,
-        RuntimeOptions::local_development(
+        crate::support::fixture_runtime_options(
             std::env::vars().collect(),
             crate::support::run_in(temp.path(), "run_manual_context")?,
-        ),
+        )?,
     );
 
     let mut summary_host = RecordingHost::default();
@@ -208,10 +206,10 @@ fn skill_manual_context_is_exact_digest_bound_and_progressive()
 
     let invoking = Runtime::new(
         UnusedAdapter,
-        RuntimeOptions::local_development(
+        crate::support::fixture_runtime_options(
             std::env::vars().collect(),
             crate::support::run_in(temp.path(), "run_manual_invoke")?,
-        ),
+        )?,
     );
     let mut invoked_host = RecordingHost::default();
     let result =

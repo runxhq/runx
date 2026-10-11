@@ -57,7 +57,6 @@ pub(crate) fn query_receipts(
         request,
         history,
         proof,
-        context.signature_mode(),
         resolved.label.as_str(),
         proof_limit_exceeded,
         proof_count,

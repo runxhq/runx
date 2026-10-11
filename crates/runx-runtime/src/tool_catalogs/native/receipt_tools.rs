@@ -73,7 +73,6 @@ struct ReceiptProofPacket {
 #[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
 #[serde(deny_unknown_fields)]
 struct ReceiptVerification {
-    signature_mode: String,
     checked: bool,
     intact: Option<bool>,
     trees: Vec<JsonValue>,

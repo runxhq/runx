@@ -92,7 +92,7 @@ fn run_dev_harness_fixture(
     path: &Path,
     env: &BTreeMap<String, String>,
 ) -> Result<HarnessReplayOutput, HarnessReplayError> {
-    let options = HarnessOptions::from_env(env.clone()).map_err(HarnessReplayError::Runtime)?;
+    let options = HarnessOptions::new(env.clone()).map_err(HarnessReplayError::Runtime)?;
     run_harness_fixture_with_adapter(path, ProcessToolAdapter, options)
 }
 

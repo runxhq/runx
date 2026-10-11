@@ -31,10 +31,6 @@ const rustKernelBin = path.join(
 const dogfoodEnv = {
   ...process.env,
   RUNX_RUST_CLI_BIN: rustKernelBin,
-  RUNX_RECEIPT_SIGN_KID: process.env.RUNX_RECEIPT_SIGN_KID ?? "runx-dogfood-test-key",
-  RUNX_RECEIPT_SIGN_ED25519_SEED_BASE64:
-    process.env.RUNX_RECEIPT_SIGN_ED25519_SEED_BASE64 ?? "QkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkI=",
-  RUNX_RECEIPT_SIGN_ISSUER_TYPE: process.env.RUNX_RECEIPT_SIGN_ISSUER_TYPE ?? "hosted",
 };
 const registryResolverOnly = process.argv.includes("--registry-resolver");
 

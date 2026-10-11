@@ -6,7 +6,7 @@ use runx_contracts::{
 };
 use runx_parser::{parse_graph_yaml, validate_graph};
 use runx_runtime::adapters::process_tool::ProcessToolAdapter;
-use runx_runtime::{Host, Runtime, RuntimeError, RuntimeOptions};
+use runx_runtime::{Host, Runtime, RuntimeError};
 
 const CREATED_AT: &str = "2026-08-27T00:00:00Z";
 
@@ -211,10 +211,10 @@ fn runtime(
     workspace: &std::path::Path,
     run_id: &str,
 ) -> Result<Runtime<ProcessToolAdapter>, Box<dyn std::error::Error>> {
-    let mut options = RuntimeOptions::local_development(
+    let mut options = crate::support::fixture_runtime_options(
         BTreeMap::new(),
         crate::support::run_in(workspace, run_id)?,
-    );
+    )?;
     options.created_at = CREATED_AT.to_owned();
     Ok(Runtime::new(ProcessToolAdapter, options))
 }

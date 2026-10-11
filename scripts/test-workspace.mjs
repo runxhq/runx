@@ -34,10 +34,6 @@ async function runVitest(args, extraEnv = {}) {
         // kernel-parity / parser / CLI eval paths never cold-start a debug binary
         // under parallel load.
         RUNX_RUST_CLI_BIN: rustKernelBin,
-        RUNX_RECEIPT_SIGN_KID: process.env.RUNX_RECEIPT_SIGN_KID ?? "test-workspace-key",
-        RUNX_RECEIPT_SIGN_ED25519_SEED_BASE64:
-          process.env.RUNX_RECEIPT_SIGN_ED25519_SEED_BASE64 ?? "QkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkI=",
-        RUNX_RECEIPT_SIGN_ISSUER_TYPE: process.env.RUNX_RECEIPT_SIGN_ISSUER_TYPE ?? "hosted",
         ...extraEnv,
       },
     });

@@ -450,7 +450,7 @@ fn standalone_harness_options(
         RUNX_RECEIPT_DIR_ENV.to_owned(),
         receipt_dir.to_string_lossy().into_owned(),
     );
-    let options = super::harness::HarnessOptions::from_env(env)?;
+    let options = super::harness::HarnessOptions::new(env)?;
     Ok((options, receipt_dir))
 }
 

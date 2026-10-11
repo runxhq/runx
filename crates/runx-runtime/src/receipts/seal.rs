@@ -17,34 +17,13 @@ use runx_contracts::{
 };
 use runx_receipts::{
     ReceiptProofContext, ReceiptProofContextProvider, ReceiptSignature, ReceiptTreeConfig,
-    SignatureVerificationFailure, SignatureVerifier, canonical_receipt_body_digest,
-    content_addressed_receipt_id,
+    SignatureVerifier, canonical_receipt_body_digest, content_addressed_receipt_id,
 };
 
 use super::act::{ActOutcome, RuntimeAct, SealedCall};
-use super::local_runtime_issuer;
-use super::signing::{
-    RuntimeReceiptSigner, RuntimeReceiptSigningError, is_local_pseudo_signature,
-    validate_production_issuer,
-};
-pub fn step_receipt(
-    scope: RunScope<'_>,
-    step_id: &str,
-    attempt: u32,
-    output: &InvocationOutput,
-    claim: &JsonObject,
-    created_at: &str,
-) -> Result<Receipt, RuntimeError> {
-    step_receipt_with_declared_claim_and_policy(
-        StepReceiptWithDisposition::with_default_closure(
-            scope, step_id, attempt, output, created_at,
-        ),
-        claim,
-        RuntimeReceiptSignaturePolicy::local_development(),
-    )
-}
+use super::signing::{RuntimeReceiptSigner, RuntimeReceiptSigningError};
 
-pub fn step_receipt_with_signature_policy(
+pub fn step_receipt(
     scope: RunScope<'_>,
     step_id: &str,
     attempt: u32,
@@ -182,6 +161,7 @@ fn step_receipt_with_disposition_projection_authority_and_policy(
         .collect::<Vec<_>>();
     let outcome = outcome_digest(output.succeeded(), claim, &children)?;
     let mut receipt = build_unsealed_receipt(BuildReceipt {
+        issuer: signature_policy.signer()?.issuer(),
         scope,
         node: Node::Step { step_id, attempt },
         kind: receipt_subject_kind::SKILL.into(),
@@ -403,19 +383,6 @@ pub fn graph_receipt(
     scope: RunScope<'_>,
     steps: &[StepRun],
     created_at: &str,
-) -> Result<Receipt, RuntimeError> {
-    graph_receipt_with_signature_policy(
-        scope,
-        steps,
-        created_at,
-        RuntimeReceiptSignaturePolicy::local_development(),
-    )
-}
-
-pub fn graph_receipt_with_signature_policy(
-    scope: RunScope<'_>,
-    steps: &[StepRun],
-    created_at: &str,
     signature_policy: RuntimeReceiptSignaturePolicy<'_>,
 ) -> Result<Receipt, RuntimeError> {
     graph_receipt_with_closure(
@@ -457,8 +424,14 @@ pub(crate) fn graph_receipt_with_closure(
     // A receipt graph is a DAG: the parent commits each active child's exact
     // id and signed-body digest. Children stay immutable and reusable instead
     // of acquiring one post-hoc parent link.
-    let receipt =
-        build_graph_receipt(scope, child_refs, created_at, &closure)?.seal(signature_policy)?;
+    let receipt = build_graph_receipt(
+        signature_policy.signer()?.issuer(),
+        scope,
+        child_refs,
+        created_at,
+        &closure,
+    )?
+    .seal(signature_policy)?;
 
     validate_receipt_tree_with_policy(
         &receipt,
@@ -474,6 +447,7 @@ pub(crate) fn graph_receipt_with_closure(
 }
 
 fn build_graph_receipt(
+    issuer: ReceiptIssuer,
     scope: RunScope<'_>,
     children: Vec<Reference>,
     created_at: &str,
@@ -485,6 +459,7 @@ fn build_graph_receipt(
         &children,
     )?;
     Ok(build_unsealed_receipt(BuildReceipt {
+        issuer,
         scope,
         node: Node::Graph,
         kind: receipt_subject_kind::GRAPH.into(),
@@ -562,7 +537,7 @@ fn validate_receipt_tree_with_policy<'a>(
     children: impl IntoIterator<Item = &'a Receipt>,
     signature_policy: RuntimeReceiptSignaturePolicy<'_>,
 ) -> Result<(), RuntimeError> {
-    super::tree::validate_runtime_receipt_tree_refs_with_policy(
+    super::tree::validate_runtime_receipt_tree_refs(
         root,
         children,
         ReceiptTreeConfig::default(),
@@ -616,6 +591,8 @@ impl Node<'_> {
 }
 
 struct BuildReceipt<'a> {
+    /// The issuer the receipt will be sealed under.
+    issuer: ReceiptIssuer,
     scope: RunScope<'a>,
     node: Node<'a>,
     kind: NonEmptyString,
@@ -632,7 +609,11 @@ struct BuildReceipt<'a> {
     previous: Option<Reference>,
 }
 
+/// A receipt body not yet sealed. Its id, digest and signature hold
+/// `UNSEALED` until `seal` computes them; only `seal` yields a `Receipt`.
 struct UnsealedReceipt(Receipt);
+
+const UNSEALED: &str = "unsealed";
 
 impl UnsealedReceipt {
     fn as_mut(&mut self) -> &mut Receipt {
@@ -645,7 +626,11 @@ impl UnsealedReceipt {
     ) -> Result<Receipt, RuntimeError> {
         // Content-address the id over the canonical body (id = hash(canonical_body),
         // excluding id/signature/digest/metadata) before the digest commits it.
-        content_address_receipt(&mut self.0, signature_policy)?;
+        self.0.id = content_addressed_receipt_id(&self.0)
+            .map_err(|error| RuntimeError::ReceiptInvalid {
+                message: error.to_string(),
+            })?
+            .into();
         let digest = canonical_receipt_body_digest(&self.0).map_err(|error| {
             RuntimeError::ReceiptInvalid {
                 message: error.to_string(),
@@ -659,6 +644,7 @@ impl UnsealedReceipt {
 
 fn build_unsealed_receipt(parts: BuildReceipt<'_>) -> UnsealedReceipt {
     let BuildReceipt {
+        issuer,
         scope,
         node,
         kind,
@@ -675,13 +661,15 @@ fn build_unsealed_receipt(parts: BuildReceipt<'_>) -> UnsealedReceipt {
     let subject_uri = node.uri(scope.run_id);
     UnsealedReceipt(Receipt {
         schema: ReceiptSchema::V1,
-        // Replaced by the content address when the receipt is sealed.
-        id: "rcpt_unsealed".into(),
+        id: UNSEALED.into(),
         created_at: created_at.into(),
         canonicalization: ReceiptCanonicalization::C14nV1,
-        issuer: local_runtime_issuer(),
-        signature: placeholder_signature(),
-        digest: "sha256:runtime-skeleton".into(),
+        issuer,
+        signature: ReceiptSignature {
+            alg: SignatureAlgorithm::Ed25519,
+            value: UNSEALED.into(),
+        },
+        digest: UNSEALED.into(),
         subject: subject(scope, subject_uri, kind, outcome),
         authority: local_authority(authority),
         decisions,
@@ -753,8 +741,7 @@ fn local_authority(authority: SealAuthority) -> ReceiptAuthority {
         derivations,
     } = authority;
     ReceiptAuthority {
-        actor_ref: actor_ref
-            .unwrap_or_else(|| Reference::runx(ReferenceType::Principal, "local_runtime")),
+        actor_ref,
         grant_refs,
         scope_refs,
         terms,
@@ -824,149 +811,63 @@ fn current_step_indexes(steps: &[StepRun]) -> Vec<usize> {
         .collect()
 }
 
-fn placeholder_signature() -> ReceiptSignature {
-    ReceiptSignature {
-        alg: SignatureAlgorithm::Ed25519,
-        value: "sig:pending".into(),
-    }
-}
-
-fn content_address_receipt(
-    receipt: &mut Receipt,
-    signature_policy: RuntimeReceiptSignaturePolicy<'_>,
-) -> Result<(), RuntimeError> {
-    signature_policy.prepare_receipt(receipt)?;
-    receipt.id = content_addressed_receipt_id(receipt)
-        .map_err(|error| RuntimeError::ReceiptInvalid {
-            message: error.to_string(),
-        })?
-        .into();
-    Ok(())
-}
-
-pub(crate) fn proof_context(
-    signature_verifier: Option<&dyn SignatureVerifier>,
-) -> ReceiptProofContext<'_> {
-    ReceiptProofContext { signature_verifier }
-}
-
+/// The keys a receipt is checked against, and the signer that seals new
+/// receipts when this policy may seal. Reading needs only the verifier.
 #[derive(Clone, Copy)]
 pub struct RuntimeReceiptSignaturePolicy<'a> {
-    mode: RuntimeReceiptSignatureMode,
-    production_signer: Option<&'a dyn RuntimeReceiptSigner>,
-    production_verifier: Option<&'a dyn SignatureVerifier>,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum RuntimeReceiptSignatureMode {
-    LocalDevelopment,
-    Production,
+    signer: Option<&'a dyn RuntimeReceiptSigner>,
+    verifier: &'a dyn SignatureVerifier,
 }
 
 impl std::fmt::Debug for RuntimeReceiptSignaturePolicy<'_> {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         formatter
             .debug_struct("RuntimeReceiptSignaturePolicy")
-            .field("mode", &self.mode)
-            .field(
-                "production_signer_supplied",
-                &self.production_signer.is_some(),
-            )
-            .field(
-                "production_verifier_supplied",
-                &self.production_verifier.is_some(),
-            )
+            .field("issuer", &self.signer.map(|signer| signer.issuer()))
             .finish()
     }
 }
 
 impl<'a> RuntimeReceiptSignaturePolicy<'a> {
+    /// Seal under `signer`; check every seal and every read against
+    /// `verifier`.
     #[must_use]
-    pub fn local_development() -> Self {
-        Self {
-            mode: RuntimeReceiptSignatureMode::LocalDevelopment,
-            production_signer: None,
-            production_verifier: None,
-        }
-    }
-
-    #[must_use]
-    pub fn production(verifier: &'a dyn SignatureVerifier) -> Self {
-        Self {
-            mode: RuntimeReceiptSignatureMode::Production,
-            production_signer: None,
-            production_verifier: Some(verifier),
-        }
-    }
-
-    #[must_use]
-    pub fn production_signing(
+    pub fn signing(
         signer: &'a dyn RuntimeReceiptSigner,
         verifier: &'a dyn SignatureVerifier,
     ) -> Self {
         Self {
-            mode: RuntimeReceiptSignatureMode::Production,
-            production_signer: Some(signer),
-            production_verifier: Some(verifier),
+            signer: Some(signer),
+            verifier,
         }
     }
 
+    /// Check receipts against `verifier`; seal none.
     #[must_use]
-    pub fn production_signing_without_verifier(signer: &'a dyn RuntimeReceiptSigner) -> Self {
+    pub fn verifying(verifier: &'a dyn SignatureVerifier) -> Self {
         Self {
-            mode: RuntimeReceiptSignatureMode::Production,
-            production_signer: Some(signer),
-            production_verifier: None,
+            signer: None,
+            verifier,
         }
     }
 
     #[must_use]
-    pub fn production_without_verifier() -> Self {
-        Self {
-            mode: RuntimeReceiptSignatureMode::Production,
-            production_signer: None,
-            production_verifier: None,
-        }
+    pub fn verifier(self) -> &'a dyn SignatureVerifier {
+        self.verifier
     }
 
-    #[must_use]
-    pub fn allows_local_pseudo_signatures(&self) -> bool {
-        self.mode == RuntimeReceiptSignatureMode::LocalDevelopment
+    fn signer(self) -> Result<&'a dyn RuntimeReceiptSigner, RuntimeError> {
+        self.signer
+            .ok_or_else(|| signing_error(RuntimeReceiptSigningError::MissingSigner))
     }
 
-    #[must_use]
-    pub fn can_report_production_verified(&self) -> bool {
-        self.mode == RuntimeReceiptSignatureMode::Production && self.production_verifier.is_some()
-    }
-
-    fn prepare_receipt(self, receipt: &mut Receipt) -> Result<(), RuntimeError> {
-        if self.allows_local_pseudo_signatures() {
-            receipt.issuer = local_runtime_issuer();
-            return Ok(());
-        }
-        let Some(signer) = self.production_signer else {
-            return Err(signing_error(RuntimeReceiptSigningError::MissingSigner));
-        };
-        if self.production_verifier.is_none() {
-            return Err(signing_error(RuntimeReceiptSigningError::MissingVerifier));
-        }
-        let issuer = signer.issuer();
-        validate_production_issuer(&issuer).map_err(signing_error)?;
-        receipt.issuer = issuer;
-        Ok(())
-    }
-
+    /// Sign `body_digest` and check the signature against the verifier, so
+    /// no receipt is kept that its own reader would refuse.
     fn sign_receipt(self, receipt: &mut Receipt, body_digest: &str) -> Result<(), RuntimeError> {
-        if self.allows_local_pseudo_signatures() {
-            receipt.signature.value = format!("sig:{body_digest}").into();
-            return Ok(());
+        let signer = self.signer()?;
+        if receipt.issuer != signer.issuer() {
+            return Err(signing_error(RuntimeReceiptSigningError::IssuerMismatch));
         }
-        let Some(signer) = self.production_signer else {
-            return Err(signing_error(RuntimeReceiptSigningError::MissingSigner));
-        };
-        let Some(verifier) = self.production_verifier else {
-            return Err(signing_error(RuntimeReceiptSigningError::MissingVerifier));
-        };
         let signature = signer
             .sign_receipt_body(body_digest)
             .map_err(signing_error)?;
@@ -975,73 +876,31 @@ impl<'a> RuntimeReceiptSignaturePolicy<'a> {
                 RuntimeReceiptSigningError::UnsupportedAlgorithm,
             ));
         }
-        if is_local_pseudo_signature(&signature.value) {
-            return Err(signing_error(RuntimeReceiptSigningError::PseudoSignature));
-        }
         receipt.signature = signature;
-        verifier
+        self.verifier
             .verify(&receipt.issuer, &receipt.signature, body_digest)
             .map_err(RuntimeReceiptSigningError::SignatureVerification)
             .map_err(signing_error)
     }
-
-    fn verifier(self) -> Option<RuntimeReceiptSignatureVerifier<'a>> {
-        if self.mode == RuntimeReceiptSignatureMode::Production
-            && self.production_verifier.is_none()
-        {
-            return None;
-        }
-        Some(RuntimeReceiptSignatureVerifier { policy: self })
-    }
 }
 
 pub(crate) struct RuntimeReceiptProofContextProvider<'a> {
-    signature_verifier: Option<RuntimeReceiptSignatureVerifier<'a>>,
+    verifier: &'a dyn SignatureVerifier,
 }
 
 impl<'a> RuntimeReceiptProofContextProvider<'a> {
     pub(crate) fn new(signature_policy: RuntimeReceiptSignaturePolicy<'a>) -> Self {
         Self {
-            signature_verifier: signature_policy.verifier(),
+            verifier: signature_policy.verifier,
         }
     }
 }
 
 impl ReceiptProofContextProvider for RuntimeReceiptProofContextProvider<'_> {
     fn proof_context<'a>(&'a self, _receipt: &Receipt) -> ReceiptProofContext<'a> {
-        proof_context(
-            self.signature_verifier
-                .as_ref()
-                .map(|verifier| verifier as &dyn SignatureVerifier),
-        )
-    }
-}
-
-struct RuntimeReceiptSignatureVerifier<'a> {
-    policy: RuntimeReceiptSignaturePolicy<'a>,
-}
-
-impl SignatureVerifier for RuntimeReceiptSignatureVerifier<'_> {
-    fn verify(
-        &self,
-        issuer: &ReceiptIssuer,
-        signature: &ReceiptSignature,
-        body_digest: &str,
-    ) -> Result<(), SignatureVerificationFailure> {
-        if is_local_pseudo_signature(&signature.value) {
-            if !self.policy.allows_local_pseudo_signatures() {
-                return Err(SignatureVerificationFailure::MalformedSignature);
-            }
-            return if signature.value.strip_prefix("sig:") == Some(body_digest) {
-                Ok(())
-            } else {
-                Err(SignatureVerificationFailure::SignatureMismatch)
-            };
+        ReceiptProofContext {
+            signature_verifier: Some(self.verifier),
         }
-        let Some(verifier) = self.policy.production_verifier else {
-            return Err(SignatureVerificationFailure::MissingKey);
-        };
-        verifier.verify(issuer, signature, body_digest)
     }
 }
 
@@ -1066,6 +925,11 @@ mod tests {
         }
     }
 
+    fn fixture() -> Result<crate::receipts::RuntimeReceiptSignatureConfig, TestError> {
+        crate::receipts::RuntimeReceiptSignatureConfig::fixture()
+            .map_err(|error| TestError(error.to_string()))
+    }
+
     use super::*;
     use crate::adapter::InvocationStatus;
     use runx_contracts::{
@@ -1085,6 +949,8 @@ mod tests {
             formatter.write_str(&self.0)
         }
     }
+
+    impl std::error::Error for TestError {}
 
     impl From<RuntimeError> for TestError {
         fn from(error: RuntimeError) -> Self {
@@ -1113,6 +979,7 @@ mod tests {
             &credential_output()?,
             &JsonObject::new(),
             "2026-05-28T00:00:00Z",
+            fixture()?.signature_policy(),
         )?;
 
         assert!(receipt.acts.is_empty());
@@ -1163,6 +1030,7 @@ mod tests {
             &output,
             &JsonObject::new(),
             "2026-05-28T00:00:00Z",
+            fixture()?.signature_policy(),
         )?;
 
         // A step without a governed call seals its criteria in its seal alone.
@@ -1192,7 +1060,7 @@ mod tests {
                     context_ref: None,
                 }),
                 receipt_metadata: None,
-                signature_policy: RuntimeReceiptSignaturePolicy::local_development(),
+                signature_policy: fixture()?.signature_policy(),
             })?;
         assert_eq!(call.acts[0].intent.purpose.as_str(), "Post one message.");
         assert_eq!(call.acts[0].criterion_bindings.len(), 4);
@@ -1232,6 +1100,7 @@ mod tests {
             &output,
             &JsonObject::new(),
             "2026-05-28T00:00:00Z",
+            fixture()?.signature_policy(),
         )?;
 
         assert_eq!(
@@ -1268,6 +1137,7 @@ mod tests {
             &output,
             &JsonObject::new(),
             "2026-05-18T00:00:00Z",
+            fixture()?.signature_policy(),
         )?;
         let verification_refs = receipt
             .seal
@@ -1314,6 +1184,7 @@ mod tests {
             &output,
             &JsonObject::new(),
             "2026-05-28T00:00:00Z",
+            fixture()?.signature_policy(),
         )?;
         assert_eq!(
             receipt
@@ -1340,6 +1211,7 @@ mod tests {
             &output,
             &JsonObject::new(),
             "2026-05-28T00:00:00Z",
+            fixture()?.signature_policy(),
         )?;
 
         assert_eq!(
@@ -1369,7 +1241,7 @@ mod tests {
                 authority: SealAuthority::default(),
                 call: None,
                 receipt_metadata: None,
-                signature_policy: RuntimeReceiptSignaturePolicy::local_development(),
+                signature_policy: fixture()?.signature_policy(),
             })?,
         )
     }
@@ -1410,6 +1282,7 @@ mod tests {
 
     #[test]
     fn step_receipt_identity_commits_direct_child_identities() -> Result<(), TestError> {
+        let signature = fixture()?;
         let child = |value: &str| {
             identity_receipt(
                 "transport",
@@ -1433,7 +1306,7 @@ mod tests {
                 authority: SealAuthority::default(),
                 call: None,
                 receipt_metadata: None,
-                signature_policy: RuntimeReceiptSignaturePolicy::local_development(),
+                signature_policy: signature.signature_policy(),
             })
         };
 

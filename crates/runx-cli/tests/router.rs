@@ -40,7 +40,7 @@ fn top_level_help_and_version_are_native() {
     let help = help_text();
     assert_help_line(
         &help,
-        "runx verify [receipt-id] [--receipt-dir dir] [--receipt <path|->] [--notary <path|-> --notary-key trusted.pem] [-j|--json]",
+        "runx verify [receipt-id] [--receipt-dir dir] [--receipt <path|->] [--trust home|configured] [--notary <path|-> --notary-key trusted.pem] [-j|--json]",
     );
     assert_help_line(
         &help,
@@ -167,9 +167,9 @@ fn nested_skill_history_verify_and_publish_help_are_native() {
     );
     assert_help_line(
         &verify_help_text(),
-        "runx verify [receipt-id] [--receipt-dir dir] [--receipt <path|->] [--notary <path|-> --notary-key trusted.pem] [-j|--json]",
+        "runx verify [receipt-id] [--receipt-dir dir] [--receipt <path|->] [--trust home|configured] [--notary <path|-> --notary-key trusted.pem] [-j|--json]",
     );
-    assert!(verify_help_text().contains("--allow-local-development-signatures"));
+    assert!(verify_help_text().contains("--trust home|configured"));
     assert!(history_help_text().contains("--limit n"));
     assert_help_line(
         &publish_help_text(),

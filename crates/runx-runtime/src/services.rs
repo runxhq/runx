@@ -30,7 +30,7 @@ mod tests {
     use std::collections::BTreeMap;
     use std::path::{Path, PathBuf};
 
-    use crate::paths::{RUNX_CWD_ENV, RUNX_PROJECT_DIR_ENV};
+    use crate::paths::{RUNX_CWD_ENV, RUNX_HOME_ENV, RUNX_PROJECT_DIR_ENV};
     use crate::receipts::RUNX_RECEIPT_SIGN_KID_ENV;
     use crate::services::{ReceiptServices, WorkspaceEnv};
 
@@ -80,24 +80,37 @@ mod tests {
         Ok(())
     }
 
+    #[cfg(unix)]
     #[test]
-    fn receipt_services_local_development_fallback_only_handles_absent_signer_env()
-    -> Result<(), Box<dyn std::error::Error>> {
-        let receipts = ReceiptServices::from_env_or_local_development(&BTreeMap::new())?;
+    fn receipt_services_seal_under_the_workspace_home_key() -> Result<(), Box<dyn std::error::Error>>
+    {
+        let temp = tempfile::tempdir()?;
+        let env = BTreeMap::from([(
+            RUNX_HOME_ENV.to_owned(),
+            temp.path().join("home").display().to_string(),
+        )]);
+        let workspace = WorkspaceEnv::new(env.clone(), temp.path().to_path_buf())?;
 
-        assert!(
-            receipts
+        let receipts = ReceiptServices::resolve(&workspace)?;
+
+        let issuer = receipts.signature_config().issuer();
+        assert_eq!(issuer.issuer_type, runx_contracts::ReceiptIssuerType::Local);
+        assert!(workspace.paths().local_receipt_key().is_file());
+        assert_eq!(
+            ReceiptServices::resolve(&workspace)?
                 .signature_config()
-                .production_key_for_kid("any-production-key")
-                .is_none()
+                .issuer(),
+            issuer
         );
 
-        let partial_env = BTreeMap::from([(
+        let mut partial_env = env;
+        partial_env.insert(
             RUNX_RECEIPT_SIGN_KID_ENV.to_owned(),
             "partial-explicit-key".to_owned(),
-        )]);
-        let Err(error) = ReceiptServices::from_env_or_local_development(&partial_env) else {
-            return Err("partial signer env must still fail closed".into());
+        );
+        let partial = WorkspaceEnv::new(partial_env, temp.path().to_path_buf())?;
+        let Err(error) = ReceiptServices::resolve(&partial) else {
+            return Err("partial signer env must fail closed".into());
         };
         assert!(error.to_string().contains("set together"));
         Ok(())

@@ -155,7 +155,11 @@ impl ToolCalls {
         )]);
         let runtime = Runtime::new(
             JavaScriptAdapter::default(),
-            RuntimeOptions::local_development(env, Self::evaluation(&store, "run_artifact_io")?),
+            RuntimeOptions::new(
+                env,
+                crate::fixture_signature(),
+                Self::evaluation(&store, "run_artifact_io")?,
+            ),
         );
         Ok(Self {
             directory,

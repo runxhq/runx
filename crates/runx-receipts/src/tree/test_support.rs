@@ -1,12 +1,13 @@
-use runx_contracts::{Receipt, ReceiptIssuer, Reference, ReferenceType};
+use runx_contracts::{Receipt, Reference, ReferenceType};
 use serde::Deserialize;
 
 use super::{ReceiptProofContextProvider, ReceiptResolveResult, ReceiptResolver, ResolvedReceipt};
-use crate::{
-    ReceiptFindingCode, ReceiptProofContext, ReceiptSignature, ReceiptVerification,
-    SignatureVerificationFailure, SignatureVerifier, canonical_receipt_body_digest,
-    content_addressed_receipt_id,
-};
+use crate::{ReceiptFindingCode, ReceiptProofContext, ReceiptVerification};
+
+#[path = "../../tests/fixture_key.rs"]
+mod fixture_key;
+
+use fixture_key::{FIXTURE_SEED, FixtureKey};
 
 pub(super) const SUCCESS_RECEIPT: &str =
     include_str!("../../../../fixtures/contracts/harness-spine/receipt-success.json");
@@ -73,20 +74,17 @@ pub(super) fn link_child_digest(
 pub(super) fn refresh_proof_digest_and_signature(
     receipt: &mut Receipt,
 ) -> Result<(), serde_json::Error> {
-    receipt.id = content_addressed_receipt_id(receipt)
-        .map_err(|error| serde_json::Error::io(std::io::Error::other(error.to_string())))?
-        .into();
-    sign_keeping_id(receipt)
+    FixtureKey::local(FIXTURE_SEED)
+        .seal(receipt)
+        .map_err(|error| serde_json::Error::io(std::io::Error::other(error.to_string())))
 }
 
 /// Re-sign the receipt's body under the id it already carries, as a forger
 /// reusing another receipt's id would.
 pub(super) fn sign_keeping_id(receipt: &mut Receipt) -> Result<(), serde_json::Error> {
-    let digest = canonical_receipt_body_digest(receipt)
-        .map_err(|error| serde_json::Error::io(std::io::Error::other(error.to_string())))?;
-    receipt.digest = digest.clone().into();
-    receipt.signature.value = format!("sig:{digest}").into();
-    Ok(())
+    FixtureKey::local(FIXTURE_SEED)
+        .sign_keeping_id(receipt)
+        .map_err(|error| serde_json::Error::io(std::io::Error::other(error.to_string())))
 }
 
 pub(super) fn reference(reference_type: ReferenceType, id: &str) -> Reference {
@@ -108,33 +106,22 @@ pub(super) fn assert_finding(
     );
 }
 
-#[derive(Default)]
 pub(super) struct FixtureProofContexts {
-    verifier: FixtureSignatureVerifier,
+    verifier: FixtureKey,
+}
+
+impl Default for FixtureProofContexts {
+    fn default() -> Self {
+        Self {
+            verifier: FixtureKey::local(FIXTURE_SEED),
+        }
+    }
 }
 
 impl ReceiptProofContextProvider for FixtureProofContexts {
     fn proof_context<'a>(&'a self, _receipt: &Receipt) -> ReceiptProofContext<'a> {
         ReceiptProofContext {
             signature_verifier: Some(&self.verifier),
-        }
-    }
-}
-
-#[derive(Default)]
-struct FixtureSignatureVerifier;
-
-impl SignatureVerifier for FixtureSignatureVerifier {
-    fn verify(
-        &self,
-        _issuer: &ReceiptIssuer,
-        signature: &ReceiptSignature,
-        body_digest: &str,
-    ) -> Result<(), SignatureVerificationFailure> {
-        if signature.value == format!("sig:{body_digest}") {
-            Ok(())
-        } else {
-            Err(SignatureVerificationFailure::SignatureMismatch)
         }
     }
 }

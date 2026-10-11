@@ -933,6 +933,7 @@ mod tests {
         use runx_core::state_machine::GraphStatus;
         use runx_parser::{parse_graph_yaml, validate_graph};
 
+        let signature = crate::receipts::RuntimeReceiptSignatureConfig::fixture()?;
         for suspended in [false, true] {
             let temp = tempfile::tempdir()?;
             let receipt_dir = temp.path().join("receipts");
@@ -975,7 +976,7 @@ steps:
                     },
                 )?;
             }
-            let mut options = RuntimeOptions::local_development(env.clone(), log.clone());
+            let mut options = RuntimeOptions::new(env.clone(), signature.clone(), log.clone());
             options.created_at = "2026-07-24T00:00:00Z".to_owned();
             let runtime = Runtime::new(ExecutableAdapter, options);
             let error = ManagedAgentError::bounded_failure(
@@ -1054,14 +1055,14 @@ steps:
                 managed_agent: Default::default(),
             };
             let workspace = WorkspaceEnv::new(Default::default(), temp.path().to_path_buf())?;
-            let receipts = ReceiptServices::from_env_or_local_development(workspace.env())?;
+            let receipts = ReceiptServices::from_signature_config(signature.clone());
             write_graph_receipts(&request, &workspace, &receipts, &run)?;
             let store = LocalReceiptStore::new(&receipt_dir);
             let listing = list_receipts(
                 &store,
                 workspace.paths(),
                 &ReceiptFilter::default(),
-                crate::receipts::RuntimeReceiptSignaturePolicy::local_development(),
+                signature.signature_policy(),
             )?;
             assert_eq!(listing.receipts.len(), 1);
             assert!(
@@ -1077,7 +1078,7 @@ steps:
                     include_internal: true,
                     ..ReceiptFilter::default()
                 },
-                crate::receipts::RuntimeReceiptSignaturePolicy::local_development(),
+                signature.signature_policy(),
             )?;
             assert_eq!(with_steps.receipts.len(), 2);
         }
@@ -1164,6 +1165,7 @@ steps:
             &output,
             &JsonObject::new(),
             "2026-07-15T00:00:00Z",
+            crate::receipts::RuntimeReceiptSignatureConfig::fixture()?.signature_policy(),
         )?;
         assert!(
             receipt.seal.criteria[0]

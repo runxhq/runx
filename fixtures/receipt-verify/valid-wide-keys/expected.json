@@ -17,8 +17,8 @@
   "receipt_id": "sha256:2ce819e5d32c2624890a85f50c8a2c5f63ec7d6a913ceb28801f2b40d90b440b",
   "schema": "runx.verify_verdict.v1",
   "signature": {
+    "issuer_type": "hosted",
     "kid": "runx-cli-verify-fixture-key",
-    "mode": "production",
     "status": "valid"
   },
   "valid": true

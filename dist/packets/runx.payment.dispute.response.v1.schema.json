@@ -214,6 +214,18 @@
     "receipt_verification": {
       "additionalProperties": false,
       "properties": {
+        "issuer_types": {
+          "items": {
+            "enum": [
+              "local",
+              "hosted",
+              "ci"
+            ],
+            "type": "string"
+          },
+          "maxItems": 101,
+          "type": "array"
+        },
         "matched_receipt_ids": {
           "items": {
             "maxLength": 256,
@@ -229,14 +241,6 @@
           "minLength": 1,
           "type": "string"
         },
-        "signature_mode": {
-          "enum": [
-            "production",
-            "local-development",
-            "unverified"
-          ],
-          "type": "string"
-        },
         "tree_status": {
           "enum": [
             "intact",
@@ -248,7 +252,7 @@
       "required": [
         "matched_receipt_ids",
         "original_receipt_status",
-        "signature_mode",
+        "issuer_types",
         "tree_status"
       ],
       "type": "object"

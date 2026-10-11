@@ -213,8 +213,9 @@ fn persist_inline_case_receipts(
     case_receipt_dir: &Path,
     output_receipt_dir: &Path,
 ) -> Result<(), String> {
-    let receipts = crate::services::ReceiptServices::from_env_or_local_development(&request.env)
+    let workspace = WorkspaceEnv::new(request.env.clone(), request.cwd.clone())
         .map_err(|error| error.to_string())?;
+    let receipts = ReceiptServices::resolve(&workspace).map_err(|error| error.to_string())?;
     let produced = receipts
         .list_local_receipts(case_receipt_dir)
         .map_err(|error| error.to_string())?;
@@ -398,12 +399,11 @@ fn harness_receipt_services(
 ) -> Result<(ReceiptServices, WorkspaceEnv), HarnessReplayError> {
     let workspace =
         WorkspaceEnv::new(request.env.clone(), request.cwd.clone()).map_err(RuntimeError::from)?;
-    let receipts =
-        ReceiptServices::from_env_or_local_development(&request.env).map_err(|error| {
-            HarnessReplayError::Runtime(RuntimeError::ReceiptInvalid {
-                message: error.to_string(),
-            })
-        })?;
+    let receipts = ReceiptServices::resolve(&workspace).map_err(|error| {
+        HarnessReplayError::Runtime(RuntimeError::ReceiptInvalid {
+            message: error.to_string(),
+        })
+    })?;
     Ok((receipts, workspace))
 }
 

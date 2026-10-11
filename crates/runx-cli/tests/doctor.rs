@@ -191,7 +191,9 @@ fn doctor_authority_json_reports_missing_env_names() -> Result<(), Box<dyn std::
     assert_eq!(String::from_utf8(output.stderr)?, "");
     let report = serde_json::from_slice::<serde_json::Value>(&output.stdout)?;
     assert_eq!(report["status"], "success");
-    assert_eq!(report["summary"]["warnings"], 3);
+    // The signer is ready (the first run creates this home's key); nothing is
+    // trusted yet, and no provider grant is configured.
+    assert_eq!(report["summary"]["warnings"], 2);
     let rendered = serde_json::to_string(&report)?;
     for env_name in AUTHORITY_ENV_NAMES {
         assert!(
@@ -229,7 +231,7 @@ fn doctor_authority_json_redacts_secret_values() -> Result<(), Box<dyn std::erro
     assert_eq!(report["summary"]["infos"], 3);
     let rendered = serde_json::to_string(&report)?;
     assert!(rendered.contains("kid_prod"));
-    assert!(rendered.contains("signing_identity"));
+    assert!(rendered.contains("configured_signer"));
     assert!(!rendered.contains("QkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkI="));
     assert!(!rendered.contains("repo.read"));
     assert!(!rendered.contains("grant_prod"));
@@ -432,6 +434,7 @@ const AUTHORITY_ENV_NAMES: &[&str] = &[
     "RUNX_RECEIPT_SIGN_KID",
     "RUNX_RECEIPT_SIGN_ED25519_SEED_BASE64",
     "RUNX_RECEIPT_SIGN_ISSUER_TYPE",
+    "RUNX_RECEIPT_VERIFY_ISSUER_TYPE",
     "RUNX_RECEIPT_VERIFY_KID",
     "RUNX_RECEIPT_VERIFY_ED25519_PUBLIC_KEY_BASE64",
     "RUNX_PROVIDER_PERMISSION_GRANT_ID",

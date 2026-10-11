@@ -21,7 +21,7 @@ fn harness_blocks_closure_and_seals_graph_receipt() -> Result<(), Box<dyn std::e
 
     let adapter = RecordingAdapter::default();
     let output =
-        run_harness_fixture_with_adapter(case.harness_path(), adapter.clone(), runtime_options())?;
+        run_harness_fixture_with_adapter(case.harness_path(), adapter.clone(), runtime_options()?)?;
 
     assert_eq!(output.status, HarnessExpectedStatus::PolicyDenied);
     assert_eq!(output.receipt.seal.disposition, ClosureDisposition::Blocked);
@@ -49,7 +49,8 @@ fn harness_blocks_closure_and_seals_graph_receipt() -> Result<(), Box<dyn std::e
         runx_runtime::validate_runtime_receipt_tree(
             &output.receipt,
             children,
-            runx_receipts::ReceiptTreeConfig::default()
+            runx_receipts::ReceiptTreeConfig::default(),
+            crate::support::fixture_policy()?,
         )
         .is_ok()
     );
@@ -190,8 +191,8 @@ impl Drop for TempCase {
     }
 }
 
-fn runtime_options() -> HarnessOptions {
-    let mut options = HarnessOptions::local_development(std::env::vars().collect());
+fn runtime_options() -> Result<HarnessOptions, runx_runtime::RuntimeError> {
+    let mut options = HarnessOptions::new(std::env::vars().collect())?;
     options.created_at = FIXTURE_CREATED_AT.to_owned();
-    options
+    Ok(options)
 }

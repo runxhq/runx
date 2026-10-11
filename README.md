@@ -288,14 +288,16 @@ Every governed execution passes through one invariant:
 admit -> resolve grant -> deliver credentials -> execute -> seal
 ```
 
-Run a local verification with the explicit development-signature allowance:
+Runx signs every receipt. With no signer configured, it signs with this runx
+home's own key, created on the first run. Verify the workspace's receipts
+against it:
 
 ```bash
-runx verify --allow-local-development-signatures --json
+runx verify --json
 ```
 
-Production verification requires a trusted verification key. The receipt is
-not the product by itself; it is where authority, action, evidence, and future
+A receipt from another home or a hosted issuer verifies against the public key
+you configure for it. The receipt is not the product by itself; it is where authority, action, evidence, and future
 learning meet in one verifiable object.
 
 The committed contract is

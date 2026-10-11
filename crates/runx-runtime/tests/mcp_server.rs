@@ -11,7 +11,6 @@ use std::sync::{Arc, Mutex};
 use runx_contracts::{ClosureDisposition, ReceiptSchema};
 use runx_contracts::{JsonObject, JsonValue};
 #[cfg(feature = "mcp")]
-use runx_runtime::RuntimeReceiptSignatureConfig;
 #[cfg(feature = "mcp")]
 use runx_runtime::adapters::mcp::McpServerExecutionOptions;
 use runx_runtime::adapters::mcp::{
@@ -358,10 +357,9 @@ fn mcp_server_single_skill_call_writes_sealed_receipt() -> Result<(), Box<dyn st
         return Err("runx receipt id must be a string".into());
     };
 
-    let signature_config =
-        RuntimeReceiptSignatureConfig::from_env(&crate::support::test_signing_env())?;
+    let signature_config = crate::support::test_signature_config()?;
     let receipt = LocalReceiptStore::new(receipt_root.path())
-        .read_exact_with_policy(receipt_id, signature_config.signature_policy())?;
+        .read_exact(receipt_id, signature_config.signature_policy())?;
     assert_ne!(receipt.created_at, FIXTURE_CREATED_AT);
     assert_eq!(receipt.schema, ReceiptSchema::V1);
     assert_eq!(receipt.seal.disposition, ClosureDisposition::Closed);

@@ -52,14 +52,7 @@ impl LocalReceiptStore {
         Ok(self.root.join(receipt_file_name(receipt_id)?))
     }
 
-    pub fn read_exact(&self, receipt_id: &str) -> Result<Receipt, ReceiptStoreError> {
-        self.read_exact_with_policy(
-            receipt_id,
-            RuntimeReceiptSignaturePolicy::local_development(),
-        )
-    }
-
-    pub fn read_exact_with_policy(
+    pub fn read_exact(
         &self,
         receipt_id: &str,
         signature_policy: RuntimeReceiptSignaturePolicy<'_>,
@@ -69,11 +62,7 @@ impl LocalReceiptStore {
         read_receipt_file(&file_path, receipt_id, signature_policy)
     }
 
-    pub fn write_receipt(&self, receipt: &Receipt) -> Result<(), ReceiptStoreError> {
-        self.write_receipt_with_policy(receipt, RuntimeReceiptSignaturePolicy::local_development())
-    }
-
-    pub fn write_receipt_with_policy(
+    pub fn write_receipt(
         &self,
         receipt: &Receipt,
         signature_policy: RuntimeReceiptSignaturePolicy<'_>,
@@ -108,14 +97,7 @@ impl LocalReceiptStore {
         self.update_index_after_write(receipt)
     }
 
-    pub fn write_receipts(&self, receipts: &[Receipt]) -> Result<(), ReceiptStoreError> {
-        self.write_receipts_with_policy(
-            receipts,
-            RuntimeReceiptSignaturePolicy::local_development(),
-        )
-    }
-
-    pub fn write_receipts_with_policy<'a>(
+    pub fn write_receipts<'a>(
         &self,
         receipts: impl IntoIterator<Item = &'a Receipt>,
         signature_policy: RuntimeReceiptSignaturePolicy<'_>,
@@ -174,11 +156,7 @@ impl LocalReceiptStore {
         self.update_index_after_writes(&index_entries)
     }
 
-    pub fn list(&self) -> Result<Vec<Receipt>, ReceiptStoreError> {
-        self.list_with_policy(RuntimeReceiptSignaturePolicy::local_development())
-    }
-
-    pub fn list_with_policy(
+    pub fn list(
         &self,
         signature_policy: RuntimeReceiptSignaturePolicy<'_>,
     ) -> Result<Vec<Receipt>, ReceiptStoreError> {
@@ -250,11 +228,7 @@ impl LocalReceiptStore {
         read_receipt_file_without_proof(&file_path, receipt_id)
     }
 
-    pub fn load_index(&self) -> Result<ReceiptStoreIndex, ReceiptStoreError> {
-        self.load_index_with_policy(RuntimeReceiptSignaturePolicy::local_development())
-    }
-
-    pub fn load_index_with_policy(
+    pub fn load_index(
         &self,
         signature_policy: RuntimeReceiptSignaturePolicy<'_>,
     ) -> Result<ReceiptStoreIndex, ReceiptStoreError> {
@@ -264,7 +238,7 @@ impl LocalReceiptStore {
         let contents = match fs::read_to_string(&index_path) {
             Ok(contents) => contents,
             Err(source) if source.kind() == ErrorKind::NotFound => {
-                return self.rebuild_index_from_receipts(self.list_with_policy(signature_policy)?);
+                return self.rebuild_index_from_receipts(self.list(signature_policy)?);
             }
             Err(source) => {
                 return Err(ReceiptStoreError::StoreUnreadable {
@@ -278,17 +252,13 @@ impl LocalReceiptStore {
         Ok(index)
     }
 
-    pub fn rebuild_index(&self) -> Result<ReceiptStoreIndex, ReceiptStoreError> {
-        self.rebuild_index_with_policy(RuntimeReceiptSignaturePolicy::local_development())
-    }
-
-    pub fn rebuild_index_with_policy(
+    pub fn rebuild_index(
         &self,
         signature_policy: RuntimeReceiptSignaturePolicy<'_>,
     ) -> Result<ReceiptStoreIndex, ReceiptStoreError> {
         self.ensure_store_dir()?;
         let _lock = self.lock_mutations()?;
-        self.rebuild_index_from_receipts(self.list_with_policy(signature_policy)?)
+        self.rebuild_index_from_receipts(self.list(signature_policy)?)
     }
 
     fn rebuild_index_projection(&self) -> Result<ReceiptStoreIndex, ReceiptStoreError> {
@@ -317,7 +287,7 @@ impl LocalReceiptStore {
         index: &ReceiptStoreIndex,
         signature_policy: RuntimeReceiptSignaturePolicy<'_>,
     ) -> Result<(), ReceiptStoreError> {
-        let listed = self.list_with_policy(signature_policy)?;
+        let listed = self.list(signature_policy)?;
         let listed_entries = listed
             .iter()
             .map(index_entry)

@@ -44,7 +44,7 @@ pub(super) fn load_children(
         if !seen.insert(receipt_id.to_owned()) {
             continue;
         }
-        match store.read_exact_with_policy(receipt_id, policy) {
+        match store.read_exact(receipt_id, policy) {
             Ok(receipt) => {
                 pending.extend(receipt_edge_references(&receipt).cloned());
                 children.push(receipt);

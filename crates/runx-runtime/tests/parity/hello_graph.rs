@@ -2,8 +2,8 @@ use std::path::PathBuf;
 
 use runx_contracts::{ExecutionBoundaryKind, ExecutionBoundaryObservation, JsonObject};
 use runx_core::state_machine::GraphStatus;
+use runx_runtime::Runtime;
 use runx_runtime::adapters::process_tool::ProcessToolAdapter;
-use runx_runtime::{Runtime, RuntimeOptions};
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
@@ -26,7 +26,7 @@ fn hello_graph_matches_post_cutover_fixture() -> Result<(), Box<dyn std::error::
         "../../../../fixtures/runtime/hello-graph/summary.json"
     ))?;
     let (_run, run) = crate::support::scratch_run("run_hello_graph_parity")?;
-    let mut options = RuntimeOptions::local_development(std::env::vars().collect(), run);
+    let mut options = crate::support::fixture_runtime_options(std::env::vars().collect(), run)?;
     options.created_at = expected.created_at.clone();
     let runtime = Runtime::new(ProcessToolAdapter, options);
     let graph_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))

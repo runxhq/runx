@@ -10,8 +10,7 @@ use runx_receipts::ReceiptTreeConfig;
 use runx_runtime::registry::TrustTier;
 use runx_runtime::registry::{FileRegistryStore, IngestSkillOptions, ingest_skill_markdown};
 use runx_runtime::{
-    LocalOrchestrator, LocalReceiptStore, RUNX_RECEIPT_DIR_ENV, RunResult, RuntimeOptions,
-    SkillRunRequest,
+    LocalOrchestrator, LocalReceiptStore, RUNX_RECEIPT_DIR_ENV, RunResult, SkillRunRequest,
 };
 use runx_runtime::{
     RUNX_RECEIPT_VERIFY_ED25519_PUBLIC_KEY_BASE64_ENV, RUNX_RECEIPT_VERIFY_KID_ENV,
@@ -194,7 +193,7 @@ fn test_manifest_key_pair() -> Result<ring::signature::Ed25519KeyPair, std::io::
 fn runtime_options_local_development_uses_live_timestamp() -> Result<(), Box<dyn std::error::Error>>
 {
     let (_root, run) = crate::support::scratch_run("run_live_timestamp")?;
-    let options = RuntimeOptions::local_development(std::env::vars().collect(), run);
+    let options = crate::support::fixture_runtime_options(std::env::vars().collect(), run)?;
 
     assert_ne!(options.created_at, FIXTURE_CREATED_AT);
     assert!(options.created_at.ends_with('Z'));
@@ -924,17 +923,16 @@ fn native_skill_run_uses_production_receipt_signing_env() -> Result<(), Box<dyn 
     let receipt_id = string_field(output, "receipt_id").ok_or("missing receipt_id")?;
     let signature_config = crate::support::test_signature_config()?;
     let receipt = runx_runtime::LocalReceiptStore::new(&receipt_dir)
-        .read_exact_with_policy(receipt_id, signature_config.signature_policy())?;
+        .read_exact(receipt_id, signature_config.signature_policy())?;
     assert_eq!(receipt.issuer.kid, "runx-runtime-prod-fixture-key");
     assert!(receipt.signature.value.starts_with("base64:"));
-    assert!(!receipt.signature.value.starts_with("sig:"));
 
     Ok(())
 }
 
+#[cfg(unix)]
 #[test]
-fn native_skill_run_uses_local_development_without_production_receipt_signing_env()
--> Result<(), Box<dyn std::error::Error>> {
+fn native_skill_run_signs_with_the_selected_home_key() -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;
     let skill_dir = write_agent_task_skill(temp.path())?;
     let answers_path = temp.path().join("answers.json");
@@ -954,22 +952,73 @@ fn native_skill_run_uses_local_development_without_production_receipt_signing_en
         })
         .to_string(),
     )?;
+    let receipt_dir = temp.path().join("receipts");
+    let env = BTreeMap::from([(
+        runx_runtime::RUNX_HOME_ENV.to_owned(),
+        temp.path().join("home").display().to_string(),
+    )]);
     let result = complete_agent_fixture(SkillRunRequest {
         current_context: Vec::new(),
         historical_context: Vec::new(),
         run_authority: None,
         act: None,
         skill_path: skill_dir,
-        receipt_dir: None,
-        run_id: Some("local-development-signed-run".to_owned()),
+        receipt_dir: Some(receipt_dir.clone()),
+        run_id: Some("home-signed-run".to_owned()),
         answers_path: Some(answers_path),
         inputs: BTreeMap::new(),
-        env: BTreeMap::new(),
+        env: env.clone(),
         cwd: temp.path().to_path_buf(),
         managed_agent: Default::default(),
     })?;
     assert_eq!(result.status, runx_runtime::RunStatus::Sealed);
     assert_eq!(result.receipt_refs.len(), 1);
+
+    let output = object(&result.output, "skill run result")?;
+    let receipt_id = string_field(output, "receipt_id").ok_or("missing receipt_id")?;
+    let paths = runx_runtime::RunxPaths::resolve(&env, temp.path());
+    let home_key =
+        runx_runtime::receipt_trust(&env, &paths, runx_runtime::ReceiptTrust::HomeAndConfigured)?
+            .pop()
+            .ok_or("the run created no home key")?
+            .key;
+    let verifier = runx_runtime::Ed25519ReceiptVerifier::new([home_key.clone()]);
+    let receipt = runx_runtime::LocalReceiptStore::new(&receipt_dir).read_exact(
+        receipt_id,
+        runx_runtime::RuntimeReceiptSignaturePolicy::verifying(&verifier),
+    )?;
+    assert_eq!(
+        receipt.issuer.issuer_type,
+        runx_contracts::ReceiptIssuerType::Local
+    );
+    assert_eq!(receipt.issuer.kid.as_str(), home_key.kid());
+    assert_eq!(
+        receipt.issuer.public_key_sha256,
+        home_key.public_key_sha256()
+    );
+    assert!(receipt.signature.value.starts_with("base64:"));
+
+    // Another home's key does not verify it.
+    let other = tempdir()?;
+    let other_env = BTreeMap::from([(
+        runx_runtime::RUNX_HOME_ENV.to_owned(),
+        other.path().display().to_string(),
+    )]);
+    let other_paths = runx_runtime::RunxPaths::resolve(&other_env, other.path());
+    runx_runtime::RuntimeReceiptSignatureConfig::resolve(&other_env, &other_paths)?;
+    let other_verifier = runx_runtime::receipt_verifier(
+        &other_env,
+        &other_paths,
+        runx_runtime::ReceiptTrust::HomeAndConfigured,
+    )?;
+    assert!(
+        runx_runtime::LocalReceiptStore::new(&receipt_dir)
+            .read_exact(
+                receipt_id,
+                runx_runtime::RuntimeReceiptSignaturePolicy::verifying(&other_verifier),
+            )
+            .is_err()
+    );
     Ok(())
 }
 
@@ -2481,7 +2530,7 @@ fn native_graph_skill_run_merges_imported_graph_skill_tool_roots()
     let nested_child_receipt =
         crate::support::read_test_signed_receipt(&receipt_dir, nested_child_id)?;
     let signature_config = crate::support::test_signature_config()?;
-    let validation = runx_runtime::receipts::tree::validate_runtime_receipt_tree_with_policy(
+    let validation = runx_runtime::receipts::tree::validate_runtime_receipt_tree(
         &root_receipt,
         vec![
             nested_step_receipt,

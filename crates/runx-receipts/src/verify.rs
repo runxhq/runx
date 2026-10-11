@@ -21,8 +21,8 @@ pub use proof::{
 };
 pub use verdict::{
     ReceiptVerifyCheck, ReceiptVerifyFinding, ReceiptVerifyLineageCheck,
-    ReceiptVerifySignatureCheck, ReceiptVerifySignatureMode, ReceiptVerifyVerdict,
-    VERIFY_VERDICT_SCHEMA, verify_receipt_document_verdict, verify_receipt_verdict,
+    ReceiptVerifySignatureCheck, ReceiptVerifyVerdict, VERIFY_VERDICT_SCHEMA,
+    verify_receipt_document_verdict, verify_receipt_verdict,
 };
 
 pub fn validate_receipt(receipt: &Receipt) -> Result<(), ReceiptVerification> {

@@ -26165,7 +26165,6 @@ export const runxSchemaArtifacts = {
           }
         },
         "required": [
-          "actor_ref",
           "grant_refs",
           "scope_refs",
           "terms",
