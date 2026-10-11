@@ -335,36 +335,37 @@ impl Http<'_> {
                 .as_ref()
                 .map(|pages| (pages.param.as_str(), cursor))
         });
-        if !request.query.is_empty() || paged.is_some() {
-            let mut pairs = url.query_pairs_mut();
-            let mut cursor_sent = false;
-            // A query parameter is optional: one whose argument the call
-            // does not carry is not sent.
-            for (name, template) in &request.query {
-                if let Some((param, cursor)) = paged
-                    && param == name
-                {
-                    pairs.append_pair(param, cursor);
-                    cursor_sent = true;
-                    continue;
-                }
-                let value = match template.render(&inputs) {
-                    Ok(value) => value,
-                    Err(TemplateError::Unavailable {
-                        binding: "$argument",
-                        ..
-                    }) => continue,
-                    Err(error) => return Err(error.to_string()),
-                };
-                if let Some(value) = scalar_string(&value) {
-                    pairs.append_pair(name, &value);
-                }
-            }
+        // A query parameter is optional: one whose argument the call does not
+        // carry is not sent, and a request that sends none has no query.
+        let mut pairs = Vec::with_capacity(request.query.len() + 1);
+        let mut cursor_sent = false;
+        for (name, template) in &request.query {
             if let Some((param, cursor)) = paged
-                && !cursor_sent
+                && param == name
             {
-                pairs.append_pair(param, cursor);
+                pairs.push((param.to_owned(), cursor.to_owned()));
+                cursor_sent = true;
+                continue;
             }
+            let value = match template.render(&inputs) {
+                Ok(value) => value,
+                Err(TemplateError::Unavailable {
+                    binding: "$argument",
+                    ..
+                }) => continue,
+                Err(error) => return Err(error.to_string()),
+            };
+            if let Some(value) = scalar_string(&value) {
+                pairs.push((name.clone(), value));
+            }
+        }
+        if let Some((param, cursor)) = paged
+            && !cursor_sent
+        {
+            pairs.push((param.to_owned(), cursor.to_owned()));
+        }
+        if !pairs.is_empty() {
+            url.query_pairs_mut().extend_pairs(pairs);
         }
         let method = match request.method {
             ManifestMethod::Get => HttpMethod::Get,
@@ -846,6 +847,37 @@ mod tests {
         .map_err(|error| error.to_string())?;
         assert_eq!(at_path(&read.value, "1"), Some(&expected));
         assert_eq!(read.evidence.len(), 3, "the account and two pages");
+        Ok(())
+    }
+
+    #[test]
+    fn a_request_that_sends_no_query_parameter_has_no_query() -> Result<(), String> {
+        // Its only parameter is an argument the call does not carry, so the
+        // request goes to the bare URL, not one ending in `?`.
+        let spec: HttpImplementation = serde_json::from_value(serde_json::json!({
+            "allowed_hosts": ["api.example.test"],
+            "requests": [{
+                "id": "me",
+                "method": "GET",
+                "url": "https://api.example.test/me",
+                "query": {"state": {"$argument": "/state"}}
+            }],
+            "decode": [{"op": "auto_json"}],
+            "result_paths": {"me": "acknowledgement"}
+        }))
+        .map_err(|error| error.to_string())?;
+        let arguments = JsonValue::Object(JsonObject::new());
+        let (parameters, env) = (JsonObject::new(), BTreeMap::new());
+        let call = AdmittedCall::for_tests(
+            &arguments,
+            &parameters,
+            &env,
+            runx_contracts::connector::OperationAccess::Read,
+        );
+        let read = Http::new(Egress::Direct(&Pages), &call, &spec)
+            .perform(None)
+            .map_err(Unperformed::reason)?;
+        assert_eq!(read.evidence.len(), 1);
         Ok(())
     }
 

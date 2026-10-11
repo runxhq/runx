@@ -44,7 +44,7 @@ fn top_level_help_and_version_are_native() {
     );
     assert_help_line(
         &help,
-        "runx skill <skill-ref|owner/name@version|skill-dir|SKILL.md> [runner] [-i key=value] [--input-json key=json] [--inputs file|-] [-j] [--diagnostics] [--managed-agent [--managed-agent-rounds n]] [--full-operator-context] [--registry url|path] [--digest sha256] [--package-digest sha256 --execution-closure-digest sha256] [--flag value] [-R dir]",
+        "runx skill <skill-ref|owner/name@version|skill-dir|SKILL.md> [runner] [-i key=value] [--input-json key=json] [--inputs file|-] [--act json] [-j] [--diagnostics] [--managed-agent [--managed-agent-rounds n]] [--full-operator-context] [--registry url|path] [--digest sha256] [--package-digest sha256 --execution-closure-digest sha256] [--flag value] [-R dir]",
     );
     assert_help_line(
         &help,
@@ -151,11 +151,15 @@ fn nested_skill_history_verify_and_publish_help_are_native() {
 
     assert_help_line(
         &skill_help_text(),
-        "runx skill <skill-ref|owner/name@version|skill-dir|SKILL.md> [runner] [-i key=value] [--input-json key=json] [--inputs file|-] [-j] [--diagnostics] [--managed-agent [--managed-agent-rounds n]] [--full-operator-context] [--registry url|path] [--digest sha256] [--package-digest sha256 --execution-closure-digest sha256] [--flag value] [-R dir]",
+        "runx skill <skill-ref|owner/name@version|skill-dir|SKILL.md> [runner] [-i key=value] [--input-json key=json] [--inputs file|-] [--act json] [-j] [--diagnostics] [--managed-agent [--managed-agent-rounds n]] [--full-operator-context] [--registry url|path] [--digest sha256] [--package-digest sha256 --execution-closure-digest sha256] [--flag value] [-R dir]",
     );
     assert_help_line(
         &skill_help_text(),
         "runx skill inspect <skill-ref|owner/name@version|skill-dir|SKILL.md> [runner] [-j] [--registry url|path] [--digest sha256]",
+    );
+    assert_help_line(
+        &skill_help_text(),
+        "--act json               State the act the run is invoked with, as a JSON act with its purpose",
     );
     assert_help_line(
         &history_help_text(),

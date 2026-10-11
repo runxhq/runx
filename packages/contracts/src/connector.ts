@@ -443,7 +443,7 @@ export function renderDeclaredRequest(http: HttpImplementation, call: DeclaredRe
   const queryNames = Object.keys(request.query ?? {}).sort();
   if (queryNames.length > 0) {
     // As the kernel does: a query value whose argument the call does not
-    // carry is not sent, and the query is opened even when nothing is.
+    // carry is not sent, and a request that sends none has no query.
     const pairs = new URLSearchParams();
     for (const name of queryNames) {
       let value: JsonValue;
@@ -457,7 +457,7 @@ export function renderDeclaredRequest(http: HttpImplementation, call: DeclaredRe
       if (scalar !== undefined) pairs.append(name, scalar);
     }
     const serialized = pairs.toString();
-    href = url.search === "" ? `${href.replace(/\?$/, "")}?${serialized}` : serialized ? `${href}&${serialized}` : href;
+    if (serialized) href = url.search === "" ? `${href.replace(/\?$/, "")}?${serialized}` : `${href}&${serialized}`;
   }
   const headers: Record<string, string> = {};
   for (const name of Object.keys(request.headers ?? {}).sort()) {

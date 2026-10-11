@@ -173,7 +173,7 @@ mandate, and why that was legitimate come from admission, never from the act:
 the act's legitimacy names the execution term admission derived. What the call
 produced comes from the operation, which declares its `effect`.
 
-`$act` is the act the run's invoker states: `runx run --act '<json>'`, an MCP
+`$act` is the act the run's invoker states: `runx skill <skill> --act '<json>'`, an MCP
 call's `act` argument, or a harness case's `caller.act`. A step reads it only
 inside an `act:`, whole (`act: $act`) or by field (`purpose: $act.purpose`);
 no other value may read it. A `skill` step's `act:` is the act its child run
