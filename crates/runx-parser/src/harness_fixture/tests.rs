@@ -185,7 +185,8 @@ caller:
 }
 
 #[test]
-fn harness_http_exchanges_canonicalize_final_urls_and_reject_aliases() {
+fn harness_http_exchanges_canonicalize_final_urls_so_an_alias_is_one_request()
+-> Result<(), HarnessFixtureError> {
     for (first, alias) in [
         ("https://api.example.com", "https://api.example.com/"),
         ("https://API.example.com/mcp", "https://api.example.com/mcp"),
@@ -207,12 +208,12 @@ caller:
       response: {{ status: 200, body: alias }}
 "#,
         );
-        let error = parse_harness_fixture(&fixture)
-            .expect_err("canonical final-URL aliases must be duplicate identities");
-        assert!(
-            matches!(error, HarnessFixtureError::Invalid { field, .. } if field == "caller.http_exchanges[1].request")
-        );
+        // An alias is the same final URL, so both answer one request, in order.
+        let parsed = parse_harness_fixture(&fixture)?;
+        let exchanges = &parsed.caller.http_exchanges;
+        assert_eq!(exchanges[0].request.url, exchanges[1].request.url);
     }
+    Ok(())
 }
 
 #[test]
@@ -305,29 +306,28 @@ caller:
 }
 
 #[test]
-fn rejects_duplicate_harness_http_exchanges() {
-    let error = parse_harness_fixture(
+fn admits_a_repeated_request_as_answers_in_order() -> Result<(), HarnessFixtureError> {
+    let fixture = parse_harness_fixture(
         r#"
-name: duplicate-mcp
+name: read-change-read
 kind: skill
 target: ..
 caller:
   http_exchanges:
     - request: &request
-        method: POST
-        url: https://fixture.runx.invalid/mcp
-        body:
-          json: { operation: status }
-      response: { status: 200, body: first }
+        method: GET
+        url: https://fixture.runx.invalid/item
+        body: none
+      response: { status: 200, body: before }
     - request: *request
-      response: { status: 200, body: second }
+      response: { status: 200, body: after }
 "#,
-    )
-    .expect_err("duplicate exact exchanges must fail");
+    )?;
 
-    assert!(
-        matches!(error, HarnessFixtureError::Invalid { field, .. } if field == "caller.http_exchanges[1].request")
-    );
+    let exchanges = &fixture.caller.http_exchanges;
+    assert_eq!(exchanges.len(), 2);
+    assert_eq!(exchanges[0].request.url, exchanges[1].request.url);
+    Ok(())
 }
 
 #[test]

@@ -274,14 +274,12 @@ impl ReqwestHttpTransport {
 /// ordinary executions always construct the live guarded transport.
 pub(crate) enum NativeHttpTransport<'a> {
     Live(ReqwestHttpTransport),
-    Harness(&'a [RuntimeHarnessHttpExchange]),
+    Harness(&'a HarnessExchanges),
 }
 
 impl<'a> NativeHttpTransport<'a> {
     #[cfg(test)]
-    pub(crate) fn new(
-        harness: Option<&'a [RuntimeHarnessHttpExchange]>,
-    ) -> Result<Self, RuntimeHttpError> {
+    pub(crate) fn new(harness: Option<&'a HarnessExchanges>) -> Result<Self, RuntimeHttpError> {
         match harness {
             Some(exchanges) => Ok(Self::Harness(exchanges)),
             None => Ok(Self::Live(ReqwestHttpTransport::new()?)),
@@ -289,7 +287,7 @@ impl<'a> NativeHttpTransport<'a> {
     }
 
     pub(crate) fn for_hosted_api(
-        harness: Option<&'a [RuntimeHarnessHttpExchange]>,
+        harness: Option<&'a HarnessExchanges>,
         allow_private_network: bool,
     ) -> Result<Self, RuntimeHttpError> {
         match harness {
@@ -306,7 +304,7 @@ impl RuntimeHttpTransport for NativeHttpTransport<'_> {
     fn send(&self, request: RuntimeHttpRequest) -> Result<RuntimeHttpResponse, RuntimeHttpError> {
         match self {
             Self::Live(transport) => transport.send(request),
-            Self::Harness(exchanges) => exact_harness_response(exchanges, &request),
+            Self::Harness(exchanges) => exchanges.answer(&request),
         }
     }
 
@@ -317,10 +315,9 @@ impl RuntimeHttpTransport for NativeHttpTransport<'_> {
     ) -> Result<RuntimeHttpResponse, RuntimeHttpError> {
         match self {
             Self::Live(transport) => transport.send_limited(request, response_limit),
-            Self::Harness(exchanges) => enforce_harness_response_limit(
-                exact_harness_response(exchanges, &request)?,
-                response_limit,
-            ),
+            Self::Harness(exchanges) => {
+                enforce_harness_response_limit(exchanges.answer(&request)?, response_limit)
+            }
         }
     }
 
@@ -330,7 +327,7 @@ impl RuntimeHttpTransport for NativeHttpTransport<'_> {
     ) -> Result<RuntimeHttpResponse, RuntimeHttpError> {
         match self {
             Self::Live(transport) => transport.send_idempotent(request),
-            Self::Harness(exchanges) => exact_harness_response(exchanges, &request),
+            Self::Harness(exchanges) => exchanges.answer(&request),
         }
     }
 
@@ -341,35 +338,97 @@ impl RuntimeHttpTransport for NativeHttpTransport<'_> {
     ) -> Result<RuntimeHttpResponse, RuntimeHttpError> {
         match self {
             Self::Live(transport) => transport.send_idempotent_limited(request, response_limit),
-            Self::Harness(exchanges) => enforce_harness_response_limit(
-                exact_harness_response(exchanges, &request)?,
-                response_limit,
-            ),
+            Self::Harness(exchanges) => {
+                enforce_harness_response_limit(exchanges.answer(&request)?, response_limit)
+            }
         }
     }
 }
 
-/// The harness's answer to `request`: the one exchange whose method, URL and
-/// body match it exactly. Anything else is refused, never sent.
-pub(crate) fn exact_harness_response(
-    exchanges: &[RuntimeHarnessHttpExchange],
-    request: &RuntimeHttpRequest,
-) -> Result<RuntimeHttpResponse, RuntimeHttpError> {
-    exchanges
-        .iter()
-        .find(|exchange| {
-            exchange.method == request.method
-                && exchange.url == request.url
-                && harness_request_body_matches(&exchange.body, request.body.as_deref())
-        })
-        .map(|exchange| exchange.response.clone())
-        .ok_or_else(|| RuntimeHttpError::Transport {
-            message: format!(
-                "the harness declares no exchange for {} {}",
-                request.method.as_str(),
-                request.url
-            ),
-        })
+/// A harness case's exact HTTP exchanges, standing in for the world. A
+/// request is answered by the exchanges whose method, URL and body match it
+/// exactly; one the case declares more than once is answered by those
+/// exchanges in the order they are declared, and the last answers every later
+/// repeat, so a case can read, change and read back the same resource.
+/// Anything else is refused, never sent.
+#[derive(Debug, Default)]
+pub(crate) struct HarnessExchanges {
+    exchanges: Vec<RuntimeHarnessHttpExchange>,
+    /// How many times each declared exchange has answered, by its index.
+    answered: Mutex<Vec<usize>>,
+}
+
+impl HarnessExchanges {
+    pub(crate) fn new(exchanges: Vec<RuntimeHarnessHttpExchange>) -> Self {
+        Self {
+            answered: Mutex::new(vec![0; exchanges.len()]),
+            exchanges,
+        }
+    }
+
+    /// How many exchanges the case declares.
+    pub(crate) fn len(&self) -> usize {
+        self.exchanges.len()
+    }
+
+    pub(crate) fn answer(
+        &self,
+        request: &RuntimeHttpRequest,
+    ) -> Result<RuntimeHttpResponse, RuntimeHttpError> {
+        let matching = self
+            .exchanges
+            .iter()
+            .enumerate()
+            .filter(|(_, exchange)| {
+                exchange.method == request.method
+                    && exchange.url == request.url
+                    && harness_request_body_matches(&exchange.body, request.body.as_deref())
+            })
+            .collect::<Vec<_>>();
+        let Some(&last) = matching.last() else {
+            return Err(RuntimeHttpError::Transport {
+                message: format!(
+                    "the harness declares no exchange for {} {}",
+                    request.method.as_str(),
+                    request.url
+                ),
+            });
+        };
+        let mut answered = self.answered()?;
+        // Each answer of this request so far came from one of its exchanges,
+        // so their sum picks the next one declared.
+        let asked = matching
+            .iter()
+            .filter_map(|&(index, _)| answered.get(index))
+            .sum::<usize>();
+        let (index, exchange) = matching.get(asked).copied().unwrap_or(last);
+        if let Some(count) = answered.get_mut(index) {
+            *count = count.saturating_add(1);
+        }
+        Ok(exchange.response.clone())
+    }
+
+    /// The declared exchanges no request asked for, as `METHOD URL`. A case
+    /// proves only the requests its run made, so a write it declares and the
+    /// run never sent is not a write the case proved.
+    pub(crate) fn unrequested(&self) -> Result<Vec<String>, RuntimeHttpError> {
+        let answered = self.answered()?;
+        Ok(self
+            .exchanges
+            .iter()
+            .zip(answered.iter())
+            .filter(|(_, count)| **count == 0)
+            .map(|(exchange, _)| format!("{} {}", exchange.method.as_str(), exchange.url))
+            .collect())
+    }
+
+    fn answered(&self) -> Result<std::sync::MutexGuard<'_, Vec<usize>>, RuntimeHttpError> {
+        self.answered
+            .lock()
+            .map_err(|_| RuntimeHttpError::Transport {
+                message: "the harness exchange record is poisoned".to_owned(),
+            })
+    }
 }
 
 fn harness_request_body_matches(
@@ -1016,8 +1075,8 @@ mod tests {
         GuardedDnsResolver, NativeHttpTransport, PROVIDER_OPERATION_REQUEST_TIMEOUT,
         ReqwestHttpTransport, TransportProfile, block_on_http, http_runtime,
     };
+    use super::{HarnessExchanges, RuntimeHarnessHttpExchange, RuntimeHarnessHttpRequestBody};
     use super::{HttpMethod, RuntimeHttpError, RuntimeHttpHeader, RuntimeHttpRequest};
-    use super::{RuntimeHarnessHttpExchange, RuntimeHarnessHttpRequestBody};
     use reqwest::dns::Resolve as _;
 
     #[derive(Clone, Debug)]
@@ -1046,12 +1105,12 @@ mod tests {
     fn harness_http_transport_is_exact_limited_and_never_falls_through()
     -> Result<(), RuntimeHttpTestError> {
         let url = "https://fixture.runx.invalid/source";
-        let exchanges = [RuntimeHarnessHttpExchange {
+        let exchanges = HarnessExchanges::new(vec![RuntimeHarnessHttpExchange {
             method: HttpMethod::Get,
             url: url.to_owned(),
             body: RuntimeHarnessHttpRequestBody::None,
             response: RuntimeHttpResponse::new(200, "hello world"),
-        }];
+        }]);
         let transport = NativeHttpTransport::new(Some(&exchanges))?;
         let read = || RuntimeHttpRequest {
             method: HttpMethod::Get,
@@ -1094,9 +1153,40 @@ mod tests {
     }
 
     #[test]
+    fn a_repeated_harness_request_is_answered_in_order() -> Result<(), RuntimeHttpTestError> {
+        let url = "https://fixture.runx.invalid/item";
+        let answer = |body: &str| RuntimeHarnessHttpExchange {
+            method: HttpMethod::Get,
+            url: url.to_owned(),
+            body: RuntimeHarnessHttpRequestBody::None,
+            response: RuntimeHttpResponse::new(200, body),
+        };
+        let exchanges = HarnessExchanges::new(vec![answer("before"), answer("after")]);
+        let transport = NativeHttpTransport::new(Some(&exchanges))?;
+        let read = || RuntimeHttpRequest {
+            method: HttpMethod::Get,
+            url: url.to_owned(),
+            headers: Vec::new(),
+            body: None,
+        };
+
+        assert_eq!(
+            exchanges.unrequested()?,
+            [format!("GET {url}"), format!("GET {url}")]
+        );
+        assert_eq!(transport.send(read())?.body, "before");
+        assert_eq!(exchanges.unrequested()?, [format!("GET {url}")]);
+        assert_eq!(transport.send(read())?.body, "after");
+        // The last answer stands for every later repeat.
+        assert_eq!(transport.send(read())?.body, "after");
+        assert!(exchanges.unrequested()?.is_empty());
+        Ok(())
+    }
+
+    #[test]
     fn harness_http_exchanges_match_complete_requests() -> Result<(), RuntimeHttpTestError> {
         let url = "https://fixture.runx.invalid/mcp";
-        let exchanges = [
+        let exchanges = HarnessExchanges::new(vec![
             RuntimeHarnessHttpExchange {
                 method: HttpMethod::Post,
                 url: url.to_owned(),
@@ -1120,7 +1210,7 @@ mod tests {
                 body: RuntimeHarnessHttpRequestBody::Json(runx_contracts::JsonValue::Null),
                 response: RuntimeHttpResponse::new(200, "json null"),
             },
-        ];
+        ]);
         let exact_transport = NativeHttpTransport::new(Some(&exchanges))?;
         let exact_mutation = exact_transport.send(RuntimeHttpRequest {
             method: HttpMethod::Post,

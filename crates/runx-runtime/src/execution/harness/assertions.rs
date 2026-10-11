@@ -75,7 +75,21 @@ pub(super) fn assert_expectations(
             &format!("expect.step_outputs.{step_id}"),
         )?;
     }
-    Ok(())
+    assert_exchanges_requested(&output.unrequested)
+}
+
+/// A case declares only the exchanges its run makes. An exchange no request
+/// asked for is a read or a write the case claims and the run never proved,
+/// as when a skill skips a write but reads its resource twice.
+pub(crate) fn assert_exchanges_requested(unrequested: &[String]) -> Result<(), HarnessReplayError> {
+    if unrequested.is_empty() {
+        return Ok(());
+    }
+    Err(HarnessReplayError::Mismatch {
+        field: "caller.http_exchanges".to_owned(),
+        expected: "every declared exchange requested".to_owned(),
+        actual: format!("never requested: {}", unrequested.join(", ")),
+    })
 }
 
 pub(super) fn status_from_disposition(disposition: &ClosureDisposition) -> HarnessExpectedStatus {

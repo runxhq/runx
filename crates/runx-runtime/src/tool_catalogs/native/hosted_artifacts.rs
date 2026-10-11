@@ -669,7 +669,8 @@ mod tests {
     use crate::credentials::CredentialDelivery;
     use crate::effects::RuntimeEffectRegistry;
     use crate::http::{
-        HttpMethod, RuntimeHarnessHttpExchange, RuntimeHarnessHttpRequestBody, RuntimeHttpResponse,
+        HarnessExchanges, HttpMethod, RuntimeHarnessHttpExchange, RuntimeHarnessHttpRequestBody,
+        RuntimeHttpResponse,
     };
 
     /// The two exchanges a hosted artifact call makes: who the token is, then
@@ -678,8 +679,8 @@ mod tests {
         base_url: &str,
         request: JsonObject,
         packet: &ProviderOperationPacket,
-    ) -> Option<std::sync::Arc<Vec<RuntimeHarnessHttpExchange>>> {
-        Some(std::sync::Arc::new(vec![
+    ) -> Option<std::sync::Arc<HarnessExchanges>> {
+        Some(std::sync::Arc::new(HarnessExchanges::new(vec![
             RuntimeHarnessHttpExchange {
                 method: HttpMethod::Get,
                 url: format!("{base_url}/v1/me"),
@@ -698,7 +699,7 @@ mod tests {
                     serde_json::to_string(packet).expect("packet JSON"),
                 ),
             },
-        ]))
+        ])))
     }
 
     #[test]

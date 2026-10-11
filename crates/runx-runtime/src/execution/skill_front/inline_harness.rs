@@ -12,7 +12,9 @@ use runx_parser::{HarnessCaller, RunnerHarnessCase, SkillRunnerManifest};
 use crate::RuntimeError;
 use crate::effects::RuntimeEffectRegistry;
 use crate::execution::harness::runner::HarnessReplayError;
-use crate::execution::harness::{assert_json_expectation, assert_receipt_expectation, status_name};
+use crate::execution::harness::{
+    assert_exchanges_requested, assert_json_expectation, assert_receipt_expectation, status_name,
+};
 use crate::execution::orchestrator::SkillRunRequest;
 use crate::services::{ReceiptServices, WorkspaceEnv};
 
@@ -117,6 +119,27 @@ fn run_inline_harness_case(
     case_root: &Path,
     case: &RunnerHarnessCase,
 ) -> InlineHarnessCaseOutcome {
+    // The case's exchanges stand in for the world before anything can end
+    // the case, so however it ends, even refused at its inputs, it proves
+    // only the requests its run made.
+    let effects =
+        match crate::execution::harness::effects_for_harness(context.effects, &case.caller) {
+            Ok(effects) => effects,
+            Err(error) => return inline_harness_case_error(&case.name, error),
+        };
+    let mut outcome = run_admitted_inline_harness_case(context, case_root, case, &effects);
+    if outcome.assertion_error.is_none() {
+        outcome.assertion_error = inline_harness_exchanges_error(case, &effects);
+    }
+    outcome
+}
+
+fn run_admitted_inline_harness_case(
+    context: InlineHarnessContext<'_>,
+    case_root: &Path,
+    case: &RunnerHarnessCase,
+    effects: &RuntimeEffectRegistry,
+) -> InlineHarnessCaseOutcome {
     let receipt_dir = case_root.join("receipts");
     let runner = match selected_runner(context.manifest, case.runner.as_deref()) {
         Ok(runner) => runner,
@@ -160,7 +183,7 @@ fn run_inline_harness_case(
         turn_scripts: case.caller.turns.clone(),
         ..Default::default()
     };
-    execute_inline_harness_case(context, &request, &receipt_dir, case, &overrides)
+    execute_inline_harness_case(context, &request, &receipt_dir, case, &overrides, effects)
 }
 
 fn execute_inline_harness_case(
@@ -169,18 +192,9 @@ fn execute_inline_harness_case(
     receipt_dir: &Path,
     case: &RunnerHarnessCase,
     overrides: &SkillRunOverrides,
+    effects: &RuntimeEffectRegistry,
 ) -> InlineHarnessCaseOutcome {
-    let effects =
-        match crate::execution::harness::effects_for_harness(context.effects, &case.caller) {
-            Ok(effects) => effects,
-            Err(error) => {
-                return InlineHarnessCaseOutcome {
-                    receipt_id: None,
-                    assertion_error: Some(format!("{}: {error}", case.name)),
-                };
-            }
-        };
-    match execute_skill_run_with_overrides(request, overrides, &effects) {
+    match execute_skill_run_with_overrides(request, overrides, effects) {
         Ok(result) => {
             let output = result.output;
             let receipt_id = receipt_id_from_output(&output);
@@ -265,6 +279,27 @@ fn receipt_id_from_output(output: &JsonValue) -> Option<String> {
         .and_then(|object| object.get("receipt_id"))
         .and_then(JsonValue::as_str)
         .map(str::to_owned)
+}
+
+/// The exchanges the case declares that its run never requested, as the
+/// fixture front asserts them. A case runs only with its exchanges attached.
+fn inline_harness_exchanges_error(
+    case: &RunnerHarnessCase,
+    effects: &RuntimeEffectRegistry,
+) -> Option<String> {
+    let Some(exchanges) = effects.harness_http_exchanges() else {
+        return Some(format!(
+            "{}: the harness exchanges are not attached",
+            case.name
+        ));
+    };
+    let unrequested = match exchanges.unrequested() {
+        Ok(unrequested) => unrequested,
+        Err(error) => return Some(format!("{}: {error}", case.name)),
+    };
+    assert_exchanges_requested(&unrequested)
+        .err()
+        .map(|error| format!("{}: {error}", case.name))
 }
 
 fn inline_harness_expectation_error(

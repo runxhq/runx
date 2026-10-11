@@ -98,7 +98,7 @@ pub(super) struct NativeInvocation<'a, I: ?Sized = JsonObject> {
 }
 
 impl<I: ?Sized> NativeInvocation<'_, I> {
-    fn harness_http_exchanges(&self) -> Option<&[crate::http::RuntimeHarnessHttpExchange]> {
+    fn harness_http_exchanges(&self) -> Option<&crate::http::HarnessExchanges> {
         self.effects.harness_http_exchanges()
     }
 }

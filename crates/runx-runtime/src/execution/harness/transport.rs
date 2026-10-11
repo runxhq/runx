@@ -8,8 +8,8 @@ use super::provider_responses::{
 };
 use crate::effects::{RuntimeEffectError, RuntimeEffectRegistry};
 use crate::http::{
-    HttpMethod, RuntimeHarnessHttpExchange, RuntimeHarnessHttpRequestBody, RuntimeHttpHeader,
-    RuntimeHttpResponse,
+    HarnessExchanges, HttpMethod, RuntimeHarnessHttpExchange, RuntimeHarnessHttpRequestBody,
+    RuntimeHttpHeader, RuntimeHttpResponse,
 };
 use crate::kernel::operation::OperationEffect;
 
@@ -42,7 +42,7 @@ pub(super) fn effects_over(
 
 /// The transport the caller's fixtures stand in for the world with.
 pub(super) fn harness_transport(caller: &HarnessCaller) -> HarnessTransport {
-    let exchanges = Arc::new(
+    let exchanges = Arc::new(HarnessExchanges::new(
         caller
             .http_exchanges
             .iter()
@@ -57,8 +57,8 @@ pub(super) fn harness_transport(caller: &HarnessCaller) -> HarnessTransport {
                 },
                 response: runtime_response(&exchange.response),
             })
-            .collect::<Vec<_>>(),
-    );
+            .collect(),
+    ));
     HarnessTransport {
         provider: caller.provider_responses.clone(),
         exchanges,

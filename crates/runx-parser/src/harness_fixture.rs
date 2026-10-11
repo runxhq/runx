@@ -1,6 +1,6 @@
 //! Pure parsing and validation for conventional package harness fixtures.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
 use runx_contracts::{ClosureDisposition, JsonObject, JsonValue, ReceiptSchema};
 use serde::{Deserialize, Serialize};
@@ -519,6 +519,7 @@ fn validate_mcp_calls(
 
 /// Exact exchanges: the method, URL and JSON body identify each request, so
 /// an exchange may answer a mutation without the harness reaching the network.
+/// A request declared more than once is answered by its exchanges in order.
 fn validate_http_exchanges(
     mut exchanges: Vec<HarnessHttpExchangeFixture>,
     field: &str,
@@ -531,7 +532,6 @@ fn validate_http_exchanges(
             message: format!("must contain at most {MAX_EXCHANGES} exchanges"),
         });
     }
-    let mut identities = BTreeSet::new();
     for (index, exchange) in exchanges.iter_mut().enumerate() {
         let request_field = format!("{field}[{index}].request");
         if !matches!(
@@ -545,8 +545,8 @@ fn validate_http_exchanges(
         }
         exchange.request.url =
             validate_harness_http_url(&exchange.request.url, &format!("{request_field}.url"))?;
-        let body_identity = match &exchange.request.body {
-            HarnessHttpRequestBodyFixture::None(value) if value == "none" => "none".to_owned(),
+        match &exchange.request.body {
+            HarnessHttpRequestBodyFixture::None(value) if value == "none" => {}
             HarnessHttpRequestBodyFixture::None(_) => {
                 return Err(HarnessFixtureError::Invalid {
                     field: format!("{request_field}.body"),
@@ -567,18 +567,7 @@ fn validate_http_exchanges(
                         ),
                     });
                 }
-                format!("json:{encoded}")
             }
-        };
-        if !identities.insert((
-            exchange.request.method.clone(),
-            exchange.request.url.clone(),
-            body_identity,
-        )) {
-            return Err(HarnessFixtureError::Invalid {
-                field: request_field,
-                message: "duplicates an earlier exact method, URL, and JSON body".to_owned(),
-            });
         }
         validate_harness_http_response(&exchange.response, &format!("{field}[{index}].response"))?;
     }

@@ -861,8 +861,13 @@ caller:
 identity: `body: none` means no body, while `body: {json: ...}` means one
 structural JSON value, including literal null. An exchange URL is
 canonicalized like the native final URL and cannot contain credentials or a
-fragment. Any request no exchange matches is refused without reaching the
-network; a harness run has no live fallback. Connector operations still own their real admission, request
+fragment. A request the case declares more than once is answered by those
+exchanges in the order they are declared, and the last answers every later
+repeat, so one case can read a resource, change it and read it back. A case
+declares only the exchanges its run makes: one no request asked for fails the
+case, so a declared write is a write the run sent. Any request no exchange
+matches is refused without reaching the network; a harness run has no live
+fallback. Connector operations still own their real admission, request
 rendering, authentication, decoding, custody and readbacks; only transport
 response bytes come from the harness. `mcp_calls` stands in for a connector's
 MCP server the same way, matched on tool, arguments and session headers, and

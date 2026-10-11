@@ -5,6 +5,7 @@
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use runx_contracts::{
     ClosureDisposition, ExecutionEvent, JsonObject, JsonValue, Receipt, ResolutionRequest,
@@ -14,7 +15,7 @@ use runx_parser::{SkillRunnerDefinition, SkillRunnerManifest};
 use thiserror::Error;
 
 use super::super::graph::bind_run_inputs;
-use super::assertions::{assert_expectations, status_from_disposition};
+use super::assertions::{assert_exchanges_requested, assert_expectations, status_from_disposition};
 use super::fixtures::{
     HarnessExpectedStatus, HarnessFixture, HarnessFixtureError, HarnessFixtureKind,
     load_harness_fixture,
@@ -26,6 +27,7 @@ use crate::execution::output_projection::project_step_claim;
 use crate::execution::run_record::RunLog;
 use crate::execution::runner::{GraphRun, Runtime, RuntimeOptions, StepRun};
 use crate::host::Host;
+use crate::http::HarnessExchanges;
 use crate::kernel::store::KernelStore;
 use crate::paths::RUNX_CWD_ENV;
 use crate::receipts::signing::strip_receipt_signing_env;
@@ -109,6 +111,8 @@ pub struct HarnessReplayOutput {
     pub replayed_answers: JsonObject,
     /// The requests the run made that the case did not answer, by id.
     pub unanswered: Vec<String>,
+    /// The HTTP exchanges the case declares that the run never requested.
+    pub unrequested: Vec<String>,
 }
 
 #[derive(Debug, Error)]
@@ -232,16 +236,28 @@ where
             RuntimeError::effect_state("isolating a harness case", error.to_string())
         })?;
     crate::paths::isolate(&mut fixture.env, case_root.path());
-    let options = {
-        let mut options = options;
-        wire_operations(&mut fixture, &target_path, &mut options)?;
-        options
-    };
+    let mut options = options;
+    let exchanges = wire_operations(&mut fixture, &target_path, &mut options)?;
     seed_harness_receipts(&fixture, &target_path, &options)?;
-    Ok(match fixture.kind {
-        HarnessFixtureKind::Skill => run_skill_fixture(&fixture, target_path, adapter, options)?,
-        HarnessFixtureKind::Graph => run_graph_fixture(&fixture, &target_path, adapter, options)?,
-    })
+    let replayed = match fixture.kind {
+        HarnessFixtureKind::Skill => run_skill_fixture(&fixture, target_path, adapter, options),
+        HarnessFixtureKind::Graph => run_graph_fixture(&fixture, &target_path, adapter, options),
+    };
+    // However the case ends, even in a refusal a front accepts as expected,
+    // it proves only the requests its run made.
+    let unrequested = exchanges.unrequested().map_err(|error| {
+        RuntimeError::effect_state("reading the harness exchanges", error.to_string())
+    })?;
+    match replayed {
+        Ok(mut output) => {
+            output.unrequested = unrequested;
+            Ok(output)
+        }
+        Err(error) => {
+            assert_exchanges_requested(&unrequested)?;
+            Err(error)
+        }
+    }
 }
 
 fn seed_harness_receipts(
@@ -292,12 +308,12 @@ fn seed_harness_receipts(
 
 /// Stand the case's fixtures in beneath operation steps: its exact HTTP
 /// answers, its provider fixture, and the sessions and credentials it runs
-/// under.
+/// under. Returns the exchanges, which record what the run asked of them.
 fn wire_operations(
     fixture: &mut HarnessFixture,
     target_path: &Path,
     options: &mut HarnessOptions,
-) -> Result<(), HarnessReplayError> {
+) -> Result<Arc<HarnessExchanges>, HarnessReplayError> {
     let transport = super::transport::harness_transport(&fixture.caller);
     options.effects =
         super::transport::effects_over(&options.effects, transport.clone(), &fixture.caller)
@@ -310,7 +326,8 @@ fn wire_operations(
     })?;
     fixture.env.extend(provider_env);
     seed_harness_sessions(fixture, target_path, options, &transport)?;
-    seed_harness_credentials(fixture, target_path, options)
+    seed_harness_credentials(fixture, target_path, options)?;
+    Ok(transport.exchanges)
 }
 
 /// Confirm and select the session instances the case runs under, as
@@ -510,6 +527,7 @@ fn seal_admission_failure(
         skill_output: Some(output),
         replayed_answers: JsonObject::new(),
         unanswered: Vec::new(),
+        unrequested: Vec::new(),
     })
 }
 
@@ -813,6 +831,7 @@ fn replay_output_from_graph(
         skill_output,
         replayed_answers,
         unanswered,
+        unrequested: Vec::new(),
     }
 }
 

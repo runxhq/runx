@@ -435,6 +435,72 @@ runners:
     }
 
     #[test]
+    fn a_case_refused_at_its_inputs_still_proves_only_the_requests_it_made()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let operator_workspace = unique_test_root("unsent-exchange")?;
+        let skill_dir = operator_workspace.join("skills/unsent-exchange");
+        fs::create_dir_all(&skill_dir)?;
+        fs::write(
+            skill_dir.join("SKILL.md"),
+            "---\nname: unsent-exchange\ndescription: Proves a refused case declares no exchange.\n---\n\n# Unsent Exchange\n",
+        )?;
+        // The inputs are refused before any step, so the write the case
+        // declares was never sent, and the case cannot pass as though it had
+        // been.
+        fs::write(
+            skill_dir.join("run.yaml"),
+            r#"skill: unsent-exchange
+version: "0.1.0"
+harness:
+  cases:
+    - name: refused-before-its-write
+      runner: inspect
+      inputs: {}
+      caller:
+        http_exchanges:
+          - request: { method: PATCH, url: "https://fixture.runx.invalid/item", body: none }
+            response: { status: 200, headers: { content-type: application/json }, body: "{}" }
+      expect:
+        status: failure
+runners:
+  inspect:
+    default: true
+    inputs:
+      path: { type: string, required: true }
+    result_from: [read]
+    steps:
+      - id: read
+        tool: fs.read
+        inputs:
+          path: $input.path
+"#,
+        )?;
+        let env = BTreeMap::from([(
+            RUNX_CWD_ENV.to_owned(),
+            operator_workspace.to_string_lossy().into_owned(),
+        )]);
+
+        let report = run_package_harness_with_effects(
+            &skill_dir,
+            None,
+            &env,
+            &crate::RuntimeEffectRegistry::default(),
+        )?;
+
+        assert_eq!(report.status, "failed", "{report:?}");
+        assert!(
+            report
+                .assertion_errors
+                .iter()
+                .any(|error| error
+                    .contains("never requested: PATCH https://fixture.runx.invalid/item")),
+            "{report:?}"
+        );
+        fs::remove_dir_all(operator_workspace)?;
+        Ok(())
+    }
+
+    #[test]
     fn conventional_harness_admits_only_explicit_authority_denial()
     -> Result<(), Box<dyn std::error::Error>> {
         let root = unique_test_root("conventional-authority-denial")?;

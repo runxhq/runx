@@ -46,7 +46,7 @@ pub(crate) fn credential_variables(
 }
 
 pub use assertions::HarnessReplayReceipt;
-pub(crate) use assertions::{assert_receipt_expectation, status_name};
+pub(crate) use assertions::{assert_exchanges_requested, assert_receipt_expectation, status_name};
 pub use fixtures::{
     HarnessExpectedStatus, HarnessFixture, HarnessFixtureCase, HarnessFixtureError,
     HarnessFixtureKind, HarnessFixtureStepOracle, HarnessSetup, ReceiptExpectation, list_cases,

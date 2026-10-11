@@ -4,8 +4,8 @@ use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 
 use crate::http::{
-    HttpMethod, RuntimeHarnessHttpExchange, RuntimeHttpError, RuntimeHttpRequest,
-    RuntimeHttpResponse, RuntimeHttpTransport, exact_harness_response,
+    HarnessExchanges, HttpMethod, RuntimeHttpError, RuntimeHttpRequest, RuntimeHttpResponse,
+    RuntimeHttpTransport,
 };
 
 pub(crate) const HARNESS_PROVIDER_BASE_URL: &str = "https://provider-fixture.runx.invalid";
@@ -44,14 +44,14 @@ pub(crate) fn injected_grant_env(
 #[derive(Clone, Debug)]
 pub(super) struct HarnessTransport {
     pub(super) provider: Option<HarnessProviderResponsesFixture>,
-    pub(super) exchanges: Arc<Vec<RuntimeHarnessHttpExchange>>,
+    pub(super) exchanges: Arc<HarnessExchanges>,
     pub(super) mutation_keys: Arc<Mutex<BTreeMap<(String, String), String>>>,
 }
 
 impl RuntimeHttpTransport for HarnessTransport {
     fn send(&self, request: RuntimeHttpRequest) -> Result<RuntimeHttpResponse, RuntimeHttpError> {
         if !request.url.starts_with(HARNESS_PROVIDER_BASE_URL) {
-            return exact_harness_response(&self.exchanges, &request);
+            return self.exchanges.answer(&request);
         }
         let fixture = self
             .provider

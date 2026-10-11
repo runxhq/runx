@@ -214,6 +214,44 @@ fn harness_setup_refuses_a_receipt_not_in_wire_form() -> Result<(), Box<dyn std:
     Ok(())
 }
 
+#[test]
+fn a_case_whose_run_errors_still_proves_only_the_requests_it_made()
+-> Result<(), Box<dyn std::error::Error>> {
+    let workspace = tempfile::tempdir()?;
+    let package = workspace.path().join("echo");
+    std::fs::create_dir_all(&package)?;
+    for file in ["SKILL.md", "run.sh", "run.yaml"] {
+        std::fs::copy(
+            fixture_path("fixtures/skills/echo").join(file),
+            package.join(file),
+        )?;
+    }
+    // The run ends before any step, so the write the case declares was never
+    // sent, and the case cannot pass as though it had been.
+    let fixture = workspace.path().join("unsent.yaml");
+    std::fs::write(
+        &fixture,
+        "name: unsent\nkind: skill\ntarget: echo\nrunner: absent\ninputs:\n  message: hi\n\
+         caller:\n  http_exchanges:\n    - request: { method: PATCH, url: \"https://fixture.runx.invalid/item\", body: none }\n\
+         \x20     response: { status: 200, headers: { content-type: application/json }, body: \"{}\" }\n\
+         expect:\n  status: failure\n",
+    )?;
+
+    let error = run_harness_fixture_with_adapter(&fixture, TestAdapter, fixture_runtime_options()?)
+        .err()
+        .ok_or("a case that leaves a declared exchange unsent must fail")?;
+    assert!(
+        matches!(
+            &error,
+            runx_runtime::HarnessReplayError::Mismatch { field, actual, .. }
+                if field == "caller.http_exchanges"
+                    && actual == "never requested: PATCH https://fixture.runx.invalid/item"
+        ),
+        "{error}"
+    );
+    Ok(())
+}
+
 fn run_fixture_with_test_adapter(
     relative_path: &str,
 ) -> Result<runx_runtime::HarnessReplayOutput, runx_runtime::HarnessReplayError> {

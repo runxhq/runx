@@ -15,7 +15,7 @@ pub struct RuntimeEffectRegistry {
     /// The exact HTTP exchanges admitted by the harness front. This state has
     /// no environment or skill-input loader and is absent from every live
     /// registry.
-    harness_http: Option<Arc<Vec<crate::http::RuntimeHarnessHttpExchange>>>,
+    harness_http: Option<Arc<crate::http::HarnessExchanges>>,
 }
 
 impl RuntimeEffectRegistry {
@@ -36,16 +36,14 @@ impl RuntimeEffectRegistry {
 
     pub(crate) fn with_harness_http(
         mut self,
-        exchanges: Option<Arc<Vec<crate::http::RuntimeHarnessHttpExchange>>>,
+        exchanges: Option<Arc<crate::http::HarnessExchanges>>,
     ) -> Self {
         self.harness_http = exchanges;
         self
     }
 
-    pub(crate) fn harness_http_exchanges(
-        &self,
-    ) -> Option<&[crate::http::RuntimeHarnessHttpExchange]> {
-        self.harness_http.as_deref().map(Vec::as_slice)
+    pub(crate) fn harness_http_exchanges(&self) -> Option<&crate::http::HarnessExchanges> {
+        self.harness_http.as_deref()
     }
 
     pub fn with_effect<T>(effect: T) -> Result<Self, RuntimeEffectError>
