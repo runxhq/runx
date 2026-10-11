@@ -363,6 +363,22 @@ fn a_turn_answer_waits_until_its_calls_settle() -> TestResult {
     Ok(())
 }
 
+/// A runner with no steps is one agent turn, handed the run's inputs.
+#[test]
+fn a_one_turn_runner_hands_its_agent_the_run_inputs() -> TestResult {
+    let temp = tempdir()?;
+    let paused = Paused::start(temp.path(), write_turn_skill(temp.path())?, TURN)?;
+    let session = paused.open()?;
+    let status = session.status(TURN)?;
+    assert_eq!(
+        status.invocation.envelope.inputs.get("question"),
+        Some(&JsonValue::String("what digests?".to_owned())),
+        "{:?}",
+        status.invocation.envelope.inputs
+    );
+    Ok(())
+}
+
 #[test]
 fn a_turn_lists_its_tools_with_their_contracts() -> TestResult {
     let temp = tempdir()?;

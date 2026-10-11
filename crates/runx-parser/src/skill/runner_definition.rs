@@ -56,7 +56,8 @@ pub(crate) fn validate_runner_definition(
 /// The runner's steps as the graph the engine runs, named for its skill so
 /// receipts carry the skill's identity. `result_from` defaults to the last
 /// step. A runner without steps is one agent turn: its id and task are the
-/// runner's name, its role the skill's, and its outputs the runner's.
+/// runner's name, its role the skill's, its inputs the run's, and its outputs
+/// the runner's.
 fn runner_graph(
     skill: &str,
     name: &str,
@@ -89,6 +90,7 @@ fn runner_graph(
                         ("task".to_owned(), JsonValue::String(name.to_owned())),
                     ])),
                 ),
+                ("inputs".to_owned(), JsonValue::String("$input".to_owned())),
             ]);
             if let Some(outputs) = outputs {
                 turn.insert("outputs".to_owned(), outputs.clone());
