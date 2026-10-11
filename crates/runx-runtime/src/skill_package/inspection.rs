@@ -10,8 +10,8 @@ use runx_parser::{CatalogMetadata, SkillRunnerDefinition, StepKind, ToolTarget};
 
 use super::LoadedSkillPackage;
 pub(crate) use execution_closure::LocalExecutionClosure;
-use execution_closure::inspect_execution_closures;
 use execution_closure::inspect_local_execution_closure;
+use execution_closure::{UnheldRegistryRefs, inspect_execution_closures};
 use runner::{catalog_capabilities, fixture_examples, fixture_operator_journeys, inspect_runner};
 use thiserror::Error;
 
@@ -181,7 +181,10 @@ pub(crate) fn inspect_loaded_skill_package(
     let mut output = base_inspection(&loaded)?;
     let manifest = loaded.manifest();
     let runner = inspected_runner(manifest, selected_runner)?;
-    let mut execution_closures = inspect_execution_closures(loaded.clone(), env)?;
+    // Inspection reports the registry refs its registry directory lacks, so a
+    // host can supply them and inspect again; binding below rejects them.
+    let mut execution_closures =
+        inspect_execution_closures(loaded.clone(), env, UnheldRegistryRefs::Report)?;
     if let Some(manifest) = manifest {
         output.insert(
             "runner_inspections".to_owned(),
@@ -238,7 +241,7 @@ pub(crate) fn inspect_loaded_execution_closure_binding(
     selected_runner: &str,
     env: &std::collections::BTreeMap<String, String>,
 ) -> Result<InspectedExecutionClosureBinding, SkillInspectionError> {
-    let mut closures = inspect_execution_closures(loaded, Some(env))?;
+    let mut closures = inspect_execution_closures(loaded, Some(env), UnheldRegistryRefs::Reject)?;
     let closure =
         closures
             .remove(selected_runner)

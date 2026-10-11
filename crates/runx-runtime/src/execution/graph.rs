@@ -14,8 +14,9 @@ use runx_parser::{
 use crate::RuntimeError;
 use crate::registry::{
     FileRegistryStore, InstallCandidate, InstallLocalSkillOptions, RegistryResolveOptions,
-    install_local_skill, materialization_cache_path, materialization_digest_marker,
-    resolve_registry_skill, split_skill_id, trusted_registry_manifest_keys_from_env,
+    RegistrySkillResolution, install_local_skill, materialization_cache_path,
+    materialization_digest_marker, resolve_registry_skill, split_skill_id,
+    trusted_registry_manifest_keys_from_env,
 };
 
 use super::graph_index::PriorRunIndex;
@@ -502,6 +503,39 @@ fn resolve_step_skill_directory(
     })
 }
 
+/// Whether the configured registry directory holds the skill a registry ref
+/// names, resolved exactly as execution resolves it.
+pub(crate) fn registry_holds_step_skill(
+    step: &GraphStep,
+    reference: &str,
+    env: &BTreeMap<String, String>,
+) -> Result<bool, RuntimeError> {
+    let Some(registry_dir) = env.get("RUNX_REGISTRY_DIR") else {
+        return Ok(false);
+    };
+    Ok(find_step_registry_skill(step, reference, registry_dir, env)?.is_some())
+}
+
+fn find_step_registry_skill(
+    step: &GraphStep,
+    reference: &str,
+    registry_dir: &str,
+    env: &BTreeMap<String, String>,
+) -> Result<Option<RegistrySkillResolution>, RuntimeError> {
+    resolve_registry_skill(
+        &FileRegistryStore::new(registry_dir),
+        reference,
+        RegistryResolveOptions {
+            version: None,
+            registry_url: env.get("RUNX_REGISTRY_URL").cloned(),
+        },
+    )
+    .map_err(|source| RuntimeError::InvalidRunStep {
+        step_id: step.id.clone(),
+        reason: format!("nested skill registry ref '{reference}' could not be resolved: {source}"),
+    })
+}
+
 // Function rationale: registry step materialization owns cache, digest, and manifest restoration.
 fn materialize_registry_step_skill(
     graph_dir: &Path,
@@ -517,24 +551,11 @@ fn materialize_registry_step_skill(
             ),
         });
     };
-    let registry_url = options.env.get("RUNX_REGISTRY_URL").cloned();
-    let store = FileRegistryStore::new(registry_dir);
-    let resolution = resolve_registry_skill(
-        &store,
-        reference,
-        RegistryResolveOptions {
-            version: None,
-            registry_url,
-        },
-    )
-    .map_err(|source| RuntimeError::InvalidRunStep {
-        step_id: step.id.clone(),
-        reason: format!("nested skill registry ref '{reference}' could not be resolved: {source}"),
-    })?
-    .ok_or_else(|| RuntimeError::InvalidRunStep {
-        step_id: step.id.clone(),
-        reason: format!("nested skill registry ref '{reference}' was not found"),
-    })?;
+    let resolution = find_step_registry_skill(step, reference, registry_dir, options.env)?
+        .ok_or_else(|| RuntimeError::InvalidRunStep {
+            step_id: step.id.clone(),
+            reason: format!("nested skill registry ref '{reference}' was not found"),
+        })?;
 
     let (owner, name) = split_skill_id(&resolution.skill_id).map_err(|source| {
         RuntimeError::InvalidRunStep {

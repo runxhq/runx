@@ -2641,6 +2641,75 @@ fn native_graph_skill_run_executes_nested_registry_skill() -> Result<(), Box<dyn
 }
 
 #[test]
+fn skill_inspection_reports_registry_refs_the_registry_directory_does_not_hold()
+-> Result<(), Box<dyn std::error::Error>> {
+    let temp = tempdir()?;
+    let registry_dir = temp.path().join("registry");
+    fs::create_dir_all(&registry_dir)?;
+    let skill_dir = write_graph_nested_registry_skill(temp.path())?;
+    let mut env = trusted_manifest_env()?;
+    env.insert(
+        "RUNX_REGISTRY_DIR".to_owned(),
+        registry_dir.to_string_lossy().into_owned(),
+    );
+    let closure_of = |inspection: &JsonValue| -> Result<JsonValue, Box<dyn std::error::Error>> {
+        let inspections = object(inspection, "inspection")?
+            .get("runner_inspections")
+            .and_then(JsonValue::as_array)
+            .ok_or("missing runner inspections")?;
+        let first = object(
+            inspections.first().ok_or("no runner inspection")?,
+            "runner inspection",
+        )?;
+        Ok(first
+            .get("execution_closure")
+            .cloned()
+            .ok_or("missing closure")?)
+    };
+
+    let unheld = closure_of(&runx_runtime::inspect_skill_package(
+        &skill_dir,
+        None,
+        Some(&env),
+    )?)?;
+    let unheld = object(&unheld, "closure")?;
+    assert_eq!(unheld.get("fully_bound"), Some(&JsonValue::Bool(false)));
+    assert_eq!(
+        unheld.get("unresolved_skill_edges"),
+        Some(&JsonValue::Array(vec![JsonValue::String(
+            "registry:acme/registry-child@1.0.0#default".to_owned()
+        )]))
+    );
+
+    let store = FileRegistryStore::new(&registry_dir);
+    ingest_skill_markdown(
+        &store,
+        "---\nname: registry-child\ndescription: Registry-backed nested child.\n---\n# Registry Child\n",
+        IngestSkillOptions {
+            owner: Some("acme".to_owned()),
+            version: Some("1.0.0".to_owned()),
+            created_at: Some(FIXTURE_CREATED_AT.to_owned()),
+            profile_document: Some(registry_child_profile_document()),
+            ..IngestSkillOptions::default()
+        },
+    )?;
+    sign_registry_version(&registry_dir, "acme/registry-child", "1.0.0")?;
+    let held = closure_of(&runx_runtime::inspect_skill_package(
+        &skill_dir,
+        None,
+        Some(&env),
+    )?)?;
+    let held = object(&held, "closure")?;
+    assert_eq!(held.get("fully_bound"), Some(&JsonValue::Bool(true)));
+    assert_eq!(
+        held.get("unresolved_skill_edges"),
+        Some(&JsonValue::Array(Vec::new()))
+    );
+
+    Ok(())
+}
+
+#[test]
 fn native_graph_skill_run_rejects_env_promoted_official_nested_registry_skill()
 -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;

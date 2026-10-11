@@ -112,15 +112,25 @@ impl EdgeDepth {
     }
 }
 
+/// What inspection does with a registry ref its `RUNX_REGISTRY_DIR` does not hold.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum UnheldRegistryRefs {
+    /// Record it as an unresolved edge, so a host can supply it and inspect again.
+    Report,
+    /// Fail: binding and packaging need every reference present.
+    Reject,
+}
+
 pub(super) fn inspect_execution_closures(
     loaded: Arc<LoadedSkillPackage>,
     env: Option<&BTreeMap<String, String>>,
+    unheld_registry_refs: UnheldRegistryRefs,
 ) -> Result<BTreeMap<String, JsonValue>, SkillInspectionError> {
     let runner_names = loaded
         .manifest()
         .map(|manifest| manifest.runners.keys().cloned().collect::<Vec<_>>())
         .unwrap_or_default();
-    let mut inspector = ExecutionClosureInspector::new(loaded, env)?;
+    let mut inspector = ExecutionClosureInspector::new(loaded, env, unheld_registry_refs)?;
     runner_names
         .into_iter()
         .map(|runner_name| {
@@ -138,7 +148,8 @@ pub(super) fn inspect_local_execution_closure(
         .manifest()
         .map(|manifest| manifest.runners.keys().cloned().collect::<Vec<_>>())
         .unwrap_or_default();
-    let mut inspector = ExecutionClosureInspector::new(loaded, Some(env))?;
+    let mut inspector =
+        ExecutionClosureInspector::new(loaded, Some(env), UnheldRegistryRefs::Reject)?;
     let mut closure = LocalExecutionClosure::default();
     for runner_name in runner_names {
         merge_local_execution_closure(
@@ -197,12 +208,14 @@ struct ExecutionClosureInspector<'a> {
     root_directory: PathBuf,
     package_root: PathBuf,
     env: Option<&'a BTreeMap<String, String>>,
+    unheld_registry_refs: UnheldRegistryRefs,
 }
 
 impl<'a> ExecutionClosureInspector<'a> {
     fn new(
         root: Arc<LoadedSkillPackage>,
         env: Option<&'a BTreeMap<String, String>>,
+        unheld_registry_refs: UnheldRegistryRefs,
     ) -> Result<Self, SkillInspectionError> {
         let root_directory = canonical_directory(&root.directory, "inspected skill")?;
         let package_root = canonical_directory(&root.package_root, "inspected package")?;
@@ -211,6 +224,7 @@ impl<'a> ExecutionClosureInspector<'a> {
             root_directory,
             package_root,
             env,
+            unheld_registry_refs,
         })
     }
 
@@ -514,6 +528,16 @@ impl<'a> ExecutionClosureInspector<'a> {
         }
         let empty_env = BTreeMap::new();
         let env = self.env.unwrap_or(&empty_env);
+        if self.unheld_registry_refs == UnheldRegistryRefs::Report
+            && is_registry_step_ref(reference)
+            && !crate::execution::graph::registry_holds_step_skill(step, reference, env)?
+        {
+            return Ok(Some(ResolvedStepSkill {
+                edge: format!("{reference}#{requested_runner}"),
+                static_external_name: registry_skill_name(reference),
+                nested: None,
+            }));
+        }
         let loaded_step = crate::execution::graph::load_step_skill_package(
             graph_directory,
             step,
