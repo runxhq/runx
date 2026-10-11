@@ -12,7 +12,7 @@ Most need a receipt-signing identity (runx mandates signed receipts). A demo-onl
 identity:
 
 ```sh
-export RUNX_RECEIPT_SIGN_KID=runx-demo-key
+export RUNX_RECEIPT_SIGN_KID=hosted-receipt-3097e2dee2cb4a34
 export RUNX_RECEIPT_SIGN_ED25519_SEED_BASE64=QkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkI=
 export RUNX_RECEIPT_SIGN_ISSUER_TYPE=hosted
 ```

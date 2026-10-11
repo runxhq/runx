@@ -3,7 +3,7 @@
     {
       "kty": "OKP",
       "crv": "Ed25519",
-      "kid": "runx-demo-key",
+      "kid": "hosted-receipt-3097e2dee2cb4a34",
       "issuer_type": "hosted",
       "alg": "EdDSA",
       "use": "sig",
