@@ -1,6 +1,8 @@
 // Module rationale: the runtime HTTP transport keeps
 // reqwest wiring, SSRF guards, response limits, and security-focused unit tests
 // in one review unit.
+#[cfg(feature = "mcp")]
+mod mcp_client;
 mod types;
 
 #[cfg(feature = "mcp")]
@@ -34,9 +36,16 @@ const DEFAULT_SAFE_READ_RETRY_DELAY: Duration = Duration::from_millis(100);
 const MAX_SAFE_READ_RETRY_DELAY: Duration = Duration::from_secs(2);
 static HTTP_CLIENT_RUNTIME: RetryableCell<tokio::runtime::Runtime> = RetryableCell::new();
 const HTTP_CLIENT_PROFILE_COUNT: usize = 6;
-/// rmcp's streamable HTTP client, carried by the guarded client.
+/// The most any response body the runtime reads whole may hold, unless its
+/// caller sets a ceiling of its own (the web driver's is the operator's). A
+/// longer body is refused, never clipped; a remote MCP server's answer and
+/// each event it streams are held to the same bound as a stdio server's line.
+const RESPONSE_CEILING: usize = 32 * 1024 * 1024;
+/// rmcp's streamable HTTP client, carried by the guarded client with every
+/// response bounded.
 #[cfg(feature = "mcp")]
-pub(crate) type McpTransport = rmcp::transport::StreamableHttpClientTransport<reqwest::Client>;
+pub(crate) type McpTransport =
+    rmcp::transport::StreamableHttpClientTransport<mcp_client::BoundedMcpClient>;
 
 static HTTP_CLIENTS: [RetryableCell<reqwest::Client>; HTTP_CLIENT_PROFILE_COUNT] =
     [const { RetryableCell::new() }; HTTP_CLIENT_PROFILE_COUNT];
@@ -251,8 +260,15 @@ impl ReqwestHttpTransport {
             .custom_headers(custom_headers)
             // A POST is sent once: a session the server expired is not
             // reopened to send it again.
-            .reinit_on_expired_session(false);
-        Ok(McpTransport::with_client(self.client.clone(), config))
+            .reinit_on_expired_session(false)
+            .max_sse_event_size(RESPONSE_CEILING);
+        Ok(McpTransport::with_client(
+            mcp_client::BoundedMcpClient {
+                client: self.client.clone(),
+                limit: RESPONSE_CEILING,
+            },
+            config,
+        ))
     }
 
     #[cfg(test)]
@@ -499,7 +515,7 @@ fn build_http_client(config: TransportConfig) -> Result<reqwest::Client, String>
 
 impl RuntimeHttpTransport for ReqwestHttpTransport {
     fn send(&self, request: RuntimeHttpRequest) -> Result<RuntimeHttpResponse, RuntimeHttpError> {
-        self.send_with_limit(request, None, false)
+        self.send_with_limit(request, RESPONSE_CEILING, false)
     }
 
     fn send_limited(
@@ -507,14 +523,14 @@ impl RuntimeHttpTransport for ReqwestHttpTransport {
         request: RuntimeHttpRequest,
         response_limit: usize,
     ) -> Result<RuntimeHttpResponse, RuntimeHttpError> {
-        self.send_with_limit(request, Some(response_limit), false)
+        self.send_with_limit(request, response_limit, false)
     }
 
     fn send_idempotent(
         &self,
         request: RuntimeHttpRequest,
     ) -> Result<RuntimeHttpResponse, RuntimeHttpError> {
-        self.send_with_limit(request, None, true)
+        self.send_with_limit(request, RESPONSE_CEILING, true)
     }
 
     fn send_idempotent_limited(
@@ -522,7 +538,7 @@ impl RuntimeHttpTransport for ReqwestHttpTransport {
         request: RuntimeHttpRequest,
         response_limit: usize,
     ) -> Result<RuntimeHttpResponse, RuntimeHttpError> {
-        self.send_with_limit(request, Some(response_limit), true)
+        self.send_with_limit(request, response_limit, true)
     }
 }
 
@@ -541,12 +557,12 @@ impl RuntimeHttpTransport for ExactLoopbackHttpTransport {
 }
 
 impl ReqwestHttpTransport {
-    /// Send and read the whole body, refusing one longer than `response_limit`
-    /// when a limit is given. A body is never clipped.
+    /// Send and read the whole body, refusing one longer than `response_limit`.
+    /// A body is never clipped.
     fn send_with_limit(
         &self,
         request: RuntimeHttpRequest,
-        response_limit: Option<usize>,
+        response_limit: usize,
         repeatable: bool,
     ) -> Result<RuntimeHttpResponse, RuntimeHttpError> {
         validate_http_url(&request.url, self.allow_private_networks)?;
@@ -597,7 +613,7 @@ async fn send_reqwest(
     client: reqwest::Client,
     request: RuntimeHttpRequest,
     headers: reqwest::header::HeaderMap,
-    response_limit: Option<usize>,
+    response_limit: usize,
     repeatable: bool,
 ) -> Result<RuntimeHttpResponse, RuntimeHttpError> {
     let mut attempt = 1_usize;
@@ -964,11 +980,9 @@ fn six_to_four_embedded_ipv4(ip: Ipv6Addr) -> Option<Ipv4Addr> {
 
 async fn read_response_body(
     mut response: reqwest::Response,
-    limit: Option<usize>,
+    limit: usize,
 ) -> Result<Vec<u8>, RuntimeHttpError> {
-    if let Some(limit) = limit
-        && declared_response_length(&response)?.is_some_and(|length| length > limit as u64)
-    {
+    if declared_response_length(&response)?.is_some_and(|length| length > limit as u64) {
         return Err(RuntimeHttpError::ResponseBodyTooLarge { limit });
     }
     let mut body = Vec::new();
@@ -980,9 +994,7 @@ async fn read_response_body(
                 message: error.to_string(),
             })?
     {
-        if let Some(limit) = limit
-            && body.len().saturating_add(chunk.len()) > limit
-        {
+        if body.len().saturating_add(chunk.len()) > limit {
             return Err(RuntimeHttpError::ResponseBodyTooLarge { limit });
         }
         body.extend_from_slice(&chunk);
