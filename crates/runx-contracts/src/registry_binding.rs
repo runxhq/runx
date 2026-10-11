@@ -100,10 +100,6 @@ pub struct RegistryBindingRegistry {
     pub owner: String,
     pub trust_tier: RegistryTrustTier,
     pub version: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub install_command: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub run_command: Option<String>,
     pub profile_path: String,
     #[serde(deserialize_with = "deserialize_true_bool")]
     pub materialized_package_is_registry_artifact: bool,
@@ -116,8 +112,6 @@ impl RunxSchema for RegistryBindingRegistry {
                 Property::new("owner", String::json_schema(), true),
                 Property::new("trust_tier", RegistryTrustTier::json_schema(), true),
                 Property::new("version", String::json_schema(), true),
-                Property::new("install_command", String::json_schema(), false),
-                Property::new("run_command", String::json_schema(), false),
                 Property::new("profile_path", String::json_schema(), true),
                 Property::new(
                     "materialized_package_is_registry_artifact",

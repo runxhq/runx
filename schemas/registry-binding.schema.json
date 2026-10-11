@@ -36,9 +36,6 @@
     "registry": {
       "additionalProperties": true,
       "properties": {
-        "install_command": {
-          "type": "string"
-        },
         "materialized_package_is_registry_artifact": {
           "const": true
         },
@@ -46,9 +43,6 @@
           "type": "string"
         },
         "profile_path": {
-          "type": "string"
-        },
-        "run_command": {
           "type": "string"
         },
         "trust_tier": {

@@ -39,8 +39,9 @@ pub use publish::{
     RegistryPublishError, publish_hosted_admin_skill, publish_hosted_skill,
 };
 pub use publish_package::{
-    RegistryPublishPackage, RegistryPublishPackageError, RegistryPublishPackageParts,
-    RegistryPublishPackageRequest, prepare_registry_publish_package,
+    RegistryConnectorPackage, RegistryPublishPackage, RegistryPublishPackageError,
+    RegistryPublishPackageParts, RegistryPublishPackageRequest, prepare_registry_connector_package,
+    prepare_registry_publish_package,
 };
 pub use refs::{
     ParsedRegistryRef, RegistryResolveError, materialization_cache_path,

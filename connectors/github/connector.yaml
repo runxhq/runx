@@ -2,6 +2,8 @@ schema: runx.connector.v1
 id: github
 name: GitHub
 description: Read and update issues, pull requests and comments in GitHub repositories, and push branches to them.
+category: dev-tools
+runtime_capability: false
 auth:
   delegated: {}
   credentials:

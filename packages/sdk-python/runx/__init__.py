@@ -8,6 +8,24 @@ from typing import Any, Mapping, Sequence
 
 
 @dataclass(frozen=True)
+class CopyableCommand:
+    """A command the CLI printed: its arguments, and the shell line to show
+    and copy, which the CLI checked is exactly what the arguments render to."""
+
+    shell: str
+    argv: tuple[str, ...]
+    copy_text: str
+
+    @classmethod
+    def from_dict(cls, value: Mapping[str, Any]) -> "CopyableCommand":
+        return cls(
+            shell=str(value["shell"]),
+            argv=tuple(str(item) for item in value["argv"]),
+            copy_text=str(value["copy_text"]),
+        )
+
+
+@dataclass(frozen=True)
 class SkillSearchResult:
     skill_id: str
     name: str
@@ -17,11 +35,11 @@ class SkillSearchResult:
     trust_tier: str
     required_scopes: tuple[str, ...]
     tags: tuple[str, ...]
+    install_command: CopyableCommand
+    run_command: CopyableCommand
     summary: str | None = None
     version: str | None = None
     digest: str | None = None
-    add_command: str | None = None
-    run_command: str | None = None
 
     @classmethod
     def from_dict(cls, value: Mapping[str, Any]) -> "SkillSearchResult":
@@ -34,11 +52,11 @@ class SkillSearchResult:
             trust_tier=str(value["trust_tier"]),
             required_scopes=tuple(str(item) for item in value.get("required_scopes", [])),
             tags=tuple(str(item) for item in value.get("tags", [])),
+            install_command=CopyableCommand.from_dict(value["install_command"]),
+            run_command=CopyableCommand.from_dict(value["run_command"]),
             summary=_optional_str(value.get("summary")),
             version=_optional_str(value.get("version")),
             digest=_optional_str(value.get("digest")),
-            add_command=_optional_str(value.get("add_command")),
-            run_command=_optional_str(value.get("run_command")),
         )
 
 
@@ -84,12 +102,13 @@ class RunxClient:
             raise ValueError("runx JSON output must be an object")
         return parsed
 
-    def search_skills(self, query: str, source: str | None = None) -> list[SkillSearchResult]:
-        args = ["skill", "search", query]
-        if source is not None:
-            args.extend(["--source", source])
+    def search_skills(self, query: str, registry: str | None = None) -> list[SkillSearchResult]:
+        """Search the registry, or the registry at `registry` (a URL or a local registry directory)."""
+        args = ["registry", "search", query]
+        if registry is not None:
+            args.extend(["--registry", registry])
         payload = self.run_json(args)
-        return [SkillSearchResult.from_dict(item) for item in payload.get("results", [])]
+        return [SkillSearchResult.from_dict(item) for item in payload["registry"]["results"]]
 
     def run_skill(
         self,
@@ -142,6 +161,7 @@ from .host_protocol import (  # noqa: E402
 
 
 __all__ = [
+    "CopyableCommand",
     "RunxClient",
     "RunxCommandError",
     "SkillSearchResult",

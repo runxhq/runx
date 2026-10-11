@@ -2,6 +2,8 @@ schema: runx.connector.v1
 id: notion
 name: Notion
 description: Search authorized Notion titles and read selected page, data-source and block evidence.
+category: productivity
+runtime_capability: false
 auth:
   credentials:
     access_token:

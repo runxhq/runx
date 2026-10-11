@@ -2,6 +2,8 @@ schema: runx.connector.v1
 id: aws
 name: AWS
 description: Store and read S3 objects and run Textract and Transcribe jobs in one AWS account.
+category: cloud-infrastructure
+runtime_capability: false
 auth:
   credentials:
     access_key:

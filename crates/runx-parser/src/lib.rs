@@ -8,6 +8,7 @@ pub mod graph;
 pub mod harness_fixture;
 pub mod install;
 mod json_fields;
+pub mod mark;
 pub mod package;
 pub mod packet;
 pub mod runner;

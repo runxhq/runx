@@ -273,9 +273,9 @@ pub(super) fn source_provenance(version: &RegistrySkillVersion) -> Option<String
 pub(super) fn search_result_for_version(
     version: &RegistrySkillVersion,
     registry_url: Option<&str>,
-) -> RegistrySearchResult {
-    let link = runx_link_for_version(version, registry_url);
-    RegistrySearchResult {
+) -> Result<RegistrySearchResult, LocalRegistryError> {
+    let link = runx_link_for_version(version, registry_url)?;
+    Ok(RegistrySearchResult {
         skill_id: version.skill_id.clone(),
         name: version.name.clone(),
         summary: version.description.clone(),
@@ -302,15 +302,15 @@ pub(super) fn search_result_for_version(
         trust_signals: derive_trust_signals(version),
         install_command: link.install_command,
         run_command: link.run_command,
-    }
+    })
 }
 
 pub(super) fn detail_for_version(
     version: &RegistrySkillVersion,
     registry_url: Option<&str>,
-) -> RegistrySkillDetail {
-    let link = runx_link_for_version(version, registry_url);
-    RegistrySkillDetail {
+) -> Result<RegistrySkillDetail, LocalRegistryError> {
+    let link = runx_link_for_version(version, registry_url)?;
+    Ok(RegistrySkillDetail {
         skill_id: version.skill_id.clone(),
         owner: version.owner.clone(),
         name: version.name.clone(),
@@ -333,7 +333,7 @@ pub(super) fn detail_for_version(
         attestations: version.attestations.clone(),
         install_command: link.install_command,
         run_command: link.run_command,
-    }
+    })
 }
 
 pub(super) fn resolve_by_name(

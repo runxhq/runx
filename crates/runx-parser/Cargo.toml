@@ -23,6 +23,7 @@ jsonschema = { version = "0.56.0", default-features = false }
 runx-contracts.workspace = true
 runx-core.workspace = true
 regex.workspace = true
+roxmltree.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 serde_norway.workspace = true

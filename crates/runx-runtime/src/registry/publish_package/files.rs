@@ -6,15 +6,22 @@ mod packet;
 
 use super::RegistryPublishPackageError;
 use crate::LoadedSkillPackage;
-use crate::registry::RegistryPackageFile;
+use crate::registry::{RegistryConnectorMetadata, RegistryPackageFile};
 use crate::skill_package::{MAX_PACKAGE_BYTES, MAX_PACKAGE_FILES};
+
+/// One package's files, its plugin connectors among them, and the connectors
+/// it declares.
+pub(super) struct CollectedPackage {
+    pub(super) files: Vec<RegistryPackageFile>,
+    pub(super) connectors: Vec<RegistryConnectorMetadata>,
+}
 
 pub(super) fn collect_publish_package_files(
     loaded: &LoadedSkillPackage,
     env: &BTreeMap<String, String>,
     cwd: &Path,
     packet_ids: &BTreeSet<String>,
-) -> Result<Vec<RegistryPackageFile>, RegistryPublishPackageError> {
+) -> Result<CollectedPackage, RegistryPublishPackageError> {
     let mut files = BTreeMap::new();
     for relative in &loaded.package.consumed_files {
         if relative == "SKILL.md" || loaded.profile_path.as_deref() == Some(relative) {
@@ -28,8 +35,12 @@ pub(super) fn collect_publish_package_files(
         insert_source_file(&mut files, relative, contents)?;
     }
     packet::append_declared_packet_schemas(&mut files, loaded, env, cwd, packet_ids)?;
+    let connectors = super::connectors::package_connectors(loaded, &mut files)?;
     validate_package_limits(&files)?;
-    Ok(files.into_values().collect())
+    Ok(CollectedPackage {
+        files: files.into_values().collect(),
+        connectors,
+    })
 }
 
 pub(super) fn insert_source_file(

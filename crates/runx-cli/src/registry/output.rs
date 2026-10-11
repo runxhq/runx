@@ -36,6 +36,9 @@ pub(super) enum RegistryPayload {
     Package {
         package: Box<runx_runtime::registry::RegistryPublishPackageParts>,
     },
+    ConnectorPackage {
+        connector: Box<runx_runtime::registry::RegistryConnectorPackage>,
+    },
     Publish {
         publish: PublishPayload,
     },
@@ -98,8 +101,8 @@ pub(super) fn render_search(
                 .as_deref()
                 .map_or("unknown".to_owned(), digest_label),
             trust_tier_label(&result.trust_tier),
-            result.install_command,
-            result.run_command,
+            result.install_command.copy_text,
+            result.run_command.copy_text,
         ));
     }
     output.push('\n');
@@ -124,7 +127,7 @@ pub(super) fn render_read(
         digest_label(&skill.digest),
         trust_tier_label(&skill.trust_tier),
         signed_manifest_label(skill.signed_manifest.as_ref()),
-        skill.run_command,
+        skill.run_command.copy_text,
     )
 }
 
@@ -141,7 +144,7 @@ pub(super) fn render_resolve(
             digest_label(&resolved.digest),
             trust_tier_label(&resolved.trust_tier),
             signed_manifest_label(resolved.signed_manifest.as_ref()),
-            resolved.run_command,
+            resolved.run_command.copy_text,
         ),
         RemoteOrLocalResolution::Local(resolved) => format!(
             "\n  registry resolve {registry_ref}\n  source           {source}\n  skill            {}\n  version          {}\n  digest           {}\n  trust            {}\n  signed           {}\n  next             {}\n\n",
@@ -150,7 +153,7 @@ pub(super) fn render_resolve(
             digest_label(&resolved.digest),
             trust_tier_label(&resolved.trust_tier),
             signed_manifest_label(resolved.signed_manifest.as_ref()),
-            resolved.run_command,
+            resolved.run_command.copy_text,
         ),
     }
 }
@@ -178,10 +181,12 @@ pub(super) fn render_install(
 }
 
 fn install_run_command(install: &runx_runtime::registry::InstallLocalSkillResult) -> String {
-    match (&install.skill_id, &install.version) {
-        (Some(skill_id), Some(version)) => format!("runx skill {skill_id}@{version}"),
-        _ => format!("runx skill {}", install.skill_name),
-    }
+    let skill = match (&install.skill_id, &install.version) {
+        (Some(skill_id), Some(version)) => format!("{skill_id}@{version}"),
+        _ => install.skill_name.clone(),
+    };
+    runx_contracts::CopyableCommand::posix(vec!["runx".to_owned(), "skill".to_owned(), skill])
+        .map_or_else(|_| "unavailable".to_owned(), |command| command.copy_text)
 }
 
 fn signed_manifest_label(

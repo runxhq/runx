@@ -51,6 +51,7 @@ pub fn validate_connector_manifest(
 ) -> Result<ValidatedConnector, Vec<ValidationError>> {
     let manifest = with_default_result_paths(manifest);
     let mut errors = Errors::default();
+    validate_category(&manifest, &mut errors);
     validate_auth_and_placements(&manifest, &mut errors);
     validate_parameters(&manifest, &mut errors);
     for (name, operation) in &manifest.operations {
@@ -122,6 +123,18 @@ impl Errors {
         } else {
             Err(self.0)
         }
+    }
+}
+
+/// A declared category must be a connector category of the registry taxonomy.
+fn validate_category(manifest: &ConnectorManifest, errors: &mut Errors) {
+    if let Some(category) = &manifest.category
+        && let Err(reason) = runx_contracts::validate_registry_category(
+            runx_contracts::TaxonomySubject::Connector,
+            category.as_str(),
+        )
+    {
+        errors.push("category", reason);
     }
 }
 

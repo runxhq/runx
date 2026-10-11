@@ -2,6 +2,8 @@ schema: runx.connector.v1
 id: moltbook
 name: Moltbook
 description: Read recent Moltbook posts and publish posts as an agent account.
+category: communication
+runtime_capability: false
 auth:
   credentials:
     api_key:

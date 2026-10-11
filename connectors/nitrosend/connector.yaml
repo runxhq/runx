@@ -2,6 +2,8 @@ schema: runx.connector.v1
 id: nitrosend
 name: Nitrosend
 description: Review email content and import consented contacts in Nitrosend.
+category: marketing
+runtime_capability: false
 auth:
   credentials:
     api_key:

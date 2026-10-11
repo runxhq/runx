@@ -13,6 +13,7 @@ pub mod canonical_json;
 pub mod connector;
 pub mod connector_instance;
 pub mod conversation_source;
+pub mod copyable_command;
 pub mod credential_delivery;
 pub mod decision;
 pub mod decision_adapter;
@@ -47,6 +48,8 @@ pub mod receipt;
 pub mod redaction;
 pub mod reference;
 pub mod registry_binding;
+pub mod registry_taxonomy;
+pub mod registry_version;
 pub mod review;
 pub mod run_summary;
 pub mod schema;
@@ -249,6 +252,15 @@ pub use registry_binding::{
     RegistryBinding, RegistryBindingHarness, RegistryBindingRegistry, RegistryBindingSchema,
     RegistryBindingSkill, RegistryBindingState, RegistryBindingUpstream, RegistryHarnessStatus,
     RegistryTrustTier,
+};
+pub use registry_taxonomy::{
+    Category as RegistryCategory, TaxonomySubject, UNCATEGORIZED, registry_categories,
+    registry_category, validate_registry_category,
+};
+pub use copyable_command::{CommandShell, CopyableCommand, render_posix_command};
+pub use registry_version::{
+    REGISTRY_VERSION_MAX_LENGTH, REGISTRY_VERSION_PATTERN, is_registry_version,
+    validate_registry_version,
 };
 pub use review::{ReviewReceiptImprovementProposal, ReviewReceiptOutput, ReviewReceiptVerdict};
 pub use run_summary::{RunSummary, RunSummarySchema, RunSummaryStatus};

@@ -2,6 +2,8 @@ schema: runx.connector.v1
 id: vault
 name: Vault
 description: Issue and read time-bounded handles to sealed secrets. Declared only; no placement implements it yet.
+category: agent-tools
+runtime_capability: true
 auth:
   delegated: {}
 placements:

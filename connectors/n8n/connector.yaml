@@ -2,6 +2,8 @@ schema: runx.connector.v1
 id: n8n
 name: n8n
 description: Deliver a governed handoff to an n8n Cloud workflow webhook.
+category: orchestration
+runtime_capability: false
 auth:
   none: {}
 placements:

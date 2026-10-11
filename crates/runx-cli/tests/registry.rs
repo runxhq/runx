@@ -204,8 +204,8 @@ runners:
         &[
             "\"action\": \"package\"",
             "\"path\": \"runx.package.json\"",
-            "\"path\": \"dependencies/sibling/run.yaml\"",
-            "\"path\": \"dependencies/leaf/run.yaml\"",
+            "\"path\": \"dependencies/1/run.yaml\"",
+            "\"path\": \"dependencies/2/run.yaml\"",
         ],
     )?;
 
@@ -241,8 +241,8 @@ runners:
 
     let installed = install_dir.join("acme").join("bundled-root").join("1.0.0");
     assert!(installed.join("runx.package.json").is_file());
-    assert!(installed.join("dependencies/sibling/run.yaml").is_file());
-    assert!(installed.join("dependencies/leaf/run.yaml").is_file());
+    assert!(installed.join("dependencies/1/run.yaml").is_file());
+    assert!(installed.join("dependencies/2/run.yaml").is_file());
     let run = crate::support::isolated_runx_command_with_inherited_cwd("registry-bundle-run")
         .current_dir(&root)
         .env("RUNX_HOME", root.join("home"))
@@ -319,15 +319,103 @@ runners:
     );
     let output: serde_json::Value = serde_json::from_slice(&package.stdout)?;
     // A run-time choice names each connector it may choose; ids are sorted
-    // and operations keep the order the package lists them.
+    // and operations keep the order the package lists them. Each official
+    // connector is named by the digests a closure binds it by.
+    let connectors = output["registry"]["package"]["metadata"]["connectors"]
+        .as_array()
+        .ok_or("connectors missing")?;
+    let named = connectors
+        .iter()
+        .map(|connector| {
+            json!({
+                "id": connector["id"],
+                "source": connector["source"],
+                "runtime_capability": connector["runtime_capability"],
+                "operations": connector["operations"],
+            })
+        })
+        .collect::<Vec<_>>();
     assert_eq!(
-        output["registry"]["package"]["metadata"]["connectors"],
-        json!([
-            {"id": "github", "operations": ["issues.read", "issue.read"]},
-            {"id": "nitrosend", "operations": ["thread.reply", "thread.reply.read"]},
-            {"id": "slack", "operations": ["thread.reply", "thread.reply.read"]},
-        ])
+        named,
+        [
+            json!({"id": "github", "source": "official", "runtime_capability": false, "operations": ["issues.read", "issue.read"]}),
+            json!({"id": "nitrosend", "source": "official", "runtime_capability": false, "operations": ["thread.reply", "thread.reply.read"]}),
+            json!({"id": "slack", "source": "official", "runtime_capability": false, "operations": ["thread.reply", "thread.reply.read"]}),
+        ]
     );
+    for connector in connectors {
+        for digest in ["manifest_digest", "connector_digest"] {
+            assert!(
+                connector[digest]
+                    .as_str()
+                    .is_some_and(|value| value.starts_with("sha256:") && value.len() == 71),
+                "{digest} of {connector}"
+            );
+        }
+        assert_ne!(connector["manifest_digest"], connector["connector_digest"]);
+    }
+    fs::remove_dir_all(root)?;
+    Ok(())
+}
+
+#[test]
+fn registry_connector_package_projects_a_connector_on_its_own()
+-> Result<(), Box<dyn std::error::Error>> {
+    let root = temp_root("registry-connector-package");
+    let connector = root.join("acme-ops");
+    fs::create_dir_all(&connector)?;
+    fs::write(
+        connector.join("connector.yaml"),
+        "schema: runx.connector.v1\nid: acme-ops\nname: Acme Ops\ndescription: Reads Acme items.\nruntime_capability: false\nauth: {none: {}}\nplacements: {local: {auth: [none]}}\noperations:\n  item.read:\n    description: Read an item.\n    verb: read\n    scopes: [item.read]\n    target: {template: \"acme://items\"}\n",
+    )?;
+    fs::write(connector.join("README.md"), "# Acme Ops\n")?;
+
+    let package = runx_command()?
+        .args([
+            "registry",
+            "connector",
+            "package",
+            connector.to_str().ok_or("non-utf8 connector dir")?,
+            "--json",
+        ])
+        .output()?;
+    assert_eq!(
+        package.status.code(),
+        Some(0),
+        "stderr={}",
+        String::from_utf8_lossy(&package.stderr)
+    );
+    let output: serde_json::Value = serde_json::from_slice(&package.stdout)?;
+    let packaged = &output["registry"]["connector"];
+    assert_eq!(output["registry"]["action"], "connector_package");
+    assert_eq!(packaged["manifest"]["id"], "acme-ops");
+    assert_eq!(packaged["manifest"]["runtime_capability"], false);
+    assert_eq!(
+        packaged["files"]
+            .as_array()
+            .ok_or("files missing")?
+            .iter()
+            .map(|file| file["path"].clone())
+            .collect::<Vec<_>>(),
+        [json!("README.md"), json!("connector.yaml")]
+    );
+    assert!(
+        packaged["operation_digests"]["item.read"]
+            .as_str()
+            .is_some_and(|digest| digest.starts_with("sha256:"))
+    );
+
+    let refused = runx_command()?
+        .args([
+            "registry",
+            "connector",
+            "package",
+            connector.to_str().ok_or("non-utf8 connector dir")?,
+            "--owner",
+            "acme",
+        ])
+        .output()?;
+    assert_ne!(refused.status.code(), Some(0));
     fs::remove_dir_all(root)?;
     Ok(())
 }

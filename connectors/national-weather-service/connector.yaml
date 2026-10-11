@@ -2,6 +2,8 @@ schema: runx.connector.v1
 id: national-weather-service
 name: National Weather Service
 description: Resolve US gridpoints and read National Weather Service forecasts.
+category: public-data
+runtime_capability: false
 auth:
   none: {}
 placements:

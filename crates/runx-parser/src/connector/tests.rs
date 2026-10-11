@@ -21,6 +21,7 @@ schema: runx.connector.v1
 id: forge
 name: Forge
 description: Issues and pull requests.
+runtime_capability: false
 auth:
   delegated: {}
 placements:
@@ -45,6 +46,7 @@ schema: runx.connector.v1
 id: nitrosend
 name: Nitrosend
 description: Email campaigns and transactional sends.
+runtime_capability: false
 auth:
   credentials:
     api_key:
@@ -171,6 +173,7 @@ schema: runx.connector.v1
 id: example
 name: Example
 description: Example API.
+runtime_capability: false
 auth: {none: {}}
 placements: {local: {auth: [none]}}
 operations:
@@ -296,6 +299,7 @@ schema: runx.connector.v1
 id: hooks
 name: Hooks
 description: Deliver to a webhook.
+runtime_capability: false
 auth: {none: {}}
 placements: {local: {auth: [none]}}
 operations:
@@ -357,6 +361,7 @@ schema: runx.connector.v1
 id: example
 name: Example
 description: Example API.
+runtime_capability: false
 auth:
   credentials:
     token:
@@ -408,6 +413,7 @@ schema: runx.connector.v1
 id: social
 name: Social
 description: Posts and accounts.
+runtime_capability: false
 auth:
   credentials:
     user:
@@ -541,6 +547,7 @@ schema: runx.connector.v1
 id: example
 name: Example
 description: Example API.
+runtime_capability: false
 auth: {none: {}}
 placements: {local: {auth: [none]}}
 operations:
@@ -592,6 +599,7 @@ schema: runx.connector.v1
 id: example
 name: Example
 description: Example API.
+runtime_capability: false
 auth:
   delegated: {}
   credentials:
@@ -800,5 +808,49 @@ fn a_read_neither_claims_deduplication_nor_sends_a_key() {
             "            url: \"https://api.example.com/item\"\n            query: {key: {\"$runx\": \"idempotency_key\"}}",
         ),
         "a read has no idempotency key",
+    );
+}
+
+#[test]
+fn a_declared_category_must_be_a_connector_category_of_the_taxonomy() {
+    let with_category = |category: &str| {
+        FORGE.replace(
+            "runtime_capability: false\n",
+            &format!("category: {category}\nruntime_capability: false\n"),
+        )
+    };
+    let validated = validate(&with_category("dev-tools")).expect("a connector category validates");
+    assert_eq!(
+        validated
+            .manifest
+            .category
+            .as_ref()
+            .map(|category| category.as_str()),
+        Some("dev-tools")
+    );
+    assert_rejects(&with_category("research"), "not a connector category");
+    assert_rejects(
+        &with_category("uncategorized"),
+        "not in the registry taxonomy",
+    );
+    assert_rejects(&with_category("payment"), "not in the registry taxonomy");
+}
+
+#[test]
+fn runtime_capability_is_declared_never_assumed() {
+    let undeclared = FORGE.replace("runtime_capability: false\n", "");
+    assert!(
+        validate(&undeclared).is_err(),
+        "a manifest must declare runtime_capability"
+    );
+    assert!(
+        validate(&FORGE.replace("runtime_capability: false", "runtime_capability: \"no\""))
+            .is_err()
+    );
+    assert!(
+        !validate(FORGE)
+            .expect("forge validates")
+            .manifest
+            .runtime_capability
     );
 }

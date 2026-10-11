@@ -40,6 +40,8 @@
     "official-connectors:generate": "node scripts/generate-official-connectors.mjs",
     "official-connectors:check": "node scripts/generate-official-connectors.mjs --check",
     "official-lock:generate": "node scripts/generate-official-lock.mjs",
+    "registry-taxonomy:generate": "node scripts/generate-registry-taxonomy.mjs",
+    "registry-taxonomy:check": "node scripts/generate-registry-taxonomy.mjs --check",
     "core-skills:audit": "node scripts/audit-core-skills.mjs --check --json",
     "codex-export:check": "node scripts/check-codex-export.mjs",
     "core-skills:composes:generate": "node scripts/audit-core-skills.mjs --write-composes",

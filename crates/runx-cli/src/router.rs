@@ -20,6 +20,7 @@ use crate::publish::PublishPlan;
 use crate::registry::{RegistryAction, RegistryPlan};
 use crate::resume::ResumePlan;
 use crate::skill::SkillPlan;
+use runx_contracts::validate_registry_version;
 use runx_runtime::registry::parse_registry_ref;
 use runx_runtime::{ManagedAgentPolicy, WorkspaceEnv};
 
@@ -1377,8 +1378,16 @@ fn utf8_tool_positionals(positionals: Vec<OsString>) -> Result<Vec<String>, Stri
 fn parse_registry_plan(args: &[OsString]) -> Result<RegistryPlan, String> {
     let subcommand = os_arg(args, 1, "registry")?;
     let action = parse_registry_action(subcommand)?;
+    let (action, subcommand, first_argument) = if action == RegistryAction::ConnectorPackage {
+        match os_arg(args, 2, "registry connector")? {
+            "package" => (action, "connector package", 3),
+            other => return Err(format!("unknown registry connector subcommand {other}")),
+        }
+    } else {
+        (action, subcommand, 2)
+    };
     let mut state = RegistryParseState::default();
-    parse_registry_args(args, &mut state)?;
+    parse_registry_args(args, first_argument, &mut state)?;
     validate_registry_action_flags(&action, &state)?;
     let subject = registry_subject(&action, subcommand, &mut state.positionals)?;
 
@@ -1403,10 +1412,25 @@ fn validate_registry_action_flags(
     action: &RegistryAction,
     state: &RegistryParseState,
 ) -> Result<(), String> {
+    if *action == RegistryAction::ConnectorPackage {
+        return if state.profile.is_some() || registry_target_flags(state) {
+            Err("runx registry connector package accepts only --json".to_owned())
+        } else {
+            Ok(())
+        };
+    }
     if *action != RegistryAction::Package {
         return Ok(());
     }
-    if state.registry.is_some()
+    if registry_target_flags(state) {
+        return Err("runx registry package accepts only --profile and --json".to_owned());
+    }
+    Ok(())
+}
+
+/// A flag naming a registry, a version or an install, which packaging never takes.
+fn registry_target_flags(state: &RegistryParseState) -> bool {
+    state.registry.is_some()
         || state.registry_dir.is_some()
         || state.version.is_some()
         || state.expected_digest.is_some()
@@ -1415,10 +1439,6 @@ fn validate_registry_action_flags(
         || state.trust_tier.is_some()
         || state.limit.is_some()
         || state.upsert
-    {
-        return Err("runx registry package accepts only --profile and --json".to_owned());
-    }
-    Ok(())
 }
 
 #[derive(Default)]
@@ -1445,12 +1465,17 @@ fn parse_registry_action(subcommand: &str) -> Result<RegistryAction, String> {
         "install" => Ok(RegistryAction::Install),
         "package" => Ok(RegistryAction::Package),
         "publish" => Ok(RegistryAction::Publish),
+        "connector" => Ok(RegistryAction::ConnectorPackage),
         _ => Err(format!("unknown registry subcommand {subcommand}")),
     }
 }
 
-fn parse_registry_args(args: &[OsString], state: &mut RegistryParseState) -> Result<(), String> {
-    let mut index = 2;
+fn parse_registry_args(
+    args: &[OsString],
+    first_argument: usize,
+    state: &mut RegistryParseState,
+) -> Result<(), String> {
+    let mut index = first_argument;
     while index < args.len() {
         let token = os_arg(args, index, "registry")?;
         if !token.starts_with("--") {
@@ -1620,33 +1645,20 @@ fn registry_subject(
             }
             Ok(positionals.remove(0))
         }
+        RegistryAction::ConnectorPackage => {
+            if positionals.len() != 1 {
+                return Err(format!(
+                    "runx registry {subcommand} requires exactly one connector directory"
+                ));
+            }
+            Ok(positionals.remove(0))
+        }
     }
 }
 
 fn validate_registry_ref_version(value: &str) -> Result<(), String> {
     if let Some(version) = parse_registry_ref(value).version {
         validate_registry_version(&version)?;
-    }
-    Ok(())
-}
-
-fn validate_registry_version(value: &str) -> Result<(), String> {
-    if value.trim().is_empty() {
-        return Err("registry version must not be empty".to_owned());
-    }
-    if value.len() > 128 {
-        return Err("registry version must be 128 characters or fewer".to_owned());
-    }
-    if value.chars().any(|character| {
-        !character.is_ascii_alphanumeric() && !matches!(character, '.' | '_' | '-' | '+')
-    }) {
-        return Err(
-            "registry version may only contain ASCII letters, numbers, '.', '_', '-', or '+'"
-                .to_owned(),
-        );
-    }
-    if matches!(value, "." | "..") {
-        return Err("registry version must not be '.' or '..'".to_owned());
     }
     Ok(())
 }

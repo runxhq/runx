@@ -2,6 +2,8 @@ schema: runx.connector.v1
 id: ausca-browser
 name: Ausca Browser
 description: Provision Ausca browser sessions for paid invocations.
+category: agent-tools
+runtime_capability: false
 auth:
   credentials:
     service_token:

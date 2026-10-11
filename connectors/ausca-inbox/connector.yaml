@@ -2,6 +2,8 @@ schema: runx.connector.v1
 id: ausca-inbox
 name: Ausca Inbox
 description: Provision and extend Ausca agent inboxes for paid invocations.
+category: agent-tools
+runtime_capability: false
 auth:
   credentials:
     service_token:

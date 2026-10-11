@@ -2,6 +2,8 @@ schema: runx.connector.v1
 id: linear
 name: Linear
 description: Read bounded team issues, selected issue context and comments through fixed GraphQL queries.
+category: dev-tools
+runtime_capability: false
 auth:
   credentials:
     access_token:

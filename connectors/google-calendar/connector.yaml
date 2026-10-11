@@ -2,6 +2,8 @@ schema: runx.connector.v1
 id: google-calendar
 name: Google Calendar
 description: Read Google Calendar events and busy intervals.
+category: productivity
+runtime_capability: false
 auth:
   delegated: {}
 placements:

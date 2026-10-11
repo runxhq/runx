@@ -2,6 +2,8 @@ schema: runx.connector.v1
 id: google-analytics
 name: Google Analytics
 description: Read Google Analytics 4 properties, metadata and reports.
+category: analytics
+runtime_capability: false
 auth:
   delegated: {}
 placements:

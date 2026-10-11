@@ -187,7 +187,7 @@ runners:
     );
     assert_eq!(search_results[0].profile_digest, version.profile_digest);
     assert_eq!(
-        search_results[0].install_command,
+        search_results[0].install_command.copy_text,
         "runx add acme/sourcey@1.0.0 --registry https://runx.example.test"
     );
     assert_eq!(
@@ -415,11 +415,11 @@ fn local_registry_publish_rejects_changed_duplicate() -> Result<(), Box<dyn std:
     assert_eq!(first.skill_id, "acme/echo");
     assert_eq!(first.digest.len(), 64);
     assert_eq!(
-        first.link.install_command,
+        first.link.install_command.copy_text,
         "runx add acme/echo@1.0.0 --registry https://runx.example.test"
     );
     assert_eq!(
-        first.link.run_command,
+        first.link.run_command.copy_text,
         "runx skill acme/echo@1.0.0 --registry https://runx.example.test"
     );
     assert_eq!(second.status, PublishStatus::Unchanged);

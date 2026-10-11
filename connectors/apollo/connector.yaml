@@ -2,6 +2,8 @@ schema: runx.connector.v1
 id: apollo
 name: Apollo
 description: Inspect the selected Apollo API key without enriching contacts or consuming enrichment credits.
+category: marketing
+runtime_capability: false
 auth:
   credentials:
     api_key:

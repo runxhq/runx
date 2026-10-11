@@ -2,6 +2,8 @@ schema: runx.connector.v1
 id: posthog
 name: PostHog
 description: Read saved product insights from an explicitly selected PostHog Cloud project and region.
+category: analytics
+runtime_capability: false
 auth:
   credentials:
     personal_key:

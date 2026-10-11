@@ -2,7 +2,7 @@
 // local, hosted, install, publish, trust, and signed-manifest envelopes evolve
 // under one serialization contract.
 use runx_contracts::maturity::MaturityTier;
-use runx_contracts::{JsonValue, PaidSkillListing};
+use runx_contracts::{CopyableCommand, JsonValue, PaidSkillListing};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -13,8 +13,8 @@ pub struct RegistryLinkResolution {
     pub digest: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub registry_url: Option<String>,
-    pub install_command: String,
-    pub run_command: String,
+    pub install_command: CopyableCommand,
+    pub run_command: CopyableCommand,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -158,8 +158,8 @@ pub struct RegistrySearchResult {
     pub trust_tier: TrustTier,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub trust_signals: Vec<TrustSignal>,
-    pub install_command: String,
-    pub run_command: String,
+    pub install_command: CopyableCommand,
+    pub run_command: CopyableCommand,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -248,8 +248,8 @@ pub struct RegistrySkillResolution {
     pub trust_tier: TrustTier,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub registry_url: Option<String>,
-    pub install_command: String,
-    pub run_command: String,
+    pub install_command: CopyableCommand,
+    pub run_command: CopyableCommand,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -346,8 +346,8 @@ pub struct RegistrySkillDetail {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source_metadata: Option<RegistrySourceMetadata>,
     pub attestations: Vec<RegistryAttestation>,
-    pub install_command: String,
-    pub run_command: String,
+    pub install_command: CopyableCommand,
+    pub run_command: CopyableCommand,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

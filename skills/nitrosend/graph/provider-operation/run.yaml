@@ -7,7 +7,7 @@ catalog:
   role: graph-stage
   part_of:
     - runx/nitrosend
-  category: communications
+  category: growth
 harness:
   cases:
     - name: blocks-unknown-operation-before-transport

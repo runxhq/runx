@@ -4,6 +4,8 @@ use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 
+use runx_contracts::CopyableCommand;
+
 use super::refs::parse_registry_ref;
 use super::types::{
     PublishSkillMarkdownResult, PublishStatus, RegistryAttestation, RegistryLinkResolution,
@@ -337,7 +339,7 @@ pub fn publish_skill_markdown(
     options: PublishSkillMarkdownOptions,
 ) -> Result<PublishSkillMarkdownResult, LocalRegistryError> {
     let result = create_registry_skill_version(store, markdown, options.ingest)?;
-    let link = runx_link_for_version(&result.record, options.registry_url.as_deref());
+    let link = runx_link_for_version(&result.record, options.registry_url.as_deref())?;
     Ok(PublishSkillMarkdownResult {
         status: if result.created {
             PublishStatus::Published
@@ -375,10 +377,10 @@ pub fn search_registry_with_options(
         .collect::<Vec<_>>();
     matches.sort_by(|left, right| left.skill_id.cmp(&right.skill_id));
     matches.truncate(options.limit.unwrap_or(20));
-    Ok(matches
+    matches
         .iter()
         .map(|version| search_result_for_version(version, options.registry_url.as_deref()))
-        .collect())
+        .collect()
 }
 
 fn registry_version_is_public(version: &RegistrySkillVersion) -> bool {
@@ -397,29 +399,31 @@ pub fn resolve_registry_skill(
     } else {
         resolve_by_name(store, &parsed.skill_id, version)?
     };
-    Ok(record.map(|record| {
-        let link = runx_link_for_version(&record, options.registry_url.as_deref());
-        RegistrySkillResolution {
-            markdown: record.markdown,
-            profile_document: record.profile_document,
-            profile_digest: record.profile_digest,
-            package_files: record.package_files,
-            package_digest: record.package_digest,
-            paid_listing: record.paid_listing,
-            runner_names: record.runner_names,
-            skill_id: record.skill_id,
-            name: record.name,
-            version: record.version,
-            digest: record.digest,
-            signed_manifest: record.signed_manifest,
-            source: "runx-registry".to_owned(),
-            source_label: "runx registry".to_owned(),
-            trust_tier: record.trust_tier,
-            registry_url: options.registry_url,
-            install_command: link.install_command,
-            run_command: link.run_command,
-        }
-    }))
+    record
+        .map(|record| {
+            let link = runx_link_for_version(&record, options.registry_url.as_deref())?;
+            Ok(RegistrySkillResolution {
+                markdown: record.markdown,
+                profile_document: record.profile_document,
+                profile_digest: record.profile_digest,
+                package_files: record.package_files,
+                package_digest: record.package_digest,
+                paid_listing: record.paid_listing,
+                runner_names: record.runner_names,
+                skill_id: record.skill_id,
+                name: record.name,
+                version: record.version,
+                digest: record.digest,
+                signed_manifest: record.signed_manifest,
+                source: "runx-registry".to_owned(),
+                source_label: "runx registry".to_owned(),
+                trust_tier: record.trust_tier,
+                registry_url: options.registry_url,
+                install_command: link.install_command,
+                run_command: link.run_command,
+            })
+        })
+        .transpose()
 }
 
 pub fn read_registry_skill(
@@ -428,9 +432,10 @@ pub fn read_registry_skill(
     version: Option<&str>,
     registry_url: Option<&str>,
 ) -> Result<Option<RegistrySkillDetail>, LocalRegistryError> {
-    Ok(store
+    store
         .get_version(skill_id, version)?
-        .map(|record| detail_for_version(&record, registry_url)))
+        .map(|record| detail_for_version(&record, registry_url))
+        .transpose()
 }
 
 pub fn resolve_runx_link(
@@ -439,18 +444,34 @@ pub fn resolve_runx_link(
     version: Option<&str>,
     registry_url: Option<&str>,
 ) -> Result<Option<RegistryLinkResolution>, LocalRegistryError> {
-    Ok(store
+    store
         .get_version(skill_id, version)?
-        .map(|record| runx_link_for_version(&record, registry_url)))
+        .map(|record| runx_link_for_version(&record, registry_url))
+        .transpose()
 }
 
+/// The link and the copyable install and run commands for `record`.
+///
+/// # Errors
+///
+/// Returns an error when the registry location holds a control character,
+/// which no copied command can carry.
 pub fn runx_link_for_version(
     record: &RegistrySkillVersion,
     registry_url: Option<&str>,
-) -> RegistryLinkResolution {
+) -> Result<RegistryLinkResolution, LocalRegistryError> {
     let registry_ref = format!("{}@{}", record.skill_id, record.version);
-    let registry_flag = registry_url.map_or_else(String::new, |url| format!(" --registry {url}"));
-    RegistryLinkResolution {
+    let command = |verb: &str| {
+        let mut argv = vec!["runx".to_owned(), verb.to_owned(), registry_ref.clone()];
+        if let Some(url) = registry_url {
+            argv.extend(["--registry".to_owned(), url.to_owned()]);
+        }
+        CopyableCommand::posix(argv).map_err(|message| LocalRegistryError::InvalidVersionPayload {
+            field: "registry_url".to_owned(),
+            message,
+        })
+    };
+    Ok(RegistryLinkResolution {
         link: format!(
             "runx://skill/{}@{}",
             encode_uri_component(&record.skill_id),
@@ -460,9 +481,9 @@ pub fn runx_link_for_version(
         version: record.version.clone(),
         digest: record.digest.clone(),
         registry_url: registry_url.map(ToOwned::to_owned),
-        install_command: format!("runx add {registry_ref}{registry_flag}"),
-        run_command: format!("runx skill {registry_ref}{registry_flag}"),
-    }
+        install_command: command("add")?,
+        run_command: command("skill")?,
+    })
 }
 
 pub fn build_skill_id(owner: &str, name: &str) -> Result<String, LocalRegistryError> {

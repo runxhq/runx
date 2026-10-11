@@ -28,7 +28,7 @@ client = RunxClient()
 
 # Search the registry
 for result in client.search_skills("sourcey"):
-    print(result.skill_id, result.version)
+    print(result.skill_id, result.version, result.install_command.copy_text)
 
 # Run a skill
 report = client.run_skill("skills/sourcey", inputs={"project": "."})

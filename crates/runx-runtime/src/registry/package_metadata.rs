@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 
 use runx_contracts::PaidSkillOfferTerms;
+use runx_contracts::connector::{ConnectorRef, Digest};
 use runx_parser::{CatalogMetadata, SkillRunnerManifest, ValidatedSkill};
 use serde::{Deserialize, Serialize};
 
@@ -25,18 +26,25 @@ pub struct RegistryPackageMetadata {
     pub marketplace_offers: BTreeMap<String, PaidSkillOfferTerms>,
     pub tags: Vec<String>,
     pub harness_cases: Vec<RegistryHarnessCaseMetadata>,
-    /// The connectors the package's `run.yaml` declares, by id. Its own
+    /// The connectors the package's `run.yaml` declares, in id order. Its own
     /// declarations only: a skill it composes declares its own.
-    #[serde(default)]
     pub connectors: Vec<RegistryConnectorMetadata>,
 }
 
-/// One connector a package declares and the operations it lists for it. A
+/// One connector a package declares: where it comes from, the digests a
+/// closure binds it by, and the operations the package lists for it. A
 /// run-time choice names each connector it may choose, with the choice's
 /// operations.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RegistryConnectorMetadata {
-    pub id: String,
+    #[serde(rename = "ref")]
+    pub connector_ref: ConnectorRef,
+    pub version: String,
+    pub manifest_digest: Digest,
+    /// The manifest and every tool its process operations run.
+    pub connector_digest: Digest,
+    /// The connector is part of the runtime itself (store, web, vault).
+    pub runtime_capability: bool,
     pub operations: Vec<String>,
 }
 
@@ -52,6 +60,7 @@ pub struct RegistryHarnessCaseMetadata {
 pub(crate) fn project_registry_package_metadata(
     skill: &ValidatedSkill,
     manifest: Option<&SkillRunnerManifest>,
+    connectors: Vec<RegistryConnectorMetadata>,
 ) -> RegistryPackageMetadata {
     let catalog = registry_catalog(manifest);
     RegistryPackageMetadata {
@@ -69,13 +78,15 @@ pub(crate) fn project_registry_package_metadata(
             .unwrap_or_default(),
         tags: registry_tags(&catalog),
         harness_cases: registry_harness_cases(manifest),
-        connectors: registry_connectors(manifest),
+        connectors,
     }
 }
 
 /// The declared connectors by id, each with its operations in the order the
 /// package lists them.
-fn registry_connectors(manifest: Option<&SkillRunnerManifest>) -> Vec<RegistryConnectorMetadata> {
+pub(crate) fn declared_connectors(
+    manifest: Option<&SkillRunnerManifest>,
+) -> BTreeMap<String, Vec<String>> {
     let mut connectors = BTreeMap::<String, Vec<String>>::new();
     for (key, requirement) in manifest
         .into_iter()
@@ -100,9 +111,6 @@ fn registry_connectors(manifest: Option<&SkillRunnerManifest>) -> Vec<RegistryCo
         }
     }
     connectors
-        .into_iter()
-        .map(|(id, operations)| RegistryConnectorMetadata { id, operations })
-        .collect()
 }
 
 fn registry_harness_cases(

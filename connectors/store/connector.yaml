@@ -2,6 +2,8 @@ schema: runx.connector.v1
 id: store
 name: Store
 description: Durable event streams for skills. Append an event when its stream is at the expected version, read a stream's events and projection, and list the newest stream heads. An instance's url chooses SQLite, Postgres or Redis; without one it is the workspace store.
+category: agent-tools
+runtime_capability: true
 auth:
   none: {}
   credentials:

@@ -458,7 +458,17 @@ surface stays readable.
 `runx registry package <SKILL.md|skill-dir> --json` projects the exact
 parser-owned publish artifact without writing a registry row. Hosted and
 third-party publishers should consume that output instead of implementing
-their own package-file discovery.
+their own package-file discovery. A skill package carries each connector it
+declares at `connectors/<publisher>/<id>/` (its manifest, the tools its
+process operations run, and its `README.md` and `mark.svg` when present), and
+its metadata binds every declared connector by `ref`, `version`,
+`manifest_digest`, `connector_digest` and `runtime_capability`. Every package
+carries `runx.package.json`, which marks the installed package's root.
+
+`runx registry connector package <connector-dir> --json` projects a connector
+published on its own: the same files at the package root, the parsed manifest,
+and its manifest, connector and operation digests. Its publisher is the
+namespace the nearest `plugin.json` declares.
 
 Use [skill-catalog.md](skill-catalog.md) for the maintained category list,
 catalog search flow, and duplicate-check standard before proposing a new

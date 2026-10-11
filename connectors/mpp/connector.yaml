@@ -2,6 +2,8 @@ schema: runx.connector.v1
 id: mpp
 name: Machine Payments Protocol
 description: Charge, pay, refund and settle invoices on the Machine Payments Protocol rail. Declared only; no placement implements it yet.
+category: payments
+runtime_capability: false
 auth:
   delegated: {}
 placements:

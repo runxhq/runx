@@ -2,6 +2,8 @@ schema: runx.connector.v1
 id: slack
 name: Slack
 description: Search, read and post messages in Slack workspaces.
+category: communication
+runtime_capability: false
 auth:
   delegated: {}
 placements:

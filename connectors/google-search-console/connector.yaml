@@ -2,6 +2,8 @@ schema: runx.connector.v1
 id: google-search-console
 name: Google Search Console
 description: Read Search Console performance, URL inspections and sitemaps, and submit sitemaps.
+category: analytics
+runtime_capability: false
 auth:
   delegated: {}
 placements:

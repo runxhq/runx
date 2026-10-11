@@ -10,6 +10,7 @@ const SLACK: &str = r#"{
   "id": "slack",
   "name": "Slack",
   "description": "Search, read and post messages in Slack workspaces.",
+  "runtime_capability": false,
   "auth": {"delegated": {}},
   "placements": {"hosted": {"auth": "delegated"}},
   "operations": {
@@ -264,4 +265,43 @@ fn literal_fields_expose_mcp_discriminators() {
         literal.get("action"),
         Some(&&JsonValue::String("status".to_owned()))
     );
+}
+
+#[test]
+fn connector_digest_binds_the_manifest_and_each_tool_it_runs() {
+    let manifest = Digest::of(b"manifest");
+    let push = Digest::of(b"push tool");
+    let read = Digest::of(b"read tool");
+    let base = connector_digest(&manifest, [("push", &push), ("read", &read)]).expect("digest");
+
+    // The tool list is a set by name; the order it arrives in is not identity.
+    assert_eq!(
+        connector_digest(&manifest, [("read", &read), ("push", &push)]).expect("digest"),
+        base
+    );
+    // A changed tool or an added one changes the connector; so does its manifest.
+    let changed = Digest::of(b"push tool, edited");
+    assert_ne!(
+        connector_digest(&manifest, [("push", &changed), ("read", &read)]).expect("digest"),
+        base
+    );
+    assert_ne!(
+        connector_digest(&manifest, [("push", &push)]).expect("digest"),
+        base
+    );
+    assert_ne!(
+        connector_digest(&Digest::of(b"other"), [("push", &push), ("read", &read)])
+            .expect("digest"),
+        base
+    );
+    // A tool-less connector is its manifest alone, still not the manifest digest.
+    let bare = connector_digest(&manifest, []).expect("digest");
+    assert_ne!(bare, manifest);
+    assert_eq!(
+        bare.as_str(),
+        stable_digest(&serde_json::json!({ "manifest": manifest, "tools": {} }))
+            .expect("digest")
+            .as_str()
+    );
+    assert!(connector_digest(&manifest, [("push", &push), ("push", &read)]).is_err());
 }

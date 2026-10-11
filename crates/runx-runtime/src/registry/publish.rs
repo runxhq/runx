@@ -1,3 +1,4 @@
+use runx_contracts::CopyableCommand;
 use serde::{Deserialize, Serialize};
 
 use super::{RegistryPackageFile, RegistryPublishHarnessReport};
@@ -41,8 +42,8 @@ pub struct HostedSkillPublishResult {
     #[serde(default)]
     pub profile_digest: Option<String>,
     pub trust_tier: String,
-    pub install_command: String,
-    pub run_command: String,
+    pub install_command: CopyableCommand,
+    pub run_command: CopyableCommand,
     pub public_url: String,
 }
 
@@ -190,8 +191,8 @@ struct HostedAdminSkillRecord {
 
 #[derive(Deserialize)]
 struct HostedSkillPublishLink {
-    install_command: String,
-    run_command: String,
+    install_command: CopyableCommand,
+    run_command: CopyableCommand,
     #[serde(default)]
     public_url: Option<String>,
     #[serde(default)]

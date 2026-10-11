@@ -11,6 +11,8 @@ export { definePacket, type PacketDefinition } from "./packet-definition.js";
 
 export {
   TemplateError,
+  connectorBindingSchema,
+  validateConnectorBinding,
   hostedHttp,
   isCheckingRead,
   operationAccess,
@@ -19,6 +21,7 @@ export {
   renderDeclaredRequest,
   renderTemplate,
   type ConnectorManifest,
+  type ConnectorBinding,
   type ConnectorOperation,
   type CredentialDeclaration,
   type CredentialField,
@@ -41,6 +44,15 @@ export {
 } from "./connector.js";
 
 export { officialConnectors } from "./generated/official-connectors.js";
+export { posixCommand, renderPosixCommand, type CopyableCommand } from "./copyable-command.js";
+export { isRegistryVersion, REGISTRY_VERSION_PATTERN } from "./registry-version.js";
+export {
+  registryTaxonomy,
+  type RegistryTaxonomy,
+  type RegistryTaxonomyCategory,
+  type RegistryTaxonomyMark,
+  type RegistryTaxonomySubject,
+} from "./registry-taxonomy.js";
 
 
 export {

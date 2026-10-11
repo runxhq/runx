@@ -30,12 +30,16 @@ class RunxClientTests(unittest.TestCase):
                 "required_scopes": ["repo:read"],
                 "tags": ["docs"],
                 "version": "1.0.0",
+                "install_command": {"shell": "posix", "argv": ["runx", "add", "acme/sourcey@1.0.0"], "copy_text": "runx add acme/sourcey@1.0.0"},
+                "run_command": {"shell": "posix", "argv": ["runx", "skill", "acme/sourcey@1.0.0"], "copy_text": "runx skill acme/sourcey@1.0.0"},
             }
         )
 
         self.assertEqual(result.skill_id, "acme/sourcey")
         self.assertEqual(result.required_scopes, ("repo:read",))
         self.assertEqual(result.tags, ("docs",))
+        self.assertEqual(result.install_command.copy_text, "runx add acme/sourcey@1.0.0")
+        self.assertEqual(result.run_command.argv, ("runx", "skill", "acme/sourcey@1.0.0"))
 
     def test_invokes_runx_cli_json_output(self) -> None:
         with TemporaryDirectory() as tmp:
@@ -47,10 +51,11 @@ class RunxClientTests(unittest.TestCase):
                     import sys
 
                     args = sys.argv[1:]
-                    if args[:2] == ["skill", "search"]:
+                    if args[:2] == ["registry", "search"]:
+                        command = lambda verb: {"shell": "posix", "argv": ["runx", verb, "acme/sourcey@1.0.0"], "copy_text": f"runx {verb} acme/sourcey@1.0.0"}
                         print(json.dumps({
                             "status": "success",
-                            "results": [{
+                            "registry": {"action": "search", "results": [{
                                 "skill_id": "acme/sourcey",
                                 "name": "sourcey",
                                 "owner": "acme",
@@ -59,7 +64,9 @@ class RunxClientTests(unittest.TestCase):
                                                 "trust_tier": "community",
                                 "required_scopes": [],
                                 "tags": [],
-                            }],
+                                "install_command": command("add"),
+                                "run_command": command("skill"),
+                            }]},
                         }))
                     else:
                         print(json.dumps({"status": "success", "args": args}))

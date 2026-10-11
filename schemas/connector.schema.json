@@ -170,6 +170,10 @@
       },
       "type": "object"
     },
+    "category": {
+      "minLength": 1,
+      "type": "string"
+    },
     "description": {
       "minLength": 1,
       "type": "string"
@@ -1790,6 +1794,9 @@
       "minItems": 1,
       "type": "array"
     },
+    "runtime_capability": {
+      "type": "boolean"
+    },
     "schema": {
       "enum": [
         "runx.connector.v1"
@@ -1802,6 +1809,7 @@
     "id",
     "name",
     "description",
+    "runtime_capability",
     "auth",
     "placements",
     "operations"

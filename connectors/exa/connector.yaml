@@ -2,6 +2,8 @@ schema: runx.connector.v1
 id: exa
 name: Exa
 description: Search public web sources within explicit query and result limits.
+category: search
+runtime_capability: false
 auth:
   credentials:
     api_key:

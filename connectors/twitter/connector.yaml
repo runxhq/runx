@@ -2,6 +2,8 @@ schema: runx.connector.v1
 id: twitter
 name: X (Twitter)
 description: Read accounts and posts on X, publish posts, and act on accounts and posts.
+category: communication
+runtime_capability: false
 auth:
   credentials:
     user:

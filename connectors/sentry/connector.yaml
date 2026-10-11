@@ -2,6 +2,8 @@ schema: runx.connector.v1
 id: sentry
 name: Sentry
 description: Read bounded issue and event evidence from a selected Sentry organization.
+category: dev-tools
+runtime_capability: false
 auth:
   credentials:
     access_token:

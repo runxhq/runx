@@ -2,6 +2,8 @@ schema: runx.connector.v1
 id: open-meteo
 name: Open-Meteo
 description: Geocode places and read forecast and air quality data from Open-Meteo.
+category: public-data
+runtime_capability: false
 auth:
   none: {}
 placements:

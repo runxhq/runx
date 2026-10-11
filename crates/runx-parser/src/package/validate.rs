@@ -65,6 +65,15 @@ pub fn validate_skill_package(
     consumed_files.extend(harness_files.iter().cloned());
     consumed_files.extend(validate_operator_reference_files(&source)?);
     consumed_files.extend(validate_nested_package_consumed_files(&source)?);
+    if let Some(mark) = source.files.get(crate::mark::MARK_FILE) {
+        crate::mark::validate_mark_svg(mark).map_err(|reason| {
+            SkillPackageError::invalid(
+                crate::mark::MARK_FILE,
+                format!("{} {reason}", crate::mark::MARK_FILE),
+            )
+        })?;
+        consumed_files.insert(crate::mark::MARK_FILE.to_owned());
+    }
     let source_digests = source
         .files
         .iter()

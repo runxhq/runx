@@ -9,10 +9,14 @@
 //!   the MCP server folded in, and for a process the exact tool package that
 //!   received the credential. It is sealed per call, never pinned.
 //! - The tool package digest covers every file a connector's tool ships.
+//! - The connector digest covers what a connector executes: its manifest and
+//!   the package of each tool its process operations run. Closures bind it.
 //! - The credential declaration digest covers where a secret may be sent.
 //!
 //! Every digest is written straight from borrowed fields into canonical
 //! bytes; no intermediate value is built.
+
+use std::collections::BTreeMap;
 
 use serde::Serialize;
 use thiserror::Error;
@@ -127,6 +131,34 @@ pub fn tool_package_digest<'a>(
         .collect::<Vec<_>>();
     files.sort_by(|left, right| left.path.cmp(right.path));
     stable_digest(&files)
+}
+
+#[derive(Serialize)]
+struct ConnectorIdentity<'a> {
+    manifest: &'a Digest,
+    tools: BTreeMap<&'a str, &'a Digest>,
+}
+
+/// A connector's digest: its manifest digest beside the package digest of
+/// each tool its process operations run, by tool name. A changed tool changes
+/// the connector even when the manifest does not. Its README and mark are
+/// presentation and stay out.
+pub fn connector_digest<'a>(
+    manifest: &'a Digest,
+    tools: impl IntoIterator<Item = (&'a str, &'a Digest)>,
+) -> Result<Digest, ConnectorDigestError> {
+    let mut by_name = BTreeMap::new();
+    for (name, digest) in tools {
+        if by_name.insert(name, digest).is_some() {
+            return Err(ConnectorDigestError(format!(
+                "connector tool {name} is listed twice"
+            )));
+        }
+    }
+    stable_digest(&ConnectorIdentity {
+        manifest,
+        tools: by_name,
+    })
 }
 
 /// What a served MCP tool is pinned by: its name, description, input schema

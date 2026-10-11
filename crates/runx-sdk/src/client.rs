@@ -3,7 +3,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use runx_contracts::{JsonObject, JsonValue};
+use runx_contracts::{CopyableCommand, JsonObject, JsonValue};
 
 use crate::command::{CommandPlan, run_command};
 use crate::error::{RunxError, RunxResult};
@@ -60,8 +60,8 @@ pub struct SkillSearchResult {
     pub summary: Option<String>,
     pub version: Option<String>,
     pub digest: Option<String>,
-    pub add_command: Option<String>,
-    pub run_command: Option<String>,
+    pub install_command: CopyableCommand,
+    pub run_command: CopyableCommand,
 }
 
 impl RunxClient {
@@ -80,18 +80,26 @@ impl RunxClient {
         Self { options }
     }
 
+    /// Searches the registry, or the registry at `registry` (a URL or a
+    /// local registry directory).
     pub fn search_skills(
         &self,
         query: &str,
-        source: Option<&str>,
+        registry: Option<&str>,
     ) -> RunxResult<Vec<SkillSearchResult>> {
-        let mut args = vec!["skill".to_owned(), "search".to_owned(), query.to_owned()];
-        if let Some(source) = source {
-            args.push("--source".to_owned());
-            args.push(source.to_owned());
+        let mut args = vec!["registry".to_owned(), "search".to_owned(), query.to_owned()];
+        if let Some(registry) = registry {
+            args.push("--registry".to_owned());
+            args.push(registry.to_owned());
         }
         let payload = self.run_json(args, None)?;
-        let results = required_array(&payload, "results")?;
+        let registry = json_object(
+            payload
+                .get("registry")
+                .ok_or(RunxError::MissingField { field: "registry" })?,
+            "registry",
+        )?;
+        let results = required_array(registry, "results")?;
         results.iter().map(search_result_from_json).collect()
     }
 
@@ -233,9 +241,18 @@ fn search_result_from_json(value: &JsonValue) -> RunxResult<SkillSearchResult> {
         summary: optional_string(object, "summary")?,
         version: optional_string(object, "version")?,
         digest: optional_string(object, "digest")?,
-        add_command: optional_string(object, "add_command")?,
-        run_command: optional_string(object, "run_command")?,
+        install_command: copyable_command(object, "install_command")?,
+        run_command: copyable_command(object, "run_command")?,
     })
+}
+
+/// A command the CLI printed, refused unless its text is what its arguments
+/// render to.
+fn copyable_command(object: &JsonObject, field: &'static str) -> RunxResult<CopyableCommand> {
+    let value = object.get(field).ok_or(RunxError::MissingField { field })?;
+    serde_json::to_value(value)
+        .and_then(serde_json::from_value)
+        .map_err(|_| RunxError::InvalidField { field })
 }
 
 fn required_array<'a>(

@@ -2,6 +2,8 @@ schema: runx.connector.v1
 id: coinbase-cdp
 name: Coinbase CDP
 description: Quote, settle and refund x402 payments as a merchant through Coinbase CDP.
+category: payments
+runtime_capability: false
 auth:
   credentials:
     api_key:

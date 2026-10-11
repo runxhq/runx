@@ -1,0 +1,201 @@
+{
+  "schema": "runx.registry_taxonomy.v1",
+  "uncategorized": {
+    "id": "uncategorized",
+    "label": "Uncategorized",
+    "mark": "marks/categories/uncategorized.svg"
+  },
+  "categories": [
+    {
+      "id": "code",
+      "label": "Development",
+      "description": "Software lifecycle: implement, review, release, refactor, and repo evolution.",
+      "applies_to": [
+        "skill"
+      ],
+      "surface": "domain",
+      "mark": "marks/categories/code.svg"
+    },
+    {
+      "id": "research",
+      "label": "Research",
+      "description": "Bounded investigation and synthesis: briefs, market and ecosystem analysis.",
+      "applies_to": [
+        "skill"
+      ],
+      "surface": "domain",
+      "mark": "marks/categories/research.svg"
+    },
+    {
+      "id": "ops",
+      "label": "Business ops",
+      "description": "Running systems: deploy, monitor, incident, infra, triage, and intake.",
+      "applies_to": [
+        "skill"
+      ],
+      "surface": "domain",
+      "mark": "marks/categories/ops.svg"
+    },
+    {
+      "id": "growth",
+      "label": "Growth",
+      "description": "Go-to-market: sales, outreach, CRM, SEO, and campaigns.",
+      "applies_to": [
+        "skill"
+      ],
+      "surface": "domain",
+      "mark": "marks/categories/growth.svg"
+    },
+    {
+      "id": "content",
+      "label": "Content",
+      "description": "Creation and publishing: drafts, documentation, posts, and marketing copy.",
+      "applies_to": [
+        "skill"
+      ],
+      "surface": "domain",
+      "mark": "marks/categories/content.svg"
+    },
+    {
+      "id": "data",
+      "label": "Data & analytics",
+      "description": "Pipelines, querying, enrichment, analytics, and extraction.",
+      "applies_to": [
+        "skill"
+      ],
+      "surface": "domain",
+      "mark": "marks/categories/data.svg"
+    },
+    {
+      "id": "security",
+      "label": "Security",
+      "description": "Risk and trust: vulnerability scans, advisories, audits, and compliance.",
+      "applies_to": [
+        "skill"
+      ],
+      "surface": "domain",
+      "mark": "marks/categories/security.svg"
+    },
+    {
+      "id": "authoring",
+      "label": "Skill building",
+      "description": "Skill building: design, harness, evaluation, improvement, and registry trust.",
+      "applies_to": [
+        "skill"
+      ],
+      "surface": "builder",
+      "mark": "marks/categories/authoring.svg"
+    },
+    {
+      "id": "payments",
+      "label": "Payments",
+      "description": "Money movement: charge, refund, settlement, dispute, and billing rails.",
+      "applies_to": [
+        "skill",
+        "connector"
+      ],
+      "surface": "domain",
+      "mark": "marks/categories/payments.svg"
+    },
+    {
+      "id": "dev-tools",
+      "label": "Developer tools",
+      "description": "Repositories, issues, errors, and package advisories.",
+      "applies_to": [
+        "connector"
+      ],
+      "surface": "domain",
+      "mark": "marks/categories/dev-tools.svg"
+    },
+    {
+      "id": "analytics",
+      "label": "Analytics",
+      "description": "Product, web, and search analytics.",
+      "applies_to": [
+        "connector"
+      ],
+      "surface": "domain",
+      "mark": "marks/categories/analytics.svg"
+    },
+    {
+      "id": "communication",
+      "label": "Communication",
+      "description": "Messaging, social, and community platforms.",
+      "applies_to": [
+        "connector"
+      ],
+      "surface": "domain",
+      "mark": "marks/categories/communication.svg"
+    },
+    {
+      "id": "productivity",
+      "label": "Productivity",
+      "description": "Documents, calendars, spreadsheets, and workspaces.",
+      "applies_to": [
+        "connector"
+      ],
+      "surface": "domain",
+      "mark": "marks/categories/productivity.svg"
+    },
+    {
+      "id": "marketing",
+      "label": "Marketing",
+      "description": "Email, campaigns, and prospect data.",
+      "applies_to": [
+        "connector"
+      ],
+      "surface": "domain",
+      "mark": "marks/categories/marketing.svg"
+    },
+    {
+      "id": "orchestration",
+      "label": "Automation",
+      "description": "Workflow and automation platforms.",
+      "applies_to": [
+        "connector"
+      ],
+      "surface": "domain",
+      "mark": "marks/categories/orchestration.svg"
+    },
+    {
+      "id": "search",
+      "label": "Search",
+      "description": "Web search and page reading.",
+      "applies_to": [
+        "connector"
+      ],
+      "surface": "domain",
+      "mark": "marks/categories/search.svg"
+    },
+    {
+      "id": "public-data",
+      "label": "Public data",
+      "description": "Open data sources such as weather and advisories.",
+      "applies_to": [
+        "connector"
+      ],
+      "surface": "domain",
+      "mark": "marks/categories/public-data.svg"
+    },
+    {
+      "id": "cloud-infrastructure",
+      "label": "Cloud infrastructure",
+      "description": "Cloud providers and their services.",
+      "applies_to": [
+        "connector"
+      ],
+      "surface": "domain",
+      "mark": "marks/categories/cloud-infrastructure.svg"
+    },
+    {
+      "id": "agent-tools",
+      "label": "Agent tools",
+      "description": "Capabilities agents use directly: stores, browsers, inboxes, and secrets.",
+      "applies_to": [
+        "connector"
+      ],
+      "surface": "domain",
+      "mark": "marks/categories/agent-tools.svg"
+    }
+  ]
+}

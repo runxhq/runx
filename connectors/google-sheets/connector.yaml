@@ -2,6 +2,8 @@ schema: runx.connector.v1
 id: google-sheets
 name: Google Sheets
 description: Read selected spreadsheet metadata and one explicitly bounded cell range.
+category: productivity
+runtime_capability: false
 auth:
   credentials:
     access_token:

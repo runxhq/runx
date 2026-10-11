@@ -43,7 +43,9 @@ pub(super) fn build_registry_skill_version(
         profile_digest,
         package_digest,
     } = registry_package_digests(markdown, options, &package_files);
-    let metadata = project_registry_package_metadata(skill, manifest);
+    // A local registry version keeps no connector bindings; it reads the
+    // catalog fields below.
+    let metadata = project_registry_package_metadata(skill, manifest, Vec::new());
     let defaults = registry_version_defaults(
         &digest,
         profile_digest.as_deref(),
@@ -311,7 +313,8 @@ pub(super) fn normalize_registry_skill_version(
         payload.profile_digest.as_deref(),
     )?;
     let package_digest = payload.package_digest.or(computed_package_digest);
-    let metadata = project_registry_package_metadata(&package.skill, package.root_manifest());
+    let metadata =
+        project_registry_package_metadata(&package.skill, package.root_manifest(), Vec::new());
     let paid_listing = resolve_paid_listing(
         &metadata.marketplace_offers,
         &skill_id,

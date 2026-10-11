@@ -1,0 +1,131 @@
+{
+  "schema": "runx.registry_version.vectors.v1",
+  "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,127}$",
+  "cases": [
+    {
+      "name": "valid-0",
+      "input": "1.0.0",
+      "expectation": "valid"
+    },
+    {
+      "name": "valid-1",
+      "input": "v1.2.0+build.3",
+      "expectation": "valid"
+    },
+    {
+      "name": "valid-2",
+      "input": "sha-abcdef123456",
+      "expectation": "valid"
+    },
+    {
+      "name": "valid-3",
+      "input": "0",
+      "expectation": "valid"
+    },
+    {
+      "name": "valid-4",
+      "input": "1.0.0-rc.1",
+      "expectation": "valid"
+    },
+    {
+      "name": "valid-5",
+      "input": "2026.10.11",
+      "expectation": "valid"
+    },
+    {
+      "name": "valid-6",
+      "input": "A1_b",
+      "expectation": "valid"
+    },
+    {
+      "name": "valid-7",
+      "input": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "expectation": "valid"
+    },
+    {
+      "name": "empty",
+      "input": "",
+      "expectation": "invalid"
+    },
+    {
+      "name": "dot",
+      "input": ".",
+      "expectation": "invalid"
+    },
+    {
+      "name": "dot-dot",
+      "input": "..",
+      "expectation": "invalid"
+    },
+    {
+      "name": "leading-hyphen",
+      "input": "-1",
+      "expectation": "invalid"
+    },
+    {
+      "name": "leading-plus",
+      "input": "+1",
+      "expectation": "invalid"
+    },
+    {
+      "name": "leading-underscore",
+      "input": "_x",
+      "expectation": "invalid"
+    },
+    {
+      "name": "leading-dot",
+      "input": ".hidden",
+      "expectation": "invalid"
+    },
+    {
+      "name": "space",
+      "input": "1.0 0",
+      "expectation": "invalid"
+    },
+    {
+      "name": "equals",
+      "input": "1.0=final",
+      "expectation": "invalid"
+    },
+    {
+      "name": "semicolon",
+      "input": "v1;rm",
+      "expectation": "invalid"
+    },
+    {
+      "name": "pipe",
+      "input": "1|x",
+      "expectation": "invalid"
+    },
+    {
+      "name": "command-substitution",
+      "input": "$(x)",
+      "expectation": "invalid"
+    },
+    {
+      "name": "slash",
+      "input": "a/b",
+      "expectation": "invalid"
+    },
+    {
+      "name": "at",
+      "input": "a@b",
+      "expectation": "invalid"
+    },
+    {
+      "name": "newline",
+      "input": "1\n",
+      "expectation": "invalid"
+    },
+    {
+      "name": "non-ascii",
+      "input": "é1",
+      "expectation": "invalid"
+    },
+    {
+      "name": "too-long",
+      "input": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "expectation": "invalid"
+    }
+  ]
+}

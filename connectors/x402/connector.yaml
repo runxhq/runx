@@ -2,6 +2,8 @@ schema: runx.connector.v1
 id: x402
 name: x402
 description: Pay x402 challenges for HTTPS resources from an EVM wallet on Base and read the payments back.
+category: payments
+runtime_capability: false
 auth:
   credentials:
     wallet:

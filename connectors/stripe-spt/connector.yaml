@@ -2,6 +2,8 @@ schema: runx.connector.v1
 id: stripe-spt
 name: Stripe shared payment tokens
 description: Pay a payment requirement with a Stripe shared payment token. Declared only; no placement implements it yet.
+category: payments
+runtime_capability: false
 auth:
   delegated: {}
 placements:

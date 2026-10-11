@@ -2,6 +2,8 @@ schema: runx.connector.v1
 id: osv
 name: OSV
 description: Query the OSV open source vulnerability database by exact package version and read advisory records.
+category: dev-tools
+runtime_capability: false
 auth:
   none: {}
 placements:

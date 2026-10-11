@@ -700,7 +700,6 @@ pub(super) fn registry_binding_corpus() -> Vec<(&'static str, Value)> {
             v["extra_top"] = json!("ok");
             v["upstream"]["branch"] = json!("main");
             v["upstream"]["pr_url"] = json!("https://github.com/acme/skills/pull/1");
-            v["registry"]["install_command"] = json!("runx install s1");
             v["harness"]["assertion_count"] = json!(9);
             v["harness"]["case_names"] = json!(["c1", "c2"]);
             v

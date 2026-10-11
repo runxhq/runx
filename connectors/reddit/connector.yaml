@@ -2,6 +2,8 @@ schema: runx.connector.v1
 id: reddit
 name: Reddit
 description: Read Reddit through a named account's signed-in browser session.
+category: communication
+runtime_capability: false
 auth:
   session:
     kind: host_browser

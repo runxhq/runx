@@ -184,8 +184,8 @@ pub struct CatalogMetadata {
     pub requires_adapter: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub approval: Option<CatalogApproval>,
-    /// The registry category the author requests; the registry taxonomy
-    /// decides the published facet.
+    /// The registry category the skill declares: a skill category of the
+    /// registry taxonomy (`registry/taxonomy.json`), checked here.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub category: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -541,9 +541,15 @@ pub(crate) fn validate_catalog_metadata(
         )));
     }
     validate_catalog_bindings(role, &canonical_skill, &provider, &part_of, label)?;
-    let category = FIELDS
-        .optional_non_empty_string(value.get("category"), &format!("{label}.category"))?
-        .map(|category| category.trim().to_owned());
+    let category =
+        FIELDS.optional_non_empty_string(value.get("category"), &format!("{label}.category"))?;
+    if let Some(category) = &category {
+        runx_contracts::validate_registry_category(
+            runx_contracts::TaxonomySubject::Skill,
+            category,
+        )
+        .map_err(|reason| FIELDS.validation_error(format!("{label}.category: {reason}")))?;
+    }
     let tags = parse_catalog_tags(&value, label)?;
     let owner = parse_catalog_owner(&value, label)?;
     let links = parse_catalog_links(&value, label)?;

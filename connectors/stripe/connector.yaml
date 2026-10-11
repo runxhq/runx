@@ -2,6 +2,8 @@ schema: runx.connector.v1
 id: stripe
 name: Stripe
 description: File and read payment dispute responses. Declared only; no placement implements it yet.
+category: payments
+runtime_capability: false
 auth:
   delegated: {}
 placements:

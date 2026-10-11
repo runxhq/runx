@@ -142,6 +142,7 @@ if (rustBuild.status === 0) {
       step("catalog version drift", "pnpm", ["catalog:check"]),
       step("official skill lock", "pnpm", ["official-lock:check"]),
       step("official connectors", "pnpm", ["official-connectors:check"]),
+      step("registry taxonomy", "pnpm", ["registry-taxonomy:check"]),
       step("build workspace", "node", ["scripts/build-workspace.mjs"]),
       step("extension SDK package contract", "node", ["scripts/check-extension-sdk-package-contract.mjs"]),
       step("publishable manifests", "node", ["scripts/check-publishable-package-manifests.mjs"]),

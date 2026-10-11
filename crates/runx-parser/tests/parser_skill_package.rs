@@ -628,3 +628,73 @@ fn skill_package_rejects_unbound_bundled_tool_dependencies() {
     let error = validate_skill_package(source).expect_err("missing dependency must fail package");
     assert!(error.to_string().contains("resolves to missing file"));
 }
+
+#[test]
+fn a_mark_beside_the_manual_ships_with_the_package_and_a_bad_one_fails_it() {
+    let mark = r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 4h16v16H4z" fill="#0f62fe"/></svg>"##;
+    let validated = validate_skill_package(package([
+        ("SKILL.md", manual("marked")),
+        ("mark.svg", mark.to_owned()),
+    ]))
+    .expect("a package with a valid mark validates");
+    assert!(validated.consumed_files.contains("mark.svg"));
+
+    let nested = validate_skill_package(package([
+        ("SKILL.md", manual("parent")),
+        ("child/SKILL.md", manual("child")),
+        ("child/mark.svg", mark.to_owned()),
+    ]))
+    .expect("a nested package's mark validates");
+    assert!(nested.consumed_files.contains("child/mark.svg"));
+
+    let hostile = r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><script>alert(1)</script></svg>"#;
+    let error = validate_skill_package(package([
+        ("SKILL.md", manual("marked")),
+        ("mark.svg", hostile.to_owned()),
+    ]))
+    .expect_err("a mark that can run script fails the package");
+    assert!(error.to_string().contains("mark.svg"), "{error}");
+}
+
+#[test]
+fn a_declared_category_must_be_a_skill_category_of_the_taxonomy() {
+    let with_category = |category: &str| {
+        package([
+            ("SKILL.md", manual("categorized")),
+            (
+                "run.yaml",
+                format!(
+                    "skill: categorized\ncatalog:\n  kind: skill\n  audience: builder\n  visibility: internal\n  role: canonical\n  category: {category}\nrunners:\n  main:\n    default: true\n    steps:\n      - id: run\n        tool: {{ module: main.mjs }}\n"
+                ),
+            ),
+            (
+                "main.mjs",
+                "export default function run() { return {}; }\n".to_owned(),
+            ),
+        ])
+    };
+    validate_skill_package(with_category("research")).expect("a taxonomy skill category validates");
+    for refused in ["communication", "Research", "uncategorized", "payment"] {
+        let error = validate_skill_package(with_category(refused)).expect_err(refused);
+        assert!(error.to_string().contains("category"), "{refused}: {error}");
+    }
+}
+
+#[test]
+fn every_taxonomy_category_mark_passes_the_mark_check() {
+    let marks =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../registry/marks/categories");
+    let mut checked = 0;
+    for entry in std::fs::read_dir(&marks).expect("category marks") {
+        let path = entry.expect("entry").path();
+        let bytes = std::fs::read(&path).expect("mark bytes");
+        assert_eq!(
+            runx_parser::mark::validate_mark_svg(&bytes),
+            Ok(()),
+            "{}",
+            path.display()
+        );
+        checked += 1;
+    }
+    assert!(checked >= runx_contracts::registry_categories().len());
+}

@@ -31,6 +31,7 @@ export const officialConnectors: readonly OfficialConnector[] = [
           }
         }
       },
+      "category": "marketing",
       "description": "Inspect the selected Apollo API key without enriching contacts or consuming enrichment credits.",
       "id": "apollo",
       "name": "Apollo",
@@ -100,9 +101,10 @@ export const officialConnectors: readonly OfficialConnector[] = [
           ]
         }
       },
+      "runtime_capability": false,
       "schema": "runx.connector.v1"
     },
-    "manifest_digest": "sha256:c37275cc1c586c9667076a522588286efee9fc7fffe305cf974c323f2ad6520b"
+    "manifest_digest": "sha256:b85438a7e76360ee1dc21fbbd0873cc9361523fe6326514405944c3dbb8ec999"
   },
   {
     "digests": {
@@ -140,6 +142,7 @@ export const officialConnectors: readonly OfficialConnector[] = [
           }
         }
       },
+      "category": "agent-tools",
       "description": "Provision Ausca browser sessions for paid invocations.",
       "id": "ausca-browser",
       "name": "Ausca Browser",
@@ -163,9 +166,10 @@ export const officialConnectors: readonly OfficialConnector[] = [
           "credential": "service_token"
         }
       },
+      "runtime_capability": false,
       "schema": "runx.connector.v1"
     },
-    "manifest_digest": "sha256:827021edf4b408493b6ba819b99bbbd9d122cbb82b779fad1060c5de4d074c41"
+    "manifest_digest": "sha256:fc6113ab9a13582b6b83b3522f1ae12a1e1659d559fe9ccaa8ecf18519fc08e6"
   },
   {
     "digests": {
@@ -206,6 +210,7 @@ export const officialConnectors: readonly OfficialConnector[] = [
           }
         }
       },
+      "category": "agent-tools",
       "description": "Provision and extend Ausca agent inboxes for paid invocations.",
       "id": "ausca-inbox",
       "name": "Ausca Inbox",
@@ -240,9 +245,10 @@ export const officialConnectors: readonly OfficialConnector[] = [
           "credential": "service_token"
         }
       },
+      "runtime_capability": false,
       "schema": "runx.connector.v1"
     },
-    "manifest_digest": "sha256:2eb862fad1dd11fef6b8254f1663173882bd492b2fb0d513c04074857090a2da"
+    "manifest_digest": "sha256:da2809075e40b0b3b2e2845927b49c42910411c657ee13cdb0142cc352f331be"
   },
   {
     "digests": {
@@ -313,6 +319,7 @@ export const officialConnectors: readonly OfficialConnector[] = [
           }
         }
       },
+      "category": "cloud-infrastructure",
       "description": "Store and read S3 objects and run Textract and Transcribe jobs in one AWS account.",
       "id": "aws",
       "name": "AWS",
@@ -502,9 +509,10 @@ export const officialConnectors: readonly OfficialConnector[] = [
           "credential": "access_key"
         }
       },
+      "runtime_capability": false,
       "schema": "runx.connector.v1"
     },
-    "manifest_digest": "sha256:f8633f317391e940070156fa40605da12bbd931822a11fe4d83922cddb3168c3"
+    "manifest_digest": "sha256:06eb56ae4d3fa3bd5ba7353b0f446dde3309564745d53190a01b71b2e9acf2ce"
   },
   {
     "digests": {
@@ -590,6 +598,7 @@ export const officialConnectors: readonly OfficialConnector[] = [
           }
         }
       },
+      "category": "payments",
       "description": "Quote, settle and refund x402 payments as a merchant through Coinbase CDP.",
       "id": "coinbase-cdp",
       "name": "Coinbase CDP",
@@ -842,9 +851,10 @@ export const officialConnectors: readonly OfficialConnector[] = [
           "credential": "api_key"
         }
       },
+      "runtime_capability": false,
       "schema": "runx.connector.v1"
     },
-    "manifest_digest": "sha256:344e284031391734e4ccb2fa88efbdf48874c165f101f899b5901c5f1ce3d38d"
+    "manifest_digest": "sha256:1028a822f491f51b68844c1a4350e517cc453ab4bb20721917ecc6e2481b4601"
   },
   {
     "digests": {
@@ -873,6 +883,7 @@ export const officialConnectors: readonly OfficialConnector[] = [
           }
         }
       },
+      "category": "search",
       "description": "Search public web sources within explicit query and result limits.",
       "id": "exa",
       "name": "Exa",
@@ -991,9 +1002,10 @@ export const officialConnectors: readonly OfficialConnector[] = [
           ]
         }
       },
+      "runtime_capability": false,
       "schema": "runx.connector.v1"
     },
-    "manifest_digest": "sha256:5999f455a775d2371418614cc90c7d9f94274c96bfc12bcca7d7ffe53fc14805"
+    "manifest_digest": "sha256:1c71f4b2842f2d0df8ec4b33d0c05eae006f9f6aec39687726d618dbe8a4306c"
   },
   {
     "digests": {
@@ -1113,6 +1125,7 @@ export const officialConnectors: readonly OfficialConnector[] = [
           }
         }
       },
+      "category": "dev-tools",
       "description": "Read and update issues, pull requests and comments in GitHub repositories, and push branches to them.",
       "id": "github",
       "name": "GitHub",
@@ -3567,9 +3580,10 @@ export const officialConnectors: readonly OfficialConnector[] = [
           "locator": "github://[^/]+/[^/]+"
         }
       ],
+      "runtime_capability": false,
       "schema": "runx.connector.v1"
     },
-    "manifest_digest": "sha256:0b0ee1dc0a4a79bcd9ab0115f467cae1aeb93bd970f6a3606ae541c0dbc78b20"
+    "manifest_digest": "sha256:59d0944bcb91cfa044008ae53354e650a274dbbb3751fe427f279332e355b5df"
   },
   {
     "digests": {
@@ -3590,6 +3604,7 @@ export const officialConnectors: readonly OfficialConnector[] = [
       "auth": {
         "delegated": {}
       },
+      "category": "analytics",
       "description": "Read Google Analytics 4 properties, metadata and reports.",
       "id": "google-analytics",
       "name": "Google Analytics",
@@ -3703,9 +3718,10 @@ export const officialConnectors: readonly OfficialConnector[] = [
           "auth": "delegated"
         }
       },
+      "runtime_capability": false,
       "schema": "runx.connector.v1"
     },
-    "manifest_digest": "sha256:b6da2ed49e2b4ba0ae6a86864fd86106c525d4c5e7bfc9578c51374ba4ca56ad"
+    "manifest_digest": "sha256:a66652691973e67dda8fedbe19f58fa1bac1f9c36079e84931d24d3f1abac335"
   },
   {
     "digests": {
@@ -3720,6 +3736,7 @@ export const officialConnectors: readonly OfficialConnector[] = [
       "auth": {
         "delegated": {}
       },
+      "category": "productivity",
       "description": "Read Google Calendar events and busy intervals.",
       "id": "google-calendar",
       "name": "Google Calendar",
@@ -3784,9 +3801,10 @@ export const officialConnectors: readonly OfficialConnector[] = [
           "auth": "delegated"
         }
       },
+      "runtime_capability": false,
       "schema": "runx.connector.v1"
     },
-    "manifest_digest": "sha256:aa2dba52773002592fec4c6fa01652c27a708d943a4619a871a9135b6b7dd867"
+    "manifest_digest": "sha256:79bd5bd04dd739156a01faa2031220cb4b4c9fabedadf8fa5439da50baaf298e"
   },
   {
     "digests": {
@@ -3813,6 +3831,7 @@ export const officialConnectors: readonly OfficialConnector[] = [
       "auth": {
         "delegated": {}
       },
+      "category": "analytics",
       "description": "Read Search Console performance, URL inspections and sitemaps, and submit sitemaps.",
       "id": "google-search-console",
       "name": "Google Search Console",
@@ -3983,9 +4002,10 @@ export const officialConnectors: readonly OfficialConnector[] = [
           "auth": "delegated"
         }
       },
+      "runtime_capability": false,
       "schema": "runx.connector.v1"
     },
-    "manifest_digest": "sha256:f38a45b76adca04684c03ddb694368978048df1250815fbfe0533ae049325761"
+    "manifest_digest": "sha256:dcd6673dc5a4a09a5d6567d33299f65988a4e2f9e96234d1d04d2e541bb10577"
   },
   {
     "digests": {
@@ -4018,6 +4038,7 @@ export const officialConnectors: readonly OfficialConnector[] = [
           }
         }
       },
+      "category": "productivity",
       "description": "Read selected spreadsheet metadata and one explicitly bounded cell range.",
       "id": "google-sheets",
       "name": "Google Sheets",
@@ -4212,9 +4233,10 @@ export const officialConnectors: readonly OfficialConnector[] = [
           ]
         }
       },
+      "runtime_capability": false,
       "schema": "runx.connector.v1"
     },
-    "manifest_digest": "sha256:7d69da74b845f28c9fdc4f811c12f38e97cc390d4563191b271d2d42ea287160"
+    "manifest_digest": "sha256:7f9ec987faebf8fddc6087e9e4bc6a99f553fa35847b25c44c7eae2008cf98b9"
   },
   {
     "digests": {
@@ -4266,6 +4288,7 @@ export const officialConnectors: readonly OfficialConnector[] = [
           }
         }
       },
+      "category": "dev-tools",
       "description": "Read bounded team issues, selected issue context and comments through fixed GraphQL queries.",
       "id": "linear",
       "name": "Linear",
@@ -4588,9 +4611,10 @@ export const officialConnectors: readonly OfficialConnector[] = [
           ]
         }
       },
+      "runtime_capability": false,
       "schema": "runx.connector.v1"
     },
-    "manifest_digest": "sha256:e1a0eeee55967d01e36d3aee8cd5e0f363186d461d1388e45f5dbdd2d5c11fc7"
+    "manifest_digest": "sha256:c62b05a232e7ce6f0ec5926affa2a9ec5b901a24993549700fbcb064cc4a0892"
   },
   {
     "digests": {
@@ -4623,6 +4647,7 @@ export const officialConnectors: readonly OfficialConnector[] = [
           }
         }
       },
+      "category": "communication",
       "description": "Read recent Moltbook posts and publish posts as an agent account.",
       "id": "moltbook",
       "name": "Moltbook",
@@ -4842,9 +4867,10 @@ export const officialConnectors: readonly OfficialConnector[] = [
           ]
         }
       },
+      "runtime_capability": false,
       "schema": "runx.connector.v1"
     },
-    "manifest_digest": "sha256:66cc4c870846247f4671db253bf16143078677155f44af80f27727684bfc7128"
+    "manifest_digest": "sha256:78a17c6c54f5eabcdc1abf38aeda726a71442c630f31f39b250f28ac7de36512"
   },
   {
     "digests": {
@@ -4877,6 +4903,7 @@ export const officialConnectors: readonly OfficialConnector[] = [
       "auth": {
         "delegated": {}
       },
+      "category": "payments",
       "description": "Charge, pay, refund and settle invoices on the Machine Payments Protocol rail. Declared only; no placement implements it yet.",
       "id": "mpp",
       "name": "Machine Payments Protocol",
@@ -5232,9 +5259,10 @@ export const officialConnectors: readonly OfficialConnector[] = [
           "auth": "delegated"
         }
       },
+      "runtime_capability": false,
       "schema": "runx.connector.v1"
     },
-    "manifest_digest": "sha256:384d002a95605968ada8180ff3d1373ef66953d6637c1de3afe4fba09d50daa8"
+    "manifest_digest": "sha256:722071aeff5f43e8ce1517874bb1b0740337e9dd01cfe2db2181969f1166868e"
   },
   {
     "digests": {
@@ -5247,6 +5275,7 @@ export const officialConnectors: readonly OfficialConnector[] = [
       "auth": {
         "none": {}
       },
+      "category": "orchestration",
       "description": "Deliver a governed handoff to an n8n Cloud workflow webhook.",
       "id": "n8n",
       "name": "n8n",
@@ -5382,9 +5411,10 @@ export const officialConnectors: readonly OfficialConnector[] = [
           ]
         }
       },
+      "runtime_capability": false,
       "schema": "runx.connector.v1"
     },
-    "manifest_digest": "sha256:8d59773b35a7a7fe84efaeef72db94bca8205e6be64d3501ef6d1ba09f6194e9"
+    "manifest_digest": "sha256:2674faa35478c98b8655241bed47339da3c3d70703068416c01cc7205cff9760"
   },
   {
     "digests": {
@@ -5401,6 +5431,7 @@ export const officialConnectors: readonly OfficialConnector[] = [
       "auth": {
         "none": {}
       },
+      "category": "public-data",
       "description": "Resolve US gridpoints and read National Weather Service forecasts.",
       "id": "national-weather-service",
       "name": "National Weather Service",
@@ -5559,9 +5590,10 @@ export const officialConnectors: readonly OfficialConnector[] = [
           ]
         }
       },
+      "runtime_capability": false,
       "schema": "runx.connector.v1"
     },
-    "manifest_digest": "sha256:ccb40bc3c1ed3a3705b0a3eb1400c0b1fc172959ee1c7f3d588f9d44d392b850"
+    "manifest_digest": "sha256:a14f720ae8657c22f32e912480ef968125556652559e50676a40cf30360d589d"
   },
   {
     "digests": {
@@ -5743,6 +5775,7 @@ export const officialConnectors: readonly OfficialConnector[] = [
           }
         }
       },
+      "category": "marketing",
       "description": "Review email content and import consented contacts in Nitrosend.",
       "id": "nitrosend",
       "name": "Nitrosend",
@@ -8174,9 +8207,10 @@ export const officialConnectors: readonly OfficialConnector[] = [
           }
         }
       },
+      "runtime_capability": false,
       "schema": "runx.connector.v1"
     },
-    "manifest_digest": "sha256:5c7b72d7aebd5d8717b9d7e8277f4691743f7746d9eeb5d49d9800baf4bea3e2"
+    "manifest_digest": "sha256:9897733d4ed1388dcc929718d7f40a834756bf5dcfe3bff4ec2fbfcee7aff9d5"
   },
   {
     "digests": {
@@ -8217,6 +8251,7 @@ export const officialConnectors: readonly OfficialConnector[] = [
           }
         }
       },
+      "category": "productivity",
       "description": "Search authorized Notion titles and read selected page, data-source and block evidence.",
       "id": "notion",
       "name": "Notion",
@@ -8577,9 +8612,10 @@ export const officialConnectors: readonly OfficialConnector[] = [
           ]
         }
       },
+      "runtime_capability": false,
       "schema": "runx.connector.v1"
     },
-    "manifest_digest": "sha256:ad06fe3f416ac5e2a817a5030f1343dbfb9e4c84c3b19448aea2957b6afbc723"
+    "manifest_digest": "sha256:acdab0e45c0a1a2651e57670bb93675cd5e04fc60a934d24f4a8ae9837857150"
   },
   {
     "digests": {
@@ -8600,6 +8636,7 @@ export const officialConnectors: readonly OfficialConnector[] = [
       "auth": {
         "none": {}
       },
+      "category": "public-data",
       "description": "Geocode places and read forecast and air quality data from Open-Meteo.",
       "id": "open-meteo",
       "name": "Open-Meteo",
@@ -8813,9 +8850,10 @@ export const officialConnectors: readonly OfficialConnector[] = [
           ]
         }
       },
+      "runtime_capability": false,
       "schema": "runx.connector.v1"
     },
-    "manifest_digest": "sha256:6ec7384b35ade0da87c009ab3829a480a8d8ec5b3a1c79f1bf81553dbdb8e1c1"
+    "manifest_digest": "sha256:40ce93500c33c68c9f0cc5fd2f6778da06136f4a251f028da8fa36fd2d66cd9c"
   },
   {
     "digests": {
@@ -8832,6 +8870,7 @@ export const officialConnectors: readonly OfficialConnector[] = [
       "auth": {
         "none": {}
       },
+      "category": "dev-tools",
       "description": "Query the OSV open source vulnerability database by exact package version and read advisory records.",
       "id": "osv",
       "name": "OSV",
@@ -9013,9 +9052,10 @@ export const officialConnectors: readonly OfficialConnector[] = [
           ]
         }
       },
+      "runtime_capability": false,
       "schema": "runx.connector.v1"
     },
-    "manifest_digest": "sha256:3317b4bd791b6a644c5f9e98077d9158d810bd1f7a7eeeef466f4a529087d875"
+    "manifest_digest": "sha256:a2a984dc55698fa143486ebbfefbf6ca34d95386838144dac8d01d5e9b2e31ba"
   },
   {
     "digests": {
@@ -9049,6 +9089,7 @@ export const officialConnectors: readonly OfficialConnector[] = [
           }
         }
       },
+      "category": "analytics",
       "description": "Read saved product insights from an explicitly selected PostHog Cloud project and region.",
       "id": "posthog",
       "name": "PostHog",
@@ -9273,9 +9314,10 @@ export const officialConnectors: readonly OfficialConnector[] = [
           ]
         }
       },
+      "runtime_capability": false,
       "schema": "runx.connector.v1"
     },
-    "manifest_digest": "sha256:3d2035e40dca7b6cb184e50240e7b3c4f2eac643375c5af5a082ec7383005765"
+    "manifest_digest": "sha256:9ce3074b7ec211e7d2c1822001cc47de673c5f4d15dad9d804feaa19bbb6f6ed"
   },
   {
     "digests": {
@@ -9322,6 +9364,7 @@ export const officialConnectors: readonly OfficialConnector[] = [
           "kind": "host_browser"
         }
       },
+      "category": "communication",
       "description": "Read Reddit through a named account's signed-in browser session.",
       "id": "reddit",
       "name": "Reddit",
@@ -9755,9 +9798,10 @@ export const officialConnectors: readonly OfficialConnector[] = [
           ]
         }
       },
+      "runtime_capability": false,
       "schema": "runx.connector.v1"
     },
-    "manifest_digest": "sha256:4d41501336b6b9bbda0cd392fb6e740741ff3908303aa8044e39baf8d60bdf58"
+    "manifest_digest": "sha256:61642ac90f2f5b97b2626d85e72f822cfbe6559804950810f7c2c049c8881740"
   },
   {
     "digests": {
@@ -9794,6 +9838,7 @@ export const officialConnectors: readonly OfficialConnector[] = [
           }
         }
       },
+      "category": "dev-tools",
       "description": "Read bounded issue and event evidence from a selected Sentry organization.",
       "id": "sentry",
       "name": "Sentry",
@@ -10107,9 +10152,10 @@ export const officialConnectors: readonly OfficialConnector[] = [
           ]
         }
       },
+      "runtime_capability": false,
       "schema": "runx.connector.v1"
     },
-    "manifest_digest": "sha256:88e2e386e529d6179d472c465c8ea63723fe03d824471513b56bf67f66af5544"
+    "manifest_digest": "sha256:e21741e32aa497186dc5357b5a1f81687142f243a957e4d20968f6dfaa5eb41e"
   },
   {
     "digests": {
@@ -10145,6 +10191,7 @@ export const officialConnectors: readonly OfficialConnector[] = [
       "auth": {
         "delegated": {}
       },
+      "category": "communication",
       "description": "Search, read and post messages in Slack workspaces.",
       "id": "slack",
       "messages": {
@@ -10514,9 +10561,10 @@ export const officialConnectors: readonly OfficialConnector[] = [
           "locator": "slack://[^/]+/[^/]+/[0-9]+\\.[0-9]+"
         }
       ],
+      "runtime_capability": false,
       "schema": "runx.connector.v1"
     },
-    "manifest_digest": "sha256:9d8231cf8b5fe851f058b0c014688dad07b5f48a94cfe5b4b81523d0585a4ed5"
+    "manifest_digest": "sha256:74f6eeb387c532058c6e447365b80fcfc35f6fb00752bdb52909e6a0b61421e7"
   },
   {
     "digests": {
@@ -10555,6 +10603,7 @@ export const officialConnectors: readonly OfficialConnector[] = [
         },
         "none": {}
       },
+      "category": "agent-tools",
       "description": "Durable event streams for skills. Append an event when its stream is at the expected version, read a stream's events and projection, and list the newest stream heads. An instance's url chooses SQLite, Postgres or Redis; without one it is the workspace store.",
       "id": "store",
       "name": "Store",
@@ -10897,9 +10946,10 @@ export const officialConnectors: readonly OfficialConnector[] = [
           ]
         }
       },
+      "runtime_capability": true,
       "schema": "runx.connector.v1"
     },
-    "manifest_digest": "sha256:1c07258ccbc68ad358b9c9a0a906906cfeb3ab3a13aa29eed14ca2d933760436"
+    "manifest_digest": "sha256:aef928195d95cb9441c9b55777e4b599a080888435cee87b509bb8ac7cc2e51e"
   },
   {
     "digests": {
@@ -10914,6 +10964,7 @@ export const officialConnectors: readonly OfficialConnector[] = [
       "auth": {
         "delegated": {}
       },
+      "category": "payments",
       "description": "File and read payment dispute responses. Declared only; no placement implements it yet.",
       "id": "stripe",
       "name": "Stripe",
@@ -11002,9 +11053,10 @@ export const officialConnectors: readonly OfficialConnector[] = [
           "auth": "delegated"
         }
       },
+      "runtime_capability": false,
       "schema": "runx.connector.v1"
     },
-    "manifest_digest": "sha256:6a42d13fb3b0d0d82e8f58e6cf8956fa9371150cac2e9e54fb120bf893a7cfe8"
+    "manifest_digest": "sha256:9aa14d5552a259d4d1e118781402da71c17f0a44aad33b8dc21f935123005b37"
   },
   {
     "digests": {
@@ -11019,6 +11071,7 @@ export const officialConnectors: readonly OfficialConnector[] = [
       "auth": {
         "delegated": {}
       },
+      "category": "payments",
       "description": "Pay a payment requirement with a Stripe shared payment token. Declared only; no placement implements it yet.",
       "id": "stripe-spt",
       "name": "Stripe shared payment tokens",
@@ -11117,9 +11170,10 @@ export const officialConnectors: readonly OfficialConnector[] = [
           "auth": "delegated"
         }
       },
+      "runtime_capability": false,
       "schema": "runx.connector.v1"
     },
-    "manifest_digest": "sha256:4a61289db43e2f0f5f0537ad36549139121a35893e784fbe090a35bc5044e193"
+    "manifest_digest": "sha256:5ebed12c15603b5bbf37de207612f2f42642ca7700d32d952295f009e25a43d8"
   },
   {
     "digests": {
@@ -11246,6 +11300,7 @@ export const officialConnectors: readonly OfficialConnector[] = [
           }
         }
       },
+      "category": "communication",
       "description": "Read accounts and posts on X, publish posts, and act on accounts and posts.",
       "id": "twitter",
       "name": "X (Twitter)",
@@ -13227,9 +13282,10 @@ export const officialConnectors: readonly OfficialConnector[] = [
           ]
         }
       },
+      "runtime_capability": false,
       "schema": "runx.connector.v1"
     },
-    "manifest_digest": "sha256:5b473f16231f433a3593a272d3827841df4346b5864e3a02e5160245e26c2b2c"
+    "manifest_digest": "sha256:c0acbfc53c5d26c786a02812ceef1fe8a50e2e169d5ce46141a6f0043ae8efac"
   },
   {
     "digests": {
@@ -13244,6 +13300,7 @@ export const officialConnectors: readonly OfficialConnector[] = [
       "auth": {
         "delegated": {}
       },
+      "category": "agent-tools",
       "description": "Issue and read time-bounded handles to sealed secrets. Declared only; no placement implements it yet.",
       "id": "vault",
       "name": "Vault",
@@ -13333,9 +13390,10 @@ export const officialConnectors: readonly OfficialConnector[] = [
           "auth": "delegated"
         }
       },
+      "runtime_capability": true,
       "schema": "runx.connector.v1"
     },
-    "manifest_digest": "sha256:64a8ca81cdba05ef940d190adbb2b2f1ddf51d92c5a7f87dbd635ce8bdfa1786"
+    "manifest_digest": "sha256:35bab0dab18d65514e45b7aa915383964555b066be3d1c3ccadf6e8337acd0b8"
   },
   {
     "digests": {
@@ -13348,6 +13406,7 @@ export const officialConnectors: readonly OfficialConnector[] = [
       "auth": {
         "none": {}
       },
+      "category": "search",
       "description": "Read public web pages over HTTP(S).",
       "id": "web",
       "name": "Web",
@@ -13417,9 +13476,10 @@ export const officialConnectors: readonly OfficialConnector[] = [
           ]
         }
       },
+      "runtime_capability": true,
       "schema": "runx.connector.v1"
     },
-    "manifest_digest": "sha256:f4e49ea40ff3459ae623f10d00a1a7e6b6ba1f199943a38542396641ea67f034"
+    "manifest_digest": "sha256:2baa3c0687f34d93ebc3661b178d30e07a198944dc48f3f8b3575229f54bc36d"
   },
   {
     "digests": {
@@ -13455,6 +13515,7 @@ export const officialConnectors: readonly OfficialConnector[] = [
           }
         }
       },
+      "category": "payments",
       "description": "Pay x402 challenges for HTTPS resources from an EVM wallet on Base and read the payments back.",
       "id": "x402",
       "name": "x402",
@@ -13559,9 +13620,10 @@ export const officialConnectors: readonly OfficialConnector[] = [
           "credential": "wallet"
         }
       },
+      "runtime_capability": false,
       "schema": "runx.connector.v1"
     },
-    "manifest_digest": "sha256:01ce1e170a9b35055ac859052f0bc071320df83520ae95ec8c4675e5684758da"
+    "manifest_digest": "sha256:a02f457743aeaab8c41c827277f925cbf493f5e2b06a58521ddb021aab2e79c5"
   },
   {
     "digests": {
@@ -13574,6 +13636,7 @@ export const officialConnectors: readonly OfficialConnector[] = [
       "auth": {
         "none": {}
       },
+      "category": "orchestration",
       "description": "Deliver a governed handoff to a Zapier Catch Hook.",
       "id": "zapier",
       "name": "Zapier",
@@ -13713,8 +13776,9 @@ export const officialConnectors: readonly OfficialConnector[] = [
           ]
         }
       },
+      "runtime_capability": false,
       "schema": "runx.connector.v1"
     },
-    "manifest_digest": "sha256:41ccd04b5ab26b9e7ef2947b0f97599b24ee37ff3bd39855b644879536313e99"
+    "manifest_digest": "sha256:b378fc912911f6e2c9429898c534ce067cf85c85417e3ac710a8e9a2382e9658"
   }
 ];
