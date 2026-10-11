@@ -12,7 +12,7 @@ use runx_contracts::{
 use runx_parser::SkillArtifactContract;
 
 use crate::RuntimeError;
-use crate::adapter::{CONTRACT_VERIFICATION_METADATA, InvocationOutput};
+use crate::observations::ContractChecks;
 
 /// Whether a successful producer declares any addressable semantic output.
 ///
@@ -146,16 +146,18 @@ pub(crate) fn artifact_data(envelope: &JsonValue) -> Option<&JsonValue> {
     envelope.as_object()?.get("data")
 }
 
-pub(crate) fn verified_runner_metadata_with_artifacts(
+/// The checks of a runner's result against its declared output contract and
+/// packets, the contract parsed from the runner's raw declaration.
+pub(crate) fn runner_contract_checks(
     skill_name: &str,
     payload: &JsonValue,
     raw_output: Option<&JsonObject>,
     artifacts: Option<&SkillArtifactContract>,
     skill_directory: &Path,
     env: &BTreeMap<String, String>,
-) -> Result<JsonObject, RuntimeError> {
+) -> Result<ContractChecks, RuntimeError> {
     let output = raw_output.map(parse_output_contract).transpose()?;
-    verified_output_metadata_with_artifacts(
+    output_contract_checks(
         skill_name,
         payload,
         output.as_ref(),
@@ -165,20 +167,18 @@ pub(crate) fn verified_runner_metadata_with_artifacts(
     )
 }
 
-pub(crate) fn verified_output_metadata_with_artifacts(
+/// Check a result against its declared output contract and packets. A
+/// result that violates either fails; a step that declares neither is not
+/// checked.
+pub(crate) fn output_contract_checks(
     skill_name: &str,
     payload: &JsonValue,
     output: Option<&BTreeMap<String, OutputField>>,
     artifacts: Option<&SkillArtifactContract>,
     skill_directory: &Path,
     env: &BTreeMap<String, String>,
-) -> Result<JsonObject, RuntimeError> {
-    let has_packet_contract = artifact_packet_contracts(artifacts);
-    if output.is_none() && !has_packet_contract {
-        return Ok(JsonObject::new());
-    }
-
-    let mut verification = JsonObject::new();
+) -> Result<ContractChecks, RuntimeError> {
+    let mut checks = ContractChecks::default();
     if let Some(output) = output {
         validate_output_value(Some(output), payload).map_err(|error| {
             RuntimeError::SkillFailed {
@@ -186,75 +186,38 @@ pub(crate) fn verified_output_metadata_with_artifacts(
                 message: format!("runner output contract violation at {error}"),
             }
         })?;
-        let digest = output_contract_digest(Some(output))
-            .map_err(|source| RuntimeError::json("hashing runner output contract", source))?;
-        verification.insert(
-            "output_contract_sha256".to_owned(),
-            JsonValue::String(digest),
+        checks.output_contract_sha256 = Some(
+            output_contract_digest(Some(output))
+                .map_err(|source| RuntimeError::json("hashing runner output contract", source))?,
         );
     }
-
-    let packet_schemas = crate::packet_validation::verify_declared_packets(
+    checks.packet_schemas = crate::packet_validation::verify_declared_packets(
         &project_artifact_outputs(payload, artifacts),
         artifacts,
         skill_directory,
         env,
     )?;
-    Ok(contract_verification(verification, packet_schemas))
+    Ok(checks)
 }
 
-/// The verification of the artifacts a step holds, each against the packet
-/// its contract declares: for a step whose artifacts are already projected,
-/// as a nested run's are when its parent adopts them.
-pub(crate) fn verified_artifact_metadata(
+/// The check of the artifacts a step holds, each against the packet its
+/// contract declares: for a step whose artifacts are already projected, as a
+/// nested run's are when its parent adopts them.
+pub(crate) fn artifact_contract_checks(
     held: &JsonObject,
     artifacts: Option<&SkillArtifactContract>,
     skill_directory: &Path,
     env: &BTreeMap<String, String>,
-) -> Result<JsonObject, RuntimeError> {
-    let packet_schemas =
-        crate::packet_validation::verify_declared_packets(held, artifacts, skill_directory, env)?;
-    Ok(contract_verification(JsonObject::new(), packet_schemas))
-}
-
-fn contract_verification(mut verification: JsonObject, packet_schemas: JsonObject) -> JsonObject {
-    if !packet_schemas.is_empty() {
-        verification.insert(
-            "packet_schemas".to_owned(),
-            JsonValue::Object(packet_schemas),
-        );
-    }
-    if verification.is_empty() {
-        return JsonObject::new();
-    }
-    JsonObject::from([(
-        CONTRACT_VERIFICATION_METADATA.to_owned(),
-        JsonValue::Object(verification),
-    )])
-}
-
-pub(crate) fn attach_verified_metadata(
-    output: &mut InvocationOutput,
-    mut metadata: JsonObject,
-) -> Result<(), RuntimeError> {
-    let Some(verification) = metadata.remove(CONTRACT_VERIFICATION_METADATA) else {
-        return Ok(());
-    };
-    if !metadata.is_empty() {
-        return Err(RuntimeError::ReceiptInvalid {
-            message: "runner contract verification produced undeclared metadata".to_owned(),
-        });
-    }
-    if output
-        .metadata
-        .insert(CONTRACT_VERIFICATION_METADATA.to_owned(), verification)
-        .is_some()
-    {
-        return Err(RuntimeError::ReceiptInvalid {
-            message: "runner output supplied duplicate contract verification metadata".to_owned(),
-        });
-    }
-    Ok(())
+) -> Result<ContractChecks, RuntimeError> {
+    Ok(ContractChecks {
+        packet_schemas: crate::packet_validation::verify_declared_packets(
+            held,
+            artifacts,
+            skill_directory,
+            env,
+        )?,
+        ..ContractChecks::default()
+    })
 }
 
 pub(crate) fn parse_output_contract(
@@ -262,16 +225,6 @@ pub(crate) fn parse_output_contract(
 ) -> Result<BTreeMap<String, OutputField>, RuntimeError> {
     parse_contract_outputs(raw).map_err(|source| RuntimeError::ReceiptInvalid {
         message: format!("runner output contract is invalid: {source}"),
-    })
-}
-
-fn artifact_packet_contracts(artifacts: Option<&SkillArtifactContract>) -> bool {
-    artifacts.is_some_and(|artifacts| {
-        artifacts.packet.is_some()
-            || artifacts
-                .packets
-                .as_ref()
-                .is_some_and(|packets| !packets.is_empty())
     })
 }
 
@@ -320,17 +273,17 @@ mod tests {
     }
 
     #[test]
-    fn no_declared_contract_produces_no_receipt_metadata() -> Result<(), RuntimeError> {
-        assert!(
-            verified_output_metadata_with_artifacts(
+    fn no_declared_contract_runs_no_check() -> Result<(), RuntimeError> {
+        assert_eq!(
+            output_contract_checks(
                 "plain",
                 &JsonValue::String("plain output".to_owned()),
                 None,
                 None,
                 Path::new("."),
                 &BTreeMap::new(),
-            )?
-            .is_empty()
+            )?,
+            ContractChecks::default()
         );
         Ok(())
     }

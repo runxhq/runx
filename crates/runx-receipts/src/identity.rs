@@ -9,7 +9,7 @@ pub struct SignedDisplayIdentity {
     pub subject_kind: String,
     pub subject_ref: String,
     pub issuer_type: String,
-    pub actors: Vec<String>,
+    pub actor: String,
 }
 
 #[must_use]
@@ -18,29 +18,7 @@ pub fn signed_display_identity(receipt: &Receipt) -> SignedDisplayIdentity {
         subject_kind: receipt.subject.kind.to_string(),
         subject_ref: receipt.subject.reference.uri.to_string(),
         issuer_type: issuer_type_name(&receipt.issuer.issuer_type).to_owned(),
-        actors: signed_actor_labels(receipt),
-    }
-}
-
-fn signed_actor_labels(receipt: &Receipt) -> Vec<String> {
-    let mut actors = Vec::new();
-    push_unique(&mut actors, receipt.authority.actor_ref.uri.to_string());
-    for act in &receipt.acts {
-        if let Some(by) = &act.by {
-            if let Some(provider) = by.provider.as_deref() {
-                push_unique(&mut actors, provider.to_owned());
-            }
-            if let Some(model) = by.model.as_deref() {
-                push_unique(&mut actors, model.to_owned());
-            }
-        }
-    }
-    actors
-}
-
-fn push_unique(values: &mut Vec<String>, value: String) {
-    if !value.is_empty() && !values.iter().any(|existing| existing == &value) {
-        values.push(value);
+        actor: receipt.authority.actor_ref.uri.to_string(),
     }
 }
 
@@ -49,6 +27,5 @@ fn issuer_type_name(issuer_type: &ReceiptIssuerType) -> &'static str {
         ReceiptIssuerType::Local => "local",
         ReceiptIssuerType::Hosted => "hosted",
         ReceiptIssuerType::Ci => "ci",
-        ReceiptIssuerType::Verifier => "verifier",
     }
 }

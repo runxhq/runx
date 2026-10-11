@@ -128,13 +128,7 @@ fn project_json_output_value(
         .unwrap_or("unbound-run")
         .to_owned();
     let mut diagnostic_payload = JsonObject::new();
-    for key in [
-        "context",
-        "trace",
-        "execution",
-        "receipt",
-        "credential_delivery_observations",
-    ] {
+    for key in ["context", "trace", "execution", "receipt"] {
         if let Some(value) = object.remove(key) {
             diagnostic_payload.insert(key.to_owned(), value);
         }
@@ -432,7 +426,7 @@ fn compact_identity(object: &JsonObject) -> JsonObject {
     }
     if let Some(JsonValue::Object(closure)) = object.get("closure") {
         let mut compact = JsonObject::new();
-        for key in ["disposition", "reason_code", "summary"] {
+        for key in ["disposition", "reason_code"] {
             if let Some(value) = closure.get(key) {
                 compact.insert(key.to_owned(), compact_scalar(value));
             }
@@ -507,8 +501,15 @@ fn write_skill_text(
         writeln!(writer, "registry:")?;
         write_registry_provenance(writer, provenance)?;
     }
-    if let Some(summary) = summary_from_result(object).or_else(|| closure_summary(object)) {
-        writeln!(writer, "summary: {summary}")?;
+    if let Some(reason) = stop_reason(object) {
+        writeln!(writer, "reason: {}", truncate_chars(reason))?;
+    }
+    if let Some(result) = object
+        .get("result")
+        .filter(|result| !matches!(result, JsonValue::Null))
+    {
+        let text = serde_json::to_string(result).unwrap_or_else(|_| "null".to_owned());
+        writeln!(writer, "result: {}", truncate_chars(&text))?;
     }
     if let Some(requests) = object.get("requests").and_then(JsonValue::as_array) {
         write_pending_requests(writer, object, requests, resume)?;
@@ -602,26 +603,14 @@ fn write_registry_provenance(writer: &mut dyn Write, object: &JsonObject) -> io:
     Ok(())
 }
 
-fn summary_from_result(object: &JsonObject) -> Option<&str> {
-    object
-        .get("result")
-        .and_then(JsonValue::as_object)
-        .and_then(summary_from_object)
-}
-
-fn closure_summary(object: &JsonObject) -> Option<&str> {
-    object
-        .get("closure")
-        .and_then(JsonValue::as_object)
-        .and_then(|closure| object_string(closure, "summary"))
-}
-
-fn summary_from_object(object: &JsonObject) -> Option<&str> {
-    object_string(object, "summary").or_else(|| {
+/// Why the run stopped short, as the runtime reported it: a guard's or an
+/// authority's refusal, or a failure's message.
+fn stop_reason(object: &JsonObject) -> Option<&str> {
+    ["refusal", "error"].into_iter().find_map(|key| {
         object
-            .get("forecast_packet")
+            .get(key)
             .and_then(JsonValue::as_object)
-            .and_then(|packet| object_string(packet, "summary"))
+            .and_then(|stop| object_string(stop, "message"))
     })
 }
 
@@ -884,40 +873,33 @@ mod tests {
     }
 
     #[test]
-    fn text_output_prefers_result_summary_over_receipt_closure() {
-        let mut result = JsonObject::new();
-        result.insert(
-            "summary".to_owned(),
-            JsonValue::String("Forecast: wet morning, dry commute home.".to_owned()),
-        );
-        let mut closure = JsonObject::new();
-        closure.insert(
-            "summary".to_owned(),
-            JsonValue::String("agent act closed with closed".to_owned()),
-        );
+    fn text_output_shows_the_result_and_why_a_run_stopped() {
         let mut value = base_result();
-        value.insert("result".to_owned(), JsonValue::Object(result));
-        value.insert("closure".to_owned(), JsonValue::Object(closure));
+        value.insert(
+            "result".to_owned(),
+            JsonValue::Object(JsonObject::from([(
+                "forecast".to_owned(),
+                JsonValue::String("wet morning".to_owned()),
+            )])),
+        );
+        value.insert(
+            "refusal".to_owned(),
+            JsonValue::Object(JsonObject::from([(
+                "message".to_owned(),
+                JsonValue::String("guard '$steps.decide.approved' is unresolved".to_owned()),
+            )])),
+        );
 
         let output = render(value);
 
-        assert!(output.contains("summary: Forecast: wet morning, dry commute home."));
-        assert!(!output.contains("summary: agent act closed with closed"));
-    }
-
-    #[test]
-    fn text_output_uses_closure_summary_when_result_has_no_summary() {
-        let mut closure = JsonObject::new();
-        closure.insert(
-            "summary".to_owned(),
-            JsonValue::String("graph nws-weather-forecast completed".to_owned()),
+        assert!(
+            output.contains(r#"result: {"forecast":"wet morning"}"#),
+            "{output}"
         );
-        let mut value = base_result();
-        value.insert("closure".to_owned(), JsonValue::Object(closure));
-
-        let output = render(value);
-
-        assert!(output.contains("summary: graph nws-weather-forecast completed"));
+        assert!(
+            output.contains("reason: guard '$steps.decide.approved' is unresolved"),
+            "{output}"
+        );
     }
 
     #[test]

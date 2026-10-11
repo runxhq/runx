@@ -1,0 +1,25 @@
+{
+  "content_address": {
+    "actual": "sha256:2ce819e5d32c2624890a85f50c8a2c5f63ec7d6a913ceb28801f2b40d90b440b",
+    "expected": "sha256:2ce819e5d32c2624890a85f50c8a2c5f63ec7d6a913ceb28801f2b40d90b440b",
+    "status": "valid"
+  },
+  "digest": {
+    "actual": "sha256:fb8af11254fec489ba6a778df1306ac51c73e7210e5c93b945538b363499c853",
+    "expected": "sha256:fb8af11254fec489ba6a778df1306ac51c73e7210e5c93b945538b363499c853",
+    "status": "valid"
+  },
+  "findings": [],
+  "lineage": {
+    "message": "single receipt verification cannot prove receipt-tree lineage",
+    "status": "unverified"
+  },
+  "receipt_id": "sha256:2ce819e5d32c2624890a85f50c8a2c5f63ec7d6a913ceb28801f2b40d90b440b",
+  "schema": "runx.verify_verdict.v1",
+  "signature": {
+    "kid": "runx-cli-verify-fixture-key",
+    "mode": "production",
+    "status": "valid"
+  },
+  "valid": true
+}

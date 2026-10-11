@@ -25,7 +25,10 @@ where
 {
     pipe.map(|reader| capture_stream(reader, output_limit_bytes))
         .ok_or_else(|| {
-            ProcessSupervisorError::io(context, std::io::Error::other("pipe was not captured"))
+            ProcessSupervisorError::supervise(
+                context,
+                std::io::Error::other("pipe was not captured"),
+            )
         })
 }
 
@@ -68,8 +71,8 @@ pub(super) fn join_capture(
 ) -> Result<CapturedOutput, ProcessSupervisorError> {
     match handle.join() {
         Ok(Ok(output)) => Ok(output),
-        Ok(Err(source)) => Err(ProcessSupervisorError::io(context, source)),
-        Err(_) => Err(ProcessSupervisorError::io(
+        Ok(Err(source)) => Err(ProcessSupervisorError::supervise(context, source)),
+        Err(_) => Err(ProcessSupervisorError::supervise(
             context,
             std::io::Error::other("output reader thread failed"),
         )),

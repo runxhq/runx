@@ -716,7 +716,7 @@ fn skill_output(status: InvocationStatus) -> InvocationOutput {
         InvocationStatus::Success => ("ok".to_owned(), String::new(), Some(0)),
         InvocationStatus::Failure => (String::new(), "failed".to_owned(), Some(1)),
     };
-    InvocationOutput::process(status, stdout, stderr, exit_code, 1, JsonObject::new())
+    InvocationOutput::process(status, stdout, stderr, exit_code, 1)
 }
 
 fn receipt_file_name(receipt_id: &str) -> String {

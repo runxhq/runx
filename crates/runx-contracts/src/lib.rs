@@ -58,7 +58,6 @@ pub mod skill_output;
 pub mod source_packet;
 pub mod suppression;
 pub mod tools;
-pub mod verification;
 pub mod work_outcome;
 pub mod x402;
 
@@ -67,15 +66,12 @@ pub use act::assignment::{
     ActAssignmentIdempotency, ActAssignmentSchema, BuildActAssignment, IntentKeyInput,
     derive_content_hash, derive_intent_key, derive_trigger_key,
 };
-pub use act::call::{CALL_ACT_TARGET_MAX, CALL_ACT_TEXT_MAX, CallAct, CallActForm, CallDecision};
+pub use act::call::{CALL_ACT_TARGET_MAX, CALL_ACT_TEXT_MAX, CallAct};
 pub use act::result::{
     ActResultEnvelope, ActResultNeedsAgentEnvelope, ActResultNeedsAgentStatus, ActResultNull,
     ActResultSignal, ActResultTerminalEnvelope, ActResultTerminalStatus,
 };
-pub use act::{
-    Act, ActForm, ActSchema, ChangePlan, ChangeRequest, CriterionBinding, CriterionStatus,
-    GovernedActRef, Intent, RevisionDetails, SuccessCriterion, TargetSurface, VerificationDetails,
-};
+pub use act::{ActForm, Criterion, CriterionBinding, CriterionStatus, Intent};
 pub use admission::{
     Admission, AdmissionCheck, AdmissionDisposition, AdmissionReason, CheckOutcome,
     OperationAmount, OperationIntent, Readiness,
@@ -87,13 +83,12 @@ pub use agent_context::{
 };
 pub use artifact::{ARTIFACT_SCHEMA, Artifact, ArtifactProducedBy, ArtifactSchema};
 pub use authority::{
-    Authority, AuthorityApproval, AuthorityAttenuation, AuthorityBounds, AuthorityCapability,
-    AuthorityCondition, AuthorityConditionPredicate, AuthorityDerivation,
-    AuthorityEffectCredentialForm, AuthorityEffectGuard, AuthorityEffectGuardKind,
-    AuthorityEffectLimit, AuthorityEvidence, AuthorityEvidenceKind, AuthorityResourceFamily,
-    AuthoritySchema, AuthoritySubsetComparison, AuthoritySubsetProof, AuthoritySubsetRelation,
-    AuthoritySubsetResult, AuthorityTerm, AuthorityUseLimit, AuthorityVerb,
-    authority_term_legitimacy, legitimacy_authority_term,
+    AuthorityApproval, AuthorityBounds, AuthorityCapability, AuthorityCondition,
+    AuthorityConditionPredicate, AuthorityDerivation, AuthorityEffectCredentialForm,
+    AuthorityEffectGuard, AuthorityEffectGuardKind, AuthorityEffectLimit, AuthorityEvidence,
+    AuthorityEvidenceKind, AuthorityResourceFamily, AuthoritySubsetComparison,
+    AuthoritySubsetProof, AuthoritySubsetRelation, AuthoritySubsetResult, AuthorityTerm,
+    AuthorityUseLimit, AuthorityVerb, authority_term_legitimacy, legitimacy_authority_term,
 };
 pub use canonical_json::{
     CanonicalJsonError, STABLE_JSON_CANONICALIZATION, canonical_digest, canonical_stable_json,
@@ -109,9 +104,7 @@ pub use credential_delivery::{
     CredentialDeliveryMode, CredentialDeliveryObservation, CredentialDeliveryObservationSchema,
     CredentialDeliveryObservationStatus, CredentialDeliveryPurpose, CredentialMaterialRole,
 };
-pub use decision::{
-    Closure, ClosureDisposition, Decision, DecisionChoice, DecisionInputs, DecisionJustification,
-};
+pub use decision::{ClosureDisposition, Decision, DecisionChoice};
 pub use decision_adapter::{DecisionObservation, DecisionOrigin};
 pub use dev::{
     DevFixtureAssertion, DevFixtureAssertionKind, DevFixtureResult, DevFixtureStatus, DevReport,
@@ -126,9 +119,7 @@ pub use execution::{
     ArtifactContract, IdempotencyPolicy, InputDefinition, input_contract_schema,
     input_contract_schema_with_examples,
 };
-pub use execution_boundary::{
-    EXECUTION_BOUNDARY_METADATA, ExecutionBoundaryKind, ExecutionBoundaryObservation,
-};
+pub use execution_boundary::{ExecutionBoundaryKind, ExecutionBoundaryObservation};
 pub use execution_requirements::{
     AgentExecutionRequirements, EnvironmentRequirementStatus, EnvironmentRequirements,
     ExecutionRequirements,
@@ -245,12 +236,9 @@ pub use paid_skill_listing::{
 };
 pub use provider_operation::ProviderOperationPacket;
 pub use receipt::{
-    EFFECT_FINALITY_RECEIPT_SCHEMA, EffectFinalityPhase, EffectFinalityReceipt,
-    EffectFinalityReceiptSchema, Lineage, RECEIPT_CANONICALIZATION, RECEIPT_SCHEMA, Receipt,
-    ReceiptAct, ReceiptAuthority, ReceiptClass, ReceiptCommitment, ReceiptCommitmentScope,
-    ReceiptEnforcement, ReceiptEvidence, ReceiptIdempotency, ReceiptInputContext, ReceiptIssuer,
-    ReceiptIssuerType, ReceiptPaidInvocationBinding, ReceiptSchema, ReceiptSignature,
-    RunnerProvenance, Seal, SignatureAlgorithm, Subject, receipt_subject_kind,
+    Lineage, RECEIPT_CANONICALIZATION, RECEIPT_SCHEMA, Receipt, ReceiptAct, ReceiptAuthority,
+    ReceiptCanonicalization, ReceiptEnforcement, ReceiptIssuer, ReceiptIssuerType, ReceiptSchema,
+    ReceiptSignature, Seal, SignatureAlgorithm, Subject, receipt_subject_kind,
 };
 pub use redaction::{HashAlgorithm, HashCommitment, REDACTION_SCHEMA, Redaction, RedactionSchema};
 pub use reference::{
@@ -290,10 +278,6 @@ pub use suppression::{SuppressionRecord, SuppressionRecordSchema, SuppressionSco
 pub use tools::{
     RuntimeCommand, ToolCommandInputMode, ToolIdempotencyPolicy, ToolInput, ToolManifest,
     ToolManifestSchema, ToolSource,
-};
-pub use verification::{
-    ReceiptVerificationSummary, VERIFICATION_SCHEMA, Verification, VerificationCheck,
-    VerificationSchema, VerificationStatus,
 };
 pub use work_outcome::{WorkDisposition, WorkOutcome, WorkProposal};
 pub use x402::{

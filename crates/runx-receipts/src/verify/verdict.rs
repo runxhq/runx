@@ -68,7 +68,7 @@ pub fn verify_receipt_document_verdict(
     context: &ReceiptProofContext<'_>,
     signature_mode: ReceiptVerifySignatureMode,
 ) -> ReceiptVerifyVerdict {
-    match serde_json::from_slice::<Receipt>(document) {
+    match crate::decode_receipt(document) {
         Ok(receipt) => verify_receipt_verdict(&receipt, context, signature_mode),
         Err(error) => parse_error_verdict(error.to_string(), signature_mode),
     }

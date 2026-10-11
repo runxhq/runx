@@ -1,5 +1,5 @@
 skill: github-pr-review
-version: "0.1.0"
+version: "0.1.1"
 catalog:
   kind: graph
   audience: public

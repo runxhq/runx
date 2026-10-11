@@ -108,7 +108,7 @@ fn history_lists_receipts_newest_first_with_safe_refs_and_filters()
     );
     assert_eq!(history.receipts[0].subject_ref, SIGNED_RUNTIME_SUBJECT);
     assert_eq!(history.receipts[0].issuer_type, "local");
-    assert_eq!(history.receipts[1].actors, vec![SIGNED_LOCAL_ACTOR]);
+    assert_eq!(history.receipts[1].actor, SIGNED_LOCAL_ACTOR);
     assert!(
         history.receipts[0]
             .receipt_ref
@@ -137,7 +137,7 @@ fn history_display_identity_ignores_unsigned_metadata() -> Result<(), Box<dyn st
     assert_eq!(history.receipts[0].subject_ref, SIGNED_RUNTIME_SUBJECT);
     assert_eq!(history.receipts[0].name, "receipt-archive");
     assert_eq!(history.receipts[0].issuer_type, "local");
-    assert_eq!(history.receipts[0].actors, vec![SIGNED_LOCAL_ACTOR]);
+    assert_eq!(history.receipts[0].actor, SIGNED_LOCAL_ACTOR);
     Ok(())
 }
 
@@ -421,7 +421,6 @@ fn generated_runtime_receipt_with(
             1
         }),
         10,
-        BTreeMap::new(),
     );
     let claim = output
         .value
@@ -474,7 +473,6 @@ fn production_generated_receipt(
         String::new(),
         Some(0),
         10,
-        BTreeMap::new(),
     );
     let claim = output
         .value

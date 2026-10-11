@@ -1,4 +1,3 @@
-use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -80,10 +79,6 @@ fn corpus_cases(root: &Path) -> Result<Vec<(PathBuf, CorpusCase)>, Box<dyn std::
 fn proof_context<'a>(verifier: &'a dyn SignatureVerifier) -> ReceiptProofContext<'a> {
     ReceiptProofContext {
         signature_verifier: Some(verifier),
-        authority_verified: false,
-        external_attestations_verified: false,
-        verified_redaction_refs: BTreeSet::new(),
-        verified_hash_commitments: BTreeSet::new(),
     }
 }
 

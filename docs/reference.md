@@ -184,7 +184,7 @@ timeout, a managed-agent request timeout, a native command argument budget, and
 a file-bundle budget are different contracts. Their constants use capability-qualified names. Limits
 that are selectable per invocation or materially shape a sealed execution are
 typed at the invocation boundary; deterministic-module limits and any limit hit
-are copied into signed receipt metadata.
+are copied into the receipt's unsigned metadata.
 
 Credential redaction and untrusted-data admission are also distinct. Exact
 values delivered by Runx enter the run-scoped taint set and are scrubbed at
@@ -259,7 +259,10 @@ independent inspection:
 ```
 
 `result` is the selected runner's normalized output or the declared contract of
-a graph's terminal successful producer. `trace` deliberately carries
+a graph's terminal successful producer. When a guard or an authority refused a
+step, `refusal` carries why (`code` and `message`) beside what the steps
+produced; a failed run's `result` is its failure. Neither is part of the signed
+receipt, whose seal records the typed `disposition` and `reason_code`. `trace` deliberately carries
 references rather than step payloads. Intermediate graph state, child receipts,
 and the full signed receipt are written to the local Runx state and receipt
 stores; process output identity is committed by the receipt. Inspect proof
@@ -690,8 +693,8 @@ policy, approvals, and resolution requests still behave the same way.
 Local receipts are append-only JSON files under `.runx/receipts` unless `RUNX_RECEIPT_DIR` is set. `runx history <receipt-id> --detail` verifies a receipt's signature and surfaces `verified`, `unverified`, or `invalid` status. Once a skill package and runner resolve, a blocked preparation also seals a `blocked` refusal receipt; the JSON failure returns its `receipt_id` and prepared-context digest so rejected input or context admission remains inspectable without echoing the rejected value.
 
 Graph receipt lineage is an immutable one-way DAG. The parent commits each
-child receipt ID and exact signed-body digest; a reusable child is not re-signed
-with one `lineage.parent`. This keeps receipt identity content-addressed and
+child receipt ID and exact signed-body digest; a child never names its parent.
+This keeps receipt identity content-addressed and
 allows the same child proof to participate in more than one graph without a
 store collision. Runtime tree resolution collapses only identical repeated
 child receipts into one DAG node; two different signed bodies under the same

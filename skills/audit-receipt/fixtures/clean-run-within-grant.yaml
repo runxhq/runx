@@ -43,13 +43,8 @@ inputs:
             source: scope_ref
             term_id: null
             resource_ref: runx:scope_admission:repo.read
-        authority_proof_refs: []
         approval_refs: []
         term_count: 0
-        parent_authority_ref: null
-        subset_proof_present: false
-        enforcement_profile_hash: sha256:profile
-        redaction_refs: []
         credential_ref_count: 0
       decisions: []
       acts:
@@ -60,7 +55,6 @@ inputs:
           summary: Read issue evidence.
           disposition: closed
           reason_code: process_closed
-          source_refs: []
           target_refs: []
           artifact_refs: []
           criterion_statuses: []

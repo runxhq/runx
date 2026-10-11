@@ -1,0 +1,6 @@
+{
+  "expected": "expected.json",
+  "name": "valid-wide-keys",
+  "receipt": "receipt.json",
+  "signature_mode": "production"
+}

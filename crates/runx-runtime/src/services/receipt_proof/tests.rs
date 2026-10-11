@@ -112,62 +112,9 @@ fn valid_local_receipt_remains_explicitly_unverified() -> Result<(), String> {
 }
 
 #[derive(Deserialize)]
-struct CompositeFixture {
-    outer: Receipt,
-    inner_receipts: Vec<Receipt>,
-}
-
-#[derive(Deserialize)]
 struct VerifierFixture {
     kid: String,
     public_key_base64: String,
-}
-
-#[test]
-fn local_composite_proof_loads_typed_inner_evidence() -> Result<(), String> {
-    const COMPOSITE: &str = include_str!(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../../fixtures/contracts/receipt-composition/marketplace-composite.json"
-    ));
-    let fixture: CompositeFixture =
-        serde_json::from_str(COMPOSITE).map_err(|error| error.to_string())?;
-    let temp = tempfile::tempdir().map_err(|error| error.to_string())?;
-    let receipt_dir = temp.path().join("receipts");
-    fs::create_dir_all(&receipt_dir).map_err(|error| error.to_string())?;
-    write_receipt(&receipt_dir, &fixture.outer)?;
-    for inner in &fixture.inner_receipts {
-        write_receipt(&receipt_dir, inner)?;
-    }
-    let env = std::collections::BTreeMap::from([(
-        RUNX_RECEIPT_DIR_ENV.to_owned(),
-        receipt_dir.to_string_lossy().into_owned(),
-    )]);
-
-    let proof = prove_receipts(&inputs(&fixture.outer.id), &env, temp.path())
-        .map_err(|error| error.to_string())?;
-    assert_eq!(text(&proof, &["decision"]), Some("unverified"));
-    let verification = at(&proof, &["verification"])
-        .and_then(JsonValue::as_object)
-        .ok_or("missing verification object")?;
-    let trees = verification
-        .get("trees")
-        .and_then(JsonValue::as_array)
-        .ok_or("missing receipt trees")?;
-    assert_eq!(
-        trees
-            .first()
-            .and_then(JsonValue::as_object)
-            .and_then(|tree| tree.get("valid"))
-            .and_then(JsonValue::as_bool),
-        Some(true)
-    );
-    assert!(
-        verification
-            .get("findings")
-            .and_then(JsonValue::as_array)
-            .is_some_and(Vec::is_empty)
-    );
-    Ok(())
 }
 
 fn write_receipt(receipt_dir: &std::path::Path, receipt: &Receipt) -> Result<(), String> {

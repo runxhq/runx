@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use runx_contracts::{ClosureDisposition, JsonObject};
+use runx_contracts::ClosureDisposition;
 use runx_runtime::{
     HarnessExpectedStatus, HarnessOptions, InvocationOutput, SkillAdapter, SkillInvocation,
     run_harness_fixture_with_adapter,
@@ -53,13 +53,7 @@ fn harness_blocks_closure_and_seals_graph_receipt() -> Result<(), Box<dyn std::e
         )
         .is_ok()
     );
-    assert!(
-        output
-            .receipt
-            .lineage
-            .as_ref()
-            .is_some_and(|lineage| !lineage.children.is_empty())
-    );
+    assert!(!output.receipt.lineage.children.is_empty());
     Ok(())
 }
 
@@ -99,7 +93,6 @@ impl SkillAdapter for RecordingAdapter {
                 }
             })?,
             0,
-            JsonObject::default(),
         ))
     }
 }

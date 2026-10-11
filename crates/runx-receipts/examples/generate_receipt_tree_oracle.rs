@@ -10,10 +10,9 @@ use std::fs;
 use std::path::Path;
 
 use runx_contracts::{
-    AuthorityAttenuation, ClosureDisposition, Lineage, RECEIPT_CANONICALIZATION, Receipt,
-    ReceiptAuthority, ReceiptEnforcement, ReceiptIdempotency, ReceiptIssuer, ReceiptIssuerType,
-    ReceiptSchema, ReceiptSignature, Reference, ReferenceType, Seal, SignatureAlgorithm, Subject,
-    receipt_subject_kind,
+    ClosureDisposition, Lineage, Receipt, ReceiptAuthority, ReceiptCanonicalization,
+    ReceiptEnforcement, ReceiptIssuer, ReceiptIssuerType, ReceiptSchema, ReceiptSignature,
+    Reference, ReferenceType, Seal, SignatureAlgorithm, Subject, receipt_subject_kind,
 };
 use serde_json::{Value, json};
 
@@ -26,15 +25,14 @@ fn main() {
     let path = root_dir.join("fixtures/runtime/receipt-tree/oracle.json");
 
     let receipts = json!({
-        "child_a": rec("rcpt_child_a", &[], None),
-        "child_b": rec("rcpt_child_b", &[], None),
-        "child_a_to_b": rec("rcpt_child_a", &["rcpt_child_b"], None),
-        "child_a_duplicate": rec("rcpt_child_a", &[], None),
-        "child_a_self_cycle": rec("rcpt_child_a", &["rcpt_child_a"], None),
-        "child_a_wrong_parent": rec("rcpt_child_a", &[], Some("runx:receipt:other")),
-        "root_empty": rec("rcpt_root", &[], None),
-        "root_to_a": rec("rcpt_root", &["rcpt_child_a"], None),
-        "root_to_a_b": rec("rcpt_root", &["rcpt_child_a", "rcpt_child_b"], None),
+        "child_a": rec("rcpt_child_a", &[]),
+        "child_b": rec("rcpt_child_b", &[]),
+        "child_a_to_b": rec("rcpt_child_a", &["rcpt_child_b"]),
+        "child_a_duplicate": rec("rcpt_child_a", &[]),
+        "child_a_self_cycle": rec("rcpt_child_a", &["rcpt_child_a"]),
+        "root_empty": rec("rcpt_root", &[]),
+        "root_to_a": rec("rcpt_root", &["rcpt_child_a"]),
+        "root_to_a_b": rec("rcpt_root", &["rcpt_child_a", "rcpt_child_b"]),
         "root_malformed_uri": rec_raw_child("rcpt_root", "rcpt_child_a"),
         "root_wrong_namespace": rec_wrong_ns_child("rcpt_root", "rcpt_child_a"),
     });
@@ -45,7 +43,7 @@ fn main() {
             "root_to_a",
             &["child_a_to_b", "child_b"],
             &[],
-            cfg(64, 1024, false),
+            cfg(64, 1024),
             true,
             &[]
         ),
@@ -54,7 +52,7 @@ fn main() {
             "root_to_a_b",
             &["child_a", "child_b"],
             &[],
-            cfg(64, 1024, false),
+            cfg(64, 1024),
             true,
             &[]
         ),
@@ -63,7 +61,7 @@ fn main() {
             "root_empty",
             &["child_a", "child_a_duplicate"],
             &[],
-            cfg(64, 1024, false),
+            cfg(64, 1024),
             false,
             &[
                 ("DuplicateChildReceipt", "children[1].id"),
@@ -76,7 +74,7 @@ fn main() {
             "root_to_a",
             &[],
             &[],
-            cfg(64, 1024, false),
+            cfg(64, 1024),
             false,
             &[("ChildReceiptMissing", "lineage.children[0]"),]
         ),
@@ -85,7 +83,7 @@ fn main() {
             "root_to_a",
             &[],
             &["rcpt_child_a"],
-            cfg(64, 1024, false),
+            cfg(64, 1024),
             false,
             &[("ChildReceiptResolverError", "lineage.children[0]"),]
         ),
@@ -94,7 +92,7 @@ fn main() {
             "root_malformed_uri",
             &["child_a"],
             &[],
-            cfg(64, 1024, false),
+            cfg(64, 1024),
             false,
             &[
                 ("ChildReceiptRefMalformed", "lineage.children[0]"),
@@ -106,7 +104,7 @@ fn main() {
             "root_wrong_namespace",
             &["child_a"],
             &[],
-            cfg(64, 1024, false),
+            cfg(64, 1024),
             false,
             &[
                 ("ChildReceiptRefMalformed", "lineage.children[0]"),
@@ -118,7 +116,7 @@ fn main() {
             "root_to_a",
             &["child_a", "child_a_duplicate"],
             &[],
-            cfg(64, 1024, false),
+            cfg(64, 1024),
             false,
             &[
                 ("DuplicateChildReceipt", "children[1].id"),
@@ -132,7 +130,7 @@ fn main() {
             "root_to_a",
             &["child_a_self_cycle"],
             &[],
-            cfg(64, 1024, false),
+            cfg(64, 1024),
             false,
             &[("ChildReceiptCycle", "children[0].lineage.children[0]"),]
         ),
@@ -141,28 +139,16 @@ fn main() {
             "root_empty",
             &["child_a"],
             &[],
-            cfg(64, 1024, false),
+            cfg(64, 1024),
             false,
             &[("OrphanChildReceipt", "children[0].id"),]
-        ),
-        case(
-            "wrong-parent",
-            "root_to_a",
-            &["child_a_wrong_parent"],
-            &[],
-            cfg(64, 1024, true),
-            false,
-            &[(
-                "ChildReceiptParentMismatch",
-                "lineage.children[0].lineage.parent"
-            ),]
         ),
         case(
             "depth-limit",
             "root_to_a",
             &["child_a_to_b", "child_b"],
             &[],
-            cfg(1, 1024, false),
+            cfg(1, 1024),
             false,
             &[
                 ("ChildReceiptDepthLimit", "children[0].lineage.children[0]"),
@@ -174,7 +160,7 @@ fn main() {
             "root_to_a_b",
             &["child_a", "child_b"],
             &[],
-            cfg(64, 1, false),
+            cfg(64, 1),
             false,
             &[
                 ("ChildReceiptBreadthLimit", "lineage.children"),
@@ -196,11 +182,10 @@ fn main() {
     println!("regenerated receipt-tree oracle");
 }
 
-fn cfg(max_depth: usize, max_breadth: usize, require_parent_links: bool) -> Value {
+fn cfg(max_depth: usize, max_breadth: usize) -> Value {
     json!({
         "max_depth": max_depth,
         "max_breadth": max_breadth,
-        "require_parent_links": require_parent_links,
     })
 }
 
@@ -230,25 +215,18 @@ fn case(
     })
 }
 
-fn rec(id: &str, child_ids: &[&str], parent_uri: Option<&str>) -> Value {
+fn rec(id: &str, child_ids: &[&str]) -> Value {
     let mut receipt = base(id);
-    let lineage = receipt.lineage.get_or_insert_with(Default::default);
-    lineage.children = child_ids
+    receipt.lineage.children = child_ids
         .iter()
         .map(|cid| Reference::runx(ReferenceType::Receipt, cid))
         .collect();
-    if let Some(parent) = parent_uri {
-        lineage.parent = Some(Reference::with_uri(ReferenceType::Receipt, parent));
-    }
     serde_json::to_value(receipt).unwrap()
 }
 
 fn rec_raw_child(id: &str, child_id: &str) -> Value {
     let mut receipt = base(id);
-    receipt
-        .lineage
-        .get_or_insert_with(Default::default)
-        .children = vec![Reference {
+    receipt.lineage.children = vec![Reference {
         // Suffix-only uri: typed receipt ref but not the canonical runx:receipt: scheme.
         ..Reference::with_uri(ReferenceType::Receipt, child_id)
     }];
@@ -257,12 +235,9 @@ fn rec_raw_child(id: &str, child_id: &str) -> Value {
 
 fn rec_wrong_ns_child(id: &str, child_id: &str) -> Value {
     let mut receipt = base(id);
-    receipt
-        .lineage
-        .get_or_insert_with(Default::default)
-        .children = vec![Reference::with_uri(
+    receipt.lineage.children = vec![Reference::with_uri(
         ReferenceType::Receipt,
-        format!("runx:graph_receipt:{child_id}"),
+        format!("runx:run:{child_id}"),
     )];
     serde_json::to_value(receipt).unwrap()
 }
@@ -272,7 +247,7 @@ fn base(id: &str) -> Receipt {
         schema: ReceiptSchema::V1,
         id: id.into(),
         created_at: "2026-05-22T00:00:00Z".into(),
-        canonicalization: RECEIPT_CANONICALIZATION.into(),
+        canonicalization: ReceiptCanonicalization::C14nV1,
         issuer: ReceiptIssuer {
             issuer_type: ReceiptIssuerType::Local,
             kid: "fixture-key".into(),
@@ -283,52 +258,29 @@ fn base(id: &str) -> Receipt {
             value: "sig:pending".into(),
         },
         digest: format!("sha256:{}", "9".repeat(64)).into(),
-        idempotency: ReceiptIdempotency {
-            intent_key: format!("sha256:{}", "1".repeat(64)).into(),
-            trigger_fingerprint: format!("sha256:{}", "2".repeat(64)).into(),
-            content_hash: format!("sha256:{}", "3".repeat(64)).into(),
-        },
-        class: runx_contracts::ReceiptClass::Executed,
         subject: Subject {
             kind: receipt_subject_kind::SKILL.into(),
             reference: Reference::runx(ReferenceType::Run, id),
-            input_context: None,
-            commitments: Vec::new(),
-            paid_invocation: None,
+            outcome: runx_contracts::connector::Digest::of(id.as_bytes()),
         },
         authority: ReceiptAuthority {
             actor_ref: Reference::runx(ReferenceType::Principal, "local_runtime"),
-            authority_proof_refs: Vec::new(),
             grant_refs: Vec::new(),
             scope_refs: Vec::new(),
             terms: Vec::new(),
             derivations: Vec::new(),
-            attenuation: AuthorityAttenuation {
-                parent_authority_ref: None,
-                subset_proof: None,
-            },
             mandate_ref: None,
-            enforcement: ReceiptEnforcement {
-                profile_hash: format!("sha256:{}", "5".repeat(64)).into(),
-                execution_boundary: None,
-                redaction_refs: Vec::new(),
-                setup_refs: Vec::new(),
-                teardown_refs: Vec::new(),
-            },
+            enforcement: ReceiptEnforcement::default(),
         },
-        signals: Vec::new(),
         decisions: Vec::new(),
         acts: Vec::new(),
-        evidence: Vec::new(),
         seal: Seal {
             disposition: ClosureDisposition::Closed,
             reason_code: "closed".into(),
-            summary: "closed".into(),
             closed_at: "2026-05-22T00:00:00Z".into(),
-            last_observed_at: "2026-05-22T00:00:00Z".into(),
             criteria: Vec::new(),
         },
-        lineage: Some(Lineage::default()),
+        lineage: Lineage::default(),
         metadata: None,
     }
 }

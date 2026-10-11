@@ -17,7 +17,7 @@ pub enum CanonicalJsonError {
 
 mod serializer;
 
-pub use serializer::to_canonical_bytes;
+pub use serializer::{ecmascript_number, to_canonical_bytes};
 
 /// Render any serializable value under `runx.stable-json.v1`: recursively
 /// sorted object keys with JavaScript `JSON.stringify`-compatible number and

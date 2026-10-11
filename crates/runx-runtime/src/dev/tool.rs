@@ -105,19 +105,16 @@ fn run_tool_fixture_inner(
         started,
     )?;
     if output.succeeded() {
-        let verification = crate::output_contract::verified_output_metadata_with_artifacts(
+        match crate::output_contract::output_contract_checks(
             "runx-dev",
             &output.value,
             None,
             resolution.tool.artifacts.as_ref(),
             &tool_dir,
             &env,
-        )
-        .and_then(|metadata| {
-            crate::output_contract::attach_verified_metadata(&mut output, metadata)
-        });
-        if let Err(error) = verification {
-            output.reject(error.to_string());
+        ) {
+            Ok(checks) => output.observations.contract = checks,
+            Err(error) => output.reject(error.to_string()),
         }
     }
     Ok(tool_result_from_execution(fixture, started, output))

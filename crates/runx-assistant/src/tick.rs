@@ -2088,15 +2088,13 @@ fn receipt_tree_has_no_external_authority(root: &Path, receipt_id: &str) -> Resu
                     .to_owned(),
             );
         }
-        if let Some(lineage) = receipt.lineage {
-            for child in lineage.children {
-                let id = child
-                    .uri
-                    .as_str()
-                    .strip_prefix("runx:receipt:")
-                    .ok_or("failed run has a non-receipt child proof")?;
-                pending.push(id.to_owned());
-            }
+        for child in receipt.lineage.children {
+            let id = child
+                .uri
+                .as_str()
+                .strip_prefix("runx:receipt:")
+                .ok_or("failed run has a non-receipt child proof")?;
+            pending.push(id.to_owned());
         }
     }
     Ok(())

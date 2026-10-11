@@ -93,13 +93,20 @@ pub(crate) struct ProcessOutcome {
     pub(crate) stdout: CapturedOutput,
     pub(crate) stderr: CapturedOutput,
     pub(crate) duration_ms: u64,
-    pub(crate) cleanup_errors: Vec<String>,
 }
 
 #[derive(Debug, Error)]
 pub(crate) enum ProcessSupervisorError {
+    /// The process never started.
     #[error("process I/O failed while {context}: {source}")]
-    Io {
+    Spawn {
+        context: String,
+        #[source]
+        source: std::io::Error,
+    },
+    /// The process started, with its environment, and supervising it failed.
+    #[error("process I/O failed while {context}: {source}")]
+    Supervise {
         context: String,
         #[source]
         source: std::io::Error,
@@ -107,8 +114,15 @@ pub(crate) enum ProcessSupervisorError {
 }
 
 impl ProcessSupervisorError {
-    pub(crate) fn io(context: impl Into<String>, source: std::io::Error) -> Self {
-        Self::Io {
+    pub(crate) fn spawn(context: impl Into<String>, source: std::io::Error) -> Self {
+        Self::Spawn {
+            context: context.into(),
+            source,
+        }
+    }
+
+    pub(crate) fn supervise(context: impl Into<String>, source: std::io::Error) -> Self {
+        Self::Supervise {
             context: context.into(),
             source,
         }

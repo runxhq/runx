@@ -72,14 +72,6 @@ fn production_graph_receipt_commits_immutable_children_and_verifies_tree()
     assert!(graph.signature.value.starts_with("base64:"));
     assert!(children[0].signature.value.starts_with("base64:"));
     assert!(
-        children[0]
-            .lineage
-            .as_ref()
-            .and_then(|lineage| lineage.parent.as_ref())
-            .is_none(),
-        "content-addressed children must remain reusable across graph parents"
-    );
-    assert!(
         runx_runtime::receipts::tree::validate_runtime_receipt_tree_with_policy(
             &graph,
             children,
@@ -166,7 +158,7 @@ fn production_verifier_reports_tamper_findings() -> Result<(), Box<dyn Error>> {
     let receipt = production_step_receipt(&signer, &verifier)?;
 
     let mut tampered_body = receipt.clone();
-    tampered_body.seal.summary = "tampered body".into();
+    tampered_body.seal.reason_code = "tampered_body".into();
     let verification = verify_receipt_proof(&tampered_body, &proof_context(&verifier));
     assert_finding(&verification, ReceiptFindingCode::SealDigestMismatch);
     assert_finding(&verification, ReceiptFindingCode::SignatureInvalid);
@@ -319,10 +311,6 @@ fn fixture_verifier(signer: &Ed25519ReceiptSigner) -> Ed25519ReceiptVerifier {
 fn proof_context(verifier: &Ed25519ReceiptVerifier) -> ReceiptProofContext<'_> {
     ReceiptProofContext {
         signature_verifier: Some(verifier),
-        authority_verified: false,
-        external_attestations_verified: true,
-        verified_redaction_refs: Default::default(),
-        verified_hash_commitments: Default::default(),
     }
 }
 
@@ -350,7 +338,7 @@ fn skill_output(status: InvocationStatus) -> InvocationOutput {
         InvocationStatus::Success => ("ok".to_owned(), String::new(), Some(0)),
         InvocationStatus::Failure => (String::new(), "failed".to_owned(), Some(1)),
     };
-    InvocationOutput::process(status, stdout, stderr, exit_code, 1, JsonObject::new())
+    InvocationOutput::process(status, stdout, stderr, exit_code, 1)
 }
 
 fn refresh_digest_and_signature(

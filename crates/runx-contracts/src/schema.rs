@@ -287,6 +287,61 @@ pub fn nullable(inner: Value) -> Value {
     json!({ "anyOf": [inner, { "type": "null" }] })
 }
 
+/// The omission predicate for a field left off the wire at its type's default.
+/// Wire as `#[serde(default, skip_serializing_if = "crate::schema::is_default")]`;
+/// the schema then excludes that default from the field's present form.
+pub fn is_default<T: Default + PartialEq>(value: &T) -> bool {
+    *value == T::default()
+}
+
+/// The omission predicate for a `bool` field that defaults to `true` and is
+/// left off the wire while true.
+#[allow(clippy::trivially_copy_pass_by_ref)]
+pub fn is_true(value: &bool) -> bool {
+    *value
+}
+
+/// A field's schema when present, for a field omitted at its type's default.
+/// The schema admits exactly the wire form Rust writes: the omitted value can
+/// never appear explicitly.
+pub fn present_unless_default<T: Default + Serialize>(schema: Value) -> Value {
+    match serde_json::to_value(T::default()) {
+        Ok(omitted) => present_unless(schema, &omitted),
+        Err(_) => schema,
+    }
+}
+
+/// A field's schema when present, for a `bool` omitted while `true`.
+pub fn present_unless_true(schema: Value) -> Value {
+    present_unless(schema, &Value::Bool(true))
+}
+
+fn present_unless(mut schema: Value, omitted: &Value) -> Value {
+    let Some(object) = schema.as_object_mut() else {
+        return schema;
+    };
+    match omitted {
+        Value::Array(items) if items.is_empty() => {
+            object.insert("minItems".to_owned(), json!(1));
+        }
+        Value::Object(fields) if fields.is_empty() => {
+            object.insert("minProperties".to_owned(), json!(1));
+        }
+        Value::Bool(omitted) => {
+            object.insert("const".to_owned(), json!(!omitted));
+        }
+        Value::String(_) if object.get("enum").is_some_and(Value::is_array) => {
+            if let Some(Value::Array(variants)) = object.get_mut("enum") {
+                variants.retain(|variant| variant != omitted);
+            }
+        }
+        _ => {
+            object.insert("not".to_owned(), json!({ "const": omitted }));
+        }
+    }
+    schema
+}
+
 /// An externally-tagged data variant: a single-key object `{ "<tag>": <inner> }`
 /// where the key is the variant's wire name and the value is its payload schema.
 /// Matches serde's default (externally-tagged) struct/tuple-variant encoding.

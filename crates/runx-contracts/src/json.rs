@@ -6,6 +6,7 @@ use serde::de::{self, Visitor};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::{Value, json};
 
+use crate::canonical_json::ecmascript_number;
 use crate::schema::RunxSchema;
 
 mod deserializer;
@@ -193,27 +194,18 @@ impl Serialize for JsonNumber {
         match *self {
             Self::I64(value) => serializer.serialize_i64(value),
             Self::U64(value) => serializer.serialize_u64(value),
-            Self::F64(value) if value.is_finite() && value.fract() == 0.0 => {
-                serialize_whole_f64(value, serializer)
+            // A whole float in the portable range is that integer exactly;
+            // past it, the canonical writer gives the float's own form.
+            Self::F64(value)
+                if value.fract() == 0.0 && value.abs() <= MAX_PORTABLE_INTEGER as f64 =>
+            {
+                serializer.serialize_i64(value as i64)
             }
             Self::F64(value) if value.is_finite() => serializer.serialize_f64(value),
             Self::F64(_) => Err(serde::ser::Error::custom(
                 "non-finite numbers are not valid JSON",
             )),
         }
-    }
-}
-
-fn serialize_whole_f64<S>(value: f64, serializer: S) -> Result<S::Ok, S::Error>
-where
-    S: Serializer,
-{
-    if value >= i64::MIN as f64 && value <= i64::MAX as f64 {
-        serializer.serialize_i64(value as i64)
-    } else if value >= 0.0 && value <= u64::MAX as f64 {
-        serializer.serialize_u64(value as u64)
-    } else {
-        serializer.serialize_f64(value)
     }
 }
 
@@ -262,11 +254,10 @@ impl fmt::Display for JsonNumber {
         match *self {
             Self::I64(value) => write!(formatter, "{value}"),
             Self::U64(value) => write!(formatter, "{value}"),
-            Self::F64(value) if value.is_finite() && value == 0.0 => formatter.write_str("0"),
-            Self::F64(value) if value.is_finite() && value.fract() == 0.0 => {
-                write!(formatter, "{value:.0}")
-            }
-            Self::F64(value) => write!(formatter, "{value}"),
+            Self::F64(value) => match ecmascript_number(value) {
+                Some(text) => formatter.write_str(&text),
+                None => write!(formatter, "{value}"),
+            },
         }
     }
 }

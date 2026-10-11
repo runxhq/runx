@@ -607,8 +607,8 @@ fn presentation() -> Value {
 
 fn attribution() -> Value {
     json!({
-        "source": "frantic",
-        "campaign": "bounty-135"
+        "source": "newsletter",
+        "campaign": "spring-launch"
     })
 }
 

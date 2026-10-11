@@ -127,8 +127,8 @@ pub(crate) fn read_test_first_step_receipt(
 ) -> Result<Receipt, Box<dyn std::error::Error>> {
     let child = graph_receipt
         .lineage
-        .as_ref()
-        .and_then(|lineage| lineage.children.first())
+        .children
+        .first()
         .ok_or("graph receipt has no step receipt")?;
     let id = child
         .uri

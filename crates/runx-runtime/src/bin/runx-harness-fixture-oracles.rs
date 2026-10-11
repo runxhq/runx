@@ -191,15 +191,10 @@ fn check_fixture_digests(
     if cli.write {
         let child_receipt_refs = receipt
             .lineage
-            .as_ref()
-            .map(|lineage| {
-                lineage
-                    .children
-                    .iter()
-                    .map(|reference| reference.uri.as_str())
-                    .collect::<Vec<_>>()
-            })
-            .unwrap_or_default();
+            .children
+            .iter()
+            .map(|reference| reference.uri.as_str())
+            .collect::<Vec<_>>();
         rewrite_fixture_receipt_expectations(
             &fixture_path,
             &body_digest,
@@ -452,7 +447,6 @@ impl SkillAdapter for FixtureOracleAdapter {
         Ok(InvocationOutput::runtime_success(
             JsonValue::Object(claim),
             0,
-            JsonObject::default(),
         ))
     }
 }

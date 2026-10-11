@@ -16,7 +16,6 @@ const workspaceRoot = path.resolve(fileURLToPath(new URL("..", import.meta.url))
 const fixtureRoot = path.join(workspaceRoot, "fixtures", "contracts");
 const sdkFixtureRoot = path.join(workspaceRoot, "fixtures", "sdk-rust");
 const actAssignmentRoot = path.join(fixtureRoot, "act-assignment");
-const governanceControlRoot = path.join(fixtureRoot, "governance-control");
 
 interface ContractFixture {
   readonly name: string;
@@ -60,15 +59,12 @@ type HostFixtureKind =
   | "resolution_response"
   | "run_result"
   | "run_state";
-type GovernanceControlFixtureKind = "governance_control_set";
-type ContractFixtureKind = HostFixtureKind | GovernanceControlFixtureKind;
+type ContractFixtureKind = HostFixtureKind;
 type ContractScope =
   | "act-assignment"
-  | "governance-control"
   | "host-protocol"
   | "paid-invocation"
   | "principal-id"
-  | "receipt-composition"
   | "x402-v2";
 
 const selectedScope = scopeArg();
@@ -77,11 +73,9 @@ const check = process.argv.includes("--check");
 if (
   selectedScope !== undefined
   && selectedScope !== "act-assignment"
-  && selectedScope !== "governance-control"
   && selectedScope !== "host-protocol"
   && selectedScope !== "paid-invocation"
   && selectedScope !== "principal-id"
-  && selectedScope !== "receipt-composition"
   && selectedScope !== "x402-v2"
 ) {
   throw new Error(`unsupported contract fixture scope: ${selectedScope}`);
@@ -89,9 +83,6 @@ if (
 
 if (selectedScope === undefined || selectedScope === "act-assignment") {
   await writeFixtures(buildActAssignmentFixtures(), actAssignmentRoot);
-}
-if (selectedScope === undefined || selectedScope === "governance-control") {
-  await writeFixtures(buildGovernanceControlFixtures(), governanceControlRoot);
 }
 if (selectedScope === undefined || selectedScope === "host-protocol") {
   const fixtures = buildHostProtocolFixtures();
@@ -109,36 +100,8 @@ if (selectedScope === undefined || selectedScope === "paid-invocation") {
 if (selectedScope === undefined || selectedScope === "principal-id") {
   runPrincipalIdFixtures();
 }
-if (selectedScope === undefined || selectedScope === "receipt-composition") {
-  runReceiptCompositionFixtures();
-}
 if (selectedScope === undefined || selectedScope === "x402-v2") {
   runX402Fixtures();
-}
-
-function runReceiptCompositionFixtures(): void {
-  const outputRoot = path.join(fixtureRoot, "receipt-composition");
-  const configured = process.env.RUNX_RECEIPT_COMPOSITION_FIXTURES_BIN;
-  const command = configured || (process.platform === "win32" ? "cargo.exe" : "cargo");
-  const args = configured
-    ? ["--out", outputRoot]
-    : [
-        "run",
-        "--quiet",
-        "--manifest-path",
-        path.join(workspaceRoot, "crates", "Cargo.toml"),
-        "-p",
-        "runx-receipts",
-        "--example",
-        "runx-receipt-composition-fixtures",
-        "--",
-        "--out",
-        outputRoot,
-      ];
-  if (check) args.push("--check");
-  const result = spawnSync(command, args, { cwd: workspaceRoot, env: process.env, stdio: "inherit" });
-  if (result.error) throw result.error;
-  if ((result.status ?? 1) !== 0) process.exit(result.status ?? 1);
 }
 
 function runPaidInvocationFixtures(): void {
@@ -549,171 +512,6 @@ function pruneUndefined<T>(value: T): T {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function buildGovernanceControlFixtures(): readonly ContractFixture[] {
-  const targetRef = reference("target", "runx:target:public-site");
-  const opportunityRef = reference("opportunity", "runx:opportunity:docs-gap");
-  const selectionCycleRef = reference("selection_cycle", "runx:selection_cycle:cycle_1");
-  const selectionRef = reference("selection", "runx:selection:sel_1");
-  const decisionRef = reference("decision", "runx:decision:dec_1");
-  const receiptRef = reference("receipt", "runx:receipt:rcpt_1");
-  const verificationRef = reference("verification", "runx:verification:ver_1");
-  const evidenceRef = reference("artifact", "runx:artifact:evidence_1");
-  const redactionPolicyRef = reference("redaction_policy", "runx:redaction_policy:public");
-  const sourceRef = reference("signal", "runx:signal:sig_1");
-  const fingerprint = {
-    algorithm: "sha256",
-    canonicalization: "runx.fingerprint.c14n.v1",
-    derived_from: [sourceRef],
-    value: "sha256:target",
-  };
-  const actRef = {
-    act_id: "act_publish_feed",
-    receipt_ref: receiptRef,
-  };
-
-  return [{
-    name: "public-feed-proof",
-    scope: "governance-control",
-    description: "Governance control fixture covering target, opportunity, selection, reflection, and feed-entry proof bindings.",
-    fixture_kind: "governance_control_set",
-    expected: {
-      feed_entry: {
-        act_refs: [actRef],
-        artifact_refs: [evidenceRef],
-        decision_refs: [decisionRef],
-        evidence_refs: [evidenceRef],
-        feed_entry_id: "feed_1",
-        receipt_refs: [receiptRef],
-        opportunity_ref: opportunityRef,
-        public_at: "2026-05-18T00:07:00Z",
-        redaction_policy_ref: redactionPolicyRef,
-        redaction_refs: [reference("redaction_policy", "runx:redaction:redaction_1")],
-        schema: "runx.feed_entry.v1",
-        selection_ref: selectionRef,
-        summary: "The public entry cites a sealed receipt, contained act, decision, verification, and redaction policy.",
-        target_ref: targetRef,
-        title: "Runx published a proof-bound entry",
-        verification_refs: [verificationRef],
-      },
-      opportunity: {
-        discovered_at: "2026-05-18T00:01:00Z",
-        evidence_refs: [evidenceRef],
-        fingerprint,
-        freshness_expires_at: "2026-05-19T00:00:00Z",
-        opportunity_id: "opp_1",
-        proposed_form: "observation",
-        risk_score: 12,
-        schema: "runx.opportunity.v1",
-        source_refs: [sourceRef],
-        summary: "Publish a clearer proof entry for the selected public surface.",
-        target_ref: targetRef,
-        value_score: 86,
-      },
-      reflection_entry: {
-        act_refs: [actRef],
-        decision_ref: decisionRef,
-        evidence_refs: [evidenceRef],
-        follow_up_refs: [],
-        receipt_refs: [receiptRef],
-        lessons: ["Keep feed projections tied to sealed receipts."],
-        opportunity_ref: opportunityRef,
-        recorded_at: "2026-05-18T00:06:00Z",
-        reflection_id: "reflect_1",
-        schema: "runx.reflection_entry.v1",
-        selection_ref: selectionRef,
-        summary: "Public proof entry was useful and low-risk.",
-        target_ref: targetRef,
-      },
-      selection: {
-        candidate_refs: [opportunityRef],
-        cooldown_until: "2026-05-19T00:00:00Z",
-        cycle_ref: selectionCycleRef,
-        decision_ref: decisionRef,
-        evidence_refs: [evidenceRef],
-        opportunity_ref: opportunityRef,
-        rank: 1,
-        reason: "Highest value public proof candidate inside current authority.",
-        schema: "runx.selection.v1",
-        score: 91,
-        selected: true,
-        selected_at: "2026-05-18T00:03:00Z",
-        selection_id: "sel_1",
-      },
-      selection_cycle: {
-        chosen_selection_ref: selectionRef,
-        closed_at: "2026-05-18T00:04:00Z",
-        cycle_id: "cycle_1",
-        decision_ref: decisionRef,
-        fingerprint,
-        receipt_ref: receiptRef,
-        input_refs: [sourceRef],
-        no_action_closure: null,
-        opportunity_refs: [opportunityRef],
-        ranked_selection_refs: [selectionRef],
-        schema: "runx.selection_cycle.v1",
-        started_at: "2026-05-18T00:00:00Z",
-        state: "closed",
-        target_refs: [targetRef],
-      },
-      skill_binding: {
-        active: true,
-        allowed_act_forms: ["observation"],
-        authority_refs: [reference("grant", "runx:grant:public_evidence")],
-        binding_id: "binding_1",
-        created_at: "2026-05-18T00:00:00Z",
-        harness_template_ref: reference("harness", "runx:harness_template:public_feed"),
-        policy_refs: [redactionPolicyRef],
-        schema: "runx.skill_binding.v1",
-        scope_family: "publication",
-        skill_ref: reference("artifact", "runx:skill:project-feed-entry"),
-        updated_at: "2026-05-18T00:01:00Z",
-      },
-      target: {
-        authority_refs: [reference("grant", "runx:grant:public_evidence")],
-        cooldown: {
-          state: "none",
-        },
-        created_at: "2026-05-18T00:00:00Z",
-        fingerprint,
-        lifecycle_state: "active",
-        schema: "runx.target.v1",
-        target_id: "target_1",
-        target_ref: targetRef,
-        title: "Runx public proof surface",
-        updated_at: "2026-05-18T00:01:00Z",
-        verification_recipe_refs: [reference("verification", "runx:verification_recipe:public_feed")],
-      },
-      target_transition_entry: {
-        decision_ref: decisionRef,
-        entry_id: "tte_1",
-        from_state: "eligible",
-        receipt_ref: receiptRef,
-        reason_code: "selected",
-        recorded_at: "2026-05-18T00:03:30Z",
-        schema: "runx.target_transition_entry.v1",
-        source_refs: [sourceRef],
-        summary: "Target entered the active selector set.",
-        target_ref: targetRef,
-        to_state: "active",
-      },
-      thesis_assessment: {
-        assessed_at: "2026-05-18T00:02:00Z",
-        assessment_id: "assess_1",
-        authority_cost: "low",
-        evidence_refs: [evidenceRef],
-        opportunity_ref: opportunityRef,
-        proof_strength: "strong",
-        rationale: "The entry improves public proof without broadening authority.",
-        rubric_refs: [reference("external_url", "https://runx.ai/docs")],
-        schema: "runx.thesis_assessment.v1",
-        score: 91,
-        target_ref: targetRef,
-        thesis_ref: reference("external_url", "https://runx.ai/docs"),
-      },
-    },
-  }];
 }
 
 function reference(type: string, uri: string): Readonly<Record<string, string>> {

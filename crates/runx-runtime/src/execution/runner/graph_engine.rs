@@ -486,19 +486,10 @@ impl GraphExecution {
             self.record_lifecycle(host, LifecycleEvent::step_failed(plan.step_id))?;
             // Every invocation kind owns an honest diagnostic variant. A
             // failure message no longer depends on fabricated process fields.
-            let status = run
+            let message = run
                 .outcome
-                .metadata
-                .get("http_status")
-                .and_then(|value| value.as_str())
-                .map(|status| format!("status {status}: "))
-                .unwrap_or_default();
-            let message = format!(
-                "{status}{}",
-                run.outcome
-                    .failure_message()
-                    .unwrap_or_else(|| "step failed with no diagnostic output".to_owned())
-            );
+                .failure_message()
+                .unwrap_or_else(|| "step failed with no diagnostic output".to_owned());
             // The failed run is recorded even on terminal failure so the run
             // list agrees with the run record's step failure; a failed attempt
             // must never be silently absent from the execution record.

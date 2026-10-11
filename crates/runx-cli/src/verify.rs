@@ -84,7 +84,6 @@ struct VerifyReport {
 struct TreeReport {
     root_receipt_id: String,
     receipt_count: usize,
-    parent_missing: Option<String>,
     valid: bool,
     findings: Vec<FindingReport>,
 }
@@ -201,12 +200,10 @@ pub fn run_verify_command_with_stdin<R: Read>(
             ReceiptTreeConfig::default(),
             policy,
         );
-        let valid = verification.valid && tree.parent_missing.is_none();
         tree_reports.push(TreeReport {
             root_receipt_id: tree.root.id.to_string(),
             receipt_count: tree.member_ids.len(),
-            parent_missing: tree.parent_missing.clone(),
-            valid,
+            valid: verification.valid,
             findings: verification
                 .findings
                 .into_iter()
@@ -366,7 +363,7 @@ fn run_single_receipt_verify<R: Read>(
     // A malformed document yields a parse-error verdict without requiring trust
     // keys: you do not need a verifier to report that bytes are not a receipt.
     // Keys are required only to verify the signature of a well-formed receipt.
-    let verifier = if serde_json::from_slice::<Receipt>(&document).is_ok() {
+    let verifier = if runx_receipts::decode_receipt(&document).is_ok() {
         receipt_verifier(env, allow_local_development_signatures)?
     } else {
         None
@@ -382,10 +379,6 @@ fn run_single_receipt_verify<R: Read>(
         };
     let context = ReceiptProofContext {
         signature_verifier: Some(signature_verifier),
-        authority_verified: false,
-        external_attestations_verified: false,
-        verified_redaction_refs: BTreeSet::new(),
-        verified_hash_commitments: BTreeSet::new(),
     };
     let verdict = verify_receipt_document_verdict(&document, &context, signature_mode);
     let output = if json {
@@ -929,7 +922,7 @@ fn load_receipts(root: &Path) -> Result<(Vec<Receipt>, Vec<FileIssue>), VerifyCl
             continue;
         }
         match fs::read_to_string(&path) {
-            Ok(contents) => match serde_json::from_str::<Receipt>(&contents) {
+            Ok(contents) => match runx_receipts::decode_receipt(contents.as_bytes()) {
                 Ok(receipt) => receipts.push(receipt),
                 Err(error) => issues.push(FileIssue {
                     file: path.display().to_string(),
@@ -961,10 +954,6 @@ fn is_content_addressed_receipt_path(path: &Path) -> bool {
 struct ReceiptTree {
     root: Receipt,
     member_ids: BTreeSet<String>,
-    /// Set when the chain above this root points at a receipt id that is not
-    /// present in the store; the tree is then verified from the highest
-    /// available node but reported as incomplete.
-    parent_missing: Option<String>,
 }
 
 fn group_trees(receipts: &[Receipt]) -> Vec<ReceiptTree> {
@@ -1008,18 +997,6 @@ fn receipt_tree_edges(
                     .or_default()
                     .insert(receipt.id.to_string());
             }
-        }
-        if let Some(lineage) = &receipt.lineage
-            && let Some(parent_id) = lineage.parent.as_ref().and_then(referenced_receipt_id)
-        {
-            children_by_parent
-                .entry(parent_id.to_owned())
-                .or_default()
-                .insert(receipt.id.to_string());
-            parents_by_child
-                .entry(receipt.id.to_string())
-                .or_default()
-                .insert(parent_id.to_owned());
         }
     }
     (children_by_parent, parents_by_child)
@@ -1089,18 +1066,7 @@ fn receipt_tree_from_root(
             );
         }
     }
-    let parent_missing = root
-        .lineage
-        .as_ref()
-        .and_then(|lineage| lineage.parent.as_ref())
-        .and_then(referenced_receipt_id)
-        .filter(|parent| !by_id.contains_key(*parent))
-        .map(str::to_owned);
-    Some(ReceiptTree {
-        root,
-        member_ids,
-        parent_missing,
-    })
+    Some(ReceiptTree { root, member_ids })
 }
 
 fn referenced_receipt_id(reference: &Reference) -> Option<&str> {
@@ -1135,9 +1101,6 @@ fn render_report(report: &VerifyReport) -> String {
             tree.receipt_count,
             if tree.receipt_count == 1 { "" } else { "s" },
         ));
-        if let Some(missing) = &tree.parent_missing {
-            output.push_str(&format!("  missing parent receipt: {missing}\n"));
-        }
         for finding in &tree.findings {
             output.push_str(&format!(
                 "  {} at {}: {}\n",
@@ -1266,12 +1229,6 @@ mod tests {
         signature_mode: String,
     }
 
-    #[derive(Debug, Deserialize)]
-    struct ReceiptCompositionFixture {
-        outer: Receipt,
-        inner_receipts: Vec<Receipt>,
-    }
-
     #[test]
     fn verifies_production_signed_receipt_store_from_verifier_or_signer_environment()
     -> Result<(), io::Error> {
@@ -1357,22 +1314,17 @@ mod tests {
     }
 
     #[test]
-    fn groups_runtime_tree_from_parent_child_refs_without_child_back_links() -> Result<(), io::Error>
-    {
+    fn groups_runtime_tree_from_child_refs() -> Result<(), io::Error> {
         let signer = fixture_signer().map_err(io::Error::other)?;
         let mut root = production_signed_receipt(&signer)
             .map_err(|error| io::Error::other(error.to_string()))?;
         let mut child = root.clone();
         child.id = "sha256:immutable-child".into();
         child.digest = "sha256:immutable-child-body".into();
-        child.lineage.get_or_insert_default().parent = None;
         let mut child_ref =
             Reference::with_uri(ReferenceType::Receipt, format!("runx:receipt:{}", child.id));
         child_ref.locator = Some(child.digest.clone());
-        root.lineage
-            .get_or_insert_default()
-            .children
-            .push(child_ref);
+        root.lineage.children.push(child_ref);
 
         let trees = group_trees(&[root.clone(), child.clone()]);
 
@@ -1381,65 +1333,6 @@ mod tests {
         assert_eq!(
             trees[0].member_ids,
             BTreeSet::from([root.id.to_string(), child.id.to_string()])
-        );
-        assert!(trees[0].parent_missing.is_none());
-        Ok(())
-    }
-
-    #[test]
-    fn groups_and_verifies_composite_receipt_evidence() -> Result<(), io::Error> {
-        let fixture: ReceiptCompositionFixture = serde_json::from_str(include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../fixtures/contracts/receipt-composition/marketplace-composite.json"
-        )))
-        .map_err(io::Error::other)?;
-        let mut receipts = vec![fixture.outer.clone()];
-        receipts.extend(fixture.inner_receipts.clone());
-
-        let trees = group_trees(&receipts);
-
-        assert_eq!(trees.len(), 1);
-        assert_eq!(trees[0].root.id, fixture.outer.id);
-        assert_eq!(
-            trees[0].member_ids,
-            receipts
-                .iter()
-                .map(|receipt| receipt.id.to_string())
-                .collect::<BTreeSet<_>>()
-        );
-
-        let temp = tempfile_dir()?;
-        let receipt_dir = temp.join("receipts");
-        fs::create_dir_all(&receipt_dir)?;
-        for receipt in &receipts {
-            let digest = receipt
-                .id
-                .strip_prefix("sha256:")
-                .ok_or_else(|| io::Error::other("fixture receipt id is not content-addressed"))?;
-            fs::write(
-                receipt_dir.join(format!("sha256-{digest}.json")),
-                serde_json::to_vec(receipt).map_err(io::Error::other)?,
-            )?;
-        }
-        let result = run_verify_command(
-            &[
-                "verify".into(),
-                "--receipt-dir".into(),
-                receipt_dir.into_os_string(),
-                "--allow-local-development-signatures".into(),
-                "--json".into(),
-            ],
-            &BTreeMap::new(),
-            &temp,
-        )
-        .map_err(|error| io::Error::other(error.to_string()))?;
-        assert!(!result.failed, "{}", result.output);
-        let report: JsonValue = serde_json::from_str(&result.output).map_err(io::Error::other)?;
-        assert_eq!(report["valid"], JsonValue::Bool(true));
-        assert!(
-            report["trees"].as_array().is_some_and(
-                |trees| trees.len() == 1 && trees[0]["findings"] == test_json::json!([])
-            )
         );
         Ok(())
     }
@@ -2084,7 +1977,6 @@ mod tests {
                 runx_contracts::JsonValue::String("cli verify".to_owned()),
             )])),
             10,
-            BTreeMap::new(),
         );
         let claim =
             output

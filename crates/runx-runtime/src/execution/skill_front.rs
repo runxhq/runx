@@ -341,12 +341,7 @@ pub(super) fn seal_skill_preflight_refusal(
         .to_owned();
     let mut receipt_metadata = failure.clone();
     receipt_metadata.remove("accepted_schema");
-    let output = InvocationOutput::runtime_failure(
-        JsonValue::Object(failure),
-        message.clone(),
-        0,
-        JsonObject::new(),
-    );
+    let output = InvocationOutput::runtime_failure(JsonValue::Object(failure), message.clone(), 0);
     let receipt = seal_refusal(
         RunScope {
             run_id: &run_id,
@@ -358,7 +353,6 @@ pub(super) fn seal_skill_preflight_refusal(
         StepSealClosure {
             disposition: ClosureDisposition::Blocked,
             reason_code: "preflight_refused".to_owned(),
-            summary: message,
         },
         receipt_metadata,
     )?;
@@ -605,14 +599,8 @@ fn sealed_output(
     if let Some(trace) = diagnostics.trace {
         output.insert("trace".to_owned(), trace);
     }
-    if let Some(observations) = skill_output
-        .metadata
-        .get(crate::adapter::CREDENTIAL_DELIVERY_OBSERVATIONS_METADATA)
-    {
-        output.insert(
-            crate::adapter::CREDENTIAL_DELIVERY_OBSERVATIONS_METADATA.to_owned(),
-            observations.clone(),
-        );
+    if let Some(refusal) = diagnostics.refusal {
+        output.insert("refusal".to_owned(), JsonValue::Object(refusal));
     }
     if matches!(
         receipt.seal.disposition,
@@ -640,6 +628,8 @@ fn sealed_output(
 struct SkillOutputDiagnostics {
     context: Option<JsonValue>,
     trace: Option<JsonValue>,
+    /// Why a guard or an authority refused the run, when one did.
+    refusal: Option<JsonObject>,
 }
 
 fn closure_output(seal: &runx_contracts::Seal) -> JsonObject {
@@ -651,10 +641,6 @@ fn closure_output(seal: &runx_contracts::Seal) -> JsonObject {
     closure.insert(
         "reason_code".to_owned(),
         JsonValue::String(seal.reason_code.to_string()),
-    );
-    closure.insert(
-        "summary".to_owned(),
-        JsonValue::String(seal.summary.to_string()),
     );
     closure.insert(
         "closed_at".to_owned(),

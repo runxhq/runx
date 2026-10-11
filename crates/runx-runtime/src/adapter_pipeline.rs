@@ -1,8 +1,9 @@
 use std::time::Instant;
 
-use runx_contracts::{JsonObject, JsonValue};
+use runx_contracts::JsonValue;
 
 use crate::adapter::{InvocationOutput, InvocationStatus};
+use crate::observations::Observations;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct AdapterProjection {
@@ -23,19 +24,18 @@ impl AdapterProjection {
         status: InvocationStatus,
         value: JsonValue,
         failure: Option<String>,
-        metadata: JsonObject,
+        observations: Observations,
     ) -> InvocationOutput {
-        match status {
-            InvocationStatus::Success => {
-                InvocationOutput::runtime_success(value, self.duration_ms, metadata)
-            }
+        let mut output = match status {
+            InvocationStatus::Success => InvocationOutput::runtime_success(value, self.duration_ms),
             InvocationStatus::Failure => InvocationOutput::runtime_failure(
                 value,
                 failure.unwrap_or_else(|| "runtime invocation failed".to_owned()),
                 self.duration_ms,
-                metadata,
             ),
-        }
+        };
+        output.observations = observations;
+        output
     }
 
     pub(crate) fn process_output(
@@ -44,24 +44,20 @@ impl AdapterProjection {
         stdout: String,
         stderr: String,
         exit_code: Option<i32>,
-        metadata: JsonObject,
+        observations: Observations,
     ) -> InvocationOutput {
-        InvocationOutput::process(
-            status,
-            stdout,
-            stderr,
-            exit_code,
-            self.duration_ms,
-            metadata,
-        )
+        let mut output =
+            InvocationOutput::process(status, stdout, stderr, exit_code, self.duration_ms);
+        output.observations = observations;
+        output
     }
 
-    pub(crate) fn failure(self, message: String, metadata: JsonObject) -> InvocationOutput {
+    pub(crate) fn failure(self, message: String, observations: Observations) -> InvocationOutput {
         self.runtime_output(
             InvocationStatus::Failure,
             JsonValue::Null,
             Some(message),
-            metadata,
+            observations,
         )
     }
 }

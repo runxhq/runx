@@ -37,7 +37,8 @@ export type ClosureDispositionContract = string;
 export type DecisionChoiceContract = string;
 export type ActFormContract = string;
 export type CriterionStatusContract = string;
-export type VerificationStatusContract = string;
+/** A check the runtime runs and binds to a receipt: its own closed vocabulary. */
+export type CriterionContract = string;
 export type AuthorityResourceFamilyContract = string;
 export type AuthorityVerbContract = string;
 export type AuthorityCapabilityContract = string;
@@ -74,64 +75,24 @@ export type AuthorityConditionContract = ContractObject;
 export type AuthorityApprovalContract = ContractObject;
 export type AuthorityTermContract = ContractObject;
 export type AuthoritySubsetProofContract = ContractObject;
-export type AuthorityContract = ContractObject;
-export type SuccessCriterionContract = DeepReadonly<{
-  criterion_id: string;
-  statement: string;
-  required: boolean;
-}>;
 export type IntentContract = DeepReadonly<{
   purpose: string;
   legitimacy: string;
-  output?: unknown;
-  success_criteria: readonly SuccessCriterionContract[];
-  constraints: readonly string[];
-  derived_from: readonly ReferenceContract[];
 }>;
-export type VerificationCheckContract = ContractObject;
-export type VerificationContract = ContractObject;
-export type TargetSurfaceContract = ContractObject;
-export type ChangeRequestContract = ContractObject;
-export type ChangePlanContract = ContractObject;
-export type RevisionDetailsContract = ContractObject;
-export type VerificationDetailsContract = ContractObject;
 export type CriterionBindingContract = DeepReadonly<{
-  criterion_id: string;
+  criterion_id: CriterionContract;
   status: CriterionStatusContract;
   evidence_refs: readonly ReferenceContract[];
   verification_refs: readonly ReferenceContract[];
-  summary?: string;
 }>;
-export type ClosureRecordContract = DeepReadonly<{
-  disposition: ClosureDispositionContract;
-  reason_code: string;
-  summary: string;
-  closed_at: string;
-}>;
-export type ActContract = ContractObject & DeepReadonly<{
-  id?: string;
-  act_id?: string;
-  form: ActFormContract;
-  intent: IntentContract;
-  criterion_bindings: readonly CriterionBindingContract[];
-  context_ref?: ReferenceContract;
-  artifact_refs: readonly ReferenceContract[];
-  revision?: unknown;
-  verification?: unknown;
-}>;
-export type DecisionInputsContract = ContractObject;
-export type DecisionJustificationContract = DeepReadonly<{
-  summary: string;
-  evidence_refs?: readonly ReferenceContract[];
-}>;
-export type DecisionContract = ContractObject & DeepReadonly<{
+/** A decision states its choice and the act it selects; the intent, target
+ * and artifacts are that act's. */
+export type DecisionContract = DeepReadonly<{
+  schema?: string;
   decision_id: string;
   choice: DecisionChoiceContract;
-  proposed_intent: IntentContract;
-  selected_act_id: string | null;
-  justification: DecisionJustificationContract;
+  selected_act_id: string;
 }>;
-export type ReceiptVerificationSummaryContract = ContractObject;
 export type ArtifactContract = ContractObject;
 export type ReceiptIssuerContract = DeepReadonly<{
   type: string;
@@ -150,9 +111,7 @@ export const signalSchema = generatedSchema<SignalContract>("signal.schema.json"
 export const authoritySubsetProofSchema = generatedSchema<AuthoritySubsetProofContract>(
   "authority-subset-proof.schema.json",
 );
-export const authoritySchema = generatedSchema<AuthorityContract>("authority.schema.json");
-export const verificationSchema = generatedSchema<VerificationContract>("verification.schema.json");
-export const actSchema = generatedSchema<ActContract>("act.schema.json");
+export const authorityTermSchema = generatedSchema<AuthorityTermContract>("authority-term.schema.json");
 export const decisionSchema = generatedSchema<DecisionContract>("decision.schema.json");
 export const artifactSchema = generatedSchema<ArtifactContract>("artifact.schema.json");
 
@@ -214,11 +173,6 @@ export const duplicateCandidateSchema = schemaAt<ContractObject>(
   "links.duplicate_candidates[]",
 );
 
-export const authorityTermSchema = schemaAt<AuthorityTermContract>(
-  authoritySchema,
-  ["properties", "terms", "items"],
-  "authority.terms[]",
-);
 export const authorityBoundsSchema = schemaAt<AuthorityBoundsContract>(
   authorityTermSchema,
   ["properties", "bounds"],
@@ -269,92 +223,45 @@ export const authorityEffectCredentialFormSchema = schemaAt<AuthorityEffectCrede
   ["properties", "authorization_form"],
   "authority.terms[].bounds.effect_limits[].authorization_form",
 );
-export const authorityAttenuationSchema = schemaAt<ContractObject>(
-  authoritySchema,
-  ["properties", "attenuation"],
-  "authority.attenuation",
+const receiptActSchema = schemaAt<ContractObject>(
+  receiptRootSchema,
+  ["properties", "acts", "items"],
+  "receipt.acts[]",
 );
-
-export const intentSchema = schemaAt<IntentContract>(actSchema, ["properties", "intent"], "act.intent");
-export const successCriterionSchema = schemaAt<SuccessCriterionContract>(
-  intentSchema,
-  ["properties", "success_criteria", "items"],
-  "act.intent.success_criteria[]",
-);
-export const targetSurfaceSchema = schemaAt<TargetSurfaceContract>(
-  actSchema,
-  ["properties", "revision", "properties", "change_request", "properties", "target_surfaces", "items"],
-  "act.revision.change_request.target_surfaces[]",
-);
-export const changeRequestSchema = schemaAt<ChangeRequestContract>(
-  actSchema,
-  ["properties", "revision", "properties", "change_request"],
-  "act.revision.change_request",
-);
-export const changePlanSchema = schemaAt<ChangePlanContract>(
-  actSchema,
-  ["properties", "revision", "properties", "change_plan"],
-  "act.revision.change_plan",
-);
-export const revisionDetailsSchema = schemaAt<RevisionDetailsContract>(
-  actSchema,
-  ["properties", "revision"],
-  "act.revision",
-);
-export const verificationDetailsSchema = schemaAt<VerificationDetailsContract>(
-  actSchema,
-  ["properties", "verification"],
-  "act.verification",
+export const intentSchema = schemaAt<IntentContract>(
+  receiptActSchema,
+  ["properties", "intent"],
+  "receipt.acts[].intent",
 );
 export const criterionBindingSchema = schemaAt<CriterionBindingContract>(
-  actSchema,
+  receiptActSchema,
   ["properties", "criterion_bindings", "items"],
-  "act.criterion_bindings[]",
+  "receipt.acts[].criterion_bindings[]",
+);
+export const criterionSchema = schemaAt<CriterionContract>(
+  criterionBindingSchema,
+  ["properties", "criterion_id"],
+  "receipt.acts[].criterion_bindings[].criterion_id",
 );
 export const criterionStatusSchema = schemaAt<CriterionStatusContract>(
   criterionBindingSchema,
   ["properties", "status"],
-  "act.criterion_bindings[].status",
-);
-export const closureSchema = schemaAt<ClosureRecordContract>(
-  actSchema,
-  ["properties", "closure"],
-  "act.closure",
+  "receipt.acts[].criterion_bindings[].status",
 );
 export const closureDispositionSchema = schemaAt<ClosureDispositionContract>(
-  closureSchema,
-  ["properties", "disposition"],
-  "act.closure.disposition",
+  receiptRootSchema,
+  ["properties", "seal", "properties", "disposition"],
+  "receipt.seal.disposition",
 );
 export const actFormSchema = schemaAt<ActFormContract>(
-  actSchema,
+  receiptActSchema,
   ["properties", "form"],
-  "act.form",
-);
-export const verificationCheckSchema = schemaAt<VerificationCheckContract>(
-  verificationSchema,
-  ["properties", "checks", "items"],
-  "verification.checks[]",
-);
-export const verificationStatusSchema = schemaAt<VerificationStatusContract>(
-  verificationSchema,
-  ["properties", "status"],
-  "verification.status",
+  "receipt.acts[].form",
 );
 export const decisionChoiceSchema = schemaAt<DecisionChoiceContract>(
   decisionSchema,
   ["properties", "choice"],
   "decision.choice",
-);
-export const decisionInputsSchema = schemaAt<DecisionInputsContract>(
-  decisionSchema,
-  ["properties", "inputs"],
-  "decision.inputs",
-);
-export const decisionJustificationSchema = schemaAt<DecisionJustificationContract>(
-  decisionSchema,
-  ["properties", "justification"],
-  "decision.justification",
 );
 
 export const receiptIssuerSchema = schemaAt<ReceiptIssuerContract>(
@@ -389,11 +296,11 @@ export const signalTypes = [
   "support_ticket",
 ] as const;
 export const signalTrustLevels = enumValues(signalTrustLevelSchema, "signal.authenticity.trust_level");
-export const closureDispositions = enumValues(closureDispositionSchema, "act.closure.disposition");
+export const closureDispositions = enumValues(closureDispositionSchema, "receipt.seal.disposition");
 export const decisionChoices = enumValues(decisionChoiceSchema, "decision.choice");
-export const actForms = enumValues(actFormSchema, "act.form");
-export const criterionStatuses = enumValues(criterionStatusSchema, "act.criterion_bindings[].status");
-export const verificationStatuses = enumValues(verificationStatusSchema, "verification.status");
+export const actForms = enumValues(actFormSchema, "receipt.acts[].form");
+export const criterionStatuses = enumValues(criterionStatusSchema, "receipt.acts[].criterion_bindings[].status");
+export const criteria = enumValues(criterionSchema, "receipt.acts[].criterion_bindings[].criterion_id");
 export const authorityResourceFamilies = enumValues(authorityResourceFamilySchema, "authority.terms[].resource_family");
 export const authorityVerbs = enumValues(authorityVerbSchema, "authority.terms[].verbs[]");
 export const authorityCapabilities = enumValues(authorityCapabilitySchema, "authority.terms[].capabilities[]");
@@ -410,10 +317,6 @@ export function validateSignalContract(value: unknown, label = "signal"): Signal
   return validateContractSchema(signalSchema, value, label) as SignalContract;
 }
 
-export function validateAuthorityContract(value: unknown, label = "authority"): AuthorityContract {
-  return validateContractSchema(authoritySchema, value, label) as AuthorityContract;
-}
-
 export function validateAuthoritySubsetProofContract(
   value: unknown,
   label = "authority_subset_proof",
@@ -425,44 +328,10 @@ export function validateDecisionContract(value: unknown, label = "decision"): De
   return validateContractSchema(decisionSchema, value, label) as DecisionContract;
 }
 
-export function validateActContract(value: unknown, label = "act"): ActContract {
-  const act = validateContractSchema(actSchema, value, label) as ActContract;
-  assertActFormDetails(act, label);
-  return act;
-}
-
-export function validateVerificationContract(value: unknown, label = "verification"): VerificationContract {
-  return validateContractSchema(verificationSchema, value, label) as VerificationContract;
-}
-
 export function validateSpineArtifactContract(value: unknown, label = "artifact"): ArtifactContract {
   return validateContractSchema(artifactSchema, value, label) as ArtifactContract;
 }
 
 export function validateRedactionContract(value: unknown, label = "redaction"): RedactionContract {
   return validateContractSchema(redactionSchema, value, label) as RedactionContract;
-}
-
-function assertActFormDetails(act: ActContract, label: string): void {
-  if (act.form === "revision") {
-    if (!act.revision) {
-      throw new Error(`${label}.revision is required when form is revision.`);
-    }
-    if (act.verification) {
-      throw new Error(`${label}.verification must be omitted when form is revision.`);
-    }
-    return;
-  }
-  if (act.form === "verification") {
-    if (!act.verification) {
-      throw new Error(`${label}.verification is required when form is verification.`);
-    }
-    if (act.revision) {
-      throw new Error(`${label}.revision must be omitted when form is verification.`);
-    }
-    return;
-  }
-  if (act.revision || act.verification) {
-    throw new Error(`${label} must not carry revision or verification details when form is ${act.form}.`);
-  }
 }

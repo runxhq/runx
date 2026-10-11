@@ -127,7 +127,6 @@ impl RuntimeOptions {
 pub struct StepOutcome {
     pub status: InvocationStatus,
     pub diagnostics: InvocationDiagnostics,
-    pub metadata: JsonObject,
 }
 
 impl StepOutcome {
@@ -158,7 +157,6 @@ impl From<InvocationOutput> for StepOutcome {
         Self {
             status: output.status,
             diagnostics: output.diagnostics,
-            metadata: output.metadata,
         }
     }
 }
@@ -273,49 +271,30 @@ pub(crate) fn failed_step_id(graph: &ExecutionGraph, error: &RuntimeError) -> Op
 /// pending resolution, or a step's own non-`closed` closure. Any other error
 /// is a fault, not a stop.
 pub(crate) fn graph_stop_closure(
-    graph_name: &str,
     error: &RuntimeError,
 ) -> Option<(String, crate::receipts::GraphClosure)> {
-    let (step_id, disposition, reason_code, summary) = match error {
-        RuntimeError::GraphBlocked { step_id, reason } => (
+    let (step_id, disposition, reason_code) = match error {
+        RuntimeError::GraphBlocked { step_id, .. } => (
             step_id,
             ClosureDisposition::Blocked,
             "graph_blocked".to_owned(),
-            format!("graph {graph_name} blocked at {step_id}: {reason}"),
         ),
-        RuntimeError::AuthorityDenied {
-            verb,
-            step_id,
-            reason,
-        } => (
+        RuntimeError::AuthorityDenied { step_id, .. } => (
             step_id,
             ClosureDisposition::Blocked,
             "authority_denied".to_owned(),
-            format!("graph {graph_name} denied {verb:?} at {step_id}: {reason}"),
         ),
-        RuntimeError::ResolutionPending {
-            step_id, reason, ..
-        } => (
+        RuntimeError::ResolutionPending { step_id, .. } => (
             step_id,
             ClosureDisposition::Deferred,
             "resolution_pending".to_owned(),
-            format!("graph {graph_name} deferred at {step_id}: {reason}"),
         ),
         RuntimeError::StepClosed {
             step_id,
             disposition,
             reason_code,
-            summary,
             ..
-        } => (
-            step_id,
-            disposition.clone(),
-            reason_code.clone(),
-            format!(
-                "graph {graph_name} {} at {step_id}: {summary}",
-                disposition.label()
-            ),
-        ),
+        } => (step_id, disposition.clone(), reason_code.clone()),
         _ => return None,
     };
     Some((
@@ -323,7 +302,6 @@ pub(crate) fn graph_stop_closure(
         crate::receipts::GraphClosure {
             disposition,
             reason_code,
-            summary,
         },
     ))
 }
@@ -475,7 +453,7 @@ where
                     self.scope(&graph.name),
                     &execution.runs,
                     &self.options.created_at,
-                    GraphClosure::completed(&graph.name),
+                    GraphClosure::completed(),
                     self.options.signature_policy(),
                 )?;
                 execution.record_lifecycle(
@@ -485,7 +463,7 @@ where
                 Ok(execution.finish(graph, receipt))
             }
             Err(error) if terminal_outcome == GraphTerminalOutcome::SealReceipt => {
-                let Some((step_id, closure)) = graph_stop_closure(&graph.name, &error) else {
+                let Some((step_id, closure)) = graph_stop_closure(&error) else {
                     return self.seal_failed_graph_in_place(execution, graph, error, host);
                 };
                 let receipt = graph_receipt_with_closure(
@@ -547,7 +525,6 @@ where
         else {
             return Err(error);
         };
-        let summary = format!("graph {} failed at {step_id}: {error}", graph.name);
         let fault_run = if execution.has_run(&step_id) {
             None
         } else {
@@ -575,7 +552,6 @@ where
             crate::receipts::GraphClosure {
                 disposition: ClosureDisposition::Failed,
                 reason_code: "graph_step_failed".to_owned(),
-                summary,
             },
             self.options.signature_policy(),
         )?;
@@ -868,9 +844,9 @@ pub(crate) fn graph_run_skill_output(
     run: &GraphRun,
 ) -> Result<InvocationOutput, RuntimeError> {
     let mut output = if run.state.status == GraphStatus::Succeeded {
-        InvocationOutput::runtime_success(result.clone(), 0, JsonObject::new())
+        InvocationOutput::runtime_success(result.clone(), 0)
     } else {
-        InvocationOutput::runtime_failure(result.clone(), graph_failure(run), 0, JsonObject::new())
+        InvocationOutput::runtime_failure(result.clone(), graph_failure(run), 0)
     };
     output.set_ephemeral(graph_run_ephemeral_result(run));
     Ok(output)
@@ -1243,7 +1219,7 @@ mod tests {
         step_id: &str,
         contract: JsonObject,
     ) -> Result<StepRun, Box<dyn std::error::Error>> {
-        let output = InvocationOutput::runtime_success(JsonValue::Null, 1, JsonObject::new());
+        let output = InvocationOutput::runtime_success(JsonValue::Null, 1);
         let receipt = step_receipt(
             RunScope {
                 run_id: "run_test",

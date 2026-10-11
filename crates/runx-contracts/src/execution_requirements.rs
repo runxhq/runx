@@ -54,7 +54,7 @@ impl EnvironmentRequirements {
 pub struct ExecutionRequirements {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub scopes: Vec<String>,
-    #[serde(default, skip_serializing_if = "EnvironmentRequirements::is_empty")]
+    #[serde(default, skip_serializing_if = "crate::schema::is_default")]
     pub environment: EnvironmentRequirements,
 }
 

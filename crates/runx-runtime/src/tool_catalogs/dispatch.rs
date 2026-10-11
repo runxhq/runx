@@ -12,6 +12,7 @@ use crate::adapter::{InvocationOutput, InvocationStatus};
 use crate::adapter_pipeline::AdapterProjection;
 use crate::credentials::CredentialDelivery;
 use crate::effects::{EffectAdmission, RuntimeEffectRegistry};
+use crate::observations::Observations;
 use crate::tool_catalogs::ToolCatalogError;
 
 mod local;
@@ -76,6 +77,27 @@ pub(crate) fn dispatch_tool(
     invoke_resolved_tool(&mut request, effects, observed_at, started)
 }
 
+/// Run one tool as a process from the local catalog, never a native or effect
+/// capability: a connector's process implementation names a tool package, and
+/// its receipt records that a trusted host process ran it with the
+/// operation's credential.
+pub(crate) fn dispatch_process_tool(
+    request: ToolDispatchRequest<'_>,
+    started: Instant,
+) -> Result<InvocationOutput, RuntimeError> {
+    let tool_ref = request.tool_ref.as_ref();
+    if tool_ref.trim().is_empty() || tool_ref.trim().len() != tool_ref.len() {
+        return Ok(failure(
+            "A process tool reference must be one tool name.",
+            started,
+        ));
+    }
+    Ok(match local::invoke(&request, started)? {
+        Some(output) => output,
+        None => missing_imported_tool(tool_ref, started),
+    })
+}
+
 fn invoke_resolved_tool(
     request: &mut ToolDispatchRequest<'_>,
     effects: &RuntimeEffectRegistry,
@@ -130,13 +152,9 @@ fn invoke_native_tool(
         output.set_ephemeral(ephemeral);
     }
     if let Some(observation) = request.credential_delivery.public_observation() {
-        output.record_credential_observation(observation)?;
+        output.observations.record_credential(observation)?;
     }
-    output
-        .metadata
-        .extend(crate::process_invocation::boundary_metadata(
-            invocation.execution_boundary,
-        )?);
+    output.observations.boundary = Some(invocation.execution_boundary);
     Ok(output)
 }
 
@@ -168,12 +186,12 @@ fn success(value: JsonValue, started: Instant) -> InvocationOutput {
         InvocationStatus::Success,
         value,
         None,
-        JsonObject::new(),
+        Observations::default(),
     )
 }
 
 pub(super) fn failure(message: impl Into<String>, started: Instant) -> InvocationOutput {
-    AdapterProjection::from_started(started).failure(message.into(), JsonObject::new())
+    AdapterProjection::from_started(started).failure(message.into(), Observations::default())
 }
 
 fn missing_imported_tool(tool_ref: &str, started: Instant) -> InvocationOutput {

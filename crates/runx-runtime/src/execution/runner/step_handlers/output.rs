@@ -93,7 +93,6 @@ mod tests {
             )])),
             "credits depleted",
             4,
-            JsonObject::new(),
         );
 
         let projection = build_step_output_projection(&step, &output, None, None)?;
@@ -110,7 +109,7 @@ mod tests {
     fn successful_invocation_still_owes_every_declared_output()
     -> Result<(), Box<dyn std::error::Error>> {
         let step = declared_output_step()?;
-        let output = InvocationOutput::runtime_success(JsonValue::Null, 4, JsonObject::new());
+        let output = InvocationOutput::runtime_success(JsonValue::Null, 4);
 
         let error = match build_step_output_projection(&step, &output, None, None) {
             Err(error) => error,
@@ -145,11 +144,7 @@ steps:
             .into_iter()
             .next()
             .ok_or("validated output-contract graph omitted its step")?;
-        let output = InvocationOutput::runtime_success(
-            JsonValue::Object(JsonObject::new()),
-            4,
-            JsonObject::new(),
-        );
+        let output = InvocationOutput::runtime_success(JsonValue::Object(JsonObject::new()), 4);
 
         let projection = build_step_output_projection(&step, &output, None, None)?;
 

@@ -1,0 +1,88 @@
+{
+  "acts": [],
+  "authority": {
+    "actor_ref": {
+      "type": "principal",
+      "uri": "runx:principal:local_runtime"
+    },
+    "derivations": [],
+    "enforcement": {},
+    "grant_refs": [],
+    "scope_refs": [],
+    "terms": [
+      {
+        "approvals": [],
+        "bounds": {},
+        "capabilities": [],
+        "conditions": [
+          {
+            "condition_id": "budget",
+            "parameters": {
+              "limit": 1.5e+20,
+              "": 1,
+              "𐀀": 1.234e-6
+            },
+            "predicate": "within_budget"
+          }
+        ],
+        "issued_by_ref": {
+          "type": "principal",
+          "uri": "runx:principal:local_runtime"
+        },
+        "principal_ref": {
+          "type": "principal",
+          "uri": "runx:principal:local_runtime"
+        },
+        "resource_family": "workspace",
+        "resource_ref": {
+          "type": "repository",
+          "uri": "runx:repository:fixture"
+        },
+        "term_id": "term_wide",
+        "verbs": [
+          "read"
+        ]
+      }
+    ]
+  },
+  "canonicalization": "runx.receipt.c14n.v1",
+  "created_at": "2026-06-10T00:00:00Z",
+  "decisions": [],
+  "digest": "sha256:fb8af11254fec489ba6a778df1306ac51c73e7210e5c93b945538b363499c853",
+  "id": "sha256:2ce819e5d32c2624890a85f50c8a2c5f63ec7d6a913ceb28801f2b40d90b440b",
+  "issuer": {
+    "kid": "runx-cli-verify-fixture-key",
+    "public_key_sha256": "sha256:87ee73837d4ba020e074790b42767a34f435e8ef60f2d4c9daa773b7c4251a40",
+    "type": "hosted"
+  },
+  "lineage": {
+    "children": []
+  },
+  "schema": "runx.receipt.v1",
+  "seal": {
+    "closed_at": "2026-06-10T00:00:00Z",
+    "criteria": [
+      {
+        "criterion_id": "step_outcome",
+        "evidence_refs": [],
+        "status": "verified",
+        "verification_refs": []
+      }
+    ],
+    "disposition": "closed",
+    "reason_code": "step_closed"
+  },
+  "signature": {
+    "alg": "Ed25519",
+    "value": "base64:PziaeuxKQbxBaNxR6AWQ6p6UMnffpx-ZeTzKVxuFiUL8_XiqPtdSPXDJPuwtZZp87eyNUfpE07iPhiarESCxDA"
+  },
+  "subject": {
+    "kind": "skill",
+    "outcome": "sha256:8f8f6c0b23bac127b29527ba38dfbf23854c7c13f8f371de7891c2576fd209cd",
+    "ref": {
+      "label": "receipt-verify",
+      "type": "run",
+      "uri": "runx:run:receipt-verify#production-verified"
+    }
+  }
+}

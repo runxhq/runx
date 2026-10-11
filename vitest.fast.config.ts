@@ -22,6 +22,7 @@ export default defineConfig({
       "tests/policy-author-validation.test.ts",
       "tests/runx-cli-release-evidence.test.ts",
       "tests/stripe-spt-rail-adapter.test.ts",
+      "tests/independent-verifier.test.ts",
     ],
     // These suites shell out to the debug `runx` binary; the generous timeouts
     // absorb its cold start under parallel load.

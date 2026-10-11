@@ -8,6 +8,7 @@
 // Usage:
 //   node verify.mjs <receipt.json> [--pubkey <base64-raw-ed25519>] [--seed <base64-32-byte-seed>]
 //   node verify.mjs <receipt.json> [--jwks <jwks-file-or-url>] [--walk-ancestry] [--receipt-dir <dir>]
+//   [--schema <receipt.schema.json>]  (default: this repository's schemas/receipt.schema.json)
 //
 // If neither --pubkey nor --seed is given, the public demo seed is used (the
 // same throwaway test key the demo signs with). For a real deployment you pass
@@ -30,14 +31,128 @@ function hasFlag(name) {
 }
 
 // runx.receipt.c14n.v1: strip the envelope's own signature/digest/metadata,
-// then serialize with recursively sorted keys, compact, standard JSON escaping,
-// integers as-is. (oss/crates/runx-receipts/src/canonical.rs)
+// then serialize with keys sorted by Unicode code point, compact, standard
+// JSON escaping. (oss/crates/runx-contracts/src/canonical_json/serializer.rs)
 function canon(v) {
   if (v === null) return "null";
   if (typeof v === "boolean") return v ? "true" : "false";
-  if (typeof v === "number" || typeof v === "string") return JSON.stringify(v);
+  if (typeof v === "bigint" || typeof v === "number") return canonNumber(v);
+  if (typeof v === "string") return JSON.stringify(v);
   if (Array.isArray(v)) return "[" + v.map(canon).join(",") + "]";
-  return "{" + Object.keys(v).sort().map((k) => JSON.stringify(k) + ":" + canon(v[k])).join(",") + "}";
+  return "{" + Object.keys(v).sort(byCodePoint).map((k) => JSON.stringify(k) + ":" + canon(v[k])).join(",") + "}";
+}
+
+// Rust orders keys by bytes, which is Unicode code point order. JavaScript's
+// default sort compares UTF-16 code units, which disagrees above U+FFFF.
+function byCodePoint(a, b) {
+  const left = [...a];
+  const right = [...b];
+  for (let i = 0; i < Math.min(left.length, right.length); i += 1) {
+    const order = left[i].codePointAt(0) - right[i].codePointAt(0);
+    if (order !== 0) return order;
+  }
+  return left.length - right.length;
+}
+
+const I64_MIN = -(2n ** 63n);
+const U64_MAX = 2n ** 64n - 1n;
+
+// Integers in the 64-bit range read exactly, as the issuer reads them;
+// JSON.parse alone rounds past 2^53.
+function parseReceiptJson(text) {
+  return JSON.parse(text, (_key, value, context) => {
+    if (typeof value !== "number" || !/^-?\d+$/.test(context.source)) return value;
+    const integer = BigInt(context.source);
+    return integer >= I64_MIN && integer <= U64_MAX ? integer : value;
+  });
+}
+
+// Integers as written; every other number as JSON.stringify writes it.
+function canonNumber(n) {
+  if (typeof n === "bigint") return n.toString();
+  if (!Number.isFinite(n)) throw new Error("non-finite numbers are not valid JSON");
+  return JSON.stringify(n);
+}
+
+// The receipt's published JSON Schema (schemas/receipt.schema.json) decides
+// its wire shape: the issuer writes exactly that, so a document outside it is
+// not a receipt runx issued, whatever key signed it. The schema is inline and
+// uses the assertions below; any other assertion keyword fails closed rather
+// than passing unchecked.
+const SCHEMA_ANNOTATIONS = new Set(["$id", "$schema", "title", "description", "x-runx-schema", "x-runx-packet"]);
+
+function jsonType(value) {
+  if (Array.isArray(value)) return "array";
+  if (value === null) return "null";
+  if (typeof value === "bigint") return "integer";
+  if (typeof value === "number") return Number.isInteger(value) ? "integer" : "number";
+  return typeof value;
+}
+
+function schemaFaults(schema, value, at, faults) {
+  for (const keyword of Object.keys(schema)) {
+    if (!SCHEMA_ANNOTATIONS.has(keyword) && !Object.hasOwn(ASSERTIONS, keyword)) {
+      throw new Error(`receipt schema uses ${keyword} at ${at || "/"}, which this verifier does not check`);
+    }
+  }
+  for (const [keyword, check] of Object.entries(ASSERTIONS)) {
+    if (Object.hasOwn(schema, keyword)) check(schema, value, at, faults);
+  }
+  return faults;
+}
+
+const ASSERTIONS = {
+  type(schema, value, at, faults) {
+    const actual = jsonType(value);
+    const allowed = [schema.type].flat();
+    if (!allowed.includes(actual) && !(actual === "integer" && allowed.includes("number"))) {
+      faults.push(`${at || "/"} must be ${allowed.join(" or ")}`);
+    }
+  },
+  enum(schema, value, at, faults) {
+    if (!schema.enum.some((option) => canon(option) === canon(value))) faults.push(`${at || "/"} is not an allowed value`);
+  },
+  const(schema, value, at, faults) {
+    if (canon(schema.const) !== canon(value)) faults.push(`${at || "/"} must be ${JSON.stringify(schema.const)}`);
+  },
+  minLength(schema, value, at, faults) {
+    if (typeof value === "string" && [...value].length < schema.minLength) faults.push(`${at || "/"} is too short`);
+  },
+  maxLength(schema, value, at, faults) {
+    if (typeof value === "string" && [...value].length > schema.maxLength) faults.push(`${at || "/"} is too long`);
+  },
+  pattern(schema, value, at, faults) {
+    if (typeof value === "string" && !new RegExp(schema.pattern, "u").test(value)) faults.push(`${at || "/"} does not match its pattern`);
+  },
+  minItems(schema, value, at, faults) {
+    if (Array.isArray(value) && value.length < schema.minItems) faults.push(`${at || "/"} has too few items`);
+  },
+  items(schema, value, at, faults) {
+    if (Array.isArray(value)) value.forEach((item, index) => schemaFaults(schema.items, item, `${at}/${index}`, faults));
+  },
+  required(schema, value, at, faults) {
+    if (jsonType(value) !== "object") return;
+    for (const key of schema.required) if (!Object.hasOwn(value, key)) faults.push(`${at}/${key} is required`);
+  },
+  properties(schema, value, at, faults) {
+    if (jsonType(value) !== "object") return;
+    for (const [key, member] of Object.entries(schema.properties)) {
+      if (Object.hasOwn(value, key)) schemaFaults(member, value[key], `${at}/${key}`, faults);
+    }
+  },
+  additionalProperties(schema, value, at, faults) {
+    if (jsonType(value) !== "object") return;
+    for (const key of Object.keys(value)) {
+      if (schema.properties && Object.hasOwn(schema.properties, key)) continue;
+      if (schema.additionalProperties === false) faults.push(`${at}/${key} is not a member`);
+      else if (schema.additionalProperties !== true) schemaFaults(schema.additionalProperties, value[key], `${at}/${key}`, faults);
+    }
+  },
+};
+
+function readReceiptSchema() {
+  const schemaPath = arg("--schema") ?? new URL("../../schemas/receipt.schema.json", import.meta.url);
+  return JSON.parse(fs.readFileSync(schemaPath, "utf8"));
 }
 
 function publicKeyFromSeed(seedB64) {
@@ -64,10 +179,11 @@ function rawPubBytes(keyObj) {
 
 const receiptPath = process.argv[2];
 if (!receiptPath || receiptPath.startsWith("--")) {
-  console.error("usage: node verify.mjs <receipt.json> [--pubkey <b64>] [--seed <b64>] [--jwks <path-or-url>] [--walk-ancestry] [--receipt-dir <dir>]");
+  console.error("usage: node verify.mjs <receipt.json> [--pubkey <b64>] [--seed <b64>] [--jwks <path-or-url>] [--walk-ancestry] [--receipt-dir <dir>] [--schema <path>]");
   process.exit(2);
 }
 let pub;
+let receiptSchema;
 let walkAncestry = false;
 let ancestryIndex = new Map();
 
@@ -108,7 +224,7 @@ function sha256Prefixed(text) {
 }
 
 function readReceipt(filePath) {
-  return JSON.parse(fs.readFileSync(filePath, "utf8"));
+  return parseReceiptJson(fs.readFileSync(filePath, "utf8"));
 }
 
 function receiptBody(r) {
@@ -122,7 +238,6 @@ function receiptBody(r) {
 function receiptIdentityBody(r) {
   const body = receiptBody(r);
   delete body.id;
-  delete body.lineage;
   return body;
 }
 
@@ -188,7 +303,7 @@ function check(label, ok, detail) {
   if (!ok) console.log(`         ${detail}`);
 }
 
-function verifyOne(filePath, expectedParentId, depth, seen, receipt) {
+function verifyOne(filePath, depth, seen, receipt) {
   const r = receipt ?? readReceipt(filePath);
   const prefix = depth === 0 ? "receipt" : `child depth=${depth}`;
   console.log(`${prefix}: ${filePath}`);
@@ -203,22 +318,26 @@ function verifyOne(filePath, expectedParentId, depth, seen, receipt) {
   }
   seen.add(r.id);
 
-  // 1. The named key matches the public key we are verifying with.
+  // 1. The document has the receipt's published wire shape.
+  const faults = schemaFaults(receiptSchema, r, "", []);
+  check("document has the runx.receipt.v1 shape", faults.length === 0, faults.join("; "));
+
+  // 2. The named key matches the public key we are verifying with.
   const ourKeyHash = "sha256:" + crypto.createHash("sha256").update(rawPubBytes(pub)).digest("hex");
   check("issuer key matches the public key", ourKeyHash === r.issuer?.public_key_sha256,
     `issuer=${r.issuer?.public_key_sha256} ours=${ourKeyHash}`);
 
-  // 2. The digest is the canonical hash of THIS receipt's body (content binding).
+  // 3. The digest is the canonical hash of THIS receipt's body (content binding).
   const recomputed = sha256Prefixed(canon(receiptBody(r)));
   check("digest is the hash of the receipt body", recomputed === r.digest,
     `receipt=${r.digest} recomputed=${recomputed}`);
 
-  // 3. The id is content-addressed, independent of id/signature/digest/metadata/lineage.
+  // 4. The id is content-addressed: the body without the id it derives.
   const recomputedId = sha256Prefixed(canon(receiptIdentityBody(r)));
   check("id is the hash of the receipt identity body", recomputedId === r.id,
     `receipt=${r.id} recomputed=${recomputedId}`);
 
-  // 4. The Ed25519 signature is valid over that digest.
+  // 5. The Ed25519 signature is valid over that digest.
   let sigOk = false, sigDetail = "";
   try {
     const sig = Buffer.from(r.signature.value.split("base64:")[1], "base64url");
@@ -226,12 +345,6 @@ function verifyOne(filePath, expectedParentId, depth, seen, receipt) {
     sigDetail = `alg=${r.signature.alg} sigBytes=${sig.length}`;
   } catch (e) { sigDetail = String(e); }
   check("signature is valid over the digest", sigOk, sigDetail);
-
-  if (expectedParentId) {
-    const actualParent = childReceiptId(r.lineage?.parent);
-    check("child lineage parent points at the parent receipt", actualParent === expectedParentId,
-      `parent=${actualParent ?? "<missing>"} expected=${expectedParentId}`);
-  }
 
   const children = Array.isArray(r.lineage?.children) ? r.lineage.children : [];
   if (!walkAncestry) {
@@ -257,7 +370,7 @@ function verifyOne(filePath, expectedParentId, depth, seen, receipt) {
         `locator=${expectedDigest} child=${child.digest}`);
     }
     console.log("");
-    verifyOne(resolved.sourcePath, r.id, depth + 1, seen, child);
+    verifyOne(resolved.sourcePath, depth + 1, seen, child);
   }
   console.log("");
 }
@@ -266,11 +379,12 @@ async function main() {
   const rootPath = path.resolve(receiptPath);
   const rootReceipt = readReceipt(rootPath);
   pub = await resolvePublicKey(rootReceipt);
+  receiptSchema = readReceiptSchema();
   walkAncestry = hasFlag("--walk-ancestry");
   const receiptDir = arg("--receipt-dir") ?? path.dirname(rootPath);
   ancestryIndex = walkAncestry ? buildReceiptIndex(receiptDir) : new Map();
 
-  verifyOne(rootPath, undefined, 0, new Set(), rootReceipt);
+  verifyOne(rootPath, 0, new Set(), rootReceipt);
   console.log("");
   console.log(allPass
     ? (walkAncestry

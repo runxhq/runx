@@ -1,6 +1,5 @@
 mod error;
 mod external_receipt;
-mod metadata;
 mod registry;
 mod state;
 mod types;
@@ -9,9 +8,6 @@ pub use error::RuntimeEffectError;
 pub use external_receipt::{
     EXTERNAL_RECEIPT_EFFECT_FAMILY, EXTERNAL_RECEIPT_VERIFY_TOOL, ExternalReceiptEffect,
 };
-#[cfg(test)]
-pub(crate) use metadata::EFFECT_VERIFICATION_REFS_METADATA;
-pub(crate) use metadata::{effect_verification_refs, insert_effect_verification_ref};
 pub use registry::RuntimeEffectRegistry;
 pub use state::EffectAdmission;
 pub use types::{
@@ -24,7 +20,7 @@ mod tests {
     use std::collections::BTreeMap;
     use std::path::Path;
 
-    use runx_contracts::{AuthorityVerb, JsonObject, JsonValue, Reference};
+    use runx_contracts::{AuthorityVerb, JsonObject, JsonValue};
     use runx_core::state_machine::AuthorityAdmissionWitness;
     use runx_parser::{GraphStep, StepKind, ToolTarget};
     use serde::{Deserialize, Serialize};
@@ -329,7 +325,7 @@ mod tests {
             (),
         );
         let claim = JsonObject::new();
-        let mut output = InvocationOutput::runtime_success(JsonValue::Null, 0, JsonObject::new());
+        let mut output = InvocationOutput::runtime_success(JsonValue::Null, 0);
 
         let result = registry.prepare_output(EffectOutputRequest {
             step: &step,
@@ -342,15 +338,6 @@ mod tests {
             matches!(result, Err(RuntimeEffectError::MissingFamily { ref family }) if family == "absent"),
             "unexpected missing-family result: {result:?}"
         );
-    }
-
-    #[test]
-    fn verification_refs_round_trip_through_metadata() {
-        let mut metadata = JsonObject::new();
-        let reference = Reference::runx(runx_contracts::ReferenceType::Verification, "proof:1");
-        let insert = insert_effect_verification_ref(&mut metadata, reference.clone());
-        assert!(insert.is_ok(), "unexpected insert result: {insert:?}");
-        assert_eq!(effect_verification_refs(&metadata), Ok(vec![reference]));
     }
 
     fn valid_registry<T>(effect: T) -> RuntimeEffectRegistry

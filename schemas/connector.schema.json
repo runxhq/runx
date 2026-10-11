@@ -15,6 +15,7 @@
                   "minLength": 1,
                   "type": "string"
                 },
+                "minItems": 1,
                 "type": "array"
               },
               "delivery": {
@@ -49,12 +50,15 @@
                         "minLength": 1,
                         "type": "string"
                       },
+                      "minItems": 1,
                       "type": "array"
                     },
                     "required": {
+                      "const": false,
                       "type": "boolean"
                     },
                     "secret": {
+                      "const": false,
                       "type": "boolean"
                     }
                   },
@@ -78,6 +82,7 @@
             ],
             "type": "object"
           },
+          "minProperties": 1,
           "propertyNames": {
             "pattern": "^[a-z][a-z0-9_]{0,63}$"
           },
@@ -207,6 +212,7 @@
             ],
             "type": "object"
           },
+          "minItems": 1,
           "type": "array"
         },
         "mention": {
@@ -235,14 +241,12 @@
         "properties": {
           "amount": {
             "enum": [
-              "none",
               "required"
             ],
             "type": "string"
           },
           "approval": {
             "enum": [
-              "none",
               "required"
             ],
             "type": "string"
@@ -253,6 +257,7 @@
               "pattern": "^[a-z][a-z0-9_]{0,63}$",
               "type": "string"
             },
+            "minItems": 1,
             "type": "array"
           },
           "description": {
@@ -285,10 +290,10 @@
           },
           "guarantees": {
             "additionalProperties": false,
+            "minProperties": 1,
             "properties": {
               "provider_idempotency": {
                 "enum": [
-                  "none",
                   "enforced",
                   "inherent"
                 ],
@@ -296,7 +301,6 @@
               },
               "readback": {
                 "enum": [
-                  "none",
                   "eventual",
                   "exact",
                   "unavailable"
@@ -314,6 +318,7 @@
                   "minLength": 1,
                   "type": "string"
                 },
+                "minItems": 1,
                 "type": "array"
               }
             },
@@ -321,7 +326,6 @@
           },
           "idempotency_key_format": {
             "enum": [
-              "runx",
               "uuid"
             ],
             "type": "string"
@@ -402,6 +406,7 @@
                             }
                           ]
                         },
+                        "minProperties": 1,
                         "propertyNames": {
                           "pattern": "^[a-z][a-z0-9_]{0,63}$"
                         },
@@ -732,6 +737,7 @@
                                 ],
                                 "type": "object"
                               },
+                              "minItems": 1,
                               "type": "array"
                             },
                             "request": {
@@ -741,6 +747,7 @@
                                 "each": {},
                                 "headers": {
                                   "additionalProperties": {},
+                                  "minProperties": 1,
                                   "type": "object"
                                 },
                                 "id": {
@@ -783,6 +790,7 @@
                                 },
                                 "query": {
                                   "additionalProperties": {},
+                                  "minProperties": 1,
                                   "type": "object"
                                 },
                                 "url": {}
@@ -799,6 +807,7 @@
                           ],
                           "type": "object"
                         },
+                        "minItems": 1,
                         "type": "array"
                       },
                       "rate_limit": {
@@ -1022,6 +1031,7 @@
                                 ],
                                 "type": "object"
                               },
+                              "minItems": 1,
                               "type": "array"
                             },
                             "request": {
@@ -1031,6 +1041,7 @@
                                 "each": {},
                                 "headers": {
                                   "additionalProperties": {},
+                                  "minProperties": 1,
                                   "type": "object"
                                 },
                                 "id": {
@@ -1073,6 +1084,7 @@
                                 },
                                 "query": {
                                   "additionalProperties": {},
+                                  "minProperties": 1,
                                   "type": "object"
                                 },
                                 "url": {}
@@ -1089,6 +1101,7 @@
                           ],
                           "type": "object"
                         },
+                        "minItems": 1,
                         "type": "array"
                       },
                       "requests": {
@@ -1099,6 +1112,7 @@
                             "each": {},
                             "headers": {
                               "additionalProperties": {},
+                              "minProperties": 1,
                               "type": "object"
                             },
                             "id": {
@@ -1141,6 +1155,7 @@
                             },
                             "query": {
                               "additionalProperties": {},
+                              "minProperties": 1,
                               "type": "object"
                             },
                             "url": {}
@@ -1273,6 +1288,7 @@
                               ],
                               "type": "object"
                             },
+                            "minItems": 1,
                             "type": "array"
                           },
                           "tool": {
@@ -1426,6 +1442,7 @@
                           "minLength": 1,
                           "type": "string"
                         },
+                        "minItems": 1,
                         "type": "array"
                       },
                       "tool": {
@@ -1483,6 +1500,7 @@
               "minLength": 1,
               "type": "string"
             },
+            "minItems": 1,
             "type": "array"
           },
           "scopes": {
@@ -1582,7 +1600,6 @@
             },
             "callers": {
               "enum": [
-                "public",
                 "runtime"
               ],
               "type": "string"
@@ -1678,6 +1695,7 @@
                           }
                         ]
                       },
+                      "minProperties": 1,
                       "propertyNames": {
                         "pattern": "^[a-z][a-z0-9_]{0,63}$"
                       },
@@ -1685,6 +1703,7 @@
                     },
                     "headers": {
                       "additionalProperties": {},
+                      "minProperties": 1,
                       "type": "object"
                     },
                     "transport": {
@@ -1710,6 +1729,7 @@
                         "minLength": 1,
                         "type": "string"
                       },
+                      "minItems": 1,
                       "type": "array"
                     },
                     "command": {
@@ -1765,6 +1785,7 @@
         ],
         "type": "object"
       },
+      "minItems": 1,
       "type": "array"
     },
     "schema": {

@@ -78,9 +78,9 @@ fn parses_harness_graph_fixture_contract() -> Result<(), Box<dyn std::error::Err
     assert_eq!(
         receipt.child_receipt_refs,
         Some(vec![
-            "runx:receipt:sha256:48fc6f9081c169abd81dbed08dcc013d386a1bc3532f7ee13f7f616ff157f345"
+            "runx:receipt:sha256:a57873675b9d7e554c4e12d3e804f41af9904d226b820c85aaa7ab5f3213fd39"
                 .to_owned(),
-            "runx:receipt:sha256:d5819757f43a00be6ee0668073062096f99d14fcd9c5b2a751a4aa6cc6b149c4"
+            "runx:receipt:sha256:163be9db290a8acf34176d8d5947d981c01ee6a8b29c0ad2f94729b246c0bb02"
                 .to_owned()
         ])
     );
@@ -169,6 +169,51 @@ fn replay_receipts_match_checked_in_canonical_oracles() -> Result<(), Box<dyn st
     Ok(())
 }
 
+/// A seeded receipt reads through the strict wire reader: one carrying a
+/// member its issuer never writes is refused before it reaches the store.
+#[test]
+fn harness_setup_refuses_a_receipt_not_in_wire_form() -> Result<(), Box<dyn std::error::Error>> {
+    let workspace = tempfile::tempdir()?;
+    let package = workspace.path().join("echo");
+    std::fs::create_dir_all(package.join("receipts"))?;
+    for file in ["SKILL.md", "run.sh", "run.yaml"] {
+        std::fs::copy(
+            fixture_path("fixtures/skills/echo").join(file),
+            package.join(file),
+        )?;
+    }
+    let spine: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(fixture_path(
+        "fixtures/contracts/harness-spine/receipt-success.json",
+    ))?)?;
+    let mut receipt = spine["expected"].clone();
+    receipt["lineage"]["previous"] = serde_json::Value::Null;
+    std::fs::write(
+        package.join("receipts/seed.json"),
+        serde_json::to_vec(&receipt)?,
+    )?;
+    let fixture = workspace.path().join("seeded.yaml");
+    std::fs::write(
+        &fixture,
+        "name: seeded\nkind: skill\ntarget: echo\ninputs:\n  message: hi\n\
+         setup:\n  receipts:\n    - receipts/seed.json\nexpect:\n  status: sealed\n",
+    )?;
+
+    let error = run_harness_fixture_with_adapter(&fixture, TestAdapter, fixture_runtime_options())
+        .err()
+        .ok_or("a receipt outside its wire form must be refused")?;
+    assert!(
+        matches!(
+            error,
+            runx_runtime::HarnessReplayError::SetupReceiptInvalid {
+                source: runx_receipts::ReceiptDecodeError::NotWireForm { .. },
+                ..
+            }
+        ),
+        "{error}"
+    );
+    Ok(())
+}
+
 fn run_fixture_with_test_adapter(
     relative_path: &str,
 ) -> Result<runx_runtime::HarnessReplayOutput, runx_runtime::HarnessReplayError> {
@@ -209,7 +254,6 @@ impl SkillAdapter for TestAdapter {
         Ok(InvocationOutput::runtime_success(
             JsonValue::Object(claim),
             0,
-            JsonObject::default(),
         ))
     }
 }

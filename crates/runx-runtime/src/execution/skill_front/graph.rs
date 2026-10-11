@@ -203,33 +203,25 @@ impl BoundRun {
                 step_id,
                 disposition,
                 reason_code,
-                summary,
-            }) => {
-                let summary = format!(
-                    "graph {} {} at {step_id}: {summary}",
-                    graph.name,
-                    disposition.label()
-                );
-                run.seal_stopped(&step_id, &reason_code, summary, Stop::Closed(disposition))
-            }
+                ..
+            }) => run.seal_stopped(&step_id, &reason_code, Stop::Closed(disposition)),
             Err(RuntimeError::GraphBlocked { step_id, reason }) => run.seal_stopped(
-                &step_id,
+                &step_id.clone(),
                 "graph_blocked",
-                format!("graph {} blocked at {step_id}: {reason}", graph.name),
-                Stop::Blocked,
+                Stop::Blocked(RuntimeError::GraphBlocked { step_id, reason }),
             ),
             Err(RuntimeError::AuthorityDenied {
                 verb,
                 step_id,
                 reason,
             }) => run.seal_stopped(
-                &step_id,
+                &step_id.clone(),
                 "authority_denied",
-                format!(
-                    "graph {} denied {verb:?} at {step_id}: {reason}",
-                    graph.name
-                ),
-                Stop::Blocked,
+                Stop::Blocked(RuntimeError::AuthorityDenied {
+                    verb,
+                    step_id,
+                    reason,
+                }),
             ),
             // The mutation may be applied and its readback is pending. The
             // run stays open, unsealed, so the call seals once, when its
@@ -257,17 +249,12 @@ impl BoundRun {
                 source,
             }) => {
                 let reason_code = format!("managed_agent_{}", source.reason_code());
-                let summary = format!(
-                    "graph {} managed agent failed at {step_id} ({})",
-                    graph.name,
-                    source.reason_code()
-                );
                 let error = RuntimeError::ManagedAgentResolution {
                     step_id: step_id.clone(),
                     request_id,
                     source,
                 };
-                run.seal_stopped(&step_id, &reason_code, summary, Stop::Failed(error))
+                run.seal_stopped(&step_id, &reason_code, Stop::Failed(error))
             }
             Err(error) if !error.is_fatal_step_fault() => {
                 let step_id =
@@ -279,8 +266,7 @@ impl BoundRun {
                             ),
                         }
                     })?;
-                let summary = format!("graph {} failed at {step_id}: {error}", graph.name);
-                run.seal_stopped(&step_id, "graph_step_failed", summary, Stop::Failed(error))
+                run.seal_stopped(&step_id, "graph_step_failed", Stop::Failed(error))
             }
             Err(error) => Err(error.into()),
         }
@@ -374,6 +360,7 @@ impl BoundRun {
             SkillOutputDiagnostics {
                 context: Some(graph_run_context(&run)),
                 trace: Some(graph_run_trace(&run)),
+                refusal: None,
             },
             &run.receipt,
         ))
@@ -456,7 +443,10 @@ fn continuation_identity<'a>(
 
 /// Why a run stopped short of completion.
 enum Stop {
-    Blocked,
+    /// A guard or an authority refused a step. The run returns what its
+    /// steps produced, and the refusal's public projection beside it,
+    /// outside the signed receipt.
+    Blocked(RuntimeError),
     /// A step sealed its own governed closure (an agent act that declined,
     /// deferred, blocked, or was superseded). The run stops with that
     /// disposition and returns the step's declared outputs.
@@ -488,6 +478,7 @@ impl Driven<'_> {
             SkillOutputDiagnostics {
                 context: Some(graph_run_context(&run)),
                 trace: Some(graph_run_trace(&run)),
+                refusal: None,
             },
             &run.receipt,
         ))
@@ -497,24 +488,26 @@ impl Driven<'_> {
         &self,
         step_id: &str,
         reason_code: &str,
-        summary: String,
         stop: Stop,
     ) -> Result<RunResult, SkillRunError> {
         let bound = self.bound;
         let mut host = RunHost::new(ResolutionAnswers::default());
         let failure_result = match &stop {
             Stop::Failed(error) => Some(JsonValue::Object(error.public_failure_projection())),
-            Stop::Blocked | Stop::Closed(_) => None,
+            Stop::Blocked(_) | Stop::Closed(_) => None,
+        };
+        let refusal = match &stop {
+            Stop::Blocked(error) => Some(error.public_failure_projection()),
+            Stop::Failed(_) | Stop::Closed(_) => None,
         };
         let (disposition, failure) = match stop {
-            Stop::Blocked => (ClosureDisposition::Blocked, None),
+            Stop::Blocked(_) => (ClosureDisposition::Blocked, None),
             Stop::Closed(disposition) => (disposition, None),
             Stop::Failed(error) => (ClosureDisposition::Failed, Some(error)),
         };
         let closure = crate::receipts::GraphClosure {
             disposition,
             reason_code: reason_code.to_owned(),
-            summary,
         };
         let run = match failure {
             Some(error) => self.runtime.seal_failed_with_host(
@@ -547,6 +540,7 @@ impl Driven<'_> {
             SkillOutputDiagnostics {
                 context: Some(graph_run_context(&run)),
                 trace: Some(graph_run_trace(&run)),
+                refusal,
             },
             &run.receipt,
         ))
@@ -1014,7 +1008,6 @@ steps:
                 crate::receipts::GraphClosure {
                     disposition: ClosureDisposition::Failed,
                     reason_code: "managed_agent_round_budget_exhausted".to_owned(),
-                    summary: "managed agent failed at compose".to_owned(),
                 },
                 &mut host,
             )?;
@@ -1157,10 +1150,9 @@ steps:
         assert!(value.contains("[redacted-credential]"));
         assert!(!value.contains(MARKER));
         assert!(!format!("{output:?}").contains(MARKER));
-        let metadata = serde_json::to_string(&output.metadata)?;
-        assert!(metadata.contains("credential_delivery_observations"));
-        assert!(metadata.contains("runx:credential:local:"));
-        assert!(!metadata.contains(MARKER));
+        let credentials = serde_json::to_string(output.observations().credentials())?;
+        assert!(credentials.contains("runx:credential:local:"));
+        assert!(!credentials.contains(MARKER));
 
         let receipt = crate::receipts::step_receipt(
             crate::receipts::RunScope {

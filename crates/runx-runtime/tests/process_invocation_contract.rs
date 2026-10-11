@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::Path;
 
-use runx_contracts::{EnvironmentRequirements, JsonObject, JsonValue};
+use runx_contracts::{EnvironmentRequirements, ExecutionBoundaryKind, JsonObject, JsonValue};
 use runx_parser::ProcessTool;
 use runx_runtime::process_invocation::prepare_process_invocation;
 use runx_runtime::{RUNX_CWD_ENV, RuntimeError};
@@ -49,14 +49,7 @@ fn trusted_host_process_receives_exact_argv_cwd_and_declared_environment()
     );
     assert!(!process.env.contains_key("UNDECLARED_SECRET"));
     assert!(!process.env.contains_key("HTTPS_PROXY"));
-    assert_eq!(
-        process
-            .metadata
-            .get("execution_boundary")
-            .and_then(JsonValue::as_object)
-            .and_then(|boundary| boundary.get("kind")),
-        Some(&JsonValue::String("trusted_host_process".to_owned()))
-    );
+    assert_eq!(process.boundary, ExecutionBoundaryKind::TrustedHostProcess);
     Ok(())
 }
 

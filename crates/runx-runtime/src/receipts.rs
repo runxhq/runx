@@ -25,8 +25,7 @@ pub(crate) use seal::{
 };
 pub use seal::{
     RunScope, RuntimeReceiptSignaturePolicy, SealAuthority, graph_receipt,
-    graph_receipt_with_signature_policy, step_receipt, step_receipt_with_authority_grant_refs,
-    step_receipt_with_signature_policy,
+    graph_receipt_with_signature_policy, step_receipt, step_receipt_with_signature_policy,
 };
 pub use signing::{
     Ed25519ReceiptSigner, Ed25519ReceiptVerifier, ProductionReceiptKey,

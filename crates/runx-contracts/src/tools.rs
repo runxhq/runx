@@ -83,7 +83,7 @@ pub struct ToolSource {
     pub input_mode: Option<ToolCommandInputMode>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub timeout_seconds: Option<u64>,
-    #[serde(default, skip_serializing_if = "EnvironmentRequirements::is_empty")]
+    #[serde(default, skip_serializing_if = "crate::schema::is_default")]
     pub environment: EnvironmentRequirements,
 }
 

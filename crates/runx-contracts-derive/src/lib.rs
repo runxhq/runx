@@ -253,7 +253,7 @@ fn struct_field_properties(
         let property_schema = if nullable {
             quote! { ::runx_contracts::schema::nullable(#inner_schema) }
         } else {
-            inner_schema
+            present_schema(field, inner_schema)?
         };
         properties.push(quote! {
             ::runx_contracts::schema::Property::new(
@@ -612,6 +612,38 @@ fn serde_default(attrs: &[syn::Attribute]) -> bool {
 
 fn serde_untagged(attrs: &[syn::Attribute]) -> bool {
     serde_flag(attrs, "untagged")
+}
+
+/// A field's schema when present. A `skip_serializing_if` field is left off
+/// the wire at one value, so its present schema excludes that value and the
+/// schema admits exactly the one wire form Rust writes. The predicate must be
+/// one whose omitted value the schema can name; any other is refused.
+fn present_schema(
+    field: &syn::Field,
+    schema: proc_macro2::TokenStream,
+) -> syn::Result<proc_macro2::TokenStream> {
+    let Some(predicate) = serde_string_value(&field.attrs, "skip_serializing_if")? else {
+        return Ok(schema);
+    };
+    let ty = &field.ty;
+    let segments = predicate.rsplit("::").take(2).collect::<Vec<_>>();
+    match segments.as_slice() {
+        ["is_none", "Option"] => Ok(schema),
+        ["is_empty", "Vec" | "BTreeMap" | "JsonObject"] | ["is_default", "schema"] => Ok(quote! {
+            ::runx_contracts::schema::present_unless_default::<#ty>(#schema)
+        }),
+        ["is_true", "schema"] => Ok(quote! {
+            ::runx_contracts::schema::present_unless_true(#schema)
+        }),
+        _ => Err(syn::Error::new_spanned(
+            field,
+            format!(
+                "skip_serializing_if = \"{predicate}\" omits a value the schema cannot name; \
+                 use Option::is_none, Vec::is_empty, BTreeMap::is_empty, schema::is_default \
+                 or schema::is_true"
+            ),
+        )),
+    }
 }
 
 /// Whether a field carries `#[serde(skip_serializing_if = "...")]`. Such a field

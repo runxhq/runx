@@ -39,7 +39,7 @@ use crate::adapter::{
     BorrowedSkillAdapter, EphemeralValue, Executable, InvocationOutput, SkillAdapter,
     SkillInvocation,
 };
-use crate::agent_contract::verified_agent_metadata_with_artifacts;
+use crate::agent_contract::agent_contract_checks_with_artifacts;
 use crate::agent_invocation::{agent_act_invocation_id, agent_act_resolution_request};
 use crate::approval::ApprovalResolution;
 use crate::effects::EffectStepRequest;
@@ -47,7 +47,8 @@ use crate::effects::ResolvedEffectTarget;
 use crate::execution::disposition::agent_answer_disposition_or_closed;
 use crate::execution::output_projection::{StepOutputProjection, project_step_claim};
 use crate::host::Host;
-use crate::output_contract::{attach_verified_metadata, verified_runner_metadata_with_artifacts};
+use crate::observations::ContractChecks;
+use crate::output_contract::runner_contract_checks;
 use crate::receipts::{RuntimeReceiptSignaturePolicy, StepSeal, StepSealClosure, seal_step};
 use crate::services::merge_inferred_tool_roots;
 
@@ -279,13 +280,12 @@ where
     if output.succeeded() {
         // The packets the step declares are checked against the artifacts it
         // holds, as its parent adopted them.
-        let metadata = crate::output_contract::verified_artifact_metadata(
+        output.observations.contract = crate::output_contract::artifact_contract_checks(
             &projection.outputs,
             request.step.artifacts.as_ref(),
             &skill.directory,
             &env,
         )?;
-        attach_verified_metadata(&mut output, metadata)?;
     }
     let receipt_lineage = StepReceiptLineage::from_graph(run);
     seal_regular_skill_step(
@@ -452,7 +452,7 @@ where
     let ephemeral_contract =
         build_ephemeral_step_output(step, &output, raw_output.as_ref(), extra_artifacts);
     if output.succeeded() {
-        let metadata = verified_runner_metadata_with_artifacts(
+        output.observations.contract = runner_contract_checks(
             &skill_name,
             &output.value,
             raw_output.as_ref(),
@@ -460,7 +460,6 @@ where
             &skill_directory,
             &invocation_env,
         )?;
-        attach_verified_metadata(&mut output, metadata)?;
     }
     Ok(RegularSkillStepOutput {
         output,
@@ -692,7 +691,7 @@ struct AgentActStepSeal<'a> {
     response: ResolutionResponse,
     extra_outputs: Option<&'a JsonObject>,
     extra_artifacts: Option<&'a SkillArtifactContract>,
-    verification_metadata: JsonObject,
+    contract_checks: ContractChecks,
     /// The turn's completed calls, in order.
     calls: Vec<&'a StepRun>,
 }
@@ -709,7 +708,7 @@ fn seal_agent_act_step<A>(
         response,
         extra_outputs,
         extra_artifacts,
-        verification_metadata,
+        contract_checks,
         calls,
     } = request;
     let disposition = agent_answer_disposition_value(step, &response.payload)?;
@@ -717,10 +716,10 @@ fn seal_agent_act_step<A>(
     let lineage = StepReceiptLineage::of_turn(&calls);
     // The answer was verified against its output contract whatever closure it
     // claims, so an act that declines or defers still returns its outputs.
-    let answer = InvocationOutput::runtime_success(response.payload.clone(), 0, JsonObject::new());
+    let answer = InvocationOutput::runtime_success(response.payload.clone(), 0);
     let projection = build_step_output_projection(step, &answer, extra_outputs, extra_artifacts)?;
     let mut output = agent_task_output(response, &disposition)?;
-    output.metadata.extend(verification_metadata);
+    output.observations.contract = contract_checks;
     let disposition_label = disposition.label();
     let receipt = seal_executed_step(
         StepSeal {
@@ -738,7 +737,6 @@ fn seal_agent_act_step<A>(
             closure: Some(StepSealClosure {
                 disposition,
                 reason_code: format!("agent_act_{disposition_label}"),
-                summary: format!("agent act closed with {disposition_label}"),
             }),
             receipt_metadata: None,
         },
@@ -856,7 +854,7 @@ where
     }
     // An answer that breaks the act's output contract is refused, not sealed:
     // the turn stays open for a corrected answer.
-    let verification_metadata = verified_agent_metadata_with_artifacts(
+    let contract_checks = agent_contract_checks_with_artifacts(
         &request,
         &response.payload,
         step.artifacts.as_ref(),
@@ -879,7 +877,7 @@ where
             response,
             extra_outputs: None,
             extra_artifacts: None,
-            verification_metadata,
+            contract_checks,
             calls: turn.completed()?,
         },
     )
@@ -1077,10 +1075,13 @@ where
 }
 
 /// The step's runtime, as the kernel's runner for `process` implementations:
-/// the dispatch path a tool step takes, with the operation's credential.
+/// the local process tool the implementation names, with the operation's
+/// credential. It keeps what each run observed: where the process ran and
+/// the credential it received, whatever the run returned.
 struct StepTools<'a, A> {
     runtime: &'a Runtime<A>,
     graph_dir: &'a Path,
+    observed: std::cell::RefCell<crate::observations::Observations>,
 }
 
 impl<A> crate::kernel::operation::ToolRunner for StepTools<'_, A>
@@ -1094,7 +1095,7 @@ where
         scopes: &[String],
         delivery: &crate::credentials::CredentialDelivery,
     ) -> Result<runx_contracts::JsonValue, String> {
-        let output = crate::tool_catalogs::dispatch::dispatch_tool(
+        let output = crate::tool_catalogs::dispatch::dispatch_process_tool(
             crate::tool_catalogs::dispatch::ToolDispatchRequest {
                 tool_ref: Cow::Borrowed(tool),
                 inputs: Cow::Owned(inputs),
@@ -1108,11 +1109,20 @@ where
                 allow_explicit_manifest_path: false,
                 effect_admission: None,
             },
-            &self.runtime.options.effects,
-            &crate::time::now_iso8601(),
             Instant::now(),
         )
         .map_err(|error| error.to_string())?;
+        {
+            let mut observed = self.observed.borrow_mut();
+            if let Some(boundary) = output.observations.boundary() {
+                observed.boundary = Some(boundary);
+            }
+            for credential in output.observations.credentials() {
+                observed
+                    .record_credential(credential)
+                    .map_err(|error| error.to_string())?;
+            }
+        }
         match output.succeeded() {
             true => Ok(output.value),
             false => Err(output
@@ -1149,15 +1159,30 @@ where
             step_id: step.id.clone(),
             reason: "the step's admission is not an operation admission".to_owned(),
         })?;
-    let tools = StepTools { runtime, graph_dir };
+    let tools = StepTools {
+        runtime,
+        graph_dir,
+        observed: Default::default(),
+    };
     let started = Instant::now();
+    let mut dispatched = None;
     let outcome = crate::kernel::operation::execute(
         context,
         &step.id,
         &runtime.options.env,
         graph_dir,
         &tools,
+        &mut dispatched,
     );
+    // What the invocation was handed holds for a failed call as for one that
+    // succeeded; a call refused before invocation observed neither.
+    let mut observations = tools.observed.take();
+    if let Some(dispatched) = dispatched {
+        observations.boundary = Some(dispatched.boundary);
+        if let Some(credential) = &dispatched.credential {
+            observations.record_credential(credential)?;
+        }
+    }
     let mut effects = Vec::new();
     let output = match outcome {
         Ok(outcome) => {
@@ -1167,16 +1192,11 @@ where
                     crate::adapter::InvocationStatus::Success,
                     outcome.value,
                     None,
-                    JsonObject::new(),
+                    observations,
                 );
             if let Some(ephemeral) = outcome.ephemeral {
                 output.set_ephemeral(ephemeral);
             }
-            output
-                .metadata
-                .extend(crate::process_invocation::boundary_metadata(
-                    outcome.boundary,
-                )?);
             output
         }
         Err(
@@ -1185,7 +1205,7 @@ where
             | RuntimeError::EffectState { .. }),
         ) => return Err(error),
         Err(error) => crate::adapter_pipeline::AdapterProjection::from_started(started)
-            .failure(error.to_string(), JsonObject::new()),
+            .failure(error.to_string(), observations),
     };
     let artifacts = crate::kernel::operation::packet_artifacts();
     let skill = context.skill_label();
@@ -1216,13 +1236,12 @@ fn agent_task_output(
 ) -> Result<InvocationOutput, RuntimeError> {
     let succeeded = *disposition == ClosureDisposition::Closed;
     Ok(if succeeded {
-        InvocationOutput::runtime_success(response.payload, 0, JsonObject::new())
+        InvocationOutput::runtime_success(response.payload, 0)
     } else {
         InvocationOutput::runtime_failure(
             response.payload,
             format!("agent act closed with {}", disposition.label()),
             0,
-            JsonObject::new(),
         )
     })
 }
@@ -1275,8 +1294,7 @@ where
         resolve_step_approval(step, host, request_id.clone(), gate.clone())?,
     )?;
     let outputs = approval_outputs(step, &gate, &resolution)?;
-    let output =
-        InvocationOutput::runtime_success(JsonValue::Object(outputs.clone()), 0, JsonObject::new());
+    let output = InvocationOutput::runtime_success(JsonValue::Object(outputs.clone()), 0);
     let projection = project_step_claim(outputs, step.artifacts.as_ref());
     let receipt = seal_executed_step(
         StepSeal {
@@ -1432,19 +1450,15 @@ pub(super) fn runtime_error_step_run<A>(
 where
     A: SkillAdapter,
 {
-    let (metadata, receipt_metadata) = match &error {
+    let receipt_metadata = match &error {
         #[cfg(feature = "agent")]
-        RuntimeError::ManagedAgentResolution { source, .. } => {
-            let metadata = source.receipt_metadata();
-            (metadata.clone(), Some(metadata))
-        }
-        _ => (JsonObject::new(), None),
+        RuntimeError::ManagedAgentResolution { source, .. } => Some(source.receipt_metadata()),
+        _ => None,
     };
     let output = InvocationOutput::runtime_failure(
         JsonValue::Object(error.public_failure_projection()),
         error.to_string(),
         0,
-        metadata,
     );
     // An agent step that fails still names the calls its turn completed.
     let calls = match &step.kind {

@@ -13,8 +13,6 @@ const TRUST_BOUNDARY: &str = "runtime-governed: caller-mediated resolution is th
 
 mod profiles;
 
-pub(crate) use profiles::agent_profile_metadata;
-
 /// The act `request` asks, at `address`: its id where the run raises it.
 pub(crate) fn agent_act_resolution_request(
     request: &SkillInvocation,

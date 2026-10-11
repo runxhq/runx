@@ -7,6 +7,7 @@ mod canonical;
 mod identity;
 mod tree;
 mod verify;
+mod wire;
 
 pub use canonical::{
     canonical_receipt_body_digest, canonical_receipt_body_json, canonical_receipt_digest,
@@ -30,10 +31,11 @@ pub use verify::{
     ReceiptVerifyCheck, ReceiptVerifyFinding, ReceiptVerifyLineageCheck,
     ReceiptVerifySignatureCheck, ReceiptVerifySignatureMode, ReceiptVerifyVerdict,
     SignatureVerificationFailure, SignatureVerifier, VERIFY_VERDICT_SCHEMA,
-    compute_verification_summary, receipt_id_is_content_addressed, receipt_proof_status,
-    validate_receipt, validate_receipt_proof, verify_receipt, verify_receipt_document_verdict,
-    verify_receipt_proof, verify_receipt_verdict,
+    receipt_id_is_content_addressed, receipt_proof_status, validate_receipt,
+    validate_receipt_proof, verify_receipt, verify_receipt_document_verdict, verify_receipt_proof,
+    verify_receipt_verdict,
 };
+pub use wire::{ReceiptDecodeError, decode_receipt, decode_receipt_value};
 
 #[cfg(test)]
 mod tests {

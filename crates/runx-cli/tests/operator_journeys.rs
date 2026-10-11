@@ -470,10 +470,11 @@ fn reference_skill_journeys_execute_or_block_truthfully_without_repeating_phase_
         .output()?;
     let send = assert_json(&send, 1)?;
     assert_eq!(send["outcome"], "blocked", "{send}");
+    // Why admission refused rides the run's output, outside the signed receipt.
     assert!(
-        send["closure"]["summary"]
+        send["refusal"]["message"]
             .as_str()
-            .is_some_and(|summary| summary
+            .is_some_and(|message| message
                 .contains("slack/message.send: the hosted placement does not implement it")),
         "{send}"
     );
@@ -504,9 +505,9 @@ fn reference_skill_journeys_execute_or_block_truthfully_without_repeating_phase_
         "issues.list"
     );
     assert!(
-        github["closure"]["summary"]
+        github["refusal"]["message"]
             .as_str()
-            .is_some_and(|summary| summary.contains("no instance is selected for connector github")),
+            .is_some_and(|message| message.contains("no instance is selected for connector github")),
         "{github}"
     );
 

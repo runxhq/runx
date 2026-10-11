@@ -39,13 +39,6 @@ pub enum EffectPreparationOutcome {
 pub trait RuntimeEffect: Send + Sync {
     fn family(&self) -> &'static str;
 
-    /// Report where tools owned by this effect family actually execute.
-    /// Provider-backed effects override this rather than letting the generic
-    /// catalog guess from a tool name or scope.
-    fn execution_boundary(&self) -> runx_contracts::ExecutionBoundaryKind {
-        runx_contracts::ExecutionBoundaryKind::NativeCapability
-    }
-
     /// Return true only when this effect family owns the step's execution
     /// target. Graph authors never select a family: the runtime supplies the
     /// step and its catalog tool identity.

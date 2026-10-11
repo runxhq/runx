@@ -421,10 +421,9 @@ mod tests {
         intent.principal_ref = capability.principal_ref.clone();
         let mut request = request(&capability, &[], &intent);
         request.approvals = vec![AuthorityApproval {
-            approval_ref: Reference::with_uri(ReferenceType::Decision, "runx:decision:yes"),
+            approval_ref: Reference::with_uri(ReferenceType::Verification, "runx:approval:yes"),
             approved_by_ref: None,
             approved_at: None,
-            criterion_ids: Vec::new(),
         }];
         let error = derive_execution_term(
             &request,

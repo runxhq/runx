@@ -252,15 +252,10 @@ fn summarize_receipt(receipt: &Receipt) -> HarnessReplayReceipt {
             .collect(),
         child_receipt_refs: receipt
             .lineage
-            .as_ref()
-            .map(|lineage| {
-                lineage
-                    .children
-                    .iter()
-                    .map(|reference| reference.uri.clone().into_string())
-                    .collect()
-            })
-            .unwrap_or_default(),
+            .children
+            .iter()
+            .map(|reference| reference.uri.clone().into_string())
+            .collect(),
         verification_refs: receipt
             .seal
             .criteria

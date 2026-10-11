@@ -4,8 +4,8 @@ use std::thread::{self, JoinHandle};
 use std::time::Duration;
 
 use runx_contracts::javascript_worker::{
-    MAX_FRAME_BYTES, PROTOCOL_VERSION, WorkerDisposition, WorkerFailureCode, WorkerLimit,
-    WorkerRequest, WorkerResponse, write_frame,
+    MAX_FRAME_BYTES, PROTOCOL_VERSION, WorkerDisposition, WorkerLimit, WorkerRequest,
+    WorkerResponse, write_frame,
 };
 
 use crate::RuntimeError;
@@ -28,7 +28,7 @@ pub(super) struct WorkerSession {
     stderr: Arc<Mutex<BoundedStderr>>,
     response_reader: Option<JoinHandle<()>>,
     stderr_reader: Option<JoinHandle<()>>,
-    pub(super) execution_boundary: Arc<runx_contracts::JsonObject>,
+    pub(super) execution_boundary: runx_contracts::ExecutionBoundaryKind,
     terminated: bool,
 }
 
@@ -37,7 +37,7 @@ pub(super) struct WorkerLaunchPlan {
     args: Vec<String>,
     cwd: std::path::PathBuf,
     pub(super) worker_path_override: Option<String>,
-    pub(super) execution_boundary: Arc<runx_contracts::JsonObject>,
+    pub(super) execution_boundary: runx_contracts::ExecutionBoundaryKind,
 }
 
 impl WorkerLaunchPlan {
@@ -58,7 +58,7 @@ impl WorkerLaunchPlan {
             args: process.args,
             cwd: process.cwd,
             worker_path_override: worker_path_override.map(str::to_owned),
-            execution_boundary: Arc::new(process.metadata),
+            execution_boundary: process.boundary,
         })
     }
 }
@@ -100,7 +100,7 @@ impl WorkerSession {
             stderr: stderr.clone(),
             response_reader: None,
             stderr_reader: None,
-            execution_boundary: plan.execution_boundary.clone(),
+            execution_boundary: plan.execution_boundary,
             terminated: false,
         };
         session.response_reader = Some(
@@ -157,7 +157,6 @@ impl WorkerSession {
             Err(mpsc::RecvTimeoutError::Timeout) => {
                 self.terminate();
                 return Ok(WorkerInvocationResult::Failure {
-                    code: WorkerFailureCode::ResourceLimit,
                     limit: Some(WorkerLimit::WallMilliseconds),
                     message: self.failure_message_with_stderr(format!(
                         "deterministic JavaScript worker exceeded {} ms wall limit",
@@ -183,13 +182,12 @@ impl WorkerSession {
             WorkerResponse::Failure {
                 protocol_version,
                 invocation_id: Some(response_id),
-                code,
                 limit,
                 message,
                 disposition,
+                ..
             } if protocol_version == PROTOCOL_VERSION && response_id == invocation_id => {
                 Ok(WorkerInvocationResult::Failure {
-                    code,
                     limit,
                     message,
                     disposition,

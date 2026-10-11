@@ -6,7 +6,7 @@ import * as func0Module from "ajv/dist/runtime/ucs2length.js";
 "use strict";
 export const validate = validate0;
 export default validate0;
-const schema0 = {"$id":"https://schemas.runx.ai/runx/marketplace/paid-skill-listing/v1.json","$schema":"https://json-schema.org/draft/2020-12/schema","additionalProperties":false,"properties":{"offers":{"additionalProperties":{"anyOf":[{"additionalProperties":false,"properties":{"accepted_settlement_families":{"items":{"maxLength":64,"minLength":1,"pattern":"^[a-z0-9][a-z0-9._-]{0,63}$","type":"string"},"maxItems":16,"minItems":1,"type":"array","uniqueItems":true},"amount_minor":{"maximum":9007199254740991,"minimum":1,"type":"integer"},"currency":{"pattern":"^[A-Z]{3}$","type":"string"},"executor":{"additionalProperties":false,"properties":{"execution_closure_digest":{"pattern":"^sha256:[0-9a-f]{64}$","type":"string"},"package_digest":{"pattern":"^sha256:[0-9a-f]{64}$","type":"string"},"runner":{"minLength":1,"type":"string"},"skill":{"minLength":1,"type":"string"}},"required":["skill","runner","package_digest","execution_closure_digest"],"type":"object"},"mediation":{"additionalProperties":false,"properties":{"currency":{"pattern":"^[A-Z]{3}$","type":"string"},"endpoint_url":{"maxLength":2048,"pattern":"^https://[^\\s@/#?]+[^\\s#]*$","type":"string"},"expected_receipt_class":{"enum":["executed"],"type":"string"},"listing_ref":{"maxLength":512,"pattern":"^runx:listing:[^\\s]+$","type":"string"},"platform_fee_minor":{"maximum":9007199254740991,"minimum":1,"type":"integer"},"prepared_price":{"additionalProperties":false,"properties":{"input_digest":{"pattern":"^sha256:[0-9a-f]{64}$","type":"string"},"source_invocation_id":{"maxLength":128,"minLength":1,"type":"string"}},"required":["source_invocation_id","input_digest"],"type":"object"},"settlement_family":{"maxLength":64,"minLength":1,"pattern":"^[a-z0-9][a-z0-9._-]{0,63}$","type":"string"},"vendor_amount_minor":{"maximum":9007199254740991,"minimum":1,"type":"integer"},"vendor_offer_revision":{"additionalProperties":false,"properties":{"input_schema_digest":{"pattern":"^sha256:[0-9a-f]{64}$","type":"string"},"offer_id":{"minLength":1,"type":"string"},"output_schema_digest":{"pattern":"^sha256:[0-9a-f]{64}$","type":"string"},"revision":{"minLength":1,"type":"string"},"revision_digest":{"pattern":"^sha256:[0-9a-f]{64}$","type":"string"}},"required":["offer_id","revision","revision_digest","input_schema_digest","output_schema_digest"],"type":"object"},"vendor_package_digest":{"pattern":"^sha256:[0-9a-f]{64}$","type":"string"}},"required":["listing_ref","endpoint_url","vendor_offer_revision","vendor_package_digest","vendor_amount_minor","platform_fee_minor","currency","settlement_family","expected_receipt_class"],"type":"object"},"offer_revision":{"additionalProperties":false,"properties":{"input_schema_digest":{"pattern":"^sha256:[0-9a-f]{64}$","type":"string"},"offer_id":{"minLength":1,"type":"string"},"output_schema_digest":{"pattern":"^sha256:[0-9a-f]{64}$","type":"string"},"revision":{"minLength":1,"type":"string"},"revision_digest":{"pattern":"^sha256:[0-9a-f]{64}$","type":"string"}},"required":["offer_id","revision","revision_digest","input_schema_digest","output_schema_digest"],"type":"object"},"presentation":{"additionalProperties":false,"properties":{"description":{"maxLength":500,"minLength":1,"type":"string"},"icon_url":{"maxLength":2048,"minLength":1,"type":"string"},"input_example":{"maxLength":65536,"minLength":1,"type":"string"},"input_schema":{"maxLength":65536,"minLength":1,"type":"string"},"media_type":{"maxLength":200,"minLength":1,"type":"string"},"output_example":{"maxLength":65536,"minLength":1,"type":"string"},"output_schema":{"maxLength":65536,"minLength":1,"type":"string"},"service_name":{"maxLength":120,"minLength":1,"type":"string"},"tags":{"items":{"maxLength":64,"minLength":1,"type":"string"},"type":"array"}},"required":["service_name","description","media_type","input_example","output_example","input_schema","output_schema"],"type":"object"}},"required":["offer_revision","amount_minor","currency","accepted_settlement_families"],"type":"object"},{"additionalProperties":false,"properties":{"accepted_settlement_families":{"items":{"maxLength":64,"minLength":1,"pattern":"^[a-z0-9][a-z0-9._-]{0,63}$","type":"string"},"maxItems":16,"minItems":1,"type":"array","uniqueItems":true},"currency":{"pattern":"^[A-Z]{3}$","type":"string"},"executor":{"additionalProperties":false,"properties":{"execution_closure_digest":{"pattern":"^sha256:[0-9a-f]{64}$","type":"string"},"package_digest":{"pattern":"^sha256:[0-9a-f]{64}$","type":"string"},"runner":{"minLength":1,"type":"string"},"skill":{"minLength":1,"type":"string"}},"required":["skill","runner","package_digest","execution_closure_digest"],"type":"object"},"mediation":{"additionalProperties":false,"properties":{"currency":{"pattern":"^[A-Z]{3}$","type":"string"},"endpoint_url":{"maxLength":2048,"pattern":"^https://[^\\s@/#?]+[^\\s#]*$","type":"string"},"expected_receipt_class":{"enum":["executed"],"type":"string"},"listing_ref":{"maxLength":512,"pattern":"^runx:listing:[^\\s]+$","type":"string"},"platform_fee_minor":{"maximum":9007199254740991,"minimum":1,"type":"integer"},"settlement_family":{"maxLength":64,"minLength":1,"pattern":"^[a-z0-9][a-z0-9._-]{0,63}$","type":"string"},"vendor_amount_range":{"additionalProperties":false,"properties":{"maximum_minor":{"maximum":9007199254740991,"minimum":1,"type":"integer"},"minimum_minor":{"maximum":9007199254740991,"minimum":1,"type":"integer"}},"required":["minimum_minor","maximum_minor"],"type":"object"},"vendor_offer_revision":{"additionalProperties":false,"properties":{"input_schema_digest":{"pattern":"^sha256:[0-9a-f]{64}$","type":"string"},"offer_id":{"minLength":1,"type":"string"},"output_schema_digest":{"pattern":"^sha256:[0-9a-f]{64}$","type":"string"},"revision":{"minLength":1,"type":"string"},"revision_digest":{"pattern":"^sha256:[0-9a-f]{64}$","type":"string"}},"required":["offer_id","revision","revision_digest","input_schema_digest","output_schema_digest"],"type":"object"},"vendor_package_digest":{"pattern":"^sha256:[0-9a-f]{64}$","type":"string"}},"required":["listing_ref","endpoint_url","vendor_amount_range","vendor_offer_revision","vendor_package_digest","platform_fee_minor","currency","settlement_family","expected_receipt_class"],"type":"object"},"offer_revision":{"additionalProperties":false,"properties":{"input_schema_digest":{"pattern":"^sha256:[0-9a-f]{64}$","type":"string"},"offer_id":{"minLength":1,"type":"string"},"output_schema_digest":{"pattern":"^sha256:[0-9a-f]{64}$","type":"string"},"revision":{"minLength":1,"type":"string"},"revision_digest":{"pattern":"^sha256:[0-9a-f]{64}$","type":"string"}},"required":["offer_id","revision","revision_digest","input_schema_digest","output_schema_digest"],"type":"object"},"presentation":{"additionalProperties":false,"properties":{"description":{"maxLength":500,"minLength":1,"type":"string"},"icon_url":{"maxLength":2048,"minLength":1,"type":"string"},"input_example":{"maxLength":65536,"minLength":1,"type":"string"},"input_schema":{"maxLength":65536,"minLength":1,"type":"string"},"media_type":{"maxLength":200,"minLength":1,"type":"string"},"output_example":{"maxLength":65536,"minLength":1,"type":"string"},"output_schema":{"maxLength":65536,"minLength":1,"type":"string"},"service_name":{"maxLength":120,"minLength":1,"type":"string"},"tags":{"items":{"maxLength":64,"minLength":1,"type":"string"},"type":"array"}},"required":["service_name","description","media_type","input_example","output_example","input_schema","output_schema"],"type":"object"}},"required":["offer_revision","currency","accepted_settlement_families","mediation","executor"],"type":"object"}]},"maxProperties":64,"minProperties":1,"propertyNames":{"minLength":1},"type":"object"},"package_digest":{"pattern":"^sha256:[0-9a-f]{64}$","type":"string"},"profile_digest":{"pattern":"^sha256:[0-9a-f]{64}$","type":"string"},"schema":{"const":"runx.marketplace.paid_skill_listing.v1","type":"string"},"skill_digest":{"pattern":"^sha256:[0-9a-f]{64}$","type":"string"},"skill_id":{"minLength":1,"type":"string"},"vendor_ref":{"$id":"https://schemas.runx.ai/runx/reference/v1.json","$schema":"https://json-schema.org/draft/2020-12/schema","additionalProperties":false,"properties":{"label":{"minLength":1,"type":"string"},"locator":{"minLength":1,"type":"string"},"observed_at":{"minLength":1,"pattern":"^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$","type":"string"},"proof_kind":{"enum":["effect_evidence","effect_finality","credential_resolution"],"type":"string"},"provider":{"minLength":1,"type":"string"},"schema":{"const":"runx.reference.v1","type":"string"},"type":{"const":"principal","type":"string"},"uri":{"minLength":1,"type":"string"}},"required":["type","uri"],"type":"object","x-runx-schema":"runx.reference.v1"},"version":{"minLength":1,"type":"string"}},"required":["skill_id","version","skill_digest","profile_digest","package_digest","vendor_ref","offers"],"type":"object","x-runx-packet":true,"x-runx-schema":"runx.marketplace.paid_skill_listing.v1"};
+const schema0 = {"$id":"https://schemas.runx.ai/runx/marketplace/paid-skill-listing/v1.json","$schema":"https://json-schema.org/draft/2020-12/schema","additionalProperties":false,"properties":{"offers":{"additionalProperties":{"anyOf":[{"additionalProperties":false,"properties":{"accepted_settlement_families":{"items":{"maxLength":64,"minLength":1,"pattern":"^[a-z0-9][a-z0-9._-]{0,63}$","type":"string"},"maxItems":16,"minItems":1,"type":"array","uniqueItems":true},"amount_minor":{"maximum":9007199254740991,"minimum":1,"type":"integer"},"currency":{"pattern":"^[A-Z]{3}$","type":"string"},"executor":{"additionalProperties":false,"properties":{"execution_closure_digest":{"pattern":"^sha256:[0-9a-f]{64}$","type":"string"},"package_digest":{"pattern":"^sha256:[0-9a-f]{64}$","type":"string"},"runner":{"minLength":1,"type":"string"},"skill":{"minLength":1,"type":"string"}},"required":["skill","runner","package_digest","execution_closure_digest"],"type":"object"},"mediation":{"additionalProperties":false,"properties":{"currency":{"pattern":"^[A-Z]{3}$","type":"string"},"endpoint_url":{"maxLength":2048,"pattern":"^https://[^\\s@/#?]+[^\\s#]*$","type":"string"},"expected_receipt_class":{"enum":["executed"],"type":"string"},"listing_ref":{"maxLength":512,"pattern":"^runx:listing:[^\\s]+$","type":"string"},"platform_fee_minor":{"maximum":9007199254740991,"minimum":1,"type":"integer"},"prepared_price":{"additionalProperties":false,"properties":{"input_digest":{"pattern":"^sha256:[0-9a-f]{64}$","type":"string"},"source_invocation_id":{"maxLength":128,"minLength":1,"type":"string"}},"required":["source_invocation_id","input_digest"],"type":"object"},"settlement_family":{"maxLength":64,"minLength":1,"pattern":"^[a-z0-9][a-z0-9._-]{0,63}$","type":"string"},"vendor_amount_minor":{"maximum":9007199254740991,"minimum":1,"type":"integer"},"vendor_offer_revision":{"additionalProperties":false,"properties":{"input_schema_digest":{"pattern":"^sha256:[0-9a-f]{64}$","type":"string"},"offer_id":{"minLength":1,"type":"string"},"output_schema_digest":{"pattern":"^sha256:[0-9a-f]{64}$","type":"string"},"revision":{"minLength":1,"type":"string"},"revision_digest":{"pattern":"^sha256:[0-9a-f]{64}$","type":"string"}},"required":["offer_id","revision","revision_digest","input_schema_digest","output_schema_digest"],"type":"object"},"vendor_package_digest":{"pattern":"^sha256:[0-9a-f]{64}$","type":"string"}},"required":["listing_ref","endpoint_url","vendor_offer_revision","vendor_package_digest","vendor_amount_minor","platform_fee_minor","currency","settlement_family","expected_receipt_class"],"type":"object"},"offer_revision":{"additionalProperties":false,"properties":{"input_schema_digest":{"pattern":"^sha256:[0-9a-f]{64}$","type":"string"},"offer_id":{"minLength":1,"type":"string"},"output_schema_digest":{"pattern":"^sha256:[0-9a-f]{64}$","type":"string"},"revision":{"minLength":1,"type":"string"},"revision_digest":{"pattern":"^sha256:[0-9a-f]{64}$","type":"string"}},"required":["offer_id","revision","revision_digest","input_schema_digest","output_schema_digest"],"type":"object"},"presentation":{"additionalProperties":false,"properties":{"description":{"maxLength":500,"minLength":1,"type":"string"},"icon_url":{"maxLength":2048,"minLength":1,"type":"string"},"input_example":{"maxLength":65536,"minLength":1,"type":"string"},"input_schema":{"maxLength":65536,"minLength":1,"type":"string"},"media_type":{"maxLength":200,"minLength":1,"type":"string"},"output_example":{"maxLength":65536,"minLength":1,"type":"string"},"output_schema":{"maxLength":65536,"minLength":1,"type":"string"},"service_name":{"maxLength":120,"minLength":1,"type":"string"},"tags":{"items":{"maxLength":64,"minLength":1,"type":"string"},"minItems":1,"type":"array"}},"required":["service_name","description","media_type","input_example","output_example","input_schema","output_schema"],"type":"object"}},"required":["offer_revision","amount_minor","currency","accepted_settlement_families"],"type":"object"},{"additionalProperties":false,"properties":{"accepted_settlement_families":{"items":{"maxLength":64,"minLength":1,"pattern":"^[a-z0-9][a-z0-9._-]{0,63}$","type":"string"},"maxItems":16,"minItems":1,"type":"array","uniqueItems":true},"currency":{"pattern":"^[A-Z]{3}$","type":"string"},"executor":{"additionalProperties":false,"properties":{"execution_closure_digest":{"pattern":"^sha256:[0-9a-f]{64}$","type":"string"},"package_digest":{"pattern":"^sha256:[0-9a-f]{64}$","type":"string"},"runner":{"minLength":1,"type":"string"},"skill":{"minLength":1,"type":"string"}},"required":["skill","runner","package_digest","execution_closure_digest"],"type":"object"},"mediation":{"additionalProperties":false,"properties":{"currency":{"pattern":"^[A-Z]{3}$","type":"string"},"endpoint_url":{"maxLength":2048,"pattern":"^https://[^\\s@/#?]+[^\\s#]*$","type":"string"},"expected_receipt_class":{"enum":["executed"],"type":"string"},"listing_ref":{"maxLength":512,"pattern":"^runx:listing:[^\\s]+$","type":"string"},"platform_fee_minor":{"maximum":9007199254740991,"minimum":1,"type":"integer"},"settlement_family":{"maxLength":64,"minLength":1,"pattern":"^[a-z0-9][a-z0-9._-]{0,63}$","type":"string"},"vendor_amount_range":{"additionalProperties":false,"properties":{"maximum_minor":{"maximum":9007199254740991,"minimum":1,"type":"integer"},"minimum_minor":{"maximum":9007199254740991,"minimum":1,"type":"integer"}},"required":["minimum_minor","maximum_minor"],"type":"object"},"vendor_offer_revision":{"additionalProperties":false,"properties":{"input_schema_digest":{"pattern":"^sha256:[0-9a-f]{64}$","type":"string"},"offer_id":{"minLength":1,"type":"string"},"output_schema_digest":{"pattern":"^sha256:[0-9a-f]{64}$","type":"string"},"revision":{"minLength":1,"type":"string"},"revision_digest":{"pattern":"^sha256:[0-9a-f]{64}$","type":"string"}},"required":["offer_id","revision","revision_digest","input_schema_digest","output_schema_digest"],"type":"object"},"vendor_package_digest":{"pattern":"^sha256:[0-9a-f]{64}$","type":"string"}},"required":["listing_ref","endpoint_url","vendor_amount_range","vendor_offer_revision","vendor_package_digest","platform_fee_minor","currency","settlement_family","expected_receipt_class"],"type":"object"},"offer_revision":{"additionalProperties":false,"properties":{"input_schema_digest":{"pattern":"^sha256:[0-9a-f]{64}$","type":"string"},"offer_id":{"minLength":1,"type":"string"},"output_schema_digest":{"pattern":"^sha256:[0-9a-f]{64}$","type":"string"},"revision":{"minLength":1,"type":"string"},"revision_digest":{"pattern":"^sha256:[0-9a-f]{64}$","type":"string"}},"required":["offer_id","revision","revision_digest","input_schema_digest","output_schema_digest"],"type":"object"},"presentation":{"additionalProperties":false,"properties":{"description":{"maxLength":500,"minLength":1,"type":"string"},"icon_url":{"maxLength":2048,"minLength":1,"type":"string"},"input_example":{"maxLength":65536,"minLength":1,"type":"string"},"input_schema":{"maxLength":65536,"minLength":1,"type":"string"},"media_type":{"maxLength":200,"minLength":1,"type":"string"},"output_example":{"maxLength":65536,"minLength":1,"type":"string"},"output_schema":{"maxLength":65536,"minLength":1,"type":"string"},"service_name":{"maxLength":120,"minLength":1,"type":"string"},"tags":{"items":{"maxLength":64,"minLength":1,"type":"string"},"minItems":1,"type":"array"}},"required":["service_name","description","media_type","input_example","output_example","input_schema","output_schema"],"type":"object"}},"required":["offer_revision","currency","accepted_settlement_families","mediation","executor"],"type":"object"}]},"maxProperties":64,"minProperties":1,"propertyNames":{"minLength":1},"type":"object"},"package_digest":{"pattern":"^sha256:[0-9a-f]{64}$","type":"string"},"profile_digest":{"pattern":"^sha256:[0-9a-f]{64}$","type":"string"},"schema":{"const":"runx.marketplace.paid_skill_listing.v1","type":"string"},"skill_digest":{"pattern":"^sha256:[0-9a-f]{64}$","type":"string"},"skill_id":{"minLength":1,"type":"string"},"vendor_ref":{"$id":"https://schemas.runx.ai/runx/reference/v1.json","$schema":"https://json-schema.org/draft/2020-12/schema","additionalProperties":false,"properties":{"label":{"minLength":1,"type":"string"},"locator":{"minLength":1,"type":"string"},"observed_at":{"minLength":1,"pattern":"^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$","type":"string"},"proof_kind":{"enum":["effect_evidence","effect_finality","credential_resolution"],"type":"string"},"provider":{"minLength":1,"type":"string"},"schema":{"const":"runx.reference.v1","type":"string"},"type":{"const":"principal","type":"string"},"uri":{"minLength":1,"type":"string"}},"required":["type","uri"],"type":"object","x-runx-schema":"runx.reference.v1"},"version":{"minLength":1,"type":"string"}},"required":["skill_id","version","skill_digest","profile_digest","package_digest","vendor_ref","offers"],"type":"object","x-runx-packet":true,"x-runx-schema":"runx.marketplace.paid_skill_listing.v1"};
 const func0Candidate = func0Module.default;
 const func0 = typeof func0Candidate === "function" ? func0Candidate : func0Candidate.default;
 const func5 = Object.prototype.hasOwnProperty;
@@ -1879,15 +1879,8 @@ let data44 = data35.tags;
 const _errs101 = errors;
 if(errors === _errs101){
 if(Array.isArray(data44)){
-var valid13 = true;
-const len1 = data44.length;
-for(let i2=0; i2<len1; i2++){
-let data45 = data44[i2];
-const _errs103 = errors;
-if(errors === _errs103){
-if(typeof data45 === "string"){
-if(func0(data45) > 64){
-const err113 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/presentation/tags/" + i2,schemaPath:"#/properties/offers/additionalProperties/anyOf/0/properties/presentation/properties/tags/items/maxLength",keyword:"maxLength",params:{limit: 64},message:"must NOT have more than 64 characters"};
+if(data44.length < 1){
+const err113 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/presentation/tags",schemaPath:"#/properties/offers/additionalProperties/anyOf/0/properties/presentation/properties/tags/minItems",keyword:"minItems",params:{limit: 1},message:"must NOT have fewer than 1 items"};
 if(vErrors === null){
 vErrors = [err113];
 }
@@ -1897,8 +1890,15 @@ vErrors.push(err113);
 errors++;
 }
 else {
-if(func0(data45) < 1){
-const err114 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/presentation/tags/" + i2,schemaPath:"#/properties/offers/additionalProperties/anyOf/0/properties/presentation/properties/tags/items/minLength",keyword:"minLength",params:{limit: 1},message:"must NOT have fewer than 1 characters"};
+var valid13 = true;
+const len1 = data44.length;
+for(let i2=0; i2<len1; i2++){
+let data45 = data44[i2];
+const _errs103 = errors;
+if(errors === _errs103){
+if(typeof data45 === "string"){
+if(func0(data45) > 64){
+const err114 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/presentation/tags/" + i2,schemaPath:"#/properties/offers/additionalProperties/anyOf/0/properties/presentation/properties/tags/items/maxLength",keyword:"maxLength",params:{limit: 64},message:"must NOT have more than 64 characters"};
 if(vErrors === null){
 vErrors = [err114];
 }
@@ -1907,15 +1907,26 @@ vErrors.push(err114);
 }
 errors++;
 }
-}
-}
 else {
-const err115 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/presentation/tags/" + i2,schemaPath:"#/properties/offers/additionalProperties/anyOf/0/properties/presentation/properties/tags/items/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(func0(data45) < 1){
+const err115 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/presentation/tags/" + i2,schemaPath:"#/properties/offers/additionalProperties/anyOf/0/properties/presentation/properties/tags/items/minLength",keyword:"minLength",params:{limit: 1},message:"must NOT have fewer than 1 characters"};
 if(vErrors === null){
 vErrors = [err115];
 }
 else {
 vErrors.push(err115);
+}
+errors++;
+}
+}
+}
+else {
+const err116 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/presentation/tags/" + i2,schemaPath:"#/properties/offers/additionalProperties/anyOf/0/properties/presentation/properties/tags/items/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(vErrors === null){
+vErrors = [err116];
+}
+else {
+vErrors.push(err116);
 }
 errors++;
 }
@@ -1926,13 +1937,14 @@ break;
 }
 }
 }
-else {
-const err116 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/presentation/tags",schemaPath:"#/properties/offers/additionalProperties/anyOf/0/properties/presentation/properties/tags/type",keyword:"type",params:{type: "array"},message:"must be array"};
-if(vErrors === null){
-vErrors = [err116];
 }
 else {
-vErrors.push(err116);
+const err117 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/presentation/tags",schemaPath:"#/properties/offers/additionalProperties/anyOf/0/properties/presentation/properties/tags/type",keyword:"type",params:{type: "array"},message:"must be array"};
+if(vErrors === null){
+vErrors = [err117];
+}
+else {
+vErrors.push(err117);
 }
 errors++;
 }
@@ -1954,12 +1966,12 @@ var valid12 = true;
 }
 }
 else {
-const err117 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/presentation",schemaPath:"#/properties/offers/additionalProperties/anyOf/0/properties/presentation/type",keyword:"type",params:{type: "object"},message:"must be object"};
+const err118 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/presentation",schemaPath:"#/properties/offers/additionalProperties/anyOf/0/properties/presentation/type",keyword:"type",params:{type: "object"},message:"must be object"};
 if(vErrors === null){
-vErrors = [err117];
+vErrors = [err118];
 }
 else {
-vErrors.push(err117);
+vErrors.push(err118);
 }
 errors++;
 }
@@ -1979,12 +1991,12 @@ var valid4 = true;
 }
 }
 else {
-const err118 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1"),schemaPath:"#/properties/offers/additionalProperties/anyOf/0/type",keyword:"type",params:{type: "object"},message:"must be object"};
+const err119 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1"),schemaPath:"#/properties/offers/additionalProperties/anyOf/0/type",keyword:"type",params:{type: "object"},message:"must be object"};
 if(vErrors === null){
-vErrors = [err118];
+vErrors = [err119];
 }
 else {
-vErrors.push(err118);
+vErrors.push(err119);
 }
 errors++;
 }
@@ -1999,12 +2011,12 @@ if(errors === _errs105){
 if(data1 && typeof data1 == "object" && !Array.isArray(data1)){
 let missing8;
 if((((((data1.offer_revision === undefined) && (missing8 = "offer_revision")) || ((data1.currency === undefined) && (missing8 = "currency"))) || ((data1.accepted_settlement_families === undefined) && (missing8 = "accepted_settlement_families"))) || ((data1.mediation === undefined) && (missing8 = "mediation"))) || ((data1.executor === undefined) && (missing8 = "executor"))){
-const err119 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1"),schemaPath:"#/properties/offers/additionalProperties/anyOf/1/required",keyword:"required",params:{missingProperty: missing8},message:"must have required property '"+missing8+"'"};
+const err120 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1"),schemaPath:"#/properties/offers/additionalProperties/anyOf/1/required",keyword:"required",params:{missingProperty: missing8},message:"must have required property '"+missing8+"'"};
 if(vErrors === null){
-vErrors = [err119];
+vErrors = [err120];
 }
 else {
-vErrors.push(err119);
+vErrors.push(err120);
 }
 errors++;
 }
@@ -2012,12 +2024,12 @@ else {
 const _errs107 = errors;
 for(const key10 in data1){
 if(!((((((key10 === "accepted_settlement_families") || (key10 === "currency")) || (key10 === "executor")) || (key10 === "mediation")) || (key10 === "offer_revision")) || (key10 === "presentation"))){
-const err120 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1"),schemaPath:"#/properties/offers/additionalProperties/anyOf/1/additionalProperties",keyword:"additionalProperties",params:{additionalProperty: key10},message:"must NOT have additional properties"};
+const err121 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1"),schemaPath:"#/properties/offers/additionalProperties/anyOf/1/additionalProperties",keyword:"additionalProperties",params:{additionalProperty: key10},message:"must NOT have additional properties"};
 if(vErrors === null){
-vErrors = [err120];
+vErrors = [err121];
 }
 else {
-vErrors.push(err120);
+vErrors.push(err121);
 }
 errors++;
 break;
@@ -2030,23 +2042,23 @@ const _errs108 = errors;
 if(errors === _errs108){
 if(Array.isArray(data46)){
 if(data46.length > 16){
-const err121 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/accepted_settlement_families",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/accepted_settlement_families/maxItems",keyword:"maxItems",params:{limit: 16},message:"must NOT have more than 16 items"};
-if(vErrors === null){
-vErrors = [err121];
-}
-else {
-vErrors.push(err121);
-}
-errors++;
-}
-else {
-if(data46.length < 1){
-const err122 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/accepted_settlement_families",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/accepted_settlement_families/minItems",keyword:"minItems",params:{limit: 1},message:"must NOT have fewer than 1 items"};
+const err122 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/accepted_settlement_families",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/accepted_settlement_families/maxItems",keyword:"maxItems",params:{limit: 16},message:"must NOT have more than 16 items"};
 if(vErrors === null){
 vErrors = [err122];
 }
 else {
 vErrors.push(err122);
+}
+errors++;
+}
+else {
+if(data46.length < 1){
+const err123 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/accepted_settlement_families",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/accepted_settlement_families/minItems",keyword:"minItems",params:{limit: 1},message:"must NOT have fewer than 1 items"};
+if(vErrors === null){
+vErrors = [err123];
+}
+else {
+vErrors.push(err123);
 }
 errors++;
 }
@@ -2059,18 +2071,7 @@ const _errs110 = errors;
 if(errors === _errs110){
 if(typeof data47 === "string"){
 if(func0(data47) > 64){
-const err123 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/accepted_settlement_families/" + i3,schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/accepted_settlement_families/items/maxLength",keyword:"maxLength",params:{limit: 64},message:"must NOT have more than 64 characters"};
-if(vErrors === null){
-vErrors = [err123];
-}
-else {
-vErrors.push(err123);
-}
-errors++;
-}
-else {
-if(func0(data47) < 1){
-const err124 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/accepted_settlement_families/" + i3,schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/accepted_settlement_families/items/minLength",keyword:"minLength",params:{limit: 1},message:"must NOT have fewer than 1 characters"};
+const err124 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/accepted_settlement_families/" + i3,schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/accepted_settlement_families/items/maxLength",keyword:"maxLength",params:{limit: 64},message:"must NOT have more than 64 characters"};
 if(vErrors === null){
 vErrors = [err124];
 }
@@ -2080,8 +2081,8 @@ vErrors.push(err124);
 errors++;
 }
 else {
-if(!pattern0.test(data47)){
-const err125 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/accepted_settlement_families/" + i3,schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/accepted_settlement_families/items/pattern",keyword:"pattern",params:{pattern: "^[a-z0-9][a-z0-9._-]{0,63}$"},message:"must match pattern \""+"^[a-z0-9][a-z0-9._-]{0,63}$"+"\""};
+if(func0(data47) < 1){
+const err125 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/accepted_settlement_families/" + i3,schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/accepted_settlement_families/items/minLength",keyword:"minLength",params:{limit: 1},message:"must NOT have fewer than 1 characters"};
 if(vErrors === null){
 vErrors = [err125];
 }
@@ -2090,16 +2091,27 @@ vErrors.push(err125);
 }
 errors++;
 }
-}
-}
-}
 else {
-const err126 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/accepted_settlement_families/" + i3,schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/accepted_settlement_families/items/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(!pattern0.test(data47)){
+const err126 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/accepted_settlement_families/" + i3,schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/accepted_settlement_families/items/pattern",keyword:"pattern",params:{pattern: "^[a-z0-9][a-z0-9._-]{0,63}$"},message:"must match pattern \""+"^[a-z0-9][a-z0-9._-]{0,63}$"+"\""};
 if(vErrors === null){
 vErrors = [err126];
 }
 else {
 vErrors.push(err126);
+}
+errors++;
+}
+}
+}
+}
+else {
+const err127 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/accepted_settlement_families/" + i3,schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/accepted_settlement_families/items/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(vErrors === null){
+vErrors = [err127];
+}
+else {
+vErrors.push(err127);
 }
 errors++;
 }
@@ -2121,12 +2133,12 @@ continue;
 }
 if(typeof indices1[item1] == "number"){
 j1 = indices1[item1];
-const err127 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/accepted_settlement_families",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/accepted_settlement_families/uniqueItems",keyword:"uniqueItems",params:{i: i4, j: j1},message:"must NOT have duplicate items (items ## "+j1+" and "+i4+" are identical)"};
+const err128 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/accepted_settlement_families",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/accepted_settlement_families/uniqueItems",keyword:"uniqueItems",params:{i: i4, j: j1},message:"must NOT have duplicate items (items ## "+j1+" and "+i4+" are identical)"};
 if(vErrors === null){
-vErrors = [err127];
+vErrors = [err128];
 }
 else {
-vErrors.push(err127);
+vErrors.push(err128);
 }
 errors++;
 break;
@@ -2139,12 +2151,12 @@ indices1[item1] = i4;
 }
 }
 else {
-const err128 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/accepted_settlement_families",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/accepted_settlement_families/type",keyword:"type",params:{type: "array"},message:"must be array"};
+const err129 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/accepted_settlement_families",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/accepted_settlement_families/type",keyword:"type",params:{type: "array"},message:"must be array"};
 if(vErrors === null){
-vErrors = [err128];
+vErrors = [err129];
 }
 else {
-vErrors.push(err128);
+vErrors.push(err129);
 }
 errors++;
 }
@@ -2161,23 +2173,23 @@ const _errs112 = errors;
 if(errors === _errs112){
 if(typeof data48 === "string"){
 if(!pattern1.test(data48)){
-const err129 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/currency",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/currency/pattern",keyword:"pattern",params:{pattern: "^[A-Z]{3}$"},message:"must match pattern \""+"^[A-Z]{3}$"+"\""};
-if(vErrors === null){
-vErrors = [err129];
-}
-else {
-vErrors.push(err129);
-}
-errors++;
-}
-}
-else {
-const err130 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/currency",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/currency/type",keyword:"type",params:{type: "string"},message:"must be string"};
+const err130 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/currency",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/currency/pattern",keyword:"pattern",params:{pattern: "^[A-Z]{3}$"},message:"must match pattern \""+"^[A-Z]{3}$"+"\""};
 if(vErrors === null){
 vErrors = [err130];
 }
 else {
 vErrors.push(err130);
+}
+errors++;
+}
+}
+else {
+const err131 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/currency",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/currency/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(vErrors === null){
+vErrors = [err131];
+}
+else {
+vErrors.push(err131);
 }
 errors++;
 }
@@ -2195,12 +2207,12 @@ if(errors === _errs114){
 if(data49 && typeof data49 == "object" && !Array.isArray(data49)){
 let missing9;
 if(((((data49.skill === undefined) && (missing9 = "skill")) || ((data49.runner === undefined) && (missing9 = "runner"))) || ((data49.package_digest === undefined) && (missing9 = "package_digest"))) || ((data49.execution_closure_digest === undefined) && (missing9 = "execution_closure_digest"))){
-const err131 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/executor",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/executor/required",keyword:"required",params:{missingProperty: missing9},message:"must have required property '"+missing9+"'"};
+const err132 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/executor",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/executor/required",keyword:"required",params:{missingProperty: missing9},message:"must have required property '"+missing9+"'"};
 if(vErrors === null){
-vErrors = [err131];
+vErrors = [err132];
 }
 else {
-vErrors.push(err131);
+vErrors.push(err132);
 }
 errors++;
 }
@@ -2208,12 +2220,12 @@ else {
 const _errs116 = errors;
 for(const key11 in data49){
 if(!((((key11 === "execution_closure_digest") || (key11 === "package_digest")) || (key11 === "runner")) || (key11 === "skill"))){
-const err132 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/executor",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/executor/additionalProperties",keyword:"additionalProperties",params:{additionalProperty: key11},message:"must NOT have additional properties"};
+const err133 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/executor",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/executor/additionalProperties",keyword:"additionalProperties",params:{additionalProperty: key11},message:"must NOT have additional properties"};
 if(vErrors === null){
-vErrors = [err132];
+vErrors = [err133];
 }
 else {
-vErrors.push(err132);
+vErrors.push(err133);
 }
 errors++;
 break;
@@ -2226,23 +2238,23 @@ const _errs117 = errors;
 if(errors === _errs117){
 if(typeof data50 === "string"){
 if(!pattern2.test(data50)){
-const err133 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/executor/execution_closure_digest",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/executor/properties/execution_closure_digest/pattern",keyword:"pattern",params:{pattern: "^sha256:[0-9a-f]{64}$"},message:"must match pattern \""+"^sha256:[0-9a-f]{64}$"+"\""};
-if(vErrors === null){
-vErrors = [err133];
-}
-else {
-vErrors.push(err133);
-}
-errors++;
-}
-}
-else {
-const err134 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/executor/execution_closure_digest",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/executor/properties/execution_closure_digest/type",keyword:"type",params:{type: "string"},message:"must be string"};
+const err134 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/executor/execution_closure_digest",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/executor/properties/execution_closure_digest/pattern",keyword:"pattern",params:{pattern: "^sha256:[0-9a-f]{64}$"},message:"must match pattern \""+"^sha256:[0-9a-f]{64}$"+"\""};
 if(vErrors === null){
 vErrors = [err134];
 }
 else {
 vErrors.push(err134);
+}
+errors++;
+}
+}
+else {
+const err135 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/executor/execution_closure_digest",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/executor/properties/execution_closure_digest/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(vErrors === null){
+vErrors = [err135];
+}
+else {
+vErrors.push(err135);
 }
 errors++;
 }
@@ -2259,23 +2271,23 @@ const _errs119 = errors;
 if(errors === _errs119){
 if(typeof data51 === "string"){
 if(!pattern2.test(data51)){
-const err135 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/executor/package_digest",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/executor/properties/package_digest/pattern",keyword:"pattern",params:{pattern: "^sha256:[0-9a-f]{64}$"},message:"must match pattern \""+"^sha256:[0-9a-f]{64}$"+"\""};
-if(vErrors === null){
-vErrors = [err135];
-}
-else {
-vErrors.push(err135);
-}
-errors++;
-}
-}
-else {
-const err136 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/executor/package_digest",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/executor/properties/package_digest/type",keyword:"type",params:{type: "string"},message:"must be string"};
+const err136 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/executor/package_digest",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/executor/properties/package_digest/pattern",keyword:"pattern",params:{pattern: "^sha256:[0-9a-f]{64}$"},message:"must match pattern \""+"^sha256:[0-9a-f]{64}$"+"\""};
 if(vErrors === null){
 vErrors = [err136];
 }
 else {
 vErrors.push(err136);
+}
+errors++;
+}
+}
+else {
+const err137 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/executor/package_digest",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/executor/properties/package_digest/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(vErrors === null){
+vErrors = [err137];
+}
+else {
+vErrors.push(err137);
 }
 errors++;
 }
@@ -2292,23 +2304,23 @@ const _errs121 = errors;
 if(errors === _errs121){
 if(typeof data52 === "string"){
 if(func0(data52) < 1){
-const err137 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/executor/runner",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/executor/properties/runner/minLength",keyword:"minLength",params:{limit: 1},message:"must NOT have fewer than 1 characters"};
-if(vErrors === null){
-vErrors = [err137];
-}
-else {
-vErrors.push(err137);
-}
-errors++;
-}
-}
-else {
-const err138 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/executor/runner",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/executor/properties/runner/type",keyword:"type",params:{type: "string"},message:"must be string"};
+const err138 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/executor/runner",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/executor/properties/runner/minLength",keyword:"minLength",params:{limit: 1},message:"must NOT have fewer than 1 characters"};
 if(vErrors === null){
 vErrors = [err138];
 }
 else {
 vErrors.push(err138);
+}
+errors++;
+}
+}
+else {
+const err139 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/executor/runner",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/executor/properties/runner/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(vErrors === null){
+vErrors = [err139];
+}
+else {
+vErrors.push(err139);
 }
 errors++;
 }
@@ -2325,23 +2337,23 @@ const _errs123 = errors;
 if(errors === _errs123){
 if(typeof data53 === "string"){
 if(func0(data53) < 1){
-const err139 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/executor/skill",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/executor/properties/skill/minLength",keyword:"minLength",params:{limit: 1},message:"must NOT have fewer than 1 characters"};
-if(vErrors === null){
-vErrors = [err139];
-}
-else {
-vErrors.push(err139);
-}
-errors++;
-}
-}
-else {
-const err140 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/executor/skill",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/executor/properties/skill/type",keyword:"type",params:{type: "string"},message:"must be string"};
+const err140 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/executor/skill",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/executor/properties/skill/minLength",keyword:"minLength",params:{limit: 1},message:"must NOT have fewer than 1 characters"};
 if(vErrors === null){
 vErrors = [err140];
 }
 else {
 vErrors.push(err140);
+}
+errors++;
+}
+}
+else {
+const err141 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/executor/skill",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/executor/properties/skill/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(vErrors === null){
+vErrors = [err141];
+}
+else {
+vErrors.push(err141);
 }
 errors++;
 }
@@ -2358,12 +2370,12 @@ var valid17 = true;
 }
 }
 else {
-const err141 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/executor",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/executor/type",keyword:"type",params:{type: "object"},message:"must be object"};
+const err142 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/executor",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/executor/type",keyword:"type",params:{type: "object"},message:"must be object"};
 if(vErrors === null){
-vErrors = [err141];
+vErrors = [err142];
 }
 else {
-vErrors.push(err141);
+vErrors.push(err142);
 }
 errors++;
 }
@@ -2381,12 +2393,12 @@ if(errors === _errs125){
 if(data54 && typeof data54 == "object" && !Array.isArray(data54)){
 let missing10;
 if((((((((((data54.listing_ref === undefined) && (missing10 = "listing_ref")) || ((data54.endpoint_url === undefined) && (missing10 = "endpoint_url"))) || ((data54.vendor_amount_range === undefined) && (missing10 = "vendor_amount_range"))) || ((data54.vendor_offer_revision === undefined) && (missing10 = "vendor_offer_revision"))) || ((data54.vendor_package_digest === undefined) && (missing10 = "vendor_package_digest"))) || ((data54.platform_fee_minor === undefined) && (missing10 = "platform_fee_minor"))) || ((data54.currency === undefined) && (missing10 = "currency"))) || ((data54.settlement_family === undefined) && (missing10 = "settlement_family"))) || ((data54.expected_receipt_class === undefined) && (missing10 = "expected_receipt_class"))){
-const err142 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/mediation",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/mediation/required",keyword:"required",params:{missingProperty: missing10},message:"must have required property '"+missing10+"'"};
+const err143 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/mediation",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/mediation/required",keyword:"required",params:{missingProperty: missing10},message:"must have required property '"+missing10+"'"};
 if(vErrors === null){
-vErrors = [err142];
+vErrors = [err143];
 }
 else {
-vErrors.push(err142);
+vErrors.push(err143);
 }
 errors++;
 }
@@ -2394,12 +2406,12 @@ else {
 const _errs127 = errors;
 for(const key12 in data54){
 if(!(func5.call(schema0.properties.offers.additionalProperties.anyOf[1].properties.mediation.properties, key12))){
-const err143 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/mediation",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/mediation/additionalProperties",keyword:"additionalProperties",params:{additionalProperty: key12},message:"must NOT have additional properties"};
+const err144 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/mediation",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/mediation/additionalProperties",keyword:"additionalProperties",params:{additionalProperty: key12},message:"must NOT have additional properties"};
 if(vErrors === null){
-vErrors = [err143];
+vErrors = [err144];
 }
 else {
-vErrors.push(err143);
+vErrors.push(err144);
 }
 errors++;
 break;
@@ -2412,23 +2424,23 @@ const _errs128 = errors;
 if(errors === _errs128){
 if(typeof data55 === "string"){
 if(!pattern1.test(data55)){
-const err144 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/mediation/currency",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/mediation/properties/currency/pattern",keyword:"pattern",params:{pattern: "^[A-Z]{3}$"},message:"must match pattern \""+"^[A-Z]{3}$"+"\""};
-if(vErrors === null){
-vErrors = [err144];
-}
-else {
-vErrors.push(err144);
-}
-errors++;
-}
-}
-else {
-const err145 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/mediation/currency",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/mediation/properties/currency/type",keyword:"type",params:{type: "string"},message:"must be string"};
+const err145 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/mediation/currency",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/mediation/properties/currency/pattern",keyword:"pattern",params:{pattern: "^[A-Z]{3}$"},message:"must match pattern \""+"^[A-Z]{3}$"+"\""};
 if(vErrors === null){
 vErrors = [err145];
 }
 else {
 vErrors.push(err145);
+}
+errors++;
+}
+}
+else {
+const err146 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/mediation/currency",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/mediation/properties/currency/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(vErrors === null){
+vErrors = [err146];
+}
+else {
+vErrors.push(err146);
 }
 errors++;
 }
@@ -2445,18 +2457,7 @@ const _errs130 = errors;
 if(errors === _errs130){
 if(typeof data56 === "string"){
 if(func0(data56) > 2048){
-const err146 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/mediation/endpoint_url",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/mediation/properties/endpoint_url/maxLength",keyword:"maxLength",params:{limit: 2048},message:"must NOT have more than 2048 characters"};
-if(vErrors === null){
-vErrors = [err146];
-}
-else {
-vErrors.push(err146);
-}
-errors++;
-}
-else {
-if(!pattern5.test(data56)){
-const err147 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/mediation/endpoint_url",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/mediation/properties/endpoint_url/pattern",keyword:"pattern",params:{pattern: "^https://[^\\s@/#?]+[^\\s#]*$"},message:"must match pattern \""+"^https://[^\\s@/#?]+[^\\s#]*$"+"\""};
+const err147 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/mediation/endpoint_url",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/mediation/properties/endpoint_url/maxLength",keyword:"maxLength",params:{limit: 2048},message:"must NOT have more than 2048 characters"};
 if(vErrors === null){
 vErrors = [err147];
 }
@@ -2465,15 +2466,26 @@ vErrors.push(err147);
 }
 errors++;
 }
-}
-}
 else {
-const err148 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/mediation/endpoint_url",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/mediation/properties/endpoint_url/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(!pattern5.test(data56)){
+const err148 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/mediation/endpoint_url",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/mediation/properties/endpoint_url/pattern",keyword:"pattern",params:{pattern: "^https://[^\\s@/#?]+[^\\s#]*$"},message:"must match pattern \""+"^https://[^\\s@/#?]+[^\\s#]*$"+"\""};
 if(vErrors === null){
 vErrors = [err148];
 }
 else {
 vErrors.push(err148);
+}
+errors++;
+}
+}
+}
+else {
+const err149 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/mediation/endpoint_url",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/mediation/properties/endpoint_url/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(vErrors === null){
+vErrors = [err149];
+}
+else {
+vErrors.push(err149);
 }
 errors++;
 }
@@ -2488,22 +2500,22 @@ if(data54.expected_receipt_class !== undefined){
 let data57 = data54.expected_receipt_class;
 const _errs132 = errors;
 if(typeof data57 !== "string"){
-const err149 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/mediation/expected_receipt_class",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/mediation/properties/expected_receipt_class/type",keyword:"type",params:{type: "string"},message:"must be string"};
-if(vErrors === null){
-vErrors = [err149];
-}
-else {
-vErrors.push(err149);
-}
-errors++;
-}
-if(!(data57 === "executed")){
-const err150 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/mediation/expected_receipt_class",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/mediation/properties/expected_receipt_class/enum",keyword:"enum",params:{allowedValues: schema0.properties.offers.additionalProperties.anyOf[1].properties.mediation.properties.expected_receipt_class.enum},message:"must be equal to one of the allowed values"};
+const err150 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/mediation/expected_receipt_class",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/mediation/properties/expected_receipt_class/type",keyword:"type",params:{type: "string"},message:"must be string"};
 if(vErrors === null){
 vErrors = [err150];
 }
 else {
 vErrors.push(err150);
+}
+errors++;
+}
+if(!(data57 === "executed")){
+const err151 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/mediation/expected_receipt_class",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/mediation/properties/expected_receipt_class/enum",keyword:"enum",params:{allowedValues: schema0.properties.offers.additionalProperties.anyOf[1].properties.mediation.properties.expected_receipt_class.enum},message:"must be equal to one of the allowed values"};
+if(vErrors === null){
+vErrors = [err151];
+}
+else {
+vErrors.push(err151);
 }
 errors++;
 }
@@ -2519,18 +2531,7 @@ const _errs134 = errors;
 if(errors === _errs134){
 if(typeof data58 === "string"){
 if(func0(data58) > 512){
-const err151 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/mediation/listing_ref",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/mediation/properties/listing_ref/maxLength",keyword:"maxLength",params:{limit: 512},message:"must NOT have more than 512 characters"};
-if(vErrors === null){
-vErrors = [err151];
-}
-else {
-vErrors.push(err151);
-}
-errors++;
-}
-else {
-if(!pattern6.test(data58)){
-const err152 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/mediation/listing_ref",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/mediation/properties/listing_ref/pattern",keyword:"pattern",params:{pattern: "^runx:listing:[^\\s]+$"},message:"must match pattern \""+"^runx:listing:[^\\s]+$"+"\""};
+const err152 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/mediation/listing_ref",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/mediation/properties/listing_ref/maxLength",keyword:"maxLength",params:{limit: 512},message:"must NOT have more than 512 characters"};
 if(vErrors === null){
 vErrors = [err152];
 }
@@ -2539,15 +2540,26 @@ vErrors.push(err152);
 }
 errors++;
 }
-}
-}
 else {
-const err153 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/mediation/listing_ref",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/mediation/properties/listing_ref/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(!pattern6.test(data58)){
+const err153 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/mediation/listing_ref",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/mediation/properties/listing_ref/pattern",keyword:"pattern",params:{pattern: "^runx:listing:[^\\s]+$"},message:"must match pattern \""+"^runx:listing:[^\\s]+$"+"\""};
 if(vErrors === null){
 vErrors = [err153];
 }
 else {
 vErrors.push(err153);
+}
+errors++;
+}
+}
+}
+else {
+const err154 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/mediation/listing_ref",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/mediation/properties/listing_ref/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(vErrors === null){
+vErrors = [err154];
+}
+else {
+vErrors.push(err154);
 }
 errors++;
 }
@@ -2562,19 +2574,7 @@ if(data54.platform_fee_minor !== undefined){
 let data59 = data54.platform_fee_minor;
 const _errs136 = errors;
 if(!((typeof data59 == "number") && (!(data59 % 1) && !isNaN(data59)))){
-const err154 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/mediation/platform_fee_minor",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/mediation/properties/platform_fee_minor/type",keyword:"type",params:{type: "integer"},message:"must be integer"};
-if(vErrors === null){
-vErrors = [err154];
-}
-else {
-vErrors.push(err154);
-}
-errors++;
-}
-if(errors === _errs136){
-if(typeof data59 == "number"){
-if(data59 > 9007199254740991 || isNaN(data59)){
-const err155 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/mediation/platform_fee_minor",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/mediation/properties/platform_fee_minor/maximum",keyword:"maximum",params:{comparison: "<=", limit: 9007199254740991},message:"must be <= 9007199254740991"};
+const err155 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/mediation/platform_fee_minor",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/mediation/properties/platform_fee_minor/type",keyword:"type",params:{type: "integer"},message:"must be integer"};
 if(vErrors === null){
 vErrors = [err155];
 }
@@ -2583,14 +2583,26 @@ vErrors.push(err155);
 }
 errors++;
 }
-else {
-if(data59 < 1 || isNaN(data59)){
-const err156 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/mediation/platform_fee_minor",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/mediation/properties/platform_fee_minor/minimum",keyword:"minimum",params:{comparison: ">=", limit: 1},message:"must be >= 1"};
+if(errors === _errs136){
+if(typeof data59 == "number"){
+if(data59 > 9007199254740991 || isNaN(data59)){
+const err156 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/mediation/platform_fee_minor",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/mediation/properties/platform_fee_minor/maximum",keyword:"maximum",params:{comparison: "<=", limit: 9007199254740991},message:"must be <= 9007199254740991"};
 if(vErrors === null){
 vErrors = [err156];
 }
 else {
 vErrors.push(err156);
+}
+errors++;
+}
+else {
+if(data59 < 1 || isNaN(data59)){
+const err157 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/mediation/platform_fee_minor",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/mediation/properties/platform_fee_minor/minimum",keyword:"minimum",params:{comparison: ">=", limit: 1},message:"must be >= 1"};
+if(vErrors === null){
+vErrors = [err157];
+}
+else {
+vErrors.push(err157);
 }
 errors++;
 }
@@ -2609,18 +2621,7 @@ const _errs138 = errors;
 if(errors === _errs138){
 if(typeof data60 === "string"){
 if(func0(data60) > 64){
-const err157 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/mediation/settlement_family",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/mediation/properties/settlement_family/maxLength",keyword:"maxLength",params:{limit: 64},message:"must NOT have more than 64 characters"};
-if(vErrors === null){
-vErrors = [err157];
-}
-else {
-vErrors.push(err157);
-}
-errors++;
-}
-else {
-if(func0(data60) < 1){
-const err158 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/mediation/settlement_family",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/mediation/properties/settlement_family/minLength",keyword:"minLength",params:{limit: 1},message:"must NOT have fewer than 1 characters"};
+const err158 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/mediation/settlement_family",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/mediation/properties/settlement_family/maxLength",keyword:"maxLength",params:{limit: 64},message:"must NOT have more than 64 characters"};
 if(vErrors === null){
 vErrors = [err158];
 }
@@ -2630,8 +2631,8 @@ vErrors.push(err158);
 errors++;
 }
 else {
-if(!pattern0.test(data60)){
-const err159 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/mediation/settlement_family",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/mediation/properties/settlement_family/pattern",keyword:"pattern",params:{pattern: "^[a-z0-9][a-z0-9._-]{0,63}$"},message:"must match pattern \""+"^[a-z0-9][a-z0-9._-]{0,63}$"+"\""};
+if(func0(data60) < 1){
+const err159 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/mediation/settlement_family",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/mediation/properties/settlement_family/minLength",keyword:"minLength",params:{limit: 1},message:"must NOT have fewer than 1 characters"};
 if(vErrors === null){
 vErrors = [err159];
 }
@@ -2640,16 +2641,27 @@ vErrors.push(err159);
 }
 errors++;
 }
-}
-}
-}
 else {
-const err160 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/mediation/settlement_family",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/mediation/properties/settlement_family/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(!pattern0.test(data60)){
+const err160 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/mediation/settlement_family",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/mediation/properties/settlement_family/pattern",keyword:"pattern",params:{pattern: "^[a-z0-9][a-z0-9._-]{0,63}$"},message:"must match pattern \""+"^[a-z0-9][a-z0-9._-]{0,63}$"+"\""};
 if(vErrors === null){
 vErrors = [err160];
 }
 else {
 vErrors.push(err160);
+}
+errors++;
+}
+}
+}
+}
+else {
+const err161 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/mediation/settlement_family",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/mediation/properties/settlement_family/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(vErrors === null){
+vErrors = [err161];
+}
+else {
+vErrors.push(err161);
 }
 errors++;
 }
@@ -2667,12 +2679,12 @@ if(errors === _errs140){
 if(data61 && typeof data61 == "object" && !Array.isArray(data61)){
 let missing11;
 if(((data61.minimum_minor === undefined) && (missing11 = "minimum_minor")) || ((data61.maximum_minor === undefined) && (missing11 = "maximum_minor"))){
-const err161 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/mediation/vendor_amount_range",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/mediation/properties/vendor_amount_range/required",keyword:"required",params:{missingProperty: missing11},message:"must have required property '"+missing11+"'"};
+const err162 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/mediation/vendor_amount_range",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/mediation/properties/vendor_amount_range/required",keyword:"required",params:{missingProperty: missing11},message:"must have required property '"+missing11+"'"};
 if(vErrors === null){
-vErrors = [err161];
+vErrors = [err162];
 }
 else {
-vErrors.push(err161);
+vErrors.push(err162);
 }
 errors++;
 }
@@ -2680,12 +2692,12 @@ else {
 const _errs142 = errors;
 for(const key13 in data61){
 if(!((key13 === "maximum_minor") || (key13 === "minimum_minor"))){
-const err162 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/mediation/vendor_amount_range",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/mediation/properties/vendor_amount_range/additionalProperties",keyword:"additionalProperties",params:{additionalProperty: key13},message:"must NOT have additional properties"};
+const err163 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/mediation/vendor_amount_range",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/mediation/properties/vendor_amount_range/additionalProperties",keyword:"additionalProperties",params:{additionalProperty: key13},message:"must NOT have additional properties"};
 if(vErrors === null){
-vErrors = [err162];
+vErrors = [err163];
 }
 else {
-vErrors.push(err162);
+vErrors.push(err163);
 }
 errors++;
 break;
@@ -2696,19 +2708,7 @@ if(data61.maximum_minor !== undefined){
 let data62 = data61.maximum_minor;
 const _errs143 = errors;
 if(!((typeof data62 == "number") && (!(data62 % 1) && !isNaN(data62)))){
-const err163 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/mediation/vendor_amount_range/maximum_minor",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/mediation/properties/vendor_amount_range/properties/maximum_minor/type",keyword:"type",params:{type: "integer"},message:"must be integer"};
-if(vErrors === null){
-vErrors = [err163];
-}
-else {
-vErrors.push(err163);
-}
-errors++;
-}
-if(errors === _errs143){
-if(typeof data62 == "number"){
-if(data62 > 9007199254740991 || isNaN(data62)){
-const err164 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/mediation/vendor_amount_range/maximum_minor",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/mediation/properties/vendor_amount_range/properties/maximum_minor/maximum",keyword:"maximum",params:{comparison: "<=", limit: 9007199254740991},message:"must be <= 9007199254740991"};
+const err164 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/mediation/vendor_amount_range/maximum_minor",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/mediation/properties/vendor_amount_range/properties/maximum_minor/type",keyword:"type",params:{type: "integer"},message:"must be integer"};
 if(vErrors === null){
 vErrors = [err164];
 }
@@ -2717,14 +2717,26 @@ vErrors.push(err164);
 }
 errors++;
 }
-else {
-if(data62 < 1 || isNaN(data62)){
-const err165 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/mediation/vendor_amount_range/maximum_minor",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/mediation/properties/vendor_amount_range/properties/maximum_minor/minimum",keyword:"minimum",params:{comparison: ">=", limit: 1},message:"must be >= 1"};
+if(errors === _errs143){
+if(typeof data62 == "number"){
+if(data62 > 9007199254740991 || isNaN(data62)){
+const err165 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/mediation/vendor_amount_range/maximum_minor",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/mediation/properties/vendor_amount_range/properties/maximum_minor/maximum",keyword:"maximum",params:{comparison: "<=", limit: 9007199254740991},message:"must be <= 9007199254740991"};
 if(vErrors === null){
 vErrors = [err165];
 }
 else {
 vErrors.push(err165);
+}
+errors++;
+}
+else {
+if(data62 < 1 || isNaN(data62)){
+const err166 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/mediation/vendor_amount_range/maximum_minor",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/mediation/properties/vendor_amount_range/properties/maximum_minor/minimum",keyword:"minimum",params:{comparison: ">=", limit: 1},message:"must be >= 1"};
+if(vErrors === null){
+vErrors = [err166];
+}
+else {
+vErrors.push(err166);
 }
 errors++;
 }
@@ -2741,19 +2753,7 @@ if(data61.minimum_minor !== undefined){
 let data63 = data61.minimum_minor;
 const _errs145 = errors;
 if(!((typeof data63 == "number") && (!(data63 % 1) && !isNaN(data63)))){
-const err166 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/mediation/vendor_amount_range/minimum_minor",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/mediation/properties/vendor_amount_range/properties/minimum_minor/type",keyword:"type",params:{type: "integer"},message:"must be integer"};
-if(vErrors === null){
-vErrors = [err166];
-}
-else {
-vErrors.push(err166);
-}
-errors++;
-}
-if(errors === _errs145){
-if(typeof data63 == "number"){
-if(data63 > 9007199254740991 || isNaN(data63)){
-const err167 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/mediation/vendor_amount_range/minimum_minor",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/mediation/properties/vendor_amount_range/properties/minimum_minor/maximum",keyword:"maximum",params:{comparison: "<=", limit: 9007199254740991},message:"must be <= 9007199254740991"};
+const err167 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/mediation/vendor_amount_range/minimum_minor",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/mediation/properties/vendor_amount_range/properties/minimum_minor/type",keyword:"type",params:{type: "integer"},message:"must be integer"};
 if(vErrors === null){
 vErrors = [err167];
 }
@@ -2762,14 +2762,26 @@ vErrors.push(err167);
 }
 errors++;
 }
-else {
-if(data63 < 1 || isNaN(data63)){
-const err168 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/mediation/vendor_amount_range/minimum_minor",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/mediation/properties/vendor_amount_range/properties/minimum_minor/minimum",keyword:"minimum",params:{comparison: ">=", limit: 1},message:"must be >= 1"};
+if(errors === _errs145){
+if(typeof data63 == "number"){
+if(data63 > 9007199254740991 || isNaN(data63)){
+const err168 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/mediation/vendor_amount_range/minimum_minor",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/mediation/properties/vendor_amount_range/properties/minimum_minor/maximum",keyword:"maximum",params:{comparison: "<=", limit: 9007199254740991},message:"must be <= 9007199254740991"};
 if(vErrors === null){
 vErrors = [err168];
 }
 else {
 vErrors.push(err168);
+}
+errors++;
+}
+else {
+if(data63 < 1 || isNaN(data63)){
+const err169 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/mediation/vendor_amount_range/minimum_minor",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/mediation/properties/vendor_amount_range/properties/minimum_minor/minimum",keyword:"minimum",params:{comparison: ">=", limit: 1},message:"must be >= 1"};
+if(vErrors === null){
+vErrors = [err169];
+}
+else {
+vErrors.push(err169);
 }
 errors++;
 }
@@ -2786,12 +2798,12 @@ var valid19 = true;
 }
 }
 else {
-const err169 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/mediation/vendor_amount_range",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/mediation/properties/vendor_amount_range/type",keyword:"type",params:{type: "object"},message:"must be object"};
+const err170 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/mediation/vendor_amount_range",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/mediation/properties/vendor_amount_range/type",keyword:"type",params:{type: "object"},message:"must be object"};
 if(vErrors === null){
-vErrors = [err169];
+vErrors = [err170];
 }
 else {
-vErrors.push(err169);
+vErrors.push(err170);
 }
 errors++;
 }
@@ -2809,12 +2821,12 @@ if(errors === _errs147){
 if(data64 && typeof data64 == "object" && !Array.isArray(data64)){
 let missing12;
 if((((((data64.offer_id === undefined) && (missing12 = "offer_id")) || ((data64.revision === undefined) && (missing12 = "revision"))) || ((data64.revision_digest === undefined) && (missing12 = "revision_digest"))) || ((data64.input_schema_digest === undefined) && (missing12 = "input_schema_digest"))) || ((data64.output_schema_digest === undefined) && (missing12 = "output_schema_digest"))){
-const err170 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/mediation/vendor_offer_revision",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/mediation/properties/vendor_offer_revision/required",keyword:"required",params:{missingProperty: missing12},message:"must have required property '"+missing12+"'"};
+const err171 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/mediation/vendor_offer_revision",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/mediation/properties/vendor_offer_revision/required",keyword:"required",params:{missingProperty: missing12},message:"must have required property '"+missing12+"'"};
 if(vErrors === null){
-vErrors = [err170];
+vErrors = [err171];
 }
 else {
-vErrors.push(err170);
+vErrors.push(err171);
 }
 errors++;
 }
@@ -2822,12 +2834,12 @@ else {
 const _errs149 = errors;
 for(const key14 in data64){
 if(!(((((key14 === "input_schema_digest") || (key14 === "offer_id")) || (key14 === "output_schema_digest")) || (key14 === "revision")) || (key14 === "revision_digest"))){
-const err171 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/mediation/vendor_offer_revision",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/mediation/properties/vendor_offer_revision/additionalProperties",keyword:"additionalProperties",params:{additionalProperty: key14},message:"must NOT have additional properties"};
+const err172 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/mediation/vendor_offer_revision",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/mediation/properties/vendor_offer_revision/additionalProperties",keyword:"additionalProperties",params:{additionalProperty: key14},message:"must NOT have additional properties"};
 if(vErrors === null){
-vErrors = [err171];
+vErrors = [err172];
 }
 else {
-vErrors.push(err171);
+vErrors.push(err172);
 }
 errors++;
 break;
@@ -2840,23 +2852,23 @@ const _errs150 = errors;
 if(errors === _errs150){
 if(typeof data65 === "string"){
 if(!pattern2.test(data65)){
-const err172 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/mediation/vendor_offer_revision/input_schema_digest",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/mediation/properties/vendor_offer_revision/properties/input_schema_digest/pattern",keyword:"pattern",params:{pattern: "^sha256:[0-9a-f]{64}$"},message:"must match pattern \""+"^sha256:[0-9a-f]{64}$"+"\""};
-if(vErrors === null){
-vErrors = [err172];
-}
-else {
-vErrors.push(err172);
-}
-errors++;
-}
-}
-else {
-const err173 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/mediation/vendor_offer_revision/input_schema_digest",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/mediation/properties/vendor_offer_revision/properties/input_schema_digest/type",keyword:"type",params:{type: "string"},message:"must be string"};
+const err173 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/mediation/vendor_offer_revision/input_schema_digest",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/mediation/properties/vendor_offer_revision/properties/input_schema_digest/pattern",keyword:"pattern",params:{pattern: "^sha256:[0-9a-f]{64}$"},message:"must match pattern \""+"^sha256:[0-9a-f]{64}$"+"\""};
 if(vErrors === null){
 vErrors = [err173];
 }
 else {
 vErrors.push(err173);
+}
+errors++;
+}
+}
+else {
+const err174 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/mediation/vendor_offer_revision/input_schema_digest",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/mediation/properties/vendor_offer_revision/properties/input_schema_digest/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(vErrors === null){
+vErrors = [err174];
+}
+else {
+vErrors.push(err174);
 }
 errors++;
 }
@@ -2873,23 +2885,23 @@ const _errs152 = errors;
 if(errors === _errs152){
 if(typeof data66 === "string"){
 if(func0(data66) < 1){
-const err174 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/mediation/vendor_offer_revision/offer_id",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/mediation/properties/vendor_offer_revision/properties/offer_id/minLength",keyword:"minLength",params:{limit: 1},message:"must NOT have fewer than 1 characters"};
-if(vErrors === null){
-vErrors = [err174];
-}
-else {
-vErrors.push(err174);
-}
-errors++;
-}
-}
-else {
-const err175 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/mediation/vendor_offer_revision/offer_id",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/mediation/properties/vendor_offer_revision/properties/offer_id/type",keyword:"type",params:{type: "string"},message:"must be string"};
+const err175 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/mediation/vendor_offer_revision/offer_id",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/mediation/properties/vendor_offer_revision/properties/offer_id/minLength",keyword:"minLength",params:{limit: 1},message:"must NOT have fewer than 1 characters"};
 if(vErrors === null){
 vErrors = [err175];
 }
 else {
 vErrors.push(err175);
+}
+errors++;
+}
+}
+else {
+const err176 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/mediation/vendor_offer_revision/offer_id",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/mediation/properties/vendor_offer_revision/properties/offer_id/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(vErrors === null){
+vErrors = [err176];
+}
+else {
+vErrors.push(err176);
 }
 errors++;
 }
@@ -2906,23 +2918,23 @@ const _errs154 = errors;
 if(errors === _errs154){
 if(typeof data67 === "string"){
 if(!pattern2.test(data67)){
-const err176 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/mediation/vendor_offer_revision/output_schema_digest",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/mediation/properties/vendor_offer_revision/properties/output_schema_digest/pattern",keyword:"pattern",params:{pattern: "^sha256:[0-9a-f]{64}$"},message:"must match pattern \""+"^sha256:[0-9a-f]{64}$"+"\""};
-if(vErrors === null){
-vErrors = [err176];
-}
-else {
-vErrors.push(err176);
-}
-errors++;
-}
-}
-else {
-const err177 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/mediation/vendor_offer_revision/output_schema_digest",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/mediation/properties/vendor_offer_revision/properties/output_schema_digest/type",keyword:"type",params:{type: "string"},message:"must be string"};
+const err177 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/mediation/vendor_offer_revision/output_schema_digest",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/mediation/properties/vendor_offer_revision/properties/output_schema_digest/pattern",keyword:"pattern",params:{pattern: "^sha256:[0-9a-f]{64}$"},message:"must match pattern \""+"^sha256:[0-9a-f]{64}$"+"\""};
 if(vErrors === null){
 vErrors = [err177];
 }
 else {
 vErrors.push(err177);
+}
+errors++;
+}
+}
+else {
+const err178 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/mediation/vendor_offer_revision/output_schema_digest",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/mediation/properties/vendor_offer_revision/properties/output_schema_digest/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(vErrors === null){
+vErrors = [err178];
+}
+else {
+vErrors.push(err178);
 }
 errors++;
 }
@@ -2939,23 +2951,23 @@ const _errs156 = errors;
 if(errors === _errs156){
 if(typeof data68 === "string"){
 if(func0(data68) < 1){
-const err178 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/mediation/vendor_offer_revision/revision",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/mediation/properties/vendor_offer_revision/properties/revision/minLength",keyword:"minLength",params:{limit: 1},message:"must NOT have fewer than 1 characters"};
-if(vErrors === null){
-vErrors = [err178];
-}
-else {
-vErrors.push(err178);
-}
-errors++;
-}
-}
-else {
-const err179 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/mediation/vendor_offer_revision/revision",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/mediation/properties/vendor_offer_revision/properties/revision/type",keyword:"type",params:{type: "string"},message:"must be string"};
+const err179 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/mediation/vendor_offer_revision/revision",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/mediation/properties/vendor_offer_revision/properties/revision/minLength",keyword:"minLength",params:{limit: 1},message:"must NOT have fewer than 1 characters"};
 if(vErrors === null){
 vErrors = [err179];
 }
 else {
 vErrors.push(err179);
+}
+errors++;
+}
+}
+else {
+const err180 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/mediation/vendor_offer_revision/revision",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/mediation/properties/vendor_offer_revision/properties/revision/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(vErrors === null){
+vErrors = [err180];
+}
+else {
+vErrors.push(err180);
 }
 errors++;
 }
@@ -2972,23 +2984,23 @@ const _errs158 = errors;
 if(errors === _errs158){
 if(typeof data69 === "string"){
 if(!pattern2.test(data69)){
-const err180 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/mediation/vendor_offer_revision/revision_digest",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/mediation/properties/vendor_offer_revision/properties/revision_digest/pattern",keyword:"pattern",params:{pattern: "^sha256:[0-9a-f]{64}$"},message:"must match pattern \""+"^sha256:[0-9a-f]{64}$"+"\""};
-if(vErrors === null){
-vErrors = [err180];
-}
-else {
-vErrors.push(err180);
-}
-errors++;
-}
-}
-else {
-const err181 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/mediation/vendor_offer_revision/revision_digest",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/mediation/properties/vendor_offer_revision/properties/revision_digest/type",keyword:"type",params:{type: "string"},message:"must be string"};
+const err181 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/mediation/vendor_offer_revision/revision_digest",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/mediation/properties/vendor_offer_revision/properties/revision_digest/pattern",keyword:"pattern",params:{pattern: "^sha256:[0-9a-f]{64}$"},message:"must match pattern \""+"^sha256:[0-9a-f]{64}$"+"\""};
 if(vErrors === null){
 vErrors = [err181];
 }
 else {
 vErrors.push(err181);
+}
+errors++;
+}
+}
+else {
+const err182 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/mediation/vendor_offer_revision/revision_digest",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/mediation/properties/vendor_offer_revision/properties/revision_digest/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(vErrors === null){
+vErrors = [err182];
+}
+else {
+vErrors.push(err182);
 }
 errors++;
 }
@@ -3006,12 +3018,12 @@ var valid20 = true;
 }
 }
 else {
-const err182 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/mediation/vendor_offer_revision",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/mediation/properties/vendor_offer_revision/type",keyword:"type",params:{type: "object"},message:"must be object"};
+const err183 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/mediation/vendor_offer_revision",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/mediation/properties/vendor_offer_revision/type",keyword:"type",params:{type: "object"},message:"must be object"};
 if(vErrors === null){
-vErrors = [err182];
+vErrors = [err183];
 }
 else {
-vErrors.push(err182);
+vErrors.push(err183);
 }
 errors++;
 }
@@ -3028,23 +3040,23 @@ const _errs160 = errors;
 if(errors === _errs160){
 if(typeof data70 === "string"){
 if(!pattern2.test(data70)){
-const err183 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/mediation/vendor_package_digest",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/mediation/properties/vendor_package_digest/pattern",keyword:"pattern",params:{pattern: "^sha256:[0-9a-f]{64}$"},message:"must match pattern \""+"^sha256:[0-9a-f]{64}$"+"\""};
-if(vErrors === null){
-vErrors = [err183];
-}
-else {
-vErrors.push(err183);
-}
-errors++;
-}
-}
-else {
-const err184 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/mediation/vendor_package_digest",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/mediation/properties/vendor_package_digest/type",keyword:"type",params:{type: "string"},message:"must be string"};
+const err184 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/mediation/vendor_package_digest",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/mediation/properties/vendor_package_digest/pattern",keyword:"pattern",params:{pattern: "^sha256:[0-9a-f]{64}$"},message:"must match pattern \""+"^sha256:[0-9a-f]{64}$"+"\""};
 if(vErrors === null){
 vErrors = [err184];
 }
 else {
 vErrors.push(err184);
+}
+errors++;
+}
+}
+else {
+const err185 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/mediation/vendor_package_digest",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/mediation/properties/vendor_package_digest/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(vErrors === null){
+vErrors = [err185];
+}
+else {
+vErrors.push(err185);
 }
 errors++;
 }
@@ -3066,12 +3078,12 @@ var valid18 = true;
 }
 }
 else {
-const err185 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/mediation",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/mediation/type",keyword:"type",params:{type: "object"},message:"must be object"};
+const err186 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/mediation",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/mediation/type",keyword:"type",params:{type: "object"},message:"must be object"};
 if(vErrors === null){
-vErrors = [err185];
+vErrors = [err186];
 }
 else {
-vErrors.push(err185);
+vErrors.push(err186);
 }
 errors++;
 }
@@ -3089,12 +3101,12 @@ if(errors === _errs162){
 if(data71 && typeof data71 == "object" && !Array.isArray(data71)){
 let missing13;
 if((((((data71.offer_id === undefined) && (missing13 = "offer_id")) || ((data71.revision === undefined) && (missing13 = "revision"))) || ((data71.revision_digest === undefined) && (missing13 = "revision_digest"))) || ((data71.input_schema_digest === undefined) && (missing13 = "input_schema_digest"))) || ((data71.output_schema_digest === undefined) && (missing13 = "output_schema_digest"))){
-const err186 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/offer_revision",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/offer_revision/required",keyword:"required",params:{missingProperty: missing13},message:"must have required property '"+missing13+"'"};
+const err187 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/offer_revision",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/offer_revision/required",keyword:"required",params:{missingProperty: missing13},message:"must have required property '"+missing13+"'"};
 if(vErrors === null){
-vErrors = [err186];
+vErrors = [err187];
 }
 else {
-vErrors.push(err186);
+vErrors.push(err187);
 }
 errors++;
 }
@@ -3102,12 +3114,12 @@ else {
 const _errs164 = errors;
 for(const key15 in data71){
 if(!(((((key15 === "input_schema_digest") || (key15 === "offer_id")) || (key15 === "output_schema_digest")) || (key15 === "revision")) || (key15 === "revision_digest"))){
-const err187 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/offer_revision",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/offer_revision/additionalProperties",keyword:"additionalProperties",params:{additionalProperty: key15},message:"must NOT have additional properties"};
+const err188 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/offer_revision",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/offer_revision/additionalProperties",keyword:"additionalProperties",params:{additionalProperty: key15},message:"must NOT have additional properties"};
 if(vErrors === null){
-vErrors = [err187];
+vErrors = [err188];
 }
 else {
-vErrors.push(err187);
+vErrors.push(err188);
 }
 errors++;
 break;
@@ -3120,23 +3132,23 @@ const _errs165 = errors;
 if(errors === _errs165){
 if(typeof data72 === "string"){
 if(!pattern2.test(data72)){
-const err188 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/offer_revision/input_schema_digest",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/offer_revision/properties/input_schema_digest/pattern",keyword:"pattern",params:{pattern: "^sha256:[0-9a-f]{64}$"},message:"must match pattern \""+"^sha256:[0-9a-f]{64}$"+"\""};
-if(vErrors === null){
-vErrors = [err188];
-}
-else {
-vErrors.push(err188);
-}
-errors++;
-}
-}
-else {
-const err189 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/offer_revision/input_schema_digest",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/offer_revision/properties/input_schema_digest/type",keyword:"type",params:{type: "string"},message:"must be string"};
+const err189 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/offer_revision/input_schema_digest",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/offer_revision/properties/input_schema_digest/pattern",keyword:"pattern",params:{pattern: "^sha256:[0-9a-f]{64}$"},message:"must match pattern \""+"^sha256:[0-9a-f]{64}$"+"\""};
 if(vErrors === null){
 vErrors = [err189];
 }
 else {
 vErrors.push(err189);
+}
+errors++;
+}
+}
+else {
+const err190 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/offer_revision/input_schema_digest",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/offer_revision/properties/input_schema_digest/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(vErrors === null){
+vErrors = [err190];
+}
+else {
+vErrors.push(err190);
 }
 errors++;
 }
@@ -3153,23 +3165,23 @@ const _errs167 = errors;
 if(errors === _errs167){
 if(typeof data73 === "string"){
 if(func0(data73) < 1){
-const err190 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/offer_revision/offer_id",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/offer_revision/properties/offer_id/minLength",keyword:"minLength",params:{limit: 1},message:"must NOT have fewer than 1 characters"};
-if(vErrors === null){
-vErrors = [err190];
-}
-else {
-vErrors.push(err190);
-}
-errors++;
-}
-}
-else {
-const err191 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/offer_revision/offer_id",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/offer_revision/properties/offer_id/type",keyword:"type",params:{type: "string"},message:"must be string"};
+const err191 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/offer_revision/offer_id",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/offer_revision/properties/offer_id/minLength",keyword:"minLength",params:{limit: 1},message:"must NOT have fewer than 1 characters"};
 if(vErrors === null){
 vErrors = [err191];
 }
 else {
 vErrors.push(err191);
+}
+errors++;
+}
+}
+else {
+const err192 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/offer_revision/offer_id",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/offer_revision/properties/offer_id/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(vErrors === null){
+vErrors = [err192];
+}
+else {
+vErrors.push(err192);
 }
 errors++;
 }
@@ -3186,23 +3198,23 @@ const _errs169 = errors;
 if(errors === _errs169){
 if(typeof data74 === "string"){
 if(!pattern2.test(data74)){
-const err192 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/offer_revision/output_schema_digest",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/offer_revision/properties/output_schema_digest/pattern",keyword:"pattern",params:{pattern: "^sha256:[0-9a-f]{64}$"},message:"must match pattern \""+"^sha256:[0-9a-f]{64}$"+"\""};
-if(vErrors === null){
-vErrors = [err192];
-}
-else {
-vErrors.push(err192);
-}
-errors++;
-}
-}
-else {
-const err193 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/offer_revision/output_schema_digest",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/offer_revision/properties/output_schema_digest/type",keyword:"type",params:{type: "string"},message:"must be string"};
+const err193 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/offer_revision/output_schema_digest",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/offer_revision/properties/output_schema_digest/pattern",keyword:"pattern",params:{pattern: "^sha256:[0-9a-f]{64}$"},message:"must match pattern \""+"^sha256:[0-9a-f]{64}$"+"\""};
 if(vErrors === null){
 vErrors = [err193];
 }
 else {
 vErrors.push(err193);
+}
+errors++;
+}
+}
+else {
+const err194 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/offer_revision/output_schema_digest",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/offer_revision/properties/output_schema_digest/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(vErrors === null){
+vErrors = [err194];
+}
+else {
+vErrors.push(err194);
 }
 errors++;
 }
@@ -3219,23 +3231,23 @@ const _errs171 = errors;
 if(errors === _errs171){
 if(typeof data75 === "string"){
 if(func0(data75) < 1){
-const err194 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/offer_revision/revision",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/offer_revision/properties/revision/minLength",keyword:"minLength",params:{limit: 1},message:"must NOT have fewer than 1 characters"};
-if(vErrors === null){
-vErrors = [err194];
-}
-else {
-vErrors.push(err194);
-}
-errors++;
-}
-}
-else {
-const err195 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/offer_revision/revision",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/offer_revision/properties/revision/type",keyword:"type",params:{type: "string"},message:"must be string"};
+const err195 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/offer_revision/revision",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/offer_revision/properties/revision/minLength",keyword:"minLength",params:{limit: 1},message:"must NOT have fewer than 1 characters"};
 if(vErrors === null){
 vErrors = [err195];
 }
 else {
 vErrors.push(err195);
+}
+errors++;
+}
+}
+else {
+const err196 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/offer_revision/revision",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/offer_revision/properties/revision/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(vErrors === null){
+vErrors = [err196];
+}
+else {
+vErrors.push(err196);
 }
 errors++;
 }
@@ -3252,23 +3264,23 @@ const _errs173 = errors;
 if(errors === _errs173){
 if(typeof data76 === "string"){
 if(!pattern2.test(data76)){
-const err196 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/offer_revision/revision_digest",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/offer_revision/properties/revision_digest/pattern",keyword:"pattern",params:{pattern: "^sha256:[0-9a-f]{64}$"},message:"must match pattern \""+"^sha256:[0-9a-f]{64}$"+"\""};
-if(vErrors === null){
-vErrors = [err196];
-}
-else {
-vErrors.push(err196);
-}
-errors++;
-}
-}
-else {
-const err197 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/offer_revision/revision_digest",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/offer_revision/properties/revision_digest/type",keyword:"type",params:{type: "string"},message:"must be string"};
+const err197 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/offer_revision/revision_digest",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/offer_revision/properties/revision_digest/pattern",keyword:"pattern",params:{pattern: "^sha256:[0-9a-f]{64}$"},message:"must match pattern \""+"^sha256:[0-9a-f]{64}$"+"\""};
 if(vErrors === null){
 vErrors = [err197];
 }
 else {
 vErrors.push(err197);
+}
+errors++;
+}
+}
+else {
+const err198 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/offer_revision/revision_digest",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/offer_revision/properties/revision_digest/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(vErrors === null){
+vErrors = [err198];
+}
+else {
+vErrors.push(err198);
 }
 errors++;
 }
@@ -3286,12 +3298,12 @@ var valid21 = true;
 }
 }
 else {
-const err198 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/offer_revision",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/offer_revision/type",keyword:"type",params:{type: "object"},message:"must be object"};
+const err199 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/offer_revision",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/offer_revision/type",keyword:"type",params:{type: "object"},message:"must be object"};
 if(vErrors === null){
-vErrors = [err198];
+vErrors = [err199];
 }
 else {
-vErrors.push(err198);
+vErrors.push(err199);
 }
 errors++;
 }
@@ -3309,12 +3321,12 @@ if(errors === _errs175){
 if(data77 && typeof data77 == "object" && !Array.isArray(data77)){
 let missing14;
 if((((((((data77.service_name === undefined) && (missing14 = "service_name")) || ((data77.description === undefined) && (missing14 = "description"))) || ((data77.media_type === undefined) && (missing14 = "media_type"))) || ((data77.input_example === undefined) && (missing14 = "input_example"))) || ((data77.output_example === undefined) && (missing14 = "output_example"))) || ((data77.input_schema === undefined) && (missing14 = "input_schema"))) || ((data77.output_schema === undefined) && (missing14 = "output_schema"))){
-const err199 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/presentation",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/presentation/required",keyword:"required",params:{missingProperty: missing14},message:"must have required property '"+missing14+"'"};
+const err200 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/presentation",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/presentation/required",keyword:"required",params:{missingProperty: missing14},message:"must have required property '"+missing14+"'"};
 if(vErrors === null){
-vErrors = [err199];
+vErrors = [err200];
 }
 else {
-vErrors.push(err199);
+vErrors.push(err200);
 }
 errors++;
 }
@@ -3322,12 +3334,12 @@ else {
 const _errs177 = errors;
 for(const key16 in data77){
 if(!(func5.call(schema0.properties.offers.additionalProperties.anyOf[1].properties.presentation.properties, key16))){
-const err200 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/presentation",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/presentation/additionalProperties",keyword:"additionalProperties",params:{additionalProperty: key16},message:"must NOT have additional properties"};
+const err201 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/presentation",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/presentation/additionalProperties",keyword:"additionalProperties",params:{additionalProperty: key16},message:"must NOT have additional properties"};
 if(vErrors === null){
-vErrors = [err200];
+vErrors = [err201];
 }
 else {
-vErrors.push(err200);
+vErrors.push(err201);
 }
 errors++;
 break;
@@ -3340,18 +3352,7 @@ const _errs178 = errors;
 if(errors === _errs178){
 if(typeof data78 === "string"){
 if(func0(data78) > 500){
-const err201 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/presentation/description",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/presentation/properties/description/maxLength",keyword:"maxLength",params:{limit: 500},message:"must NOT have more than 500 characters"};
-if(vErrors === null){
-vErrors = [err201];
-}
-else {
-vErrors.push(err201);
-}
-errors++;
-}
-else {
-if(func0(data78) < 1){
-const err202 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/presentation/description",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/presentation/properties/description/minLength",keyword:"minLength",params:{limit: 1},message:"must NOT have fewer than 1 characters"};
+const err202 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/presentation/description",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/presentation/properties/description/maxLength",keyword:"maxLength",params:{limit: 500},message:"must NOT have more than 500 characters"};
 if(vErrors === null){
 vErrors = [err202];
 }
@@ -3360,15 +3361,26 @@ vErrors.push(err202);
 }
 errors++;
 }
-}
-}
 else {
-const err203 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/presentation/description",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/presentation/properties/description/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(func0(data78) < 1){
+const err203 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/presentation/description",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/presentation/properties/description/minLength",keyword:"minLength",params:{limit: 1},message:"must NOT have fewer than 1 characters"};
 if(vErrors === null){
 vErrors = [err203];
 }
 else {
 vErrors.push(err203);
+}
+errors++;
+}
+}
+}
+else {
+const err204 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/presentation/description",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/presentation/properties/description/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(vErrors === null){
+vErrors = [err204];
+}
+else {
+vErrors.push(err204);
 }
 errors++;
 }
@@ -3385,18 +3397,7 @@ const _errs180 = errors;
 if(errors === _errs180){
 if(typeof data79 === "string"){
 if(func0(data79) > 2048){
-const err204 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/presentation/icon_url",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/presentation/properties/icon_url/maxLength",keyword:"maxLength",params:{limit: 2048},message:"must NOT have more than 2048 characters"};
-if(vErrors === null){
-vErrors = [err204];
-}
-else {
-vErrors.push(err204);
-}
-errors++;
-}
-else {
-if(func0(data79) < 1){
-const err205 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/presentation/icon_url",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/presentation/properties/icon_url/minLength",keyword:"minLength",params:{limit: 1},message:"must NOT have fewer than 1 characters"};
+const err205 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/presentation/icon_url",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/presentation/properties/icon_url/maxLength",keyword:"maxLength",params:{limit: 2048},message:"must NOT have more than 2048 characters"};
 if(vErrors === null){
 vErrors = [err205];
 }
@@ -3405,15 +3406,26 @@ vErrors.push(err205);
 }
 errors++;
 }
-}
-}
 else {
-const err206 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/presentation/icon_url",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/presentation/properties/icon_url/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(func0(data79) < 1){
+const err206 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/presentation/icon_url",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/presentation/properties/icon_url/minLength",keyword:"minLength",params:{limit: 1},message:"must NOT have fewer than 1 characters"};
 if(vErrors === null){
 vErrors = [err206];
 }
 else {
 vErrors.push(err206);
+}
+errors++;
+}
+}
+}
+else {
+const err207 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/presentation/icon_url",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/presentation/properties/icon_url/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(vErrors === null){
+vErrors = [err207];
+}
+else {
+vErrors.push(err207);
 }
 errors++;
 }
@@ -3430,18 +3442,7 @@ const _errs182 = errors;
 if(errors === _errs182){
 if(typeof data80 === "string"){
 if(func0(data80) > 65536){
-const err207 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/presentation/input_example",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/presentation/properties/input_example/maxLength",keyword:"maxLength",params:{limit: 65536},message:"must NOT have more than 65536 characters"};
-if(vErrors === null){
-vErrors = [err207];
-}
-else {
-vErrors.push(err207);
-}
-errors++;
-}
-else {
-if(func0(data80) < 1){
-const err208 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/presentation/input_example",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/presentation/properties/input_example/minLength",keyword:"minLength",params:{limit: 1},message:"must NOT have fewer than 1 characters"};
+const err208 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/presentation/input_example",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/presentation/properties/input_example/maxLength",keyword:"maxLength",params:{limit: 65536},message:"must NOT have more than 65536 characters"};
 if(vErrors === null){
 vErrors = [err208];
 }
@@ -3450,15 +3451,26 @@ vErrors.push(err208);
 }
 errors++;
 }
-}
-}
 else {
-const err209 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/presentation/input_example",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/presentation/properties/input_example/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(func0(data80) < 1){
+const err209 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/presentation/input_example",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/presentation/properties/input_example/minLength",keyword:"minLength",params:{limit: 1},message:"must NOT have fewer than 1 characters"};
 if(vErrors === null){
 vErrors = [err209];
 }
 else {
 vErrors.push(err209);
+}
+errors++;
+}
+}
+}
+else {
+const err210 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/presentation/input_example",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/presentation/properties/input_example/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(vErrors === null){
+vErrors = [err210];
+}
+else {
+vErrors.push(err210);
 }
 errors++;
 }
@@ -3475,18 +3487,7 @@ const _errs184 = errors;
 if(errors === _errs184){
 if(typeof data81 === "string"){
 if(func0(data81) > 65536){
-const err210 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/presentation/input_schema",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/presentation/properties/input_schema/maxLength",keyword:"maxLength",params:{limit: 65536},message:"must NOT have more than 65536 characters"};
-if(vErrors === null){
-vErrors = [err210];
-}
-else {
-vErrors.push(err210);
-}
-errors++;
-}
-else {
-if(func0(data81) < 1){
-const err211 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/presentation/input_schema",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/presentation/properties/input_schema/minLength",keyword:"minLength",params:{limit: 1},message:"must NOT have fewer than 1 characters"};
+const err211 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/presentation/input_schema",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/presentation/properties/input_schema/maxLength",keyword:"maxLength",params:{limit: 65536},message:"must NOT have more than 65536 characters"};
 if(vErrors === null){
 vErrors = [err211];
 }
@@ -3495,15 +3496,26 @@ vErrors.push(err211);
 }
 errors++;
 }
-}
-}
 else {
-const err212 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/presentation/input_schema",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/presentation/properties/input_schema/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(func0(data81) < 1){
+const err212 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/presentation/input_schema",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/presentation/properties/input_schema/minLength",keyword:"minLength",params:{limit: 1},message:"must NOT have fewer than 1 characters"};
 if(vErrors === null){
 vErrors = [err212];
 }
 else {
 vErrors.push(err212);
+}
+errors++;
+}
+}
+}
+else {
+const err213 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/presentation/input_schema",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/presentation/properties/input_schema/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(vErrors === null){
+vErrors = [err213];
+}
+else {
+vErrors.push(err213);
 }
 errors++;
 }
@@ -3520,18 +3532,7 @@ const _errs186 = errors;
 if(errors === _errs186){
 if(typeof data82 === "string"){
 if(func0(data82) > 200){
-const err213 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/presentation/media_type",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/presentation/properties/media_type/maxLength",keyword:"maxLength",params:{limit: 200},message:"must NOT have more than 200 characters"};
-if(vErrors === null){
-vErrors = [err213];
-}
-else {
-vErrors.push(err213);
-}
-errors++;
-}
-else {
-if(func0(data82) < 1){
-const err214 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/presentation/media_type",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/presentation/properties/media_type/minLength",keyword:"minLength",params:{limit: 1},message:"must NOT have fewer than 1 characters"};
+const err214 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/presentation/media_type",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/presentation/properties/media_type/maxLength",keyword:"maxLength",params:{limit: 200},message:"must NOT have more than 200 characters"};
 if(vErrors === null){
 vErrors = [err214];
 }
@@ -3540,15 +3541,26 @@ vErrors.push(err214);
 }
 errors++;
 }
-}
-}
 else {
-const err215 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/presentation/media_type",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/presentation/properties/media_type/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(func0(data82) < 1){
+const err215 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/presentation/media_type",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/presentation/properties/media_type/minLength",keyword:"minLength",params:{limit: 1},message:"must NOT have fewer than 1 characters"};
 if(vErrors === null){
 vErrors = [err215];
 }
 else {
 vErrors.push(err215);
+}
+errors++;
+}
+}
+}
+else {
+const err216 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/presentation/media_type",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/presentation/properties/media_type/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(vErrors === null){
+vErrors = [err216];
+}
+else {
+vErrors.push(err216);
 }
 errors++;
 }
@@ -3565,18 +3577,7 @@ const _errs188 = errors;
 if(errors === _errs188){
 if(typeof data83 === "string"){
 if(func0(data83) > 65536){
-const err216 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/presentation/output_example",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/presentation/properties/output_example/maxLength",keyword:"maxLength",params:{limit: 65536},message:"must NOT have more than 65536 characters"};
-if(vErrors === null){
-vErrors = [err216];
-}
-else {
-vErrors.push(err216);
-}
-errors++;
-}
-else {
-if(func0(data83) < 1){
-const err217 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/presentation/output_example",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/presentation/properties/output_example/minLength",keyword:"minLength",params:{limit: 1},message:"must NOT have fewer than 1 characters"};
+const err217 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/presentation/output_example",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/presentation/properties/output_example/maxLength",keyword:"maxLength",params:{limit: 65536},message:"must NOT have more than 65536 characters"};
 if(vErrors === null){
 vErrors = [err217];
 }
@@ -3585,15 +3586,26 @@ vErrors.push(err217);
 }
 errors++;
 }
-}
-}
 else {
-const err218 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/presentation/output_example",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/presentation/properties/output_example/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(func0(data83) < 1){
+const err218 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/presentation/output_example",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/presentation/properties/output_example/minLength",keyword:"minLength",params:{limit: 1},message:"must NOT have fewer than 1 characters"};
 if(vErrors === null){
 vErrors = [err218];
 }
 else {
 vErrors.push(err218);
+}
+errors++;
+}
+}
+}
+else {
+const err219 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/presentation/output_example",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/presentation/properties/output_example/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(vErrors === null){
+vErrors = [err219];
+}
+else {
+vErrors.push(err219);
 }
 errors++;
 }
@@ -3610,18 +3622,7 @@ const _errs190 = errors;
 if(errors === _errs190){
 if(typeof data84 === "string"){
 if(func0(data84) > 65536){
-const err219 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/presentation/output_schema",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/presentation/properties/output_schema/maxLength",keyword:"maxLength",params:{limit: 65536},message:"must NOT have more than 65536 characters"};
-if(vErrors === null){
-vErrors = [err219];
-}
-else {
-vErrors.push(err219);
-}
-errors++;
-}
-else {
-if(func0(data84) < 1){
-const err220 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/presentation/output_schema",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/presentation/properties/output_schema/minLength",keyword:"minLength",params:{limit: 1},message:"must NOT have fewer than 1 characters"};
+const err220 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/presentation/output_schema",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/presentation/properties/output_schema/maxLength",keyword:"maxLength",params:{limit: 65536},message:"must NOT have more than 65536 characters"};
 if(vErrors === null){
 vErrors = [err220];
 }
@@ -3630,15 +3631,26 @@ vErrors.push(err220);
 }
 errors++;
 }
-}
-}
 else {
-const err221 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/presentation/output_schema",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/presentation/properties/output_schema/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(func0(data84) < 1){
+const err221 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/presentation/output_schema",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/presentation/properties/output_schema/minLength",keyword:"minLength",params:{limit: 1},message:"must NOT have fewer than 1 characters"};
 if(vErrors === null){
 vErrors = [err221];
 }
 else {
 vErrors.push(err221);
+}
+errors++;
+}
+}
+}
+else {
+const err222 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/presentation/output_schema",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/presentation/properties/output_schema/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(vErrors === null){
+vErrors = [err222];
+}
+else {
+vErrors.push(err222);
 }
 errors++;
 }
@@ -3655,18 +3667,7 @@ const _errs192 = errors;
 if(errors === _errs192){
 if(typeof data85 === "string"){
 if(func0(data85) > 120){
-const err222 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/presentation/service_name",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/presentation/properties/service_name/maxLength",keyword:"maxLength",params:{limit: 120},message:"must NOT have more than 120 characters"};
-if(vErrors === null){
-vErrors = [err222];
-}
-else {
-vErrors.push(err222);
-}
-errors++;
-}
-else {
-if(func0(data85) < 1){
-const err223 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/presentation/service_name",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/presentation/properties/service_name/minLength",keyword:"minLength",params:{limit: 1},message:"must NOT have fewer than 1 characters"};
+const err223 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/presentation/service_name",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/presentation/properties/service_name/maxLength",keyword:"maxLength",params:{limit: 120},message:"must NOT have more than 120 characters"};
 if(vErrors === null){
 vErrors = [err223];
 }
@@ -3675,15 +3676,26 @@ vErrors.push(err223);
 }
 errors++;
 }
-}
-}
 else {
-const err224 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/presentation/service_name",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/presentation/properties/service_name/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(func0(data85) < 1){
+const err224 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/presentation/service_name",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/presentation/properties/service_name/minLength",keyword:"minLength",params:{limit: 1},message:"must NOT have fewer than 1 characters"};
 if(vErrors === null){
 vErrors = [err224];
 }
 else {
 vErrors.push(err224);
+}
+errors++;
+}
+}
+}
+else {
+const err225 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/presentation/service_name",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/presentation/properties/service_name/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(vErrors === null){
+vErrors = [err225];
+}
+else {
+vErrors.push(err225);
 }
 errors++;
 }
@@ -3699,26 +3711,8 @@ let data86 = data77.tags;
 const _errs194 = errors;
 if(errors === _errs194){
 if(Array.isArray(data86)){
-var valid23 = true;
-const len3 = data86.length;
-for(let i5=0; i5<len3; i5++){
-let data87 = data86[i5];
-const _errs196 = errors;
-if(errors === _errs196){
-if(typeof data87 === "string"){
-if(func0(data87) > 64){
-const err225 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/presentation/tags/" + i5,schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/presentation/properties/tags/items/maxLength",keyword:"maxLength",params:{limit: 64},message:"must NOT have more than 64 characters"};
-if(vErrors === null){
-vErrors = [err225];
-}
-else {
-vErrors.push(err225);
-}
-errors++;
-}
-else {
-if(func0(data87) < 1){
-const err226 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/presentation/tags/" + i5,schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/presentation/properties/tags/items/minLength",keyword:"minLength",params:{limit: 1},message:"must NOT have fewer than 1 characters"};
+if(data86.length < 1){
+const err226 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/presentation/tags",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/presentation/properties/tags/minItems",keyword:"minItems",params:{limit: 1},message:"must NOT have fewer than 1 items"};
 if(vErrors === null){
 vErrors = [err226];
 }
@@ -3727,15 +3721,44 @@ vErrors.push(err226);
 }
 errors++;
 }
-}
-}
 else {
-const err227 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/presentation/tags/" + i5,schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/presentation/properties/tags/items/type",keyword:"type",params:{type: "string"},message:"must be string"};
+var valid23 = true;
+const len3 = data86.length;
+for(let i5=0; i5<len3; i5++){
+let data87 = data86[i5];
+const _errs196 = errors;
+if(errors === _errs196){
+if(typeof data87 === "string"){
+if(func0(data87) > 64){
+const err227 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/presentation/tags/" + i5,schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/presentation/properties/tags/items/maxLength",keyword:"maxLength",params:{limit: 64},message:"must NOT have more than 64 characters"};
 if(vErrors === null){
 vErrors = [err227];
 }
 else {
 vErrors.push(err227);
+}
+errors++;
+}
+else {
+if(func0(data87) < 1){
+const err228 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/presentation/tags/" + i5,schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/presentation/properties/tags/items/minLength",keyword:"minLength",params:{limit: 1},message:"must NOT have fewer than 1 characters"};
+if(vErrors === null){
+vErrors = [err228];
+}
+else {
+vErrors.push(err228);
+}
+errors++;
+}
+}
+}
+else {
+const err229 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/presentation/tags/" + i5,schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/presentation/properties/tags/items/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(vErrors === null){
+vErrors = [err229];
+}
+else {
+vErrors.push(err229);
 }
 errors++;
 }
@@ -3746,13 +3769,14 @@ break;
 }
 }
 }
-else {
-const err228 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/presentation/tags",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/presentation/properties/tags/type",keyword:"type",params:{type: "array"},message:"must be array"};
-if(vErrors === null){
-vErrors = [err228];
 }
 else {
-vErrors.push(err228);
+const err230 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/presentation/tags",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/presentation/properties/tags/type",keyword:"type",params:{type: "array"},message:"must be array"};
+if(vErrors === null){
+vErrors = [err230];
+}
+else {
+vErrors.push(err230);
 }
 errors++;
 }
@@ -3774,12 +3798,12 @@ var valid22 = true;
 }
 }
 else {
-const err229 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/presentation",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/presentation/type",keyword:"type",params:{type: "object"},message:"must be object"};
+const err231 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1")+"/presentation",schemaPath:"#/properties/offers/additionalProperties/anyOf/1/properties/presentation/type",keyword:"type",params:{type: "object"},message:"must be object"};
 if(vErrors === null){
-vErrors = [err229];
+vErrors = [err231];
 }
 else {
-vErrors.push(err229);
+vErrors.push(err231);
 }
 errors++;
 }
@@ -3798,12 +3822,12 @@ var valid14 = true;
 }
 }
 else {
-const err230 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1"),schemaPath:"#/properties/offers/additionalProperties/anyOf/1/type",keyword:"type",params:{type: "object"},message:"must be object"};
+const err232 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1"),schemaPath:"#/properties/offers/additionalProperties/anyOf/1/type",keyword:"type",params:{type: "object"},message:"must be object"};
 if(vErrors === null){
-vErrors = [err230];
+vErrors = [err232];
 }
 else {
-vErrors.push(err230);
+vErrors.push(err232);
 }
 errors++;
 }
@@ -3816,12 +3840,12 @@ props0 = true;
 }
 }
 if(!valid3){
-const err231 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1"),schemaPath:"#/properties/offers/additionalProperties/anyOf",keyword:"anyOf",params:{},message:"must match a schema in anyOf"};
+const err233 = {instancePath:instancePath+"/offers/" + key2.replace(/~/g, "~0").replace(/\//g, "~1"),schemaPath:"#/properties/offers/additionalProperties/anyOf",keyword:"anyOf",params:{},message:"must match a schema in anyOf"};
 if(vErrors === null){
-vErrors = [err231];
+vErrors = [err233];
 }
 else {
-vErrors.push(err231);
+vErrors.push(err233);
 }
 errors++;
 validate0.errors = vErrors;

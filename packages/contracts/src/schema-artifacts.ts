@@ -355,6 +355,7 @@ export const runxSchemaArtifacts = {
                         "additionalProperties": false,
                         "properties": {
                           "asks": {
+                            "const": true,
                             "type": "boolean"
                           },
                           "operations": {
@@ -376,6 +377,7 @@ export const runxSchemaArtifacts = {
                               ],
                               "type": "object"
                             },
+                            "minItems": 1,
                             "type": "array"
                           },
                           "skills": {
@@ -383,6 +385,7 @@ export const runxSchemaArtifacts = {
                               "minLength": 1,
                               "type": "string"
                             },
+                            "minItems": 1,
                             "type": "array"
                           },
                           "tools": {
@@ -390,6 +393,7 @@ export const runxSchemaArtifacts = {
                               "minLength": 1,
                               "type": "string"
                             },
+                            "minItems": 1,
                             "type": "array"
                           }
                         },
@@ -984,17 +988,20 @@ export const runxSchemaArtifacts = {
                                 "properties": {
                                   "environment": {
                                     "additionalProperties": false,
+                                    "minProperties": 1,
                                     "properties": {
                                       "optional": {
                                         "items": {
                                           "type": "string"
                                         },
+                                        "minItems": 1,
                                         "type": "array"
                                       },
                                       "required": {
                                         "items": {
                                           "type": "string"
                                         },
+                                        "minItems": 1,
                                         "type": "array"
                                       }
                                     },
@@ -1004,6 +1011,7 @@ export const runxSchemaArtifacts = {
                                     "items": {
                                       "type": "string"
                                     },
+                                    "minItems": 1,
                                     "type": "array"
                                   }
                                 },
@@ -1030,6 +1038,7 @@ export const runxSchemaArtifacts = {
                                   ],
                                   "type": "object"
                                 },
+                                "minItems": 1,
                                 "type": "array"
                               },
                               "execution_boundary": {
@@ -1215,2319 +1224,6 @@ export const runxSchemaArtifacts = {
       }
     ]
   } as JsonSchema,
-  "act.schema.json": {
-    "$id": "https://schemas.runx.ai/runx/act/v1.json",
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "additionalProperties": false,
-    "properties": {
-      "act_id": {
-        "minLength": 1,
-        "type": "string"
-      },
-      "artifact_refs": {
-        "items": {
-          "$id": "https://schemas.runx.ai/runx/reference/v1.json",
-          "$schema": "https://json-schema.org/draft/2020-12/schema",
-          "additionalProperties": false,
-          "properties": {
-            "label": {
-              "minLength": 1,
-              "type": "string"
-            },
-            "locator": {
-              "minLength": 1,
-              "type": "string"
-            },
-            "observed_at": {
-              "minLength": 1,
-              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-              "type": "string"
-            },
-            "proof_kind": {
-              "enum": [
-                "effect_evidence",
-                "effect_finality",
-                "credential_resolution"
-              ],
-              "type": "string"
-            },
-            "provider": {
-              "minLength": 1,
-              "type": "string"
-            },
-            "schema": {
-              "const": "runx.reference.v1",
-              "type": "string"
-            },
-            "type": {
-              "enum": [
-                "thread",
-                "comment",
-                "event",
-                "tracking_item",
-                "change_request",
-                "repository",
-                "signal",
-                "run",
-                "act",
-                "receipt",
-                "graph_receipt",
-                "artifact",
-                "verification",
-                "harness",
-                "host",
-                "deployment",
-                "surface",
-                "target",
-                "opportunity",
-                "thesis_assessment",
-                "selection",
-                "skill_binding",
-                "target_transition_entry",
-                "selection_cycle",
-                "decision",
-                "reflection_entry",
-                "feed_entry",
-                "principal",
-                "authority_proof",
-                "scope_admission",
-                "grant",
-                "mandate",
-                "credential",
-                "webhook_delivery",
-                "redaction_policy",
-                "external_url",
-                "connector_instance",
-                "connector_operation"
-              ],
-              "type": "string"
-            },
-            "uri": {
-              "minLength": 1,
-              "type": "string"
-            }
-          },
-          "required": [
-            "type",
-            "uri"
-          ],
-          "type": "object",
-          "x-runx-schema": "runx.reference.v1"
-        },
-        "type": "array"
-      },
-      "closure": {
-        "additionalProperties": false,
-        "properties": {
-          "closed_at": {
-            "minLength": 1,
-            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-            "type": "string"
-          },
-          "disposition": {
-            "enum": [
-              "closed",
-              "deferred",
-              "superseded",
-              "declined",
-              "blocked",
-              "failed",
-              "killed",
-              "timed_out"
-            ],
-            "type": "string"
-          },
-          "reason_code": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "summary": {
-            "minLength": 1,
-            "type": "string"
-          }
-        },
-        "required": [
-          "disposition",
-          "reason_code",
-          "summary",
-          "closed_at"
-        ],
-        "type": "object"
-      },
-      "criterion_bindings": {
-        "items": {
-          "additionalProperties": false,
-          "properties": {
-            "criterion_id": {
-              "minLength": 1,
-              "type": "string"
-            },
-            "evidence_refs": {
-              "items": {
-                "$id": "https://schemas.runx.ai/runx/reference/v1.json",
-                "$schema": "https://json-schema.org/draft/2020-12/schema",
-                "additionalProperties": false,
-                "properties": {
-                  "label": {
-                    "minLength": 1,
-                    "type": "string"
-                  },
-                  "locator": {
-                    "minLength": 1,
-                    "type": "string"
-                  },
-                  "observed_at": {
-                    "minLength": 1,
-                    "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-                    "type": "string"
-                  },
-                  "proof_kind": {
-                    "enum": [
-                      "effect_evidence",
-                      "effect_finality",
-                      "credential_resolution"
-                    ],
-                    "type": "string"
-                  },
-                  "provider": {
-                    "minLength": 1,
-                    "type": "string"
-                  },
-                  "schema": {
-                    "const": "runx.reference.v1",
-                    "type": "string"
-                  },
-                  "type": {
-                    "enum": [
-                      "thread",
-                      "comment",
-                      "event",
-                      "tracking_item",
-                      "change_request",
-                      "repository",
-                      "signal",
-                      "run",
-                      "act",
-                      "receipt",
-                      "graph_receipt",
-                      "artifact",
-                      "verification",
-                      "harness",
-                      "host",
-                      "deployment",
-                      "surface",
-                      "target",
-                      "opportunity",
-                      "thesis_assessment",
-                      "selection",
-                      "skill_binding",
-                      "target_transition_entry",
-                      "selection_cycle",
-                      "decision",
-                      "reflection_entry",
-                      "feed_entry",
-                      "principal",
-                      "authority_proof",
-                      "scope_admission",
-                      "grant",
-                      "mandate",
-                      "credential",
-                      "webhook_delivery",
-                      "redaction_policy",
-                      "external_url",
-                      "connector_instance",
-                      "connector_operation"
-                    ],
-                    "type": "string"
-                  },
-                  "uri": {
-                    "minLength": 1,
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "type",
-                  "uri"
-                ],
-                "type": "object",
-                "x-runx-schema": "runx.reference.v1"
-              },
-              "type": "array"
-            },
-            "status": {
-              "enum": [
-                "verified",
-                "failed",
-                "pending",
-                "not_applicable",
-                "unknown"
-              ],
-              "type": "string"
-            },
-            "summary": {
-              "minLength": 1,
-              "type": "string"
-            },
-            "verification_refs": {
-              "items": {
-                "$id": "https://schemas.runx.ai/runx/reference/v1.json",
-                "$schema": "https://json-schema.org/draft/2020-12/schema",
-                "additionalProperties": false,
-                "properties": {
-                  "label": {
-                    "minLength": 1,
-                    "type": "string"
-                  },
-                  "locator": {
-                    "minLength": 1,
-                    "type": "string"
-                  },
-                  "observed_at": {
-                    "minLength": 1,
-                    "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-                    "type": "string"
-                  },
-                  "proof_kind": {
-                    "enum": [
-                      "effect_evidence",
-                      "effect_finality",
-                      "credential_resolution"
-                    ],
-                    "type": "string"
-                  },
-                  "provider": {
-                    "minLength": 1,
-                    "type": "string"
-                  },
-                  "schema": {
-                    "const": "runx.reference.v1",
-                    "type": "string"
-                  },
-                  "type": {
-                    "enum": [
-                      "thread",
-                      "comment",
-                      "event",
-                      "tracking_item",
-                      "change_request",
-                      "repository",
-                      "signal",
-                      "run",
-                      "act",
-                      "receipt",
-                      "graph_receipt",
-                      "artifact",
-                      "verification",
-                      "harness",
-                      "host",
-                      "deployment",
-                      "surface",
-                      "target",
-                      "opportunity",
-                      "thesis_assessment",
-                      "selection",
-                      "skill_binding",
-                      "target_transition_entry",
-                      "selection_cycle",
-                      "decision",
-                      "reflection_entry",
-                      "feed_entry",
-                      "principal",
-                      "authority_proof",
-                      "scope_admission",
-                      "grant",
-                      "mandate",
-                      "credential",
-                      "webhook_delivery",
-                      "redaction_policy",
-                      "external_url",
-                      "connector_instance",
-                      "connector_operation"
-                    ],
-                    "type": "string"
-                  },
-                  "uri": {
-                    "minLength": 1,
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "type",
-                  "uri"
-                ],
-                "type": "object",
-                "x-runx-schema": "runx.reference.v1"
-              },
-              "type": "array"
-            }
-          },
-          "required": [
-            "criterion_id",
-            "status"
-          ],
-          "type": "object"
-        },
-        "type": "array"
-      },
-      "form": {
-        "enum": [
-          "revision",
-          "reply",
-          "review",
-          "observation",
-          "verification"
-        ],
-        "type": "string"
-      },
-      "harness_refs": {
-        "items": {
-          "$id": "https://schemas.runx.ai/runx/reference/v1.json",
-          "$schema": "https://json-schema.org/draft/2020-12/schema",
-          "additionalProperties": false,
-          "properties": {
-            "label": {
-              "minLength": 1,
-              "type": "string"
-            },
-            "locator": {
-              "minLength": 1,
-              "type": "string"
-            },
-            "observed_at": {
-              "minLength": 1,
-              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-              "type": "string"
-            },
-            "proof_kind": {
-              "enum": [
-                "effect_evidence",
-                "effect_finality",
-                "credential_resolution"
-              ],
-              "type": "string"
-            },
-            "provider": {
-              "minLength": 1,
-              "type": "string"
-            },
-            "schema": {
-              "const": "runx.reference.v1",
-              "type": "string"
-            },
-            "type": {
-              "enum": [
-                "thread",
-                "comment",
-                "event",
-                "tracking_item",
-                "change_request",
-                "repository",
-                "signal",
-                "run",
-                "act",
-                "receipt",
-                "graph_receipt",
-                "artifact",
-                "verification",
-                "harness",
-                "host",
-                "deployment",
-                "surface",
-                "target",
-                "opportunity",
-                "thesis_assessment",
-                "selection",
-                "skill_binding",
-                "target_transition_entry",
-                "selection_cycle",
-                "decision",
-                "reflection_entry",
-                "feed_entry",
-                "principal",
-                "authority_proof",
-                "scope_admission",
-                "grant",
-                "mandate",
-                "credential",
-                "webhook_delivery",
-                "redaction_policy",
-                "external_url",
-                "connector_instance",
-                "connector_operation"
-              ],
-              "type": "string"
-            },
-            "uri": {
-              "minLength": 1,
-              "type": "string"
-            }
-          },
-          "required": [
-            "type",
-            "uri"
-          ],
-          "type": "object",
-          "x-runx-schema": "runx.reference.v1"
-        },
-        "type": "array"
-      },
-      "intent": {
-        "additionalProperties": false,
-        "properties": {
-          "constraints": {
-            "items": {
-              "minLength": 1,
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "derived_from": {
-            "items": {
-              "$id": "https://schemas.runx.ai/runx/reference/v1.json",
-              "$schema": "https://json-schema.org/draft/2020-12/schema",
-              "additionalProperties": false,
-              "properties": {
-                "label": {
-                  "minLength": 1,
-                  "type": "string"
-                },
-                "locator": {
-                  "minLength": 1,
-                  "type": "string"
-                },
-                "observed_at": {
-                  "minLength": 1,
-                  "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-                  "type": "string"
-                },
-                "proof_kind": {
-                  "enum": [
-                    "effect_evidence",
-                    "effect_finality",
-                    "credential_resolution"
-                  ],
-                  "type": "string"
-                },
-                "provider": {
-                  "minLength": 1,
-                  "type": "string"
-                },
-                "schema": {
-                  "const": "runx.reference.v1",
-                  "type": "string"
-                },
-                "type": {
-                  "enum": [
-                    "thread",
-                    "comment",
-                    "event",
-                    "tracking_item",
-                    "change_request",
-                    "repository",
-                    "signal",
-                    "run",
-                    "act",
-                    "receipt",
-                    "graph_receipt",
-                    "artifact",
-                    "verification",
-                    "harness",
-                    "host",
-                    "deployment",
-                    "surface",
-                    "target",
-                    "opportunity",
-                    "thesis_assessment",
-                    "selection",
-                    "skill_binding",
-                    "target_transition_entry",
-                    "selection_cycle",
-                    "decision",
-                    "reflection_entry",
-                    "feed_entry",
-                    "principal",
-                    "authority_proof",
-                    "scope_admission",
-                    "grant",
-                    "mandate",
-                    "credential",
-                    "webhook_delivery",
-                    "redaction_policy",
-                    "external_url",
-                    "connector_instance",
-                    "connector_operation"
-                  ],
-                  "type": "string"
-                },
-                "uri": {
-                  "minLength": 1,
-                  "type": "string"
-                }
-              },
-              "required": [
-                "type",
-                "uri"
-              ],
-              "type": "object",
-              "x-runx-schema": "runx.reference.v1"
-            },
-            "type": "array"
-          },
-          "legitimacy": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "purpose": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "success_criteria": {
-            "items": {
-              "additionalProperties": false,
-              "properties": {
-                "criterion_id": {
-                  "minLength": 1,
-                  "type": "string"
-                },
-                "required": {
-                  "type": "boolean"
-                },
-                "statement": {
-                  "minLength": 1,
-                  "type": "string"
-                }
-              },
-              "required": [
-                "criterion_id",
-                "statement",
-                "required"
-              ],
-              "type": "object"
-            },
-            "type": "array"
-          }
-        },
-        "required": [
-          "purpose",
-          "legitimacy"
-        ],
-        "type": "object"
-      },
-      "performed_at": {
-        "minLength": 1,
-        "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-        "type": "string"
-      },
-      "revision": {
-        "additionalProperties": false,
-        "properties": {
-          "change_plan": {
-            "additionalProperties": false,
-            "properties": {
-              "plan_id": {
-                "minLength": 1,
-                "type": "string"
-              },
-              "risks": {
-                "items": {
-                  "minLength": 1,
-                  "type": "string"
-                },
-                "type": "array"
-              },
-              "steps": {
-                "items": {
-                  "minLength": 1,
-                  "type": "string"
-                },
-                "type": "array"
-              },
-              "summary": {
-                "minLength": 1,
-                "type": "string"
-              }
-            },
-            "required": [
-              "plan_id",
-              "summary"
-            ],
-            "type": "object"
-          },
-          "change_request": {
-            "additionalProperties": false,
-            "properties": {
-              "request_id": {
-                "minLength": 1,
-                "type": "string"
-              },
-              "success_criteria": {
-                "items": {
-                  "additionalProperties": false,
-                  "properties": {
-                    "criterion_id": {
-                      "minLength": 1,
-                      "type": "string"
-                    },
-                    "required": {
-                      "type": "boolean"
-                    },
-                    "statement": {
-                      "minLength": 1,
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "criterion_id",
-                    "statement",
-                    "required"
-                  ],
-                  "type": "object"
-                },
-                "type": "array"
-              },
-              "summary": {
-                "minLength": 1,
-                "type": "string"
-              },
-              "target_surfaces": {
-                "items": {
-                  "additionalProperties": false,
-                  "properties": {
-                    "mutating": {
-                      "type": "boolean"
-                    },
-                    "rationale": {
-                      "minLength": 1,
-                      "type": "string"
-                    },
-                    "surface_ref": {
-                      "$id": "https://schemas.runx.ai/runx/reference/v1.json",
-                      "$schema": "https://json-schema.org/draft/2020-12/schema",
-                      "additionalProperties": false,
-                      "properties": {
-                        "label": {
-                          "minLength": 1,
-                          "type": "string"
-                        },
-                        "locator": {
-                          "minLength": 1,
-                          "type": "string"
-                        },
-                        "observed_at": {
-                          "minLength": 1,
-                          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-                          "type": "string"
-                        },
-                        "proof_kind": {
-                          "enum": [
-                            "effect_evidence",
-                            "effect_finality",
-                            "credential_resolution"
-                          ],
-                          "type": "string"
-                        },
-                        "provider": {
-                          "minLength": 1,
-                          "type": "string"
-                        },
-                        "schema": {
-                          "const": "runx.reference.v1",
-                          "type": "string"
-                        },
-                        "type": {
-                          "enum": [
-                            "thread",
-                            "comment",
-                            "event",
-                            "tracking_item",
-                            "change_request",
-                            "repository",
-                            "signal",
-                            "run",
-                            "act",
-                            "receipt",
-                            "graph_receipt",
-                            "artifact",
-                            "verification",
-                            "harness",
-                            "host",
-                            "deployment",
-                            "surface",
-                            "target",
-                            "opportunity",
-                            "thesis_assessment",
-                            "selection",
-                            "skill_binding",
-                            "target_transition_entry",
-                            "selection_cycle",
-                            "decision",
-                            "reflection_entry",
-                            "feed_entry",
-                            "principal",
-                            "authority_proof",
-                            "scope_admission",
-                            "grant",
-                            "mandate",
-                            "credential",
-                            "webhook_delivery",
-                            "redaction_policy",
-                            "external_url",
-                            "connector_instance",
-                            "connector_operation"
-                          ],
-                          "type": "string"
-                        },
-                        "uri": {
-                          "minLength": 1,
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "type",
-                        "uri"
-                      ],
-                      "type": "object",
-                      "x-runx-schema": "runx.reference.v1"
-                    }
-                  },
-                  "required": [
-                    "surface_ref",
-                    "mutating"
-                  ],
-                  "type": "object"
-                },
-                "type": "array"
-              }
-            },
-            "required": [
-              "request_id",
-              "summary"
-            ],
-            "type": "object"
-          },
-          "handoff_refs": {
-            "items": {
-              "$id": "https://schemas.runx.ai/runx/reference/v1.json",
-              "$schema": "https://json-schema.org/draft/2020-12/schema",
-              "additionalProperties": false,
-              "properties": {
-                "label": {
-                  "minLength": 1,
-                  "type": "string"
-                },
-                "locator": {
-                  "minLength": 1,
-                  "type": "string"
-                },
-                "observed_at": {
-                  "minLength": 1,
-                  "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-                  "type": "string"
-                },
-                "proof_kind": {
-                  "enum": [
-                    "effect_evidence",
-                    "effect_finality",
-                    "credential_resolution"
-                  ],
-                  "type": "string"
-                },
-                "provider": {
-                  "minLength": 1,
-                  "type": "string"
-                },
-                "schema": {
-                  "const": "runx.reference.v1",
-                  "type": "string"
-                },
-                "type": {
-                  "enum": [
-                    "thread",
-                    "comment",
-                    "event",
-                    "tracking_item",
-                    "change_request",
-                    "repository",
-                    "signal",
-                    "run",
-                    "act",
-                    "receipt",
-                    "graph_receipt",
-                    "artifact",
-                    "verification",
-                    "harness",
-                    "host",
-                    "deployment",
-                    "surface",
-                    "target",
-                    "opportunity",
-                    "thesis_assessment",
-                    "selection",
-                    "skill_binding",
-                    "target_transition_entry",
-                    "selection_cycle",
-                    "decision",
-                    "reflection_entry",
-                    "feed_entry",
-                    "principal",
-                    "authority_proof",
-                    "scope_admission",
-                    "grant",
-                    "mandate",
-                    "credential",
-                    "webhook_delivery",
-                    "redaction_policy",
-                    "external_url",
-                    "connector_instance",
-                    "connector_operation"
-                  ],
-                  "type": "string"
-                },
-                "uri": {
-                  "minLength": 1,
-                  "type": "string"
-                }
-              },
-              "required": [
-                "type",
-                "uri"
-              ],
-              "type": "object",
-              "x-runx-schema": "runx.reference.v1"
-            },
-            "type": "array"
-          },
-          "invariants": {
-            "items": {
-              "minLength": 1,
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "revision_refs": {
-            "items": {
-              "$id": "https://schemas.runx.ai/runx/reference/v1.json",
-              "$schema": "https://json-schema.org/draft/2020-12/schema",
-              "additionalProperties": false,
-              "properties": {
-                "label": {
-                  "minLength": 1,
-                  "type": "string"
-                },
-                "locator": {
-                  "minLength": 1,
-                  "type": "string"
-                },
-                "observed_at": {
-                  "minLength": 1,
-                  "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-                  "type": "string"
-                },
-                "proof_kind": {
-                  "enum": [
-                    "effect_evidence",
-                    "effect_finality",
-                    "credential_resolution"
-                  ],
-                  "type": "string"
-                },
-                "provider": {
-                  "minLength": 1,
-                  "type": "string"
-                },
-                "schema": {
-                  "const": "runx.reference.v1",
-                  "type": "string"
-                },
-                "type": {
-                  "enum": [
-                    "thread",
-                    "comment",
-                    "event",
-                    "tracking_item",
-                    "change_request",
-                    "repository",
-                    "signal",
-                    "run",
-                    "act",
-                    "receipt",
-                    "graph_receipt",
-                    "artifact",
-                    "verification",
-                    "harness",
-                    "host",
-                    "deployment",
-                    "surface",
-                    "target",
-                    "opportunity",
-                    "thesis_assessment",
-                    "selection",
-                    "skill_binding",
-                    "target_transition_entry",
-                    "selection_cycle",
-                    "decision",
-                    "reflection_entry",
-                    "feed_entry",
-                    "principal",
-                    "authority_proof",
-                    "scope_admission",
-                    "grant",
-                    "mandate",
-                    "credential",
-                    "webhook_delivery",
-                    "redaction_policy",
-                    "external_url",
-                    "connector_instance",
-                    "connector_operation"
-                  ],
-                  "type": "string"
-                },
-                "uri": {
-                  "minLength": 1,
-                  "type": "string"
-                }
-              },
-              "required": [
-                "type",
-                "uri"
-              ],
-              "type": "object",
-              "x-runx-schema": "runx.reference.v1"
-            },
-            "type": "array"
-          },
-          "target_surfaces": {
-            "items": {
-              "additionalProperties": false,
-              "properties": {
-                "mutating": {
-                  "type": "boolean"
-                },
-                "rationale": {
-                  "minLength": 1,
-                  "type": "string"
-                },
-                "surface_ref": {
-                  "$id": "https://schemas.runx.ai/runx/reference/v1.json",
-                  "$schema": "https://json-schema.org/draft/2020-12/schema",
-                  "additionalProperties": false,
-                  "properties": {
-                    "label": {
-                      "minLength": 1,
-                      "type": "string"
-                    },
-                    "locator": {
-                      "minLength": 1,
-                      "type": "string"
-                    },
-                    "observed_at": {
-                      "minLength": 1,
-                      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-                      "type": "string"
-                    },
-                    "proof_kind": {
-                      "enum": [
-                        "effect_evidence",
-                        "effect_finality",
-                        "credential_resolution"
-                      ],
-                      "type": "string"
-                    },
-                    "provider": {
-                      "minLength": 1,
-                      "type": "string"
-                    },
-                    "schema": {
-                      "const": "runx.reference.v1",
-                      "type": "string"
-                    },
-                    "type": {
-                      "enum": [
-                        "thread",
-                        "comment",
-                        "event",
-                        "tracking_item",
-                        "change_request",
-                        "repository",
-                        "signal",
-                        "run",
-                        "act",
-                        "receipt",
-                        "graph_receipt",
-                        "artifact",
-                        "verification",
-                        "harness",
-                        "host",
-                        "deployment",
-                        "surface",
-                        "target",
-                        "opportunity",
-                        "thesis_assessment",
-                        "selection",
-                        "skill_binding",
-                        "target_transition_entry",
-                        "selection_cycle",
-                        "decision",
-                        "reflection_entry",
-                        "feed_entry",
-                        "principal",
-                        "authority_proof",
-                        "scope_admission",
-                        "grant",
-                        "mandate",
-                        "credential",
-                        "webhook_delivery",
-                        "redaction_policy",
-                        "external_url",
-                        "connector_instance",
-                        "connector_operation"
-                      ],
-                      "type": "string"
-                    },
-                    "uri": {
-                      "minLength": 1,
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "type",
-                    "uri"
-                  ],
-                  "type": "object",
-                  "x-runx-schema": "runx.reference.v1"
-                }
-              },
-              "required": [
-                "surface_ref",
-                "mutating"
-              ],
-              "type": "object"
-            },
-            "type": "array"
-          },
-          "verification": {
-            "$id": "https://schemas.runx.ai/runx/verification/v1.json",
-            "$schema": "https://json-schema.org/draft/2020-12/schema",
-            "additionalProperties": false,
-            "properties": {
-              "checks": {
-                "items": {
-                  "additionalProperties": false,
-                  "properties": {
-                    "check_id": {
-                      "minLength": 1,
-                      "type": "string"
-                    },
-                    "checked_refs": {
-                      "items": {
-                        "$id": "https://schemas.runx.ai/runx/reference/v1.json",
-                        "$schema": "https://json-schema.org/draft/2020-12/schema",
-                        "additionalProperties": false,
-                        "properties": {
-                          "label": {
-                            "minLength": 1,
-                            "type": "string"
-                          },
-                          "locator": {
-                            "minLength": 1,
-                            "type": "string"
-                          },
-                          "observed_at": {
-                            "minLength": 1,
-                            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-                            "type": "string"
-                          },
-                          "proof_kind": {
-                            "enum": [
-                              "effect_evidence",
-                              "effect_finality",
-                              "credential_resolution"
-                            ],
-                            "type": "string"
-                          },
-                          "provider": {
-                            "minLength": 1,
-                            "type": "string"
-                          },
-                          "schema": {
-                            "const": "runx.reference.v1",
-                            "type": "string"
-                          },
-                          "type": {
-                            "enum": [
-                              "thread",
-                              "comment",
-                              "event",
-                              "tracking_item",
-                              "change_request",
-                              "repository",
-                              "signal",
-                              "run",
-                              "act",
-                              "receipt",
-                              "graph_receipt",
-                              "artifact",
-                              "verification",
-                              "harness",
-                              "host",
-                              "deployment",
-                              "surface",
-                              "target",
-                              "opportunity",
-                              "thesis_assessment",
-                              "selection",
-                              "skill_binding",
-                              "target_transition_entry",
-                              "selection_cycle",
-                              "decision",
-                              "reflection_entry",
-                              "feed_entry",
-                              "principal",
-                              "authority_proof",
-                              "scope_admission",
-                              "grant",
-                              "mandate",
-                              "credential",
-                              "webhook_delivery",
-                              "redaction_policy",
-                              "external_url",
-                              "connector_instance",
-                              "connector_operation"
-                            ],
-                            "type": "string"
-                          },
-                          "uri": {
-                            "minLength": 1,
-                            "type": "string"
-                          }
-                        },
-                        "required": [
-                          "type",
-                          "uri"
-                        ],
-                        "type": "object",
-                        "x-runx-schema": "runx.reference.v1"
-                      },
-                      "type": "array"
-                    },
-                    "criterion_ids": {
-                      "items": {
-                        "minLength": 1,
-                        "type": "string"
-                      },
-                      "type": "array"
-                    },
-                    "evidence_refs": {
-                      "items": {
-                        "$id": "https://schemas.runx.ai/runx/reference/v1.json",
-                        "$schema": "https://json-schema.org/draft/2020-12/schema",
-                        "additionalProperties": false,
-                        "properties": {
-                          "label": {
-                            "minLength": 1,
-                            "type": "string"
-                          },
-                          "locator": {
-                            "minLength": 1,
-                            "type": "string"
-                          },
-                          "observed_at": {
-                            "minLength": 1,
-                            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-                            "type": "string"
-                          },
-                          "proof_kind": {
-                            "enum": [
-                              "effect_evidence",
-                              "effect_finality",
-                              "credential_resolution"
-                            ],
-                            "type": "string"
-                          },
-                          "provider": {
-                            "minLength": 1,
-                            "type": "string"
-                          },
-                          "schema": {
-                            "const": "runx.reference.v1",
-                            "type": "string"
-                          },
-                          "type": {
-                            "enum": [
-                              "thread",
-                              "comment",
-                              "event",
-                              "tracking_item",
-                              "change_request",
-                              "repository",
-                              "signal",
-                              "run",
-                              "act",
-                              "receipt",
-                              "graph_receipt",
-                              "artifact",
-                              "verification",
-                              "harness",
-                              "host",
-                              "deployment",
-                              "surface",
-                              "target",
-                              "opportunity",
-                              "thesis_assessment",
-                              "selection",
-                              "skill_binding",
-                              "target_transition_entry",
-                              "selection_cycle",
-                              "decision",
-                              "reflection_entry",
-                              "feed_entry",
-                              "principal",
-                              "authority_proof",
-                              "scope_admission",
-                              "grant",
-                              "mandate",
-                              "credential",
-                              "webhook_delivery",
-                              "redaction_policy",
-                              "external_url",
-                              "connector_instance",
-                              "connector_operation"
-                            ],
-                            "type": "string"
-                          },
-                          "uri": {
-                            "minLength": 1,
-                            "type": "string"
-                          }
-                        },
-                        "required": [
-                          "type",
-                          "uri"
-                        ],
-                        "type": "object",
-                        "x-runx-schema": "runx.reference.v1"
-                      },
-                      "type": "array"
-                    },
-                    "status": {
-                      "enum": [
-                        "passed",
-                        "failed",
-                        "pending",
-                        "not_applicable",
-                        "missing"
-                      ],
-                      "type": "string"
-                    },
-                    "summary": {
-                      "minLength": 1,
-                      "type": "string"
-                    },
-                    "verified_at": {
-                      "minLength": 1,
-                      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "check_id",
-                    "criterion_ids",
-                    "status",
-                    "evidence_refs"
-                  ],
-                  "type": "object"
-                },
-                "type": "array"
-              },
-              "evidence_refs": {
-                "items": {
-                  "$id": "https://schemas.runx.ai/runx/reference/v1.json",
-                  "$schema": "https://json-schema.org/draft/2020-12/schema",
-                  "additionalProperties": false,
-                  "properties": {
-                    "label": {
-                      "minLength": 1,
-                      "type": "string"
-                    },
-                    "locator": {
-                      "minLength": 1,
-                      "type": "string"
-                    },
-                    "observed_at": {
-                      "minLength": 1,
-                      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-                      "type": "string"
-                    },
-                    "proof_kind": {
-                      "enum": [
-                        "effect_evidence",
-                        "effect_finality",
-                        "credential_resolution"
-                      ],
-                      "type": "string"
-                    },
-                    "provider": {
-                      "minLength": 1,
-                      "type": "string"
-                    },
-                    "schema": {
-                      "const": "runx.reference.v1",
-                      "type": "string"
-                    },
-                    "type": {
-                      "enum": [
-                        "thread",
-                        "comment",
-                        "event",
-                        "tracking_item",
-                        "change_request",
-                        "repository",
-                        "signal",
-                        "run",
-                        "act",
-                        "receipt",
-                        "graph_receipt",
-                        "artifact",
-                        "verification",
-                        "harness",
-                        "host",
-                        "deployment",
-                        "surface",
-                        "target",
-                        "opportunity",
-                        "thesis_assessment",
-                        "selection",
-                        "skill_binding",
-                        "target_transition_entry",
-                        "selection_cycle",
-                        "decision",
-                        "reflection_entry",
-                        "feed_entry",
-                        "principal",
-                        "authority_proof",
-                        "scope_admission",
-                        "grant",
-                        "mandate",
-                        "credential",
-                        "webhook_delivery",
-                        "redaction_policy",
-                        "external_url",
-                        "connector_instance",
-                        "connector_operation"
-                      ],
-                      "type": "string"
-                    },
-                    "uri": {
-                      "minLength": 1,
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "type",
-                    "uri"
-                  ],
-                  "type": "object",
-                  "x-runx-schema": "runx.reference.v1"
-                },
-                "type": "array"
-              },
-              "schema": {
-                "enum": [
-                  "runx.verification.v1"
-                ],
-                "type": "string"
-              },
-              "status": {
-                "enum": [
-                  "passed",
-                  "failed",
-                  "pending",
-                  "not_applicable",
-                  "missing"
-                ],
-                "type": "string"
-              },
-              "verification_id": {
-                "minLength": 1,
-                "type": "string"
-              },
-              "verified_at": {
-                "minLength": 1,
-                "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-                "type": "string"
-              }
-            },
-            "required": [
-              "status",
-              "checks",
-              "evidence_refs"
-            ],
-            "type": "object",
-            "x-runx-schema": "runx.verification.v1"
-          }
-        },
-        "required": [
-          "change_request",
-          "change_plan"
-        ],
-        "type": "object"
-      },
-      "schema": {
-        "enum": [
-          "runx.act.v1"
-        ],
-        "type": "string"
-      },
-      "source_refs": {
-        "items": {
-          "$id": "https://schemas.runx.ai/runx/reference/v1.json",
-          "$schema": "https://json-schema.org/draft/2020-12/schema",
-          "additionalProperties": false,
-          "properties": {
-            "label": {
-              "minLength": 1,
-              "type": "string"
-            },
-            "locator": {
-              "minLength": 1,
-              "type": "string"
-            },
-            "observed_at": {
-              "minLength": 1,
-              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-              "type": "string"
-            },
-            "proof_kind": {
-              "enum": [
-                "effect_evidence",
-                "effect_finality",
-                "credential_resolution"
-              ],
-              "type": "string"
-            },
-            "provider": {
-              "minLength": 1,
-              "type": "string"
-            },
-            "schema": {
-              "const": "runx.reference.v1",
-              "type": "string"
-            },
-            "type": {
-              "enum": [
-                "thread",
-                "comment",
-                "event",
-                "tracking_item",
-                "change_request",
-                "repository",
-                "signal",
-                "run",
-                "act",
-                "receipt",
-                "graph_receipt",
-                "artifact",
-                "verification",
-                "harness",
-                "host",
-                "deployment",
-                "surface",
-                "target",
-                "opportunity",
-                "thesis_assessment",
-                "selection",
-                "skill_binding",
-                "target_transition_entry",
-                "selection_cycle",
-                "decision",
-                "reflection_entry",
-                "feed_entry",
-                "principal",
-                "authority_proof",
-                "scope_admission",
-                "grant",
-                "mandate",
-                "credential",
-                "webhook_delivery",
-                "redaction_policy",
-                "external_url",
-                "connector_instance",
-                "connector_operation"
-              ],
-              "type": "string"
-            },
-            "uri": {
-              "minLength": 1,
-              "type": "string"
-            }
-          },
-          "required": [
-            "type",
-            "uri"
-          ],
-          "type": "object",
-          "x-runx-schema": "runx.reference.v1"
-        },
-        "type": "array"
-      },
-      "summary": {
-        "minLength": 1,
-        "type": "string"
-      },
-      "surface_refs": {
-        "items": {
-          "$id": "https://schemas.runx.ai/runx/reference/v1.json",
-          "$schema": "https://json-schema.org/draft/2020-12/schema",
-          "additionalProperties": false,
-          "properties": {
-            "label": {
-              "minLength": 1,
-              "type": "string"
-            },
-            "locator": {
-              "minLength": 1,
-              "type": "string"
-            },
-            "observed_at": {
-              "minLength": 1,
-              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-              "type": "string"
-            },
-            "proof_kind": {
-              "enum": [
-                "effect_evidence",
-                "effect_finality",
-                "credential_resolution"
-              ],
-              "type": "string"
-            },
-            "provider": {
-              "minLength": 1,
-              "type": "string"
-            },
-            "schema": {
-              "const": "runx.reference.v1",
-              "type": "string"
-            },
-            "type": {
-              "enum": [
-                "thread",
-                "comment",
-                "event",
-                "tracking_item",
-                "change_request",
-                "repository",
-                "signal",
-                "run",
-                "act",
-                "receipt",
-                "graph_receipt",
-                "artifact",
-                "verification",
-                "harness",
-                "host",
-                "deployment",
-                "surface",
-                "target",
-                "opportunity",
-                "thesis_assessment",
-                "selection",
-                "skill_binding",
-                "target_transition_entry",
-                "selection_cycle",
-                "decision",
-                "reflection_entry",
-                "feed_entry",
-                "principal",
-                "authority_proof",
-                "scope_admission",
-                "grant",
-                "mandate",
-                "credential",
-                "webhook_delivery",
-                "redaction_policy",
-                "external_url",
-                "connector_instance",
-                "connector_operation"
-              ],
-              "type": "string"
-            },
-            "uri": {
-              "minLength": 1,
-              "type": "string"
-            }
-          },
-          "required": [
-            "type",
-            "uri"
-          ],
-          "type": "object",
-          "x-runx-schema": "runx.reference.v1"
-        },
-        "type": "array"
-      },
-      "target_refs": {
-        "items": {
-          "$id": "https://schemas.runx.ai/runx/reference/v1.json",
-          "$schema": "https://json-schema.org/draft/2020-12/schema",
-          "additionalProperties": false,
-          "properties": {
-            "label": {
-              "minLength": 1,
-              "type": "string"
-            },
-            "locator": {
-              "minLength": 1,
-              "type": "string"
-            },
-            "observed_at": {
-              "minLength": 1,
-              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-              "type": "string"
-            },
-            "proof_kind": {
-              "enum": [
-                "effect_evidence",
-                "effect_finality",
-                "credential_resolution"
-              ],
-              "type": "string"
-            },
-            "provider": {
-              "minLength": 1,
-              "type": "string"
-            },
-            "schema": {
-              "const": "runx.reference.v1",
-              "type": "string"
-            },
-            "type": {
-              "enum": [
-                "thread",
-                "comment",
-                "event",
-                "tracking_item",
-                "change_request",
-                "repository",
-                "signal",
-                "run",
-                "act",
-                "receipt",
-                "graph_receipt",
-                "artifact",
-                "verification",
-                "harness",
-                "host",
-                "deployment",
-                "surface",
-                "target",
-                "opportunity",
-                "thesis_assessment",
-                "selection",
-                "skill_binding",
-                "target_transition_entry",
-                "selection_cycle",
-                "decision",
-                "reflection_entry",
-                "feed_entry",
-                "principal",
-                "authority_proof",
-                "scope_admission",
-                "grant",
-                "mandate",
-                "credential",
-                "webhook_delivery",
-                "redaction_policy",
-                "external_url",
-                "connector_instance",
-                "connector_operation"
-              ],
-              "type": "string"
-            },
-            "uri": {
-              "minLength": 1,
-              "type": "string"
-            }
-          },
-          "required": [
-            "type",
-            "uri"
-          ],
-          "type": "object",
-          "x-runx-schema": "runx.reference.v1"
-        },
-        "type": "array"
-      },
-      "verification": {
-        "additionalProperties": false,
-        "properties": {
-          "criterion_ids": {
-            "items": {
-              "minLength": 1,
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "deployment_ref": {
-            "$id": "https://schemas.runx.ai/runx/reference/v1.json",
-            "$schema": "https://json-schema.org/draft/2020-12/schema",
-            "additionalProperties": false,
-            "properties": {
-              "label": {
-                "minLength": 1,
-                "type": "string"
-              },
-              "locator": {
-                "minLength": 1,
-                "type": "string"
-              },
-              "observed_at": {
-                "minLength": 1,
-                "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-                "type": "string"
-              },
-              "proof_kind": {
-                "enum": [
-                  "effect_evidence",
-                  "effect_finality",
-                  "credential_resolution"
-                ],
-                "type": "string"
-              },
-              "provider": {
-                "minLength": 1,
-                "type": "string"
-              },
-              "schema": {
-                "const": "runx.reference.v1",
-                "type": "string"
-              },
-              "type": {
-                "enum": [
-                  "thread",
-                  "comment",
-                  "event",
-                  "tracking_item",
-                  "change_request",
-                  "repository",
-                  "signal",
-                  "run",
-                  "act",
-                  "receipt",
-                  "graph_receipt",
-                  "artifact",
-                  "verification",
-                  "harness",
-                  "host",
-                  "deployment",
-                  "surface",
-                  "target",
-                  "opportunity",
-                  "thesis_assessment",
-                  "selection",
-                  "skill_binding",
-                  "target_transition_entry",
-                  "selection_cycle",
-                  "decision",
-                  "reflection_entry",
-                  "feed_entry",
-                  "principal",
-                  "authority_proof",
-                  "scope_admission",
-                  "grant",
-                  "mandate",
-                  "credential",
-                  "webhook_delivery",
-                  "redaction_policy",
-                  "external_url",
-                  "connector_instance",
-                  "connector_operation"
-                ],
-                "type": "string"
-              },
-              "uri": {
-                "minLength": 1,
-                "type": "string"
-              }
-            },
-            "required": [
-              "type",
-              "uri"
-            ],
-            "type": "object",
-            "x-runx-schema": "runx.reference.v1"
-          },
-          "verification": {
-            "$id": "https://schemas.runx.ai/runx/verification/v1.json",
-            "$schema": "https://json-schema.org/draft/2020-12/schema",
-            "additionalProperties": false,
-            "properties": {
-              "checks": {
-                "items": {
-                  "additionalProperties": false,
-                  "properties": {
-                    "check_id": {
-                      "minLength": 1,
-                      "type": "string"
-                    },
-                    "checked_refs": {
-                      "items": {
-                        "$id": "https://schemas.runx.ai/runx/reference/v1.json",
-                        "$schema": "https://json-schema.org/draft/2020-12/schema",
-                        "additionalProperties": false,
-                        "properties": {
-                          "label": {
-                            "minLength": 1,
-                            "type": "string"
-                          },
-                          "locator": {
-                            "minLength": 1,
-                            "type": "string"
-                          },
-                          "observed_at": {
-                            "minLength": 1,
-                            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-                            "type": "string"
-                          },
-                          "proof_kind": {
-                            "enum": [
-                              "effect_evidence",
-                              "effect_finality",
-                              "credential_resolution"
-                            ],
-                            "type": "string"
-                          },
-                          "provider": {
-                            "minLength": 1,
-                            "type": "string"
-                          },
-                          "schema": {
-                            "const": "runx.reference.v1",
-                            "type": "string"
-                          },
-                          "type": {
-                            "enum": [
-                              "thread",
-                              "comment",
-                              "event",
-                              "tracking_item",
-                              "change_request",
-                              "repository",
-                              "signal",
-                              "run",
-                              "act",
-                              "receipt",
-                              "graph_receipt",
-                              "artifact",
-                              "verification",
-                              "harness",
-                              "host",
-                              "deployment",
-                              "surface",
-                              "target",
-                              "opportunity",
-                              "thesis_assessment",
-                              "selection",
-                              "skill_binding",
-                              "target_transition_entry",
-                              "selection_cycle",
-                              "decision",
-                              "reflection_entry",
-                              "feed_entry",
-                              "principal",
-                              "authority_proof",
-                              "scope_admission",
-                              "grant",
-                              "mandate",
-                              "credential",
-                              "webhook_delivery",
-                              "redaction_policy",
-                              "external_url",
-                              "connector_instance",
-                              "connector_operation"
-                            ],
-                            "type": "string"
-                          },
-                          "uri": {
-                            "minLength": 1,
-                            "type": "string"
-                          }
-                        },
-                        "required": [
-                          "type",
-                          "uri"
-                        ],
-                        "type": "object",
-                        "x-runx-schema": "runx.reference.v1"
-                      },
-                      "type": "array"
-                    },
-                    "criterion_ids": {
-                      "items": {
-                        "minLength": 1,
-                        "type": "string"
-                      },
-                      "type": "array"
-                    },
-                    "evidence_refs": {
-                      "items": {
-                        "$id": "https://schemas.runx.ai/runx/reference/v1.json",
-                        "$schema": "https://json-schema.org/draft/2020-12/schema",
-                        "additionalProperties": false,
-                        "properties": {
-                          "label": {
-                            "minLength": 1,
-                            "type": "string"
-                          },
-                          "locator": {
-                            "minLength": 1,
-                            "type": "string"
-                          },
-                          "observed_at": {
-                            "minLength": 1,
-                            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-                            "type": "string"
-                          },
-                          "proof_kind": {
-                            "enum": [
-                              "effect_evidence",
-                              "effect_finality",
-                              "credential_resolution"
-                            ],
-                            "type": "string"
-                          },
-                          "provider": {
-                            "minLength": 1,
-                            "type": "string"
-                          },
-                          "schema": {
-                            "const": "runx.reference.v1",
-                            "type": "string"
-                          },
-                          "type": {
-                            "enum": [
-                              "thread",
-                              "comment",
-                              "event",
-                              "tracking_item",
-                              "change_request",
-                              "repository",
-                              "signal",
-                              "run",
-                              "act",
-                              "receipt",
-                              "graph_receipt",
-                              "artifact",
-                              "verification",
-                              "harness",
-                              "host",
-                              "deployment",
-                              "surface",
-                              "target",
-                              "opportunity",
-                              "thesis_assessment",
-                              "selection",
-                              "skill_binding",
-                              "target_transition_entry",
-                              "selection_cycle",
-                              "decision",
-                              "reflection_entry",
-                              "feed_entry",
-                              "principal",
-                              "authority_proof",
-                              "scope_admission",
-                              "grant",
-                              "mandate",
-                              "credential",
-                              "webhook_delivery",
-                              "redaction_policy",
-                              "external_url",
-                              "connector_instance",
-                              "connector_operation"
-                            ],
-                            "type": "string"
-                          },
-                          "uri": {
-                            "minLength": 1,
-                            "type": "string"
-                          }
-                        },
-                        "required": [
-                          "type",
-                          "uri"
-                        ],
-                        "type": "object",
-                        "x-runx-schema": "runx.reference.v1"
-                      },
-                      "type": "array"
-                    },
-                    "status": {
-                      "enum": [
-                        "passed",
-                        "failed",
-                        "pending",
-                        "not_applicable",
-                        "missing"
-                      ],
-                      "type": "string"
-                    },
-                    "summary": {
-                      "minLength": 1,
-                      "type": "string"
-                    },
-                    "verified_at": {
-                      "minLength": 1,
-                      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "check_id",
-                    "criterion_ids",
-                    "status",
-                    "evidence_refs"
-                  ],
-                  "type": "object"
-                },
-                "type": "array"
-              },
-              "evidence_refs": {
-                "items": {
-                  "$id": "https://schemas.runx.ai/runx/reference/v1.json",
-                  "$schema": "https://json-schema.org/draft/2020-12/schema",
-                  "additionalProperties": false,
-                  "properties": {
-                    "label": {
-                      "minLength": 1,
-                      "type": "string"
-                    },
-                    "locator": {
-                      "minLength": 1,
-                      "type": "string"
-                    },
-                    "observed_at": {
-                      "minLength": 1,
-                      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-                      "type": "string"
-                    },
-                    "proof_kind": {
-                      "enum": [
-                        "effect_evidence",
-                        "effect_finality",
-                        "credential_resolution"
-                      ],
-                      "type": "string"
-                    },
-                    "provider": {
-                      "minLength": 1,
-                      "type": "string"
-                    },
-                    "schema": {
-                      "const": "runx.reference.v1",
-                      "type": "string"
-                    },
-                    "type": {
-                      "enum": [
-                        "thread",
-                        "comment",
-                        "event",
-                        "tracking_item",
-                        "change_request",
-                        "repository",
-                        "signal",
-                        "run",
-                        "act",
-                        "receipt",
-                        "graph_receipt",
-                        "artifact",
-                        "verification",
-                        "harness",
-                        "host",
-                        "deployment",
-                        "surface",
-                        "target",
-                        "opportunity",
-                        "thesis_assessment",
-                        "selection",
-                        "skill_binding",
-                        "target_transition_entry",
-                        "selection_cycle",
-                        "decision",
-                        "reflection_entry",
-                        "feed_entry",
-                        "principal",
-                        "authority_proof",
-                        "scope_admission",
-                        "grant",
-                        "mandate",
-                        "credential",
-                        "webhook_delivery",
-                        "redaction_policy",
-                        "external_url",
-                        "connector_instance",
-                        "connector_operation"
-                      ],
-                      "type": "string"
-                    },
-                    "uri": {
-                      "minLength": 1,
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "type",
-                    "uri"
-                  ],
-                  "type": "object",
-                  "x-runx-schema": "runx.reference.v1"
-                },
-                "type": "array"
-              },
-              "schema": {
-                "enum": [
-                  "runx.verification.v1"
-                ],
-                "type": "string"
-              },
-              "status": {
-                "enum": [
-                  "passed",
-                  "failed",
-                  "pending",
-                  "not_applicable",
-                  "missing"
-                ],
-                "type": "string"
-              },
-              "verification_id": {
-                "minLength": 1,
-                "type": "string"
-              },
-              "verified_at": {
-                "minLength": 1,
-                "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-                "type": "string"
-              }
-            },
-            "required": [
-              "status",
-              "checks",
-              "evidence_refs"
-            ],
-            "type": "object",
-            "x-runx-schema": "runx.verification.v1"
-          }
-        },
-        "required": [
-          "criterion_ids",
-          "verification"
-        ],
-        "type": "object"
-      },
-      "verification_refs": {
-        "items": {
-          "$id": "https://schemas.runx.ai/runx/reference/v1.json",
-          "$schema": "https://json-schema.org/draft/2020-12/schema",
-          "additionalProperties": false,
-          "properties": {
-            "label": {
-              "minLength": 1,
-              "type": "string"
-            },
-            "locator": {
-              "minLength": 1,
-              "type": "string"
-            },
-            "observed_at": {
-              "minLength": 1,
-              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-              "type": "string"
-            },
-            "proof_kind": {
-              "enum": [
-                "effect_evidence",
-                "effect_finality",
-                "credential_resolution"
-              ],
-              "type": "string"
-            },
-            "provider": {
-              "minLength": 1,
-              "type": "string"
-            },
-            "schema": {
-              "const": "runx.reference.v1",
-              "type": "string"
-            },
-            "type": {
-              "enum": [
-                "thread",
-                "comment",
-                "event",
-                "tracking_item",
-                "change_request",
-                "repository",
-                "signal",
-                "run",
-                "act",
-                "receipt",
-                "graph_receipt",
-                "artifact",
-                "verification",
-                "harness",
-                "host",
-                "deployment",
-                "surface",
-                "target",
-                "opportunity",
-                "thesis_assessment",
-                "selection",
-                "skill_binding",
-                "target_transition_entry",
-                "selection_cycle",
-                "decision",
-                "reflection_entry",
-                "feed_entry",
-                "principal",
-                "authority_proof",
-                "scope_admission",
-                "grant",
-                "mandate",
-                "credential",
-                "webhook_delivery",
-                "redaction_policy",
-                "external_url",
-                "connector_instance",
-                "connector_operation"
-              ],
-              "type": "string"
-            },
-            "uri": {
-              "minLength": 1,
-              "type": "string"
-            }
-          },
-          "required": [
-            "type",
-            "uri"
-          ],
-          "type": "object",
-          "x-runx-schema": "runx.reference.v1"
-        },
-        "type": "array"
-      }
-    },
-    "required": [
-      "act_id",
-      "form",
-      "intent",
-      "summary",
-      "closure",
-      "performed_at"
-    ],
-    "type": "object",
-    "x-runx-schema": "runx.act.v1"
-  } as JsonSchema,
   "admission.schema.json": {
     "$id": "https://schemas.runx.ai/runx/admission/v1.json",
     "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -3601,25 +1297,14 @@ export const runxSchemaArtifacts = {
                         "run",
                         "act",
                         "receipt",
-                        "graph_receipt",
                         "artifact",
                         "verification",
                         "harness",
                         "host",
-                        "deployment",
                         "surface",
                         "target",
-                        "opportunity",
-                        "thesis_assessment",
-                        "selection",
                         "skill_binding",
-                        "target_transition_entry",
-                        "selection_cycle",
-                        "decision",
-                        "reflection_entry",
-                        "feed_entry",
                         "principal",
-                        "authority_proof",
                         "scope_admission",
                         "grant",
                         "mandate",
@@ -3699,25 +1384,14 @@ export const runxSchemaArtifacts = {
                                   "run",
                                   "act",
                                   "receipt",
-                                  "graph_receipt",
                                   "artifact",
                                   "verification",
                                   "harness",
                                   "host",
-                                  "deployment",
                                   "surface",
                                   "target",
-                                  "opportunity",
-                                  "thesis_assessment",
-                                  "selection",
                                   "skill_binding",
-                                  "target_transition_entry",
-                                  "selection_cycle",
-                                  "decision",
-                                  "reflection_entry",
-                                  "feed_entry",
                                   "principal",
-                                  "authority_proof",
                                   "scope_admission",
                                   "grant",
                                   "mandate",
@@ -3793,25 +1467,14 @@ export const runxSchemaArtifacts = {
                                   "run",
                                   "act",
                                   "receipt",
-                                  "graph_receipt",
                                   "artifact",
                                   "verification",
                                   "harness",
                                   "host",
-                                  "deployment",
                                   "surface",
                                   "target",
-                                  "opportunity",
-                                  "thesis_assessment",
-                                  "selection",
                                   "skill_binding",
-                                  "target_transition_entry",
-                                  "selection_cycle",
-                                  "decision",
-                                  "reflection_entry",
-                                  "feed_entry",
                                   "principal",
-                                  "authority_proof",
                                   "scope_admission",
                                   "grant",
                                   "mandate",
@@ -3835,13 +1498,6 @@ export const runxSchemaArtifacts = {
                             ],
                             "type": "object",
                             "x-runx-schema": "runx.reference.v1"
-                          },
-                          "criterion_ids": {
-                            "items": {
-                              "minLength": 1,
-                              "type": "string"
-                            },
-                            "type": "array"
                           }
                         },
                         "required": [
@@ -3859,6 +1515,7 @@ export const runxSchemaArtifacts = {
                             "minLength": 1,
                             "type": "string"
                           },
+                          "minItems": 1,
                           "type": "array"
                         },
                         "deployment_environments": {
@@ -3866,6 +1523,7 @@ export const runxSchemaArtifacts = {
                             "minLength": 1,
                             "type": "string"
                           },
+                          "minItems": 1,
                           "type": "array"
                         },
                         "effect_limits": {
@@ -3890,6 +1548,7 @@ export const runxSchemaArtifacts = {
                                 "type": "array"
                               },
                               "commitment_required": {
+                                "const": true,
                                 "type": "boolean"
                               },
                               "family": {
@@ -3897,6 +1556,7 @@ export const runxSchemaArtifacts = {
                                 "type": "string"
                               },
                               "idempotency_required": {
+                                "const": true,
                                 "type": "boolean"
                               },
                               "max_per_call_units": {
@@ -3921,6 +1581,7 @@ export const runxSchemaArtifacts = {
                                 "type": "string"
                               },
                               "preflight_required": {
+                                "const": true,
                                 "type": "boolean"
                               },
                               "preflight_ttl_ms": {
@@ -3931,12 +1592,15 @@ export const runxSchemaArtifacts = {
                                 "type": "string"
                               },
                               "receipt_before_success": {
+                                "const": true,
                                 "type": "boolean"
                               },
                               "recovery_required": {
+                                "const": true,
                                 "type": "boolean"
                               },
                               "single_use_capability": {
+                                "const": true,
                                 "type": "boolean"
                               },
                               "unit": {
@@ -3951,6 +1615,7 @@ export const runxSchemaArtifacts = {
                             ],
                             "type": "object"
                           },
+                          "minItems": 1,
                           "type": "array"
                         },
                         "effects": {
@@ -3969,6 +1634,7 @@ export const runxSchemaArtifacts = {
                                   ],
                                   "type": "string"
                                 },
+                                "minItems": 1,
                                 "type": "array"
                               },
                               "proof_kinds": {
@@ -3980,6 +1646,7 @@ export const runxSchemaArtifacts = {
                                   ],
                                   "type": "string"
                                 },
+                                "minItems": 1,
                                 "type": "array"
                               }
                             },
@@ -3988,6 +1655,7 @@ export const runxSchemaArtifacts = {
                             ],
                             "type": "object"
                           },
+                          "minItems": 1,
                           "type": "array"
                         },
                         "filesystem_roots": {
@@ -3995,6 +1663,7 @@ export const runxSchemaArtifacts = {
                             "minLength": 1,
                             "type": "string"
                           },
+                          "minItems": 1,
                           "type": "array"
                         },
                         "max_child_depth": {
@@ -4014,6 +1683,7 @@ export const runxSchemaArtifacts = {
                             "minLength": 1,
                             "type": "string"
                           },
+                          "minItems": 1,
                           "type": "array"
                         },
                         "operations": {
@@ -4021,6 +1691,7 @@ export const runxSchemaArtifacts = {
                             "minLength": 1,
                             "type": "string"
                           },
+                          "minItems": 1,
                           "type": "array"
                         },
                         "repo_path_globs": {
@@ -4028,6 +1699,7 @@ export const runxSchemaArtifacts = {
                             "minLength": 1,
                             "type": "string"
                           },
+                          "minItems": 1,
                           "type": "array"
                         },
                         "scopes": {
@@ -4035,6 +1707,7 @@ export const runxSchemaArtifacts = {
                             "minLength": 1,
                             "type": "string"
                           },
+                          "minItems": 1,
                           "type": "array"
                         },
                         "targets": {
@@ -4042,6 +1715,7 @@ export const runxSchemaArtifacts = {
                             "minLength": 1,
                             "type": "string"
                           },
+                          "minItems": 1,
                           "type": "array"
                         },
                         "token_audiences": {
@@ -4049,6 +1723,7 @@ export const runxSchemaArtifacts = {
                             "minLength": 1,
                             "type": "string"
                           },
+                          "minItems": 1,
                           "type": "array"
                         },
                         "uses": {
@@ -4155,25 +1830,14 @@ export const runxSchemaArtifacts = {
                                     "run",
                                     "act",
                                     "receipt",
-                                    "graph_receipt",
                                     "artifact",
                                     "verification",
                                     "harness",
                                     "host",
-                                    "deployment",
                                     "surface",
                                     "target",
-                                    "opportunity",
-                                    "thesis_assessment",
-                                    "selection",
                                     "skill_binding",
-                                    "target_transition_entry",
-                                    "selection_cycle",
-                                    "decision",
-                                    "reflection_entry",
-                                    "feed_entry",
                                     "principal",
-                                    "authority_proof",
                                     "scope_admission",
                                     "grant",
                                     "mandate",
@@ -4198,6 +1862,7 @@ export const runxSchemaArtifacts = {
                               "type": "object",
                               "x-runx-schema": "runx.reference.v1"
                             },
+                            "minItems": 1,
                             "type": "array"
                           }
                         },
@@ -4255,25 +1920,14 @@ export const runxSchemaArtifacts = {
                             "run",
                             "act",
                             "receipt",
-                            "graph_receipt",
                             "artifact",
                             "verification",
                             "harness",
                             "host",
-                            "deployment",
                             "surface",
                             "target",
-                            "opportunity",
-                            "thesis_assessment",
-                            "selection",
                             "skill_binding",
-                            "target_transition_entry",
-                            "selection_cycle",
-                            "decision",
-                            "reflection_entry",
-                            "feed_entry",
                             "principal",
-                            "authority_proof",
                             "scope_admission",
                             "grant",
                             "mandate",
@@ -4349,25 +2003,14 @@ export const runxSchemaArtifacts = {
                             "run",
                             "act",
                             "receipt",
-                            "graph_receipt",
                             "artifact",
                             "verification",
                             "harness",
                             "host",
-                            "deployment",
                             "surface",
                             "target",
-                            "opportunity",
-                            "thesis_assessment",
-                            "selection",
                             "skill_binding",
-                            "target_transition_entry",
-                            "selection_cycle",
-                            "decision",
-                            "reflection_entry",
-                            "feed_entry",
                             "principal",
-                            "authority_proof",
                             "scope_admission",
                             "grant",
                             "mandate",
@@ -4438,25 +2081,14 @@ export const runxSchemaArtifacts = {
                             "run",
                             "act",
                             "receipt",
-                            "graph_receipt",
                             "artifact",
                             "verification",
                             "harness",
                             "host",
-                            "deployment",
                             "surface",
                             "target",
-                            "opportunity",
-                            "thesis_assessment",
-                            "selection",
                             "skill_binding",
-                            "target_transition_entry",
-                            "selection_cycle",
-                            "decision",
-                            "reflection_entry",
-                            "feed_entry",
                             "principal",
-                            "authority_proof",
                             "scope_admission",
                             "grant",
                             "mandate",
@@ -4542,25 +2174,14 @@ export const runxSchemaArtifacts = {
                             "run",
                             "act",
                             "receipt",
-                            "graph_receipt",
                             "artifact",
                             "verification",
                             "harness",
                             "host",
-                            "deployment",
                             "surface",
                             "target",
-                            "opportunity",
-                            "thesis_assessment",
-                            "selection",
                             "skill_binding",
-                            "target_transition_entry",
-                            "selection_cycle",
-                            "decision",
-                            "reflection_entry",
-                            "feed_entry",
                             "principal",
-                            "authority_proof",
                             "scope_admission",
                             "grant",
                             "mandate",
@@ -4735,25 +2356,14 @@ export const runxSchemaArtifacts = {
                         "run",
                         "act",
                         "receipt",
-                        "graph_receipt",
                         "artifact",
                         "verification",
                         "harness",
                         "host",
-                        "deployment",
                         "surface",
                         "target",
-                        "opportunity",
-                        "thesis_assessment",
-                        "selection",
                         "skill_binding",
-                        "target_transition_entry",
-                        "selection_cycle",
-                        "decision",
-                        "reflection_entry",
-                        "feed_entry",
                         "principal",
-                        "authority_proof",
                         "scope_admission",
                         "grant",
                         "mandate",
@@ -4824,25 +2434,14 @@ export const runxSchemaArtifacts = {
                         "run",
                         "act",
                         "receipt",
-                        "graph_receipt",
                         "artifact",
                         "verification",
                         "harness",
                         "host",
-                        "deployment",
                         "surface",
                         "target",
-                        "opportunity",
-                        "thesis_assessment",
-                        "selection",
                         "skill_binding",
-                        "target_transition_entry",
-                        "selection_cycle",
-                        "decision",
-                        "reflection_entry",
-                        "feed_entry",
                         "principal",
-                        "authority_proof",
                         "scope_admission",
                         "grant",
                         "mandate",
@@ -4972,25 +2571,14 @@ export const runxSchemaArtifacts = {
                         "run",
                         "act",
                         "receipt",
-                        "graph_receipt",
                         "artifact",
                         "verification",
                         "harness",
                         "host",
-                        "deployment",
                         "surface",
                         "target",
-                        "opportunity",
-                        "thesis_assessment",
-                        "selection",
                         "skill_binding",
-                        "target_transition_entry",
-                        "selection_cycle",
-                        "decision",
-                        "reflection_entry",
-                        "feed_entry",
                         "principal",
-                        "authority_proof",
                         "scope_admission",
                         "grant",
                         "mandate",
@@ -5066,25 +2654,14 @@ export const runxSchemaArtifacts = {
                         "run",
                         "act",
                         "receipt",
-                        "graph_receipt",
                         "artifact",
                         "verification",
                         "harness",
                         "host",
-                        "deployment",
                         "surface",
                         "target",
-                        "opportunity",
-                        "thesis_assessment",
-                        "selection",
                         "skill_binding",
-                        "target_transition_entry",
-                        "selection_cycle",
-                        "decision",
-                        "reflection_entry",
-                        "feed_entry",
                         "principal",
-                        "authority_proof",
                         "scope_admission",
                         "grant",
                         "mandate",
@@ -5108,13 +2685,6 @@ export const runxSchemaArtifacts = {
                   ],
                   "type": "object",
                   "x-runx-schema": "runx.reference.v1"
-                },
-                "criterion_ids": {
-                  "items": {
-                    "minLength": 1,
-                    "type": "string"
-                  },
-                  "type": "array"
                 }
               },
               "required": [
@@ -5132,6 +2702,7 @@ export const runxSchemaArtifacts = {
                   "minLength": 1,
                   "type": "string"
                 },
+                "minItems": 1,
                 "type": "array"
               },
               "deployment_environments": {
@@ -5139,6 +2710,7 @@ export const runxSchemaArtifacts = {
                   "minLength": 1,
                   "type": "string"
                 },
+                "minItems": 1,
                 "type": "array"
               },
               "effect_limits": {
@@ -5163,6 +2735,7 @@ export const runxSchemaArtifacts = {
                       "type": "array"
                     },
                     "commitment_required": {
+                      "const": true,
                       "type": "boolean"
                     },
                     "family": {
@@ -5170,6 +2743,7 @@ export const runxSchemaArtifacts = {
                       "type": "string"
                     },
                     "idempotency_required": {
+                      "const": true,
                       "type": "boolean"
                     },
                     "max_per_call_units": {
@@ -5194,6 +2768,7 @@ export const runxSchemaArtifacts = {
                       "type": "string"
                     },
                     "preflight_required": {
+                      "const": true,
                       "type": "boolean"
                     },
                     "preflight_ttl_ms": {
@@ -5204,12 +2779,15 @@ export const runxSchemaArtifacts = {
                       "type": "string"
                     },
                     "receipt_before_success": {
+                      "const": true,
                       "type": "boolean"
                     },
                     "recovery_required": {
+                      "const": true,
                       "type": "boolean"
                     },
                     "single_use_capability": {
+                      "const": true,
                       "type": "boolean"
                     },
                     "unit": {
@@ -5224,6 +2802,7 @@ export const runxSchemaArtifacts = {
                   ],
                   "type": "object"
                 },
+                "minItems": 1,
                 "type": "array"
               },
               "effects": {
@@ -5242,6 +2821,7 @@ export const runxSchemaArtifacts = {
                         ],
                         "type": "string"
                       },
+                      "minItems": 1,
                       "type": "array"
                     },
                     "proof_kinds": {
@@ -5253,6 +2833,7 @@ export const runxSchemaArtifacts = {
                         ],
                         "type": "string"
                       },
+                      "minItems": 1,
                       "type": "array"
                     }
                   },
@@ -5261,6 +2842,7 @@ export const runxSchemaArtifacts = {
                   ],
                   "type": "object"
                 },
+                "minItems": 1,
                 "type": "array"
               },
               "filesystem_roots": {
@@ -5268,6 +2850,7 @@ export const runxSchemaArtifacts = {
                   "minLength": 1,
                   "type": "string"
                 },
+                "minItems": 1,
                 "type": "array"
               },
               "max_child_depth": {
@@ -5287,6 +2870,7 @@ export const runxSchemaArtifacts = {
                   "minLength": 1,
                   "type": "string"
                 },
+                "minItems": 1,
                 "type": "array"
               },
               "operations": {
@@ -5294,6 +2878,7 @@ export const runxSchemaArtifacts = {
                   "minLength": 1,
                   "type": "string"
                 },
+                "minItems": 1,
                 "type": "array"
               },
               "repo_path_globs": {
@@ -5301,6 +2886,7 @@ export const runxSchemaArtifacts = {
                   "minLength": 1,
                   "type": "string"
                 },
+                "minItems": 1,
                 "type": "array"
               },
               "scopes": {
@@ -5308,6 +2894,7 @@ export const runxSchemaArtifacts = {
                   "minLength": 1,
                   "type": "string"
                 },
+                "minItems": 1,
                 "type": "array"
               },
               "targets": {
@@ -5315,6 +2902,7 @@ export const runxSchemaArtifacts = {
                   "minLength": 1,
                   "type": "string"
                 },
+                "minItems": 1,
                 "type": "array"
               },
               "token_audiences": {
@@ -5322,6 +2910,7 @@ export const runxSchemaArtifacts = {
                   "minLength": 1,
                   "type": "string"
                 },
+                "minItems": 1,
                 "type": "array"
               },
               "uses": {
@@ -5428,25 +3017,14 @@ export const runxSchemaArtifacts = {
                           "run",
                           "act",
                           "receipt",
-                          "graph_receipt",
                           "artifact",
                           "verification",
                           "harness",
                           "host",
-                          "deployment",
                           "surface",
                           "target",
-                          "opportunity",
-                          "thesis_assessment",
-                          "selection",
                           "skill_binding",
-                          "target_transition_entry",
-                          "selection_cycle",
-                          "decision",
-                          "reflection_entry",
-                          "feed_entry",
                           "principal",
-                          "authority_proof",
                           "scope_admission",
                           "grant",
                           "mandate",
@@ -5471,6 +3049,7 @@ export const runxSchemaArtifacts = {
                     "type": "object",
                     "x-runx-schema": "runx.reference.v1"
                   },
+                  "minItems": 1,
                   "type": "array"
                 }
               },
@@ -5528,25 +3107,14 @@ export const runxSchemaArtifacts = {
                   "run",
                   "act",
                   "receipt",
-                  "graph_receipt",
                   "artifact",
                   "verification",
                   "harness",
                   "host",
-                  "deployment",
                   "surface",
                   "target",
-                  "opportunity",
-                  "thesis_assessment",
-                  "selection",
                   "skill_binding",
-                  "target_transition_entry",
-                  "selection_cycle",
-                  "decision",
-                  "reflection_entry",
-                  "feed_entry",
                   "principal",
-                  "authority_proof",
                   "scope_admission",
                   "grant",
                   "mandate",
@@ -5622,25 +3190,14 @@ export const runxSchemaArtifacts = {
                   "run",
                   "act",
                   "receipt",
-                  "graph_receipt",
                   "artifact",
                   "verification",
                   "harness",
                   "host",
-                  "deployment",
                   "surface",
                   "target",
-                  "opportunity",
-                  "thesis_assessment",
-                  "selection",
                   "skill_binding",
-                  "target_transition_entry",
-                  "selection_cycle",
-                  "decision",
-                  "reflection_entry",
-                  "feed_entry",
                   "principal",
-                  "authority_proof",
                   "scope_admission",
                   "grant",
                   "mandate",
@@ -5711,25 +3268,14 @@ export const runxSchemaArtifacts = {
                   "run",
                   "act",
                   "receipt",
-                  "graph_receipt",
                   "artifact",
                   "verification",
                   "harness",
                   "host",
-                  "deployment",
                   "surface",
                   "target",
-                  "opportunity",
-                  "thesis_assessment",
-                  "selection",
                   "skill_binding",
-                  "target_transition_entry",
-                  "selection_cycle",
-                  "decision",
-                  "reflection_entry",
-                  "feed_entry",
                   "principal",
-                  "authority_proof",
                   "scope_admission",
                   "grant",
                   "mandate",
@@ -5815,25 +3361,14 @@ export const runxSchemaArtifacts = {
                   "run",
                   "act",
                   "receipt",
-                  "graph_receipt",
                   "artifact",
                   "verification",
                   "harness",
                   "host",
-                  "deployment",
                   "surface",
                   "target",
-                  "opportunity",
-                  "thesis_assessment",
-                  "selection",
                   "skill_binding",
-                  "target_transition_entry",
-                  "selection_cycle",
-                  "decision",
-                  "reflection_entry",
-                  "feed_entry",
                   "principal",
-                  "authority_proof",
                   "scope_admission",
                   "grant",
                   "mandate",
@@ -6061,25 +3596,14 @@ export const runxSchemaArtifacts = {
                       "run",
                       "act",
                       "receipt",
-                      "graph_receipt",
                       "artifact",
                       "verification",
                       "harness",
                       "host",
-                      "deployment",
                       "surface",
                       "target",
-                      "opportunity",
-                      "thesis_assessment",
-                      "selection",
                       "skill_binding",
-                      "target_transition_entry",
-                      "selection_cycle",
-                      "decision",
-                      "reflection_entry",
-                      "feed_entry",
                       "principal",
-                      "authority_proof",
                       "scope_admission",
                       "grant",
                       "mandate",
@@ -6104,6 +3628,7 @@ export const runxSchemaArtifacts = {
                 "type": "object",
                 "x-runx-schema": "runx.reference.v1"
               },
+              "minItems": 1,
               "type": "array"
             }
           },
@@ -6140,6 +3665,7 @@ export const runxSchemaArtifacts = {
         "additionalProperties": false,
         "properties": {
           "asks": {
+            "const": true,
             "type": "boolean"
           },
           "operations": {
@@ -6161,6 +3687,7 @@ export const runxSchemaArtifacts = {
               ],
               "type": "object"
             },
+            "minItems": 1,
             "type": "array"
           },
           "skills": {
@@ -6168,6 +3695,7 @@ export const runxSchemaArtifacts = {
               "minLength": 1,
               "type": "string"
             },
+            "minItems": 1,
             "type": "array"
           },
           "tools": {
@@ -6175,6 +3703,7 @@ export const runxSchemaArtifacts = {
               "minLength": 1,
               "type": "string"
             },
+            "minItems": 1,
             "type": "array"
           }
         },
@@ -6769,17 +4298,20 @@ export const runxSchemaArtifacts = {
                 "properties": {
                   "environment": {
                     "additionalProperties": false,
+                    "minProperties": 1,
                     "properties": {
                       "optional": {
                         "items": {
                           "type": "string"
                         },
+                        "minItems": 1,
                         "type": "array"
                       },
                       "required": {
                         "items": {
                           "type": "string"
                         },
+                        "minItems": 1,
                         "type": "array"
                       }
                     },
@@ -6789,6 +4321,7 @@ export const runxSchemaArtifacts = {
                     "items": {
                       "type": "string"
                     },
+                    "minItems": 1,
                     "type": "array"
                   }
                 },
@@ -6815,6 +4348,7 @@ export const runxSchemaArtifacts = {
                   ],
                   "type": "object"
                 },
+                "minItems": 1,
                 "type": "array"
               },
               "execution_boundary": {
@@ -7519,17 +5053,20 @@ export const runxSchemaArtifacts = {
             "properties": {
               "environment": {
                 "additionalProperties": false,
+                "minProperties": 1,
                 "properties": {
                   "optional": {
                     "items": {
                       "type": "string"
                     },
+                    "minItems": 1,
                     "type": "array"
                   },
                   "required": {
                     "items": {
                       "type": "string"
                     },
+                    "minItems": 1,
                     "type": "array"
                   }
                 },
@@ -7539,6 +5076,7 @@ export const runxSchemaArtifacts = {
                 "items": {
                   "type": "string"
                 },
+                "minItems": 1,
                 "type": "array"
               }
             },
@@ -7565,6 +5103,7 @@ export const runxSchemaArtifacts = {
               ],
               "type": "object"
             },
+            "minItems": 1,
             "type": "array"
           },
           "execution_boundary": {
@@ -7797,25 +5336,14 @@ export const runxSchemaArtifacts = {
               "run",
               "act",
               "receipt",
-              "graph_receipt",
               "artifact",
               "verification",
               "harness",
               "host",
-              "deployment",
               "surface",
               "target",
-              "opportunity",
-              "thesis_assessment",
-              "selection",
               "skill_binding",
-              "target_transition_entry",
-              "selection_cycle",
-              "decision",
-              "reflection_entry",
-              "feed_entry",
               "principal",
-              "authority_proof",
               "scope_admission",
               "grant",
               "mandate",
@@ -7891,25 +5419,14 @@ export const runxSchemaArtifacts = {
               "run",
               "act",
               "receipt",
-              "graph_receipt",
               "artifact",
               "verification",
               "harness",
               "host",
-              "deployment",
               "surface",
               "target",
-              "opportunity",
-              "thesis_assessment",
-              "selection",
               "skill_binding",
-              "target_transition_entry",
-              "selection_cycle",
-              "decision",
-              "reflection_entry",
-              "feed_entry",
               "principal",
-              "authority_proof",
               "scope_admission",
               "grant",
               "mandate",
@@ -8023,25 +5540,14 @@ export const runxSchemaArtifacts = {
                       "run",
                       "act",
                       "receipt",
-                      "graph_receipt",
                       "artifact",
                       "verification",
                       "harness",
                       "host",
-                      "deployment",
                       "surface",
                       "target",
-                      "opportunity",
-                      "thesis_assessment",
-                      "selection",
                       "skill_binding",
-                      "target_transition_entry",
-                      "selection_cycle",
-                      "decision",
-                      "reflection_entry",
-                      "feed_entry",
                       "principal",
-                      "authority_proof",
                       "scope_admission",
                       "grant",
                       "mandate",
@@ -8119,25 +5625,14 @@ export const runxSchemaArtifacts = {
                   "run",
                   "act",
                   "receipt",
-                  "graph_receipt",
                   "artifact",
                   "verification",
                   "harness",
                   "host",
-                  "deployment",
                   "surface",
                   "target",
-                  "opportunity",
-                  "thesis_assessment",
-                  "selection",
                   "skill_binding",
-                  "target_transition_entry",
-                  "selection_cycle",
-                  "decision",
-                  "reflection_entry",
-                  "feed_entry",
                   "principal",
-                  "authority_proof",
                   "scope_admission",
                   "grant",
                   "mandate",
@@ -8208,25 +5703,14 @@ export const runxSchemaArtifacts = {
                   "run",
                   "act",
                   "receipt",
-                  "graph_receipt",
                   "artifact",
                   "verification",
                   "harness",
                   "host",
-                  "deployment",
                   "surface",
                   "target",
-                  "opportunity",
-                  "thesis_assessment",
-                  "selection",
                   "skill_binding",
-                  "target_transition_entry",
-                  "selection_cycle",
-                  "decision",
-                  "reflection_entry",
-                  "feed_entry",
                   "principal",
-                  "authority_proof",
                   "scope_admission",
                   "grant",
                   "mandate",
@@ -8297,25 +5781,14 @@ export const runxSchemaArtifacts = {
                   "run",
                   "act",
                   "receipt",
-                  "graph_receipt",
                   "artifact",
                   "verification",
                   "harness",
                   "host",
-                  "deployment",
                   "surface",
                   "target",
-                  "opportunity",
-                  "thesis_assessment",
-                  "selection",
                   "skill_binding",
-                  "target_transition_entry",
-                  "selection_cycle",
-                  "decision",
-                  "reflection_entry",
-                  "feed_entry",
                   "principal",
-                  "authority_proof",
                   "scope_admission",
                   "grant",
                   "mandate",
@@ -8386,25 +5859,14 @@ export const runxSchemaArtifacts = {
                   "run",
                   "act",
                   "receipt",
-                  "graph_receipt",
                   "artifact",
                   "verification",
                   "harness",
                   "host",
-                  "deployment",
                   "surface",
                   "target",
-                  "opportunity",
-                  "thesis_assessment",
-                  "selection",
                   "skill_binding",
-                  "target_transition_entry",
-                  "selection_cycle",
-                  "decision",
-                  "reflection_entry",
-                  "feed_entry",
                   "principal",
-                  "authority_proof",
                   "scope_admission",
                   "grant",
                   "mandate",
@@ -8479,25 +5941,14 @@ export const runxSchemaArtifacts = {
                 "run",
                 "act",
                 "receipt",
-                "graph_receipt",
                 "artifact",
                 "verification",
                 "harness",
                 "host",
-                "deployment",
                 "surface",
                 "target",
-                "opportunity",
-                "thesis_assessment",
-                "selection",
                 "skill_binding",
-                "target_transition_entry",
-                "selection_cycle",
-                "decision",
-                "reflection_entry",
-                "feed_entry",
                 "principal",
-                "authority_proof",
                 "scope_admission",
                 "grant",
                 "mandate",
@@ -8580,25 +6031,14 @@ export const runxSchemaArtifacts = {
                 "run",
                 "act",
                 "receipt",
-                "graph_receipt",
                 "artifact",
                 "verification",
                 "harness",
                 "host",
-                "deployment",
                 "surface",
                 "target",
-                "opportunity",
-                "thesis_assessment",
-                "selection",
                 "skill_binding",
-                "target_transition_entry",
-                "selection_cycle",
-                "decision",
-                "reflection_entry",
-                "feed_entry",
                 "principal",
-                "authority_proof",
                 "scope_admission",
                 "grant",
                 "mandate",
@@ -8711,25 +6151,14 @@ export const runxSchemaArtifacts = {
                     "run",
                     "act",
                     "receipt",
-                    "graph_receipt",
                     "artifact",
                     "verification",
                     "harness",
                     "host",
-                    "deployment",
                     "surface",
                     "target",
-                    "opportunity",
-                    "thesis_assessment",
-                    "selection",
                     "skill_binding",
-                    "target_transition_entry",
-                    "selection_cycle",
-                    "decision",
-                    "reflection_entry",
-                    "feed_entry",
                     "principal",
-                    "authority_proof",
                     "scope_admission",
                     "grant",
                     "mandate",
@@ -8809,25 +6238,14 @@ export const runxSchemaArtifacts = {
                               "run",
                               "act",
                               "receipt",
-                              "graph_receipt",
                               "artifact",
                               "verification",
                               "harness",
                               "host",
-                              "deployment",
                               "surface",
                               "target",
-                              "opportunity",
-                              "thesis_assessment",
-                              "selection",
                               "skill_binding",
-                              "target_transition_entry",
-                              "selection_cycle",
-                              "decision",
-                              "reflection_entry",
-                              "feed_entry",
                               "principal",
-                              "authority_proof",
                               "scope_admission",
                               "grant",
                               "mandate",
@@ -8903,25 +6321,14 @@ export const runxSchemaArtifacts = {
                               "run",
                               "act",
                               "receipt",
-                              "graph_receipt",
                               "artifact",
                               "verification",
                               "harness",
                               "host",
-                              "deployment",
                               "surface",
                               "target",
-                              "opportunity",
-                              "thesis_assessment",
-                              "selection",
                               "skill_binding",
-                              "target_transition_entry",
-                              "selection_cycle",
-                              "decision",
-                              "reflection_entry",
-                              "feed_entry",
                               "principal",
-                              "authority_proof",
                               "scope_admission",
                               "grant",
                               "mandate",
@@ -8945,13 +6352,6 @@ export const runxSchemaArtifacts = {
                         ],
                         "type": "object",
                         "x-runx-schema": "runx.reference.v1"
-                      },
-                      "criterion_ids": {
-                        "items": {
-                          "minLength": 1,
-                          "type": "string"
-                        },
-                        "type": "array"
                       }
                     },
                     "required": [
@@ -8969,6 +6369,7 @@ export const runxSchemaArtifacts = {
                         "minLength": 1,
                         "type": "string"
                       },
+                      "minItems": 1,
                       "type": "array"
                     },
                     "deployment_environments": {
@@ -8976,6 +6377,7 @@ export const runxSchemaArtifacts = {
                         "minLength": 1,
                         "type": "string"
                       },
+                      "minItems": 1,
                       "type": "array"
                     },
                     "effect_limits": {
@@ -9000,6 +6402,7 @@ export const runxSchemaArtifacts = {
                             "type": "array"
                           },
                           "commitment_required": {
+                            "const": true,
                             "type": "boolean"
                           },
                           "family": {
@@ -9007,6 +6410,7 @@ export const runxSchemaArtifacts = {
                             "type": "string"
                           },
                           "idempotency_required": {
+                            "const": true,
                             "type": "boolean"
                           },
                           "max_per_call_units": {
@@ -9031,6 +6435,7 @@ export const runxSchemaArtifacts = {
                             "type": "string"
                           },
                           "preflight_required": {
+                            "const": true,
                             "type": "boolean"
                           },
                           "preflight_ttl_ms": {
@@ -9041,12 +6446,15 @@ export const runxSchemaArtifacts = {
                             "type": "string"
                           },
                           "receipt_before_success": {
+                            "const": true,
                             "type": "boolean"
                           },
                           "recovery_required": {
+                            "const": true,
                             "type": "boolean"
                           },
                           "single_use_capability": {
+                            "const": true,
                             "type": "boolean"
                           },
                           "unit": {
@@ -9061,6 +6469,7 @@ export const runxSchemaArtifacts = {
                         ],
                         "type": "object"
                       },
+                      "minItems": 1,
                       "type": "array"
                     },
                     "effects": {
@@ -9079,6 +6488,7 @@ export const runxSchemaArtifacts = {
                               ],
                               "type": "string"
                             },
+                            "minItems": 1,
                             "type": "array"
                           },
                           "proof_kinds": {
@@ -9090,6 +6500,7 @@ export const runxSchemaArtifacts = {
                               ],
                               "type": "string"
                             },
+                            "minItems": 1,
                             "type": "array"
                           }
                         },
@@ -9098,6 +6509,7 @@ export const runxSchemaArtifacts = {
                         ],
                         "type": "object"
                       },
+                      "minItems": 1,
                       "type": "array"
                     },
                     "filesystem_roots": {
@@ -9105,6 +6517,7 @@ export const runxSchemaArtifacts = {
                         "minLength": 1,
                         "type": "string"
                       },
+                      "minItems": 1,
                       "type": "array"
                     },
                     "max_child_depth": {
@@ -9124,6 +6537,7 @@ export const runxSchemaArtifacts = {
                         "minLength": 1,
                         "type": "string"
                       },
+                      "minItems": 1,
                       "type": "array"
                     },
                     "operations": {
@@ -9131,6 +6545,7 @@ export const runxSchemaArtifacts = {
                         "minLength": 1,
                         "type": "string"
                       },
+                      "minItems": 1,
                       "type": "array"
                     },
                     "repo_path_globs": {
@@ -9138,6 +6553,7 @@ export const runxSchemaArtifacts = {
                         "minLength": 1,
                         "type": "string"
                       },
+                      "minItems": 1,
                       "type": "array"
                     },
                     "scopes": {
@@ -9145,6 +6561,7 @@ export const runxSchemaArtifacts = {
                         "minLength": 1,
                         "type": "string"
                       },
+                      "minItems": 1,
                       "type": "array"
                     },
                     "targets": {
@@ -9152,6 +6569,7 @@ export const runxSchemaArtifacts = {
                         "minLength": 1,
                         "type": "string"
                       },
+                      "minItems": 1,
                       "type": "array"
                     },
                     "token_audiences": {
@@ -9159,6 +6577,7 @@ export const runxSchemaArtifacts = {
                         "minLength": 1,
                         "type": "string"
                       },
+                      "minItems": 1,
                       "type": "array"
                     },
                     "uses": {
@@ -9265,25 +6684,14 @@ export const runxSchemaArtifacts = {
                                 "run",
                                 "act",
                                 "receipt",
-                                "graph_receipt",
                                 "artifact",
                                 "verification",
                                 "harness",
                                 "host",
-                                "deployment",
                                 "surface",
                                 "target",
-                                "opportunity",
-                                "thesis_assessment",
-                                "selection",
                                 "skill_binding",
-                                "target_transition_entry",
-                                "selection_cycle",
-                                "decision",
-                                "reflection_entry",
-                                "feed_entry",
                                 "principal",
-                                "authority_proof",
                                 "scope_admission",
                                 "grant",
                                 "mandate",
@@ -9308,6 +6716,7 @@ export const runxSchemaArtifacts = {
                           "type": "object",
                           "x-runx-schema": "runx.reference.v1"
                         },
+                        "minItems": 1,
                         "type": "array"
                       }
                     },
@@ -9365,25 +6774,14 @@ export const runxSchemaArtifacts = {
                         "run",
                         "act",
                         "receipt",
-                        "graph_receipt",
                         "artifact",
                         "verification",
                         "harness",
                         "host",
-                        "deployment",
                         "surface",
                         "target",
-                        "opportunity",
-                        "thesis_assessment",
-                        "selection",
                         "skill_binding",
-                        "target_transition_entry",
-                        "selection_cycle",
-                        "decision",
-                        "reflection_entry",
-                        "feed_entry",
                         "principal",
-                        "authority_proof",
                         "scope_admission",
                         "grant",
                         "mandate",
@@ -9459,25 +6857,14 @@ export const runxSchemaArtifacts = {
                         "run",
                         "act",
                         "receipt",
-                        "graph_receipt",
                         "artifact",
                         "verification",
                         "harness",
                         "host",
-                        "deployment",
                         "surface",
                         "target",
-                        "opportunity",
-                        "thesis_assessment",
-                        "selection",
                         "skill_binding",
-                        "target_transition_entry",
-                        "selection_cycle",
-                        "decision",
-                        "reflection_entry",
-                        "feed_entry",
                         "principal",
-                        "authority_proof",
                         "scope_admission",
                         "grant",
                         "mandate",
@@ -9548,25 +6935,14 @@ export const runxSchemaArtifacts = {
                         "run",
                         "act",
                         "receipt",
-                        "graph_receipt",
                         "artifact",
                         "verification",
                         "harness",
                         "host",
-                        "deployment",
                         "surface",
                         "target",
-                        "opportunity",
-                        "thesis_assessment",
-                        "selection",
                         "skill_binding",
-                        "target_transition_entry",
-                        "selection_cycle",
-                        "decision",
-                        "reflection_entry",
-                        "feed_entry",
                         "principal",
-                        "authority_proof",
                         "scope_admission",
                         "grant",
                         "mandate",
@@ -9652,25 +7028,14 @@ export const runxSchemaArtifacts = {
                         "run",
                         "act",
                         "receipt",
-                        "graph_receipt",
                         "artifact",
                         "verification",
                         "harness",
                         "host",
-                        "deployment",
                         "surface",
                         "target",
-                        "opportunity",
-                        "thesis_assessment",
-                        "selection",
                         "skill_binding",
-                        "target_transition_entry",
-                        "selection_cycle",
-                        "decision",
-                        "reflection_entry",
-                        "feed_entry",
                         "principal",
-                        "authority_proof",
                         "scope_admission",
                         "grant",
                         "mandate",
@@ -9845,25 +7210,14 @@ export const runxSchemaArtifacts = {
                     "run",
                     "act",
                     "receipt",
-                    "graph_receipt",
                     "artifact",
                     "verification",
                     "harness",
                     "host",
-                    "deployment",
                     "surface",
                     "target",
-                    "opportunity",
-                    "thesis_assessment",
-                    "selection",
                     "skill_binding",
-                    "target_transition_entry",
-                    "selection_cycle",
-                    "decision",
-                    "reflection_entry",
-                    "feed_entry",
                     "principal",
-                    "authority_proof",
                     "scope_admission",
                     "grant",
                     "mandate",
@@ -9934,25 +7288,14 @@ export const runxSchemaArtifacts = {
                     "run",
                     "act",
                     "receipt",
-                    "graph_receipt",
                     "artifact",
                     "verification",
                     "harness",
                     "host",
-                    "deployment",
                     "surface",
                     "target",
-                    "opportunity",
-                    "thesis_assessment",
-                    "selection",
                     "skill_binding",
-                    "target_transition_entry",
-                    "selection_cycle",
-                    "decision",
-                    "reflection_entry",
-                    "feed_entry",
                     "principal",
-                    "authority_proof",
                     "scope_admission",
                     "grant",
                     "mandate",
@@ -10108,25 +7451,14 @@ export const runxSchemaArtifacts = {
               "run",
               "act",
               "receipt",
-              "graph_receipt",
               "artifact",
               "verification",
               "harness",
               "host",
-              "deployment",
               "surface",
               "target",
-              "opportunity",
-              "thesis_assessment",
-              "selection",
               "skill_binding",
-              "target_transition_entry",
-              "selection_cycle",
-              "decision",
-              "reflection_entry",
-              "feed_entry",
               "principal",
-              "authority_proof",
               "scope_admission",
               "grant",
               "mandate",
@@ -10197,25 +7529,14 @@ export const runxSchemaArtifacts = {
               "run",
               "act",
               "receipt",
-              "graph_receipt",
               "artifact",
               "verification",
               "harness",
               "host",
-              "deployment",
               "surface",
               "target",
-              "opportunity",
-              "thesis_assessment",
-              "selection",
               "skill_binding",
-              "target_transition_entry",
-              "selection_cycle",
-              "decision",
-              "reflection_entry",
-              "feed_entry",
               "principal",
-              "authority_proof",
               "scope_admission",
               "grant",
               "mandate",
@@ -10316,25 +7637,14 @@ export const runxSchemaArtifacts = {
                     "run",
                     "act",
                     "receipt",
-                    "graph_receipt",
                     "artifact",
                     "verification",
                     "harness",
                     "host",
-                    "deployment",
                     "surface",
                     "target",
-                    "opportunity",
-                    "thesis_assessment",
-                    "selection",
                     "skill_binding",
-                    "target_transition_entry",
-                    "selection_cycle",
-                    "decision",
-                    "reflection_entry",
-                    "feed_entry",
                     "principal",
-                    "authority_proof",
                     "scope_admission",
                     "grant",
                     "mandate",
@@ -10410,25 +7720,14 @@ export const runxSchemaArtifacts = {
                     "run",
                     "act",
                     "receipt",
-                    "graph_receipt",
                     "artifact",
                     "verification",
                     "harness",
                     "host",
-                    "deployment",
                     "surface",
                     "target",
-                    "opportunity",
-                    "thesis_assessment",
-                    "selection",
                     "skill_binding",
-                    "target_transition_entry",
-                    "selection_cycle",
-                    "decision",
-                    "reflection_entry",
-                    "feed_entry",
                     "principal",
-                    "authority_proof",
                     "scope_admission",
                     "grant",
                     "mandate",
@@ -10452,13 +7751,6 @@ export const runxSchemaArtifacts = {
               ],
               "type": "object",
               "x-runx-schema": "runx.reference.v1"
-            },
-            "criterion_ids": {
-              "items": {
-                "minLength": 1,
-                "type": "string"
-              },
-              "type": "array"
             }
           },
           "required": [
@@ -10476,6 +7768,7 @@ export const runxSchemaArtifacts = {
               "minLength": 1,
               "type": "string"
             },
+            "minItems": 1,
             "type": "array"
           },
           "deployment_environments": {
@@ -10483,6 +7776,7 @@ export const runxSchemaArtifacts = {
               "minLength": 1,
               "type": "string"
             },
+            "minItems": 1,
             "type": "array"
           },
           "effect_limits": {
@@ -10507,6 +7801,7 @@ export const runxSchemaArtifacts = {
                   "type": "array"
                 },
                 "commitment_required": {
+                  "const": true,
                   "type": "boolean"
                 },
                 "family": {
@@ -10514,6 +7809,7 @@ export const runxSchemaArtifacts = {
                   "type": "string"
                 },
                 "idempotency_required": {
+                  "const": true,
                   "type": "boolean"
                 },
                 "max_per_call_units": {
@@ -10538,6 +7834,7 @@ export const runxSchemaArtifacts = {
                   "type": "string"
                 },
                 "preflight_required": {
+                  "const": true,
                   "type": "boolean"
                 },
                 "preflight_ttl_ms": {
@@ -10548,12 +7845,15 @@ export const runxSchemaArtifacts = {
                   "type": "string"
                 },
                 "receipt_before_success": {
+                  "const": true,
                   "type": "boolean"
                 },
                 "recovery_required": {
+                  "const": true,
                   "type": "boolean"
                 },
                 "single_use_capability": {
+                  "const": true,
                   "type": "boolean"
                 },
                 "unit": {
@@ -10568,6 +7868,7 @@ export const runxSchemaArtifacts = {
               ],
               "type": "object"
             },
+            "minItems": 1,
             "type": "array"
           },
           "effects": {
@@ -10586,6 +7887,7 @@ export const runxSchemaArtifacts = {
                     ],
                     "type": "string"
                   },
+                  "minItems": 1,
                   "type": "array"
                 },
                 "proof_kinds": {
@@ -10597,6 +7899,7 @@ export const runxSchemaArtifacts = {
                     ],
                     "type": "string"
                   },
+                  "minItems": 1,
                   "type": "array"
                 }
               },
@@ -10605,6 +7908,7 @@ export const runxSchemaArtifacts = {
               ],
               "type": "object"
             },
+            "minItems": 1,
             "type": "array"
           },
           "filesystem_roots": {
@@ -10612,6 +7916,7 @@ export const runxSchemaArtifacts = {
               "minLength": 1,
               "type": "string"
             },
+            "minItems": 1,
             "type": "array"
           },
           "max_child_depth": {
@@ -10631,6 +7936,7 @@ export const runxSchemaArtifacts = {
               "minLength": 1,
               "type": "string"
             },
+            "minItems": 1,
             "type": "array"
           },
           "operations": {
@@ -10638,6 +7944,7 @@ export const runxSchemaArtifacts = {
               "minLength": 1,
               "type": "string"
             },
+            "minItems": 1,
             "type": "array"
           },
           "repo_path_globs": {
@@ -10645,6 +7952,7 @@ export const runxSchemaArtifacts = {
               "minLength": 1,
               "type": "string"
             },
+            "minItems": 1,
             "type": "array"
           },
           "scopes": {
@@ -10652,6 +7960,7 @@ export const runxSchemaArtifacts = {
               "minLength": 1,
               "type": "string"
             },
+            "minItems": 1,
             "type": "array"
           },
           "targets": {
@@ -10659,6 +7968,7 @@ export const runxSchemaArtifacts = {
               "minLength": 1,
               "type": "string"
             },
+            "minItems": 1,
             "type": "array"
           },
           "token_audiences": {
@@ -10666,6 +7976,7 @@ export const runxSchemaArtifacts = {
               "minLength": 1,
               "type": "string"
             },
+            "minItems": 1,
             "type": "array"
           },
           "uses": {
@@ -10772,25 +8083,14 @@ export const runxSchemaArtifacts = {
                       "run",
                       "act",
                       "receipt",
-                      "graph_receipt",
                       "artifact",
                       "verification",
                       "harness",
                       "host",
-                      "deployment",
                       "surface",
                       "target",
-                      "opportunity",
-                      "thesis_assessment",
-                      "selection",
                       "skill_binding",
-                      "target_transition_entry",
-                      "selection_cycle",
-                      "decision",
-                      "reflection_entry",
-                      "feed_entry",
                       "principal",
-                      "authority_proof",
                       "scope_admission",
                       "grant",
                       "mandate",
@@ -10815,6 +8115,7 @@ export const runxSchemaArtifacts = {
                 "type": "object",
                 "x-runx-schema": "runx.reference.v1"
               },
+              "minItems": 1,
               "type": "array"
             }
           },
@@ -10872,25 +8173,14 @@ export const runxSchemaArtifacts = {
               "run",
               "act",
               "receipt",
-              "graph_receipt",
               "artifact",
               "verification",
               "harness",
               "host",
-              "deployment",
               "surface",
               "target",
-              "opportunity",
-              "thesis_assessment",
-              "selection",
               "skill_binding",
-              "target_transition_entry",
-              "selection_cycle",
-              "decision",
-              "reflection_entry",
-              "feed_entry",
               "principal",
-              "authority_proof",
               "scope_admission",
               "grant",
               "mandate",
@@ -10966,25 +8256,14 @@ export const runxSchemaArtifacts = {
               "run",
               "act",
               "receipt",
-              "graph_receipt",
               "artifact",
               "verification",
               "harness",
               "host",
-              "deployment",
               "surface",
               "target",
-              "opportunity",
-              "thesis_assessment",
-              "selection",
               "skill_binding",
-              "target_transition_entry",
-              "selection_cycle",
-              "decision",
-              "reflection_entry",
-              "feed_entry",
               "principal",
-              "authority_proof",
               "scope_admission",
               "grant",
               "mandate",
@@ -11055,25 +8334,14 @@ export const runxSchemaArtifacts = {
               "run",
               "act",
               "receipt",
-              "graph_receipt",
               "artifact",
               "verification",
               "harness",
               "host",
-              "deployment",
               "surface",
               "target",
-              "opportunity",
-              "thesis_assessment",
-              "selection",
               "skill_binding",
-              "target_transition_entry",
-              "selection_cycle",
-              "decision",
-              "reflection_entry",
-              "feed_entry",
               "principal",
-              "authority_proof",
               "scope_admission",
               "grant",
               "mandate",
@@ -11159,25 +8427,14 @@ export const runxSchemaArtifacts = {
               "run",
               "act",
               "receipt",
-              "graph_receipt",
               "artifact",
               "verification",
               "harness",
               "host",
-              "deployment",
               "surface",
               "target",
-              "opportunity",
-              "thesis_assessment",
-              "selection",
               "skill_binding",
-              "target_transition_entry",
-              "selection_cycle",
-              "decision",
-              "reflection_entry",
-              "feed_entry",
               "principal",
-              "authority_proof",
               "scope_admission",
               "grant",
               "mandate",
@@ -11249,1917 +8506,6 @@ export const runxSchemaArtifacts = {
     "type": "object",
     "x-runx-packet": true,
     "x-runx-schema": "runx.authority_term.v1"
-  } as JsonSchema,
-  "authority.schema.json": {
-    "$id": "https://schemas.runx.ai/runx/authority/v1.json",
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "additionalProperties": false,
-    "properties": {
-      "actor_ref": {
-        "$id": "https://schemas.runx.ai/runx/reference/v1.json",
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "additionalProperties": false,
-        "properties": {
-          "label": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "locator": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "observed_at": {
-            "minLength": 1,
-            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-            "type": "string"
-          },
-          "proof_kind": {
-            "enum": [
-              "effect_evidence",
-              "effect_finality",
-              "credential_resolution"
-            ],
-            "type": "string"
-          },
-          "provider": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "schema": {
-            "const": "runx.reference.v1",
-            "type": "string"
-          },
-          "type": {
-            "enum": [
-              "thread",
-              "comment",
-              "event",
-              "tracking_item",
-              "change_request",
-              "repository",
-              "signal",
-              "run",
-              "act",
-              "receipt",
-              "graph_receipt",
-              "artifact",
-              "verification",
-              "harness",
-              "host",
-              "deployment",
-              "surface",
-              "target",
-              "opportunity",
-              "thesis_assessment",
-              "selection",
-              "skill_binding",
-              "target_transition_entry",
-              "selection_cycle",
-              "decision",
-              "reflection_entry",
-              "feed_entry",
-              "principal",
-              "authority_proof",
-              "scope_admission",
-              "grant",
-              "mandate",
-              "credential",
-              "webhook_delivery",
-              "redaction_policy",
-              "external_url",
-              "connector_instance",
-              "connector_operation"
-            ],
-            "type": "string"
-          },
-          "uri": {
-            "minLength": 1,
-            "type": "string"
-          }
-        },
-        "required": [
-          "type",
-          "uri"
-        ],
-        "type": "object",
-        "x-runx-schema": "runx.reference.v1"
-      },
-      "attenuation": {
-        "additionalProperties": false,
-        "properties": {
-          "parent_authority_ref": {
-            "anyOf": [
-              {
-                "$id": "https://schemas.runx.ai/runx/reference/v1.json",
-                "$schema": "https://json-schema.org/draft/2020-12/schema",
-                "additionalProperties": false,
-                "properties": {
-                  "label": {
-                    "minLength": 1,
-                    "type": "string"
-                  },
-                  "locator": {
-                    "minLength": 1,
-                    "type": "string"
-                  },
-                  "observed_at": {
-                    "minLength": 1,
-                    "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-                    "type": "string"
-                  },
-                  "proof_kind": {
-                    "enum": [
-                      "effect_evidence",
-                      "effect_finality",
-                      "credential_resolution"
-                    ],
-                    "type": "string"
-                  },
-                  "provider": {
-                    "minLength": 1,
-                    "type": "string"
-                  },
-                  "schema": {
-                    "const": "runx.reference.v1",
-                    "type": "string"
-                  },
-                  "type": {
-                    "enum": [
-                      "thread",
-                      "comment",
-                      "event",
-                      "tracking_item",
-                      "change_request",
-                      "repository",
-                      "signal",
-                      "run",
-                      "act",
-                      "receipt",
-                      "graph_receipt",
-                      "artifact",
-                      "verification",
-                      "harness",
-                      "host",
-                      "deployment",
-                      "surface",
-                      "target",
-                      "opportunity",
-                      "thesis_assessment",
-                      "selection",
-                      "skill_binding",
-                      "target_transition_entry",
-                      "selection_cycle",
-                      "decision",
-                      "reflection_entry",
-                      "feed_entry",
-                      "principal",
-                      "authority_proof",
-                      "scope_admission",
-                      "grant",
-                      "mandate",
-                      "credential",
-                      "webhook_delivery",
-                      "redaction_policy",
-                      "external_url",
-                      "connector_instance",
-                      "connector_operation"
-                    ],
-                    "type": "string"
-                  },
-                  "uri": {
-                    "minLength": 1,
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "type",
-                  "uri"
-                ],
-                "type": "object",
-                "x-runx-schema": "runx.reference.v1"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "subset_proof": {
-            "anyOf": [
-              {
-                "$id": "https://schemas.runx.ai/runx/authority/subset-proof/v1.json",
-                "$schema": "https://json-schema.org/draft/2020-12/schema",
-                "additionalProperties": false,
-                "properties": {
-                  "checked_at": {
-                    "minLength": 1,
-                    "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-                    "type": "string"
-                  },
-                  "compared_terms": {
-                    "items": {
-                      "additionalProperties": false,
-                      "properties": {
-                        "child_term_id": {
-                          "minLength": 1,
-                          "type": "string"
-                        },
-                        "parent_term_id": {
-                          "minLength": 1,
-                          "type": "string"
-                        },
-                        "relation": {
-                          "enum": [
-                            "equal",
-                            "subset"
-                          ],
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "child_term_id",
-                        "parent_term_id",
-                        "relation"
-                      ],
-                      "type": "object"
-                    },
-                    "type": "array"
-                  },
-                  "comparison_algorithm": {
-                    "minLength": 1,
-                    "type": "string"
-                  },
-                  "parent_authority_ref": {
-                    "$id": "https://schemas.runx.ai/runx/reference/v1.json",
-                    "$schema": "https://json-schema.org/draft/2020-12/schema",
-                    "additionalProperties": false,
-                    "properties": {
-                      "label": {
-                        "minLength": 1,
-                        "type": "string"
-                      },
-                      "locator": {
-                        "minLength": 1,
-                        "type": "string"
-                      },
-                      "observed_at": {
-                        "minLength": 1,
-                        "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-                        "type": "string"
-                      },
-                      "proof_kind": {
-                        "enum": [
-                          "effect_evidence",
-                          "effect_finality",
-                          "credential_resolution"
-                        ],
-                        "type": "string"
-                      },
-                      "provider": {
-                        "minLength": 1,
-                        "type": "string"
-                      },
-                      "schema": {
-                        "const": "runx.reference.v1",
-                        "type": "string"
-                      },
-                      "type": {
-                        "enum": [
-                          "thread",
-                          "comment",
-                          "event",
-                          "tracking_item",
-                          "change_request",
-                          "repository",
-                          "signal",
-                          "run",
-                          "act",
-                          "receipt",
-                          "graph_receipt",
-                          "artifact",
-                          "verification",
-                          "harness",
-                          "host",
-                          "deployment",
-                          "surface",
-                          "target",
-                          "opportunity",
-                          "thesis_assessment",
-                          "selection",
-                          "skill_binding",
-                          "target_transition_entry",
-                          "selection_cycle",
-                          "decision",
-                          "reflection_entry",
-                          "feed_entry",
-                          "principal",
-                          "authority_proof",
-                          "scope_admission",
-                          "grant",
-                          "mandate",
-                          "credential",
-                          "webhook_delivery",
-                          "redaction_policy",
-                          "external_url",
-                          "connector_instance",
-                          "connector_operation"
-                        ],
-                        "type": "string"
-                      },
-                      "uri": {
-                        "minLength": 1,
-                        "type": "string"
-                      }
-                    },
-                    "required": [
-                      "type",
-                      "uri"
-                    ],
-                    "type": "object",
-                    "x-runx-schema": "runx.reference.v1"
-                  },
-                  "proof_ref": {
-                    "$id": "https://schemas.runx.ai/runx/reference/v1.json",
-                    "$schema": "https://json-schema.org/draft/2020-12/schema",
-                    "additionalProperties": false,
-                    "properties": {
-                      "label": {
-                        "minLength": 1,
-                        "type": "string"
-                      },
-                      "locator": {
-                        "minLength": 1,
-                        "type": "string"
-                      },
-                      "observed_at": {
-                        "minLength": 1,
-                        "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-                        "type": "string"
-                      },
-                      "proof_kind": {
-                        "enum": [
-                          "effect_evidence",
-                          "effect_finality",
-                          "credential_resolution"
-                        ],
-                        "type": "string"
-                      },
-                      "provider": {
-                        "minLength": 1,
-                        "type": "string"
-                      },
-                      "schema": {
-                        "const": "runx.reference.v1",
-                        "type": "string"
-                      },
-                      "type": {
-                        "enum": [
-                          "thread",
-                          "comment",
-                          "event",
-                          "tracking_item",
-                          "change_request",
-                          "repository",
-                          "signal",
-                          "run",
-                          "act",
-                          "receipt",
-                          "graph_receipt",
-                          "artifact",
-                          "verification",
-                          "harness",
-                          "host",
-                          "deployment",
-                          "surface",
-                          "target",
-                          "opportunity",
-                          "thesis_assessment",
-                          "selection",
-                          "skill_binding",
-                          "target_transition_entry",
-                          "selection_cycle",
-                          "decision",
-                          "reflection_entry",
-                          "feed_entry",
-                          "principal",
-                          "authority_proof",
-                          "scope_admission",
-                          "grant",
-                          "mandate",
-                          "credential",
-                          "webhook_delivery",
-                          "redaction_policy",
-                          "external_url",
-                          "connector_instance",
-                          "connector_operation"
-                        ],
-                        "type": "string"
-                      },
-                      "uri": {
-                        "minLength": 1,
-                        "type": "string"
-                      }
-                    },
-                    "required": [
-                      "type",
-                      "uri"
-                    ],
-                    "type": "object",
-                    "x-runx-schema": "runx.reference.v1"
-                  },
-                  "result": {
-                    "enum": [
-                      "subset"
-                    ],
-                    "type": "string"
-                  },
-                  "schema": {
-                    "const": "runx.authority_subset_proof.v1",
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "parent_authority_ref",
-                  "comparison_algorithm",
-                  "result",
-                  "compared_terms",
-                  "checked_at"
-                ],
-                "type": "object",
-                "x-runx-schema": "runx.authority_subset_proof.v1"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          }
-        },
-        "required": [
-          "parent_authority_ref",
-          "subset_proof"
-        ],
-        "type": "object"
-      },
-      "authority_proof_refs": {
-        "items": {
-          "$id": "https://schemas.runx.ai/runx/reference/v1.json",
-          "$schema": "https://json-schema.org/draft/2020-12/schema",
-          "additionalProperties": false,
-          "properties": {
-            "label": {
-              "minLength": 1,
-              "type": "string"
-            },
-            "locator": {
-              "minLength": 1,
-              "type": "string"
-            },
-            "observed_at": {
-              "minLength": 1,
-              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-              "type": "string"
-            },
-            "proof_kind": {
-              "enum": [
-                "effect_evidence",
-                "effect_finality",
-                "credential_resolution"
-              ],
-              "type": "string"
-            },
-            "provider": {
-              "minLength": 1,
-              "type": "string"
-            },
-            "schema": {
-              "const": "runx.reference.v1",
-              "type": "string"
-            },
-            "type": {
-              "enum": [
-                "thread",
-                "comment",
-                "event",
-                "tracking_item",
-                "change_request",
-                "repository",
-                "signal",
-                "run",
-                "act",
-                "receipt",
-                "graph_receipt",
-                "artifact",
-                "verification",
-                "harness",
-                "host",
-                "deployment",
-                "surface",
-                "target",
-                "opportunity",
-                "thesis_assessment",
-                "selection",
-                "skill_binding",
-                "target_transition_entry",
-                "selection_cycle",
-                "decision",
-                "reflection_entry",
-                "feed_entry",
-                "principal",
-                "authority_proof",
-                "scope_admission",
-                "grant",
-                "mandate",
-                "credential",
-                "webhook_delivery",
-                "redaction_policy",
-                "external_url",
-                "connector_instance",
-                "connector_operation"
-              ],
-              "type": "string"
-            },
-            "uri": {
-              "minLength": 1,
-              "type": "string"
-            }
-          },
-          "required": [
-            "type",
-            "uri"
-          ],
-          "type": "object",
-          "x-runx-schema": "runx.reference.v1"
-        },
-        "type": "array"
-      },
-      "grant_refs": {
-        "items": {
-          "$id": "https://schemas.runx.ai/runx/reference/v1.json",
-          "$schema": "https://json-schema.org/draft/2020-12/schema",
-          "additionalProperties": false,
-          "properties": {
-            "label": {
-              "minLength": 1,
-              "type": "string"
-            },
-            "locator": {
-              "minLength": 1,
-              "type": "string"
-            },
-            "observed_at": {
-              "minLength": 1,
-              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-              "type": "string"
-            },
-            "proof_kind": {
-              "enum": [
-                "effect_evidence",
-                "effect_finality",
-                "credential_resolution"
-              ],
-              "type": "string"
-            },
-            "provider": {
-              "minLength": 1,
-              "type": "string"
-            },
-            "schema": {
-              "const": "runx.reference.v1",
-              "type": "string"
-            },
-            "type": {
-              "enum": [
-                "thread",
-                "comment",
-                "event",
-                "tracking_item",
-                "change_request",
-                "repository",
-                "signal",
-                "run",
-                "act",
-                "receipt",
-                "graph_receipt",
-                "artifact",
-                "verification",
-                "harness",
-                "host",
-                "deployment",
-                "surface",
-                "target",
-                "opportunity",
-                "thesis_assessment",
-                "selection",
-                "skill_binding",
-                "target_transition_entry",
-                "selection_cycle",
-                "decision",
-                "reflection_entry",
-                "feed_entry",
-                "principal",
-                "authority_proof",
-                "scope_admission",
-                "grant",
-                "mandate",
-                "credential",
-                "webhook_delivery",
-                "redaction_policy",
-                "external_url",
-                "connector_instance",
-                "connector_operation"
-              ],
-              "type": "string"
-            },
-            "uri": {
-              "minLength": 1,
-              "type": "string"
-            }
-          },
-          "required": [
-            "type",
-            "uri"
-          ],
-          "type": "object",
-          "x-runx-schema": "runx.reference.v1"
-        },
-        "type": "array"
-      },
-      "mandate_ref": {
-        "$id": "https://schemas.runx.ai/runx/reference/v1.json",
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "additionalProperties": false,
-        "properties": {
-          "label": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "locator": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "observed_at": {
-            "minLength": 1,
-            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-            "type": "string"
-          },
-          "proof_kind": {
-            "enum": [
-              "effect_evidence",
-              "effect_finality",
-              "credential_resolution"
-            ],
-            "type": "string"
-          },
-          "provider": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "schema": {
-            "const": "runx.reference.v1",
-            "type": "string"
-          },
-          "type": {
-            "enum": [
-              "thread",
-              "comment",
-              "event",
-              "tracking_item",
-              "change_request",
-              "repository",
-              "signal",
-              "run",
-              "act",
-              "receipt",
-              "graph_receipt",
-              "artifact",
-              "verification",
-              "harness",
-              "host",
-              "deployment",
-              "surface",
-              "target",
-              "opportunity",
-              "thesis_assessment",
-              "selection",
-              "skill_binding",
-              "target_transition_entry",
-              "selection_cycle",
-              "decision",
-              "reflection_entry",
-              "feed_entry",
-              "principal",
-              "authority_proof",
-              "scope_admission",
-              "grant",
-              "mandate",
-              "credential",
-              "webhook_delivery",
-              "redaction_policy",
-              "external_url",
-              "connector_instance",
-              "connector_operation"
-            ],
-            "type": "string"
-          },
-          "uri": {
-            "minLength": 1,
-            "type": "string"
-          }
-        },
-        "required": [
-          "type",
-          "uri"
-        ],
-        "type": "object",
-        "x-runx-schema": "runx.reference.v1"
-      },
-      "policy_refs": {
-        "items": {
-          "$id": "https://schemas.runx.ai/runx/reference/v1.json",
-          "$schema": "https://json-schema.org/draft/2020-12/schema",
-          "additionalProperties": false,
-          "properties": {
-            "label": {
-              "minLength": 1,
-              "type": "string"
-            },
-            "locator": {
-              "minLength": 1,
-              "type": "string"
-            },
-            "observed_at": {
-              "minLength": 1,
-              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-              "type": "string"
-            },
-            "proof_kind": {
-              "enum": [
-                "effect_evidence",
-                "effect_finality",
-                "credential_resolution"
-              ],
-              "type": "string"
-            },
-            "provider": {
-              "minLength": 1,
-              "type": "string"
-            },
-            "schema": {
-              "const": "runx.reference.v1",
-              "type": "string"
-            },
-            "type": {
-              "enum": [
-                "thread",
-                "comment",
-                "event",
-                "tracking_item",
-                "change_request",
-                "repository",
-                "signal",
-                "run",
-                "act",
-                "receipt",
-                "graph_receipt",
-                "artifact",
-                "verification",
-                "harness",
-                "host",
-                "deployment",
-                "surface",
-                "target",
-                "opportunity",
-                "thesis_assessment",
-                "selection",
-                "skill_binding",
-                "target_transition_entry",
-                "selection_cycle",
-                "decision",
-                "reflection_entry",
-                "feed_entry",
-                "principal",
-                "authority_proof",
-                "scope_admission",
-                "grant",
-                "mandate",
-                "credential",
-                "webhook_delivery",
-                "redaction_policy",
-                "external_url",
-                "connector_instance",
-                "connector_operation"
-              ],
-              "type": "string"
-            },
-            "uri": {
-              "minLength": 1,
-              "type": "string"
-            }
-          },
-          "required": [
-            "type",
-            "uri"
-          ],
-          "type": "object",
-          "x-runx-schema": "runx.reference.v1"
-        },
-        "type": "array"
-      },
-      "schema": {
-        "enum": [
-          "runx.authority.v1"
-        ],
-        "type": "string"
-      },
-      "scope_refs": {
-        "items": {
-          "$id": "https://schemas.runx.ai/runx/reference/v1.json",
-          "$schema": "https://json-schema.org/draft/2020-12/schema",
-          "additionalProperties": false,
-          "properties": {
-            "label": {
-              "minLength": 1,
-              "type": "string"
-            },
-            "locator": {
-              "minLength": 1,
-              "type": "string"
-            },
-            "observed_at": {
-              "minLength": 1,
-              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-              "type": "string"
-            },
-            "proof_kind": {
-              "enum": [
-                "effect_evidence",
-                "effect_finality",
-                "credential_resolution"
-              ],
-              "type": "string"
-            },
-            "provider": {
-              "minLength": 1,
-              "type": "string"
-            },
-            "schema": {
-              "const": "runx.reference.v1",
-              "type": "string"
-            },
-            "type": {
-              "enum": [
-                "thread",
-                "comment",
-                "event",
-                "tracking_item",
-                "change_request",
-                "repository",
-                "signal",
-                "run",
-                "act",
-                "receipt",
-                "graph_receipt",
-                "artifact",
-                "verification",
-                "harness",
-                "host",
-                "deployment",
-                "surface",
-                "target",
-                "opportunity",
-                "thesis_assessment",
-                "selection",
-                "skill_binding",
-                "target_transition_entry",
-                "selection_cycle",
-                "decision",
-                "reflection_entry",
-                "feed_entry",
-                "principal",
-                "authority_proof",
-                "scope_admission",
-                "grant",
-                "mandate",
-                "credential",
-                "webhook_delivery",
-                "redaction_policy",
-                "external_url",
-                "connector_instance",
-                "connector_operation"
-              ],
-              "type": "string"
-            },
-            "uri": {
-              "minLength": 1,
-              "type": "string"
-            }
-          },
-          "required": [
-            "type",
-            "uri"
-          ],
-          "type": "object",
-          "x-runx-schema": "runx.reference.v1"
-        },
-        "type": "array"
-      },
-      "terms": {
-        "items": {
-          "$id": "https://schemas.runx.ai/runx/authority/term/v1.json",
-          "$schema": "https://json-schema.org/draft/2020-12/schema",
-          "additionalProperties": false,
-          "properties": {
-            "approvals": {
-              "items": {
-                "additionalProperties": false,
-                "properties": {
-                  "approval_ref": {
-                    "$id": "https://schemas.runx.ai/runx/reference/v1.json",
-                    "$schema": "https://json-schema.org/draft/2020-12/schema",
-                    "additionalProperties": false,
-                    "properties": {
-                      "label": {
-                        "minLength": 1,
-                        "type": "string"
-                      },
-                      "locator": {
-                        "minLength": 1,
-                        "type": "string"
-                      },
-                      "observed_at": {
-                        "minLength": 1,
-                        "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-                        "type": "string"
-                      },
-                      "proof_kind": {
-                        "enum": [
-                          "effect_evidence",
-                          "effect_finality",
-                          "credential_resolution"
-                        ],
-                        "type": "string"
-                      },
-                      "provider": {
-                        "minLength": 1,
-                        "type": "string"
-                      },
-                      "schema": {
-                        "const": "runx.reference.v1",
-                        "type": "string"
-                      },
-                      "type": {
-                        "enum": [
-                          "thread",
-                          "comment",
-                          "event",
-                          "tracking_item",
-                          "change_request",
-                          "repository",
-                          "signal",
-                          "run",
-                          "act",
-                          "receipt",
-                          "graph_receipt",
-                          "artifact",
-                          "verification",
-                          "harness",
-                          "host",
-                          "deployment",
-                          "surface",
-                          "target",
-                          "opportunity",
-                          "thesis_assessment",
-                          "selection",
-                          "skill_binding",
-                          "target_transition_entry",
-                          "selection_cycle",
-                          "decision",
-                          "reflection_entry",
-                          "feed_entry",
-                          "principal",
-                          "authority_proof",
-                          "scope_admission",
-                          "grant",
-                          "mandate",
-                          "credential",
-                          "webhook_delivery",
-                          "redaction_policy",
-                          "external_url",
-                          "connector_instance",
-                          "connector_operation"
-                        ],
-                        "type": "string"
-                      },
-                      "uri": {
-                        "minLength": 1,
-                        "type": "string"
-                      }
-                    },
-                    "required": [
-                      "type",
-                      "uri"
-                    ],
-                    "type": "object",
-                    "x-runx-schema": "runx.reference.v1"
-                  },
-                  "approved_at": {
-                    "minLength": 1,
-                    "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-                    "type": "string"
-                  },
-                  "approved_by_ref": {
-                    "$id": "https://schemas.runx.ai/runx/reference/v1.json",
-                    "$schema": "https://json-schema.org/draft/2020-12/schema",
-                    "additionalProperties": false,
-                    "properties": {
-                      "label": {
-                        "minLength": 1,
-                        "type": "string"
-                      },
-                      "locator": {
-                        "minLength": 1,
-                        "type": "string"
-                      },
-                      "observed_at": {
-                        "minLength": 1,
-                        "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-                        "type": "string"
-                      },
-                      "proof_kind": {
-                        "enum": [
-                          "effect_evidence",
-                          "effect_finality",
-                          "credential_resolution"
-                        ],
-                        "type": "string"
-                      },
-                      "provider": {
-                        "minLength": 1,
-                        "type": "string"
-                      },
-                      "schema": {
-                        "const": "runx.reference.v1",
-                        "type": "string"
-                      },
-                      "type": {
-                        "enum": [
-                          "thread",
-                          "comment",
-                          "event",
-                          "tracking_item",
-                          "change_request",
-                          "repository",
-                          "signal",
-                          "run",
-                          "act",
-                          "receipt",
-                          "graph_receipt",
-                          "artifact",
-                          "verification",
-                          "harness",
-                          "host",
-                          "deployment",
-                          "surface",
-                          "target",
-                          "opportunity",
-                          "thesis_assessment",
-                          "selection",
-                          "skill_binding",
-                          "target_transition_entry",
-                          "selection_cycle",
-                          "decision",
-                          "reflection_entry",
-                          "feed_entry",
-                          "principal",
-                          "authority_proof",
-                          "scope_admission",
-                          "grant",
-                          "mandate",
-                          "credential",
-                          "webhook_delivery",
-                          "redaction_policy",
-                          "external_url",
-                          "connector_instance",
-                          "connector_operation"
-                        ],
-                        "type": "string"
-                      },
-                      "uri": {
-                        "minLength": 1,
-                        "type": "string"
-                      }
-                    },
-                    "required": [
-                      "type",
-                      "uri"
-                    ],
-                    "type": "object",
-                    "x-runx-schema": "runx.reference.v1"
-                  },
-                  "criterion_ids": {
-                    "items": {
-                      "minLength": 1,
-                      "type": "string"
-                    },
-                    "type": "array"
-                  }
-                },
-                "required": [
-                  "approval_ref"
-                ],
-                "type": "object"
-              },
-              "type": "array"
-            },
-            "bounds": {
-              "additionalProperties": false,
-              "properties": {
-                "branch_patterns": {
-                  "items": {
-                    "minLength": 1,
-                    "type": "string"
-                  },
-                  "type": "array"
-                },
-                "deployment_environments": {
-                  "items": {
-                    "minLength": 1,
-                    "type": "string"
-                  },
-                  "type": "array"
-                },
-                "effect_limits": {
-                  "items": {
-                    "additionalProperties": false,
-                    "properties": {
-                      "approval_threshold_units": {
-                        "type": "integer"
-                      },
-                      "authorization_form": {
-                        "enum": [
-                          "single_use_capability",
-                          "external_signer"
-                        ],
-                        "type": "string"
-                      },
-                      "channels": {
-                        "items": {
-                          "minLength": 1,
-                          "type": "string"
-                        },
-                        "type": "array"
-                      },
-                      "commitment_required": {
-                        "type": "boolean"
-                      },
-                      "family": {
-                        "minLength": 1,
-                        "type": "string"
-                      },
-                      "idempotency_required": {
-                        "type": "boolean"
-                      },
-                      "max_per_call_units": {
-                        "type": "integer"
-                      },
-                      "max_per_period_units": {
-                        "type": "integer"
-                      },
-                      "max_per_run_units": {
-                        "type": "integer"
-                      },
-                      "operation": {
-                        "minLength": 1,
-                        "type": "string"
-                      },
-                      "peer": {
-                        "minLength": 1,
-                        "type": "string"
-                      },
-                      "period": {
-                        "minLength": 1,
-                        "type": "string"
-                      },
-                      "preflight_required": {
-                        "type": "boolean"
-                      },
-                      "preflight_ttl_ms": {
-                        "type": "integer"
-                      },
-                      "realm": {
-                        "minLength": 1,
-                        "type": "string"
-                      },
-                      "receipt_before_success": {
-                        "type": "boolean"
-                      },
-                      "recovery_required": {
-                        "type": "boolean"
-                      },
-                      "single_use_capability": {
-                        "type": "boolean"
-                      },
-                      "unit": {
-                        "minLength": 1,
-                        "type": "string"
-                      }
-                    },
-                    "required": [
-                      "family",
-                      "unit",
-                      "channels"
-                    ],
-                    "type": "object"
-                  },
-                  "type": "array"
-                },
-                "effects": {
-                  "items": {
-                    "additionalProperties": false,
-                    "properties": {
-                      "family": {
-                        "minLength": 1,
-                        "type": "string"
-                      },
-                      "guard_kinds": {
-                        "items": {
-                          "enum": [
-                            "receipt_before_success",
-                            "non_replay"
-                          ],
-                          "type": "string"
-                        },
-                        "type": "array"
-                      },
-                      "proof_kinds": {
-                        "items": {
-                          "enum": [
-                            "effect_evidence",
-                            "effect_finality",
-                            "credential_resolution"
-                          ],
-                          "type": "string"
-                        },
-                        "type": "array"
-                      }
-                    },
-                    "required": [
-                      "family"
-                    ],
-                    "type": "object"
-                  },
-                  "type": "array"
-                },
-                "filesystem_roots": {
-                  "items": {
-                    "minLength": 1,
-                    "type": "string"
-                  },
-                  "type": "array"
-                },
-                "max_child_depth": {
-                  "type": "integer"
-                },
-                "max_cost_units": {
-                  "type": "number"
-                },
-                "max_fanout": {
-                  "type": "integer"
-                },
-                "max_runtime_ms": {
-                  "type": "integer"
-                },
-                "network_destinations": {
-                  "items": {
-                    "minLength": 1,
-                    "type": "string"
-                  },
-                  "type": "array"
-                },
-                "operations": {
-                  "items": {
-                    "minLength": 1,
-                    "type": "string"
-                  },
-                  "type": "array"
-                },
-                "repo_path_globs": {
-                  "items": {
-                    "minLength": 1,
-                    "type": "string"
-                  },
-                  "type": "array"
-                },
-                "scopes": {
-                  "items": {
-                    "minLength": 1,
-                    "type": "string"
-                  },
-                  "type": "array"
-                },
-                "targets": {
-                  "items": {
-                    "minLength": 1,
-                    "type": "string"
-                  },
-                  "type": "array"
-                },
-                "token_audiences": {
-                  "items": {
-                    "minLength": 1,
-                    "type": "string"
-                  },
-                  "type": "array"
-                },
-                "uses": {
-                  "additionalProperties": false,
-                  "properties": {
-                    "per_day": {
-                      "type": "integer"
-                    },
-                    "total": {
-                      "type": "integer"
-                    }
-                  },
-                  "type": "object"
-                }
-              },
-              "type": "object"
-            },
-            "capabilities": {
-              "items": {
-                "enum": [
-                  "filesystem_read",
-                  "filesystem_write",
-                  "network_egress",
-                  "secret_read",
-                  "process_spawn",
-                  "provider_mutation",
-                  "public_publication",
-                  "child_harness_spawn",
-                  "effect_single_use_capability"
-                ],
-                "type": "string"
-              },
-              "type": "array"
-            },
-            "conditions": {
-              "items": {
-                "additionalProperties": false,
-                "properties": {
-                  "condition_id": {
-                    "minLength": 1,
-                    "type": "string"
-                  },
-                  "parameters": {
-                    "additionalProperties": {},
-                    "type": "object"
-                  },
-                  "predicate": {
-                    "enum": [
-                      "signal_verified",
-                      "decision_selected",
-                      "host_posture_valid",
-                      "approval_present",
-                      "within_time_window",
-                      "within_budget",
-                      "effect_proof_present",
-                      "effect_recovery_available"
-                    ],
-                    "type": "string"
-                  },
-                  "refs": {
-                    "items": {
-                      "$id": "https://schemas.runx.ai/runx/reference/v1.json",
-                      "$schema": "https://json-schema.org/draft/2020-12/schema",
-                      "additionalProperties": false,
-                      "properties": {
-                        "label": {
-                          "minLength": 1,
-                          "type": "string"
-                        },
-                        "locator": {
-                          "minLength": 1,
-                          "type": "string"
-                        },
-                        "observed_at": {
-                          "minLength": 1,
-                          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-                          "type": "string"
-                        },
-                        "proof_kind": {
-                          "enum": [
-                            "effect_evidence",
-                            "effect_finality",
-                            "credential_resolution"
-                          ],
-                          "type": "string"
-                        },
-                        "provider": {
-                          "minLength": 1,
-                          "type": "string"
-                        },
-                        "schema": {
-                          "const": "runx.reference.v1",
-                          "type": "string"
-                        },
-                        "type": {
-                          "enum": [
-                            "thread",
-                            "comment",
-                            "event",
-                            "tracking_item",
-                            "change_request",
-                            "repository",
-                            "signal",
-                            "run",
-                            "act",
-                            "receipt",
-                            "graph_receipt",
-                            "artifact",
-                            "verification",
-                            "harness",
-                            "host",
-                            "deployment",
-                            "surface",
-                            "target",
-                            "opportunity",
-                            "thesis_assessment",
-                            "selection",
-                            "skill_binding",
-                            "target_transition_entry",
-                            "selection_cycle",
-                            "decision",
-                            "reflection_entry",
-                            "feed_entry",
-                            "principal",
-                            "authority_proof",
-                            "scope_admission",
-                            "grant",
-                            "mandate",
-                            "credential",
-                            "webhook_delivery",
-                            "redaction_policy",
-                            "external_url",
-                            "connector_instance",
-                            "connector_operation"
-                          ],
-                          "type": "string"
-                        },
-                        "uri": {
-                          "minLength": 1,
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "type",
-                        "uri"
-                      ],
-                      "type": "object",
-                      "x-runx-schema": "runx.reference.v1"
-                    },
-                    "type": "array"
-                  }
-                },
-                "required": [
-                  "condition_id",
-                  "predicate"
-                ],
-                "type": "object"
-              },
-              "type": "array"
-            },
-            "credential_ref": {
-              "$id": "https://schemas.runx.ai/runx/reference/v1.json",
-              "$schema": "https://json-schema.org/draft/2020-12/schema",
-              "additionalProperties": false,
-              "properties": {
-                "label": {
-                  "minLength": 1,
-                  "type": "string"
-                },
-                "locator": {
-                  "minLength": 1,
-                  "type": "string"
-                },
-                "observed_at": {
-                  "minLength": 1,
-                  "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-                  "type": "string"
-                },
-                "proof_kind": {
-                  "enum": [
-                    "effect_evidence",
-                    "effect_finality",
-                    "credential_resolution"
-                  ],
-                  "type": "string"
-                },
-                "provider": {
-                  "minLength": 1,
-                  "type": "string"
-                },
-                "schema": {
-                  "const": "runx.reference.v1",
-                  "type": "string"
-                },
-                "type": {
-                  "enum": [
-                    "thread",
-                    "comment",
-                    "event",
-                    "tracking_item",
-                    "change_request",
-                    "repository",
-                    "signal",
-                    "run",
-                    "act",
-                    "receipt",
-                    "graph_receipt",
-                    "artifact",
-                    "verification",
-                    "harness",
-                    "host",
-                    "deployment",
-                    "surface",
-                    "target",
-                    "opportunity",
-                    "thesis_assessment",
-                    "selection",
-                    "skill_binding",
-                    "target_transition_entry",
-                    "selection_cycle",
-                    "decision",
-                    "reflection_entry",
-                    "feed_entry",
-                    "principal",
-                    "authority_proof",
-                    "scope_admission",
-                    "grant",
-                    "mandate",
-                    "credential",
-                    "webhook_delivery",
-                    "redaction_policy",
-                    "external_url",
-                    "connector_instance",
-                    "connector_operation"
-                  ],
-                  "type": "string"
-                },
-                "uri": {
-                  "minLength": 1,
-                  "type": "string"
-                }
-              },
-              "required": [
-                "type",
-                "uri"
-              ],
-              "type": "object",
-              "x-runx-schema": "runx.reference.v1"
-            },
-            "expires_at": {
-              "minLength": 1,
-              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-              "type": "string"
-            },
-            "issued_by_ref": {
-              "$id": "https://schemas.runx.ai/runx/reference/v1.json",
-              "$schema": "https://json-schema.org/draft/2020-12/schema",
-              "additionalProperties": false,
-              "properties": {
-                "label": {
-                  "minLength": 1,
-                  "type": "string"
-                },
-                "locator": {
-                  "minLength": 1,
-                  "type": "string"
-                },
-                "observed_at": {
-                  "minLength": 1,
-                  "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-                  "type": "string"
-                },
-                "proof_kind": {
-                  "enum": [
-                    "effect_evidence",
-                    "effect_finality",
-                    "credential_resolution"
-                  ],
-                  "type": "string"
-                },
-                "provider": {
-                  "minLength": 1,
-                  "type": "string"
-                },
-                "schema": {
-                  "const": "runx.reference.v1",
-                  "type": "string"
-                },
-                "type": {
-                  "enum": [
-                    "thread",
-                    "comment",
-                    "event",
-                    "tracking_item",
-                    "change_request",
-                    "repository",
-                    "signal",
-                    "run",
-                    "act",
-                    "receipt",
-                    "graph_receipt",
-                    "artifact",
-                    "verification",
-                    "harness",
-                    "host",
-                    "deployment",
-                    "surface",
-                    "target",
-                    "opportunity",
-                    "thesis_assessment",
-                    "selection",
-                    "skill_binding",
-                    "target_transition_entry",
-                    "selection_cycle",
-                    "decision",
-                    "reflection_entry",
-                    "feed_entry",
-                    "principal",
-                    "authority_proof",
-                    "scope_admission",
-                    "grant",
-                    "mandate",
-                    "credential",
-                    "webhook_delivery",
-                    "redaction_policy",
-                    "external_url",
-                    "connector_instance",
-                    "connector_operation"
-                  ],
-                  "type": "string"
-                },
-                "uri": {
-                  "minLength": 1,
-                  "type": "string"
-                }
-              },
-              "required": [
-                "type",
-                "uri"
-              ],
-              "type": "object",
-              "x-runx-schema": "runx.reference.v1"
-            },
-            "principal_ref": {
-              "$id": "https://schemas.runx.ai/runx/reference/v1.json",
-              "$schema": "https://json-schema.org/draft/2020-12/schema",
-              "additionalProperties": false,
-              "properties": {
-                "label": {
-                  "minLength": 1,
-                  "type": "string"
-                },
-                "locator": {
-                  "minLength": 1,
-                  "type": "string"
-                },
-                "observed_at": {
-                  "minLength": 1,
-                  "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-                  "type": "string"
-                },
-                "proof_kind": {
-                  "enum": [
-                    "effect_evidence",
-                    "effect_finality",
-                    "credential_resolution"
-                  ],
-                  "type": "string"
-                },
-                "provider": {
-                  "minLength": 1,
-                  "type": "string"
-                },
-                "schema": {
-                  "const": "runx.reference.v1",
-                  "type": "string"
-                },
-                "type": {
-                  "enum": [
-                    "thread",
-                    "comment",
-                    "event",
-                    "tracking_item",
-                    "change_request",
-                    "repository",
-                    "signal",
-                    "run",
-                    "act",
-                    "receipt",
-                    "graph_receipt",
-                    "artifact",
-                    "verification",
-                    "harness",
-                    "host",
-                    "deployment",
-                    "surface",
-                    "target",
-                    "opportunity",
-                    "thesis_assessment",
-                    "selection",
-                    "skill_binding",
-                    "target_transition_entry",
-                    "selection_cycle",
-                    "decision",
-                    "reflection_entry",
-                    "feed_entry",
-                    "principal",
-                    "authority_proof",
-                    "scope_admission",
-                    "grant",
-                    "mandate",
-                    "credential",
-                    "webhook_delivery",
-                    "redaction_policy",
-                    "external_url",
-                    "connector_instance",
-                    "connector_operation"
-                  ],
-                  "type": "string"
-                },
-                "uri": {
-                  "minLength": 1,
-                  "type": "string"
-                }
-              },
-              "required": [
-                "type",
-                "uri"
-              ],
-              "type": "object",
-              "x-runx-schema": "runx.reference.v1"
-            },
-            "resource_family": {
-              "enum": [
-                "workspace",
-                "filesystem",
-                "network",
-                "deployment",
-                "credential",
-                "effect",
-                "artifact",
-                "harness",
-                "publication",
-                "connector"
-              ],
-              "type": "string"
-            },
-            "resource_ref": {
-              "$id": "https://schemas.runx.ai/runx/reference/v1.json",
-              "$schema": "https://json-schema.org/draft/2020-12/schema",
-              "additionalProperties": false,
-              "properties": {
-                "label": {
-                  "minLength": 1,
-                  "type": "string"
-                },
-                "locator": {
-                  "minLength": 1,
-                  "type": "string"
-                },
-                "observed_at": {
-                  "minLength": 1,
-                  "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-                  "type": "string"
-                },
-                "proof_kind": {
-                  "enum": [
-                    "effect_evidence",
-                    "effect_finality",
-                    "credential_resolution"
-                  ],
-                  "type": "string"
-                },
-                "provider": {
-                  "minLength": 1,
-                  "type": "string"
-                },
-                "schema": {
-                  "const": "runx.reference.v1",
-                  "type": "string"
-                },
-                "type": {
-                  "enum": [
-                    "thread",
-                    "comment",
-                    "event",
-                    "tracking_item",
-                    "change_request",
-                    "repository",
-                    "signal",
-                    "run",
-                    "act",
-                    "receipt",
-                    "graph_receipt",
-                    "artifact",
-                    "verification",
-                    "harness",
-                    "host",
-                    "deployment",
-                    "surface",
-                    "target",
-                    "opportunity",
-                    "thesis_assessment",
-                    "selection",
-                    "skill_binding",
-                    "target_transition_entry",
-                    "selection_cycle",
-                    "decision",
-                    "reflection_entry",
-                    "feed_entry",
-                    "principal",
-                    "authority_proof",
-                    "scope_admission",
-                    "grant",
-                    "mandate",
-                    "credential",
-                    "webhook_delivery",
-                    "redaction_policy",
-                    "external_url",
-                    "connector_instance",
-                    "connector_operation"
-                  ],
-                  "type": "string"
-                },
-                "uri": {
-                  "minLength": 1,
-                  "type": "string"
-                }
-              },
-              "required": [
-                "type",
-                "uri"
-              ],
-              "type": "object",
-              "x-runx-schema": "runx.reference.v1"
-            },
-            "schema": {
-              "const": "runx.authority_term.v1",
-              "type": "string"
-            },
-            "term_id": {
-              "minLength": 1,
-              "type": "string"
-            },
-            "verbs": {
-              "items": {
-                "enum": [
-                  "read",
-                  "write",
-                  "comment",
-                  "review",
-                  "approve",
-                  "merge",
-                  "create",
-                  "update",
-                  "delete",
-                  "execute",
-                  "verify",
-                  "estimate",
-                  "prepare",
-                  "commit",
-                  "reverse",
-                  "publish",
-                  "spawn_child",
-                  "revoke"
-                ],
-                "type": "string"
-              },
-              "type": "array"
-            }
-          },
-          "required": [
-            "term_id",
-            "principal_ref",
-            "resource_ref",
-            "resource_family",
-            "verbs",
-            "bounds",
-            "issued_by_ref"
-          ],
-          "type": "object",
-          "x-runx-schema": "runx.authority_term.v1"
-        },
-        "type": "array"
-      }
-    },
-    "required": [
-      "actor_ref",
-      "attenuation"
-    ],
-    "type": "object",
-    "x-runx-schema": "runx.authority.v1"
   } as JsonSchema,
   "cancel-paid-invocation-request.schema.json": {
     "$id": "https://schemas.runx.ai/runx/payment/cancel-paid-invocation/request/v1.json",
@@ -13316,25 +8662,14 @@ export const runxSchemaArtifacts = {
                           "run",
                           "act",
                           "receipt",
-                          "graph_receipt",
                           "artifact",
                           "verification",
                           "harness",
                           "host",
-                          "deployment",
                           "surface",
                           "target",
-                          "opportunity",
-                          "thesis_assessment",
-                          "selection",
                           "skill_binding",
-                          "target_transition_entry",
-                          "selection_cycle",
-                          "decision",
-                          "reflection_entry",
-                          "feed_entry",
                           "principal",
-                          "authority_proof",
                           "scope_admission",
                           "grant",
                           "mandate",
@@ -13414,25 +8749,14 @@ export const runxSchemaArtifacts = {
                           "run",
                           "act",
                           "receipt",
-                          "graph_receipt",
                           "artifact",
                           "verification",
                           "harness",
                           "host",
-                          "deployment",
                           "surface",
                           "target",
-                          "opportunity",
-                          "thesis_assessment",
-                          "selection",
                           "skill_binding",
-                          "target_transition_entry",
-                          "selection_cycle",
-                          "decision",
-                          "reflection_entry",
-                          "feed_entry",
                           "principal",
-                          "authority_proof",
                           "scope_admission",
                           "grant",
                           "mandate",
@@ -13521,25 +8845,14 @@ export const runxSchemaArtifacts = {
                           "run",
                           "act",
                           "receipt",
-                          "graph_receipt",
                           "artifact",
                           "verification",
                           "harness",
                           "host",
-                          "deployment",
                           "surface",
                           "target",
-                          "opportunity",
-                          "thesis_assessment",
-                          "selection",
                           "skill_binding",
-                          "target_transition_entry",
-                          "selection_cycle",
-                          "decision",
-                          "reflection_entry",
-                          "feed_entry",
                           "principal",
-                          "authority_proof",
                           "scope_admission",
                           "grant",
                           "mandate",
@@ -13822,25 +9135,14 @@ export const runxSchemaArtifacts = {
                           "run",
                           "act",
                           "receipt",
-                          "graph_receipt",
                           "artifact",
                           "verification",
                           "harness",
                           "host",
-                          "deployment",
                           "surface",
                           "target",
-                          "opportunity",
-                          "thesis_assessment",
-                          "selection",
                           "skill_binding",
-                          "target_transition_entry",
-                          "selection_cycle",
-                          "decision",
-                          "reflection_entry",
-                          "feed_entry",
                           "principal",
-                          "authority_proof",
                           "scope_admission",
                           "grant",
                           "mandate",
@@ -14198,6 +9500,7 @@ export const runxSchemaArtifacts = {
       },
       "parameters": {
         "additionalProperties": {},
+        "minProperties": 1,
         "type": "object"
       },
       "placement": {
@@ -14252,6 +9555,7 @@ export const runxSchemaArtifacts = {
                     "minLength": 1,
                     "type": "string"
                   },
+                  "minItems": 1,
                   "type": "array"
                 },
                 "delivery": {
@@ -14286,12 +9590,15 @@ export const runxSchemaArtifacts = {
                           "minLength": 1,
                           "type": "string"
                         },
+                        "minItems": 1,
                         "type": "array"
                       },
                       "required": {
+                        "const": false,
                         "type": "boolean"
                       },
                       "secret": {
+                        "const": false,
                         "type": "boolean"
                       }
                     },
@@ -14315,6 +9622,7 @@ export const runxSchemaArtifacts = {
               ],
               "type": "object"
             },
+            "minProperties": 1,
             "propertyNames": {
               "pattern": "^[a-z][a-z0-9_]{0,63}$"
             },
@@ -14444,6 +9752,7 @@ export const runxSchemaArtifacts = {
               ],
               "type": "object"
             },
+            "minItems": 1,
             "type": "array"
           },
           "mention": {
@@ -14472,14 +9781,12 @@ export const runxSchemaArtifacts = {
           "properties": {
             "amount": {
               "enum": [
-                "none",
                 "required"
               ],
               "type": "string"
             },
             "approval": {
               "enum": [
-                "none",
                 "required"
               ],
               "type": "string"
@@ -14490,6 +9797,7 @@ export const runxSchemaArtifacts = {
                 "pattern": "^[a-z][a-z0-9_]{0,63}$",
                 "type": "string"
               },
+              "minItems": 1,
               "type": "array"
             },
             "description": {
@@ -14522,10 +9830,10 @@ export const runxSchemaArtifacts = {
             },
             "guarantees": {
               "additionalProperties": false,
+              "minProperties": 1,
               "properties": {
                 "provider_idempotency": {
                   "enum": [
-                    "none",
                     "enforced",
                     "inherent"
                   ],
@@ -14533,7 +9841,6 @@ export const runxSchemaArtifacts = {
                 },
                 "readback": {
                   "enum": [
-                    "none",
                     "eventual",
                     "exact",
                     "unavailable"
@@ -14551,6 +9858,7 @@ export const runxSchemaArtifacts = {
                     "minLength": 1,
                     "type": "string"
                   },
+                  "minItems": 1,
                   "type": "array"
                 }
               },
@@ -14558,7 +9866,6 @@ export const runxSchemaArtifacts = {
             },
             "idempotency_key_format": {
               "enum": [
-                "runx",
                 "uuid"
               ],
               "type": "string"
@@ -14639,6 +9946,7 @@ export const runxSchemaArtifacts = {
                               }
                             ]
                           },
+                          "minProperties": 1,
                           "propertyNames": {
                             "pattern": "^[a-z][a-z0-9_]{0,63}$"
                           },
@@ -14969,6 +10277,7 @@ export const runxSchemaArtifacts = {
                                   ],
                                   "type": "object"
                                 },
+                                "minItems": 1,
                                 "type": "array"
                               },
                               "request": {
@@ -14978,6 +10287,7 @@ export const runxSchemaArtifacts = {
                                   "each": {},
                                   "headers": {
                                     "additionalProperties": {},
+                                    "minProperties": 1,
                                     "type": "object"
                                   },
                                   "id": {
@@ -15020,6 +10330,7 @@ export const runxSchemaArtifacts = {
                                   },
                                   "query": {
                                     "additionalProperties": {},
+                                    "minProperties": 1,
                                     "type": "object"
                                   },
                                   "url": {}
@@ -15036,6 +10347,7 @@ export const runxSchemaArtifacts = {
                             ],
                             "type": "object"
                           },
+                          "minItems": 1,
                           "type": "array"
                         },
                         "rate_limit": {
@@ -15259,6 +10571,7 @@ export const runxSchemaArtifacts = {
                                   ],
                                   "type": "object"
                                 },
+                                "minItems": 1,
                                 "type": "array"
                               },
                               "request": {
@@ -15268,6 +10581,7 @@ export const runxSchemaArtifacts = {
                                   "each": {},
                                   "headers": {
                                     "additionalProperties": {},
+                                    "minProperties": 1,
                                     "type": "object"
                                   },
                                   "id": {
@@ -15310,6 +10624,7 @@ export const runxSchemaArtifacts = {
                                   },
                                   "query": {
                                     "additionalProperties": {},
+                                    "minProperties": 1,
                                     "type": "object"
                                   },
                                   "url": {}
@@ -15326,6 +10641,7 @@ export const runxSchemaArtifacts = {
                             ],
                             "type": "object"
                           },
+                          "minItems": 1,
                           "type": "array"
                         },
                         "requests": {
@@ -15336,6 +10652,7 @@ export const runxSchemaArtifacts = {
                               "each": {},
                               "headers": {
                                 "additionalProperties": {},
+                                "minProperties": 1,
                                 "type": "object"
                               },
                               "id": {
@@ -15378,6 +10695,7 @@ export const runxSchemaArtifacts = {
                               },
                               "query": {
                                 "additionalProperties": {},
+                                "minProperties": 1,
                                 "type": "object"
                               },
                               "url": {}
@@ -15510,6 +10828,7 @@ export const runxSchemaArtifacts = {
                                 ],
                                 "type": "object"
                               },
+                              "minItems": 1,
                               "type": "array"
                             },
                             "tool": {
@@ -15663,6 +10982,7 @@ export const runxSchemaArtifacts = {
                             "minLength": 1,
                             "type": "string"
                           },
+                          "minItems": 1,
                           "type": "array"
                         },
                         "tool": {
@@ -15720,6 +11040,7 @@ export const runxSchemaArtifacts = {
                 "minLength": 1,
                 "type": "string"
               },
+              "minItems": 1,
               "type": "array"
             },
             "scopes": {
@@ -15819,7 +11140,6 @@ export const runxSchemaArtifacts = {
               },
               "callers": {
                 "enum": [
-                  "public",
                   "runtime"
                 ],
                 "type": "string"
@@ -15915,6 +11235,7 @@ export const runxSchemaArtifacts = {
                             }
                           ]
                         },
+                        "minProperties": 1,
                         "propertyNames": {
                           "pattern": "^[a-z][a-z0-9_]{0,63}$"
                         },
@@ -15922,6 +11243,7 @@ export const runxSchemaArtifacts = {
                       },
                       "headers": {
                         "additionalProperties": {},
+                        "minProperties": 1,
                         "type": "object"
                       },
                       "transport": {
@@ -15947,6 +11269,7 @@ export const runxSchemaArtifacts = {
                           "minLength": 1,
                           "type": "string"
                         },
+                        "minItems": 1,
                         "type": "array"
                       },
                       "command": {
@@ -16002,6 +11325,7 @@ export const runxSchemaArtifacts = {
           ],
           "type": "object"
         },
+        "minItems": 1,
         "type": "array"
       },
       "schema": {
@@ -16148,25 +11472,14 @@ export const runxSchemaArtifacts = {
                 "run",
                 "act",
                 "receipt",
-                "graph_receipt",
                 "artifact",
                 "verification",
                 "harness",
                 "host",
-                "deployment",
                 "surface",
                 "target",
-                "opportunity",
-                "thesis_assessment",
-                "selection",
                 "skill_binding",
-                "target_transition_entry",
-                "selection_cycle",
-                "decision",
-                "reflection_entry",
-                "feed_entry",
                 "principal",
-                "authority_proof",
                 "scope_admission",
                 "grant",
                 "mandate",
@@ -16257,25 +11570,14 @@ export const runxSchemaArtifacts = {
               "run",
               "act",
               "receipt",
-              "graph_receipt",
               "artifact",
               "verification",
               "harness",
               "host",
-              "deployment",
               "surface",
               "target",
-              "opportunity",
-              "thesis_assessment",
-              "selection",
               "skill_binding",
-              "target_transition_entry",
-              "selection_cycle",
-              "decision",
-              "reflection_entry",
-              "feed_entry",
               "principal",
-              "authority_proof",
               "scope_admission",
               "grant",
               "mandate",
@@ -16346,25 +11648,14 @@ export const runxSchemaArtifacts = {
               "run",
               "act",
               "receipt",
-              "graph_receipt",
               "artifact",
               "verification",
               "harness",
               "host",
-              "deployment",
               "surface",
               "target",
-              "opportunity",
-              "thesis_assessment",
-              "selection",
               "skill_binding",
-              "target_transition_entry",
-              "selection_cycle",
-              "decision",
-              "reflection_entry",
-              "feed_entry",
               "principal",
-              "authority_proof",
               "scope_admission",
               "grant",
               "mandate",
@@ -16466,25 +11757,14 @@ export const runxSchemaArtifacts = {
                 "run",
                 "act",
                 "receipt",
-                "graph_receipt",
                 "artifact",
                 "verification",
                 "harness",
                 "host",
-                "deployment",
                 "surface",
                 "target",
-                "opportunity",
-                "thesis_assessment",
-                "selection",
                 "skill_binding",
-                "target_transition_entry",
-                "selection_cycle",
-                "decision",
-                "reflection_entry",
-                "feed_entry",
                 "principal",
-                "authority_proof",
                 "scope_admission",
                 "grant",
                 "mandate",
@@ -16805,103 +12085,9 @@ export const runxSchemaArtifacts = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "additionalProperties": false,
     "properties": {
-      "artifact_refs": {
-        "items": {
-          "$id": "https://schemas.runx.ai/runx/reference/v1.json",
-          "$schema": "https://json-schema.org/draft/2020-12/schema",
-          "additionalProperties": false,
-          "properties": {
-            "label": {
-              "minLength": 1,
-              "type": "string"
-            },
-            "locator": {
-              "minLength": 1,
-              "type": "string"
-            },
-            "observed_at": {
-              "minLength": 1,
-              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-              "type": "string"
-            },
-            "proof_kind": {
-              "enum": [
-                "effect_evidence",
-                "effect_finality",
-                "credential_resolution"
-              ],
-              "type": "string"
-            },
-            "provider": {
-              "minLength": 1,
-              "type": "string"
-            },
-            "schema": {
-              "const": "runx.reference.v1",
-              "type": "string"
-            },
-            "type": {
-              "enum": [
-                "thread",
-                "comment",
-                "event",
-                "tracking_item",
-                "change_request",
-                "repository",
-                "signal",
-                "run",
-                "act",
-                "receipt",
-                "graph_receipt",
-                "artifact",
-                "verification",
-                "harness",
-                "host",
-                "deployment",
-                "surface",
-                "target",
-                "opportunity",
-                "thesis_assessment",
-                "selection",
-                "skill_binding",
-                "target_transition_entry",
-                "selection_cycle",
-                "decision",
-                "reflection_entry",
-                "feed_entry",
-                "principal",
-                "authority_proof",
-                "scope_admission",
-                "grant",
-                "mandate",
-                "credential",
-                "webhook_delivery",
-                "redaction_policy",
-                "external_url",
-                "connector_instance",
-                "connector_operation"
-              ],
-              "type": "string"
-            },
-            "uri": {
-              "minLength": 1,
-              "type": "string"
-            }
-          },
-          "required": [
-            "type",
-            "uri"
-          ],
-          "type": "object",
-          "x-runx-schema": "runx.reference.v1"
-        },
-        "type": "array"
-      },
       "choice": {
         "enum": [
-          "open",
           "continue",
-          "spawn_child",
           "escalate",
           "defer",
           "close",
@@ -16910,809 +12096,23 @@ export const runxSchemaArtifacts = {
         ],
         "type": "string"
       },
-      "closure": {
-        "anyOf": [
-          {
-            "additionalProperties": false,
-            "properties": {
-              "closed_at": {
-                "minLength": 1,
-                "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-                "type": "string"
-              },
-              "disposition": {
-                "enum": [
-                  "closed",
-                  "deferred",
-                  "superseded",
-                  "declined",
-                  "blocked",
-                  "failed",
-                  "killed",
-                  "timed_out"
-                ],
-                "type": "string"
-              },
-              "reason_code": {
-                "minLength": 1,
-                "type": "string"
-              },
-              "summary": {
-                "minLength": 1,
-                "type": "string"
-              }
-            },
-            "required": [
-              "disposition",
-              "reason_code",
-              "summary",
-              "closed_at"
-            ],
-            "type": "object"
-          },
-          {
-            "type": "null"
-          }
-        ]
-      },
       "decision_id": {
         "minLength": 1,
         "type": "string"
-      },
-      "inputs": {
-        "additionalProperties": false,
-        "properties": {
-          "opportunity_refs": {
-            "items": {
-              "$id": "https://schemas.runx.ai/runx/reference/v1.json",
-              "$schema": "https://json-schema.org/draft/2020-12/schema",
-              "additionalProperties": false,
-              "properties": {
-                "label": {
-                  "minLength": 1,
-                  "type": "string"
-                },
-                "locator": {
-                  "minLength": 1,
-                  "type": "string"
-                },
-                "observed_at": {
-                  "minLength": 1,
-                  "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-                  "type": "string"
-                },
-                "proof_kind": {
-                  "enum": [
-                    "effect_evidence",
-                    "effect_finality",
-                    "credential_resolution"
-                  ],
-                  "type": "string"
-                },
-                "provider": {
-                  "minLength": 1,
-                  "type": "string"
-                },
-                "schema": {
-                  "const": "runx.reference.v1",
-                  "type": "string"
-                },
-                "type": {
-                  "enum": [
-                    "thread",
-                    "comment",
-                    "event",
-                    "tracking_item",
-                    "change_request",
-                    "repository",
-                    "signal",
-                    "run",
-                    "act",
-                    "receipt",
-                    "graph_receipt",
-                    "artifact",
-                    "verification",
-                    "harness",
-                    "host",
-                    "deployment",
-                    "surface",
-                    "target",
-                    "opportunity",
-                    "thesis_assessment",
-                    "selection",
-                    "skill_binding",
-                    "target_transition_entry",
-                    "selection_cycle",
-                    "decision",
-                    "reflection_entry",
-                    "feed_entry",
-                    "principal",
-                    "authority_proof",
-                    "scope_admission",
-                    "grant",
-                    "mandate",
-                    "credential",
-                    "webhook_delivery",
-                    "redaction_policy",
-                    "external_url",
-                    "connector_instance",
-                    "connector_operation"
-                  ],
-                  "type": "string"
-                },
-                "uri": {
-                  "minLength": 1,
-                  "type": "string"
-                }
-              },
-              "required": [
-                "type",
-                "uri"
-              ],
-              "type": "object",
-              "x-runx-schema": "runx.reference.v1"
-            },
-            "type": "array"
-          },
-          "selection_ref": {
-            "anyOf": [
-              {
-                "$id": "https://schemas.runx.ai/runx/reference/v1.json",
-                "$schema": "https://json-schema.org/draft/2020-12/schema",
-                "additionalProperties": false,
-                "properties": {
-                  "label": {
-                    "minLength": 1,
-                    "type": "string"
-                  },
-                  "locator": {
-                    "minLength": 1,
-                    "type": "string"
-                  },
-                  "observed_at": {
-                    "minLength": 1,
-                    "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-                    "type": "string"
-                  },
-                  "proof_kind": {
-                    "enum": [
-                      "effect_evidence",
-                      "effect_finality",
-                      "credential_resolution"
-                    ],
-                    "type": "string"
-                  },
-                  "provider": {
-                    "minLength": 1,
-                    "type": "string"
-                  },
-                  "schema": {
-                    "const": "runx.reference.v1",
-                    "type": "string"
-                  },
-                  "type": {
-                    "enum": [
-                      "thread",
-                      "comment",
-                      "event",
-                      "tracking_item",
-                      "change_request",
-                      "repository",
-                      "signal",
-                      "run",
-                      "act",
-                      "receipt",
-                      "graph_receipt",
-                      "artifact",
-                      "verification",
-                      "harness",
-                      "host",
-                      "deployment",
-                      "surface",
-                      "target",
-                      "opportunity",
-                      "thesis_assessment",
-                      "selection",
-                      "skill_binding",
-                      "target_transition_entry",
-                      "selection_cycle",
-                      "decision",
-                      "reflection_entry",
-                      "feed_entry",
-                      "principal",
-                      "authority_proof",
-                      "scope_admission",
-                      "grant",
-                      "mandate",
-                      "credential",
-                      "webhook_delivery",
-                      "redaction_policy",
-                      "external_url",
-                      "connector_instance",
-                      "connector_operation"
-                    ],
-                    "type": "string"
-                  },
-                  "uri": {
-                    "minLength": 1,
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "type",
-                  "uri"
-                ],
-                "type": "object",
-                "x-runx-schema": "runx.reference.v1"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "signal_refs": {
-            "items": {
-              "$id": "https://schemas.runx.ai/runx/reference/v1.json",
-              "$schema": "https://json-schema.org/draft/2020-12/schema",
-              "additionalProperties": false,
-              "properties": {
-                "label": {
-                  "minLength": 1,
-                  "type": "string"
-                },
-                "locator": {
-                  "minLength": 1,
-                  "type": "string"
-                },
-                "observed_at": {
-                  "minLength": 1,
-                  "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-                  "type": "string"
-                },
-                "proof_kind": {
-                  "enum": [
-                    "effect_evidence",
-                    "effect_finality",
-                    "credential_resolution"
-                  ],
-                  "type": "string"
-                },
-                "provider": {
-                  "minLength": 1,
-                  "type": "string"
-                },
-                "schema": {
-                  "const": "runx.reference.v1",
-                  "type": "string"
-                },
-                "type": {
-                  "enum": [
-                    "thread",
-                    "comment",
-                    "event",
-                    "tracking_item",
-                    "change_request",
-                    "repository",
-                    "signal",
-                    "run",
-                    "act",
-                    "receipt",
-                    "graph_receipt",
-                    "artifact",
-                    "verification",
-                    "harness",
-                    "host",
-                    "deployment",
-                    "surface",
-                    "target",
-                    "opportunity",
-                    "thesis_assessment",
-                    "selection",
-                    "skill_binding",
-                    "target_transition_entry",
-                    "selection_cycle",
-                    "decision",
-                    "reflection_entry",
-                    "feed_entry",
-                    "principal",
-                    "authority_proof",
-                    "scope_admission",
-                    "grant",
-                    "mandate",
-                    "credential",
-                    "webhook_delivery",
-                    "redaction_policy",
-                    "external_url",
-                    "connector_instance",
-                    "connector_operation"
-                  ],
-                  "type": "string"
-                },
-                "uri": {
-                  "minLength": 1,
-                  "type": "string"
-                }
-              },
-              "required": [
-                "type",
-                "uri"
-              ],
-              "type": "object",
-              "x-runx-schema": "runx.reference.v1"
-            },
-            "type": "array"
-          },
-          "target_ref": {
-            "anyOf": [
-              {
-                "$id": "https://schemas.runx.ai/runx/reference/v1.json",
-                "$schema": "https://json-schema.org/draft/2020-12/schema",
-                "additionalProperties": false,
-                "properties": {
-                  "label": {
-                    "minLength": 1,
-                    "type": "string"
-                  },
-                  "locator": {
-                    "minLength": 1,
-                    "type": "string"
-                  },
-                  "observed_at": {
-                    "minLength": 1,
-                    "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-                    "type": "string"
-                  },
-                  "proof_kind": {
-                    "enum": [
-                      "effect_evidence",
-                      "effect_finality",
-                      "credential_resolution"
-                    ],
-                    "type": "string"
-                  },
-                  "provider": {
-                    "minLength": 1,
-                    "type": "string"
-                  },
-                  "schema": {
-                    "const": "runx.reference.v1",
-                    "type": "string"
-                  },
-                  "type": {
-                    "enum": [
-                      "thread",
-                      "comment",
-                      "event",
-                      "tracking_item",
-                      "change_request",
-                      "repository",
-                      "signal",
-                      "run",
-                      "act",
-                      "receipt",
-                      "graph_receipt",
-                      "artifact",
-                      "verification",
-                      "harness",
-                      "host",
-                      "deployment",
-                      "surface",
-                      "target",
-                      "opportunity",
-                      "thesis_assessment",
-                      "selection",
-                      "skill_binding",
-                      "target_transition_entry",
-                      "selection_cycle",
-                      "decision",
-                      "reflection_entry",
-                      "feed_entry",
-                      "principal",
-                      "authority_proof",
-                      "scope_admission",
-                      "grant",
-                      "mandate",
-                      "credential",
-                      "webhook_delivery",
-                      "redaction_policy",
-                      "external_url",
-                      "connector_instance",
-                      "connector_operation"
-                    ],
-                    "type": "string"
-                  },
-                  "uri": {
-                    "minLength": 1,
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "type",
-                  "uri"
-                ],
-                "type": "object",
-                "x-runx-schema": "runx.reference.v1"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          }
-        },
-        "required": [
-          "target_ref",
-          "selection_ref"
-        ],
-        "type": "object"
-      },
-      "justification": {
-        "additionalProperties": false,
-        "properties": {
-          "evidence_refs": {
-            "items": {
-              "$id": "https://schemas.runx.ai/runx/reference/v1.json",
-              "$schema": "https://json-schema.org/draft/2020-12/schema",
-              "additionalProperties": false,
-              "properties": {
-                "label": {
-                  "minLength": 1,
-                  "type": "string"
-                },
-                "locator": {
-                  "minLength": 1,
-                  "type": "string"
-                },
-                "observed_at": {
-                  "minLength": 1,
-                  "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-                  "type": "string"
-                },
-                "proof_kind": {
-                  "enum": [
-                    "effect_evidence",
-                    "effect_finality",
-                    "credential_resolution"
-                  ],
-                  "type": "string"
-                },
-                "provider": {
-                  "minLength": 1,
-                  "type": "string"
-                },
-                "schema": {
-                  "const": "runx.reference.v1",
-                  "type": "string"
-                },
-                "type": {
-                  "enum": [
-                    "thread",
-                    "comment",
-                    "event",
-                    "tracking_item",
-                    "change_request",
-                    "repository",
-                    "signal",
-                    "run",
-                    "act",
-                    "receipt",
-                    "graph_receipt",
-                    "artifact",
-                    "verification",
-                    "harness",
-                    "host",
-                    "deployment",
-                    "surface",
-                    "target",
-                    "opportunity",
-                    "thesis_assessment",
-                    "selection",
-                    "skill_binding",
-                    "target_transition_entry",
-                    "selection_cycle",
-                    "decision",
-                    "reflection_entry",
-                    "feed_entry",
-                    "principal",
-                    "authority_proof",
-                    "scope_admission",
-                    "grant",
-                    "mandate",
-                    "credential",
-                    "webhook_delivery",
-                    "redaction_policy",
-                    "external_url",
-                    "connector_instance",
-                    "connector_operation"
-                  ],
-                  "type": "string"
-                },
-                "uri": {
-                  "minLength": 1,
-                  "type": "string"
-                }
-              },
-              "required": [
-                "type",
-                "uri"
-              ],
-              "type": "object",
-              "x-runx-schema": "runx.reference.v1"
-            },
-            "type": "array"
-          },
-          "summary": {
-            "minLength": 1,
-            "type": "string"
-          }
-        },
-        "required": [
-          "summary"
-        ],
-        "type": "object"
-      },
-      "proposed_intent": {
-        "additionalProperties": false,
-        "properties": {
-          "constraints": {
-            "items": {
-              "minLength": 1,
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "derived_from": {
-            "items": {
-              "$id": "https://schemas.runx.ai/runx/reference/v1.json",
-              "$schema": "https://json-schema.org/draft/2020-12/schema",
-              "additionalProperties": false,
-              "properties": {
-                "label": {
-                  "minLength": 1,
-                  "type": "string"
-                },
-                "locator": {
-                  "minLength": 1,
-                  "type": "string"
-                },
-                "observed_at": {
-                  "minLength": 1,
-                  "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-                  "type": "string"
-                },
-                "proof_kind": {
-                  "enum": [
-                    "effect_evidence",
-                    "effect_finality",
-                    "credential_resolution"
-                  ],
-                  "type": "string"
-                },
-                "provider": {
-                  "minLength": 1,
-                  "type": "string"
-                },
-                "schema": {
-                  "const": "runx.reference.v1",
-                  "type": "string"
-                },
-                "type": {
-                  "enum": [
-                    "thread",
-                    "comment",
-                    "event",
-                    "tracking_item",
-                    "change_request",
-                    "repository",
-                    "signal",
-                    "run",
-                    "act",
-                    "receipt",
-                    "graph_receipt",
-                    "artifact",
-                    "verification",
-                    "harness",
-                    "host",
-                    "deployment",
-                    "surface",
-                    "target",
-                    "opportunity",
-                    "thesis_assessment",
-                    "selection",
-                    "skill_binding",
-                    "target_transition_entry",
-                    "selection_cycle",
-                    "decision",
-                    "reflection_entry",
-                    "feed_entry",
-                    "principal",
-                    "authority_proof",
-                    "scope_admission",
-                    "grant",
-                    "mandate",
-                    "credential",
-                    "webhook_delivery",
-                    "redaction_policy",
-                    "external_url",
-                    "connector_instance",
-                    "connector_operation"
-                  ],
-                  "type": "string"
-                },
-                "uri": {
-                  "minLength": 1,
-                  "type": "string"
-                }
-              },
-              "required": [
-                "type",
-                "uri"
-              ],
-              "type": "object",
-              "x-runx-schema": "runx.reference.v1"
-            },
-            "type": "array"
-          },
-          "legitimacy": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "purpose": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "success_criteria": {
-            "items": {
-              "additionalProperties": false,
-              "properties": {
-                "criterion_id": {
-                  "minLength": 1,
-                  "type": "string"
-                },
-                "required": {
-                  "type": "boolean"
-                },
-                "statement": {
-                  "minLength": 1,
-                  "type": "string"
-                }
-              },
-              "required": [
-                "criterion_id",
-                "statement",
-                "required"
-              ],
-              "type": "object"
-            },
-            "type": "array"
-          }
-        },
-        "required": [
-          "purpose",
-          "legitimacy"
-        ],
-        "type": "object"
       },
       "schema": {
         "const": "runx.decision.v1",
         "type": "string"
       },
       "selected_act_id": {
-        "anyOf": [
-          {
-            "minLength": 1,
-            "type": "string"
-          },
-          {
-            "type": "null"
-          }
-        ]
-      },
-      "selected_harness_ref": {
-        "anyOf": [
-          {
-            "$id": "https://schemas.runx.ai/runx/reference/v1.json",
-            "$schema": "https://json-schema.org/draft/2020-12/schema",
-            "additionalProperties": false,
-            "properties": {
-              "label": {
-                "minLength": 1,
-                "type": "string"
-              },
-              "locator": {
-                "minLength": 1,
-                "type": "string"
-              },
-              "observed_at": {
-                "minLength": 1,
-                "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-                "type": "string"
-              },
-              "proof_kind": {
-                "enum": [
-                  "effect_evidence",
-                  "effect_finality",
-                  "credential_resolution"
-                ],
-                "type": "string"
-              },
-              "provider": {
-                "minLength": 1,
-                "type": "string"
-              },
-              "schema": {
-                "const": "runx.reference.v1",
-                "type": "string"
-              },
-              "type": {
-                "enum": [
-                  "thread",
-                  "comment",
-                  "event",
-                  "tracking_item",
-                  "change_request",
-                  "repository",
-                  "signal",
-                  "run",
-                  "act",
-                  "receipt",
-                  "graph_receipt",
-                  "artifact",
-                  "verification",
-                  "harness",
-                  "host",
-                  "deployment",
-                  "surface",
-                  "target",
-                  "opportunity",
-                  "thesis_assessment",
-                  "selection",
-                  "skill_binding",
-                  "target_transition_entry",
-                  "selection_cycle",
-                  "decision",
-                  "reflection_entry",
-                  "feed_entry",
-                  "principal",
-                  "authority_proof",
-                  "scope_admission",
-                  "grant",
-                  "mandate",
-                  "credential",
-                  "webhook_delivery",
-                  "redaction_policy",
-                  "external_url",
-                  "connector_instance",
-                  "connector_operation"
-                ],
-                "type": "string"
-              },
-              "uri": {
-                "minLength": 1,
-                "type": "string"
-              }
-            },
-            "required": [
-              "type",
-              "uri"
-            ],
-            "type": "object",
-            "x-runx-schema": "runx.reference.v1"
-          },
-          {
-            "type": "null"
-          }
-        ]
+        "minLength": 1,
+        "type": "string"
       }
     },
     "required": [
       "decision_id",
       "choice",
-      "inputs",
-      "proposed_intent",
-      "selected_act_id",
-      "selected_harness_ref",
-      "justification",
-      "closure"
+      "selected_act_id"
     ],
     "type": "object",
     "x-runx-packet": true,
@@ -18180,341 +12580,6 @@ export const runxSchemaArtifacts = {
     "type": "object",
     "x-runx-schema": "runx.doctor.v1"
   } as JsonSchema,
-  "effect-finality-receipt.schema.json": {
-    "$id": "https://schemas.runx.ai/runx/effect-finality-receipt/v1.json",
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "additionalProperties": false,
-    "properties": {
-      "confirmation_depth": {
-        "type": "integer"
-      },
-      "created_at": {
-        "minLength": 1,
-        "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-        "type": "string"
-      },
-      "criterion_id": {
-        "minLength": 1,
-        "type": "string"
-      },
-      "evidence_refs": {
-        "items": {
-          "$id": "https://schemas.runx.ai/runx/reference/v1.json",
-          "$schema": "https://json-schema.org/draft/2020-12/schema",
-          "additionalProperties": false,
-          "properties": {
-            "label": {
-              "minLength": 1,
-              "type": "string"
-            },
-            "locator": {
-              "minLength": 1,
-              "type": "string"
-            },
-            "observed_at": {
-              "minLength": 1,
-              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-              "type": "string"
-            },
-            "proof_kind": {
-              "enum": [
-                "effect_evidence",
-                "effect_finality",
-                "credential_resolution"
-              ],
-              "type": "string"
-            },
-            "provider": {
-              "minLength": 1,
-              "type": "string"
-            },
-            "schema": {
-              "const": "runx.reference.v1",
-              "type": "string"
-            },
-            "type": {
-              "enum": [
-                "thread",
-                "comment",
-                "event",
-                "tracking_item",
-                "change_request",
-                "repository",
-                "signal",
-                "run",
-                "act",
-                "receipt",
-                "graph_receipt",
-                "artifact",
-                "verification",
-                "harness",
-                "host",
-                "deployment",
-                "surface",
-                "target",
-                "opportunity",
-                "thesis_assessment",
-                "selection",
-                "skill_binding",
-                "target_transition_entry",
-                "selection_cycle",
-                "decision",
-                "reflection_entry",
-                "feed_entry",
-                "principal",
-                "authority_proof",
-                "scope_admission",
-                "grant",
-                "mandate",
-                "credential",
-                "webhook_delivery",
-                "redaction_policy",
-                "external_url",
-                "connector_instance",
-                "connector_operation"
-              ],
-              "type": "string"
-            },
-            "uri": {
-              "minLength": 1,
-              "type": "string"
-            }
-          },
-          "required": [
-            "type",
-            "uri"
-          ],
-          "type": "object",
-          "x-runx-schema": "runx.reference.v1"
-        },
-        "type": "array"
-      },
-      "family": {
-        "minLength": 1,
-        "type": "string"
-      },
-      "id": {
-        "minLength": 1,
-        "type": "string"
-      },
-      "norm_refs": {
-        "items": {
-          "minLength": 1,
-          "type": "string"
-        },
-        "type": "array"
-      },
-      "original_receipt_ref": {
-        "$id": "https://schemas.runx.ai/runx/reference/v1.json",
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "additionalProperties": false,
-        "properties": {
-          "label": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "locator": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "observed_at": {
-            "minLength": 1,
-            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-            "type": "string"
-          },
-          "proof_kind": {
-            "enum": [
-              "effect_evidence",
-              "effect_finality",
-              "credential_resolution"
-            ],
-            "type": "string"
-          },
-          "provider": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "schema": {
-            "const": "runx.reference.v1",
-            "type": "string"
-          },
-          "type": {
-            "enum": [
-              "thread",
-              "comment",
-              "event",
-              "tracking_item",
-              "change_request",
-              "repository",
-              "signal",
-              "run",
-              "act",
-              "receipt",
-              "graph_receipt",
-              "artifact",
-              "verification",
-              "harness",
-              "host",
-              "deployment",
-              "surface",
-              "target",
-              "opportunity",
-              "thesis_assessment",
-              "selection",
-              "skill_binding",
-              "target_transition_entry",
-              "selection_cycle",
-              "decision",
-              "reflection_entry",
-              "feed_entry",
-              "principal",
-              "authority_proof",
-              "scope_admission",
-              "grant",
-              "mandate",
-              "credential",
-              "webhook_delivery",
-              "redaction_policy",
-              "external_url",
-              "connector_instance",
-              "connector_operation"
-            ],
-            "type": "string"
-          },
-          "uri": {
-            "minLength": 1,
-            "type": "string"
-          }
-        },
-        "required": [
-          "type",
-          "uri"
-        ],
-        "type": "object",
-        "x-runx-schema": "runx.reference.v1"
-      },
-      "payload": {
-        "additionalProperties": {},
-        "type": "object"
-      },
-      "phase": {
-        "enum": [
-          "provisional",
-          "in_flight",
-          "sealed",
-          "failed",
-          "reversed"
-        ],
-        "type": "string"
-      },
-      "proof_ref": {
-        "$id": "https://schemas.runx.ai/runx/reference/v1.json",
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "additionalProperties": false,
-        "properties": {
-          "label": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "locator": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "observed_at": {
-            "minLength": 1,
-            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-            "type": "string"
-          },
-          "proof_kind": {
-            "enum": [
-              "effect_evidence",
-              "effect_finality",
-              "credential_resolution"
-            ],
-            "type": "string"
-          },
-          "provider": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "schema": {
-            "const": "runx.reference.v1",
-            "type": "string"
-          },
-          "type": {
-            "enum": [
-              "thread",
-              "comment",
-              "event",
-              "tracking_item",
-              "change_request",
-              "repository",
-              "signal",
-              "run",
-              "act",
-              "receipt",
-              "graph_receipt",
-              "artifact",
-              "verification",
-              "harness",
-              "host",
-              "deployment",
-              "surface",
-              "target",
-              "opportunity",
-              "thesis_assessment",
-              "selection",
-              "skill_binding",
-              "target_transition_entry",
-              "selection_cycle",
-              "decision",
-              "reflection_entry",
-              "feed_entry",
-              "principal",
-              "authority_proof",
-              "scope_admission",
-              "grant",
-              "mandate",
-              "credential",
-              "webhook_delivery",
-              "redaction_policy",
-              "external_url",
-              "connector_instance",
-              "connector_operation"
-            ],
-            "type": "string"
-          },
-          "uri": {
-            "minLength": 1,
-            "type": "string"
-          }
-        },
-        "required": [
-          "type",
-          "uri"
-        ],
-        "type": "object",
-        "x-runx-schema": "runx.reference.v1"
-      },
-      "schema": {
-        "enum": [
-          "runx.effect_finality_receipt.v1"
-        ],
-        "type": "string"
-      }
-    },
-    "required": [
-      "schema",
-      "id",
-      "created_at",
-      "family",
-      "phase",
-      "original_receipt_ref",
-      "criterion_id"
-    ],
-    "type": "object",
-    "x-runx-schema": "runx.effect_finality_receipt.v1"
-  } as JsonSchema,
   "execute-paid-invocation-request.schema.json": {
     "$id": "https://schemas.runx.ai/runx/payment/execute-paid-invocation/request/v1.json",
     "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -18588,25 +12653,14 @@ export const runxSchemaArtifacts = {
               "run",
               "act",
               "receipt",
-              "graph_receipt",
               "artifact",
               "verification",
               "harness",
               "host",
-              "deployment",
               "surface",
               "target",
-              "opportunity",
-              "thesis_assessment",
-              "selection",
               "skill_binding",
-              "target_transition_entry",
-              "selection_cycle",
-              "decision",
-              "reflection_entry",
-              "feed_entry",
               "principal",
-              "authority_proof",
               "scope_admission",
               "grant",
               "mandate",
@@ -18767,25 +12821,14 @@ export const runxSchemaArtifacts = {
                           "run",
                           "act",
                           "receipt",
-                          "graph_receipt",
                           "artifact",
                           "verification",
                           "harness",
                           "host",
-                          "deployment",
                           "surface",
                           "target",
-                          "opportunity",
-                          "thesis_assessment",
-                          "selection",
                           "skill_binding",
-                          "target_transition_entry",
-                          "selection_cycle",
-                          "decision",
-                          "reflection_entry",
-                          "feed_entry",
                           "principal",
-                          "authority_proof",
                           "scope_admission",
                           "grant",
                           "mandate",
@@ -18865,25 +12908,14 @@ export const runxSchemaArtifacts = {
                           "run",
                           "act",
                           "receipt",
-                          "graph_receipt",
                           "artifact",
                           "verification",
                           "harness",
                           "host",
-                          "deployment",
                           "surface",
                           "target",
-                          "opportunity",
-                          "thesis_assessment",
-                          "selection",
                           "skill_binding",
-                          "target_transition_entry",
-                          "selection_cycle",
-                          "decision",
-                          "reflection_entry",
-                          "feed_entry",
                           "principal",
-                          "authority_proof",
                           "scope_admission",
                           "grant",
                           "mandate",
@@ -18972,25 +13004,14 @@ export const runxSchemaArtifacts = {
                           "run",
                           "act",
                           "receipt",
-                          "graph_receipt",
                           "artifact",
                           "verification",
                           "harness",
                           "host",
-                          "deployment",
                           "surface",
                           "target",
-                          "opportunity",
-                          "thesis_assessment",
-                          "selection",
                           "skill_binding",
-                          "target_transition_entry",
-                          "selection_cycle",
-                          "decision",
-                          "reflection_entry",
-                          "feed_entry",
                           "principal",
-                          "authority_proof",
                           "scope_admission",
                           "grant",
                           "mandate",
@@ -19273,25 +13294,14 @@ export const runxSchemaArtifacts = {
                           "run",
                           "act",
                           "receipt",
-                          "graph_receipt",
                           "artifact",
                           "verification",
                           "harness",
                           "host",
-                          "deployment",
                           "surface",
                           "target",
-                          "opportunity",
-                          "thesis_assessment",
-                          "selection",
                           "skill_binding",
-                          "target_transition_entry",
-                          "selection_cycle",
-                          "decision",
-                          "reflection_entry",
-                          "feed_entry",
                           "principal",
-                          "authority_proof",
                           "scope_admission",
                           "grant",
                           "mandate",
@@ -19635,25 +13645,14 @@ export const runxSchemaArtifacts = {
               "run",
               "act",
               "receipt",
-              "graph_receipt",
               "artifact",
               "verification",
               "harness",
               "host",
-              "deployment",
               "surface",
               "target",
-              "opportunity",
-              "thesis_assessment",
-              "selection",
               "skill_binding",
-              "target_transition_entry",
-              "selection_cycle",
-              "decision",
-              "reflection_entry",
-              "feed_entry",
               "principal",
-              "authority_proof",
               "scope_admission",
               "grant",
               "mandate",
@@ -19812,25 +13811,14 @@ export const runxSchemaArtifacts = {
               "run",
               "act",
               "receipt",
-              "graph_receipt",
               "artifact",
               "verification",
               "harness",
               "host",
-              "deployment",
               "surface",
               "target",
-              "opportunity",
-              "thesis_assessment",
-              "selection",
               "skill_binding",
-              "target_transition_entry",
-              "selection_cycle",
-              "decision",
-              "reflection_entry",
-              "feed_entry",
               "principal",
-              "authority_proof",
               "scope_admission",
               "grant",
               "mandate",
@@ -19901,25 +13889,14 @@ export const runxSchemaArtifacts = {
               "run",
               "act",
               "receipt",
-              "graph_receipt",
               "artifact",
               "verification",
               "harness",
               "host",
-              "deployment",
               "surface",
               "target",
-              "opportunity",
-              "thesis_assessment",
-              "selection",
               "skill_binding",
-              "target_transition_entry",
-              "selection_cycle",
-              "decision",
-              "reflection_entry",
-              "feed_entry",
               "principal",
-              "authority_proof",
               "scope_admission",
               "grant",
               "mandate",
@@ -19994,25 +13971,14 @@ export const runxSchemaArtifacts = {
               "run",
               "act",
               "receipt",
-              "graph_receipt",
               "artifact",
               "verification",
               "harness",
               "host",
-              "deployment",
               "surface",
               "target",
-              "opportunity",
-              "thesis_assessment",
-              "selection",
               "skill_binding",
-              "target_transition_entry",
-              "selection_cycle",
-              "decision",
-              "reflection_entry",
-              "feed_entry",
               "principal",
-              "authority_proof",
               "scope_admission",
               "grant",
               "mandate",
@@ -20107,25 +14073,14 @@ export const runxSchemaArtifacts = {
               "run",
               "act",
               "receipt",
-              "graph_receipt",
               "artifact",
               "verification",
               "harness",
               "host",
-              "deployment",
               "surface",
               "target",
-              "opportunity",
-              "thesis_assessment",
-              "selection",
               "skill_binding",
-              "target_transition_entry",
-              "selection_cycle",
-              "decision",
-              "reflection_entry",
-              "feed_entry",
               "principal",
-              "authority_proof",
               "scope_admission",
               "grant",
               "mandate",
@@ -20196,25 +14151,14 @@ export const runxSchemaArtifacts = {
               "run",
               "act",
               "receipt",
-              "graph_receipt",
               "artifact",
               "verification",
               "harness",
               "host",
-              "deployment",
               "surface",
               "target",
-              "opportunity",
-              "thesis_assessment",
-              "selection",
               "skill_binding",
-              "target_transition_entry",
-              "selection_cycle",
-              "decision",
-              "reflection_entry",
-              "feed_entry",
               "principal",
-              "authority_proof",
               "scope_admission",
               "grant",
               "mandate",
@@ -20461,25 +14405,14 @@ export const runxSchemaArtifacts = {
               "run",
               "act",
               "receipt",
-              "graph_receipt",
               "artifact",
               "verification",
               "harness",
               "host",
-              "deployment",
               "surface",
               "target",
-              "opportunity",
-              "thesis_assessment",
-              "selection",
               "skill_binding",
-              "target_transition_entry",
-              "selection_cycle",
-              "decision",
-              "reflection_entry",
-              "feed_entry",
               "principal",
-              "authority_proof",
               "scope_admission",
               "grant",
               "mandate",
@@ -20618,25 +14551,14 @@ export const runxSchemaArtifacts = {
               "run",
               "act",
               "receipt",
-              "graph_receipt",
               "artifact",
               "verification",
               "harness",
               "host",
-              "deployment",
               "surface",
               "target",
-              "opportunity",
-              "thesis_assessment",
-              "selection",
               "skill_binding",
-              "target_transition_entry",
-              "selection_cycle",
-              "decision",
-              "reflection_entry",
-              "feed_entry",
               "principal",
-              "authority_proof",
               "scope_admission",
               "grant",
               "mandate",
@@ -20860,25 +14782,14 @@ export const runxSchemaArtifacts = {
                   "run",
                   "act",
                   "receipt",
-                  "graph_receipt",
                   "artifact",
                   "verification",
                   "harness",
                   "host",
-                  "deployment",
                   "surface",
                   "target",
-                  "opportunity",
-                  "thesis_assessment",
-                  "selection",
                   "skill_binding",
-                  "target_transition_entry",
-                  "selection_cycle",
-                  "decision",
-                  "reflection_entry",
-                  "feed_entry",
                   "principal",
-                  "authority_proof",
                   "scope_admission",
                   "grant",
                   "mandate",
@@ -21037,25 +14948,14 @@ export const runxSchemaArtifacts = {
                   "run",
                   "act",
                   "receipt",
-                  "graph_receipt",
                   "artifact",
                   "verification",
                   "harness",
                   "host",
-                  "deployment",
                   "surface",
                   "target",
-                  "opportunity",
-                  "thesis_assessment",
-                  "selection",
                   "skill_binding",
-                  "target_transition_entry",
-                  "selection_cycle",
-                  "decision",
-                  "reflection_entry",
-                  "feed_entry",
                   "principal",
-                  "authority_proof",
                   "scope_admission",
                   "grant",
                   "mandate",
@@ -21126,25 +15026,14 @@ export const runxSchemaArtifacts = {
                   "run",
                   "act",
                   "receipt",
-                  "graph_receipt",
                   "artifact",
                   "verification",
                   "harness",
                   "host",
-                  "deployment",
                   "surface",
                   "target",
-                  "opportunity",
-                  "thesis_assessment",
-                  "selection",
                   "skill_binding",
-                  "target_transition_entry",
-                  "selection_cycle",
-                  "decision",
-                  "reflection_entry",
-                  "feed_entry",
                   "principal",
-                  "authority_proof",
                   "scope_admission",
                   "grant",
                   "mandate",
@@ -21219,25 +15108,14 @@ export const runxSchemaArtifacts = {
                   "run",
                   "act",
                   "receipt",
-                  "graph_receipt",
                   "artifact",
                   "verification",
                   "harness",
                   "host",
-                  "deployment",
                   "surface",
                   "target",
-                  "opportunity",
-                  "thesis_assessment",
-                  "selection",
                   "skill_binding",
-                  "target_transition_entry",
-                  "selection_cycle",
-                  "decision",
-                  "reflection_entry",
-                  "feed_entry",
                   "principal",
-                  "authority_proof",
                   "scope_admission",
                   "grant",
                   "mandate",
@@ -21332,25 +15210,14 @@ export const runxSchemaArtifacts = {
                   "run",
                   "act",
                   "receipt",
-                  "graph_receipt",
                   "artifact",
                   "verification",
                   "harness",
                   "host",
-                  "deployment",
                   "surface",
                   "target",
-                  "opportunity",
-                  "thesis_assessment",
-                  "selection",
                   "skill_binding",
-                  "target_transition_entry",
-                  "selection_cycle",
-                  "decision",
-                  "reflection_entry",
-                  "feed_entry",
                   "principal",
-                  "authority_proof",
                   "scope_admission",
                   "grant",
                   "mandate",
@@ -21421,25 +15288,14 @@ export const runxSchemaArtifacts = {
                   "run",
                   "act",
                   "receipt",
-                  "graph_receipt",
                   "artifact",
                   "verification",
                   "harness",
                   "host",
-                  "deployment",
                   "surface",
                   "target",
-                  "opportunity",
-                  "thesis_assessment",
-                  "selection",
                   "skill_binding",
-                  "target_transition_entry",
-                  "selection_cycle",
-                  "decision",
-                  "reflection_entry",
-                  "feed_entry",
                   "principal",
-                  "authority_proof",
                   "scope_admission",
                   "grant",
                   "mandate",
@@ -21614,25 +15470,14 @@ export const runxSchemaArtifacts = {
                   "run",
                   "act",
                   "receipt",
-                  "graph_receipt",
                   "artifact",
                   "verification",
                   "harness",
                   "host",
-                  "deployment",
                   "surface",
                   "target",
-                  "opportunity",
-                  "thesis_assessment",
-                  "selection",
                   "skill_binding",
-                  "target_transition_entry",
-                  "selection_cycle",
-                  "decision",
-                  "reflection_entry",
-                  "feed_entry",
                   "principal",
-                  "authority_proof",
                   "scope_admission",
                   "grant",
                   "mandate",
@@ -21728,25 +15573,14 @@ export const runxSchemaArtifacts = {
                   "run",
                   "act",
                   "receipt",
-                  "graph_receipt",
                   "artifact",
                   "verification",
                   "harness",
                   "host",
-                  "deployment",
                   "surface",
                   "target",
-                  "opportunity",
-                  "thesis_assessment",
-                  "selection",
                   "skill_binding",
-                  "target_transition_entry",
-                  "selection_cycle",
-                  "decision",
-                  "reflection_entry",
-                  "feed_entry",
                   "principal",
-                  "authority_proof",
                   "scope_admission",
                   "grant",
                   "mandate",
@@ -21842,25 +15676,14 @@ export const runxSchemaArtifacts = {
                   "run",
                   "act",
                   "receipt",
-                  "graph_receipt",
                   "artifact",
                   "verification",
                   "harness",
                   "host",
-                  "deployment",
                   "surface",
                   "target",
-                  "opportunity",
-                  "thesis_assessment",
-                  "selection",
                   "skill_binding",
-                  "target_transition_entry",
-                  "selection_cycle",
-                  "decision",
-                  "reflection_entry",
-                  "feed_entry",
                   "principal",
-                  "authority_proof",
                   "scope_admission",
                   "grant",
                   "mandate",
@@ -21931,25 +15754,14 @@ export const runxSchemaArtifacts = {
                   "run",
                   "act",
                   "receipt",
-                  "graph_receipt",
                   "artifact",
                   "verification",
                   "harness",
                   "host",
-                  "deployment",
                   "surface",
                   "target",
-                  "opportunity",
-                  "thesis_assessment",
-                  "selection",
                   "skill_binding",
-                  "target_transition_entry",
-                  "selection_cycle",
-                  "decision",
-                  "reflection_entry",
-                  "feed_entry",
                   "principal",
-                  "authority_proof",
                   "scope_admission",
                   "grant",
                   "mandate",
@@ -22020,25 +15832,14 @@ export const runxSchemaArtifacts = {
                   "run",
                   "act",
                   "receipt",
-                  "graph_receipt",
                   "artifact",
                   "verification",
                   "harness",
                   "host",
-                  "deployment",
                   "surface",
                   "target",
-                  "opportunity",
-                  "thesis_assessment",
-                  "selection",
                   "skill_binding",
-                  "target_transition_entry",
-                  "selection_cycle",
-                  "decision",
-                  "reflection_entry",
-                  "feed_entry",
                   "principal",
-                  "authority_proof",
                   "scope_admission",
                   "grant",
                   "mandate",
@@ -22130,25 +15931,14 @@ export const runxSchemaArtifacts = {
                   "run",
                   "act",
                   "receipt",
-                  "graph_receipt",
                   "artifact",
                   "verification",
                   "harness",
                   "host",
-                  "deployment",
                   "surface",
                   "target",
-                  "opportunity",
-                  "thesis_assessment",
-                  "selection",
                   "skill_binding",
-                  "target_transition_entry",
-                  "selection_cycle",
-                  "decision",
-                  "reflection_entry",
-                  "feed_entry",
                   "principal",
-                  "authority_proof",
                   "scope_admission",
                   "grant",
                   "mandate",
@@ -22243,25 +16033,14 @@ export const runxSchemaArtifacts = {
                   "run",
                   "act",
                   "receipt",
-                  "graph_receipt",
                   "artifact",
                   "verification",
                   "harness",
                   "host",
-                  "deployment",
                   "surface",
                   "target",
-                  "opportunity",
-                  "thesis_assessment",
-                  "selection",
                   "skill_binding",
-                  "target_transition_entry",
-                  "selection_cycle",
-                  "decision",
-                  "reflection_entry",
-                  "feed_entry",
                   "principal",
-                  "authority_proof",
                   "scope_admission",
                   "grant",
                   "mandate",
@@ -22570,25 +16349,14 @@ export const runxSchemaArtifacts = {
                           "run",
                           "act",
                           "receipt",
-                          "graph_receipt",
                           "artifact",
                           "verification",
                           "harness",
                           "host",
-                          "deployment",
                           "surface",
                           "target",
-                          "opportunity",
-                          "thesis_assessment",
-                          "selection",
                           "skill_binding",
-                          "target_transition_entry",
-                          "selection_cycle",
-                          "decision",
-                          "reflection_entry",
-                          "feed_entry",
                           "principal",
-                          "authority_proof",
                           "scope_admission",
                           "grant",
                           "mandate",
@@ -22668,25 +16436,14 @@ export const runxSchemaArtifacts = {
                           "run",
                           "act",
                           "receipt",
-                          "graph_receipt",
                           "artifact",
                           "verification",
                           "harness",
                           "host",
-                          "deployment",
                           "surface",
                           "target",
-                          "opportunity",
-                          "thesis_assessment",
-                          "selection",
                           "skill_binding",
-                          "target_transition_entry",
-                          "selection_cycle",
-                          "decision",
-                          "reflection_entry",
-                          "feed_entry",
                           "principal",
-                          "authority_proof",
                           "scope_admission",
                           "grant",
                           "mandate",
@@ -22775,25 +16532,14 @@ export const runxSchemaArtifacts = {
                           "run",
                           "act",
                           "receipt",
-                          "graph_receipt",
                           "artifact",
                           "verification",
                           "harness",
                           "host",
-                          "deployment",
                           "surface",
                           "target",
-                          "opportunity",
-                          "thesis_assessment",
-                          "selection",
                           "skill_binding",
-                          "target_transition_entry",
-                          "selection_cycle",
-                          "decision",
-                          "reflection_entry",
-                          "feed_entry",
                           "principal",
-                          "authority_proof",
                           "scope_admission",
                           "grant",
                           "mandate",
@@ -23076,25 +16822,14 @@ export const runxSchemaArtifacts = {
                           "run",
                           "act",
                           "receipt",
-                          "graph_receipt",
                           "artifact",
                           "verification",
                           "harness",
                           "host",
-                          "deployment",
                           "surface",
                           "target",
-                          "opportunity",
-                          "thesis_assessment",
-                          "selection",
                           "skill_binding",
-                          "target_transition_entry",
-                          "selection_cycle",
-                          "decision",
-                          "reflection_entry",
-                          "feed_entry",
                           "principal",
-                          "authority_proof",
                           "scope_admission",
                           "grant",
                           "mandate",
@@ -23313,25 +17048,14 @@ export const runxSchemaArtifacts = {
                       "run",
                       "act",
                       "receipt",
-                      "graph_receipt",
                       "artifact",
                       "verification",
                       "harness",
                       "host",
-                      "deployment",
                       "surface",
                       "target",
-                      "opportunity",
-                      "thesis_assessment",
-                      "selection",
                       "skill_binding",
-                      "target_transition_entry",
-                      "selection_cycle",
-                      "decision",
-                      "reflection_entry",
-                      "feed_entry",
                       "principal",
-                      "authority_proof",
                       "scope_admission",
                       "grant",
                       "mandate",
@@ -23402,25 +17126,14 @@ export const runxSchemaArtifacts = {
                       "run",
                       "act",
                       "receipt",
-                      "graph_receipt",
                       "artifact",
                       "verification",
                       "harness",
                       "host",
-                      "deployment",
                       "surface",
                       "target",
-                      "opportunity",
-                      "thesis_assessment",
-                      "selection",
                       "skill_binding",
-                      "target_transition_entry",
-                      "selection_cycle",
-                      "decision",
-                      "reflection_entry",
-                      "feed_entry",
                       "principal",
-                      "authority_proof",
                       "scope_admission",
                       "grant",
                       "mandate",
@@ -24174,6 +17887,7 @@ export const runxSchemaArtifacts = {
         "items": {
           "type": "string"
         },
+        "minItems": 1,
         "type": "array"
       },
       "schema": {
@@ -24725,25 +18439,14 @@ export const runxSchemaArtifacts = {
                 "run",
                 "act",
                 "receipt",
-                "graph_receipt",
                 "artifact",
                 "verification",
                 "harness",
                 "host",
-                "deployment",
                 "surface",
                 "target",
-                "opportunity",
-                "thesis_assessment",
-                "selection",
                 "skill_binding",
-                "target_transition_entry",
-                "selection_cycle",
-                "decision",
-                "reflection_entry",
-                "feed_entry",
                 "principal",
-                "authority_proof",
                 "scope_admission",
                 "grant",
                 "mandate",
@@ -24868,25 +18571,14 @@ export const runxSchemaArtifacts = {
                 "run",
                 "act",
                 "receipt",
-                "graph_receipt",
                 "artifact",
                 "verification",
                 "harness",
                 "host",
-                "deployment",
                 "surface",
                 "target",
-                "opportunity",
-                "thesis_assessment",
-                "selection",
                 "skill_binding",
-                "target_transition_entry",
-                "selection_cycle",
-                "decision",
-                "reflection_entry",
-                "feed_entry",
                 "principal",
-                "authority_proof",
                 "scope_admission",
                 "grant",
                 "mandate",
@@ -24975,25 +18667,14 @@ export const runxSchemaArtifacts = {
                     "run",
                     "act",
                     "receipt",
-                    "graph_receipt",
                     "artifact",
                     "verification",
                     "harness",
                     "host",
-                    "deployment",
                     "surface",
                     "target",
-                    "opportunity",
-                    "thesis_assessment",
-                    "selection",
                     "skill_binding",
-                    "target_transition_entry",
-                    "selection_cycle",
-                    "decision",
-                    "reflection_entry",
-                    "feed_entry",
                     "principal",
-                    "authority_proof",
                     "scope_admission",
                     "grant",
                     "mandate",
@@ -25018,6 +18699,7 @@ export const runxSchemaArtifacts = {
               "type": "object",
               "x-runx-schema": "runx.reference.v1"
             },
+            "minItems": 1,
             "type": "array"
           },
           "status": {
@@ -25117,25 +18799,14 @@ export const runxSchemaArtifacts = {
               "run",
               "act",
               "receipt",
-              "graph_receipt",
               "artifact",
               "verification",
               "harness",
               "host",
-              "deployment",
               "surface",
               "target",
-              "opportunity",
-              "thesis_assessment",
-              "selection",
               "skill_binding",
-              "target_transition_entry",
-              "selection_cycle",
-              "decision",
-              "reflection_entry",
-              "feed_entry",
               "principal",
-              "authority_proof",
               "scope_admission",
               "grant",
               "mandate",
@@ -25255,25 +18926,14 @@ export const runxSchemaArtifacts = {
                     "run",
                     "act",
                     "receipt",
-                    "graph_receipt",
                     "artifact",
                     "verification",
                     "harness",
                     "host",
-                    "deployment",
                     "surface",
                     "target",
-                    "opportunity",
-                    "thesis_assessment",
-                    "selection",
                     "skill_binding",
-                    "target_transition_entry",
-                    "selection_cycle",
-                    "decision",
-                    "reflection_entry",
-                    "feed_entry",
                     "principal",
-                    "authority_proof",
                     "scope_admission",
                     "grant",
                     "mandate",
@@ -25367,25 +19027,14 @@ export const runxSchemaArtifacts = {
                 "run",
                 "act",
                 "receipt",
-                "graph_receipt",
                 "artifact",
                 "verification",
                 "harness",
                 "host",
-                "deployment",
                 "surface",
                 "target",
-                "opportunity",
-                "thesis_assessment",
-                "selection",
                 "skill_binding",
-                "target_transition_entry",
-                "selection_cycle",
-                "decision",
-                "reflection_entry",
-                "feed_entry",
                 "principal",
-                "authority_proof",
                 "scope_admission",
                 "grant",
                 "mandate",
@@ -25474,25 +19123,14 @@ export const runxSchemaArtifacts = {
                       "run",
                       "act",
                       "receipt",
-                      "graph_receipt",
                       "artifact",
                       "verification",
                       "harness",
                       "host",
-                      "deployment",
                       "surface",
                       "target",
-                      "opportunity",
-                      "thesis_assessment",
-                      "selection",
                       "skill_binding",
-                      "target_transition_entry",
-                      "selection_cycle",
-                      "decision",
-                      "reflection_entry",
-                      "feed_entry",
                       "principal",
-                      "authority_proof",
                       "scope_admission",
                       "grant",
                       "mandate",
@@ -25517,6 +19155,7 @@ export const runxSchemaArtifacts = {
                 "type": "object",
                 "x-runx-schema": "runx.reference.v1"
               },
+              "minItems": 1,
               "type": "array"
             }
           },
@@ -25590,25 +19229,14 @@ export const runxSchemaArtifacts = {
                     "run",
                     "act",
                     "receipt",
-                    "graph_receipt",
                     "artifact",
                     "verification",
                     "harness",
                     "host",
-                    "deployment",
                     "surface",
                     "target",
-                    "opportunity",
-                    "thesis_assessment",
-                    "selection",
                     "skill_binding",
-                    "target_transition_entry",
-                    "selection_cycle",
-                    "decision",
-                    "reflection_entry",
-                    "feed_entry",
                     "principal",
-                    "authority_proof",
                     "scope_admission",
                     "grant",
                     "mandate",
@@ -25715,25 +19343,14 @@ export const runxSchemaArtifacts = {
               "run",
               "act",
               "receipt",
-              "graph_receipt",
               "artifact",
               "verification",
               "harness",
               "host",
-              "deployment",
               "surface",
               "target",
-              "opportunity",
-              "thesis_assessment",
-              "selection",
               "skill_binding",
-              "target_transition_entry",
-              "selection_cycle",
-              "decision",
-              "reflection_entry",
-              "feed_entry",
               "principal",
-              "authority_proof",
               "scope_admission",
               "grant",
               "mandate",
@@ -25804,25 +19421,14 @@ export const runxSchemaArtifacts = {
               "run",
               "act",
               "receipt",
-              "graph_receipt",
               "artifact",
               "verification",
               "harness",
               "host",
-              "deployment",
               "surface",
               "target",
-              "opportunity",
-              "thesis_assessment",
-              "selection",
               "skill_binding",
-              "target_transition_entry",
-              "selection_cycle",
-              "decision",
-              "reflection_entry",
-              "feed_entry",
               "principal",
-              "authority_proof",
               "scope_admission",
               "grant",
               "mandate",
@@ -25894,25 +19500,14 @@ export const runxSchemaArtifacts = {
                 "run",
                 "act",
                 "receipt",
-                "graph_receipt",
                 "artifact",
                 "verification",
                 "harness",
                 "host",
-                "deployment",
                 "surface",
                 "target",
-                "opportunity",
-                "thesis_assessment",
-                "selection",
                 "skill_binding",
-                "target_transition_entry",
-                "selection_cycle",
-                "decision",
-                "reflection_entry",
-                "feed_entry",
                 "principal",
-                "authority_proof",
                 "scope_admission",
                 "grant",
                 "mandate",
@@ -26440,25 +20035,14 @@ export const runxSchemaArtifacts = {
               "run",
               "act",
               "receipt",
-              "graph_receipt",
               "artifact",
               "verification",
               "harness",
               "host",
-              "deployment",
               "surface",
               "target",
-              "opportunity",
-              "thesis_assessment",
-              "selection",
               "skill_binding",
-              "target_transition_entry",
-              "selection_cycle",
-              "decision",
-              "reflection_entry",
-              "feed_entry",
               "principal",
-              "authority_proof",
               "scope_admission",
               "grant",
               "mandate",
@@ -26538,25 +20122,14 @@ export const runxSchemaArtifacts = {
               "run",
               "act",
               "receipt",
-              "graph_receipt",
               "artifact",
               "verification",
               "harness",
               "host",
-              "deployment",
               "surface",
               "target",
-              "opportunity",
-              "thesis_assessment",
-              "selection",
               "skill_binding",
-              "target_transition_entry",
-              "selection_cycle",
-              "decision",
-              "reflection_entry",
-              "feed_entry",
               "principal",
-              "authority_proof",
               "scope_admission",
               "grant",
               "mandate",
@@ -26645,25 +20218,14 @@ export const runxSchemaArtifacts = {
               "run",
               "act",
               "receipt",
-              "graph_receipt",
               "artifact",
               "verification",
               "harness",
               "host",
-              "deployment",
               "surface",
               "target",
-              "opportunity",
-              "thesis_assessment",
-              "selection",
               "skill_binding",
-              "target_transition_entry",
-              "selection_cycle",
-              "decision",
-              "reflection_entry",
-              "feed_entry",
               "principal",
-              "authority_proof",
               "scope_admission",
               "grant",
               "mandate",
@@ -26946,25 +20508,14 @@ export const runxSchemaArtifacts = {
               "run",
               "act",
               "receipt",
-              "graph_receipt",
               "artifact",
               "verification",
               "harness",
               "host",
-              "deployment",
               "surface",
               "target",
-              "opportunity",
-              "thesis_assessment",
-              "selection",
               "skill_binding",
-              "target_transition_entry",
-              "selection_cycle",
-              "decision",
-              "reflection_entry",
-              "feed_entry",
               "principal",
-              "authority_proof",
               "scope_admission",
               "grant",
               "mandate",
@@ -27389,6 +20940,7 @@ export const runxSchemaArtifacts = {
                         "minLength": 1,
                         "type": "string"
                       },
+                      "minItems": 1,
                       "type": "array"
                     }
                   },
@@ -27646,6 +21198,7 @@ export const runxSchemaArtifacts = {
                         "minLength": 1,
                         "type": "string"
                       },
+                      "minItems": 1,
                       "type": "array"
                     }
                   },
@@ -28034,25 +21587,14 @@ export const runxSchemaArtifacts = {
               "run",
               "act",
               "receipt",
-              "graph_receipt",
               "artifact",
               "verification",
               "harness",
               "host",
-              "deployment",
               "surface",
               "target",
-              "opportunity",
-              "thesis_assessment",
-              "selection",
               "skill_binding",
-              "target_transition_entry",
-              "selection_cycle",
-              "decision",
-              "reflection_entry",
-              "feed_entry",
               "principal",
-              "authority_proof",
               "scope_admission",
               "grant",
               "mandate",
@@ -28330,6 +21872,7 @@ export const runxSchemaArtifacts = {
               "minLength": 1,
               "type": "string"
             },
+            "minItems": 1,
             "type": "array"
           }
         },
@@ -28535,25 +22078,14 @@ export const runxSchemaArtifacts = {
                   "run",
                   "act",
                   "receipt",
-                  "graph_receipt",
                   "artifact",
                   "verification",
                   "harness",
                   "host",
-                  "deployment",
                   "surface",
                   "target",
-                  "opportunity",
-                  "thesis_assessment",
-                  "selection",
                   "skill_binding",
-                  "target_transition_entry",
-                  "selection_cycle",
-                  "decision",
-                  "reflection_entry",
-                  "feed_entry",
                   "principal",
-                  "authority_proof",
                   "scope_admission",
                   "grant",
                   "mandate",
@@ -28714,25 +22246,14 @@ export const runxSchemaArtifacts = {
                           "run",
                           "act",
                           "receipt",
-                          "graph_receipt",
                           "artifact",
                           "verification",
                           "harness",
                           "host",
-                          "deployment",
                           "surface",
                           "target",
-                          "opportunity",
-                          "thesis_assessment",
-                          "selection",
                           "skill_binding",
-                          "target_transition_entry",
-                          "selection_cycle",
-                          "decision",
-                          "reflection_entry",
-                          "feed_entry",
                           "principal",
-                          "authority_proof",
                           "scope_admission",
                           "grant",
                           "mandate",
@@ -28812,25 +22333,14 @@ export const runxSchemaArtifacts = {
                           "run",
                           "act",
                           "receipt",
-                          "graph_receipt",
                           "artifact",
                           "verification",
                           "harness",
                           "host",
-                          "deployment",
                           "surface",
                           "target",
-                          "opportunity",
-                          "thesis_assessment",
-                          "selection",
                           "skill_binding",
-                          "target_transition_entry",
-                          "selection_cycle",
-                          "decision",
-                          "reflection_entry",
-                          "feed_entry",
                           "principal",
-                          "authority_proof",
                           "scope_admission",
                           "grant",
                           "mandate",
@@ -28919,25 +22429,14 @@ export const runxSchemaArtifacts = {
                           "run",
                           "act",
                           "receipt",
-                          "graph_receipt",
                           "artifact",
                           "verification",
                           "harness",
                           "host",
-                          "deployment",
                           "surface",
                           "target",
-                          "opportunity",
-                          "thesis_assessment",
-                          "selection",
                           "skill_binding",
-                          "target_transition_entry",
-                          "selection_cycle",
-                          "decision",
-                          "reflection_entry",
-                          "feed_entry",
                           "principal",
-                          "authority_proof",
                           "scope_admission",
                           "grant",
                           "mandate",
@@ -29220,25 +22719,14 @@ export const runxSchemaArtifacts = {
                           "run",
                           "act",
                           "receipt",
-                          "graph_receipt",
                           "artifact",
                           "verification",
                           "harness",
                           "host",
-                          "deployment",
                           "surface",
                           "target",
-                          "opportunity",
-                          "thesis_assessment",
-                          "selection",
                           "skill_binding",
-                          "target_transition_entry",
-                          "selection_cycle",
-                          "decision",
-                          "reflection_entry",
-                          "feed_entry",
                           "principal",
-                          "authority_proof",
                           "scope_admission",
                           "grant",
                           "mandate",
@@ -29568,25 +23056,14 @@ export const runxSchemaArtifacts = {
                       "run",
                       "act",
                       "receipt",
-                      "graph_receipt",
                       "artifact",
                       "verification",
                       "harness",
                       "host",
-                      "deployment",
                       "surface",
                       "target",
-                      "opportunity",
-                      "thesis_assessment",
-                      "selection",
                       "skill_binding",
-                      "target_transition_entry",
-                      "selection_cycle",
-                      "decision",
-                      "reflection_entry",
-                      "feed_entry",
                       "principal",
-                      "authority_proof",
                       "scope_admission",
                       "grant",
                       "mandate",
@@ -29611,6 +23088,7 @@ export const runxSchemaArtifacts = {
                 "type": "object",
                 "x-runx-schema": "runx.reference.v1"
               },
+              "minItems": 1,
               "type": "array"
             }
           },
@@ -29698,25 +23176,14 @@ export const runxSchemaArtifacts = {
                       "run",
                       "act",
                       "receipt",
-                      "graph_receipt",
                       "artifact",
                       "verification",
                       "harness",
                       "host",
-                      "deployment",
                       "surface",
                       "target",
-                      "opportunity",
-                      "thesis_assessment",
-                      "selection",
                       "skill_binding",
-                      "target_transition_entry",
-                      "selection_cycle",
-                      "decision",
-                      "reflection_entry",
-                      "feed_entry",
                       "principal",
-                      "authority_proof",
                       "scope_admission",
                       "grant",
                       "mandate",
@@ -29742,85 +23209,6 @@ export const runxSchemaArtifacts = {
                 "x-runx-schema": "runx.reference.v1"
               },
               "type": "array"
-            },
-            "by": {
-              "additionalProperties": false,
-              "properties": {
-                "model": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
-                },
-                "prompt_version": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
-                },
-                "provider": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
-                }
-              },
-              "required": [
-                "provider",
-                "model",
-                "prompt_version"
-              ],
-              "type": "object"
-            },
-            "closure": {
-              "additionalProperties": false,
-              "properties": {
-                "closed_at": {
-                  "minLength": 1,
-                  "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-                  "type": "string"
-                },
-                "disposition": {
-                  "enum": [
-                    "closed",
-                    "deferred",
-                    "superseded",
-                    "declined",
-                    "blocked",
-                    "failed",
-                    "killed",
-                    "timed_out"
-                  ],
-                  "type": "string"
-                },
-                "reason_code": {
-                  "minLength": 1,
-                  "type": "string"
-                },
-                "summary": {
-                  "minLength": 1,
-                  "type": "string"
-                }
-              },
-              "required": [
-                "disposition",
-                "reason_code",
-                "summary",
-                "closed_at"
-              ],
-              "type": "object"
             },
             "context_ref": {
               "$id": "https://schemas.runx.ai/runx/reference/v1.json",
@@ -29868,25 +23256,14 @@ export const runxSchemaArtifacts = {
                     "run",
                     "act",
                     "receipt",
-                    "graph_receipt",
                     "artifact",
                     "verification",
                     "harness",
                     "host",
-                    "deployment",
                     "surface",
                     "target",
-                    "opportunity",
-                    "thesis_assessment",
-                    "selection",
                     "skill_binding",
-                    "target_transition_entry",
-                    "selection_cycle",
-                    "decision",
-                    "reflection_entry",
-                    "feed_entry",
                     "principal",
-                    "authority_proof",
                     "scope_admission",
                     "grant",
                     "mandate",
@@ -29916,7 +23293,12 @@ export const runxSchemaArtifacts = {
                 "additionalProperties": false,
                 "properties": {
                   "criterion_id": {
-                    "minLength": 1,
+                    "enum": [
+                      "step_outcome",
+                      "output_contract_verified",
+                      "voice_profile_applied",
+                      "packet_schemas_verified"
+                    ],
                     "type": "string"
                   },
                   "evidence_refs": {
@@ -29966,25 +23348,14 @@ export const runxSchemaArtifacts = {
                             "run",
                             "act",
                             "receipt",
-                            "graph_receipt",
                             "artifact",
                             "verification",
                             "harness",
                             "host",
-                            "deployment",
                             "surface",
                             "target",
-                            "opportunity",
-                            "thesis_assessment",
-                            "selection",
                             "skill_binding",
-                            "target_transition_entry",
-                            "selection_cycle",
-                            "decision",
-                            "reflection_entry",
-                            "feed_entry",
                             "principal",
-                            "authority_proof",
                             "scope_admission",
                             "grant",
                             "mandate",
@@ -30014,15 +23385,8 @@ export const runxSchemaArtifacts = {
                   "status": {
                     "enum": [
                       "verified",
-                      "failed",
-                      "pending",
-                      "not_applicable",
-                      "unknown"
+                      "failed"
                     ],
-                    "type": "string"
-                  },
-                  "summary": {
-                    "minLength": 1,
                     "type": "string"
                   },
                   "verification_refs": {
@@ -30072,25 +23436,14 @@ export const runxSchemaArtifacts = {
                             "run",
                             "act",
                             "receipt",
-                            "graph_receipt",
                             "artifact",
                             "verification",
                             "harness",
                             "host",
-                            "deployment",
                             "surface",
                             "target",
-                            "opportunity",
-                            "thesis_assessment",
-                            "selection",
                             "skill_binding",
-                            "target_transition_entry",
-                            "selection_cycle",
-                            "decision",
-                            "reflection_entry",
-                            "feed_entry",
                             "principal",
-                            "authority_proof",
                             "scope_admission",
                             "grant",
                             "mandate",
@@ -30120,7 +23473,9 @@ export const runxSchemaArtifacts = {
                 },
                 "required": [
                   "criterion_id",
-                  "status"
+                  "status",
+                  "evidence_refs",
+                  "verification_refs"
                 ],
                 "type": "object"
               },
@@ -30128,11 +23483,9 @@ export const runxSchemaArtifacts = {
             },
             "form": {
               "enum": [
-                "revision",
-                "reply",
-                "review",
                 "observation",
-                "verification"
+                "reply",
+                "review"
               ],
               "type": "string"
             },
@@ -30143,105 +23496,6 @@ export const runxSchemaArtifacts = {
             "intent": {
               "additionalProperties": false,
               "properties": {
-                "constraints": {
-                  "items": {
-                    "minLength": 1,
-                    "type": "string"
-                  },
-                  "type": "array"
-                },
-                "derived_from": {
-                  "items": {
-                    "$id": "https://schemas.runx.ai/runx/reference/v1.json",
-                    "$schema": "https://json-schema.org/draft/2020-12/schema",
-                    "additionalProperties": false,
-                    "properties": {
-                      "label": {
-                        "minLength": 1,
-                        "type": "string"
-                      },
-                      "locator": {
-                        "minLength": 1,
-                        "type": "string"
-                      },
-                      "observed_at": {
-                        "minLength": 1,
-                        "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-                        "type": "string"
-                      },
-                      "proof_kind": {
-                        "enum": [
-                          "effect_evidence",
-                          "effect_finality",
-                          "credential_resolution"
-                        ],
-                        "type": "string"
-                      },
-                      "provider": {
-                        "minLength": 1,
-                        "type": "string"
-                      },
-                      "schema": {
-                        "const": "runx.reference.v1",
-                        "type": "string"
-                      },
-                      "type": {
-                        "enum": [
-                          "thread",
-                          "comment",
-                          "event",
-                          "tracking_item",
-                          "change_request",
-                          "repository",
-                          "signal",
-                          "run",
-                          "act",
-                          "receipt",
-                          "graph_receipt",
-                          "artifact",
-                          "verification",
-                          "harness",
-                          "host",
-                          "deployment",
-                          "surface",
-                          "target",
-                          "opportunity",
-                          "thesis_assessment",
-                          "selection",
-                          "skill_binding",
-                          "target_transition_entry",
-                          "selection_cycle",
-                          "decision",
-                          "reflection_entry",
-                          "feed_entry",
-                          "principal",
-                          "authority_proof",
-                          "scope_admission",
-                          "grant",
-                          "mandate",
-                          "credential",
-                          "webhook_delivery",
-                          "redaction_policy",
-                          "external_url",
-                          "connector_instance",
-                          "connector_operation"
-                        ],
-                        "type": "string"
-                      },
-                      "uri": {
-                        "minLength": 1,
-                        "type": "string"
-                      }
-                    },
-                    "required": [
-                      "type",
-                      "uri"
-                    ],
-                    "type": "object",
-                    "x-runx-schema": "runx.reference.v1"
-                  },
-                  "type": "array"
-                },
                 "legitimacy": {
                   "minLength": 1,
                   "type": "string"
@@ -30249,31 +23503,6 @@ export const runxSchemaArtifacts = {
                 "purpose": {
                   "minLength": 1,
                   "type": "string"
-                },
-                "success_criteria": {
-                  "items": {
-                    "additionalProperties": false,
-                    "properties": {
-                      "criterion_id": {
-                        "minLength": 1,
-                        "type": "string"
-                      },
-                      "required": {
-                        "type": "boolean"
-                      },
-                      "statement": {
-                        "minLength": 1,
-                        "type": "string"
-                      }
-                    },
-                    "required": [
-                      "criterion_id",
-                      "statement",
-                      "required"
-                    ],
-                    "type": "object"
-                  },
-                  "type": "array"
                 }
               },
               "required": [
@@ -30282,953 +23511,7 @@ export const runxSchemaArtifacts = {
               ],
               "type": "object"
             },
-            "revision": {
-              "additionalProperties": false,
-              "properties": {
-                "change_plan": {
-                  "additionalProperties": false,
-                  "properties": {
-                    "plan_id": {
-                      "minLength": 1,
-                      "type": "string"
-                    },
-                    "risks": {
-                      "items": {
-                        "minLength": 1,
-                        "type": "string"
-                      },
-                      "type": "array"
-                    },
-                    "steps": {
-                      "items": {
-                        "minLength": 1,
-                        "type": "string"
-                      },
-                      "type": "array"
-                    },
-                    "summary": {
-                      "minLength": 1,
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "plan_id",
-                    "summary"
-                  ],
-                  "type": "object"
-                },
-                "change_request": {
-                  "additionalProperties": false,
-                  "properties": {
-                    "request_id": {
-                      "minLength": 1,
-                      "type": "string"
-                    },
-                    "success_criteria": {
-                      "items": {
-                        "additionalProperties": false,
-                        "properties": {
-                          "criterion_id": {
-                            "minLength": 1,
-                            "type": "string"
-                          },
-                          "required": {
-                            "type": "boolean"
-                          },
-                          "statement": {
-                            "minLength": 1,
-                            "type": "string"
-                          }
-                        },
-                        "required": [
-                          "criterion_id",
-                          "statement",
-                          "required"
-                        ],
-                        "type": "object"
-                      },
-                      "type": "array"
-                    },
-                    "summary": {
-                      "minLength": 1,
-                      "type": "string"
-                    },
-                    "target_surfaces": {
-                      "items": {
-                        "additionalProperties": false,
-                        "properties": {
-                          "mutating": {
-                            "type": "boolean"
-                          },
-                          "rationale": {
-                            "minLength": 1,
-                            "type": "string"
-                          },
-                          "surface_ref": {
-                            "$id": "https://schemas.runx.ai/runx/reference/v1.json",
-                            "$schema": "https://json-schema.org/draft/2020-12/schema",
-                            "additionalProperties": false,
-                            "properties": {
-                              "label": {
-                                "minLength": 1,
-                                "type": "string"
-                              },
-                              "locator": {
-                                "minLength": 1,
-                                "type": "string"
-                              },
-                              "observed_at": {
-                                "minLength": 1,
-                                "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-                                "type": "string"
-                              },
-                              "proof_kind": {
-                                "enum": [
-                                  "effect_evidence",
-                                  "effect_finality",
-                                  "credential_resolution"
-                                ],
-                                "type": "string"
-                              },
-                              "provider": {
-                                "minLength": 1,
-                                "type": "string"
-                              },
-                              "schema": {
-                                "const": "runx.reference.v1",
-                                "type": "string"
-                              },
-                              "type": {
-                                "enum": [
-                                  "thread",
-                                  "comment",
-                                  "event",
-                                  "tracking_item",
-                                  "change_request",
-                                  "repository",
-                                  "signal",
-                                  "run",
-                                  "act",
-                                  "receipt",
-                                  "graph_receipt",
-                                  "artifact",
-                                  "verification",
-                                  "harness",
-                                  "host",
-                                  "deployment",
-                                  "surface",
-                                  "target",
-                                  "opportunity",
-                                  "thesis_assessment",
-                                  "selection",
-                                  "skill_binding",
-                                  "target_transition_entry",
-                                  "selection_cycle",
-                                  "decision",
-                                  "reflection_entry",
-                                  "feed_entry",
-                                  "principal",
-                                  "authority_proof",
-                                  "scope_admission",
-                                  "grant",
-                                  "mandate",
-                                  "credential",
-                                  "webhook_delivery",
-                                  "redaction_policy",
-                                  "external_url",
-                                  "connector_instance",
-                                  "connector_operation"
-                                ],
-                                "type": "string"
-                              },
-                              "uri": {
-                                "minLength": 1,
-                                "type": "string"
-                              }
-                            },
-                            "required": [
-                              "type",
-                              "uri"
-                            ],
-                            "type": "object",
-                            "x-runx-schema": "runx.reference.v1"
-                          }
-                        },
-                        "required": [
-                          "surface_ref",
-                          "mutating"
-                        ],
-                        "type": "object"
-                      },
-                      "type": "array"
-                    }
-                  },
-                  "required": [
-                    "request_id",
-                    "summary"
-                  ],
-                  "type": "object"
-                },
-                "handoff_refs": {
-                  "items": {
-                    "$id": "https://schemas.runx.ai/runx/reference/v1.json",
-                    "$schema": "https://json-schema.org/draft/2020-12/schema",
-                    "additionalProperties": false,
-                    "properties": {
-                      "label": {
-                        "minLength": 1,
-                        "type": "string"
-                      },
-                      "locator": {
-                        "minLength": 1,
-                        "type": "string"
-                      },
-                      "observed_at": {
-                        "minLength": 1,
-                        "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-                        "type": "string"
-                      },
-                      "proof_kind": {
-                        "enum": [
-                          "effect_evidence",
-                          "effect_finality",
-                          "credential_resolution"
-                        ],
-                        "type": "string"
-                      },
-                      "provider": {
-                        "minLength": 1,
-                        "type": "string"
-                      },
-                      "schema": {
-                        "const": "runx.reference.v1",
-                        "type": "string"
-                      },
-                      "type": {
-                        "enum": [
-                          "thread",
-                          "comment",
-                          "event",
-                          "tracking_item",
-                          "change_request",
-                          "repository",
-                          "signal",
-                          "run",
-                          "act",
-                          "receipt",
-                          "graph_receipt",
-                          "artifact",
-                          "verification",
-                          "harness",
-                          "host",
-                          "deployment",
-                          "surface",
-                          "target",
-                          "opportunity",
-                          "thesis_assessment",
-                          "selection",
-                          "skill_binding",
-                          "target_transition_entry",
-                          "selection_cycle",
-                          "decision",
-                          "reflection_entry",
-                          "feed_entry",
-                          "principal",
-                          "authority_proof",
-                          "scope_admission",
-                          "grant",
-                          "mandate",
-                          "credential",
-                          "webhook_delivery",
-                          "redaction_policy",
-                          "external_url",
-                          "connector_instance",
-                          "connector_operation"
-                        ],
-                        "type": "string"
-                      },
-                      "uri": {
-                        "minLength": 1,
-                        "type": "string"
-                      }
-                    },
-                    "required": [
-                      "type",
-                      "uri"
-                    ],
-                    "type": "object",
-                    "x-runx-schema": "runx.reference.v1"
-                  },
-                  "type": "array"
-                },
-                "invariants": {
-                  "items": {
-                    "minLength": 1,
-                    "type": "string"
-                  },
-                  "type": "array"
-                },
-                "revision_refs": {
-                  "items": {
-                    "$id": "https://schemas.runx.ai/runx/reference/v1.json",
-                    "$schema": "https://json-schema.org/draft/2020-12/schema",
-                    "additionalProperties": false,
-                    "properties": {
-                      "label": {
-                        "minLength": 1,
-                        "type": "string"
-                      },
-                      "locator": {
-                        "minLength": 1,
-                        "type": "string"
-                      },
-                      "observed_at": {
-                        "minLength": 1,
-                        "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-                        "type": "string"
-                      },
-                      "proof_kind": {
-                        "enum": [
-                          "effect_evidence",
-                          "effect_finality",
-                          "credential_resolution"
-                        ],
-                        "type": "string"
-                      },
-                      "provider": {
-                        "minLength": 1,
-                        "type": "string"
-                      },
-                      "schema": {
-                        "const": "runx.reference.v1",
-                        "type": "string"
-                      },
-                      "type": {
-                        "enum": [
-                          "thread",
-                          "comment",
-                          "event",
-                          "tracking_item",
-                          "change_request",
-                          "repository",
-                          "signal",
-                          "run",
-                          "act",
-                          "receipt",
-                          "graph_receipt",
-                          "artifact",
-                          "verification",
-                          "harness",
-                          "host",
-                          "deployment",
-                          "surface",
-                          "target",
-                          "opportunity",
-                          "thesis_assessment",
-                          "selection",
-                          "skill_binding",
-                          "target_transition_entry",
-                          "selection_cycle",
-                          "decision",
-                          "reflection_entry",
-                          "feed_entry",
-                          "principal",
-                          "authority_proof",
-                          "scope_admission",
-                          "grant",
-                          "mandate",
-                          "credential",
-                          "webhook_delivery",
-                          "redaction_policy",
-                          "external_url",
-                          "connector_instance",
-                          "connector_operation"
-                        ],
-                        "type": "string"
-                      },
-                      "uri": {
-                        "minLength": 1,
-                        "type": "string"
-                      }
-                    },
-                    "required": [
-                      "type",
-                      "uri"
-                    ],
-                    "type": "object",
-                    "x-runx-schema": "runx.reference.v1"
-                  },
-                  "type": "array"
-                },
-                "target_surfaces": {
-                  "items": {
-                    "additionalProperties": false,
-                    "properties": {
-                      "mutating": {
-                        "type": "boolean"
-                      },
-                      "rationale": {
-                        "minLength": 1,
-                        "type": "string"
-                      },
-                      "surface_ref": {
-                        "$id": "https://schemas.runx.ai/runx/reference/v1.json",
-                        "$schema": "https://json-schema.org/draft/2020-12/schema",
-                        "additionalProperties": false,
-                        "properties": {
-                          "label": {
-                            "minLength": 1,
-                            "type": "string"
-                          },
-                          "locator": {
-                            "minLength": 1,
-                            "type": "string"
-                          },
-                          "observed_at": {
-                            "minLength": 1,
-                            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-                            "type": "string"
-                          },
-                          "proof_kind": {
-                            "enum": [
-                              "effect_evidence",
-                              "effect_finality",
-                              "credential_resolution"
-                            ],
-                            "type": "string"
-                          },
-                          "provider": {
-                            "minLength": 1,
-                            "type": "string"
-                          },
-                          "schema": {
-                            "const": "runx.reference.v1",
-                            "type": "string"
-                          },
-                          "type": {
-                            "enum": [
-                              "thread",
-                              "comment",
-                              "event",
-                              "tracking_item",
-                              "change_request",
-                              "repository",
-                              "signal",
-                              "run",
-                              "act",
-                              "receipt",
-                              "graph_receipt",
-                              "artifact",
-                              "verification",
-                              "harness",
-                              "host",
-                              "deployment",
-                              "surface",
-                              "target",
-                              "opportunity",
-                              "thesis_assessment",
-                              "selection",
-                              "skill_binding",
-                              "target_transition_entry",
-                              "selection_cycle",
-                              "decision",
-                              "reflection_entry",
-                              "feed_entry",
-                              "principal",
-                              "authority_proof",
-                              "scope_admission",
-                              "grant",
-                              "mandate",
-                              "credential",
-                              "webhook_delivery",
-                              "redaction_policy",
-                              "external_url",
-                              "connector_instance",
-                              "connector_operation"
-                            ],
-                            "type": "string"
-                          },
-                          "uri": {
-                            "minLength": 1,
-                            "type": "string"
-                          }
-                        },
-                        "required": [
-                          "type",
-                          "uri"
-                        ],
-                        "type": "object",
-                        "x-runx-schema": "runx.reference.v1"
-                      }
-                    },
-                    "required": [
-                      "surface_ref",
-                      "mutating"
-                    ],
-                    "type": "object"
-                  },
-                  "type": "array"
-                },
-                "verification": {
-                  "$id": "https://schemas.runx.ai/runx/verification/v1.json",
-                  "$schema": "https://json-schema.org/draft/2020-12/schema",
-                  "additionalProperties": false,
-                  "properties": {
-                    "checks": {
-                      "items": {
-                        "additionalProperties": false,
-                        "properties": {
-                          "check_id": {
-                            "minLength": 1,
-                            "type": "string"
-                          },
-                          "checked_refs": {
-                            "items": {
-                              "$id": "https://schemas.runx.ai/runx/reference/v1.json",
-                              "$schema": "https://json-schema.org/draft/2020-12/schema",
-                              "additionalProperties": false,
-                              "properties": {
-                                "label": {
-                                  "minLength": 1,
-                                  "type": "string"
-                                },
-                                "locator": {
-                                  "minLength": 1,
-                                  "type": "string"
-                                },
-                                "observed_at": {
-                                  "minLength": 1,
-                                  "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-                                  "type": "string"
-                                },
-                                "proof_kind": {
-                                  "enum": [
-                                    "effect_evidence",
-                                    "effect_finality",
-                                    "credential_resolution"
-                                  ],
-                                  "type": "string"
-                                },
-                                "provider": {
-                                  "minLength": 1,
-                                  "type": "string"
-                                },
-                                "schema": {
-                                  "const": "runx.reference.v1",
-                                  "type": "string"
-                                },
-                                "type": {
-                                  "enum": [
-                                    "thread",
-                                    "comment",
-                                    "event",
-                                    "tracking_item",
-                                    "change_request",
-                                    "repository",
-                                    "signal",
-                                    "run",
-                                    "act",
-                                    "receipt",
-                                    "graph_receipt",
-                                    "artifact",
-                                    "verification",
-                                    "harness",
-                                    "host",
-                                    "deployment",
-                                    "surface",
-                                    "target",
-                                    "opportunity",
-                                    "thesis_assessment",
-                                    "selection",
-                                    "skill_binding",
-                                    "target_transition_entry",
-                                    "selection_cycle",
-                                    "decision",
-                                    "reflection_entry",
-                                    "feed_entry",
-                                    "principal",
-                                    "authority_proof",
-                                    "scope_admission",
-                                    "grant",
-                                    "mandate",
-                                    "credential",
-                                    "webhook_delivery",
-                                    "redaction_policy",
-                                    "external_url",
-                                    "connector_instance",
-                                    "connector_operation"
-                                  ],
-                                  "type": "string"
-                                },
-                                "uri": {
-                                  "minLength": 1,
-                                  "type": "string"
-                                }
-                              },
-                              "required": [
-                                "type",
-                                "uri"
-                              ],
-                              "type": "object",
-                              "x-runx-schema": "runx.reference.v1"
-                            },
-                            "type": "array"
-                          },
-                          "criterion_ids": {
-                            "items": {
-                              "minLength": 1,
-                              "type": "string"
-                            },
-                            "type": "array"
-                          },
-                          "evidence_refs": {
-                            "items": {
-                              "$id": "https://schemas.runx.ai/runx/reference/v1.json",
-                              "$schema": "https://json-schema.org/draft/2020-12/schema",
-                              "additionalProperties": false,
-                              "properties": {
-                                "label": {
-                                  "minLength": 1,
-                                  "type": "string"
-                                },
-                                "locator": {
-                                  "minLength": 1,
-                                  "type": "string"
-                                },
-                                "observed_at": {
-                                  "minLength": 1,
-                                  "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-                                  "type": "string"
-                                },
-                                "proof_kind": {
-                                  "enum": [
-                                    "effect_evidence",
-                                    "effect_finality",
-                                    "credential_resolution"
-                                  ],
-                                  "type": "string"
-                                },
-                                "provider": {
-                                  "minLength": 1,
-                                  "type": "string"
-                                },
-                                "schema": {
-                                  "const": "runx.reference.v1",
-                                  "type": "string"
-                                },
-                                "type": {
-                                  "enum": [
-                                    "thread",
-                                    "comment",
-                                    "event",
-                                    "tracking_item",
-                                    "change_request",
-                                    "repository",
-                                    "signal",
-                                    "run",
-                                    "act",
-                                    "receipt",
-                                    "graph_receipt",
-                                    "artifact",
-                                    "verification",
-                                    "harness",
-                                    "host",
-                                    "deployment",
-                                    "surface",
-                                    "target",
-                                    "opportunity",
-                                    "thesis_assessment",
-                                    "selection",
-                                    "skill_binding",
-                                    "target_transition_entry",
-                                    "selection_cycle",
-                                    "decision",
-                                    "reflection_entry",
-                                    "feed_entry",
-                                    "principal",
-                                    "authority_proof",
-                                    "scope_admission",
-                                    "grant",
-                                    "mandate",
-                                    "credential",
-                                    "webhook_delivery",
-                                    "redaction_policy",
-                                    "external_url",
-                                    "connector_instance",
-                                    "connector_operation"
-                                  ],
-                                  "type": "string"
-                                },
-                                "uri": {
-                                  "minLength": 1,
-                                  "type": "string"
-                                }
-                              },
-                              "required": [
-                                "type",
-                                "uri"
-                              ],
-                              "type": "object",
-                              "x-runx-schema": "runx.reference.v1"
-                            },
-                            "type": "array"
-                          },
-                          "status": {
-                            "enum": [
-                              "passed",
-                              "failed",
-                              "pending",
-                              "not_applicable",
-                              "missing"
-                            ],
-                            "type": "string"
-                          },
-                          "summary": {
-                            "minLength": 1,
-                            "type": "string"
-                          },
-                          "verified_at": {
-                            "minLength": 1,
-                            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-                            "type": "string"
-                          }
-                        },
-                        "required": [
-                          "check_id",
-                          "criterion_ids",
-                          "status",
-                          "evidence_refs"
-                        ],
-                        "type": "object"
-                      },
-                      "type": "array"
-                    },
-                    "evidence_refs": {
-                      "items": {
-                        "$id": "https://schemas.runx.ai/runx/reference/v1.json",
-                        "$schema": "https://json-schema.org/draft/2020-12/schema",
-                        "additionalProperties": false,
-                        "properties": {
-                          "label": {
-                            "minLength": 1,
-                            "type": "string"
-                          },
-                          "locator": {
-                            "minLength": 1,
-                            "type": "string"
-                          },
-                          "observed_at": {
-                            "minLength": 1,
-                            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-                            "type": "string"
-                          },
-                          "proof_kind": {
-                            "enum": [
-                              "effect_evidence",
-                              "effect_finality",
-                              "credential_resolution"
-                            ],
-                            "type": "string"
-                          },
-                          "provider": {
-                            "minLength": 1,
-                            "type": "string"
-                          },
-                          "schema": {
-                            "const": "runx.reference.v1",
-                            "type": "string"
-                          },
-                          "type": {
-                            "enum": [
-                              "thread",
-                              "comment",
-                              "event",
-                              "tracking_item",
-                              "change_request",
-                              "repository",
-                              "signal",
-                              "run",
-                              "act",
-                              "receipt",
-                              "graph_receipt",
-                              "artifact",
-                              "verification",
-                              "harness",
-                              "host",
-                              "deployment",
-                              "surface",
-                              "target",
-                              "opportunity",
-                              "thesis_assessment",
-                              "selection",
-                              "skill_binding",
-                              "target_transition_entry",
-                              "selection_cycle",
-                              "decision",
-                              "reflection_entry",
-                              "feed_entry",
-                              "principal",
-                              "authority_proof",
-                              "scope_admission",
-                              "grant",
-                              "mandate",
-                              "credential",
-                              "webhook_delivery",
-                              "redaction_policy",
-                              "external_url",
-                              "connector_instance",
-                              "connector_operation"
-                            ],
-                            "type": "string"
-                          },
-                          "uri": {
-                            "minLength": 1,
-                            "type": "string"
-                          }
-                        },
-                        "required": [
-                          "type",
-                          "uri"
-                        ],
-                        "type": "object",
-                        "x-runx-schema": "runx.reference.v1"
-                      },
-                      "type": "array"
-                    },
-                    "schema": {
-                      "enum": [
-                        "runx.verification.v1"
-                      ],
-                      "type": "string"
-                    },
-                    "status": {
-                      "enum": [
-                        "passed",
-                        "failed",
-                        "pending",
-                        "not_applicable",
-                        "missing"
-                      ],
-                      "type": "string"
-                    },
-                    "verification_id": {
-                      "minLength": 1,
-                      "type": "string"
-                    },
-                    "verified_at": {
-                      "minLength": 1,
-                      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "status",
-                    "checks",
-                    "evidence_refs"
-                  ],
-                  "type": "object",
-                  "x-runx-schema": "runx.verification.v1"
-                }
-              },
-              "required": [
-                "change_request",
-                "change_plan"
-              ],
-              "type": "object"
-            },
-            "source_refs": {
-              "items": {
-                "$id": "https://schemas.runx.ai/runx/reference/v1.json",
-                "$schema": "https://json-schema.org/draft/2020-12/schema",
-                "additionalProperties": false,
-                "properties": {
-                  "label": {
-                    "minLength": 1,
-                    "type": "string"
-                  },
-                  "locator": {
-                    "minLength": 1,
-                    "type": "string"
-                  },
-                  "observed_at": {
-                    "minLength": 1,
-                    "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-                    "type": "string"
-                  },
-                  "proof_kind": {
-                    "enum": [
-                      "effect_evidence",
-                      "effect_finality",
-                      "credential_resolution"
-                    ],
-                    "type": "string"
-                  },
-                  "provider": {
-                    "minLength": 1,
-                    "type": "string"
-                  },
-                  "schema": {
-                    "const": "runx.reference.v1",
-                    "type": "string"
-                  },
-                  "type": {
-                    "enum": [
-                      "thread",
-                      "comment",
-                      "event",
-                      "tracking_item",
-                      "change_request",
-                      "repository",
-                      "signal",
-                      "run",
-                      "act",
-                      "receipt",
-                      "graph_receipt",
-                      "artifact",
-                      "verification",
-                      "harness",
-                      "host",
-                      "deployment",
-                      "surface",
-                      "target",
-                      "opportunity",
-                      "thesis_assessment",
-                      "selection",
-                      "skill_binding",
-                      "target_transition_entry",
-                      "selection_cycle",
-                      "decision",
-                      "reflection_entry",
-                      "feed_entry",
-                      "principal",
-                      "authority_proof",
-                      "scope_admission",
-                      "grant",
-                      "mandate",
-                      "credential",
-                      "webhook_delivery",
-                      "redaction_policy",
-                      "external_url",
-                      "connector_instance",
-                      "connector_operation"
-                    ],
-                    "type": "string"
-                  },
-                  "uri": {
-                    "minLength": 1,
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "type",
-                  "uri"
-                ],
-                "type": "object",
-                "x-runx-schema": "runx.reference.v1"
-              },
-              "type": "array"
-            },
-            "summary": {
+            "reason": {
               "minLength": 1,
               "type": "string"
             },
@@ -31279,25 +23562,14 @@ export const runxSchemaArtifacts = {
                       "run",
                       "act",
                       "receipt",
-                      "graph_receipt",
                       "artifact",
                       "verification",
                       "harness",
                       "host",
-                      "deployment",
                       "surface",
                       "target",
-                      "opportunity",
-                      "thesis_assessment",
-                      "selection",
                       "skill_binding",
-                      "target_transition_entry",
-                      "selection_cycle",
-                      "decision",
-                      "reflection_entry",
-                      "feed_entry",
                       "principal",
-                      "authority_proof",
                       "scope_admission",
                       "grant",
                       "mandate",
@@ -31323,480 +23595,15 @@ export const runxSchemaArtifacts = {
                 "x-runx-schema": "runx.reference.v1"
               },
               "type": "array"
-            },
-            "verification": {
-              "additionalProperties": false,
-              "properties": {
-                "criterion_ids": {
-                  "items": {
-                    "minLength": 1,
-                    "type": "string"
-                  },
-                  "type": "array"
-                },
-                "deployment_ref": {
-                  "$id": "https://schemas.runx.ai/runx/reference/v1.json",
-                  "$schema": "https://json-schema.org/draft/2020-12/schema",
-                  "additionalProperties": false,
-                  "properties": {
-                    "label": {
-                      "minLength": 1,
-                      "type": "string"
-                    },
-                    "locator": {
-                      "minLength": 1,
-                      "type": "string"
-                    },
-                    "observed_at": {
-                      "minLength": 1,
-                      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-                      "type": "string"
-                    },
-                    "proof_kind": {
-                      "enum": [
-                        "effect_evidence",
-                        "effect_finality",
-                        "credential_resolution"
-                      ],
-                      "type": "string"
-                    },
-                    "provider": {
-                      "minLength": 1,
-                      "type": "string"
-                    },
-                    "schema": {
-                      "const": "runx.reference.v1",
-                      "type": "string"
-                    },
-                    "type": {
-                      "enum": [
-                        "thread",
-                        "comment",
-                        "event",
-                        "tracking_item",
-                        "change_request",
-                        "repository",
-                        "signal",
-                        "run",
-                        "act",
-                        "receipt",
-                        "graph_receipt",
-                        "artifact",
-                        "verification",
-                        "harness",
-                        "host",
-                        "deployment",
-                        "surface",
-                        "target",
-                        "opportunity",
-                        "thesis_assessment",
-                        "selection",
-                        "skill_binding",
-                        "target_transition_entry",
-                        "selection_cycle",
-                        "decision",
-                        "reflection_entry",
-                        "feed_entry",
-                        "principal",
-                        "authority_proof",
-                        "scope_admission",
-                        "grant",
-                        "mandate",
-                        "credential",
-                        "webhook_delivery",
-                        "redaction_policy",
-                        "external_url",
-                        "connector_instance",
-                        "connector_operation"
-                      ],
-                      "type": "string"
-                    },
-                    "uri": {
-                      "minLength": 1,
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "type",
-                    "uri"
-                  ],
-                  "type": "object",
-                  "x-runx-schema": "runx.reference.v1"
-                },
-                "verification": {
-                  "$id": "https://schemas.runx.ai/runx/verification/v1.json",
-                  "$schema": "https://json-schema.org/draft/2020-12/schema",
-                  "additionalProperties": false,
-                  "properties": {
-                    "checks": {
-                      "items": {
-                        "additionalProperties": false,
-                        "properties": {
-                          "check_id": {
-                            "minLength": 1,
-                            "type": "string"
-                          },
-                          "checked_refs": {
-                            "items": {
-                              "$id": "https://schemas.runx.ai/runx/reference/v1.json",
-                              "$schema": "https://json-schema.org/draft/2020-12/schema",
-                              "additionalProperties": false,
-                              "properties": {
-                                "label": {
-                                  "minLength": 1,
-                                  "type": "string"
-                                },
-                                "locator": {
-                                  "minLength": 1,
-                                  "type": "string"
-                                },
-                                "observed_at": {
-                                  "minLength": 1,
-                                  "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-                                  "type": "string"
-                                },
-                                "proof_kind": {
-                                  "enum": [
-                                    "effect_evidence",
-                                    "effect_finality",
-                                    "credential_resolution"
-                                  ],
-                                  "type": "string"
-                                },
-                                "provider": {
-                                  "minLength": 1,
-                                  "type": "string"
-                                },
-                                "schema": {
-                                  "const": "runx.reference.v1",
-                                  "type": "string"
-                                },
-                                "type": {
-                                  "enum": [
-                                    "thread",
-                                    "comment",
-                                    "event",
-                                    "tracking_item",
-                                    "change_request",
-                                    "repository",
-                                    "signal",
-                                    "run",
-                                    "act",
-                                    "receipt",
-                                    "graph_receipt",
-                                    "artifact",
-                                    "verification",
-                                    "harness",
-                                    "host",
-                                    "deployment",
-                                    "surface",
-                                    "target",
-                                    "opportunity",
-                                    "thesis_assessment",
-                                    "selection",
-                                    "skill_binding",
-                                    "target_transition_entry",
-                                    "selection_cycle",
-                                    "decision",
-                                    "reflection_entry",
-                                    "feed_entry",
-                                    "principal",
-                                    "authority_proof",
-                                    "scope_admission",
-                                    "grant",
-                                    "mandate",
-                                    "credential",
-                                    "webhook_delivery",
-                                    "redaction_policy",
-                                    "external_url",
-                                    "connector_instance",
-                                    "connector_operation"
-                                  ],
-                                  "type": "string"
-                                },
-                                "uri": {
-                                  "minLength": 1,
-                                  "type": "string"
-                                }
-                              },
-                              "required": [
-                                "type",
-                                "uri"
-                              ],
-                              "type": "object",
-                              "x-runx-schema": "runx.reference.v1"
-                            },
-                            "type": "array"
-                          },
-                          "criterion_ids": {
-                            "items": {
-                              "minLength": 1,
-                              "type": "string"
-                            },
-                            "type": "array"
-                          },
-                          "evidence_refs": {
-                            "items": {
-                              "$id": "https://schemas.runx.ai/runx/reference/v1.json",
-                              "$schema": "https://json-schema.org/draft/2020-12/schema",
-                              "additionalProperties": false,
-                              "properties": {
-                                "label": {
-                                  "minLength": 1,
-                                  "type": "string"
-                                },
-                                "locator": {
-                                  "minLength": 1,
-                                  "type": "string"
-                                },
-                                "observed_at": {
-                                  "minLength": 1,
-                                  "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-                                  "type": "string"
-                                },
-                                "proof_kind": {
-                                  "enum": [
-                                    "effect_evidence",
-                                    "effect_finality",
-                                    "credential_resolution"
-                                  ],
-                                  "type": "string"
-                                },
-                                "provider": {
-                                  "minLength": 1,
-                                  "type": "string"
-                                },
-                                "schema": {
-                                  "const": "runx.reference.v1",
-                                  "type": "string"
-                                },
-                                "type": {
-                                  "enum": [
-                                    "thread",
-                                    "comment",
-                                    "event",
-                                    "tracking_item",
-                                    "change_request",
-                                    "repository",
-                                    "signal",
-                                    "run",
-                                    "act",
-                                    "receipt",
-                                    "graph_receipt",
-                                    "artifact",
-                                    "verification",
-                                    "harness",
-                                    "host",
-                                    "deployment",
-                                    "surface",
-                                    "target",
-                                    "opportunity",
-                                    "thesis_assessment",
-                                    "selection",
-                                    "skill_binding",
-                                    "target_transition_entry",
-                                    "selection_cycle",
-                                    "decision",
-                                    "reflection_entry",
-                                    "feed_entry",
-                                    "principal",
-                                    "authority_proof",
-                                    "scope_admission",
-                                    "grant",
-                                    "mandate",
-                                    "credential",
-                                    "webhook_delivery",
-                                    "redaction_policy",
-                                    "external_url",
-                                    "connector_instance",
-                                    "connector_operation"
-                                  ],
-                                  "type": "string"
-                                },
-                                "uri": {
-                                  "minLength": 1,
-                                  "type": "string"
-                                }
-                              },
-                              "required": [
-                                "type",
-                                "uri"
-                              ],
-                              "type": "object",
-                              "x-runx-schema": "runx.reference.v1"
-                            },
-                            "type": "array"
-                          },
-                          "status": {
-                            "enum": [
-                              "passed",
-                              "failed",
-                              "pending",
-                              "not_applicable",
-                              "missing"
-                            ],
-                            "type": "string"
-                          },
-                          "summary": {
-                            "minLength": 1,
-                            "type": "string"
-                          },
-                          "verified_at": {
-                            "minLength": 1,
-                            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-                            "type": "string"
-                          }
-                        },
-                        "required": [
-                          "check_id",
-                          "criterion_ids",
-                          "status",
-                          "evidence_refs"
-                        ],
-                        "type": "object"
-                      },
-                      "type": "array"
-                    },
-                    "evidence_refs": {
-                      "items": {
-                        "$id": "https://schemas.runx.ai/runx/reference/v1.json",
-                        "$schema": "https://json-schema.org/draft/2020-12/schema",
-                        "additionalProperties": false,
-                        "properties": {
-                          "label": {
-                            "minLength": 1,
-                            "type": "string"
-                          },
-                          "locator": {
-                            "minLength": 1,
-                            "type": "string"
-                          },
-                          "observed_at": {
-                            "minLength": 1,
-                            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-                            "type": "string"
-                          },
-                          "proof_kind": {
-                            "enum": [
-                              "effect_evidence",
-                              "effect_finality",
-                              "credential_resolution"
-                            ],
-                            "type": "string"
-                          },
-                          "provider": {
-                            "minLength": 1,
-                            "type": "string"
-                          },
-                          "schema": {
-                            "const": "runx.reference.v1",
-                            "type": "string"
-                          },
-                          "type": {
-                            "enum": [
-                              "thread",
-                              "comment",
-                              "event",
-                              "tracking_item",
-                              "change_request",
-                              "repository",
-                              "signal",
-                              "run",
-                              "act",
-                              "receipt",
-                              "graph_receipt",
-                              "artifact",
-                              "verification",
-                              "harness",
-                              "host",
-                              "deployment",
-                              "surface",
-                              "target",
-                              "opportunity",
-                              "thesis_assessment",
-                              "selection",
-                              "skill_binding",
-                              "target_transition_entry",
-                              "selection_cycle",
-                              "decision",
-                              "reflection_entry",
-                              "feed_entry",
-                              "principal",
-                              "authority_proof",
-                              "scope_admission",
-                              "grant",
-                              "mandate",
-                              "credential",
-                              "webhook_delivery",
-                              "redaction_policy",
-                              "external_url",
-                              "connector_instance",
-                              "connector_operation"
-                            ],
-                            "type": "string"
-                          },
-                          "uri": {
-                            "minLength": 1,
-                            "type": "string"
-                          }
-                        },
-                        "required": [
-                          "type",
-                          "uri"
-                        ],
-                        "type": "object",
-                        "x-runx-schema": "runx.reference.v1"
-                      },
-                      "type": "array"
-                    },
-                    "schema": {
-                      "enum": [
-                        "runx.verification.v1"
-                      ],
-                      "type": "string"
-                    },
-                    "status": {
-                      "enum": [
-                        "passed",
-                        "failed",
-                        "pending",
-                        "not_applicable",
-                        "missing"
-                      ],
-                      "type": "string"
-                    },
-                    "verification_id": {
-                      "minLength": 1,
-                      "type": "string"
-                    },
-                    "verified_at": {
-                      "minLength": 1,
-                      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "status",
-                    "checks",
-                    "evidence_refs"
-                  ],
-                  "type": "object",
-                  "x-runx-schema": "runx.verification.v1"
-                }
-              },
-              "required": [
-                "criterion_ids",
-                "verification"
-              ],
-              "type": "object"
             }
           },
           "required": [
             "id",
             "form",
             "intent",
-            "summary",
-            "closure"
+            "criterion_bindings",
+            "target_refs",
+            "artifact_refs"
           ],
           "type": "object"
         },
@@ -31851,25 +23658,14 @@ export const runxSchemaArtifacts = {
                   "run",
                   "act",
                   "receipt",
-                  "graph_receipt",
                   "artifact",
                   "verification",
                   "harness",
                   "host",
-                  "deployment",
                   "surface",
                   "target",
-                  "opportunity",
-                  "thesis_assessment",
-                  "selection",
                   "skill_binding",
-                  "target_transition_entry",
-                  "selection_cycle",
-                  "decision",
-                  "reflection_entry",
-                  "feed_entry",
                   "principal",
-                  "authority_proof",
                   "scope_admission",
                   "grant",
                   "mandate",
@@ -31893,453 +23689,6 @@ export const runxSchemaArtifacts = {
             ],
             "type": "object",
             "x-runx-schema": "runx.reference.v1"
-          },
-          "attenuation": {
-            "additionalProperties": false,
-            "properties": {
-              "parent_authority_ref": {
-                "anyOf": [
-                  {
-                    "$id": "https://schemas.runx.ai/runx/reference/v1.json",
-                    "$schema": "https://json-schema.org/draft/2020-12/schema",
-                    "additionalProperties": false,
-                    "properties": {
-                      "label": {
-                        "minLength": 1,
-                        "type": "string"
-                      },
-                      "locator": {
-                        "minLength": 1,
-                        "type": "string"
-                      },
-                      "observed_at": {
-                        "minLength": 1,
-                        "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-                        "type": "string"
-                      },
-                      "proof_kind": {
-                        "enum": [
-                          "effect_evidence",
-                          "effect_finality",
-                          "credential_resolution"
-                        ],
-                        "type": "string"
-                      },
-                      "provider": {
-                        "minLength": 1,
-                        "type": "string"
-                      },
-                      "schema": {
-                        "const": "runx.reference.v1",
-                        "type": "string"
-                      },
-                      "type": {
-                        "enum": [
-                          "thread",
-                          "comment",
-                          "event",
-                          "tracking_item",
-                          "change_request",
-                          "repository",
-                          "signal",
-                          "run",
-                          "act",
-                          "receipt",
-                          "graph_receipt",
-                          "artifact",
-                          "verification",
-                          "harness",
-                          "host",
-                          "deployment",
-                          "surface",
-                          "target",
-                          "opportunity",
-                          "thesis_assessment",
-                          "selection",
-                          "skill_binding",
-                          "target_transition_entry",
-                          "selection_cycle",
-                          "decision",
-                          "reflection_entry",
-                          "feed_entry",
-                          "principal",
-                          "authority_proof",
-                          "scope_admission",
-                          "grant",
-                          "mandate",
-                          "credential",
-                          "webhook_delivery",
-                          "redaction_policy",
-                          "external_url",
-                          "connector_instance",
-                          "connector_operation"
-                        ],
-                        "type": "string"
-                      },
-                      "uri": {
-                        "minLength": 1,
-                        "type": "string"
-                      }
-                    },
-                    "required": [
-                      "type",
-                      "uri"
-                    ],
-                    "type": "object",
-                    "x-runx-schema": "runx.reference.v1"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ]
-              },
-              "subset_proof": {
-                "anyOf": [
-                  {
-                    "$id": "https://schemas.runx.ai/runx/authority/subset-proof/v1.json",
-                    "$schema": "https://json-schema.org/draft/2020-12/schema",
-                    "additionalProperties": false,
-                    "properties": {
-                      "checked_at": {
-                        "minLength": 1,
-                        "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-                        "type": "string"
-                      },
-                      "compared_terms": {
-                        "items": {
-                          "additionalProperties": false,
-                          "properties": {
-                            "child_term_id": {
-                              "minLength": 1,
-                              "type": "string"
-                            },
-                            "parent_term_id": {
-                              "minLength": 1,
-                              "type": "string"
-                            },
-                            "relation": {
-                              "enum": [
-                                "equal",
-                                "subset"
-                              ],
-                              "type": "string"
-                            }
-                          },
-                          "required": [
-                            "child_term_id",
-                            "parent_term_id",
-                            "relation"
-                          ],
-                          "type": "object"
-                        },
-                        "type": "array"
-                      },
-                      "comparison_algorithm": {
-                        "minLength": 1,
-                        "type": "string"
-                      },
-                      "parent_authority_ref": {
-                        "$id": "https://schemas.runx.ai/runx/reference/v1.json",
-                        "$schema": "https://json-schema.org/draft/2020-12/schema",
-                        "additionalProperties": false,
-                        "properties": {
-                          "label": {
-                            "minLength": 1,
-                            "type": "string"
-                          },
-                          "locator": {
-                            "minLength": 1,
-                            "type": "string"
-                          },
-                          "observed_at": {
-                            "minLength": 1,
-                            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-                            "type": "string"
-                          },
-                          "proof_kind": {
-                            "enum": [
-                              "effect_evidence",
-                              "effect_finality",
-                              "credential_resolution"
-                            ],
-                            "type": "string"
-                          },
-                          "provider": {
-                            "minLength": 1,
-                            "type": "string"
-                          },
-                          "schema": {
-                            "const": "runx.reference.v1",
-                            "type": "string"
-                          },
-                          "type": {
-                            "enum": [
-                              "thread",
-                              "comment",
-                              "event",
-                              "tracking_item",
-                              "change_request",
-                              "repository",
-                              "signal",
-                              "run",
-                              "act",
-                              "receipt",
-                              "graph_receipt",
-                              "artifact",
-                              "verification",
-                              "harness",
-                              "host",
-                              "deployment",
-                              "surface",
-                              "target",
-                              "opportunity",
-                              "thesis_assessment",
-                              "selection",
-                              "skill_binding",
-                              "target_transition_entry",
-                              "selection_cycle",
-                              "decision",
-                              "reflection_entry",
-                              "feed_entry",
-                              "principal",
-                              "authority_proof",
-                              "scope_admission",
-                              "grant",
-                              "mandate",
-                              "credential",
-                              "webhook_delivery",
-                              "redaction_policy",
-                              "external_url",
-                              "connector_instance",
-                              "connector_operation"
-                            ],
-                            "type": "string"
-                          },
-                          "uri": {
-                            "minLength": 1,
-                            "type": "string"
-                          }
-                        },
-                        "required": [
-                          "type",
-                          "uri"
-                        ],
-                        "type": "object",
-                        "x-runx-schema": "runx.reference.v1"
-                      },
-                      "proof_ref": {
-                        "$id": "https://schemas.runx.ai/runx/reference/v1.json",
-                        "$schema": "https://json-schema.org/draft/2020-12/schema",
-                        "additionalProperties": false,
-                        "properties": {
-                          "label": {
-                            "minLength": 1,
-                            "type": "string"
-                          },
-                          "locator": {
-                            "minLength": 1,
-                            "type": "string"
-                          },
-                          "observed_at": {
-                            "minLength": 1,
-                            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-                            "type": "string"
-                          },
-                          "proof_kind": {
-                            "enum": [
-                              "effect_evidence",
-                              "effect_finality",
-                              "credential_resolution"
-                            ],
-                            "type": "string"
-                          },
-                          "provider": {
-                            "minLength": 1,
-                            "type": "string"
-                          },
-                          "schema": {
-                            "const": "runx.reference.v1",
-                            "type": "string"
-                          },
-                          "type": {
-                            "enum": [
-                              "thread",
-                              "comment",
-                              "event",
-                              "tracking_item",
-                              "change_request",
-                              "repository",
-                              "signal",
-                              "run",
-                              "act",
-                              "receipt",
-                              "graph_receipt",
-                              "artifact",
-                              "verification",
-                              "harness",
-                              "host",
-                              "deployment",
-                              "surface",
-                              "target",
-                              "opportunity",
-                              "thesis_assessment",
-                              "selection",
-                              "skill_binding",
-                              "target_transition_entry",
-                              "selection_cycle",
-                              "decision",
-                              "reflection_entry",
-                              "feed_entry",
-                              "principal",
-                              "authority_proof",
-                              "scope_admission",
-                              "grant",
-                              "mandate",
-                              "credential",
-                              "webhook_delivery",
-                              "redaction_policy",
-                              "external_url",
-                              "connector_instance",
-                              "connector_operation"
-                            ],
-                            "type": "string"
-                          },
-                          "uri": {
-                            "minLength": 1,
-                            "type": "string"
-                          }
-                        },
-                        "required": [
-                          "type",
-                          "uri"
-                        ],
-                        "type": "object",
-                        "x-runx-schema": "runx.reference.v1"
-                      },
-                      "result": {
-                        "enum": [
-                          "subset"
-                        ],
-                        "type": "string"
-                      },
-                      "schema": {
-                        "const": "runx.authority_subset_proof.v1",
-                        "type": "string"
-                      }
-                    },
-                    "required": [
-                      "parent_authority_ref",
-                      "comparison_algorithm",
-                      "result",
-                      "compared_terms",
-                      "checked_at"
-                    ],
-                    "type": "object",
-                    "x-runx-schema": "runx.authority_subset_proof.v1"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ]
-              }
-            },
-            "required": [
-              "parent_authority_ref",
-              "subset_proof"
-            ],
-            "type": "object"
-          },
-          "authority_proof_refs": {
-            "items": {
-              "$id": "https://schemas.runx.ai/runx/reference/v1.json",
-              "$schema": "https://json-schema.org/draft/2020-12/schema",
-              "additionalProperties": false,
-              "properties": {
-                "label": {
-                  "minLength": 1,
-                  "type": "string"
-                },
-                "locator": {
-                  "minLength": 1,
-                  "type": "string"
-                },
-                "observed_at": {
-                  "minLength": 1,
-                  "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-                  "type": "string"
-                },
-                "proof_kind": {
-                  "enum": [
-                    "effect_evidence",
-                    "effect_finality",
-                    "credential_resolution"
-                  ],
-                  "type": "string"
-                },
-                "provider": {
-                  "minLength": 1,
-                  "type": "string"
-                },
-                "schema": {
-                  "const": "runx.reference.v1",
-                  "type": "string"
-                },
-                "type": {
-                  "enum": [
-                    "thread",
-                    "comment",
-                    "event",
-                    "tracking_item",
-                    "change_request",
-                    "repository",
-                    "signal",
-                    "run",
-                    "act",
-                    "receipt",
-                    "graph_receipt",
-                    "artifact",
-                    "verification",
-                    "harness",
-                    "host",
-                    "deployment",
-                    "surface",
-                    "target",
-                    "opportunity",
-                    "thesis_assessment",
-                    "selection",
-                    "skill_binding",
-                    "target_transition_entry",
-                    "selection_cycle",
-                    "decision",
-                    "reflection_entry",
-                    "feed_entry",
-                    "principal",
-                    "authority_proof",
-                    "scope_admission",
-                    "grant",
-                    "mandate",
-                    "credential",
-                    "webhook_delivery",
-                    "redaction_policy",
-                    "external_url",
-                    "connector_instance",
-                    "connector_operation"
-                  ],
-                  "type": "string"
-                },
-                "uri": {
-                  "minLength": 1,
-                  "type": "string"
-                }
-              },
-              "required": [
-                "type",
-                "uri"
-              ],
-              "type": "object",
-              "x-runx-schema": "runx.reference.v1"
-            },
-            "type": "array"
           },
           "derivations": {
             "items": {
@@ -32410,25 +23759,14 @@ export const runxSchemaArtifacts = {
                               "run",
                               "act",
                               "receipt",
-                              "graph_receipt",
                               "artifact",
                               "verification",
                               "harness",
                               "host",
-                              "deployment",
                               "surface",
                               "target",
-                              "opportunity",
-                              "thesis_assessment",
-                              "selection",
                               "skill_binding",
-                              "target_transition_entry",
-                              "selection_cycle",
-                              "decision",
-                              "reflection_entry",
-                              "feed_entry",
                               "principal",
-                              "authority_proof",
                               "scope_admission",
                               "grant",
                               "mandate",
@@ -32508,25 +23846,14 @@ export const runxSchemaArtifacts = {
                                         "run",
                                         "act",
                                         "receipt",
-                                        "graph_receipt",
                                         "artifact",
                                         "verification",
                                         "harness",
                                         "host",
-                                        "deployment",
                                         "surface",
                                         "target",
-                                        "opportunity",
-                                        "thesis_assessment",
-                                        "selection",
                                         "skill_binding",
-                                        "target_transition_entry",
-                                        "selection_cycle",
-                                        "decision",
-                                        "reflection_entry",
-                                        "feed_entry",
                                         "principal",
-                                        "authority_proof",
                                         "scope_admission",
                                         "grant",
                                         "mandate",
@@ -32602,25 +23929,14 @@ export const runxSchemaArtifacts = {
                                         "run",
                                         "act",
                                         "receipt",
-                                        "graph_receipt",
                                         "artifact",
                                         "verification",
                                         "harness",
                                         "host",
-                                        "deployment",
                                         "surface",
                                         "target",
-                                        "opportunity",
-                                        "thesis_assessment",
-                                        "selection",
                                         "skill_binding",
-                                        "target_transition_entry",
-                                        "selection_cycle",
-                                        "decision",
-                                        "reflection_entry",
-                                        "feed_entry",
                                         "principal",
-                                        "authority_proof",
                                         "scope_admission",
                                         "grant",
                                         "mandate",
@@ -32644,13 +23960,6 @@ export const runxSchemaArtifacts = {
                                   ],
                                   "type": "object",
                                   "x-runx-schema": "runx.reference.v1"
-                                },
-                                "criterion_ids": {
-                                  "items": {
-                                    "minLength": 1,
-                                    "type": "string"
-                                  },
-                                  "type": "array"
                                 }
                               },
                               "required": [
@@ -32668,6 +23977,7 @@ export const runxSchemaArtifacts = {
                                   "minLength": 1,
                                   "type": "string"
                                 },
+                                "minItems": 1,
                                 "type": "array"
                               },
                               "deployment_environments": {
@@ -32675,6 +23985,7 @@ export const runxSchemaArtifacts = {
                                   "minLength": 1,
                                   "type": "string"
                                 },
+                                "minItems": 1,
                                 "type": "array"
                               },
                               "effect_limits": {
@@ -32699,6 +24010,7 @@ export const runxSchemaArtifacts = {
                                       "type": "array"
                                     },
                                     "commitment_required": {
+                                      "const": true,
                                       "type": "boolean"
                                     },
                                     "family": {
@@ -32706,6 +24018,7 @@ export const runxSchemaArtifacts = {
                                       "type": "string"
                                     },
                                     "idempotency_required": {
+                                      "const": true,
                                       "type": "boolean"
                                     },
                                     "max_per_call_units": {
@@ -32730,6 +24043,7 @@ export const runxSchemaArtifacts = {
                                       "type": "string"
                                     },
                                     "preflight_required": {
+                                      "const": true,
                                       "type": "boolean"
                                     },
                                     "preflight_ttl_ms": {
@@ -32740,12 +24054,15 @@ export const runxSchemaArtifacts = {
                                       "type": "string"
                                     },
                                     "receipt_before_success": {
+                                      "const": true,
                                       "type": "boolean"
                                     },
                                     "recovery_required": {
+                                      "const": true,
                                       "type": "boolean"
                                     },
                                     "single_use_capability": {
+                                      "const": true,
                                       "type": "boolean"
                                     },
                                     "unit": {
@@ -32760,6 +24077,7 @@ export const runxSchemaArtifacts = {
                                   ],
                                   "type": "object"
                                 },
+                                "minItems": 1,
                                 "type": "array"
                               },
                               "effects": {
@@ -32778,6 +24096,7 @@ export const runxSchemaArtifacts = {
                                         ],
                                         "type": "string"
                                       },
+                                      "minItems": 1,
                                       "type": "array"
                                     },
                                     "proof_kinds": {
@@ -32789,6 +24108,7 @@ export const runxSchemaArtifacts = {
                                         ],
                                         "type": "string"
                                       },
+                                      "minItems": 1,
                                       "type": "array"
                                     }
                                   },
@@ -32797,6 +24117,7 @@ export const runxSchemaArtifacts = {
                                   ],
                                   "type": "object"
                                 },
+                                "minItems": 1,
                                 "type": "array"
                               },
                               "filesystem_roots": {
@@ -32804,6 +24125,7 @@ export const runxSchemaArtifacts = {
                                   "minLength": 1,
                                   "type": "string"
                                 },
+                                "minItems": 1,
                                 "type": "array"
                               },
                               "max_child_depth": {
@@ -32823,6 +24145,7 @@ export const runxSchemaArtifacts = {
                                   "minLength": 1,
                                   "type": "string"
                                 },
+                                "minItems": 1,
                                 "type": "array"
                               },
                               "operations": {
@@ -32830,6 +24153,7 @@ export const runxSchemaArtifacts = {
                                   "minLength": 1,
                                   "type": "string"
                                 },
+                                "minItems": 1,
                                 "type": "array"
                               },
                               "repo_path_globs": {
@@ -32837,6 +24161,7 @@ export const runxSchemaArtifacts = {
                                   "minLength": 1,
                                   "type": "string"
                                 },
+                                "minItems": 1,
                                 "type": "array"
                               },
                               "scopes": {
@@ -32844,6 +24169,7 @@ export const runxSchemaArtifacts = {
                                   "minLength": 1,
                                   "type": "string"
                                 },
+                                "minItems": 1,
                                 "type": "array"
                               },
                               "targets": {
@@ -32851,6 +24177,7 @@ export const runxSchemaArtifacts = {
                                   "minLength": 1,
                                   "type": "string"
                                 },
+                                "minItems": 1,
                                 "type": "array"
                               },
                               "token_audiences": {
@@ -32858,6 +24185,7 @@ export const runxSchemaArtifacts = {
                                   "minLength": 1,
                                   "type": "string"
                                 },
+                                "minItems": 1,
                                 "type": "array"
                               },
                               "uses": {
@@ -32964,25 +24292,14 @@ export const runxSchemaArtifacts = {
                                           "run",
                                           "act",
                                           "receipt",
-                                          "graph_receipt",
                                           "artifact",
                                           "verification",
                                           "harness",
                                           "host",
-                                          "deployment",
                                           "surface",
                                           "target",
-                                          "opportunity",
-                                          "thesis_assessment",
-                                          "selection",
                                           "skill_binding",
-                                          "target_transition_entry",
-                                          "selection_cycle",
-                                          "decision",
-                                          "reflection_entry",
-                                          "feed_entry",
                                           "principal",
-                                          "authority_proof",
                                           "scope_admission",
                                           "grant",
                                           "mandate",
@@ -33007,6 +24324,7 @@ export const runxSchemaArtifacts = {
                                     "type": "object",
                                     "x-runx-schema": "runx.reference.v1"
                                   },
+                                  "minItems": 1,
                                   "type": "array"
                                 }
                               },
@@ -33064,25 +24382,14 @@ export const runxSchemaArtifacts = {
                                   "run",
                                   "act",
                                   "receipt",
-                                  "graph_receipt",
                                   "artifact",
                                   "verification",
                                   "harness",
                                   "host",
-                                  "deployment",
                                   "surface",
                                   "target",
-                                  "opportunity",
-                                  "thesis_assessment",
-                                  "selection",
                                   "skill_binding",
-                                  "target_transition_entry",
-                                  "selection_cycle",
-                                  "decision",
-                                  "reflection_entry",
-                                  "feed_entry",
                                   "principal",
-                                  "authority_proof",
                                   "scope_admission",
                                   "grant",
                                   "mandate",
@@ -33158,25 +24465,14 @@ export const runxSchemaArtifacts = {
                                   "run",
                                   "act",
                                   "receipt",
-                                  "graph_receipt",
                                   "artifact",
                                   "verification",
                                   "harness",
                                   "host",
-                                  "deployment",
                                   "surface",
                                   "target",
-                                  "opportunity",
-                                  "thesis_assessment",
-                                  "selection",
                                   "skill_binding",
-                                  "target_transition_entry",
-                                  "selection_cycle",
-                                  "decision",
-                                  "reflection_entry",
-                                  "feed_entry",
                                   "principal",
-                                  "authority_proof",
                                   "scope_admission",
                                   "grant",
                                   "mandate",
@@ -33247,25 +24543,14 @@ export const runxSchemaArtifacts = {
                                   "run",
                                   "act",
                                   "receipt",
-                                  "graph_receipt",
                                   "artifact",
                                   "verification",
                                   "harness",
                                   "host",
-                                  "deployment",
                                   "surface",
                                   "target",
-                                  "opportunity",
-                                  "thesis_assessment",
-                                  "selection",
                                   "skill_binding",
-                                  "target_transition_entry",
-                                  "selection_cycle",
-                                  "decision",
-                                  "reflection_entry",
-                                  "feed_entry",
                                   "principal",
-                                  "authority_proof",
                                   "scope_admission",
                                   "grant",
                                   "mandate",
@@ -33351,25 +24636,14 @@ export const runxSchemaArtifacts = {
                                   "run",
                                   "act",
                                   "receipt",
-                                  "graph_receipt",
                                   "artifact",
                                   "verification",
                                   "harness",
                                   "host",
-                                  "deployment",
                                   "surface",
                                   "target",
-                                  "opportunity",
-                                  "thesis_assessment",
-                                  "selection",
                                   "skill_binding",
-                                  "target_transition_entry",
-                                  "selection_cycle",
-                                  "decision",
-                                  "reflection_entry",
-                                  "feed_entry",
                                   "principal",
-                                  "authority_proof",
                                   "scope_admission",
                                   "grant",
                                   "mandate",
@@ -33544,25 +24818,14 @@ export const runxSchemaArtifacts = {
                               "run",
                               "act",
                               "receipt",
-                              "graph_receipt",
                               "artifact",
                               "verification",
                               "harness",
                               "host",
-                              "deployment",
                               "surface",
                               "target",
-                              "opportunity",
-                              "thesis_assessment",
-                              "selection",
                               "skill_binding",
-                              "target_transition_entry",
-                              "selection_cycle",
-                              "decision",
-                              "reflection_entry",
-                              "feed_entry",
                               "principal",
-                              "authority_proof",
                               "scope_admission",
                               "grant",
                               "mandate",
@@ -33633,25 +24896,14 @@ export const runxSchemaArtifacts = {
                               "run",
                               "act",
                               "receipt",
-                              "graph_receipt",
                               "artifact",
                               "verification",
                               "harness",
                               "host",
-                              "deployment",
                               "surface",
                               "target",
-                              "opportunity",
-                              "thesis_assessment",
-                              "selection",
                               "skill_binding",
-                              "target_transition_entry",
-                              "selection_cycle",
-                              "decision",
-                              "reflection_entry",
-                              "feed_entry",
                               "principal",
-                              "authority_proof",
                               "scope_admission",
                               "grant",
                               "mandate",
@@ -33740,291 +24992,8 @@ export const runxSchemaArtifacts = {
                   "kind"
                 ],
                 "type": "object"
-              },
-              "profile_hash": {
-                "minLength": 1,
-                "type": "string"
-              },
-              "redaction_refs": {
-                "items": {
-                  "$id": "https://schemas.runx.ai/runx/reference/v1.json",
-                  "$schema": "https://json-schema.org/draft/2020-12/schema",
-                  "additionalProperties": false,
-                  "properties": {
-                    "label": {
-                      "minLength": 1,
-                      "type": "string"
-                    },
-                    "locator": {
-                      "minLength": 1,
-                      "type": "string"
-                    },
-                    "observed_at": {
-                      "minLength": 1,
-                      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-                      "type": "string"
-                    },
-                    "proof_kind": {
-                      "enum": [
-                        "effect_evidence",
-                        "effect_finality",
-                        "credential_resolution"
-                      ],
-                      "type": "string"
-                    },
-                    "provider": {
-                      "minLength": 1,
-                      "type": "string"
-                    },
-                    "schema": {
-                      "const": "runx.reference.v1",
-                      "type": "string"
-                    },
-                    "type": {
-                      "enum": [
-                        "thread",
-                        "comment",
-                        "event",
-                        "tracking_item",
-                        "change_request",
-                        "repository",
-                        "signal",
-                        "run",
-                        "act",
-                        "receipt",
-                        "graph_receipt",
-                        "artifact",
-                        "verification",
-                        "harness",
-                        "host",
-                        "deployment",
-                        "surface",
-                        "target",
-                        "opportunity",
-                        "thesis_assessment",
-                        "selection",
-                        "skill_binding",
-                        "target_transition_entry",
-                        "selection_cycle",
-                        "decision",
-                        "reflection_entry",
-                        "feed_entry",
-                        "principal",
-                        "authority_proof",
-                        "scope_admission",
-                        "grant",
-                        "mandate",
-                        "credential",
-                        "webhook_delivery",
-                        "redaction_policy",
-                        "external_url",
-                        "connector_instance",
-                        "connector_operation"
-                      ],
-                      "type": "string"
-                    },
-                    "uri": {
-                      "minLength": 1,
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "type",
-                    "uri"
-                  ],
-                  "type": "object",
-                  "x-runx-schema": "runx.reference.v1"
-                },
-                "type": "array"
-              },
-              "setup_refs": {
-                "items": {
-                  "$id": "https://schemas.runx.ai/runx/reference/v1.json",
-                  "$schema": "https://json-schema.org/draft/2020-12/schema",
-                  "additionalProperties": false,
-                  "properties": {
-                    "label": {
-                      "minLength": 1,
-                      "type": "string"
-                    },
-                    "locator": {
-                      "minLength": 1,
-                      "type": "string"
-                    },
-                    "observed_at": {
-                      "minLength": 1,
-                      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-                      "type": "string"
-                    },
-                    "proof_kind": {
-                      "enum": [
-                        "effect_evidence",
-                        "effect_finality",
-                        "credential_resolution"
-                      ],
-                      "type": "string"
-                    },
-                    "provider": {
-                      "minLength": 1,
-                      "type": "string"
-                    },
-                    "schema": {
-                      "const": "runx.reference.v1",
-                      "type": "string"
-                    },
-                    "type": {
-                      "enum": [
-                        "thread",
-                        "comment",
-                        "event",
-                        "tracking_item",
-                        "change_request",
-                        "repository",
-                        "signal",
-                        "run",
-                        "act",
-                        "receipt",
-                        "graph_receipt",
-                        "artifact",
-                        "verification",
-                        "harness",
-                        "host",
-                        "deployment",
-                        "surface",
-                        "target",
-                        "opportunity",
-                        "thesis_assessment",
-                        "selection",
-                        "skill_binding",
-                        "target_transition_entry",
-                        "selection_cycle",
-                        "decision",
-                        "reflection_entry",
-                        "feed_entry",
-                        "principal",
-                        "authority_proof",
-                        "scope_admission",
-                        "grant",
-                        "mandate",
-                        "credential",
-                        "webhook_delivery",
-                        "redaction_policy",
-                        "external_url",
-                        "connector_instance",
-                        "connector_operation"
-                      ],
-                      "type": "string"
-                    },
-                    "uri": {
-                      "minLength": 1,
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "type",
-                    "uri"
-                  ],
-                  "type": "object",
-                  "x-runx-schema": "runx.reference.v1"
-                },
-                "type": "array"
-              },
-              "teardown_refs": {
-                "items": {
-                  "$id": "https://schemas.runx.ai/runx/reference/v1.json",
-                  "$schema": "https://json-schema.org/draft/2020-12/schema",
-                  "additionalProperties": false,
-                  "properties": {
-                    "label": {
-                      "minLength": 1,
-                      "type": "string"
-                    },
-                    "locator": {
-                      "minLength": 1,
-                      "type": "string"
-                    },
-                    "observed_at": {
-                      "minLength": 1,
-                      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-                      "type": "string"
-                    },
-                    "proof_kind": {
-                      "enum": [
-                        "effect_evidence",
-                        "effect_finality",
-                        "credential_resolution"
-                      ],
-                      "type": "string"
-                    },
-                    "provider": {
-                      "minLength": 1,
-                      "type": "string"
-                    },
-                    "schema": {
-                      "const": "runx.reference.v1",
-                      "type": "string"
-                    },
-                    "type": {
-                      "enum": [
-                        "thread",
-                        "comment",
-                        "event",
-                        "tracking_item",
-                        "change_request",
-                        "repository",
-                        "signal",
-                        "run",
-                        "act",
-                        "receipt",
-                        "graph_receipt",
-                        "artifact",
-                        "verification",
-                        "harness",
-                        "host",
-                        "deployment",
-                        "surface",
-                        "target",
-                        "opportunity",
-                        "thesis_assessment",
-                        "selection",
-                        "skill_binding",
-                        "target_transition_entry",
-                        "selection_cycle",
-                        "decision",
-                        "reflection_entry",
-                        "feed_entry",
-                        "principal",
-                        "authority_proof",
-                        "scope_admission",
-                        "grant",
-                        "mandate",
-                        "credential",
-                        "webhook_delivery",
-                        "redaction_policy",
-                        "external_url",
-                        "connector_instance",
-                        "connector_operation"
-                      ],
-                      "type": "string"
-                    },
-                    "uri": {
-                      "minLength": 1,
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "type",
-                    "uri"
-                  ],
-                  "type": "object",
-                  "x-runx-schema": "runx.reference.v1"
-                },
-                "type": "array"
               }
             },
-            "required": [
-              "profile_hash"
-            ],
             "type": "object"
           },
           "grant_refs": {
@@ -34074,25 +25043,14 @@ export const runxSchemaArtifacts = {
                     "run",
                     "act",
                     "receipt",
-                    "graph_receipt",
                     "artifact",
                     "verification",
                     "harness",
                     "host",
-                    "deployment",
                     "surface",
                     "target",
-                    "opportunity",
-                    "thesis_assessment",
-                    "selection",
                     "skill_binding",
-                    "target_transition_entry",
-                    "selection_cycle",
-                    "decision",
-                    "reflection_entry",
-                    "feed_entry",
                     "principal",
-                    "authority_proof",
                     "scope_admission",
                     "grant",
                     "mandate",
@@ -34165,25 +25123,14 @@ export const runxSchemaArtifacts = {
                   "run",
                   "act",
                   "receipt",
-                  "graph_receipt",
                   "artifact",
                   "verification",
                   "harness",
                   "host",
-                  "deployment",
                   "surface",
                   "target",
-                  "opportunity",
-                  "thesis_assessment",
-                  "selection",
                   "skill_binding",
-                  "target_transition_entry",
-                  "selection_cycle",
-                  "decision",
-                  "reflection_entry",
-                  "feed_entry",
                   "principal",
-                  "authority_proof",
                   "scope_admission",
                   "grant",
                   "mandate",
@@ -34255,25 +25202,14 @@ export const runxSchemaArtifacts = {
                     "run",
                     "act",
                     "receipt",
-                    "graph_receipt",
                     "artifact",
                     "verification",
                     "harness",
                     "host",
-                    "deployment",
                     "surface",
                     "target",
-                    "opportunity",
-                    "thesis_assessment",
-                    "selection",
                     "skill_binding",
-                    "target_transition_entry",
-                    "selection_cycle",
-                    "decision",
-                    "reflection_entry",
-                    "feed_entry",
                     "principal",
-                    "authority_proof",
                     "scope_admission",
                     "grant",
                     "mandate",
@@ -34356,25 +25292,14 @@ export const runxSchemaArtifacts = {
                               "run",
                               "act",
                               "receipt",
-                              "graph_receipt",
                               "artifact",
                               "verification",
                               "harness",
                               "host",
-                              "deployment",
                               "surface",
                               "target",
-                              "opportunity",
-                              "thesis_assessment",
-                              "selection",
                               "skill_binding",
-                              "target_transition_entry",
-                              "selection_cycle",
-                              "decision",
-                              "reflection_entry",
-                              "feed_entry",
                               "principal",
-                              "authority_proof",
                               "scope_admission",
                               "grant",
                               "mandate",
@@ -34450,25 +25375,14 @@ export const runxSchemaArtifacts = {
                               "run",
                               "act",
                               "receipt",
-                              "graph_receipt",
                               "artifact",
                               "verification",
                               "harness",
                               "host",
-                              "deployment",
                               "surface",
                               "target",
-                              "opportunity",
-                              "thesis_assessment",
-                              "selection",
                               "skill_binding",
-                              "target_transition_entry",
-                              "selection_cycle",
-                              "decision",
-                              "reflection_entry",
-                              "feed_entry",
                               "principal",
-                              "authority_proof",
                               "scope_admission",
                               "grant",
                               "mandate",
@@ -34492,13 +25406,6 @@ export const runxSchemaArtifacts = {
                         ],
                         "type": "object",
                         "x-runx-schema": "runx.reference.v1"
-                      },
-                      "criterion_ids": {
-                        "items": {
-                          "minLength": 1,
-                          "type": "string"
-                        },
-                        "type": "array"
                       }
                     },
                     "required": [
@@ -34516,6 +25423,7 @@ export const runxSchemaArtifacts = {
                         "minLength": 1,
                         "type": "string"
                       },
+                      "minItems": 1,
                       "type": "array"
                     },
                     "deployment_environments": {
@@ -34523,6 +25431,7 @@ export const runxSchemaArtifacts = {
                         "minLength": 1,
                         "type": "string"
                       },
+                      "minItems": 1,
                       "type": "array"
                     },
                     "effect_limits": {
@@ -34547,6 +25456,7 @@ export const runxSchemaArtifacts = {
                             "type": "array"
                           },
                           "commitment_required": {
+                            "const": true,
                             "type": "boolean"
                           },
                           "family": {
@@ -34554,6 +25464,7 @@ export const runxSchemaArtifacts = {
                             "type": "string"
                           },
                           "idempotency_required": {
+                            "const": true,
                             "type": "boolean"
                           },
                           "max_per_call_units": {
@@ -34578,6 +25489,7 @@ export const runxSchemaArtifacts = {
                             "type": "string"
                           },
                           "preflight_required": {
+                            "const": true,
                             "type": "boolean"
                           },
                           "preflight_ttl_ms": {
@@ -34588,12 +25500,15 @@ export const runxSchemaArtifacts = {
                             "type": "string"
                           },
                           "receipt_before_success": {
+                            "const": true,
                             "type": "boolean"
                           },
                           "recovery_required": {
+                            "const": true,
                             "type": "boolean"
                           },
                           "single_use_capability": {
+                            "const": true,
                             "type": "boolean"
                           },
                           "unit": {
@@ -34608,6 +25523,7 @@ export const runxSchemaArtifacts = {
                         ],
                         "type": "object"
                       },
+                      "minItems": 1,
                       "type": "array"
                     },
                     "effects": {
@@ -34626,6 +25542,7 @@ export const runxSchemaArtifacts = {
                               ],
                               "type": "string"
                             },
+                            "minItems": 1,
                             "type": "array"
                           },
                           "proof_kinds": {
@@ -34637,6 +25554,7 @@ export const runxSchemaArtifacts = {
                               ],
                               "type": "string"
                             },
+                            "minItems": 1,
                             "type": "array"
                           }
                         },
@@ -34645,6 +25563,7 @@ export const runxSchemaArtifacts = {
                         ],
                         "type": "object"
                       },
+                      "minItems": 1,
                       "type": "array"
                     },
                     "filesystem_roots": {
@@ -34652,6 +25571,7 @@ export const runxSchemaArtifacts = {
                         "minLength": 1,
                         "type": "string"
                       },
+                      "minItems": 1,
                       "type": "array"
                     },
                     "max_child_depth": {
@@ -34671,6 +25591,7 @@ export const runxSchemaArtifacts = {
                         "minLength": 1,
                         "type": "string"
                       },
+                      "minItems": 1,
                       "type": "array"
                     },
                     "operations": {
@@ -34678,6 +25599,7 @@ export const runxSchemaArtifacts = {
                         "minLength": 1,
                         "type": "string"
                       },
+                      "minItems": 1,
                       "type": "array"
                     },
                     "repo_path_globs": {
@@ -34685,6 +25607,7 @@ export const runxSchemaArtifacts = {
                         "minLength": 1,
                         "type": "string"
                       },
+                      "minItems": 1,
                       "type": "array"
                     },
                     "scopes": {
@@ -34692,6 +25615,7 @@ export const runxSchemaArtifacts = {
                         "minLength": 1,
                         "type": "string"
                       },
+                      "minItems": 1,
                       "type": "array"
                     },
                     "targets": {
@@ -34699,6 +25623,7 @@ export const runxSchemaArtifacts = {
                         "minLength": 1,
                         "type": "string"
                       },
+                      "minItems": 1,
                       "type": "array"
                     },
                     "token_audiences": {
@@ -34706,6 +25631,7 @@ export const runxSchemaArtifacts = {
                         "minLength": 1,
                         "type": "string"
                       },
+                      "minItems": 1,
                       "type": "array"
                     },
                     "uses": {
@@ -34812,25 +25738,14 @@ export const runxSchemaArtifacts = {
                                 "run",
                                 "act",
                                 "receipt",
-                                "graph_receipt",
                                 "artifact",
                                 "verification",
                                 "harness",
                                 "host",
-                                "deployment",
                                 "surface",
                                 "target",
-                                "opportunity",
-                                "thesis_assessment",
-                                "selection",
                                 "skill_binding",
-                                "target_transition_entry",
-                                "selection_cycle",
-                                "decision",
-                                "reflection_entry",
-                                "feed_entry",
                                 "principal",
-                                "authority_proof",
                                 "scope_admission",
                                 "grant",
                                 "mandate",
@@ -34855,6 +25770,7 @@ export const runxSchemaArtifacts = {
                           "type": "object",
                           "x-runx-schema": "runx.reference.v1"
                         },
+                        "minItems": 1,
                         "type": "array"
                       }
                     },
@@ -34912,25 +25828,14 @@ export const runxSchemaArtifacts = {
                         "run",
                         "act",
                         "receipt",
-                        "graph_receipt",
                         "artifact",
                         "verification",
                         "harness",
                         "host",
-                        "deployment",
                         "surface",
                         "target",
-                        "opportunity",
-                        "thesis_assessment",
-                        "selection",
                         "skill_binding",
-                        "target_transition_entry",
-                        "selection_cycle",
-                        "decision",
-                        "reflection_entry",
-                        "feed_entry",
                         "principal",
-                        "authority_proof",
                         "scope_admission",
                         "grant",
                         "mandate",
@@ -35006,25 +25911,14 @@ export const runxSchemaArtifacts = {
                         "run",
                         "act",
                         "receipt",
-                        "graph_receipt",
                         "artifact",
                         "verification",
                         "harness",
                         "host",
-                        "deployment",
                         "surface",
                         "target",
-                        "opportunity",
-                        "thesis_assessment",
-                        "selection",
                         "skill_binding",
-                        "target_transition_entry",
-                        "selection_cycle",
-                        "decision",
-                        "reflection_entry",
-                        "feed_entry",
                         "principal",
-                        "authority_proof",
                         "scope_admission",
                         "grant",
                         "mandate",
@@ -35095,25 +25989,14 @@ export const runxSchemaArtifacts = {
                         "run",
                         "act",
                         "receipt",
-                        "graph_receipt",
                         "artifact",
                         "verification",
                         "harness",
                         "host",
-                        "deployment",
                         "surface",
                         "target",
-                        "opportunity",
-                        "thesis_assessment",
-                        "selection",
                         "skill_binding",
-                        "target_transition_entry",
-                        "selection_cycle",
-                        "decision",
-                        "reflection_entry",
-                        "feed_entry",
                         "principal",
-                        "authority_proof",
                         "scope_admission",
                         "grant",
                         "mandate",
@@ -35199,25 +26082,14 @@ export const runxSchemaArtifacts = {
                         "run",
                         "act",
                         "receipt",
-                        "graph_receipt",
                         "artifact",
                         "verification",
                         "harness",
                         "host",
-                        "deployment",
                         "surface",
                         "target",
-                        "opportunity",
-                        "thesis_assessment",
-                        "selection",
                         "skill_binding",
-                        "target_transition_entry",
-                        "selection_cycle",
-                        "decision",
-                        "reflection_entry",
-                        "feed_entry",
                         "principal",
-                        "authority_proof",
                         "scope_admission",
                         "grant",
                         "mandate",
@@ -35294,19 +26166,17 @@ export const runxSchemaArtifacts = {
         },
         "required": [
           "actor_ref",
-          "attenuation",
+          "grant_refs",
+          "scope_refs",
+          "terms",
+          "derivations",
           "enforcement"
         ],
         "type": "object"
       },
       "canonicalization": {
-        "minLength": 1,
-        "type": "string"
-      },
-      "class": {
         "enum": [
-          "executed",
-          "mediated"
+          "runx.receipt.c14n.v1"
         ],
         "type": "string"
       },
@@ -35321,103 +26191,9 @@ export const runxSchemaArtifacts = {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "additionalProperties": false,
           "properties": {
-            "artifact_refs": {
-              "items": {
-                "$id": "https://schemas.runx.ai/runx/reference/v1.json",
-                "$schema": "https://json-schema.org/draft/2020-12/schema",
-                "additionalProperties": false,
-                "properties": {
-                  "label": {
-                    "minLength": 1,
-                    "type": "string"
-                  },
-                  "locator": {
-                    "minLength": 1,
-                    "type": "string"
-                  },
-                  "observed_at": {
-                    "minLength": 1,
-                    "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-                    "type": "string"
-                  },
-                  "proof_kind": {
-                    "enum": [
-                      "effect_evidence",
-                      "effect_finality",
-                      "credential_resolution"
-                    ],
-                    "type": "string"
-                  },
-                  "provider": {
-                    "minLength": 1,
-                    "type": "string"
-                  },
-                  "schema": {
-                    "const": "runx.reference.v1",
-                    "type": "string"
-                  },
-                  "type": {
-                    "enum": [
-                      "thread",
-                      "comment",
-                      "event",
-                      "tracking_item",
-                      "change_request",
-                      "repository",
-                      "signal",
-                      "run",
-                      "act",
-                      "receipt",
-                      "graph_receipt",
-                      "artifact",
-                      "verification",
-                      "harness",
-                      "host",
-                      "deployment",
-                      "surface",
-                      "target",
-                      "opportunity",
-                      "thesis_assessment",
-                      "selection",
-                      "skill_binding",
-                      "target_transition_entry",
-                      "selection_cycle",
-                      "decision",
-                      "reflection_entry",
-                      "feed_entry",
-                      "principal",
-                      "authority_proof",
-                      "scope_admission",
-                      "grant",
-                      "mandate",
-                      "credential",
-                      "webhook_delivery",
-                      "redaction_policy",
-                      "external_url",
-                      "connector_instance",
-                      "connector_operation"
-                    ],
-                    "type": "string"
-                  },
-                  "uri": {
-                    "minLength": 1,
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "type",
-                  "uri"
-                ],
-                "type": "object",
-                "x-runx-schema": "runx.reference.v1"
-              },
-              "type": "array"
-            },
             "choice": {
               "enum": [
-                "open",
                 "continue",
-                "spawn_child",
                 "escalate",
                 "defer",
                 "close",
@@ -35426,809 +26202,23 @@ export const runxSchemaArtifacts = {
               ],
               "type": "string"
             },
-            "closure": {
-              "anyOf": [
-                {
-                  "additionalProperties": false,
-                  "properties": {
-                    "closed_at": {
-                      "minLength": 1,
-                      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-                      "type": "string"
-                    },
-                    "disposition": {
-                      "enum": [
-                        "closed",
-                        "deferred",
-                        "superseded",
-                        "declined",
-                        "blocked",
-                        "failed",
-                        "killed",
-                        "timed_out"
-                      ],
-                      "type": "string"
-                    },
-                    "reason_code": {
-                      "minLength": 1,
-                      "type": "string"
-                    },
-                    "summary": {
-                      "minLength": 1,
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "disposition",
-                    "reason_code",
-                    "summary",
-                    "closed_at"
-                  ],
-                  "type": "object"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
             "decision_id": {
               "minLength": 1,
               "type": "string"
-            },
-            "inputs": {
-              "additionalProperties": false,
-              "properties": {
-                "opportunity_refs": {
-                  "items": {
-                    "$id": "https://schemas.runx.ai/runx/reference/v1.json",
-                    "$schema": "https://json-schema.org/draft/2020-12/schema",
-                    "additionalProperties": false,
-                    "properties": {
-                      "label": {
-                        "minLength": 1,
-                        "type": "string"
-                      },
-                      "locator": {
-                        "minLength": 1,
-                        "type": "string"
-                      },
-                      "observed_at": {
-                        "minLength": 1,
-                        "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-                        "type": "string"
-                      },
-                      "proof_kind": {
-                        "enum": [
-                          "effect_evidence",
-                          "effect_finality",
-                          "credential_resolution"
-                        ],
-                        "type": "string"
-                      },
-                      "provider": {
-                        "minLength": 1,
-                        "type": "string"
-                      },
-                      "schema": {
-                        "const": "runx.reference.v1",
-                        "type": "string"
-                      },
-                      "type": {
-                        "enum": [
-                          "thread",
-                          "comment",
-                          "event",
-                          "tracking_item",
-                          "change_request",
-                          "repository",
-                          "signal",
-                          "run",
-                          "act",
-                          "receipt",
-                          "graph_receipt",
-                          "artifact",
-                          "verification",
-                          "harness",
-                          "host",
-                          "deployment",
-                          "surface",
-                          "target",
-                          "opportunity",
-                          "thesis_assessment",
-                          "selection",
-                          "skill_binding",
-                          "target_transition_entry",
-                          "selection_cycle",
-                          "decision",
-                          "reflection_entry",
-                          "feed_entry",
-                          "principal",
-                          "authority_proof",
-                          "scope_admission",
-                          "grant",
-                          "mandate",
-                          "credential",
-                          "webhook_delivery",
-                          "redaction_policy",
-                          "external_url",
-                          "connector_instance",
-                          "connector_operation"
-                        ],
-                        "type": "string"
-                      },
-                      "uri": {
-                        "minLength": 1,
-                        "type": "string"
-                      }
-                    },
-                    "required": [
-                      "type",
-                      "uri"
-                    ],
-                    "type": "object",
-                    "x-runx-schema": "runx.reference.v1"
-                  },
-                  "type": "array"
-                },
-                "selection_ref": {
-                  "anyOf": [
-                    {
-                      "$id": "https://schemas.runx.ai/runx/reference/v1.json",
-                      "$schema": "https://json-schema.org/draft/2020-12/schema",
-                      "additionalProperties": false,
-                      "properties": {
-                        "label": {
-                          "minLength": 1,
-                          "type": "string"
-                        },
-                        "locator": {
-                          "minLength": 1,
-                          "type": "string"
-                        },
-                        "observed_at": {
-                          "minLength": 1,
-                          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-                          "type": "string"
-                        },
-                        "proof_kind": {
-                          "enum": [
-                            "effect_evidence",
-                            "effect_finality",
-                            "credential_resolution"
-                          ],
-                          "type": "string"
-                        },
-                        "provider": {
-                          "minLength": 1,
-                          "type": "string"
-                        },
-                        "schema": {
-                          "const": "runx.reference.v1",
-                          "type": "string"
-                        },
-                        "type": {
-                          "enum": [
-                            "thread",
-                            "comment",
-                            "event",
-                            "tracking_item",
-                            "change_request",
-                            "repository",
-                            "signal",
-                            "run",
-                            "act",
-                            "receipt",
-                            "graph_receipt",
-                            "artifact",
-                            "verification",
-                            "harness",
-                            "host",
-                            "deployment",
-                            "surface",
-                            "target",
-                            "opportunity",
-                            "thesis_assessment",
-                            "selection",
-                            "skill_binding",
-                            "target_transition_entry",
-                            "selection_cycle",
-                            "decision",
-                            "reflection_entry",
-                            "feed_entry",
-                            "principal",
-                            "authority_proof",
-                            "scope_admission",
-                            "grant",
-                            "mandate",
-                            "credential",
-                            "webhook_delivery",
-                            "redaction_policy",
-                            "external_url",
-                            "connector_instance",
-                            "connector_operation"
-                          ],
-                          "type": "string"
-                        },
-                        "uri": {
-                          "minLength": 1,
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "type",
-                        "uri"
-                      ],
-                      "type": "object",
-                      "x-runx-schema": "runx.reference.v1"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
-                },
-                "signal_refs": {
-                  "items": {
-                    "$id": "https://schemas.runx.ai/runx/reference/v1.json",
-                    "$schema": "https://json-schema.org/draft/2020-12/schema",
-                    "additionalProperties": false,
-                    "properties": {
-                      "label": {
-                        "minLength": 1,
-                        "type": "string"
-                      },
-                      "locator": {
-                        "minLength": 1,
-                        "type": "string"
-                      },
-                      "observed_at": {
-                        "minLength": 1,
-                        "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-                        "type": "string"
-                      },
-                      "proof_kind": {
-                        "enum": [
-                          "effect_evidence",
-                          "effect_finality",
-                          "credential_resolution"
-                        ],
-                        "type": "string"
-                      },
-                      "provider": {
-                        "minLength": 1,
-                        "type": "string"
-                      },
-                      "schema": {
-                        "const": "runx.reference.v1",
-                        "type": "string"
-                      },
-                      "type": {
-                        "enum": [
-                          "thread",
-                          "comment",
-                          "event",
-                          "tracking_item",
-                          "change_request",
-                          "repository",
-                          "signal",
-                          "run",
-                          "act",
-                          "receipt",
-                          "graph_receipt",
-                          "artifact",
-                          "verification",
-                          "harness",
-                          "host",
-                          "deployment",
-                          "surface",
-                          "target",
-                          "opportunity",
-                          "thesis_assessment",
-                          "selection",
-                          "skill_binding",
-                          "target_transition_entry",
-                          "selection_cycle",
-                          "decision",
-                          "reflection_entry",
-                          "feed_entry",
-                          "principal",
-                          "authority_proof",
-                          "scope_admission",
-                          "grant",
-                          "mandate",
-                          "credential",
-                          "webhook_delivery",
-                          "redaction_policy",
-                          "external_url",
-                          "connector_instance",
-                          "connector_operation"
-                        ],
-                        "type": "string"
-                      },
-                      "uri": {
-                        "minLength": 1,
-                        "type": "string"
-                      }
-                    },
-                    "required": [
-                      "type",
-                      "uri"
-                    ],
-                    "type": "object",
-                    "x-runx-schema": "runx.reference.v1"
-                  },
-                  "type": "array"
-                },
-                "target_ref": {
-                  "anyOf": [
-                    {
-                      "$id": "https://schemas.runx.ai/runx/reference/v1.json",
-                      "$schema": "https://json-schema.org/draft/2020-12/schema",
-                      "additionalProperties": false,
-                      "properties": {
-                        "label": {
-                          "minLength": 1,
-                          "type": "string"
-                        },
-                        "locator": {
-                          "minLength": 1,
-                          "type": "string"
-                        },
-                        "observed_at": {
-                          "minLength": 1,
-                          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-                          "type": "string"
-                        },
-                        "proof_kind": {
-                          "enum": [
-                            "effect_evidence",
-                            "effect_finality",
-                            "credential_resolution"
-                          ],
-                          "type": "string"
-                        },
-                        "provider": {
-                          "minLength": 1,
-                          "type": "string"
-                        },
-                        "schema": {
-                          "const": "runx.reference.v1",
-                          "type": "string"
-                        },
-                        "type": {
-                          "enum": [
-                            "thread",
-                            "comment",
-                            "event",
-                            "tracking_item",
-                            "change_request",
-                            "repository",
-                            "signal",
-                            "run",
-                            "act",
-                            "receipt",
-                            "graph_receipt",
-                            "artifact",
-                            "verification",
-                            "harness",
-                            "host",
-                            "deployment",
-                            "surface",
-                            "target",
-                            "opportunity",
-                            "thesis_assessment",
-                            "selection",
-                            "skill_binding",
-                            "target_transition_entry",
-                            "selection_cycle",
-                            "decision",
-                            "reflection_entry",
-                            "feed_entry",
-                            "principal",
-                            "authority_proof",
-                            "scope_admission",
-                            "grant",
-                            "mandate",
-                            "credential",
-                            "webhook_delivery",
-                            "redaction_policy",
-                            "external_url",
-                            "connector_instance",
-                            "connector_operation"
-                          ],
-                          "type": "string"
-                        },
-                        "uri": {
-                          "minLength": 1,
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "type",
-                        "uri"
-                      ],
-                      "type": "object",
-                      "x-runx-schema": "runx.reference.v1"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
-                }
-              },
-              "required": [
-                "target_ref",
-                "selection_ref"
-              ],
-              "type": "object"
-            },
-            "justification": {
-              "additionalProperties": false,
-              "properties": {
-                "evidence_refs": {
-                  "items": {
-                    "$id": "https://schemas.runx.ai/runx/reference/v1.json",
-                    "$schema": "https://json-schema.org/draft/2020-12/schema",
-                    "additionalProperties": false,
-                    "properties": {
-                      "label": {
-                        "minLength": 1,
-                        "type": "string"
-                      },
-                      "locator": {
-                        "minLength": 1,
-                        "type": "string"
-                      },
-                      "observed_at": {
-                        "minLength": 1,
-                        "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-                        "type": "string"
-                      },
-                      "proof_kind": {
-                        "enum": [
-                          "effect_evidence",
-                          "effect_finality",
-                          "credential_resolution"
-                        ],
-                        "type": "string"
-                      },
-                      "provider": {
-                        "minLength": 1,
-                        "type": "string"
-                      },
-                      "schema": {
-                        "const": "runx.reference.v1",
-                        "type": "string"
-                      },
-                      "type": {
-                        "enum": [
-                          "thread",
-                          "comment",
-                          "event",
-                          "tracking_item",
-                          "change_request",
-                          "repository",
-                          "signal",
-                          "run",
-                          "act",
-                          "receipt",
-                          "graph_receipt",
-                          "artifact",
-                          "verification",
-                          "harness",
-                          "host",
-                          "deployment",
-                          "surface",
-                          "target",
-                          "opportunity",
-                          "thesis_assessment",
-                          "selection",
-                          "skill_binding",
-                          "target_transition_entry",
-                          "selection_cycle",
-                          "decision",
-                          "reflection_entry",
-                          "feed_entry",
-                          "principal",
-                          "authority_proof",
-                          "scope_admission",
-                          "grant",
-                          "mandate",
-                          "credential",
-                          "webhook_delivery",
-                          "redaction_policy",
-                          "external_url",
-                          "connector_instance",
-                          "connector_operation"
-                        ],
-                        "type": "string"
-                      },
-                      "uri": {
-                        "minLength": 1,
-                        "type": "string"
-                      }
-                    },
-                    "required": [
-                      "type",
-                      "uri"
-                    ],
-                    "type": "object",
-                    "x-runx-schema": "runx.reference.v1"
-                  },
-                  "type": "array"
-                },
-                "summary": {
-                  "minLength": 1,
-                  "type": "string"
-                }
-              },
-              "required": [
-                "summary"
-              ],
-              "type": "object"
-            },
-            "proposed_intent": {
-              "additionalProperties": false,
-              "properties": {
-                "constraints": {
-                  "items": {
-                    "minLength": 1,
-                    "type": "string"
-                  },
-                  "type": "array"
-                },
-                "derived_from": {
-                  "items": {
-                    "$id": "https://schemas.runx.ai/runx/reference/v1.json",
-                    "$schema": "https://json-schema.org/draft/2020-12/schema",
-                    "additionalProperties": false,
-                    "properties": {
-                      "label": {
-                        "minLength": 1,
-                        "type": "string"
-                      },
-                      "locator": {
-                        "minLength": 1,
-                        "type": "string"
-                      },
-                      "observed_at": {
-                        "minLength": 1,
-                        "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-                        "type": "string"
-                      },
-                      "proof_kind": {
-                        "enum": [
-                          "effect_evidence",
-                          "effect_finality",
-                          "credential_resolution"
-                        ],
-                        "type": "string"
-                      },
-                      "provider": {
-                        "minLength": 1,
-                        "type": "string"
-                      },
-                      "schema": {
-                        "const": "runx.reference.v1",
-                        "type": "string"
-                      },
-                      "type": {
-                        "enum": [
-                          "thread",
-                          "comment",
-                          "event",
-                          "tracking_item",
-                          "change_request",
-                          "repository",
-                          "signal",
-                          "run",
-                          "act",
-                          "receipt",
-                          "graph_receipt",
-                          "artifact",
-                          "verification",
-                          "harness",
-                          "host",
-                          "deployment",
-                          "surface",
-                          "target",
-                          "opportunity",
-                          "thesis_assessment",
-                          "selection",
-                          "skill_binding",
-                          "target_transition_entry",
-                          "selection_cycle",
-                          "decision",
-                          "reflection_entry",
-                          "feed_entry",
-                          "principal",
-                          "authority_proof",
-                          "scope_admission",
-                          "grant",
-                          "mandate",
-                          "credential",
-                          "webhook_delivery",
-                          "redaction_policy",
-                          "external_url",
-                          "connector_instance",
-                          "connector_operation"
-                        ],
-                        "type": "string"
-                      },
-                      "uri": {
-                        "minLength": 1,
-                        "type": "string"
-                      }
-                    },
-                    "required": [
-                      "type",
-                      "uri"
-                    ],
-                    "type": "object",
-                    "x-runx-schema": "runx.reference.v1"
-                  },
-                  "type": "array"
-                },
-                "legitimacy": {
-                  "minLength": 1,
-                  "type": "string"
-                },
-                "purpose": {
-                  "minLength": 1,
-                  "type": "string"
-                },
-                "success_criteria": {
-                  "items": {
-                    "additionalProperties": false,
-                    "properties": {
-                      "criterion_id": {
-                        "minLength": 1,
-                        "type": "string"
-                      },
-                      "required": {
-                        "type": "boolean"
-                      },
-                      "statement": {
-                        "minLength": 1,
-                        "type": "string"
-                      }
-                    },
-                    "required": [
-                      "criterion_id",
-                      "statement",
-                      "required"
-                    ],
-                    "type": "object"
-                  },
-                  "type": "array"
-                }
-              },
-              "required": [
-                "purpose",
-                "legitimacy"
-              ],
-              "type": "object"
             },
             "schema": {
               "const": "runx.decision.v1",
               "type": "string"
             },
             "selected_act_id": {
-              "anyOf": [
-                {
-                  "minLength": 1,
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "selected_harness_ref": {
-              "anyOf": [
-                {
-                  "$id": "https://schemas.runx.ai/runx/reference/v1.json",
-                  "$schema": "https://json-schema.org/draft/2020-12/schema",
-                  "additionalProperties": false,
-                  "properties": {
-                    "label": {
-                      "minLength": 1,
-                      "type": "string"
-                    },
-                    "locator": {
-                      "minLength": 1,
-                      "type": "string"
-                    },
-                    "observed_at": {
-                      "minLength": 1,
-                      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-                      "type": "string"
-                    },
-                    "proof_kind": {
-                      "enum": [
-                        "effect_evidence",
-                        "effect_finality",
-                        "credential_resolution"
-                      ],
-                      "type": "string"
-                    },
-                    "provider": {
-                      "minLength": 1,
-                      "type": "string"
-                    },
-                    "schema": {
-                      "const": "runx.reference.v1",
-                      "type": "string"
-                    },
-                    "type": {
-                      "enum": [
-                        "thread",
-                        "comment",
-                        "event",
-                        "tracking_item",
-                        "change_request",
-                        "repository",
-                        "signal",
-                        "run",
-                        "act",
-                        "receipt",
-                        "graph_receipt",
-                        "artifact",
-                        "verification",
-                        "harness",
-                        "host",
-                        "deployment",
-                        "surface",
-                        "target",
-                        "opportunity",
-                        "thesis_assessment",
-                        "selection",
-                        "skill_binding",
-                        "target_transition_entry",
-                        "selection_cycle",
-                        "decision",
-                        "reflection_entry",
-                        "feed_entry",
-                        "principal",
-                        "authority_proof",
-                        "scope_admission",
-                        "grant",
-                        "mandate",
-                        "credential",
-                        "webhook_delivery",
-                        "redaction_policy",
-                        "external_url",
-                        "connector_instance",
-                        "connector_operation"
-                      ],
-                      "type": "string"
-                    },
-                    "uri": {
-                      "minLength": 1,
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "type",
-                    "uri"
-                  ],
-                  "type": "object",
-                  "x-runx-schema": "runx.reference.v1"
-                },
-                {
-                  "type": "null"
-                }
-              ]
+              "minLength": 1,
+              "type": "string"
             }
           },
           "required": [
             "decision_id",
             "choice",
-            "inputs",
-            "proposed_intent",
-            "selected_act_id",
-            "selected_harness_ref",
-            "justification",
-            "closure"
+            "selected_act_id"
           ],
           "type": "object",
           "x-runx-schema": "runx.decision.v1"
@@ -36239,392 +26229,9 @@ export const runxSchemaArtifacts = {
         "minLength": 1,
         "type": "string"
       },
-      "evidence": {
-        "items": {
-          "anyOf": [
-            {
-              "additionalProperties": false,
-              "properties": {
-                "expected": {
-                  "additionalProperties": false,
-                  "properties": {
-                    "input_digest": {
-                      "pattern": "^sha256:[0-9a-f]{64}$",
-                      "type": "string"
-                    },
-                    "invocation_id": {
-                      "minLength": 1,
-                      "type": "string"
-                    },
-                    "mediation": {
-                      "additionalProperties": false,
-                      "properties": {
-                        "currency": {
-                          "pattern": "^[A-Z]{3}$",
-                          "type": "string"
-                        },
-                        "endpoint_url": {
-                          "maxLength": 2048,
-                          "pattern": "^https://[^\\s@/#?]+[^\\s#]*$",
-                          "type": "string"
-                        },
-                        "expected_receipt_class": {
-                          "enum": [
-                            "executed"
-                          ],
-                          "type": "string"
-                        },
-                        "listing_ref": {
-                          "maxLength": 512,
-                          "pattern": "^runx:listing:[^\\s]+$",
-                          "type": "string"
-                        },
-                        "platform_fee_minor": {
-                          "maximum": 9007199254740991,
-                          "minimum": 1,
-                          "type": "integer"
-                        },
-                        "prepared_price": {
-                          "additionalProperties": false,
-                          "properties": {
-                            "input_digest": {
-                              "pattern": "^sha256:[0-9a-f]{64}$",
-                              "type": "string"
-                            },
-                            "source_invocation_id": {
-                              "maxLength": 128,
-                              "minLength": 1,
-                              "type": "string"
-                            }
-                          },
-                          "required": [
-                            "source_invocation_id",
-                            "input_digest"
-                          ],
-                          "type": "object"
-                        },
-                        "settlement_family": {
-                          "maxLength": 64,
-                          "minLength": 1,
-                          "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$",
-                          "type": "string"
-                        },
-                        "vendor_amount_minor": {
-                          "maximum": 9007199254740991,
-                          "minimum": 1,
-                          "type": "integer"
-                        },
-                        "vendor_offer_revision": {
-                          "additionalProperties": false,
-                          "properties": {
-                            "input_schema_digest": {
-                              "pattern": "^sha256:[0-9a-f]{64}$",
-                              "type": "string"
-                            },
-                            "offer_id": {
-                              "minLength": 1,
-                              "type": "string"
-                            },
-                            "output_schema_digest": {
-                              "pattern": "^sha256:[0-9a-f]{64}$",
-                              "type": "string"
-                            },
-                            "revision": {
-                              "minLength": 1,
-                              "type": "string"
-                            },
-                            "revision_digest": {
-                              "pattern": "^sha256:[0-9a-f]{64}$",
-                              "type": "string"
-                            }
-                          },
-                          "required": [
-                            "offer_id",
-                            "revision",
-                            "revision_digest",
-                            "input_schema_digest",
-                            "output_schema_digest"
-                          ],
-                          "type": "object"
-                        },
-                        "vendor_package_digest": {
-                          "pattern": "^sha256:[0-9a-f]{64}$",
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "listing_ref",
-                        "endpoint_url",
-                        "vendor_offer_revision",
-                        "vendor_package_digest",
-                        "vendor_amount_minor",
-                        "platform_fee_minor",
-                        "currency",
-                        "settlement_family",
-                        "expected_receipt_class"
-                      ],
-                      "type": "object"
-                    },
-                    "offer_revision": {
-                      "$id": "https://schemas.runx.ai/runx/payment/offer-revision-ref/v1.json",
-                      "$schema": "https://json-schema.org/draft/2020-12/schema",
-                      "additionalProperties": false,
-                      "properties": {
-                        "input_schema_digest": {
-                          "pattern": "^sha256:[0-9a-f]{64}$",
-                          "type": "string"
-                        },
-                        "offer_id": {
-                          "minLength": 1,
-                          "type": "string"
-                        },
-                        "output_schema_digest": {
-                          "pattern": "^sha256:[0-9a-f]{64}$",
-                          "type": "string"
-                        },
-                        "revision": {
-                          "minLength": 1,
-                          "type": "string"
-                        },
-                        "revision_digest": {
-                          "pattern": "^sha256:[0-9a-f]{64}$",
-                          "type": "string"
-                        },
-                        "schema": {
-                          "const": "runx.payment.offer_revision_ref.v1",
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "offer_id",
-                        "revision",
-                        "revision_digest",
-                        "input_schema_digest",
-                        "output_schema_digest"
-                      ],
-                      "type": "object",
-                      "x-runx-schema": "runx.payment.offer_revision_ref.v1"
-                    },
-                    "package_digest": {
-                      "pattern": "^sha256:[0-9a-f]{64}$",
-                      "type": "string"
-                    },
-                    "parent_binding": {
-                      "$id": "https://schemas.runx.ai/runx/payment/parent-invocation-binding/v1.json",
-                      "$schema": "https://json-schema.org/draft/2020-12/schema",
-                      "additionalProperties": false,
-                      "properties": {
-                        "execution_digest": {
-                          "pattern": "^sha256:[0-9a-f]{64}$",
-                          "type": "string"
-                        },
-                        "invocation_id": {
-                          "minLength": 1,
-                          "type": "string"
-                        },
-                        "schema": {
-                          "const": "runx.payment.parent_invocation_binding.v1",
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "invocation_id",
-                        "execution_digest"
-                      ],
-                      "type": "object",
-                      "x-runx-schema": "runx.payment.parent_invocation_binding.v1"
-                    },
-                    "vendor_ref": {
-                      "$id": "https://schemas.runx.ai/runx/reference/v1.json",
-                      "$schema": "https://json-schema.org/draft/2020-12/schema",
-                      "additionalProperties": false,
-                      "properties": {
-                        "label": {
-                          "minLength": 1,
-                          "type": "string"
-                        },
-                        "locator": {
-                          "minLength": 1,
-                          "type": "string"
-                        },
-                        "observed_at": {
-                          "minLength": 1,
-                          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-                          "type": "string"
-                        },
-                        "proof_kind": {
-                          "enum": [
-                            "effect_evidence",
-                            "effect_finality",
-                            "credential_resolution"
-                          ],
-                          "type": "string"
-                        },
-                        "provider": {
-                          "minLength": 1,
-                          "type": "string"
-                        },
-                        "schema": {
-                          "const": "runx.reference.v1",
-                          "type": "string"
-                        },
-                        "type": {
-                          "const": "principal",
-                          "type": "string"
-                        },
-                        "uri": {
-                          "minLength": 1,
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "type",
-                        "uri"
-                      ],
-                      "type": "object",
-                      "x-runx-schema": "runx.reference.v1"
-                    }
-                  },
-                  "required": [
-                    "invocation_id",
-                    "vendor_ref",
-                    "offer_revision",
-                    "package_digest",
-                    "input_digest"
-                  ],
-                  "type": "object"
-                },
-                "receipt_ref": {
-                  "$id": "https://schemas.runx.ai/runx/reference/v1.json",
-                  "$schema": "https://json-schema.org/draft/2020-12/schema",
-                  "additionalProperties": false,
-                  "properties": {
-                    "label": {
-                      "minLength": 1,
-                      "type": "string"
-                    },
-                    "locator": {
-                      "minLength": 1,
-                      "type": "string"
-                    },
-                    "observed_at": {
-                      "minLength": 1,
-                      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-                      "type": "string"
-                    },
-                    "proof_kind": {
-                      "enum": [
-                        "effect_evidence",
-                        "effect_finality",
-                        "credential_resolution"
-                      ],
-                      "type": "string"
-                    },
-                    "provider": {
-                      "minLength": 1,
-                      "type": "string"
-                    },
-                    "schema": {
-                      "const": "runx.reference.v1",
-                      "type": "string"
-                    },
-                    "type": {
-                      "enum": [
-                        "thread",
-                        "comment",
-                        "event",
-                        "tracking_item",
-                        "change_request",
-                        "repository",
-                        "signal",
-                        "run",
-                        "act",
-                        "receipt",
-                        "graph_receipt",
-                        "artifact",
-                        "verification",
-                        "harness",
-                        "host",
-                        "deployment",
-                        "surface",
-                        "target",
-                        "opportunity",
-                        "thesis_assessment",
-                        "selection",
-                        "skill_binding",
-                        "target_transition_entry",
-                        "selection_cycle",
-                        "decision",
-                        "reflection_entry",
-                        "feed_entry",
-                        "principal",
-                        "authority_proof",
-                        "scope_admission",
-                        "grant",
-                        "mandate",
-                        "credential",
-                        "webhook_delivery",
-                        "redaction_policy",
-                        "external_url",
-                        "connector_instance",
-                        "connector_operation"
-                      ],
-                      "type": "string"
-                    },
-                    "uri": {
-                      "minLength": 1,
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "type",
-                    "uri"
-                  ],
-                  "type": "object",
-                  "x-runx-schema": "runx.reference.v1"
-                },
-                "type": {
-                  "const": "inner_receipt",
-                  "type": "string"
-                }
-              },
-              "required": [
-                "type",
-                "receipt_ref",
-                "expected"
-              ],
-              "type": "object"
-            }
-          ]
-        },
-        "type": "array"
-      },
       "id": {
         "minLength": 1,
         "type": "string"
-      },
-      "idempotency": {
-        "additionalProperties": false,
-        "properties": {
-          "content_hash": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "intent_key": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "trigger_fingerprint": {
-            "minLength": 1,
-            "type": "string"
-          }
-        },
-        "required": [
-          "intent_key",
-          "trigger_fingerprint",
-          "content_hash"
-        ],
-        "type": "object"
       },
       "issuer": {
         "additionalProperties": false,
@@ -36641,8 +26248,7 @@ export const runxSchemaArtifacts = {
             "enum": [
               "local",
               "hosted",
-              "ci",
-              "verifier"
+              "ci"
             ],
             "type": "string"
           }
@@ -36704,25 +26310,14 @@ export const runxSchemaArtifacts = {
                     "run",
                     "act",
                     "receipt",
-                    "graph_receipt",
                     "artifact",
                     "verification",
                     "harness",
                     "host",
-                    "deployment",
                     "surface",
                     "target",
-                    "opportunity",
-                    "thesis_assessment",
-                    "selection",
                     "skill_binding",
-                    "target_transition_entry",
-                    "selection_cycle",
-                    "decision",
-                    "reflection_entry",
-                    "feed_entry",
                     "principal",
-                    "authority_proof",
                     "scope_admission",
                     "grant",
                     "mandate",
@@ -36748,95 +26343,6 @@ export const runxSchemaArtifacts = {
               "x-runx-schema": "runx.reference.v1"
             },
             "type": "array"
-          },
-          "parent": {
-            "$id": "https://schemas.runx.ai/runx/reference/v1.json",
-            "$schema": "https://json-schema.org/draft/2020-12/schema",
-            "additionalProperties": false,
-            "properties": {
-              "label": {
-                "minLength": 1,
-                "type": "string"
-              },
-              "locator": {
-                "minLength": 1,
-                "type": "string"
-              },
-              "observed_at": {
-                "minLength": 1,
-                "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-                "type": "string"
-              },
-              "proof_kind": {
-                "enum": [
-                  "effect_evidence",
-                  "effect_finality",
-                  "credential_resolution"
-                ],
-                "type": "string"
-              },
-              "provider": {
-                "minLength": 1,
-                "type": "string"
-              },
-              "schema": {
-                "const": "runx.reference.v1",
-                "type": "string"
-              },
-              "type": {
-                "enum": [
-                  "thread",
-                  "comment",
-                  "event",
-                  "tracking_item",
-                  "change_request",
-                  "repository",
-                  "signal",
-                  "run",
-                  "act",
-                  "receipt",
-                  "graph_receipt",
-                  "artifact",
-                  "verification",
-                  "harness",
-                  "host",
-                  "deployment",
-                  "surface",
-                  "target",
-                  "opportunity",
-                  "thesis_assessment",
-                  "selection",
-                  "skill_binding",
-                  "target_transition_entry",
-                  "selection_cycle",
-                  "decision",
-                  "reflection_entry",
-                  "feed_entry",
-                  "principal",
-                  "authority_proof",
-                  "scope_admission",
-                  "grant",
-                  "mandate",
-                  "credential",
-                  "webhook_delivery",
-                  "redaction_policy",
-                  "external_url",
-                  "connector_instance",
-                  "connector_operation"
-                ],
-                "type": "string"
-              },
-              "uri": {
-                "minLength": 1,
-                "type": "string"
-              }
-            },
-            "required": [
-              "type",
-              "uri"
-            ],
-            "type": "object",
-            "x-runx-schema": "runx.reference.v1"
           },
           "previous": {
             "$id": "https://schemas.runx.ai/runx/reference/v1.json",
@@ -36884,114 +26390,14 @@ export const runxSchemaArtifacts = {
                   "run",
                   "act",
                   "receipt",
-                  "graph_receipt",
                   "artifact",
                   "verification",
                   "harness",
                   "host",
-                  "deployment",
                   "surface",
                   "target",
-                  "opportunity",
-                  "thesis_assessment",
-                  "selection",
                   "skill_binding",
-                  "target_transition_entry",
-                  "selection_cycle",
-                  "decision",
-                  "reflection_entry",
-                  "feed_entry",
                   "principal",
-                  "authority_proof",
-                  "scope_admission",
-                  "grant",
-                  "mandate",
-                  "credential",
-                  "webhook_delivery",
-                  "redaction_policy",
-                  "external_url",
-                  "connector_instance",
-                  "connector_operation"
-                ],
-                "type": "string"
-              },
-              "uri": {
-                "minLength": 1,
-                "type": "string"
-              }
-            },
-            "required": [
-              "type",
-              "uri"
-            ],
-            "type": "object",
-            "x-runx-schema": "runx.reference.v1"
-          },
-          "resume_ref": {
-            "$id": "https://schemas.runx.ai/runx/reference/v1.json",
-            "$schema": "https://json-schema.org/draft/2020-12/schema",
-            "additionalProperties": false,
-            "properties": {
-              "label": {
-                "minLength": 1,
-                "type": "string"
-              },
-              "locator": {
-                "minLength": 1,
-                "type": "string"
-              },
-              "observed_at": {
-                "minLength": 1,
-                "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-                "type": "string"
-              },
-              "proof_kind": {
-                "enum": [
-                  "effect_evidence",
-                  "effect_finality",
-                  "credential_resolution"
-                ],
-                "type": "string"
-              },
-              "provider": {
-                "minLength": 1,
-                "type": "string"
-              },
-              "schema": {
-                "const": "runx.reference.v1",
-                "type": "string"
-              },
-              "type": {
-                "enum": [
-                  "thread",
-                  "comment",
-                  "event",
-                  "tracking_item",
-                  "change_request",
-                  "repository",
-                  "signal",
-                  "run",
-                  "act",
-                  "receipt",
-                  "graph_receipt",
-                  "artifact",
-                  "verification",
-                  "harness",
-                  "host",
-                  "deployment",
-                  "surface",
-                  "target",
-                  "opportunity",
-                  "thesis_assessment",
-                  "selection",
-                  "skill_binding",
-                  "target_transition_entry",
-                  "selection_cycle",
-                  "decision",
-                  "reflection_entry",
-                  "feed_entry",
-                  "principal",
-                  "authority_proof",
                   "scope_admission",
                   "grant",
                   "mandate",
@@ -37017,6 +26423,9 @@ export const runxSchemaArtifacts = {
             "x-runx-schema": "runx.reference.v1"
           }
         },
+        "required": [
+          "children"
+        ],
         "type": "object"
       },
       "metadata": {
@@ -37042,7 +26451,12 @@ export const runxSchemaArtifacts = {
               "additionalProperties": false,
               "properties": {
                 "criterion_id": {
-                  "minLength": 1,
+                  "enum": [
+                    "step_outcome",
+                    "output_contract_verified",
+                    "voice_profile_applied",
+                    "packet_schemas_verified"
+                  ],
                   "type": "string"
                 },
                 "evidence_refs": {
@@ -37092,25 +26506,14 @@ export const runxSchemaArtifacts = {
                           "run",
                           "act",
                           "receipt",
-                          "graph_receipt",
                           "artifact",
                           "verification",
                           "harness",
                           "host",
-                          "deployment",
                           "surface",
                           "target",
-                          "opportunity",
-                          "thesis_assessment",
-                          "selection",
                           "skill_binding",
-                          "target_transition_entry",
-                          "selection_cycle",
-                          "decision",
-                          "reflection_entry",
-                          "feed_entry",
                           "principal",
-                          "authority_proof",
                           "scope_admission",
                           "grant",
                           "mandate",
@@ -37140,15 +26543,8 @@ export const runxSchemaArtifacts = {
                 "status": {
                   "enum": [
                     "verified",
-                    "failed",
-                    "pending",
-                    "not_applicable",
-                    "unknown"
+                    "failed"
                   ],
-                  "type": "string"
-                },
-                "summary": {
-                  "minLength": 1,
                   "type": "string"
                 },
                 "verification_refs": {
@@ -37198,25 +26594,14 @@ export const runxSchemaArtifacts = {
                           "run",
                           "act",
                           "receipt",
-                          "graph_receipt",
                           "artifact",
                           "verification",
                           "harness",
                           "host",
-                          "deployment",
                           "surface",
                           "target",
-                          "opportunity",
-                          "thesis_assessment",
-                          "selection",
                           "skill_binding",
-                          "target_transition_entry",
-                          "selection_cycle",
-                          "decision",
-                          "reflection_entry",
-                          "feed_entry",
                           "principal",
-                          "authority_proof",
                           "scope_admission",
                           "grant",
                           "mandate",
@@ -37246,7 +26631,9 @@ export const runxSchemaArtifacts = {
               },
               "required": [
                 "criterion_id",
-                "status"
+                "status",
+                "evidence_refs",
+                "verification_refs"
               ],
               "type": "object"
             },
@@ -37265,16 +26652,7 @@ export const runxSchemaArtifacts = {
             ],
             "type": "string"
           },
-          "last_observed_at": {
-            "minLength": 1,
-            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-            "type": "string"
-          },
           "reason_code": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "summary": {
             "minLength": 1,
             "type": "string"
           }
@@ -37282,103 +26660,10 @@ export const runxSchemaArtifacts = {
         "required": [
           "disposition",
           "reason_code",
-          "summary",
           "closed_at",
-          "last_observed_at"
+          "criteria"
         ],
         "type": "object"
-      },
-      "signals": {
-        "items": {
-          "$id": "https://schemas.runx.ai/runx/reference/v1.json",
-          "$schema": "https://json-schema.org/draft/2020-12/schema",
-          "additionalProperties": false,
-          "properties": {
-            "label": {
-              "minLength": 1,
-              "type": "string"
-            },
-            "locator": {
-              "minLength": 1,
-              "type": "string"
-            },
-            "observed_at": {
-              "minLength": 1,
-              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-              "type": "string"
-            },
-            "proof_kind": {
-              "enum": [
-                "effect_evidence",
-                "effect_finality",
-                "credential_resolution"
-              ],
-              "type": "string"
-            },
-            "provider": {
-              "minLength": 1,
-              "type": "string"
-            },
-            "schema": {
-              "const": "runx.reference.v1",
-              "type": "string"
-            },
-            "type": {
-              "enum": [
-                "thread",
-                "comment",
-                "event",
-                "tracking_item",
-                "change_request",
-                "repository",
-                "signal",
-                "run",
-                "act",
-                "receipt",
-                "graph_receipt",
-                "artifact",
-                "verification",
-                "harness",
-                "host",
-                "deployment",
-                "surface",
-                "target",
-                "opportunity",
-                "thesis_assessment",
-                "selection",
-                "skill_binding",
-                "target_transition_entry",
-                "selection_cycle",
-                "decision",
-                "reflection_entry",
-                "feed_entry",
-                "principal",
-                "authority_proof",
-                "scope_admission",
-                "grant",
-                "mandate",
-                "credential",
-                "webhook_delivery",
-                "redaction_policy",
-                "external_url",
-                "connector_instance",
-                "connector_operation"
-              ],
-              "type": "string"
-            },
-            "uri": {
-              "minLength": 1,
-              "type": "string"
-            }
-          },
-          "required": [
-            "type",
-            "uri"
-          ],
-          "type": "object",
-          "x-runx-schema": "runx.reference.v1"
-        },
-        "type": "array"
       },
       "signature": {
         "additionalProperties": false,
@@ -37403,319 +26688,14 @@ export const runxSchemaArtifacts = {
       "subject": {
         "additionalProperties": false,
         "properties": {
-          "commitments": {
-            "items": {
-              "additionalProperties": false,
-              "properties": {
-                "algorithm": {
-                  "enum": [
-                    "sha256"
-                  ],
-                  "type": "string"
-                },
-                "canonicalization": {
-                  "minLength": 1,
-                  "type": "string"
-                },
-                "scope": {
-                  "enum": [
-                    "input",
-                    "output",
-                    "stdout",
-                    "stderr",
-                    "error"
-                  ],
-                  "type": "string"
-                },
-                "value": {
-                  "minLength": 1,
-                  "type": "string"
-                }
-              },
-              "required": [
-                "scope",
-                "algorithm",
-                "value",
-                "canonicalization"
-              ],
-              "type": "object"
-            },
-            "type": "array"
-          },
-          "input_context": {
-            "additionalProperties": false,
-            "properties": {
-              "preview": {
-                "type": "string"
-              },
-              "source": {
-                "minLength": 1,
-                "type": "string"
-              },
-              "value_hash": {
-                "minLength": 1,
-                "type": "string"
-              }
-            },
-            "required": [
-              "source",
-              "preview",
-              "value_hash"
-            ],
-            "type": "object"
-          },
           "kind": {
             "minLength": 1,
             "type": "string"
           },
-          "paid_invocation": {
-            "additionalProperties": false,
-            "properties": {
-              "input_digest": {
-                "pattern": "^sha256:[0-9a-f]{64}$",
-                "type": "string"
-              },
-              "invocation_id": {
-                "minLength": 1,
-                "type": "string"
-              },
-              "mediation": {
-                "additionalProperties": false,
-                "properties": {
-                  "currency": {
-                    "pattern": "^[A-Z]{3}$",
-                    "type": "string"
-                  },
-                  "endpoint_url": {
-                    "maxLength": 2048,
-                    "pattern": "^https://[^\\s@/#?]+[^\\s#]*$",
-                    "type": "string"
-                  },
-                  "expected_receipt_class": {
-                    "enum": [
-                      "executed"
-                    ],
-                    "type": "string"
-                  },
-                  "listing_ref": {
-                    "maxLength": 512,
-                    "pattern": "^runx:listing:[^\\s]+$",
-                    "type": "string"
-                  },
-                  "platform_fee_minor": {
-                    "maximum": 9007199254740991,
-                    "minimum": 1,
-                    "type": "integer"
-                  },
-                  "prepared_price": {
-                    "additionalProperties": false,
-                    "properties": {
-                      "input_digest": {
-                        "pattern": "^sha256:[0-9a-f]{64}$",
-                        "type": "string"
-                      },
-                      "source_invocation_id": {
-                        "maxLength": 128,
-                        "minLength": 1,
-                        "type": "string"
-                      }
-                    },
-                    "required": [
-                      "source_invocation_id",
-                      "input_digest"
-                    ],
-                    "type": "object"
-                  },
-                  "settlement_family": {
-                    "maxLength": 64,
-                    "minLength": 1,
-                    "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$",
-                    "type": "string"
-                  },
-                  "vendor_amount_minor": {
-                    "maximum": 9007199254740991,
-                    "minimum": 1,
-                    "type": "integer"
-                  },
-                  "vendor_offer_revision": {
-                    "additionalProperties": false,
-                    "properties": {
-                      "input_schema_digest": {
-                        "pattern": "^sha256:[0-9a-f]{64}$",
-                        "type": "string"
-                      },
-                      "offer_id": {
-                        "minLength": 1,
-                        "type": "string"
-                      },
-                      "output_schema_digest": {
-                        "pattern": "^sha256:[0-9a-f]{64}$",
-                        "type": "string"
-                      },
-                      "revision": {
-                        "minLength": 1,
-                        "type": "string"
-                      },
-                      "revision_digest": {
-                        "pattern": "^sha256:[0-9a-f]{64}$",
-                        "type": "string"
-                      }
-                    },
-                    "required": [
-                      "offer_id",
-                      "revision",
-                      "revision_digest",
-                      "input_schema_digest",
-                      "output_schema_digest"
-                    ],
-                    "type": "object"
-                  },
-                  "vendor_package_digest": {
-                    "pattern": "^sha256:[0-9a-f]{64}$",
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "listing_ref",
-                  "endpoint_url",
-                  "vendor_offer_revision",
-                  "vendor_package_digest",
-                  "vendor_amount_minor",
-                  "platform_fee_minor",
-                  "currency",
-                  "settlement_family",
-                  "expected_receipt_class"
-                ],
-                "type": "object"
-              },
-              "offer_revision": {
-                "$id": "https://schemas.runx.ai/runx/payment/offer-revision-ref/v1.json",
-                "$schema": "https://json-schema.org/draft/2020-12/schema",
-                "additionalProperties": false,
-                "properties": {
-                  "input_schema_digest": {
-                    "pattern": "^sha256:[0-9a-f]{64}$",
-                    "type": "string"
-                  },
-                  "offer_id": {
-                    "minLength": 1,
-                    "type": "string"
-                  },
-                  "output_schema_digest": {
-                    "pattern": "^sha256:[0-9a-f]{64}$",
-                    "type": "string"
-                  },
-                  "revision": {
-                    "minLength": 1,
-                    "type": "string"
-                  },
-                  "revision_digest": {
-                    "pattern": "^sha256:[0-9a-f]{64}$",
-                    "type": "string"
-                  },
-                  "schema": {
-                    "const": "runx.payment.offer_revision_ref.v1",
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "offer_id",
-                  "revision",
-                  "revision_digest",
-                  "input_schema_digest",
-                  "output_schema_digest"
-                ],
-                "type": "object",
-                "x-runx-schema": "runx.payment.offer_revision_ref.v1"
-              },
-              "package_digest": {
-                "pattern": "^sha256:[0-9a-f]{64}$",
-                "type": "string"
-              },
-              "parent_binding": {
-                "$id": "https://schemas.runx.ai/runx/payment/parent-invocation-binding/v1.json",
-                "$schema": "https://json-schema.org/draft/2020-12/schema",
-                "additionalProperties": false,
-                "properties": {
-                  "execution_digest": {
-                    "pattern": "^sha256:[0-9a-f]{64}$",
-                    "type": "string"
-                  },
-                  "invocation_id": {
-                    "minLength": 1,
-                    "type": "string"
-                  },
-                  "schema": {
-                    "const": "runx.payment.parent_invocation_binding.v1",
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "invocation_id",
-                  "execution_digest"
-                ],
-                "type": "object",
-                "x-runx-schema": "runx.payment.parent_invocation_binding.v1"
-              },
-              "vendor_ref": {
-                "$id": "https://schemas.runx.ai/runx/reference/v1.json",
-                "$schema": "https://json-schema.org/draft/2020-12/schema",
-                "additionalProperties": false,
-                "properties": {
-                  "label": {
-                    "minLength": 1,
-                    "type": "string"
-                  },
-                  "locator": {
-                    "minLength": 1,
-                    "type": "string"
-                  },
-                  "observed_at": {
-                    "minLength": 1,
-                    "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-                    "type": "string"
-                  },
-                  "proof_kind": {
-                    "enum": [
-                      "effect_evidence",
-                      "effect_finality",
-                      "credential_resolution"
-                    ],
-                    "type": "string"
-                  },
-                  "provider": {
-                    "minLength": 1,
-                    "type": "string"
-                  },
-                  "schema": {
-                    "const": "runx.reference.v1",
-                    "type": "string"
-                  },
-                  "type": {
-                    "const": "principal",
-                    "type": "string"
-                  },
-                  "uri": {
-                    "minLength": 1,
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "type",
-                  "uri"
-                ],
-                "type": "object",
-                "x-runx-schema": "runx.reference.v1"
-              }
-            },
-            "required": [
-              "invocation_id",
-              "vendor_ref",
-              "offer_revision",
-              "package_digest",
-              "input_digest"
-            ],
-            "type": "object"
+          "outcome": {
+            "maxLength": 71,
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
           },
           "ref": {
             "$id": "https://schemas.runx.ai/runx/reference/v1.json",
@@ -37763,25 +26743,14 @@ export const runxSchemaArtifacts = {
                   "run",
                   "act",
                   "receipt",
-                  "graph_receipt",
                   "artifact",
                   "verification",
                   "harness",
                   "host",
-                  "deployment",
                   "surface",
                   "target",
-                  "opportunity",
-                  "thesis_assessment",
-                  "selection",
                   "skill_binding",
-                  "target_transition_entry",
-                  "selection_cycle",
-                  "decision",
-                  "reflection_entry",
-                  "feed_entry",
                   "principal",
-                  "authority_proof",
                   "scope_admission",
                   "grant",
                   "mandate",
@@ -37809,7 +26778,8 @@ export const runxSchemaArtifacts = {
         },
         "required": [
           "kind",
-          "ref"
+          "ref",
+          "outcome"
         ],
         "type": "object"
       }
@@ -37822,11 +26792,12 @@ export const runxSchemaArtifacts = {
       "issuer",
       "signature",
       "digest",
-      "idempotency",
-      "class",
       "subject",
       "authority",
-      "seal"
+      "decisions",
+      "acts",
+      "seal",
+      "lineage"
     ],
     "type": "object",
     "x-runx-packet": true,
@@ -37920,25 +26891,14 @@ export const runxSchemaArtifacts = {
               "run",
               "act",
               "receipt",
-              "graph_receipt",
               "artifact",
               "verification",
               "harness",
               "host",
-              "deployment",
               "surface",
               "target",
-              "opportunity",
-              "thesis_assessment",
-              "selection",
               "skill_binding",
-              "target_transition_entry",
-              "selection_cycle",
-              "decision",
-              "reflection_entry",
-              "feed_entry",
               "principal",
-              "authority_proof",
               "scope_admission",
               "grant",
               "mandate",
@@ -38009,25 +26969,14 @@ export const runxSchemaArtifacts = {
               "run",
               "act",
               "receipt",
-              "graph_receipt",
               "artifact",
               "verification",
               "harness",
               "host",
-              "deployment",
               "surface",
               "target",
-              "opportunity",
-              "thesis_assessment",
-              "selection",
               "skill_binding",
-              "target_transition_entry",
-              "selection_cycle",
-              "decision",
-              "reflection_entry",
-              "feed_entry",
               "principal",
-              "authority_proof",
               "scope_admission",
               "grant",
               "mandate",
@@ -38132,25 +27081,14 @@ export const runxSchemaArtifacts = {
               "run",
               "act",
               "receipt",
-              "graph_receipt",
               "artifact",
               "verification",
               "harness",
               "host",
-              "deployment",
               "surface",
               "target",
-              "opportunity",
-              "thesis_assessment",
-              "selection",
               "skill_binding",
-              "target_transition_entry",
-              "selection_cycle",
-              "decision",
-              "reflection_entry",
-              "feed_entry",
               "principal",
-              "authority_proof",
               "scope_admission",
               "grant",
               "mandate",
@@ -38237,25 +27175,14 @@ export const runxSchemaArtifacts = {
           "run",
           "act",
           "receipt",
-          "graph_receipt",
           "artifact",
           "verification",
           "harness",
           "host",
-          "deployment",
           "surface",
           "target",
-          "opportunity",
-          "thesis_assessment",
-          "selection",
           "skill_binding",
-          "target_transition_entry",
-          "selection_cycle",
-          "decision",
-          "reflection_entry",
-          "feed_entry",
           "principal",
-          "authority_proof",
           "scope_admission",
           "grant",
           "mandate",
@@ -38571,6 +27498,7 @@ export const runxSchemaArtifacts = {
                 "additionalProperties": false,
                 "properties": {
                   "asks": {
+                    "const": true,
                     "type": "boolean"
                   },
                   "operations": {
@@ -38592,6 +27520,7 @@ export const runxSchemaArtifacts = {
                       ],
                       "type": "object"
                     },
+                    "minItems": 1,
                     "type": "array"
                   },
                   "skills": {
@@ -38599,6 +27528,7 @@ export const runxSchemaArtifacts = {
                       "minLength": 1,
                       "type": "string"
                     },
+                    "minItems": 1,
                     "type": "array"
                   },
                   "tools": {
@@ -38606,6 +27536,7 @@ export const runxSchemaArtifacts = {
                       "minLength": 1,
                       "type": "string"
                     },
+                    "minItems": 1,
                     "type": "array"
                   }
                 },
@@ -39200,17 +28131,20 @@ export const runxSchemaArtifacts = {
                         "properties": {
                           "environment": {
                             "additionalProperties": false,
+                            "minProperties": 1,
                             "properties": {
                               "optional": {
                                 "items": {
                                   "type": "string"
                                 },
+                                "minItems": 1,
                                 "type": "array"
                               },
                               "required": {
                                 "items": {
                                   "type": "string"
                                 },
+                                "minItems": 1,
                                 "type": "array"
                               }
                             },
@@ -39220,6 +28154,7 @@ export const runxSchemaArtifacts = {
                             "items": {
                               "type": "string"
                             },
+                            "minItems": 1,
                             "type": "array"
                           }
                         },
@@ -39246,6 +28181,7 @@ export const runxSchemaArtifacts = {
                           ],
                           "type": "object"
                         },
+                        "minItems": 1,
                         "type": "array"
                       },
                       "execution_boundary": {
@@ -39757,25 +28693,14 @@ export const runxSchemaArtifacts = {
                   "run",
                   "act",
                   "receipt",
-                  "graph_receipt",
                   "artifact",
                   "verification",
                   "harness",
                   "host",
-                  "deployment",
                   "surface",
                   "target",
-                  "opportunity",
-                  "thesis_assessment",
-                  "selection",
                   "skill_binding",
-                  "target_transition_entry",
-                  "selection_cycle",
-                  "decision",
-                  "reflection_entry",
-                  "feed_entry",
                   "principal",
-                  "authority_proof",
                   "scope_admission",
                   "grant",
                   "mandate",
@@ -39871,25 +28796,14 @@ export const runxSchemaArtifacts = {
                     "run",
                     "act",
                     "receipt",
-                    "graph_receipt",
                     "artifact",
                     "verification",
                     "harness",
                     "host",
-                    "deployment",
                     "surface",
                     "target",
-                    "opportunity",
-                    "thesis_assessment",
-                    "selection",
                     "skill_binding",
-                    "target_transition_entry",
-                    "selection_cycle",
-                    "decision",
-                    "reflection_entry",
-                    "feed_entry",
                     "principal",
-                    "authority_proof",
                     "scope_admission",
                     "grant",
                     "mandate",
@@ -39914,6 +28828,7 @@ export const runxSchemaArtifacts = {
               "type": "object",
               "x-runx-schema": "runx.reference.v1"
             },
+            "minItems": 1,
             "type": "array"
           },
           "host_ref": {
@@ -39962,25 +28877,14 @@ export const runxSchemaArtifacts = {
                   "run",
                   "act",
                   "receipt",
-                  "graph_receipt",
                   "artifact",
                   "verification",
                   "harness",
                   "host",
-                  "deployment",
                   "surface",
                   "target",
-                  "opportunity",
-                  "thesis_assessment",
-                  "selection",
                   "skill_binding",
-                  "target_transition_entry",
-                  "selection_cycle",
-                  "decision",
-                  "reflection_entry",
-                  "feed_entry",
                   "principal",
-                  "authority_proof",
                   "scope_admission",
                   "grant",
                   "mandate",
@@ -40051,25 +28955,14 @@ export const runxSchemaArtifacts = {
                   "run",
                   "act",
                   "receipt",
-                  "graph_receipt",
                   "artifact",
                   "verification",
                   "harness",
                   "host",
-                  "deployment",
                   "surface",
                   "target",
-                  "opportunity",
-                  "thesis_assessment",
-                  "selection",
                   "skill_binding",
-                  "target_transition_entry",
-                  "selection_cycle",
-                  "decision",
-                  "reflection_entry",
-                  "feed_entry",
                   "principal",
-                  "authority_proof",
                   "scope_admission",
                   "grant",
                   "mandate",
@@ -40141,25 +29034,14 @@ export const runxSchemaArtifacts = {
                     "run",
                     "act",
                     "receipt",
-                    "graph_receipt",
                     "artifact",
                     "verification",
                     "harness",
                     "host",
-                    "deployment",
                     "surface",
                     "target",
-                    "opportunity",
-                    "thesis_assessment",
-                    "selection",
                     "skill_binding",
-                    "target_transition_entry",
-                    "selection_cycle",
-                    "decision",
-                    "reflection_entry",
-                    "feed_entry",
                     "principal",
-                    "authority_proof",
                     "scope_admission",
                     "grant",
                     "mandate",
@@ -40184,6 +29066,7 @@ export const runxSchemaArtifacts = {
               "type": "object",
               "x-runx-schema": "runx.reference.v1"
             },
+            "minItems": 1,
             "type": "array"
           },
           "trust_level": {
@@ -40247,25 +29130,14 @@ export const runxSchemaArtifacts = {
                   "run",
                   "act",
                   "receipt",
-                  "graph_receipt",
                   "artifact",
                   "verification",
                   "harness",
                   "host",
-                  "deployment",
                   "surface",
                   "target",
-                  "opportunity",
-                  "thesis_assessment",
-                  "selection",
                   "skill_binding",
-                  "target_transition_entry",
-                  "selection_cycle",
-                  "decision",
-                  "reflection_entry",
-                  "feed_entry",
                   "principal",
-                  "authority_proof",
                   "scope_admission",
                   "grant",
                   "mandate",
@@ -40348,25 +29220,14 @@ export const runxSchemaArtifacts = {
                 "run",
                 "act",
                 "receipt",
-                "graph_receipt",
                 "artifact",
                 "verification",
                 "harness",
                 "host",
-                "deployment",
                 "surface",
                 "target",
-                "opportunity",
-                "thesis_assessment",
-                "selection",
                 "skill_binding",
-                "target_transition_entry",
-                "selection_cycle",
-                "decision",
-                "reflection_entry",
-                "feed_entry",
                 "principal",
-                "authority_proof",
                 "scope_admission",
                 "grant",
                 "mandate",
@@ -40391,6 +29252,7 @@ export const runxSchemaArtifacts = {
           "type": "object",
           "x-runx-schema": "runx.reference.v1"
         },
+        "minItems": 1,
         "type": "array"
       },
       "extensions": {
@@ -40457,25 +29319,14 @@ export const runxSchemaArtifacts = {
                     "run",
                     "act",
                     "receipt",
-                    "graph_receipt",
                     "artifact",
                     "verification",
                     "harness",
                     "host",
-                    "deployment",
                     "surface",
                     "target",
-                    "opportunity",
-                    "thesis_assessment",
-                    "selection",
                     "skill_binding",
-                    "target_transition_entry",
-                    "selection_cycle",
-                    "decision",
-                    "reflection_entry",
-                    "feed_entry",
                     "principal",
-                    "authority_proof",
                     "scope_admission",
                     "grant",
                     "mandate",
@@ -40568,25 +29419,14 @@ export const runxSchemaArtifacts = {
                         "run",
                         "act",
                         "receipt",
-                        "graph_receipt",
                         "artifact",
                         "verification",
                         "harness",
                         "host",
-                        "deployment",
                         "surface",
                         "target",
-                        "opportunity",
-                        "thesis_assessment",
-                        "selection",
                         "skill_binding",
-                        "target_transition_entry",
-                        "selection_cycle",
-                        "decision",
-                        "reflection_entry",
-                        "feed_entry",
                         "principal",
-                        "authority_proof",
                         "scope_admission",
                         "grant",
                         "mandate",
@@ -40661,25 +29501,14 @@ export const runxSchemaArtifacts = {
                           "run",
                           "act",
                           "receipt",
-                          "graph_receipt",
                           "artifact",
                           "verification",
                           "harness",
                           "host",
-                          "deployment",
                           "surface",
                           "target",
-                          "opportunity",
-                          "thesis_assessment",
-                          "selection",
                           "skill_binding",
-                          "target_transition_entry",
-                          "selection_cycle",
-                          "decision",
-                          "reflection_entry",
-                          "feed_entry",
                           "principal",
-                          "authority_proof",
                           "scope_admission",
                           "grant",
                           "mandate",
@@ -40758,25 +29587,14 @@ export const runxSchemaArtifacts = {
                           "run",
                           "act",
                           "receipt",
-                          "graph_receipt",
                           "artifact",
                           "verification",
                           "harness",
                           "host",
-                          "deployment",
                           "surface",
                           "target",
-                          "opportunity",
-                          "thesis_assessment",
-                          "selection",
                           "skill_binding",
-                          "target_transition_entry",
-                          "selection_cycle",
-                          "decision",
-                          "reflection_entry",
-                          "feed_entry",
                           "principal",
-                          "authority_proof",
                           "scope_admission",
                           "grant",
                           "mandate",
@@ -40801,6 +29619,7 @@ export const runxSchemaArtifacts = {
                     "type": "object",
                     "x-runx-schema": "runx.reference.v1"
                   },
+                  "minItems": 1,
                   "type": "array"
                 }
               },
@@ -40811,6 +29630,7 @@ export const runxSchemaArtifacts = {
               ],
               "type": "object"
             },
+            "minItems": 1,
             "type": "array"
           },
           "duplicate_of": {
@@ -40859,25 +29679,14 @@ export const runxSchemaArtifacts = {
                   "run",
                   "act",
                   "receipt",
-                  "graph_receipt",
                   "artifact",
                   "verification",
                   "harness",
                   "host",
-                  "deployment",
                   "surface",
                   "target",
-                  "opportunity",
-                  "thesis_assessment",
-                  "selection",
                   "skill_binding",
-                  "target_transition_entry",
-                  "selection_cycle",
-                  "decision",
-                  "reflection_entry",
-                  "feed_entry",
                   "principal",
-                  "authority_proof",
                   "scope_admission",
                   "grant",
                   "mandate",
@@ -40949,25 +29758,14 @@ export const runxSchemaArtifacts = {
                     "run",
                     "act",
                     "receipt",
-                    "graph_receipt",
                     "artifact",
                     "verification",
                     "harness",
                     "host",
-                    "deployment",
                     "surface",
                     "target",
-                    "opportunity",
-                    "thesis_assessment",
-                    "selection",
                     "skill_binding",
-                    "target_transition_entry",
-                    "selection_cycle",
-                    "decision",
-                    "reflection_entry",
-                    "feed_entry",
                     "principal",
-                    "authority_proof",
                     "scope_admission",
                     "grant",
                     "mandate",
@@ -40992,6 +29790,7 @@ export const runxSchemaArtifacts = {
               "type": "object",
               "x-runx-schema": "runx.reference.v1"
             },
+            "minItems": 1,
             "type": "array"
           },
           "superseded_by": {
@@ -41041,25 +29840,14 @@ export const runxSchemaArtifacts = {
                     "run",
                     "act",
                     "receipt",
-                    "graph_receipt",
                     "artifact",
                     "verification",
                     "harness",
                     "host",
-                    "deployment",
                     "surface",
                     "target",
-                    "opportunity",
-                    "thesis_assessment",
-                    "selection",
                     "skill_binding",
-                    "target_transition_entry",
-                    "selection_cycle",
-                    "decision",
-                    "reflection_entry",
-                    "feed_entry",
                     "principal",
-                    "authority_proof",
                     "scope_admission",
                     "grant",
                     "mandate",
@@ -41084,6 +29872,7 @@ export const runxSchemaArtifacts = {
               "type": "object",
               "x-runx-schema": "runx.reference.v1"
             },
+            "minItems": 1,
             "type": "array"
           },
           "supersedes": {
@@ -41133,25 +29922,14 @@ export const runxSchemaArtifacts = {
                     "run",
                     "act",
                     "receipt",
-                    "graph_receipt",
                     "artifact",
                     "verification",
                     "harness",
                     "host",
-                    "deployment",
                     "surface",
                     "target",
-                    "opportunity",
-                    "thesis_assessment",
-                    "selection",
                     "skill_binding",
-                    "target_transition_entry",
-                    "selection_cycle",
-                    "decision",
-                    "reflection_entry",
-                    "feed_entry",
                     "principal",
-                    "authority_proof",
                     "scope_admission",
                     "grant",
                     "mandate",
@@ -41176,6 +29954,7 @@ export const runxSchemaArtifacts = {
               "type": "object",
               "x-runx-schema": "runx.reference.v1"
             },
+            "minItems": 1,
             "type": "array"
           }
         },
@@ -41246,25 +30025,14 @@ export const runxSchemaArtifacts = {
               "run",
               "act",
               "receipt",
-              "graph_receipt",
               "artifact",
               "verification",
               "harness",
               "host",
-              "deployment",
               "surface",
               "target",
-              "opportunity",
-              "thesis_assessment",
-              "selection",
               "skill_binding",
-              "target_transition_entry",
-              "selection_cycle",
-              "decision",
-              "reflection_entry",
-              "feed_entry",
               "principal",
-              "authority_proof",
               "scope_admission",
               "grant",
               "mandate",
@@ -43563,25 +32331,14 @@ export const runxSchemaArtifacts = {
                     "run",
                     "act",
                     "receipt",
-                    "graph_receipt",
                     "artifact",
                     "verification",
                     "harness",
                     "host",
-                    "deployment",
                     "surface",
                     "target",
-                    "opportunity",
-                    "thesis_assessment",
-                    "selection",
                     "skill_binding",
-                    "target_transition_entry",
-                    "selection_cycle",
-                    "decision",
-                    "reflection_entry",
-                    "feed_entry",
                     "principal",
-                    "authority_proof",
                     "scope_admission",
                     "grant",
                     "mandate",
@@ -43606,6 +32363,7 @@ export const runxSchemaArtifacts = {
               "type": "object",
               "x-runx-schema": "runx.reference.v1"
             },
+            "minItems": 1,
             "type": "array"
           },
           "host_ref": {
@@ -43654,25 +32412,14 @@ export const runxSchemaArtifacts = {
                   "run",
                   "act",
                   "receipt",
-                  "graph_receipt",
                   "artifact",
                   "verification",
                   "harness",
                   "host",
-                  "deployment",
                   "surface",
                   "target",
-                  "opportunity",
-                  "thesis_assessment",
-                  "selection",
                   "skill_binding",
-                  "target_transition_entry",
-                  "selection_cycle",
-                  "decision",
-                  "reflection_entry",
-                  "feed_entry",
                   "principal",
-                  "authority_proof",
                   "scope_admission",
                   "grant",
                   "mandate",
@@ -43743,25 +32490,14 @@ export const runxSchemaArtifacts = {
                   "run",
                   "act",
                   "receipt",
-                  "graph_receipt",
                   "artifact",
                   "verification",
                   "harness",
                   "host",
-                  "deployment",
                   "surface",
                   "target",
-                  "opportunity",
-                  "thesis_assessment",
-                  "selection",
                   "skill_binding",
-                  "target_transition_entry",
-                  "selection_cycle",
-                  "decision",
-                  "reflection_entry",
-                  "feed_entry",
                   "principal",
-                  "authority_proof",
                   "scope_admission",
                   "grant",
                   "mandate",
@@ -43833,25 +32569,14 @@ export const runxSchemaArtifacts = {
                     "run",
                     "act",
                     "receipt",
-                    "graph_receipt",
                     "artifact",
                     "verification",
                     "harness",
                     "host",
-                    "deployment",
                     "surface",
                     "target",
-                    "opportunity",
-                    "thesis_assessment",
-                    "selection",
                     "skill_binding",
-                    "target_transition_entry",
-                    "selection_cycle",
-                    "decision",
-                    "reflection_entry",
-                    "feed_entry",
                     "principal",
-                    "authority_proof",
                     "scope_admission",
                     "grant",
                     "mandate",
@@ -43876,6 +32601,7 @@ export const runxSchemaArtifacts = {
               "type": "object",
               "x-runx-schema": "runx.reference.v1"
             },
+            "minItems": 1,
             "type": "array"
           },
           "trust_level": {
@@ -43939,25 +32665,14 @@ export const runxSchemaArtifacts = {
                   "run",
                   "act",
                   "receipt",
-                  "graph_receipt",
                   "artifact",
                   "verification",
                   "harness",
                   "host",
-                  "deployment",
                   "surface",
                   "target",
-                  "opportunity",
-                  "thesis_assessment",
-                  "selection",
                   "skill_binding",
-                  "target_transition_entry",
-                  "selection_cycle",
-                  "decision",
-                  "reflection_entry",
-                  "feed_entry",
                   "principal",
-                  "authority_proof",
                   "scope_admission",
                   "grant",
                   "mandate",
@@ -44057,25 +32772,14 @@ export const runxSchemaArtifacts = {
                     "run",
                     "act",
                     "receipt",
-                    "graph_receipt",
                     "artifact",
                     "verification",
                     "harness",
                     "host",
-                    "deployment",
                     "surface",
                     "target",
-                    "opportunity",
-                    "thesis_assessment",
-                    "selection",
                     "skill_binding",
-                    "target_transition_entry",
-                    "selection_cycle",
-                    "decision",
-                    "reflection_entry",
-                    "feed_entry",
                     "principal",
-                    "authority_proof",
                     "scope_admission",
                     "grant",
                     "mandate",
@@ -44180,25 +32884,14 @@ export const runxSchemaArtifacts = {
                 "run",
                 "act",
                 "receipt",
-                "graph_receipt",
                 "artifact",
                 "verification",
                 "harness",
                 "host",
-                "deployment",
                 "surface",
                 "target",
-                "opportunity",
-                "thesis_assessment",
-                "selection",
                 "skill_binding",
-                "target_transition_entry",
-                "selection_cycle",
-                "decision",
-                "reflection_entry",
-                "feed_entry",
                 "principal",
-                "authority_proof",
                 "scope_admission",
                 "grant",
                 "mandate",
@@ -44223,6 +32916,7 @@ export const runxSchemaArtifacts = {
           "type": "object",
           "x-runx-schema": "runx.reference.v1"
         },
+        "minItems": 1,
         "type": "array"
       },
       "schema": {
@@ -44281,25 +32975,14 @@ export const runxSchemaArtifacts = {
               "run",
               "act",
               "receipt",
-              "graph_receipt",
               "artifact",
               "verification",
               "harness",
               "host",
-              "deployment",
               "surface",
               "target",
-              "opportunity",
-              "thesis_assessment",
-              "selection",
               "skill_binding",
-              "target_transition_entry",
-              "selection_cycle",
-              "decision",
-              "reflection_entry",
-              "feed_entry",
               "principal",
-              "authority_proof",
               "scope_admission",
               "grant",
               "mandate",
@@ -44330,6 +33013,7 @@ export const runxSchemaArtifacts = {
       },
       "workflow_inputs": {
         "additionalProperties": {},
+        "minProperties": 1,
         "type": "object"
       }
     },
@@ -44490,6 +33174,7 @@ export const runxSchemaArtifacts = {
           ],
           "type": "object"
         },
+        "minProperties": 1,
         "type": "object"
       },
       "name": {
@@ -44505,6 +33190,7 @@ export const runxSchemaArtifacts = {
         "items": {
           "type": "string"
         },
+        "minItems": 1,
         "type": "array"
       },
       "source": {
@@ -44514,6 +33200,7 @@ export const runxSchemaArtifacts = {
             "items": {
               "type": "string"
             },
+            "minItems": 1,
             "type": "array"
           },
           "command": {
@@ -44524,17 +33211,20 @@ export const runxSchemaArtifacts = {
           },
           "environment": {
             "additionalProperties": false,
+            "minProperties": 1,
             "properties": {
               "optional": {
                 "items": {
                   "type": "string"
                 },
+                "minItems": 1,
                 "type": "array"
               },
               "required": {
                 "items": {
                   "type": "string"
                 },
+                "minItems": 1,
                 "type": "array"
               }
             },
@@ -44770,6 +33460,7 @@ export const runxSchemaArtifacts = {
                               "additionalProperties": false,
                               "properties": {
                                 "asks": {
+                                  "const": true,
                                   "type": "boolean"
                                 },
                                 "operations": {
@@ -44791,6 +33482,7 @@ export const runxSchemaArtifacts = {
                                     ],
                                     "type": "object"
                                   },
+                                  "minItems": 1,
                                   "type": "array"
                                 },
                                 "skills": {
@@ -44798,6 +33490,7 @@ export const runxSchemaArtifacts = {
                                     "minLength": 1,
                                     "type": "string"
                                   },
+                                  "minItems": 1,
                                   "type": "array"
                                 },
                                 "tools": {
@@ -44805,6 +33498,7 @@ export const runxSchemaArtifacts = {
                                     "minLength": 1,
                                     "type": "string"
                                   },
+                                  "minItems": 1,
                                   "type": "array"
                                 }
                               },
@@ -45399,17 +34093,20 @@ export const runxSchemaArtifacts = {
                                       "properties": {
                                         "environment": {
                                           "additionalProperties": false,
+                                          "minProperties": 1,
                                           "properties": {
                                             "optional": {
                                               "items": {
                                                 "type": "string"
                                               },
+                                              "minItems": 1,
                                               "type": "array"
                                             },
                                             "required": {
                                               "items": {
                                                 "type": "string"
                                               },
+                                              "minItems": 1,
                                               "type": "array"
                                             }
                                           },
@@ -45419,6 +34116,7 @@ export const runxSchemaArtifacts = {
                                           "items": {
                                             "type": "string"
                                           },
+                                          "minItems": 1,
                                           "type": "array"
                                         }
                                       },
@@ -45445,6 +34143,7 @@ export const runxSchemaArtifacts = {
                                         ],
                                         "type": "object"
                                       },
+                                      "minItems": 1,
                                       "type": "array"
                                     },
                                     "execution_boundary": {
@@ -45903,6 +34602,7 @@ export const runxSchemaArtifacts = {
                                     "additionalProperties": false,
                                     "properties": {
                                       "asks": {
+                                        "const": true,
                                         "type": "boolean"
                                       },
                                       "operations": {
@@ -45924,6 +34624,7 @@ export const runxSchemaArtifacts = {
                                           ],
                                           "type": "object"
                                         },
+                                        "minItems": 1,
                                         "type": "array"
                                       },
                                       "skills": {
@@ -45931,6 +34632,7 @@ export const runxSchemaArtifacts = {
                                           "minLength": 1,
                                           "type": "string"
                                         },
+                                        "minItems": 1,
                                         "type": "array"
                                       },
                                       "tools": {
@@ -45938,6 +34640,7 @@ export const runxSchemaArtifacts = {
                                           "minLength": 1,
                                           "type": "string"
                                         },
+                                        "minItems": 1,
                                         "type": "array"
                                       }
                                     },
@@ -46532,17 +35235,20 @@ export const runxSchemaArtifacts = {
                                             "properties": {
                                               "environment": {
                                                 "additionalProperties": false,
+                                                "minProperties": 1,
                                                 "properties": {
                                                   "optional": {
                                                     "items": {
                                                       "type": "string"
                                                     },
+                                                    "minItems": 1,
                                                     "type": "array"
                                                   },
                                                   "required": {
                                                     "items": {
                                                       "type": "string"
                                                     },
+                                                    "minItems": 1,
                                                     "type": "array"
                                                   }
                                                 },
@@ -46552,6 +35258,7 @@ export const runxSchemaArtifacts = {
                                                 "items": {
                                                   "type": "string"
                                                 },
+                                                "minItems": 1,
                                                 "type": "array"
                                               }
                                             },
@@ -46578,6 +35285,7 @@ export const runxSchemaArtifacts = {
                                               ],
                                               "type": "object"
                                             },
+                                            "minItems": 1,
                                             "type": "array"
                                           },
                                           "execution_boundary": {
@@ -46840,6 +35548,7 @@ export const runxSchemaArtifacts = {
             "additionalProperties": false,
             "properties": {
               "asks": {
+                "const": true,
                 "type": "boolean"
               },
               "operations": {
@@ -46861,6 +35570,7 @@ export const runxSchemaArtifacts = {
                   ],
                   "type": "object"
                 },
+                "minItems": 1,
                 "type": "array"
               },
               "skills": {
@@ -46868,6 +35578,7 @@ export const runxSchemaArtifacts = {
                   "minLength": 1,
                   "type": "string"
                 },
+                "minItems": 1,
                 "type": "array"
               },
               "tools": {
@@ -46875,6 +35586,7 @@ export const runxSchemaArtifacts = {
                   "minLength": 1,
                   "type": "string"
                 },
+                "minItems": 1,
                 "type": "array"
               }
             },
@@ -47469,17 +36181,20 @@ export const runxSchemaArtifacts = {
                     "properties": {
                       "environment": {
                         "additionalProperties": false,
+                        "minProperties": 1,
                         "properties": {
                           "optional": {
                             "items": {
                               "type": "string"
                             },
+                            "minItems": 1,
                             "type": "array"
                           },
                           "required": {
                             "items": {
                               "type": "string"
                             },
+                            "minItems": 1,
                             "type": "array"
                           }
                         },
@@ -47489,6 +36204,7 @@ export const runxSchemaArtifacts = {
                         "items": {
                           "type": "string"
                         },
+                        "minItems": 1,
                         "type": "array"
                       }
                     },
@@ -47515,6 +36231,7 @@ export const runxSchemaArtifacts = {
                       ],
                       "type": "object"
                     },
+                    "minItems": 1,
                     "type": "array"
                   },
                   "execution_boundary": {
@@ -47740,366 +36457,6 @@ export const runxSchemaArtifacts = {
       "calls"
     ],
     "type": "object"
-  } as JsonSchema,
-  "verification.schema.json": {
-    "$id": "https://schemas.runx.ai/runx/verification/v1.json",
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "additionalProperties": false,
-    "properties": {
-      "checks": {
-        "items": {
-          "additionalProperties": false,
-          "properties": {
-            "check_id": {
-              "minLength": 1,
-              "type": "string"
-            },
-            "checked_refs": {
-              "items": {
-                "$id": "https://schemas.runx.ai/runx/reference/v1.json",
-                "$schema": "https://json-schema.org/draft/2020-12/schema",
-                "additionalProperties": false,
-                "properties": {
-                  "label": {
-                    "minLength": 1,
-                    "type": "string"
-                  },
-                  "locator": {
-                    "minLength": 1,
-                    "type": "string"
-                  },
-                  "observed_at": {
-                    "minLength": 1,
-                    "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-                    "type": "string"
-                  },
-                  "proof_kind": {
-                    "enum": [
-                      "effect_evidence",
-                      "effect_finality",
-                      "credential_resolution"
-                    ],
-                    "type": "string"
-                  },
-                  "provider": {
-                    "minLength": 1,
-                    "type": "string"
-                  },
-                  "schema": {
-                    "const": "runx.reference.v1",
-                    "type": "string"
-                  },
-                  "type": {
-                    "enum": [
-                      "thread",
-                      "comment",
-                      "event",
-                      "tracking_item",
-                      "change_request",
-                      "repository",
-                      "signal",
-                      "run",
-                      "act",
-                      "receipt",
-                      "graph_receipt",
-                      "artifact",
-                      "verification",
-                      "harness",
-                      "host",
-                      "deployment",
-                      "surface",
-                      "target",
-                      "opportunity",
-                      "thesis_assessment",
-                      "selection",
-                      "skill_binding",
-                      "target_transition_entry",
-                      "selection_cycle",
-                      "decision",
-                      "reflection_entry",
-                      "feed_entry",
-                      "principal",
-                      "authority_proof",
-                      "scope_admission",
-                      "grant",
-                      "mandate",
-                      "credential",
-                      "webhook_delivery",
-                      "redaction_policy",
-                      "external_url",
-                      "connector_instance",
-                      "connector_operation"
-                    ],
-                    "type": "string"
-                  },
-                  "uri": {
-                    "minLength": 1,
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "type",
-                  "uri"
-                ],
-                "type": "object",
-                "x-runx-schema": "runx.reference.v1"
-              },
-              "type": "array"
-            },
-            "criterion_ids": {
-              "items": {
-                "minLength": 1,
-                "type": "string"
-              },
-              "type": "array"
-            },
-            "evidence_refs": {
-              "items": {
-                "$id": "https://schemas.runx.ai/runx/reference/v1.json",
-                "$schema": "https://json-schema.org/draft/2020-12/schema",
-                "additionalProperties": false,
-                "properties": {
-                  "label": {
-                    "minLength": 1,
-                    "type": "string"
-                  },
-                  "locator": {
-                    "minLength": 1,
-                    "type": "string"
-                  },
-                  "observed_at": {
-                    "minLength": 1,
-                    "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-                    "type": "string"
-                  },
-                  "proof_kind": {
-                    "enum": [
-                      "effect_evidence",
-                      "effect_finality",
-                      "credential_resolution"
-                    ],
-                    "type": "string"
-                  },
-                  "provider": {
-                    "minLength": 1,
-                    "type": "string"
-                  },
-                  "schema": {
-                    "const": "runx.reference.v1",
-                    "type": "string"
-                  },
-                  "type": {
-                    "enum": [
-                      "thread",
-                      "comment",
-                      "event",
-                      "tracking_item",
-                      "change_request",
-                      "repository",
-                      "signal",
-                      "run",
-                      "act",
-                      "receipt",
-                      "graph_receipt",
-                      "artifact",
-                      "verification",
-                      "harness",
-                      "host",
-                      "deployment",
-                      "surface",
-                      "target",
-                      "opportunity",
-                      "thesis_assessment",
-                      "selection",
-                      "skill_binding",
-                      "target_transition_entry",
-                      "selection_cycle",
-                      "decision",
-                      "reflection_entry",
-                      "feed_entry",
-                      "principal",
-                      "authority_proof",
-                      "scope_admission",
-                      "grant",
-                      "mandate",
-                      "credential",
-                      "webhook_delivery",
-                      "redaction_policy",
-                      "external_url",
-                      "connector_instance",
-                      "connector_operation"
-                    ],
-                    "type": "string"
-                  },
-                  "uri": {
-                    "minLength": 1,
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "type",
-                  "uri"
-                ],
-                "type": "object",
-                "x-runx-schema": "runx.reference.v1"
-              },
-              "type": "array"
-            },
-            "status": {
-              "enum": [
-                "passed",
-                "failed",
-                "pending",
-                "not_applicable",
-                "missing"
-              ],
-              "type": "string"
-            },
-            "summary": {
-              "minLength": 1,
-              "type": "string"
-            },
-            "verified_at": {
-              "minLength": 1,
-              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-              "type": "string"
-            }
-          },
-          "required": [
-            "check_id",
-            "criterion_ids",
-            "status",
-            "evidence_refs"
-          ],
-          "type": "object"
-        },
-        "type": "array"
-      },
-      "evidence_refs": {
-        "items": {
-          "$id": "https://schemas.runx.ai/runx/reference/v1.json",
-          "$schema": "https://json-schema.org/draft/2020-12/schema",
-          "additionalProperties": false,
-          "properties": {
-            "label": {
-              "minLength": 1,
-              "type": "string"
-            },
-            "locator": {
-              "minLength": 1,
-              "type": "string"
-            },
-            "observed_at": {
-              "minLength": 1,
-              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-              "type": "string"
-            },
-            "proof_kind": {
-              "enum": [
-                "effect_evidence",
-                "effect_finality",
-                "credential_resolution"
-              ],
-              "type": "string"
-            },
-            "provider": {
-              "minLength": 1,
-              "type": "string"
-            },
-            "schema": {
-              "const": "runx.reference.v1",
-              "type": "string"
-            },
-            "type": {
-              "enum": [
-                "thread",
-                "comment",
-                "event",
-                "tracking_item",
-                "change_request",
-                "repository",
-                "signal",
-                "run",
-                "act",
-                "receipt",
-                "graph_receipt",
-                "artifact",
-                "verification",
-                "harness",
-                "host",
-                "deployment",
-                "surface",
-                "target",
-                "opportunity",
-                "thesis_assessment",
-                "selection",
-                "skill_binding",
-                "target_transition_entry",
-                "selection_cycle",
-                "decision",
-                "reflection_entry",
-                "feed_entry",
-                "principal",
-                "authority_proof",
-                "scope_admission",
-                "grant",
-                "mandate",
-                "credential",
-                "webhook_delivery",
-                "redaction_policy",
-                "external_url",
-                "connector_instance",
-                "connector_operation"
-              ],
-              "type": "string"
-            },
-            "uri": {
-              "minLength": 1,
-              "type": "string"
-            }
-          },
-          "required": [
-            "type",
-            "uri"
-          ],
-          "type": "object",
-          "x-runx-schema": "runx.reference.v1"
-        },
-        "type": "array"
-      },
-      "schema": {
-        "enum": [
-          "runx.verification.v1"
-        ],
-        "type": "string"
-      },
-      "status": {
-        "enum": [
-          "passed",
-          "failed",
-          "pending",
-          "not_applicable",
-          "missing"
-        ],
-        "type": "string"
-      },
-      "verification_id": {
-        "minLength": 1,
-        "type": "string"
-      },
-      "verified_at": {
-        "minLength": 1,
-        "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-        "type": "string"
-      }
-    },
-    "required": [
-      "status",
-      "checks",
-      "evidence_refs"
-    ],
-    "type": "object",
-    "x-runx-schema": "runx.verification.v1"
   } as JsonSchema,
   "work-outcome.schema.json": {
     "$id": "https://schemas.runx.ai/runx/work-outcome/v1.json",

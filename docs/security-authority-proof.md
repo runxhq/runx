@@ -3,7 +3,7 @@
 Runx receipts must explain the authority boundary without becoming a secret
 side channel. A receipt's `authority` section records the execution terms
 admission derived with their subset proofs, the grants that admitted each
-effect and the adapter-observed execution boundary
+effect and the execution boundary the runtime observed
 (`receipt.authority.enforcement`). All of it is sealed into the signed receipt
 body rather than kept as unsigned read metadata.
 
@@ -14,7 +14,6 @@ Allowed public fields:
 - the connector, the instance and the credential delivery observation with its
   `material_ref` hash
 - the typed execution-boundary observation and approval decisions
-- redaction policy status
 
 Banned fields:
 

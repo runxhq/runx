@@ -185,12 +185,7 @@ pub fn verify_runtime_receipt_tree_with_policy(
 ) -> ReceiptVerification {
     let resolver = RuntimeReceiptResolver::new(receipts);
     let proof_contexts = RuntimeReceiptProofContextProvider::new(signature_policy);
-    verify_receipt_tree_proof_with_resolver(
-        root,
-        &resolver,
-        runtime_receipt_tree_config(config),
-        &proof_contexts,
-    )
+    verify_receipt_tree_proof_with_resolver(root, &resolver, config, &proof_contexts)
 }
 
 fn verify_runtime_receipt_tree_refs_with_policy<'a>(
@@ -201,12 +196,7 @@ fn verify_runtime_receipt_tree_refs_with_policy<'a>(
 ) -> ReceiptVerification {
     let resolver = RuntimeReceiptRefResolver::new(receipts);
     let proof_contexts = RuntimeReceiptProofContextProvider::new(signature_policy);
-    verify_receipt_tree_proof_with_resolver(
-        root,
-        &resolver,
-        runtime_receipt_tree_config(config),
-        &proof_contexts,
-    )
+    verify_receipt_tree_proof_with_resolver(root, &resolver, config, &proof_contexts)
 }
 
 fn runtime_receipt_path(index: usize) -> String {
@@ -248,14 +238,6 @@ fn receipt_positions<'a>(
             .push(index);
     }
     positions
-}
-
-fn runtime_receipt_tree_config(mut config: ReceiptTreeConfig) -> ReceiptTreeConfig {
-    // Parent-to-child id+digest links are the immutable DAG edge. A sealed
-    // child can be reused by multiple parents, so no parent back-link is
-    // required on the child itself.
-    config.require_parent_links = false;
-    config
 }
 
 fn referenced_receipt_id(reference: &Reference) -> Option<&str> {

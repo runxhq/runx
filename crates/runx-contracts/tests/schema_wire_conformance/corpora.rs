@@ -916,81 +916,72 @@ pub(super) fn receipt_corpus() -> Vec<(&'static str, Value)> {
         },
         "signature": { "alg": "Ed25519", "value": "sig:abc" },
         "digest": "sha256:abc",
-        "idempotency": {
-            "intent_key": "sha256:intent",
-            "trigger_fingerprint": "sha256:trigger",
-            "content_hash": "sha256:content",
-        },
-        "class": "executed",
         "subject": {
             "kind": "skill",
             "ref": a_ref(),
-            "commitments": [],
+            "outcome": format!("sha256:{}", "3".repeat(64)),
         },
         "authority": {
             "actor_ref": a_ref(),
             "grant_refs": [],
             "scope_refs": [],
-            "authority_proof_refs": [],
-            "attenuation": { "parent_authority_ref": null, "subset_proof": null },
             "terms": [],
-            "enforcement": {
-                "profile_hash": "sha256:profile",
-                "redaction_refs": [],
-                "setup_refs": [],
-                "teardown_refs": [],
-            },
+            "derivations": [],
+            "enforcement": {},
         },
-        "signals": [],
         "decisions": [],
         "acts": [],
         "seal": {
             "disposition": "closed",
             "reason_code": "process_closed",
-            "summary": "closed",
             "closed_at": "2026-01-01T00:00:00Z",
-            "last_observed_at": "2026-01-01T00:00:00Z",
             "criteria": [],
         },
+        "lineage": { "children": [] },
     });
     vec![
         ("minimal valid", valid.clone()),
-        ("full valid (act + seal criteria + lineage)", {
-            let mut v = valid.clone();
-            v["acts"] = json!([{
-                "id": "act_1",
-                "form": "observation",
-                "intent": an_intent(),
-                "summary": "did the thing",
-                "criterion_bindings": [{
-                    "criterion_id": "c1",
+        (
+            "valid with an act, its decision, seal criteria and lineage",
+            {
+                let mut v = valid.clone();
+                v["acts"] = json!([{
+                    "id": "act_1",
+                    "form": "reply",
+                    "intent": an_intent(),
+                    "reason": "the caller's own words",
+                    "criterion_bindings": [{
+                        "criterion_id": "step_outcome",
+                        "status": "verified",
+                        "evidence_refs": [],
+                        "verification_refs": [],
+                    }],
+                    "target_refs": [],
+                    "artifact_refs": [],
+                }]);
+                v["decisions"] = json!([{
+                    "decision_id": "dec_1",
+                    "choice": "continue",
+                    "selected_act_id": "act_1",
+                }]);
+                v["seal"]["criteria"] = json!([{
+                    "criterion_id": "step_outcome",
                     "status": "verified",
                     "evidence_refs": [],
                     "verification_refs": [],
-                    "summary": "ok",
-                }],
-                "source_refs": [],
-                "target_refs": [],
-                "artifact_refs": [],
-                "closure": closed_act(),
-            }]);
-            v["seal"]["criteria"] = json!([{
-                "criterion_id": "c1",
-                "status": "verified",
-                "evidence_refs": [],
-                "verification_refs": [],
-            }]);
-            v["lineage"] = json!({
-                "children": [],
-                "sync": [],
-            });
-            v
-        }),
+                }]);
+                v["authority"]["enforcement"] = json!({
+                    "execution_boundary": { "kind": "remote_provider" },
+                });
+                v["lineage"] = json!({ "previous": a_ref(), "children": [] });
+                v
+            },
+        ),
         ("missing schema", drop_field(valid.clone(), "schema")),
         ("missing id", drop_field(valid.clone(), "id")),
         ("missing seal", drop_field(valid.clone(), "seal")),
         ("missing digest", drop_field(valid.clone(), "digest")),
-        ("missing class", drop_field(valid.clone(), "class")),
+        ("missing subject", drop_field(valid.clone(), "subject")),
         (
             "empty id rejected",
             set_field(valid.clone(), "id", json!("")),
@@ -1012,113 +1003,53 @@ pub(super) fn receipt_corpus() -> Vec<(&'static str, Value)> {
             set_field(
                 valid.clone(),
                 "issuer",
-                json!({ "type": "alien", "kid": "k", "public_key_sha256": "sha256:x" }),
+                json!({ "type": "verifier", "kid": "k", "public_key_sha256": "sha256:x" }),
             ),
         ),
         (
-            "additional property",
-            set_field(valid.clone(), "bogus", json!(true)),
+            "removed signals field",
+            set_field(valid.clone(), "signals", json!([])),
         ),
-    ]
-}
-
-fn closed_act() -> Value {
-    json!({
-        "disposition": "closed",
-        "reason_code": "done",
-        "summary": "completed",
-        "closed_at": "2026-01-01T00:00:00Z",
-    })
-}
-
-pub(super) fn act_corpus() -> Vec<(&'static str, Value)> {
-    let valid = json!({
-        "schema": "runx.act.v1",
-        "act_id": "act_1",
-        "form": "observation",
-        "intent": an_intent(),
-        "summary": "did the thing",
-        "closure": closed_act(),
-        "criterion_bindings": [],
-        "source_refs": [],
-        "target_refs": [],
-        "surface_refs": [],
-        "artifact_refs": [],
-        "verification_refs": [],
-        "harness_refs": [],
-        "performed_at": "2026-01-01T00:00:00Z",
-    });
-    vec![
-        ("minimal valid", valid.clone()),
-        ("full valid (revision + bindings)", {
-            let mut v = valid.clone();
-            v["form"] = json!("revision");
-            v["criterion_bindings"] = json!([{
-                "criterion_id": "c1",
-                "status": "verified",
-                "evidence_refs": [],
-                "verification_refs": [],
-                "summary": "looks good",
-            }]);
-            v["revision"] = json!({
-                "change_request": {
-                    "request_id": "req_1",
-                    "summary": "ship it",
-                    "target_surfaces": [
-                        { "surface_ref": a_ref(), "mutating": true, "rationale": "open pr" },
-                    ],
-                    "success_criteria": [],
-                },
-                "change_plan": {
-                    "plan_id": "plan_1",
-                    "summary": "open and merge",
-                    "steps": ["open pr"],
-                    "risks": [],
-                },
-                "target_surfaces": [],
-                "invariants": ["keep tests green"],
-                "handoff_refs": [],
-                "revision_refs": [],
-            });
-            v
-        }),
+        ("missing decisions", drop_field(valid.clone(), "decisions")),
+        ("missing lineage", drop_field(valid.clone(), "lineage")),
         (
-            "missing schema (optional)",
-            drop_field(valid.clone(), "schema"),
-        ),
-        ("missing act_id", drop_field(valid.clone(), "act_id")),
-        ("missing closure", drop_field(valid.clone(), "closure")),
-        (
-            "missing performed_at",
-            drop_field(valid.clone(), "performed_at"),
-        ),
-        (
-            "empty act_id",
-            set_field(valid.clone(), "act_id", json!("")),
-        ),
-        (
-            "empty summary",
-            set_field(valid.clone(), "summary", json!("")),
-        ),
-        (
-            "unknown form",
-            set_field(valid.clone(), "form", json!("teleport")),
-        ),
-        (
-            "malformed performed_at",
-            set_field(valid.clone(), "performed_at", json!("nope")),
-        ),
-        (
-            "empty criterion binding criterion_id",
+            "missing subject outcome",
             set_field(
                 valid.clone(),
-                "criterion_bindings",
-                json!([{
-                    "criterion_id": "",
-                    "status": "verified",
-                    "evidence_refs": [],
-                    "verification_refs": [],
-                }]),
+                "subject",
+                json!({ "kind": "skill", "ref": a_ref() }),
+            ),
+        ),
+        (
+            "seal summary rejected",
+            set_field(
+                valid.clone(),
+                "seal",
+                json!({
+                    "disposition": "closed",
+                    "reason_code": "process_closed",
+                    "summary": "closed",
+                    "closed_at": "2026-01-01T00:00:00Z",
+                    "criteria": [],
+                }),
+            ),
+        ),
+        (
+            "criterion outside the runtime's vocabulary",
+            set_field(
+                valid.clone(),
+                "seal",
+                json!({
+                    "disposition": "closed",
+                    "reason_code": "process_closed",
+                    "closed_at": "2026-01-01T00:00:00Z",
+                    "criteria": [{
+                        "criterion_id": "c1",
+                        "status": "verified",
+                        "evidence_refs": [],
+                        "verification_refs": [],
+                    }],
+                }),
             ),
         ),
         (
@@ -1507,127 +1438,6 @@ pub(super) fn authority_term_corpus() -> Vec<(&'static str, Value)> {
         (
             "additional property",
             set_field(valid, "authority_ref", json!("authority:payment:test")),
-        ),
-    ]
-}
-
-pub(super) fn authority_corpus() -> Vec<(&'static str, Value)> {
-    let valid = json!({
-        "schema": "runx.authority.v1",
-        "actor_ref": a_ref(),
-        "authority_proof_refs": [],
-        "grant_refs": [],
-        "scope_refs": [],
-        "policy_refs": [],
-        "terms": [authority_term()],
-        "attenuation": {
-            "parent_authority_ref": null,
-            "subset_proof": null,
-        },
-    });
-    vec![
-        ("minimal valid (nullable attenuation)", valid.clone()),
-        ("full valid", {
-            let mut v = valid.clone();
-            v["attenuation"] = json!({
-                "parent_authority_ref": a_ref(),
-                "subset_proof": {
-                    "parent_authority_ref": a_ref(),
-                    "comparison_algorithm": "runx.subset.v1",
-                    "result": "subset",
-                    "compared_terms": [
-                        { "child_term_id": "c1", "parent_term_id": "p1", "relation": "subset" },
-                    ],
-                    "checked_at": "2026-01-01T00:00:00Z",
-                },
-            });
-            v["mandate_ref"] = a_ref();
-            v["terms"] = json!([{
-                "term_id": "term_1",
-                "principal_ref": a_ref(),
-                "resource_ref": a_ref(),
-                "resource_family": "effect",
-                "verbs": ["commit"],
-                "bounds": {
-                    "effect_limits": [{
-                        "family": "payment",
-                        "unit": "USD",
-                        "channels": ["card"],
-                        "max_per_call_units": 2500,
-                    }],
-                },
-                "conditions": [
-                    { "condition_id": "cond_1", "predicate": "within_budget" },
-                ],
-                "approvals": [
-                    { "approval_ref": a_ref(), "approved_at": "2026-01-01T00:00:00Z" },
-                ],
-                "capabilities": ["effect_single_use_capability"],
-                "expires_at": "2026-02-01T00:00:00Z",
-                "issued_by_ref": a_ref(),
-            }]);
-            v
-        }),
-        ("missing actor_ref", drop_field(valid.clone(), "actor_ref")),
-        (
-            "missing attenuation",
-            drop_field(valid.clone(), "attenuation"),
-        ),
-        (
-            "empty term_id rejected",
-            set_field(
-                valid.clone(),
-                "terms",
-                json!([set_field(authority_term(), "term_id", json!(""))]),
-            ),
-        ),
-        (
-            "unknown resource_family",
-            set_field(
-                valid.clone(),
-                "terms",
-                json!([set_field(
-                    authority_term(),
-                    "resource_family",
-                    json!("nope")
-                )]),
-            ),
-        ),
-        (
-            "unknown verb",
-            set_field(
-                valid.clone(),
-                "terms",
-                json!([set_field(authority_term(), "verbs", json!(["fly"]))]),
-            ),
-        ),
-        (
-            "empty effect limit family rejected",
-            set_field(
-                valid.clone(),
-                "terms",
-                json!([set_field(
-                    authority_term(),
-                    "bounds",
-                    json!({ "effect_limits": [{ "family": "", "unit": "USD", "channels": ["card"] }] }),
-                )]),
-            ),
-        ),
-        (
-            "malformed approval approved_at",
-            set_field(
-                valid.clone(),
-                "terms",
-                json!([set_field(
-                    authority_term(),
-                    "approvals",
-                    json!([{ "approval_ref": a_ref(), "approved_at": "nope" }]),
-                )]),
-            ),
-        ),
-        (
-            "additional property",
-            set_field(valid.clone(), "bogus", json!(true)),
         ),
     ]
 }
@@ -2203,181 +2013,43 @@ pub(super) fn resolution_request_corpus() -> Vec<(&'static str, Value)> {
 fn an_intent() -> Value {
     json!({
         "purpose": "ship the change",
-        "legitimacy": "operator approved",
-        "success_criteria": [],
-        "constraints": [],
-        "derived_from": [],
+        "legitimacy": "runx:authority_term:term_1",
     })
 }
 
 pub(super) fn decision_corpus() -> Vec<(&'static str, Value)> {
-    let inputs = json!({
-        "signal_refs": [],
-        "target_ref": null,
-        "opportunity_refs": [],
-        "selection_ref": null,
-    });
     let valid = json!({
         "schema": "runx.decision.v1",
         "decision_id": "dec_1",
-        "choice": "open",
-        "inputs": inputs.clone(),
-        "proposed_intent": an_intent(),
-        "selected_act_id": null,
-        "selected_harness_ref": null,
-        "justification": { "summary": "because", "evidence_refs": [] },
-        "closure": null,
-        "artifact_refs": [],
+        "choice": "continue",
+        "selected_act_id": "act_1",
     });
     vec![
-        ("valid with all nullables null", valid.clone()),
-        ("valid with nullables populated", {
-            let mut v = valid.clone();
-            v["selected_act_id"] = json!("act_1");
-            v["selected_harness_ref"] = a_ref();
-            v["closure"] = json!({
-                "disposition": "closed",
-                "reason_code": "done",
-                "summary": "completed",
-                "closed_at": "2026-01-01T00:00:00Z",
-            });
-            v["inputs"] = json!({
-                "signal_refs": [a_ref()],
-                "target_ref": a_ref(),
-                "opportunity_refs": [],
-                "selection_ref": a_ref(),
-            });
-            v
-        }),
-        ("missing required-but-nullable selected_act_id", {
-            let mut v = valid.clone();
-            remove_field(&mut v, "selected_act_id");
-            v
-        }),
-        ("missing required-but-nullable closure", {
-            let mut v = valid.clone();
-            remove_field(&mut v, "closure");
-            v
-        }),
-        ("missing required inputs.target_ref", {
-            let mut v = valid.clone();
-            v["inputs"] = json!({
-                "signal_refs": [],
-                "opportunity_refs": [],
-                "selection_ref": null,
-            });
-            v
-        }),
-        ("empty decision_id rejected", {
-            let mut v = valid.clone();
-            v["decision_id"] = json!("");
-            v
-        }),
-        ("empty selected_act_id rejected by minLength", {
-            let mut v = valid.clone();
-            v["selected_act_id"] = json!("");
-            v
-        }),
-        ("unknown choice variant", {
-            let mut v = valid.clone();
-            v["choice"] = json!("ponder");
-            v
-        }),
-        ("malformed closure closed_at", {
-            let mut v = valid.clone();
-            v["closure"] = json!({
-                "disposition": "closed",
-                "reason_code": "done",
-                "summary": "completed",
-                "closed_at": "nope",
-            });
-            v
-        }),
-        ("additional property", {
-            let mut v = valid.clone();
-            v["bogus"] = json!(true);
-            v
-        }),
-    ]
-}
-
-pub(super) fn verification_corpus() -> Vec<(&'static str, Value)> {
-    let check = json!({
-        "check_id": "c1",
-        "criterion_ids": ["crit_1"],
-        "status": "passed",
-        "summary": "looks good",
-        "checked_refs": [a_ref()],
-        "evidence_refs": [a_ref()],
-        "verified_at": "2026-01-01T00:00:00Z",
-    });
-    let valid = json!({
-        "schema": "runx.verification.v1",
-        "verification_id": "ver_1",
-        "status": "passed",
-        "checks": [check],
-        "verified_at": "2026-01-01T00:00:00Z",
-        "evidence_refs": [a_ref()],
-    });
-    vec![
-        ("full valid", valid.clone()),
+        ("valid", valid.clone()),
         (
-            "minimal valid",
-            json!({ "status": "pending", "checks": [], "evidence_refs": [] }),
+            "missing selected_act_id",
+            drop_field(valid.clone(), "selected_act_id"),
         ),
         (
-            "valid without optional schema marker and id",
-            json!({
-                "status": "failed",
-                "checks": [{
-                    "check_id": "c1",
-                    "criterion_ids": ["crit_1"],
-                    "status": "failed",
-                    "evidence_refs": [],
-                }],
-                "evidence_refs": [],
-            }),
+            "empty decision_id rejected",
+            set_field(valid.clone(), "decision_id", json!("")),
         ),
-        ("missing status", {
-            let mut v = valid.clone();
-            remove_field(&mut v, "status");
-            v
-        }),
-        ("missing checks", {
-            let mut v = valid.clone();
-            remove_field(&mut v, "checks");
-            v
-        }),
-        ("missing evidence_refs", {
-            let mut v = valid.clone();
-            remove_field(&mut v, "evidence_refs");
-            v
-        }),
-        ("unknown status variant", {
-            let mut v = valid.clone();
-            v["status"] = json!("maybe");
-            v
-        }),
-        ("empty verification_id", {
-            let mut v = valid.clone();
-            v["verification_id"] = json!("");
-            v
-        }),
-        ("malformed verified_at", {
-            let mut v = valid.clone();
-            v["verified_at"] = json!("not-a-timestamp");
-            v
-        }),
-        ("check missing required field", {
-            let mut v = valid.clone();
-            v["checks"] = json!([{ "criterion_ids": ["crit_1"], "status": "passed" }]);
-            v
-        }),
-        ("additional property", {
-            let mut v = valid.clone();
-            v["bogus"] = json!(true);
-            v
-        }),
+        (
+            "empty selected_act_id rejected by minLength",
+            set_field(valid.clone(), "selected_act_id", json!("")),
+        ),
+        (
+            "removed choice variant",
+            set_field(valid.clone(), "choice", json!("open")),
+        ),
+        (
+            "removed proposed_intent field",
+            set_field(valid.clone(), "proposed_intent", an_intent()),
+        ),
+        (
+            "additional property",
+            set_field(valid.clone(), "bogus", json!(true)),
+        ),
     ]
 }
 

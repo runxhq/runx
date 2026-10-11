@@ -2,24 +2,13 @@ use std::collections::BTreeMap;
 use std::fmt;
 use std::path::PathBuf;
 
-use runx_contracts::CredentialDeliveryObservation;
 use runx_contracts::{ContextEntry, ExecutionRequirements, JsonObject, JsonValue, ProvenanceEntry};
 use runx_parser::{AgentTask, ProcessTool, SkillArtifactContract, WorkerTool};
 use serde::{Deserialize, Serialize};
 
 use crate::RuntimeError;
 use crate::credentials::CredentialDelivery;
-
-/// Metadata key under which a skill's non-secret credential-delivery
-/// observations are recorded on [`InvocationOutput::metadata`].
-pub const CREDENTIAL_DELIVERY_OBSERVATIONS_METADATA: &str = "credential_delivery_observations";
-/// Structured, already-verified contract evidence that the receipt sealer binds
-/// into signed criteria. Producers must populate this only after native
-/// verification succeeds.
-pub const CONTRACT_VERIFICATION_METADATA: &str = "contract_verification";
-/// Runtime-enforced ceilings that shaped this invocation. The receipt sealer
-/// copies only this structured, runtime-owned metadata key.
-pub use runx_contracts::EXECUTION_LIMITS_METADATA;
+use crate::observations::Observations;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum InvocationStatus {
@@ -158,7 +147,10 @@ pub struct InvocationOutput {
     /// non-JSON stdout as a string.
     pub value: JsonValue,
     pub diagnostics: InvocationDiagnostics,
-    pub metadata: JsonObject,
+    /// What the runtime observed about the invocation. Only the runtime
+    /// writes it; an adapter's answer is its value.
+    #[serde(skip, default)]
+    pub(crate) observations: Observations,
     /// Caller-only output that may cross the immediate process boundary but is
     /// never serialized, checkpointed, sealed, or admitted into graph context.
     #[serde(skip, default)]
@@ -172,7 +164,7 @@ impl fmt::Debug for InvocationOutput {
             .field("status", &self.status)
             .field("value", &self.value)
             .field("diagnostics", &self.diagnostics)
-            .field("metadata", &self.metadata)
+            .field("observations", &self.observations)
             .field("ephemeral", &self.ephemeral)
             .finish()
     }
@@ -195,7 +187,7 @@ pub enum InvocationDiagnostics {
 
 impl InvocationOutput {
     #[must_use]
-    pub fn runtime_success(value: JsonValue, duration_ms: u64, metadata: JsonObject) -> Self {
+    pub fn runtime_success(value: JsonValue, duration_ms: u64) -> Self {
         Self {
             status: InvocationStatus::Success,
             value,
@@ -203,18 +195,13 @@ impl InvocationOutput {
                 duration_ms,
                 failure: None,
             },
-            metadata,
+            observations: Observations::default(),
             ephemeral: EphemeralValue::default(),
         }
     }
 
     #[must_use]
-    pub fn runtime_failure(
-        value: JsonValue,
-        message: impl Into<String>,
-        duration_ms: u64,
-        metadata: JsonObject,
-    ) -> Self {
+    pub fn runtime_failure(value: JsonValue, message: impl Into<String>, duration_ms: u64) -> Self {
         Self {
             status: InvocationStatus::Failure,
             value,
@@ -222,7 +209,7 @@ impl InvocationOutput {
                 duration_ms,
                 failure: Some(message.into()),
             },
-            metadata,
+            observations: Observations::default(),
             ephemeral: EphemeralValue::default(),
         }
     }
@@ -234,10 +221,9 @@ impl InvocationOutput {
         stderr: String,
         exit_code: Option<i32>,
         duration_ms: u64,
-        metadata: JsonObject,
     ) -> Self {
         let value = serde_json::from_str(&stdout).unwrap_or(JsonValue::String(stdout));
-        Self::process_value(status, value, stderr, exit_code, duration_ms, metadata)
+        Self::process_value(status, value, stderr, exit_code, duration_ms)
     }
 
     #[must_use]
@@ -247,7 +233,6 @@ impl InvocationOutput {
         stderr: String,
         exit_code: Option<i32>,
         duration_ms: u64,
-        metadata: JsonObject,
     ) -> Self {
         Self {
             status,
@@ -257,7 +242,7 @@ impl InvocationOutput {
                 exit_code,
                 stderr,
             },
-            metadata,
+            observations: Observations::default(),
             ephemeral: EphemeralValue::default(),
         }
     }
@@ -344,63 +329,10 @@ impl InvocationOutput {
         self.ephemeral = EphemeralValue::from_value(value);
     }
 
-    /// Append one non-secret credential observation for receipt sealing. This
-    /// records the runtime boundary observation as supplied; it does not imply
-    /// that credential material entered the invoked subprocess.
-    pub(crate) fn record_credential_observation(
-        &mut self,
-        observation: &CredentialDeliveryObservation,
-    ) -> Result<(), RuntimeError> {
-        let value: JsonValue = serde_json::to_value(observation)
-            .and_then(serde_json::from_value)
-            .map_err(|source| {
-                RuntimeError::json("serializing credential delivery observation", source)
-            })?;
-        let observation_id = value
-            .as_object()
-            .and_then(|object| object.get("observation_id"))
-            .and_then(JsonValue::as_str)
-            .ok_or_else(|| RuntimeError::ReceiptInvalid {
-                message: "credential delivery observation omitted observation_id".to_owned(),
-            })?;
-        match self
-            .metadata
-            .get_mut(CREDENTIAL_DELIVERY_OBSERVATIONS_METADATA)
-        {
-            Some(JsonValue::Array(observations)) => {
-                if let Some(existing) = observations.iter().find(|existing| {
-                    existing
-                        .as_object()
-                        .and_then(|object| object.get("observation_id"))
-                        .and_then(JsonValue::as_str)
-                        == Some(observation_id)
-                }) {
-                    if existing == &value {
-                        return Ok(());
-                    }
-                    return Err(RuntimeError::ReceiptInvalid {
-                        message: format!(
-                            "credential delivery observation {observation_id:?} was recorded with conflicting evidence"
-                        ),
-                    });
-                }
-                observations.push(value);
-            }
-            Some(_) => {
-                return Err(RuntimeError::ReceiptInvalid {
-                    message: format!(
-                        "{CREDENTIAL_DELIVERY_OBSERVATIONS_METADATA} metadata must be an array"
-                    ),
-                });
-            }
-            None => {
-                self.metadata.insert(
-                    CREDENTIAL_DELIVERY_OBSERVATIONS_METADATA.to_owned(),
-                    JsonValue::Array(vec![value]),
-                );
-            }
-        }
-        Ok(())
+    /// What the runtime observed about the invocation.
+    #[must_use]
+    pub fn observations(&self) -> &Observations {
+        &self.observations
     }
 }
 
@@ -459,7 +391,6 @@ mod tests {
                 )])),
             )])),
             0,
-            JsonObject::new(),
         );
         output.set_ephemeral(JsonValue::Object(JsonObject::from([(
             "resource".to_owned(),
@@ -475,39 +406,6 @@ mod tests {
         assert!(
             serde_json::to_string(&output.ephemeral.merged_with(&output.value))?.contains(SENTINEL)
         );
-        Ok(())
-    }
-
-    #[test]
-    fn credential_observation_is_idempotent_and_rejects_conflicting_evidence()
-    -> Result<(), Box<dyn std::error::Error>> {
-        let delivery = CredentialDelivery::process_env(
-            "example",
-            "api_key",
-            "EXAMPLE_TOKEN",
-            "local:example:test",
-            "secret",
-        )?;
-        let observation = delivery
-            .public_observation()
-            .cloned()
-            .ok_or("local delivery omitted its observation")?;
-        let mut output = InvocationOutput::runtime_success(JsonValue::Null, 0, JsonObject::new());
-
-        output.record_credential_observation(&observation)?;
-        output.record_credential_observation(&observation)?;
-        assert_eq!(
-            output
-                .metadata
-                .get(CREDENTIAL_DELIVERY_OBSERVATIONS_METADATA)
-                .and_then(JsonValue::as_array)
-                .map(Vec::len),
-            Some(1)
-        );
-
-        let mut conflicting = observation;
-        conflicting.provider = "different".into();
-        assert!(output.record_credential_observation(&conflicting).is_err());
         Ok(())
     }
 }

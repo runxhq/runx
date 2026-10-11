@@ -4,8 +4,8 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
 use runx_contracts::javascript_worker::{
-    InvocationLimits, PROTOCOL_VERSION, WorkerDisposition, WorkerFailureCode,
-    WorkerInvocationRequest, WorkerLimit, WorkerRequest,
+    InvocationLimits, PROTOCOL_VERSION, WorkerDisposition, WorkerInvocationRequest, WorkerLimit,
+    WorkerRequest,
 };
 
 use crate::RuntimeError;
@@ -31,7 +31,6 @@ pub(super) struct WorkerInvocation {
 pub(super) enum WorkerInvocationResult {
     Success(serde_json::Value),
     Failure {
-        code: WorkerFailureCode,
         limit: Option<WorkerLimit>,
         message: String,
         disposition: WorkerDisposition,
@@ -40,7 +39,7 @@ pub(super) enum WorkerInvocationResult {
 
 pub(super) struct WorkerInvocationOutcome {
     pub(super) result: WorkerInvocationResult,
-    pub(super) execution_boundary: runx_contracts::JsonObject,
+    pub(super) execution_boundary: runx_contracts::ExecutionBoundaryKind,
 }
 
 pub(super) struct JavaScriptWorkerSupervisor {
@@ -88,7 +87,7 @@ impl JavaScriptWorkerSupervisor {
         after_acquire();
         let (execution_boundary, result) = {
             let session = lease.session_mut()?;
-            let execution_boundary = session.execution_boundary.clone();
+            let execution_boundary = session.execution_boundary;
             let result = session.invoke(&invocation_id, &request, timeout);
             (execution_boundary, result)
         };
@@ -103,7 +102,7 @@ impl JavaScriptWorkerSupervisor {
                 }
                 Ok(WorkerInvocationOutcome {
                     result: response,
-                    execution_boundary: execution_boundary.as_ref().clone(),
+                    execution_boundary,
                 })
             }
             Err(error) => {

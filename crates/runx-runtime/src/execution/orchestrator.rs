@@ -507,13 +507,8 @@ fn receipt_json(receipt: &Receipt) -> Result<JsonValue, OrchestratorError> {
 fn child_receipt_refs(receipt: &Receipt) -> Vec<String> {
     receipt
         .lineage
-        .as_ref()
-        .map(|lineage| {
-            lineage
-                .children
-                .iter()
-                .map(|reference| reference.uri.clone().into_string())
-                .collect()
-        })
-        .unwrap_or_default()
+        .children
+        .iter()
+        .map(|reference| reference.uri.clone().into_string())
+        .collect()
 }

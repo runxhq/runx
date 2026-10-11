@@ -14,7 +14,6 @@ mod credential_delivery;
 mod credential_delivery_core;
 mod dev;
 mod doctor;
-mod effect_finality;
 mod governance_witness;
 mod graph_context_materialization;
 mod harness_fixtures;

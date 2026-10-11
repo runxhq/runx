@@ -504,7 +504,10 @@ pub enum CredentialDeliveryError {
 /// provider, profile, scoped credential reference, and a hash of the opaque
 /// material ref. The timestamp is captured at observation time because local
 /// credential provision is a live trust boundary, not a fixture surface.
-fn build_local_provision_observation(
+/// What a receipt records of one credential delivered to a local process:
+/// which connector's credential of which kind, from which instance. Never
+/// the secret.
+pub(crate) fn build_local_provision_observation(
     provider: &str,
     auth_mode: &str,
     material_ref: &str,

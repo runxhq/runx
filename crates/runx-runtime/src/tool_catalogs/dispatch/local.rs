@@ -9,7 +9,6 @@ use runx_parser::SkillArtifactContract;
 use super::{ToolDispatchRequest, catalog_error, configured_tool_roots, failure, workspace_root};
 use crate::RuntimeError;
 use crate::adapter::{InvocationOutput, SkillAdapter, SkillInvocation};
-use crate::adapters::process_tool::ProcessToolAdapter;
 use crate::effects::RuntimeEffectRegistry;
 use crate::tool_catalogs::{ToolCatalogError, ToolInspectOptions, resolve_local_tool};
 
@@ -97,7 +96,7 @@ pub(super) fn invoke(
         env: request.env.clone(),
         credential_delivery: request.credential_delivery.clone(),
     };
-    let output = ProcessToolAdapter.invoke(invocation)?;
+    let output = crate::execution::skill_front::ExecutableAdapter.invoke(invocation)?;
     Ok(Some(output))
 }
 

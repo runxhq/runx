@@ -35,7 +35,6 @@ inputs:
       artifact_refs: []
       lineage_refs: []
       seal_reason_code: graph_closed
-      seal_summary: Skill inspection completed.
 expect:
   status: sealed
   steps: [prepare, finalize-replay]

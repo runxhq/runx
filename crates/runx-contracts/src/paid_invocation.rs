@@ -1010,11 +1010,11 @@ mod tests {
         assert!(CurrencyCode::new("usd").is_none());
         assert!(SettlementFamily::new("hosted.mock-v1").is_some());
         assert!(SettlementFamily::new("Hosted").is_none());
-        assert!(PaidInvocationAttributionSource::new("frantic").is_some());
-        assert!(PaidInvocationAttributionSource::new("Frantic").is_none());
-        assert!(PaidInvocationAttributionSource::new("frantic/bounty").is_none());
-        assert!(PaidInvocationAttributionCampaign::new("bounty-131").is_some());
-        assert!(PaidInvocationAttributionCampaign::new("-bounty-131").is_none());
+        assert!(PaidInvocationAttributionSource::new("newsletter").is_some());
+        assert!(PaidInvocationAttributionSource::new("Newsletter").is_none());
+        assert!(PaidInvocationAttributionSource::new("newsletter/spring").is_none());
+        assert!(PaidInvocationAttributionCampaign::new("spring-launch").is_some());
+        assert!(PaidInvocationAttributionCampaign::new("-spring-launch").is_none());
     }
 
     #[test]

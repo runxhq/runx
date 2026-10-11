@@ -14,27 +14,60 @@ mod support;
 
 use covered::covered;
 use runx_contracts::Receipt;
+use runx_contracts::schema::RunxSchema;
 use serde_json::{Value, json};
 use support::{SchemaDirRetriever, committed_dir};
 
 #[test]
-fn receipt_requires_an_exact_explicit_class() -> Result<(), String> {
+fn receipt_refuses_a_field_no_issuer_writes() -> Result<(), String> {
     let valid = corpora::receipt_corpus()
         .into_iter()
         .find_map(|(label, value)| (label == "minimal valid").then_some(value))
         .ok_or("receipt corpus must contain a minimal valid case")?;
     assert!(serde_json::from_value::<Receipt>(valid.clone()).is_ok());
 
-    let mut missing = valid.clone();
-    missing
-        .as_object_mut()
-        .ok_or("receipt corpus value must be an object")?
-        .remove("class");
-    assert!(serde_json::from_value::<Receipt>(missing).is_err());
+    for field in ["class", "signals", "idempotency", "evidence"] {
+        let mut removed = valid.clone();
+        removed[field] = json!([]);
+        assert!(
+            serde_json::from_value::<Receipt>(removed).is_err(),
+            "{field} is refused"
+        );
+    }
+    Ok(())
+}
 
-    let mut unknown = valid;
-    unknown["class"] = json!("unknown");
-    assert!(serde_json::from_value::<Receipt>(unknown).is_err());
+/// A field left off the wire at its default has one wire form: the schema
+/// refuses the default written out, so a validator and the strict reader agree.
+#[test]
+fn receipt_schema_refuses_an_omitted_default_written_out() -> Result<(), String> {
+    let valid = corpora::receipt_corpus()
+        .into_iter()
+        .find_map(|(label, value)| (label == "minimal valid").then_some(value))
+        .ok_or("receipt corpus must contain a minimal valid case")?;
+    let validator = jsonschema::draft202012::options()
+        .with_retriever(SchemaDirRetriever {
+            dir: committed_dir(),
+        })
+        .build(&<Receipt as RunxSchema>::json_schema())
+        .map_err(|error| error.to_string())?;
+    let with_bounds = |bounds: Value| {
+        let mut receipt = valid.clone();
+        receipt["authority"]["terms"] = json!([{
+            "term_id": "term_1",
+            "principal_ref": { "type": "principal", "uri": "runx:principal:p" },
+            "resource_ref": { "type": "repository", "uri": "runx:repository:r" },
+            "resource_family": "workspace",
+            "verbs": ["read"],
+            "bounds": bounds,
+            "issued_by_ref": { "type": "principal", "uri": "runx:principal:issuer" },
+        }]);
+        receipt
+    };
+
+    assert!(validator.is_valid(&with_bounds(json!({}))));
+    assert!(!validator.is_valid(&with_bounds(json!({ "operations": [] }))));
+    assert!(!validator.is_valid(&with_bounds(json!({ "repo_path_globs": [] }))));
     Ok(())
 }
 

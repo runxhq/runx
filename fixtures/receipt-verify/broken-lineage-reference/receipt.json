@@ -5,43 +5,24 @@
       "type": "principal",
       "uri": "runx:principal:local_runtime"
     },
-    "attenuation": {
-      "parent_authority_ref": null,
-      "subset_proof": null
-    },
-    "authority_proof_refs": [],
-    "enforcement": {
-      "profile_hash": "sha256:runtime-skeleton-enforcement",
-      "redaction_refs": [],
-      "setup_refs": [],
-      "teardown_refs": []
-    },
+    "derivations": [],
+    "enforcement": {},
     "grant_refs": [],
     "scope_refs": [],
     "terms": []
   },
   "canonicalization": "runx.receipt.c14n.v1",
-  "class": "executed",
   "created_at": "2026-05-18T00:00:00Z",
   "decisions": [],
-  "digest": "sha256:fb0f10fc3c97a721df45aa8db4186e55ecd6687b5a3b6d00e42053263aaa5b77",
-  "id": "sha256:c020ac9a651e06ebe39f661089b8699e1f277163948bd4a7551fda252c146402",
-  "idempotency": {
-    "content_hash": "sha256:sequential-echo-first-content",
-    "intent_key": "sha256:sequential-echo-first-intent",
-    "trigger_fingerprint": "sha256:sequential-echo-first-trigger"
-  },
+  "digest": "sha256:7b5215bcfd5a44352937e0938e42dda0e0c7d3da3629e2aeba778db6fd5a6615",
+  "id": "sha256:6dbb64457b1d9798008b714ce957e383c4a3c156e1877be2b1bb7f29a3ea7ef3",
   "issuer": {
     "kid": "runtime-skeleton",
     "public_key_sha256": "sha256:runtime-skeleton-public",
     "type": "local"
   },
   "lineage": {
-    "children": [],
-    "parent": {
-      "type": "receipt",
-      "uri": "runx:receipt:sha256:bbb6f5a2853c8c4953c0a5880d5e3c25def4ece13445b39e539b558bcab76465"
-    }
+    "children": []
   },
   "schema": "runx.receipt.v1",
   "seal": {
@@ -51,23 +32,19 @@
         "criterion_id": "step_outcome",
         "evidence_refs": [],
         "status": "verified",
-        "summary": "step completed successfully",
         "verification_refs": []
       }
     ],
     "disposition": "closed",
-    "last_observed_at": "2026-05-18T00:00:00Z",
-    "reason_code": "step_closed",
-    "summary": "step first completed"
+    "reason_code": "step_closed"
   },
-  "signals": [],
   "signature": {
     "alg": "Ed25519",
-    "value": "sig:sha256:fb0f10fc3c97a721df45aa8db4186e55ecd6687b5a3b6d00e42053263aaa5b77"
+    "value": "sig:sha256:7b5215bcfd5a44352937e0938e42dda0e0c7d3da3629e2aeba778db6fd5a6615"
   },
   "subject": {
-    "commitments": [],
     "kind": "skill",
+    "outcome": "sha256:35cfef0160a69e9403c92d4c1e69e7527ea1acd7805cd31e5b22f7da7c48274d",
     "ref": {
       "label": "sequential-echo",
       "type": "run",

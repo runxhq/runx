@@ -205,6 +205,7 @@
                                   "additionalProperties": false,
                                   "properties": {
                                     "asks": {
+                                      "const": true,
                                       "type": "boolean"
                                     },
                                     "operations": {
@@ -226,6 +227,7 @@
                                         ],
                                         "type": "object"
                                       },
+                                      "minItems": 1,
                                       "type": "array"
                                     },
                                     "skills": {
@@ -233,6 +235,7 @@
                                         "minLength": 1,
                                         "type": "string"
                                       },
+                                      "minItems": 1,
                                       "type": "array"
                                     },
                                     "tools": {
@@ -240,6 +243,7 @@
                                         "minLength": 1,
                                         "type": "string"
                                       },
+                                      "minItems": 1,
                                       "type": "array"
                                     }
                                   },
@@ -834,17 +838,20 @@
                                           "properties": {
                                             "environment": {
                                               "additionalProperties": false,
+                                              "minProperties": 1,
                                               "properties": {
                                                 "optional": {
                                                   "items": {
                                                     "type": "string"
                                                   },
+                                                  "minItems": 1,
                                                   "type": "array"
                                                 },
                                                 "required": {
                                                   "items": {
                                                     "type": "string"
                                                   },
+                                                  "minItems": 1,
                                                   "type": "array"
                                                 }
                                               },
@@ -854,6 +861,7 @@
                                               "items": {
                                                 "type": "string"
                                               },
+                                              "minItems": 1,
                                               "type": "array"
                                             }
                                           },
@@ -880,6 +888,7 @@
                                             ],
                                             "type": "object"
                                           },
+                                          "minItems": 1,
                                           "type": "array"
                                         },
                                         "execution_boundary": {
@@ -1142,6 +1151,7 @@
           "additionalProperties": false,
           "properties": {
             "asks": {
+              "const": true,
               "type": "boolean"
             },
             "operations": {
@@ -1163,6 +1173,7 @@
                 ],
                 "type": "object"
               },
+              "minItems": 1,
               "type": "array"
             },
             "skills": {
@@ -1170,6 +1181,7 @@
                 "minLength": 1,
                 "type": "string"
               },
+              "minItems": 1,
               "type": "array"
             },
             "tools": {
@@ -1177,6 +1189,7 @@
                 "minLength": 1,
                 "type": "string"
               },
+              "minItems": 1,
               "type": "array"
             }
           },
@@ -1771,17 +1784,20 @@
                   "properties": {
                     "environment": {
                       "additionalProperties": false,
+                      "minProperties": 1,
                       "properties": {
                         "optional": {
                           "items": {
                             "type": "string"
                           },
+                          "minItems": 1,
                           "type": "array"
                         },
                         "required": {
                           "items": {
                             "type": "string"
                           },
+                          "minItems": 1,
                           "type": "array"
                         }
                       },
@@ -1791,6 +1807,7 @@
                       "items": {
                         "type": "string"
                       },
+                      "minItems": 1,
                       "type": "array"
                     }
                   },
@@ -1817,6 +1834,7 @@
                     ],
                     "type": "object"
                   },
+                  "minItems": 1,
                   "type": "array"
                 },
                 "execution_boundary": {

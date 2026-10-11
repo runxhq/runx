@@ -41,6 +41,6 @@ request only missing professional fields with a bounded credit allowance and
 the same subject identity. Never enable personal-email/phone reveal or a
 waterfall merely to make an incomplete packet look complete.
 
-The skill neither updates CRM records nor authorizes messages. Fieldwork owns
-refresh schedules and continuing Work; connectors own exact provider requests,
-credential custody and billing evidence.
+The skill neither updates CRM records nor authorizes messages. The calling
+application owns refresh schedules and continuing work; connectors own exact
+provider requests, credential custody and billing evidence.

@@ -37,7 +37,6 @@ pub struct ReceiptInspection {
     pub artifact_refs: Vec<String>,
     pub lineage_refs: Vec<String>,
     pub seal_reason_code: String,
-    pub seal_summary: String,
     /// The seal's criteria: how the step ended and the evidence of it,
     /// whether or not the step made a governed call.
     pub seal_criteria: Vec<ReceiptCriterionInspection>,
@@ -49,13 +48,8 @@ pub struct ReceiptAuthorityInspection {
     pub grant_refs: Vec<String>,
     pub scope_refs: Vec<String>,
     pub exercised_scopes: Vec<ReceiptExercisedScope>,
-    pub authority_proof_refs: Vec<String>,
     pub approval_refs: Vec<String>,
     pub term_count: usize,
-    pub parent_authority_ref: Option<String>,
-    pub subset_proof_present: bool,
-    pub enforcement_profile_hash: String,
-    pub redaction_refs: Vec<String>,
     pub credential_ref_count: usize,
 }
 
@@ -71,10 +65,7 @@ pub struct ReceiptExercisedScope {
 pub struct ReceiptDecisionInspection {
     pub id: String,
     pub choice: String,
-    pub selected_act_id: Option<String>,
-    pub summary: String,
-    pub evidence_refs: Vec<String>,
-    pub artifact_refs: Vec<String>,
+    pub selected_act_id: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -83,10 +74,8 @@ pub struct ReceiptActInspection {
     pub form: String,
     pub purpose: String,
     pub legitimacy: String,
-    pub summary: String,
-    pub disposition: String,
-    pub reason_code: String,
-    pub source_refs: Vec<String>,
+    /// What the caller told a reader about this call, when it said anything.
+    pub reason: Option<String>,
     pub target_refs: Vec<String>,
     pub artifact_refs: Vec<String>,
     pub criterion_statuses: Vec<ReceiptCriterionInspection>,
@@ -146,7 +135,7 @@ pub fn project_receipt_inspection_with_policy(
 ) -> ReceiptInspection {
     let decisions = decision_inspections(receipt);
     let acts = act_inspections(receipt);
-    let artifact_refs = inspection_artifact_refs(&decisions, &acts);
+    let artifact_refs = inspection_artifact_refs(&acts);
 
     ReceiptInspection {
         id: receipt.id.to_string(),
@@ -164,7 +153,6 @@ pub fn project_receipt_inspection_with_policy(
         artifact_refs,
         lineage_refs: inspection_lineage_refs(receipt),
         seal_reason_code: receipt.seal.reason_code.to_string(),
-        seal_summary: receipt.seal.summary.to_string(),
         seal_criteria: criterion_inspections(&receipt.seal.criteria),
     }
 }
@@ -176,10 +164,7 @@ fn decision_inspections(receipt: &Receipt) -> Vec<ReceiptDecisionInspection> {
         .map(|decision| ReceiptDecisionInspection {
             id: decision.decision_id.to_string(),
             choice: wire_label(&decision.choice),
-            selected_act_id: decision.selected_act_id.as_ref().map(ToString::to_string),
-            summary: decision.justification.summary.to_string(),
-            evidence_refs: refs(&decision.justification.evidence_refs),
-            artifact_refs: refs(&decision.artifact_refs),
+            selected_act_id: decision.selected_act_id.to_string(),
         })
         .collect()
 }
@@ -193,10 +178,7 @@ fn act_inspections(receipt: &Receipt) -> Vec<ReceiptActInspection> {
             form: wire_label(&act.form),
             purpose: act.intent.purpose.to_string(),
             legitimacy: act.intent.legitimacy.to_string(),
-            summary: act.summary.to_string(),
-            disposition: closure_status(&act.closure.disposition),
-            reason_code: act.closure.reason_code.to_string(),
-            source_refs: refs(&act.source_refs),
+            reason: act.reason.as_ref().map(ToString::to_string),
             target_refs: refs(&act.target_refs),
             artifact_refs: refs(&act.artifact_refs),
             criterion_statuses: criterion_inspections(&act.criterion_bindings),
@@ -209,7 +191,7 @@ fn criterion_inspections(criteria: &[CriterionBinding]) -> Vec<ReceiptCriterionI
     criteria
         .iter()
         .map(|criterion| ReceiptCriterionInspection {
-            criterion_id: criterion.criterion_id.to_string(),
+            criterion_id: criterion.criterion_id.as_str().to_owned(),
             status: wire_label(&criterion.status),
             evidence_refs: refs(&criterion.evidence_refs),
             verification_refs: refs(&criterion.verification_refs),
@@ -217,17 +199,9 @@ fn criterion_inspections(criteria: &[CriterionBinding]) -> Vec<ReceiptCriterionI
         .collect()
 }
 
-fn inspection_artifact_refs(
-    decisions: &[ReceiptDecisionInspection],
-    acts: &[ReceiptActInspection],
-) -> Vec<String> {
-    decisions
-        .iter()
-        .flat_map(|decision| decision.artifact_refs.iter().cloned())
-        .chain(
-            acts.iter()
-                .flat_map(|act| act.artifact_refs.iter().cloned()),
-        )
+fn inspection_artifact_refs(acts: &[ReceiptActInspection]) -> Vec<String> {
+    acts.iter()
+        .flat_map(|act| act.artifact_refs.iter().cloned())
         .collect::<BTreeSet<_>>()
         .into_iter()
         .collect()
@@ -236,15 +210,9 @@ fn inspection_artifact_refs(
 fn inspection_lineage_refs(receipt: &Receipt) -> Vec<String> {
     receipt
         .lineage
-        .as_ref()
-        .into_iter()
-        .flat_map(|lineage| {
-            lineage
-                .parent
-                .iter()
-                .chain(lineage.previous.iter())
-                .chain(lineage.children.iter())
-        })
+        .previous
+        .iter()
+        .chain(receipt.lineage.children.iter())
         .map(|reference| reference.uri.to_string())
         .collect::<BTreeSet<_>>()
         .into_iter()
@@ -281,17 +249,8 @@ fn authority_inspection(receipt: &Receipt) -> ReceiptAuthorityInspection {
         grant_refs: refs(&authority.grant_refs),
         scope_refs,
         exercised_scopes,
-        authority_proof_refs: refs(&authority.authority_proof_refs),
         approval_refs,
         term_count: authority.terms.len(),
-        parent_authority_ref: authority
-            .attenuation
-            .parent_authority_ref
-            .as_ref()
-            .map(|reference| reference.uri.to_string()),
-        subset_proof_present: authority.attenuation.subset_proof.is_some(),
-        enforcement_profile_hash: authority.enforcement.profile_hash.to_string(),
-        redaction_refs: refs(&authority.enforcement.redaction_refs),
         credential_ref_count: authority
             .terms
             .iter()

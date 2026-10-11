@@ -148,7 +148,7 @@ pub struct TurnAllowance {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub skills: Vec<NonEmptyString>,
     /// Whether the turn may ask the human.
-    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    #[serde(default, skip_serializing_if = "crate::schema::is_default")]
     pub asks: bool,
 }
 

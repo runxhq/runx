@@ -279,7 +279,7 @@ fn render_receipt_inspection(inspection: &ReceiptInspectionProjection) -> String
         format!("  acts  {}", receipt.acts.len()),
     ];
     for act in &receipt.acts {
-        lines.push(format!("  {}  {}  {}", act.disposition, act.form, act.id));
+        lines.push(format!("  {}  {}  {}", act.form, act.id, act.purpose));
     }
     lines.push(String::new());
     lines.join("\n")
@@ -447,7 +447,6 @@ mod tests {
                 runx_contracts::JsonValue::String("cli history".to_owned()),
             )])),
             10,
-            BTreeMap::new(),
         );
         let claim =
             output

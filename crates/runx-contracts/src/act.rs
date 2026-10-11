@@ -1,38 +1,50 @@
-//! Act algebra: intents, governed acts, success criteria, and verification details.
+//! Act algebra: intents, the checks the runtime binds to an act, and act forms.
 pub mod assignment;
 pub mod call;
 pub mod result;
 
 use serde::{Deserialize, Serialize};
 
-use crate::schema::{IsoDateTime, NonEmptyString, RunxSchema};
-use crate::{ActRef, Closure, Reference, Verification};
+use crate::Reference;
+use crate::schema::{NonEmptyString, RunxSchema};
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
-pub enum ActSchema {
-    #[serde(rename = "runx.act.v1")]
-    V1,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
-#[serde(deny_unknown_fields)]
-pub struct SuccessCriterion {
-    pub criterion_id: NonEmptyString,
-    pub statement: NonEmptyString,
-    pub required: bool,
-}
-
+/// Why an act was done and under what it was legitimate.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Intent {
     pub purpose: NonEmptyString,
     pub legitimacy: NonEmptyString,
-    #[serde(default)]
-    pub success_criteria: Vec<SuccessCriterion>,
-    #[serde(default)]
-    pub constraints: Vec<NonEmptyString>,
-    #[serde(default)]
-    pub derived_from: Vec<Reference>,
+}
+
+/// A check the runtime runs and binds to a receipt. The runtime is the only
+/// writer of criteria, so they are its own closed vocabulary: each names what
+/// was checked, and its binding states the result and the evidence.
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, RunxSchema,
+)]
+#[serde(rename_all = "snake_case")]
+pub enum Criterion {
+    /// The step's outcome: verified when it succeeded, failed when it did not.
+    StepOutcome,
+    /// The result satisfied the step's declared output contract.
+    OutputContractVerified,
+    /// The agent invocation used its resolved voice profile.
+    VoiceProfileApplied,
+    /// Every packet output satisfied its declared packet schema.
+    PacketSchemasVerified,
+}
+
+impl Criterion {
+    /// The criterion's wire name.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::StepOutcome => "step_outcome",
+            Self::OutputContractVerified => "output_contract_verified",
+            Self::VoiceProfileApplied => "voice_profile_applied",
+            Self::PacketSchemasVerified => "packet_schemas_verified",
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
@@ -40,125 +52,24 @@ pub struct Intent {
 pub enum CriterionStatus {
     Verified,
     Failed,
-    Pending,
-    NotApplicable,
-    Unknown,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
+/// What kind of act a governed call is.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ActForm {
-    Revision,
+    #[default]
+    Observation,
     Reply,
     Review,
-    Observation,
-    Verification,
 }
 
+/// One check's result and the references that prove it.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub struct CriterionBinding {
-    pub criterion_id: NonEmptyString,
+    pub criterion_id: Criterion,
     pub status: CriterionStatus,
-    #[serde(default)]
     pub evidence_refs: Vec<Reference>,
-    #[serde(default)]
     pub verification_refs: Vec<Reference>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub summary: Option<NonEmptyString>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
-#[serde(deny_unknown_fields)]
-pub struct TargetSurface {
-    pub surface_ref: Reference,
-    pub mutating: bool,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub rationale: Option<NonEmptyString>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
-#[serde(deny_unknown_fields)]
-pub struct ChangeRequest {
-    pub request_id: NonEmptyString,
-    pub summary: NonEmptyString,
-    #[serde(default)]
-    pub target_surfaces: Vec<TargetSurface>,
-    #[serde(default)]
-    pub success_criteria: Vec<SuccessCriterion>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
-#[serde(deny_unknown_fields)]
-pub struct ChangePlan {
-    pub plan_id: NonEmptyString,
-    pub summary: NonEmptyString,
-    #[serde(default)]
-    pub steps: Vec<NonEmptyString>,
-    #[serde(default)]
-    pub risks: Vec<NonEmptyString>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
-#[serde(deny_unknown_fields)]
-pub struct RevisionDetails {
-    pub change_request: ChangeRequest,
-    pub change_plan: ChangePlan,
-    #[serde(default)]
-    pub target_surfaces: Vec<TargetSurface>,
-    #[serde(default)]
-    pub invariants: Vec<NonEmptyString>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub verification: Option<Verification>,
-    #[serde(default)]
-    pub handoff_refs: Vec<Reference>,
-    #[serde(default)]
-    pub revision_refs: Vec<Reference>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
-#[serde(deny_unknown_fields)]
-pub struct VerificationDetails {
-    pub criterion_ids: Vec<NonEmptyString>,
-    pub verification: Verification,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub deployment_ref: Option<Reference>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
-#[serde(deny_unknown_fields)]
-#[runx_schema(id = "runx.act.v1")]
-pub struct Act {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub schema: Option<ActSchema>,
-    pub act_id: NonEmptyString,
-    pub form: ActForm,
-    pub intent: Intent,
-    pub summary: NonEmptyString,
-    pub closure: Closure,
-    #[serde(default)]
-    pub criterion_bindings: Vec<CriterionBinding>,
-    #[serde(default)]
-    pub source_refs: Vec<Reference>,
-    #[serde(default)]
-    pub target_refs: Vec<Reference>,
-    #[serde(default)]
-    pub surface_refs: Vec<Reference>,
-    #[serde(default)]
-    pub artifact_refs: Vec<Reference>,
-    #[serde(default)]
-    pub verification_refs: Vec<Reference>,
-    #[serde(default)]
-    pub harness_refs: Vec<Reference>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub revision: Option<RevisionDetails>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub verification: Option<VerificationDetails>,
-    pub performed_at: IsoDateTime,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct GovernedActRef {
-    pub act_ref: ActRef,
 }

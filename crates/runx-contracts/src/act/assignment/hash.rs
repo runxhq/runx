@@ -1,5 +1,6 @@
 use std::fmt::Write as _;
 
+use crate::canonical_json::ecmascript_number;
 use crate::{JsonNumber, JsonValue};
 
 pub(super) fn stable_hash_json(value: &JsonValue) -> String {
@@ -47,17 +48,12 @@ fn append_json_number(value: &JsonNumber, json: &mut String) {
         JsonNumber::U64(value) => {
             let _ = write!(json, "{value}");
         }
-        JsonNumber::F64(value) if value.is_finite() && *value == 0.0 => json.push('0'),
-        JsonNumber::F64(value) if value.is_finite() && value.fract() == 0.0 => {
-            let _ = write!(json, "{value:.0}");
-        }
-        JsonNumber::F64(value) if value.is_finite() => {
-            let _ = write!(json, "{value}");
-        }
         // `hashStable` follows TypeScript's JSON.stringify behavior here.
         // Public serde serialization stays strict and rejects non-finite JSON
         // numbers, but idempotency hashing must match the TypeScript oracle.
-        JsonNumber::F64(_) => json.push_str("null"),
+        JsonNumber::F64(value) => {
+            json.push_str(ecmascript_number(*value).as_deref().unwrap_or("null"));
+        }
     }
 }
 

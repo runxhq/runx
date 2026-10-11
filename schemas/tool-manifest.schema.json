@@ -76,6 +76,7 @@
         ],
         "type": "object"
       },
+      "minProperties": 1,
       "type": "object"
     },
     "name": {
@@ -91,6 +92,7 @@
       "items": {
         "type": "string"
       },
+      "minItems": 1,
       "type": "array"
     },
     "source": {
@@ -100,6 +102,7 @@
           "items": {
             "type": "string"
           },
+          "minItems": 1,
           "type": "array"
         },
         "command": {
@@ -110,17 +113,20 @@
         },
         "environment": {
           "additionalProperties": false,
+          "minProperties": 1,
           "properties": {
             "optional": {
               "items": {
                 "type": "string"
               },
+              "minItems": 1,
               "type": "array"
             },
             "required": {
               "items": {
                 "type": "string"
               },
+              "minItems": 1,
               "type": "array"
             }
           },

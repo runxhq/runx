@@ -30,7 +30,6 @@ struct TreeCase {
 struct FixtureTreeConfig {
     max_depth: usize,
     max_breadth: usize,
-    require_parent_links: bool,
 }
 
 impl FixtureTreeConfig {
@@ -38,7 +37,6 @@ impl FixtureTreeConfig {
         ReceiptTreeConfig {
             max_depth: self.max_depth,
             max_breadth: self.max_breadth,
-            require_parent_links: self.require_parent_links,
         }
     }
 }

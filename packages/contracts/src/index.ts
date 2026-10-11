@@ -281,13 +281,6 @@ export {
 } from "./schemas/run-summary.js";
 
 export {
-  effectFinalityReceiptV1Schema,
-  type EffectFinalityReceiptContract,
-  type EffectFinalityReceiptPhaseContract,
-  validateEffectFinalityReceiptContract,
-} from "./schemas/effect-finality-receipt.js";
-
-export {
   externalJobContinuationV1Schema,
   externalJobScheduleV1Schema,
   externalJobScheduleIntentV1Schema,
@@ -312,14 +305,7 @@ export {
 
 export {
   receiptV1Schema,
-  receiptClassSchema,
-  receiptPaidInvocationBindingSchema,
-  receiptEvidenceSchema,
   type ReceiptContract,
-  type ReceiptClassContract,
-  type ReceiptPaidInvocationMediationContract,
-  type ReceiptPaidInvocationBindingContract,
-  type ReceiptEvidenceContract,
   validateReceiptContract,
   RECEIPT_CANONICALIZATION,
 } from "./schemas/receipt.js";
@@ -537,7 +523,7 @@ export {
   decisionChoices,
   actForms,
   criterionStatuses,
-  verificationStatuses,
+  criteria,
   authorityResourceFamilies,
   authorityVerbs,
   authorityCapabilities,
@@ -552,7 +538,7 @@ export {
   decisionChoiceSchema,
   actFormSchema,
   criterionStatusSchema,
-  verificationStatusSchema,
+  criterionSchema,
   authorityResourceFamilySchema,
   authorityVerbSchema,
   authorityCapabilitySchema,
@@ -577,33 +563,16 @@ export {
   authorityTermSchema,
   authoritySubsetComparisonSchema,
   authoritySubsetProofSchema,
-  authorityAttenuationSchema,
-  authoritySchema,
-  successCriterionSchema,
   intentSchema,
-  verificationCheckSchema,
-  verificationSchema,
-  targetSurfaceSchema,
-  changeRequestSchema,
-  changePlanSchema,
-  revisionDetailsSchema,
-  verificationDetailsSchema,
   criterionBindingSchema,
-  actSchema,
-  decisionInputsSchema,
-  decisionJustificationSchema,
-  closureSchema,
   decisionSchema,
   artifactSchema,
   receiptIssuerSchema,
   receiptSignatureSchema,
   validateReferenceContract,
   validateSignalContract,
-  validateAuthorityContract,
   validateAuthoritySubsetProofContract,
   validateDecisionContract,
-  validateActContract,
-  validateVerificationContract,
   validateSpineArtifactContract,
   validateRedactionContract,
   type ReferenceTypeContract,
@@ -613,7 +582,7 @@ export {
   type DecisionChoiceContract,
   type ActFormContract,
   type CriterionStatusContract,
-  type VerificationStatusContract,
+  type CriterionContract,
   type AuthorityResourceFamilyContract,
   type AuthorityVerbContract,
   type AuthorityCapabilityContract,
@@ -634,21 +603,8 @@ export {
   type AuthorityApprovalContract,
   type AuthorityTermContract,
   type AuthoritySubsetProofContract,
-  type AuthorityContract,
-  type SuccessCriterionContract,
   type IntentContract,
-  type VerificationCheckContract,
-  type VerificationContract,
-  type TargetSurfaceContract,
-  type ChangeRequestContract,
-  type ChangePlanContract,
-  type RevisionDetailsContract,
-  type VerificationDetailsContract,
   type CriterionBindingContract,
-  type ActContract,
-  type DecisionInputsContract,
-  type DecisionJustificationContract,
-  type ClosureRecordContract,
   type DecisionContract,
   type ArtifactContract,
   type ReceiptIssuerContract,
@@ -676,22 +632,18 @@ import { doctorV1Schema } from "./schemas/doctor.js";
 import { devV1Schema } from "./schemas/dev.js";
 import { listV1Schema } from "./schemas/list.js";
 import { runSummaryV1Schema } from "./schemas/run-summary.js";
-import { effectFinalityReceiptV1Schema } from "./schemas/effect-finality-receipt.js";
 import { receiptV1Schema } from "./schemas/receipt.js";
 import { fixtureV1Schema } from "./schemas/fixture.js";
 import { toolManifestV1Schema } from "./schemas/tool-manifest.js";
 import { packetIndexV1Schema } from "./schemas/packet-index.js";
 import { actAssignmentV1Schema } from "./schemas/act-assignment.js";
 import {
-  actSchema,
   artifactSchema,
   authoritySubsetProofSchema,
   decisionSchema,
-  authoritySchema,
   redactionSchema,
   referenceSchema,
   signalSchema,
-  verificationSchema,
 } from "./schemas/spine.js";
 import { ledgerRecordSchema } from "./schemas/ledger.js";
 import { handoffSignalV1Schema, handoffStateV1Schema, suppressionRecordV1Schema } from "./schemas/handoff.js";
@@ -745,19 +697,15 @@ export const runxContractSchemas = {
   skillValidationResult: runxSchemaArtifacts["skill-validation-result.schema.json"],
   skillApplyResult: runxSchemaArtifacts["skill-apply-result.schema.json"],
   receipt: runxSchemaArtifacts["receipt.schema.json"],
-  effectFinalityReceipt: runxSchemaArtifacts["effect-finality-receipt.schema.json"],
   fixture: runxSchemaArtifacts["fixture.schema.json"],
   toolManifest: runxSchemaArtifacts["tool-manifest.schema.json"],
   packetIndex: runxSchemaArtifacts["packet-index.schema.json"],
   actAssignment: runxSchemaArtifacts["act-assignment.schema.json"],
   reference: runxSchemaArtifacts["reference.schema.json"],
   referenceLink: runxSchemaArtifacts["reference-link.schema.json"],
-  authority: runxSchemaArtifacts["authority.schema.json"],
   authoritySubsetProof: runxSchemaArtifacts["authority-subset-proof.schema.json"],
   signal: runxSchemaArtifacts["signal.schema.json"],
   decision: runxSchemaArtifacts["decision.schema.json"],
-  act: runxSchemaArtifacts["act.schema.json"],
-  verification: runxSchemaArtifacts["verification.schema.json"],
   artifact: runxSchemaArtifacts["artifact.schema.json"],
   redaction: runxSchemaArtifacts["redaction.schema.json"],
   ledgerEntry: runxSchemaArtifacts["ledger-entry.schema.json"],

@@ -8,8 +8,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::schema::RunxSchema;
 
-pub const EXECUTION_BOUNDARY_METADATA: &str = "execution_boundary";
-
 #[derive(
     Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, RunxSchema,
 )]

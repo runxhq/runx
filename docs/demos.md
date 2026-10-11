@@ -36,9 +36,10 @@ they are not local payment adapters and do not prove a Runx-hosted settlement.
 
 ## Verify A Receipt
 
-The verifier is independent of runx runtime code. It recomputes the canonical
-receipt body hash, checks the content-addressed receipt id, verifies the Ed25519
-signature, and can walk receipt ancestry from top-level receipt-store artifacts.
+The verifier is independent of runx runtime code. It checks the receipt's
+shape, recomputes the canonical receipt body hash, checks the content-addressed
+receipt id, verifies the Ed25519 signature, and can walk receipt ancestry from
+top-level receipt-store artifacts.
 
 ```sh
 node tools/verify/verify.mjs /path/to/receipt.json \

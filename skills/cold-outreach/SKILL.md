@@ -7,8 +7,8 @@ description: Prepare one relevant, evidence-bound cold email for an exact prospe
 
 Prepare one useful first contact, not a campaign or an email transport. Reuse
 supplied prospect research, approved offer facts, `brand-voice` and `taste-profile`
-context. Fieldwork selects that workspace context; this skill never searches
-global memory or a private credential database.
+context. The calling application selects that workspace context; this skill never
+searches global memory or a private credential database.
 
 `prepare` admits the evidence and writing context through `ghostwrite#admit` and
 checks the supplied contact-policy disposition and suppression state. Only then
@@ -61,11 +61,12 @@ of its validated ghostwrite source packet; a hold exposes no usable email payloa
 Route the ready payload through a compatible mail capability. Delivery admission must bind sender,
 recipient and complete content to native approval and provider execution.
 
-Fieldwork retains the draft and outcomes. Follow-ups require a fresh conversation
-and suppression read, add something useful, and stay within the user's configured
-limit. Reply ends the cold sequence; opt-out, complaint or invalid address stops
-it. Out-of-office is not buying interest. This skill owns no timer, queue or send
-ledger. Each outward message still follows the configured approval policy.
+The calling application retains the draft and outcomes. Follow-ups require a fresh
+conversation and suppression read, add something useful, and stay within the
+user's configured limit. Reply ends the cold sequence; opt-out, complaint or
+invalid address stops it. Out-of-office is not buying interest. This skill owns
+no timer, queue or send ledger. Each outward message still follows the
+configured approval policy.
 
 ## Agent task contract
 

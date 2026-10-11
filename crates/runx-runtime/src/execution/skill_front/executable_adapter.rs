@@ -16,7 +16,7 @@ impl SkillAdapter for ExecutableAdapter {
             let credential_observation = request.credential_delivery.public_observation().cloned();
             let mut output = ProcessToolAdapter.invoke(request)?;
             if let Some(observation) = &credential_observation {
-                output.record_credential_observation(observation)?;
+                output.observations.record_credential(observation)?;
             }
             return Ok(output);
         }

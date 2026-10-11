@@ -330,6 +330,17 @@ impl Fixture {
         inputs: &JsonObject,
         actor: Option<ResolutionResponseActor>,
     ) -> Result<(EffectAdmission, OperationOutcome), String> {
+        self.run_dispatched(step, inputs, actor)
+            .map(|(admission, outcome, _)| (admission, outcome))
+    }
+
+    /// [`Self::run`], with what the kernel handed the implementation.
+    fn run_dispatched(
+        &self,
+        step: &str,
+        inputs: &JsonObject,
+        actor: Option<ResolutionResponseActor>,
+    ) -> Result<(EffectAdmission, OperationOutcome, Option<Dispatched>), String> {
         let admission = self
             .admit(step, inputs)
             .map_err(|error| error.to_string())?;
@@ -341,9 +352,17 @@ impl Fixture {
             return Err("pending".to_owned());
         };
         let context = admission.context::<OperationAdmission>().unwrap();
-        let outcome = execute(context, step, &self.env, self.root.path(), &NoTools)
-            .map_err(|error| error.to_string())?;
-        Ok((*admission, outcome))
+        let mut dispatched = None;
+        let outcome = execute(
+            context,
+            step,
+            &self.env,
+            self.root.path(),
+            &NoTools,
+            &mut dispatched,
+        )
+        .map_err(|error| error.to_string())?;
+        Ok((*admission, outcome, dispatched))
     }
 }
 
@@ -364,8 +383,8 @@ fn packet(outcome: &OperationOutcome) -> &JsonObject {
 #[test]
 fn an_approved_post_binds_its_intent_term_and_readback() {
     let fixture = Fixture::new(&["channel.post", "channel.post.read"]);
-    let (admission, outcome) = fixture
-        .run(
+    let (admission, outcome, dispatched) = fixture
+        .run_dispatched(
             "post",
             &post("deploy done"),
             Some(ResolutionResponseActor::Human),
@@ -402,7 +421,12 @@ fn an_approved_post_binds_its_intent_term_and_readback() {
     assert_eq!(term.approvals.len(), 1);
     let derivation = admitted.derivation.as_ref().expect("derivation");
     assert_eq!(derivation.proofs.len(), 1);
-    assert_eq!(outcome.boundary, ExecutionBoundaryKind::RemoteProvider);
+    let dispatched = dispatched.expect("the call reached its implementation");
+    assert_eq!(dispatched.boundary, ExecutionBoundaryKind::RemoteProvider);
+    assert!(
+        dispatched.credential.is_none(),
+        "a hosted call hands no process a credential"
+    );
     let sent = fixture.provider.calls.lock().unwrap()[0].clone();
     assert!(sent.contains_key("operation_digest"));
 }
@@ -545,6 +569,7 @@ fn acting_for_another_principal_requires_a_bounded_delegation() {
         &fixture.env,
         fixture.root.path(),
         &NoTools,
+        &mut None,
     )
     .expect("the first call reserves the use");
     authority.mandate_ref = Some(Reference::runx(ReferenceType::Mandate, "another-mandate"));
@@ -1180,7 +1205,13 @@ runners:
             return String::new();
         };
         let context = admission.context::<OperationAdmission>().unwrap();
-        let outcome = execute(context, "read", &env, &skill_dir, &NoTools).unwrap();
+        let mut dispatched = None;
+        let outcome =
+            execute(context, "read", &env, &skill_dir, &NoTools, &mut dispatched).unwrap();
+        let delivered = dispatched
+            .and_then(|dispatched| dispatched.credential)
+            .unwrap();
+        assert_eq!(delivered.provider.as_str(), "probe-mcp");
         serde_json::to_value(&packet(&outcome)["result"]).unwrap()["content"][0]["text"]
             .as_str()
             .unwrap()

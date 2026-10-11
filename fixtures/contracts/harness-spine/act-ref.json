@@ -1,1 +1,0 @@
-{"description":"Compound governed act reference through the sealing receipt plus contained act id.","expected":{"act_ref":{"act_id":"act_revision_1","receipt_ref":{"type":"receipt","uri":"runx:receipt:rcpt_123"}}},"fixture_kind":"governed_act_ref","name":"act-ref","scope":"harness-spine"}

@@ -1,10 +1,8 @@
 use std::collections::BTreeMap;
 
-use runx_contracts::{
-    Receipt, ReceiptClass, ReceiptPaidInvocationBinding, Reference, ReferenceType,
-};
+use runx_contracts::{Receipt, Reference, ReferenceType};
 
-use super::{ReceiptTreeConfig, ResolvedReceipt};
+use super::ResolvedReceipt;
 use crate::{ReceiptFinding, ReceiptFindingCode, validate_receipt};
 
 pub(super) fn duplicate_child_findings(children: &[ResolvedReceipt<'_>]) -> Vec<ReceiptFinding> {
@@ -92,33 +90,6 @@ pub(super) fn resolver_error(path: &str) -> ReceiptFinding {
     }
 }
 
-pub(super) fn parent_link_findings(
-    path: &str,
-    parent: &Receipt,
-    child: &Receipt,
-    config: ReceiptTreeConfig,
-) -> Vec<ReceiptFinding> {
-    let parent_uri = format!("runx:receipt:{}", parent.id);
-    let child_parent = child
-        .lineage
-        .as_ref()
-        .and_then(|lineage| lineage.parent.as_ref());
-    match child_parent {
-        Some(parent_ref) if parent_ref.uri == parent_uri => Vec::new(),
-        Some(_) => vec![ReceiptFinding {
-            code: ReceiptFindingCode::ChildReceiptParentMismatch,
-            path: format!("{path}.lineage.parent"),
-            message: "child lineage parent ref must match the parent receipt".to_owned(),
-        }],
-        None if config.require_parent_links => vec![ReceiptFinding {
-            code: ReceiptFindingCode::ChildReceiptParentMismatch,
-            path: format!("{path}.lineage.parent"),
-            message: "strict tree verification requires child lineage parent refs".to_owned(),
-        }],
-        None => Vec::new(),
-    }
-}
-
 pub(super) fn child_digest_link_findings(
     path: &str,
     reference: &Reference,
@@ -134,67 +105,6 @@ pub(super) fn child_digest_link_findings(
             "strict tree proof requires child receipt refs to carry the exact child receipt digest"
                 .to_owned(),
     }]
-}
-
-pub(super) fn inner_receipt_link_findings(
-    path: &str,
-    outer: &Receipt,
-    inner: &Receipt,
-    expected: &ReceiptPaidInvocationBinding,
-) -> Vec<ReceiptFinding> {
-    let mut findings = Vec::new();
-    if inner.class != ReceiptClass::Executed {
-        findings.push(ReceiptFinding {
-            code: ReceiptFindingCode::InnerReceiptClassMismatch,
-            path: format!("{path}.class"),
-            message: "inner receipt evidence must resolve to an executed receipt".to_owned(),
-        });
-    }
-    if inner.subject.paid_invocation.as_ref() != Some(expected) {
-        findings.push(ReceiptFinding {
-            code: ReceiptFindingCode::InnerReceiptBindingMismatch,
-            path: format!("{path}.subject.paid_invocation"),
-            message: "resolved inner receipt binding must equal the signed outer expectation"
-                .to_owned(),
-        });
-    }
-
-    if let Some(parent_binding) = expected.parent_binding.as_ref()
-        && let Some(outer_binding) = outer.subject.paid_invocation.as_ref()
-    {
-        if parent_binding.invocation_id != outer_binding.invocation_id {
-            findings.push(ReceiptFinding {
-                code: ReceiptFindingCode::InnerReceiptParentInvocationMismatch,
-                path: format!("{path}.subject.paid_invocation.parent_binding.invocation_id"),
-                message: "inner parent invocation id must equal the outer paid invocation id"
-                    .to_owned(),
-            });
-        }
-        if parent_binding.execution_digest != outer_binding.package_digest {
-            findings.push(ReceiptFinding {
-                code: ReceiptFindingCode::InnerReceiptParentDigestMismatch,
-                path: format!("{path}.subject.paid_invocation.parent_binding.execution_digest"),
-                message: "inner parent execution digest must equal the outer package digest"
-                    .to_owned(),
-            });
-        }
-    }
-
-    let outer_uri = format!("runx:receipt:{}", outer.id);
-    if inner
-        .lineage
-        .as_ref()
-        .and_then(|lineage| lineage.parent.as_ref())
-        .is_some_and(|parent| parent.uri == outer_uri)
-    {
-        findings.push(ReceiptFinding {
-            code: ReceiptFindingCode::InnerReceiptLineageConflict,
-            path: format!("{path}.lineage.parent"),
-            message: "composite inner receipts bind the outer invocation, not the outer receipt id"
-                .to_owned(),
-        });
-    }
-    findings
 }
 
 pub(super) fn child_finding(path: &str, finding: ReceiptFinding) -> ReceiptFinding {

@@ -14,7 +14,6 @@ import {
   dataOperationResultV1Schema,
   devV1Schema,
   doctorV1Schema,
-  effectFinalityReceiptV1Schema,
   fixtureV1Schema,
   handoffSignalV1Schema,
   handoffStateV1Schema,
@@ -28,9 +27,6 @@ import {
   resolutionRequestSchema,
   resolutionResponseSchema,
   receiptV1Schema,
-  receiptClassSchema,
-  receiptPaidInvocationBindingSchema,
-  receiptEvidenceSchema,
   paidSkillListingV1Schema,
   paidInvocationV1Schema,
   quotePaidInvocationRequestV1Schema,
@@ -43,7 +39,6 @@ import {
   toolManifestV1Schema,
   contractSchemaMatches,
   validateActResultEnvelopeContract,
-  validateActContract,
   validateAgentContextEnvelopeContract,
   validateOutputContract,
   validateResolutionRequestContract,
@@ -53,7 +48,6 @@ import {
   validateDoctorReportContract,
   validateHandoffSignalContract,
   validateHandoffStateContract,
-  validateEffectFinalityReceiptContract,
   validateReceiptContract,
   validateRegistryBindingContract,
   validateRunxListReportContract,
@@ -72,7 +66,6 @@ describe("@runxhq/contracts", () => {
   it("exports stable runx logical schema identifiers", () => {
     expect(RUNX_LOGICAL_SCHEMAS.doctor).toBe("runx.doctor.v1");
     expect(RUNX_LOGICAL_SCHEMAS.receipt).toBe("runx.receipt.v1");
-    expect(RUNX_LOGICAL_SCHEMAS.effectFinalityReceipt).toBe("runx.effect_finality_receipt.v1");
     expect(RUNX_LOGICAL_SCHEMAS.operationalProposal).toBe("runx.operational_proposal.v1");
     expect(RUNX_LOGICAL_SCHEMAS.dataOperationResult).toBe("runx.data.operation_result.v1");
   });
@@ -81,9 +74,6 @@ describe("@runxhq/contracts", () => {
     expect(RUNX_CONTRACT_IDS.toolManifest).toBe("https://schemas.runx.ai/runx/tool/manifest/v1.json");
     expect(runxContractSchemas.toolManifest.$id).toBe(RUNX_CONTRACT_IDS.toolManifest);
     expect(toolManifestV1Schema).toBe(runxContractSchemas.toolManifest);
-    expect(RUNX_CONTRACT_IDS.effectFinalityReceipt)
-      .toBe("https://schemas.runx.ai/runx/effect-finality-receipt/v1.json");
-    expect(runxContractSchemas.effectFinalityReceipt.$id).toBe(RUNX_CONTRACT_IDS.effectFinalityReceipt);
     expect(RUNX_CONTRACT_IDS.dataOperationResult)
       .toBe("https://schemas.runx.ai/runx/data/operation-result/v1.json");
     expect(runxContractSchemas.dataOperationResult.$id).toBe(RUNX_CONTRACT_IDS.dataOperationResult);
@@ -119,10 +109,6 @@ describe("@runxhq/contracts", () => {
     expect(credentialDeliveryObservationV1Schema).toBe(runxContractSchemas.credentialDeliveryObservation);
     expect(dataOperationResultV1Schema).toBe(runxContractSchemas.dataOperationResult);
     expect(receiptV1Schema).toBe(runxContractSchemas.receipt);
-    expect(receiptClassSchema).toBeDefined();
-    expect(receiptPaidInvocationBindingSchema).toBeDefined();
-    expect(receiptEvidenceSchema).toBeDefined();
-    expect(effectFinalityReceiptV1Schema).toBe(runxContractSchemas.effectFinalityReceipt);
     expect(doctorV1Schema).toBe(runxContractSchemas.doctor);
     expect(devV1Schema).toBe(runxContractSchemas.dev);
     expect(listV1Schema).toBe(runxContractSchemas.list);
@@ -239,49 +225,6 @@ describe("@runxhq/contracts", () => {
       provider: "github",
       proof_kind: "credential_resolution",
     });
-  });
-
-  it("exports and validates effect finality receipts", () => {
-    expect(validateEffectFinalityReceiptContract({
-      schema: "runx.effect_finality_receipt.v1",
-      id: "effect-finality-001",
-      created_at: "2026-01-01T00:00:00Z",
-      family: "payment",
-      phase: "sealed",
-      original_receipt_ref: {
-        type: "receipt",
-        uri: "runx:receipt:original-001",
-      },
-      criterion_id: "payment.finality",
-      evidence_refs: [{
-        type: "verification",
-        uri: "receipt-proof:mock:effect-finality-001",
-        proof_kind: "effect_finality",
-      }],
-      norm_refs: ["acme:norm:reply-before-escalation"],
-      proof_ref: {
-        type: "verification",
-        uri: "receipt-proof:mock:effect-finality-001",
-        proof_kind: "effect_finality",
-      },
-      confirmation_depth: 1,
-      payload: {
-        provider: "stripe",
-      },
-    })).toMatchObject({
-      schema: "runx.effect_finality_receipt.v1",
-      family: "payment",
-      phase: "sealed",
-      criterion_id: "payment.finality",
-      norm_refs: ["acme:norm:reply-before-escalation"],
-    });
-    expect(() => validateEffectFinalityReceiptContract({
-      schema: "runx.effect_finality_receipt.v1",
-      id: "effect-finality-002",
-      created_at: "2026-01-01T00:00:00Z",
-      family: "payment",
-      phase: "sealed",
-    })).toThrow(/effect finality receipt/);
   });
 
   it("owns executor control protocol schemas and runtime validation", () => {
@@ -407,8 +350,6 @@ describe("@runxhq/contracts", () => {
     expect(runxGeneratedSchemaArtifacts["doctor.schema.json"]).toBe(runxContractSchemas.doctor);
     expect(runxGeneratedSchemaArtifacts["act-assignment.schema.json"]).toBe(runxContractSchemas.actAssignment);
     expect(runxGeneratedSchemaArtifacts["receipt.schema.json"]).toBe(runxContractSchemas.receipt);
-    expect(runxGeneratedSchemaArtifacts["effect-finality-receipt.schema.json"])
-      .toBe(runxContractSchemas.effectFinalityReceipt);
     expect(runxGeneratedSchemaArtifacts["run-summary.schema.json"]).toBe(runxContractSchemas.runSummary);
     expect(runxGeneratedSchemaArtifacts["handoff-signal.schema.json"]).toBe(runxContractSchemas.handoffSignal);
     expect(runxGeneratedSchemaArtifacts["handoff-state.schema.json"]).toBe(runxContractSchemas.handoffState);
@@ -617,7 +558,7 @@ describe("@runxhq/contracts", () => {
     })).toBe(false);
   });
 
-  it("validates a source signal and its complete execution receipt", () => {
+  it("validates a source signal and a governed call's receipt", () => {
     const issueRef = {
       type: "thread",
       uri: "github://runxhq/example/issues/101",
@@ -626,41 +567,11 @@ describe("@runxhq/contracts", () => {
       observed_at: "2026-05-18T00:00:00Z",
     };
     const principalRef = { type: "principal", uri: "runx:principal:agent_1" };
-    const criterion = {
-      criterion_id: "crit_revision_reviewable",
-      statement: "Revision is available for review.",
-      required: true,
-    };
-    const intent = {
-      purpose: "Prepare a bounded revision for checkout retry behavior.",
-      legitimacy: "The authenticated issue requests a fix in the target repository.",
-      success_criteria: [criterion],
-      constraints: ["Stay inside the checkout surface."],
-      derived_from: [issueRef],
-    };
-    const verification = {
-      status: "passed",
-      checks: [{
-        check_id: "check_pr_open",
-        criterion_ids: ["crit_revision_reviewable"],
-        status: "passed",
-        evidence_refs: [{ type: "change_request", uri: "github://runxhq/example/pulls/102" }],
-      }],
-      verified_at: "2026-05-18T00:02:00Z",
-      evidence_refs: [{ type: "change_request", uri: "github://runxhq/example/pulls/102" }],
-    };
-    const seal = {
-      disposition: "closed",
-      reason_code: "revision_ready",
-      summary: "Revision act completed and reviewable PR was observed.",
-      closed_at: "2026-05-18T00:03:00Z",
-      last_observed_at: "2026-05-18T00:03:00Z",
-      criteria: [{
-        criterion_id: "crit_revision_reviewable",
-        status: "verified",
-        verification_refs: [{ type: "verification", uri: "runx:verification:check_pr_open" }],
-        evidence_refs: [{ type: "change_request", uri: "github://runxhq/example/pulls/102" }],
-      }],
+    const outcome = {
+      criterion_id: "step_outcome",
+      status: "verified",
+      evidence_refs: [],
+      verification_refs: [{ type: "verification", uri: "runx:provider_ack:comment_1", proof_kind: "effect_evidence" }],
     };
 
     expect(validateSignalContract({
@@ -681,7 +592,7 @@ describe("@runxhq/contracts", () => {
       evidence_refs: [issueRef],
     })).toMatchObject({ schema: "runx.signal.v1", signal_type: "issue_opened" });
 
-    expect(validateReceiptContract({
+    const receipt = {
       schema: "runx.receipt.v1",
       id: "rcpt_123",
       created_at: "2026-05-18T00:03:01Z",
@@ -696,124 +607,72 @@ describe("@runxhq/contracts", () => {
         value: "sig_123",
       },
       digest: "sha256:receipt",
-      idempotency: {
-        intent_key: "sha256:checkout-retry",
-        trigger_fingerprint: "sha256:trigger",
-        content_hash: "sha256:content",
-      },
-      class: "executed",
       subject: {
         kind: "skill",
-        ref: { type: "harness", uri: "runx:harness:local-cli" },
-        commitments: [{
-          scope: "output",
-          algorithm: "sha256",
-          value: "sha256:private-transcript",
-          canonicalization: "runx.artifact-hash.v1",
-        }],
+        ref: { type: "run", uri: "runx:run:run_123#reply@1" },
+        outcome: `sha256:${"3".repeat(64)}`,
       },
       authority: {
         actor_ref: principalRef,
         grant_refs: [{ type: "grant", uri: "runx:grant:repo_write" }],
-        scope_refs: [{ type: "scope_admission", uri: "runx:scope_admission:repo_write" }],
-        authority_proof_refs: [{ type: "authority_proof", uri: "runx:authority_proof:proof_1" }],
-        attenuation: { parent_authority_ref: null, subset_proof: null },
+        scope_refs: [{ type: "scope_admission", uri: "runx:scope_admission:issues:write" }],
         terms: [{
-          term_id: "term_repo_write",
+          term_id: "term_reply",
           principal_ref: principalRef,
-          resource_ref: { type: "repository", uri: "github://runxhq/example" },
+          resource_ref: { type: "connector_instance", uri: "runx:connector_instance:github.default" },
           resource_family: "connector",
-          verbs: ["read", "write", "create"],
-          bounds: {
-            repo_path_globs: ["app/checkout/**"],
-            branch_patterns: ["runx/**"],
-            max_child_depth: 1,
-          },
-          conditions: [{
-            condition_id: "cond_signal_verified",
-            predicate: "signal_verified",
-            refs: [{ type: "signal", uri: "runx:signal:sig_101" }],
-          }],
+          verbs: ["write"],
+          bounds: { operations: ["github/comments.create"] },
+          conditions: [],
           approvals: [],
-          capabilities: ["filesystem_read", "filesystem_write", "provider_mutation"],
-          issued_by_ref: principalRef,
-          credential_ref: { type: "credential", uri: "runx:credential:github_installation" },
+          capabilities: [],
+          issued_by_ref: { type: "host", uri: "runx:host:runx-kernel" },
         }],
-        enforcement: {
-          profile_hash: "sha256:profile",
-          redaction_refs: [{ type: "redaction_policy", uri: "runx:redaction_policy:public_safe" }],
-          setup_refs: [],
-          teardown_refs: [],
-        },
+        derivations: [],
+        enforcement: { execution_boundary: { kind: "remote_provider" } },
       },
-      signals: [{ type: "signal", uri: "runx:signal:sig_101" }],
       decisions: [{
-        decision_id: "dec_revision",
-        choice: "open",
-        inputs: {
-          signal_refs: [{ type: "signal", uri: "runx:signal:sig_101" }],
-          target_ref: null,
-          opportunity_refs: [],
-          selection_ref: null,
-        },
-        proposed_intent: intent,
-        selected_act_id: "act_revision",
-        selected_harness_ref: null,
-        justification: {
-          summary: "The authenticated issue authorizes a bounded checkout revision.",
-          evidence_refs: [issueRef],
-        },
-        closure: null,
-        artifact_refs: [],
+        decision_id: "dec_reply",
+        choice: "continue",
+        selected_act_id: "act_reply",
       }],
       acts: [{
-        id: "act_revision",
-        form: "revision",
-        intent,
-        summary: "Prepared a reviewable checkout retry revision.",
-        criterion_bindings: [{
-          criterion_id: "crit_revision_reviewable",
-          status: "verified",
-          evidence_refs: [{ type: "change_request", uri: "github://runxhq/example/pulls/102" }],
-          verification_refs: [{ type: "verification", uri: "runx:verification:check_pr_open" }],
-          summary: "Reviewable PR observed.",
-        }],
-        source_refs: [issueRef],
-        target_refs: [{ type: "repository", uri: "github://runxhq/example" }],
-        artifact_refs: [{ type: "artifact", uri: "runx:artifact:summary_1" }],
-        context_ref: { type: "act", uri: "runx:act:act_revision_context" },
-        closure: {
-          disposition: "closed",
-          reason_code: "revision_ready",
-          summary: "Revision act completed.",
-          closed_at: "2026-05-18T00:03:00Z",
+        id: "act_reply",
+        form: "reply",
+        intent: {
+          purpose: "Answer the question on the thread.",
+          legitimacy: "runx:authority_term:term_reply",
         },
-        revision: {
-          change_request: {
-            request_id: "cr_checkout_retry",
-            summary: "Fix checkout retry behavior.",
-            target_surfaces: [],
-            success_criteria: [criterion],
-          },
-          change_plan: {
-            plan_id: "cp_checkout_retry",
-            summary: "Adjust retry guard and open a PR.",
-            steps: ["Edit retry guard", "Open PR"],
-          },
-          target_surfaces: [],
-          invariants: [],
-          verification,
-          handoff_refs: [],
-        },
+        reason: "The reply names the release that fixes the crash.",
+        criterion_bindings: [outcome],
+        target_refs: [issueRef],
+        artifact_refs: [{ type: "comment", uri: "github://runxhq/example/issues/comments/1", provider: "github" }],
       }],
-      seal,
+      seal: {
+        disposition: "closed",
+        reason_code: "step_closed",
+        closed_at: "2026-05-18T00:03:00Z",
+        criteria: [outcome],
+      },
       lineage: {
         children: [],
       },
-    })).toMatchObject({
+    };
+    expect(validateReceiptContract(receipt)).toMatchObject({
       schema: "runx.receipt.v1",
-      acts: [expect.objectContaining({ id: "act_revision" })],
+      acts: [expect.objectContaining({ id: "act_reply" })],
     });
+    expect(() => validateReceiptContract({ ...receipt, signals: [] })).toThrow(/receipt\/v1\.json/);
+    // The runtime writes typed facts: no summary, no criterion statement, and
+    // every array present.
+    expect(() => validateReceiptContract({ ...receipt, seal: { ...receipt.seal, summary: "step completed" } }))
+      .toThrow(/receipt\/v1\.json/);
+    expect(() => validateReceiptContract({
+      ...receipt,
+      seal: { ...receipt.seal, criteria: [{ ...outcome, criterion_id: "release_named" }] },
+    })).toThrow(/receipt\/v1\.json/);
+    const { decisions: _decisions, ...withoutDecisions } = receipt;
+    expect(() => validateReceiptContract(withoutDecisions)).toThrow(/receipt\/v1\.json/);
 
     expect(() => validateReceiptContract({
       schema: "runx.receipt.v1",

@@ -53,6 +53,12 @@ impl ApprovalRecord {
             recorded_at: crate::time::now_iso8601(),
         }
     }
+
+    /// The approval as a receipt names it: who approved, and the key of the
+    /// exact intent approved.
+    pub(crate) fn uri(&self) -> String {
+        format!("runx:approval:{}:{}", self.actor.as_str(), self.key)
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -67,11 +73,12 @@ pub(crate) enum ApprovalActor {
 }
 
 impl ApprovalActor {
-    pub(crate) fn label(self) -> &'static str {
+    /// The actor's wire name.
+    pub(crate) const fn as_str(self) -> &'static str {
         match self {
-            Self::Human => "exact approval",
-            Self::Standing => "standing approval",
-            Self::PaidExternalJob => "paid external-job authority",
+            Self::Human => "human",
+            Self::Standing => "standing",
+            Self::PaidExternalJob => "paid_external_job",
         }
     }
 }

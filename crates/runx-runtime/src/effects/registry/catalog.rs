@@ -22,19 +22,6 @@ impl RuntimeEffectRegistry {
             .collect()
     }
 
-    pub(crate) fn capability_execution_boundary(
-        &self,
-        tool_ref: &str,
-    ) -> Option<runx_contracts::ExecutionBoundaryKind> {
-        self.families.values().find_map(|effect| {
-            effect
-                .capabilities()
-                .iter()
-                .any(|capability| capability.definition().id == tool_ref)
-                .then(|| effect.execution_boundary())
-        })
-    }
-
     pub(crate) fn invoke_tool(
         &self,
         request: EffectToolRequest<'_>,

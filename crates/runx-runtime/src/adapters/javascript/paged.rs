@@ -72,7 +72,6 @@ pub(super) fn invoke(
             );
             output.reject(failure);
             output.set_duration_ms(total_duration_ms);
-            attach_page_metadata(&mut output, &page, page_index + 1, false);
             return Ok(output);
         }
 
@@ -135,7 +134,6 @@ pub(super) fn invoke(
         }
         output.value = JsonValue::Object(result);
         output.set_duration_ms(total_duration_ms);
-        attach_page_metadata(&mut output, &page, page_index + 1, true);
         return Ok(output);
     }
 
@@ -302,36 +300,6 @@ fn validate_state_size(
         ));
     }
     Ok(())
-}
-
-fn attach_page_metadata(
-    output: &mut InvocationOutput,
-    page: &crate::services::ArtifactRecordPage,
-    page_count: usize,
-    finished: bool,
-) {
-    output.metadata.insert(
-        "local_artifact_pages".to_owned(),
-        JsonValue::Object(JsonObject::from([
-            (
-                "artifact_ref".to_owned(),
-                JsonValue::String(page.artifact.reference.clone()),
-            ),
-            (
-                "whole_digest".to_owned(),
-                JsonValue::String(page.artifact.whole_digest.clone()),
-            ),
-            (
-                "source_bytes".to_owned(),
-                JsonValue::Number(JsonNumber::U64(page.artifact.bytes)),
-            ),
-            (
-                "page_count".to_owned(),
-                JsonValue::Number(JsonNumber::U64(page_count as u64)),
-            ),
-            ("finished".to_owned(), JsonValue::Bool(finished)),
-        ])),
-    );
 }
 
 fn page_error(message: impl Into<String>) -> RuntimeError {

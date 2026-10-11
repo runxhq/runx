@@ -5,6 +5,7 @@ use runx_contracts::{JsonObject, JsonValue};
 use runx_parser::SkillArtifactContract;
 
 use crate::RuntimeError;
+use crate::observations::PacketCheck;
 use crate::packet_schemas::{PacketSchemaCatalog, packet_schema_directories};
 
 /// Verify each artifact a step holds against the packet its contract
@@ -14,10 +15,10 @@ pub(crate) fn verify_declared_packets(
     artifacts: Option<&SkillArtifactContract>,
     skill_directory: &Path,
     env: &BTreeMap<String, String>,
-) -> Result<JsonObject, RuntimeError> {
+) -> Result<BTreeMap<String, PacketCheck>, RuntimeError> {
     let bindings = packet_bindings(held, artifacts)?;
     if bindings.is_empty() {
-        return Ok(JsonObject::new());
+        return Ok(BTreeMap::new());
     }
 
     let package_root = crate::skill_package::find_owning_package_root(skill_directory)
@@ -36,19 +37,19 @@ pub(crate) fn verify_declared_packets(
             message: format!("packet schema catalog failed: {error}"),
         }
     })?;
-    let mut evidence = JsonObject::new();
+    let mut checks = BTreeMap::new();
     for binding in bindings {
-        let (output, verified) = verify_packet_binding(binding, &schemas, &schema_directories)?;
-        evidence.insert(output, verified);
+        let (output, check) = verify_packet_binding(binding, &schemas, &schema_directories)?;
+        checks.insert(output, check);
     }
-    Ok(evidence)
+    Ok(checks)
 }
 
 fn verify_packet_binding(
     binding: PacketBinding,
     schemas: &PacketSchemaCatalog,
     schema_directories: &[std::path::PathBuf],
-) -> Result<(String, JsonValue), RuntimeError> {
+) -> Result<(String, PacketCheck), RuntimeError> {
     let schema = schemas.get(&binding.packet).ok_or_else(|| {
         let searched = schema_directories
             .iter()
@@ -71,18 +72,13 @@ fn verify_packet_binding(
     validator
         .validate(&instance)
         .map_err(|error| packet_error(&binding, format!("output violates schema: {error}")))?;
-    let verified = JsonValue::Object(
-        [
-            ("packet".to_owned(), JsonValue::String(binding.packet)),
-            (
-                "schema_sha256".to_owned(),
-                JsonValue::String(schema.schema.sha256.clone()),
-            ),
-        ]
-        .into_iter()
-        .collect(),
-    );
-    Ok((binding.output, verified))
+    Ok((
+        binding.output,
+        PacketCheck {
+            packet: binding.packet,
+            schema_sha256: schema.schema.sha256.clone(),
+        },
+    ))
 }
 
 fn packet_error(binding: &PacketBinding, detail: impl std::fmt::Display) -> RuntimeError {
@@ -248,18 +244,9 @@ mod tests {
             &BTreeMap::new(),
         )?;
 
-        let Some(plan) = evidence.get("plan").and_then(JsonValue::as_object) else {
-            return Err("plan evidence is missing".into());
-        };
-        assert_eq!(
-            plan.get("packet").and_then(JsonValue::as_str),
-            Some("runx.test.plan.v1")
-        );
-        assert!(
-            plan.get("schema_sha256")
-                .and_then(JsonValue::as_str)
-                .is_some_and(|value| value.starts_with("sha256:"))
-        );
+        let plan = evidence.get("plan").ok_or("plan evidence is missing")?;
+        assert_eq!(plan.packet, "runx.test.plan.v1");
+        assert!(plan.schema_sha256.starts_with("sha256:"));
         Ok(())
     }
 

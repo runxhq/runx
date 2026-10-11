@@ -227,16 +227,11 @@ fn javascript_worker_hostile_input_and_output_bounds_fail_closed()
     let input_output = echo.invoke(oversized_input)?;
     assert_eq!(input_output.status, InvocationStatus::Failure);
     let input_limit = input_output
-        .metadata
-        .get(runx_runtime::adapter::EXECUTION_LIMITS_METADATA)
-        .and_then(JsonValue::as_object)
-        .and_then(|limits| limits.get("hit"))
-        .and_then(JsonValue::as_object)
-        .ok_or("worker input limit failure omitted structured metadata")?;
-    assert_eq!(
-        input_limit.get("id"),
-        Some(&JsonValue::String("javascript.input_bytes".to_owned()))
-    );
+        .observations()
+        .limits()
+        .and_then(|limits| limits.hit.as_ref())
+        .ok_or("worker input limit failure omitted its limit")?;
+    assert_eq!(input_limit.id, "javascript.input_bytes");
 
     let accepted_source = format!(
         "export default () => ({{ accepted: true }}); /*{}*/",

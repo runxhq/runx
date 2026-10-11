@@ -2,13 +2,11 @@
 // workspace expect/unwrap bans are lifted for this test target.
 #![allow(clippy::expect_used, clippy::unwrap_used)]
 
-use std::collections::BTreeSet;
-
 use serde::Deserialize;
 
 use runx_contracts::{
-    ClosureDisposition, ProofKind, Receipt, ReceiptCommitmentScope, ReceiptIssuer,
-    ReceiptIssuerType, ReceiptSignature, Reference, ReferenceType,
+    ClosureDisposition, ProofKind, Receipt, ReceiptIssuer, ReceiptIssuerType, ReceiptSignature,
+    Reference, ReferenceType,
 };
 use runx_receipts::{
     ReceiptFindingCode, ReceiptProofContext, ReceiptProofStatusKind, ReceiptVerification,
@@ -31,7 +29,6 @@ struct Fixture {
 fn with_child(mut receipt: Receipt) -> Receipt {
     receipt
         .lineage
-        .get_or_insert_with(Default::default)
         .children
         .push(Reference::runx(ReferenceType::Receipt, "rcpt_child_1"));
     receipt
@@ -65,7 +62,7 @@ fn abnormal_failed_receipt_verifies_basic_invariants() -> Result<(), serde_json:
 #[test]
 fn seal_criterion_must_bind_to_act_criteria() -> Result<(), serde_json::Error> {
     let mut receipt = fixture(SUCCESS_RECEIPT)?;
-    receipt.seal.criteria[0].criterion_id = "missing_criterion".into();
+    receipt.seal.criteria[0].criterion_id = runx_contracts::Criterion::PacketSchemasVerified;
 
     let verification = verify_receipt(&receipt);
 
@@ -76,7 +73,7 @@ fn seal_criterion_must_bind_to_act_criteria() -> Result<(), serde_json::Error> {
 #[test]
 fn child_refs_must_be_receipt_refs() -> Result<(), serde_json::Error> {
     let mut receipt = with_child(fixture(SUCCESS_RECEIPT)?);
-    receipt.lineage.as_mut().unwrap().children[0].reference_type = ReferenceType::Artifact;
+    receipt.lineage.children[0].reference_type = ReferenceType::Artifact;
 
     let verification = verify_receipt(&receipt);
 
@@ -85,24 +82,9 @@ fn child_refs_must_be_receipt_refs() -> Result<(), serde_json::Error> {
 }
 
 #[test]
-fn idempotency_requires_sha256_prefixes() -> Result<(), serde_json::Error> {
+fn digest_requires_sha256_prefix() -> Result<(), serde_json::Error> {
     let mut receipt = fixture(SUCCESS_RECEIPT)?;
-    receipt.idempotency.intent_key = "not-a-hash".into();
-
-    let verification = verify_receipt(&receipt);
-
-    assert_finding(&verification, ReceiptFindingCode::HashCommitmentInvalid);
-    Ok(())
-}
-
-#[test]
-fn subject_commitment_requires_sha256_prefix() -> Result<(), serde_json::Error> {
-    let mut receipt = fixture(SUCCESS_RECEIPT)?;
-    receipt.subject.commitments[0].value = "stdout".into();
-    assert_eq!(
-        receipt.subject.commitments[0].scope,
-        ReceiptCommitmentScope::Output
-    );
+    receipt.digest = "not-a-hash".into();
 
     let verification = verify_receipt(&receipt);
 
@@ -117,7 +99,6 @@ fn payment_authority_bound_survives_in_body() -> Result<(), serde_json::Error> {
     let json = canonical_receipt_json(&receipt).expect("canonical json");
     assert!(json.contains("\"authority\""));
     assert!(json.contains("\"terms\""));
-    assert!(json.contains("\"idempotency\""));
     Ok(())
 }
 
@@ -209,7 +190,7 @@ fn receipt_tree_accepts_matching_child_receipts() -> Result<(), serde_json::Erro
     child.id = "rcpt_child_1".into();
 
     assert!(validate_receipt_tree(&receipt, &[child]).is_ok());
-    receipt.lineage.as_mut().unwrap().children.clear();
+    receipt.lineage.children.clear();
     assert!(validate_receipt_tree(&receipt, &[]).is_ok());
     Ok(())
 }
@@ -221,7 +202,6 @@ fn receipt_tree_rejects_child_receipt_cycles() -> Result<(), serde_json::Error> 
     child.id = "rcpt_child_1".into();
     child
         .lineage
-        .get_or_insert_with(Default::default)
         .children
         .push(Reference::runx(ReferenceType::Receipt, "rcpt_child_1"));
 
@@ -257,12 +237,10 @@ fn receipt_tree_rejects_duplicate_child_receipt_ids() -> Result<(), serde_json::
 }
 
 #[test]
-fn verifier_issuer_type_matches_schema() -> Result<(), serde_json::Error> {
+fn an_issuer_type_no_issuer_signs_as_is_refused() {
     let json = r#"{"type":"verifier","kid":"key_1","public_key_sha256":"sha256:public"}"#;
-    let issuer: ReceiptIssuer = serde_json::from_str(json)?;
 
-    assert_eq!(issuer.issuer_type, ReceiptIssuerType::Verifier);
-    Ok(())
+    assert!(serde_json::from_str::<ReceiptIssuer>(json).is_err());
 }
 
 #[test]
@@ -290,7 +268,7 @@ fn structural_validation_does_not_claim_strict_proof() -> Result<(), serde_json:
 #[test]
 fn strict_proof_rejects_tampered_body_digest() -> Result<(), serde_json::Error> {
     let mut receipt = proof_receipt()?;
-    receipt.acts[0].summary = "tampered".into();
+    receipt.acts[0].intent.purpose = "tampered".into();
     let verifier = FixtureSignatureVerifier;
     let context = proof_context(&verifier);
 
@@ -327,15 +305,11 @@ fn strict_proof_rejects_tampered_signature() -> Result<(), serde_json::Error> {
 #[test]
 fn strict_proof_reports_unsupported_issuer() -> Result<(), serde_json::Error> {
     let mut receipt = proof_receipt()?;
-    receipt.issuer.issuer_type = ReceiptIssuerType::Verifier;
+    receipt.issuer.issuer_type = ReceiptIssuerType::Ci;
     refresh_proof_digest_and_signature(&mut receipt)?;
     let verifier = UnsupportedIssuerVerifier;
     let context = ReceiptProofContext {
         signature_verifier: Some(&verifier),
-        authority_verified: true,
-        external_attestations_verified: true,
-        verified_redaction_refs: BTreeSet::new(),
-        verified_hash_commitments: BTreeSet::new(),
     };
 
     let verification = verify_receipt_proof(&receipt, &context);
@@ -353,7 +327,7 @@ fn inline_decision_integrity_catches_tampered_selected_act_id() -> Result<(), se
     // The reasoning is inline; the selected_act_id integrity property is checked
     // against the inline acts[] with no journal indirection.
     assert!(!receipt.decisions.is_empty());
-    receipt.decisions[0].selected_act_id = Some("missing_act".into());
+    receipt.decisions[0].selected_act_id = "missing_act".into();
 
     let verification = verify_receipt(&receipt);
     assert_finding(
@@ -368,8 +342,8 @@ fn inline_decision_integrity_accepts_real_selected_act_id() -> Result<(), serde_
     let receipt = fixture(SUCCESS_RECEIPT)?;
     let act_id = receipt.acts[0].id.clone();
     assert_eq!(
-        receipt.decisions[0].selected_act_id.as_deref(),
-        Some(act_id.as_str())
+        receipt.decisions[0].selected_act_id.as_str(),
+        act_id.as_str()
     );
 
     assert!(validate_receipt(&receipt).is_ok());
@@ -431,10 +405,6 @@ fn refresh_proof_digest_and_signature(receipt: &mut Receipt) -> Result<(), serde
 fn proof_context(verifier: &FixtureSignatureVerifier) -> ReceiptProofContext<'_> {
     ReceiptProofContext {
         signature_verifier: Some(verifier),
-        authority_verified: true,
-        external_attestations_verified: true,
-        verified_redaction_refs: BTreeSet::new(),
-        verified_hash_commitments: BTreeSet::new(),
     }
 }
 

@@ -131,7 +131,6 @@ function projectReceiptDetail(value) {
     artifact_refs: stringArray(detail.artifact_refs, 500),
     lineage_refs: stringArray(detail.lineage_refs, 500),
     seal_reason_code: stringValue(detail.seal_reason_code) || "",
-    seal_summary: stringValue(detail.seal_summary) || "",
   };
 }
 
@@ -147,13 +146,8 @@ function projectAuthority(value) {
       term_id: stringValue(entry.term_id),
       resource_ref: stringValue(entry.resource_ref),
     })).filter((entry) => entry.scope),
-    authority_proof_refs: stringArray(authority.authority_proof_refs, 500),
     approval_refs: stringArray(authority.approval_refs, 500),
     term_count: nonNegativeInteger(authority.term_count),
-    parent_authority_ref: stringValue(authority.parent_authority_ref),
-    subset_proof_present: authority.subset_proof_present === true,
-    enforcement_profile_hash: stringValue(authority.enforcement_profile_hash) || "",
-    redaction_refs: stringArray(authority.redaction_refs, 500),
     credential_ref_count: nonNegativeInteger(authority.credential_ref_count),
   };
 }
@@ -163,10 +157,7 @@ function projectDecision(value) {
   return {
     id: stringValue(decision.id) || "",
     choice: stringValue(decision.choice) || "",
-    selected_act_id: stringValue(decision.selected_act_id),
-    summary: stringValue(decision.summary) || "",
-    evidence_refs: stringArray(decision.evidence_refs, 500),
-    artifact_refs: stringArray(decision.artifact_refs, 500),
+    selected_act_id: stringValue(decision.selected_act_id) || "",
   };
 }
 
@@ -177,10 +168,7 @@ function projectAct(value) {
     form: stringValue(act.form) || "",
     purpose: stringValue(act.purpose) || "",
     legitimacy: stringValue(act.legitimacy) || "",
-    summary: stringValue(act.summary) || "",
-    disposition: stringValue(act.disposition) || "",
-    reason_code: stringValue(act.reason_code) || "",
-    source_refs: stringArray(act.source_refs, 500),
+    reason: stringValue(act.reason),
     target_refs: stringArray(act.target_refs, 500),
     artifact_refs: stringArray(act.artifact_refs, 500),
     criterion_statuses: records(act.criterion_statuses).map((criterion) => ({

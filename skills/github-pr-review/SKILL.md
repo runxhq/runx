@@ -51,8 +51,8 @@ not that the PR is correct, approved, tested or published.
 Publication is a separately selected GitHub action under native approval.
 Re-read the head before publishing a review; a changed head requires a new
 review. Use a general approved PR comment only when a full inline review is not
-required. Fieldwork owns review assignment and follow-up; intensive coding goes
-to the existing coding lane, with scafld only when that work warrants it.
+required. The calling application owns review assignment and follow-up;
+intensive coding is separate work, not part of this review.
 
 ## Agent task contract
 

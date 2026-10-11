@@ -154,7 +154,7 @@ fn the_invokers_act_is_sealed_in_the_call_receipt_with_admitted_authority_and_ef
         act.intent.purpose.as_str(),
         "Tell the channel the deploy finished"
     );
-    assert_eq!(act.summary.as_str(), "The release went out cleanly.");
+    assert_eq!(act.reason.as_deref(), Some("The release went out cleanly."));
     // Legitimacy is the execution term admission derived, never prose.
     let term = receipt.authority.terms.first().expect("the admitted term");
     assert_eq!(
@@ -184,12 +184,12 @@ fn the_invokers_act_is_sealed_in_the_call_receipt_with_admitted_authority_and_ef
     assert_eq!(effect.provider.as_deref(), Some("slack"));
     // The decision and lineage are the act's.
     assert_eq!(receipt.decisions[0].choice, DecisionChoice::Close);
-    assert_eq!(receipt.decisions[0].selected_act_id.as_ref(), Some(&act.id));
+    assert_eq!(receipt.decisions[0].selected_act_id, act.id);
     assert_eq!(
         receipt
             .lineage
+            .previous
             .as_ref()
-            .and_then(|lineage| lineage.previous.as_ref())
             .map(|previous| previous.uri.to_string()),
         Some(format!("runx:receipt:{PREVIOUS}"))
     );
@@ -356,7 +356,7 @@ expect:
     let act = &call.acts[0];
     assert_eq!(act.form, ActForm::Reply);
     assert_eq!(act.intent.purpose.as_str(), "Tell the channel");
-    assert_eq!(act.summary.as_str(), "In the agent's own words.");
+    assert_eq!(act.reason.as_deref(), Some("In the agent's own words."));
     assert!(
         act.intent
             .legitimacy
@@ -474,7 +474,7 @@ fn a_skill_step_gives_its_child_run_the_act_its_calls_read_as_dollar_act() {
     // The parent's step states the purpose; the invoker's reason reaches the
     // child's call through the act the step gives it, never through inputs.
     assert_eq!(act.intent.purpose.as_str(), "Announce the deploy");
-    assert_eq!(act.summary.as_str(), "Release 0.8.2 shipped.");
+    assert_eq!(act.reason.as_deref(), Some("Release 0.8.2 shipped."));
 }
 
 #[test]

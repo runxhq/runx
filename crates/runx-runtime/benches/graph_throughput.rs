@@ -312,7 +312,7 @@ fn synthetic_receipts(
 
 fn skill_output(value: &str) -> InvocationOutput {
     let value = serde_json::from_str(value).unwrap_or_else(|_| JsonValue::String(value.to_owned()));
-    InvocationOutput::runtime_success(value, 0, JsonObject::new())
+    InvocationOutput::runtime_success(value, 0)
 }
 
 fn object(entries: impl IntoIterator<Item = (&'static str, JsonValue)>) -> JsonObject {

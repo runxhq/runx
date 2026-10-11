@@ -51,7 +51,8 @@ Each material finding and proposed action must cite admitted source digests.
 Recommend a concrete measurement, owner role and stop/reconsider condition; do
 not invent a named owner, deadline, revenue impact or work already completed.
 Native evidence verification binds the resulting review to the exact measurement
-context. Fieldwork owns continuing Work, scheduling and approved changes.
+context. The calling application owns continuing work, scheduling and approved
+changes.
 
 ## Agent task contract
 

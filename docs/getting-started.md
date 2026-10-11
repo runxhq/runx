@@ -63,7 +63,8 @@ runx history <receipt-id> --detail --json
 ```
 
 The `runx.receipt_inspection.v1` projection should show the receipt status,
-authority, decisions, acts, seal summary, and local issuer verification. It
+authority, decisions, acts, the seal's reason code and criteria, and local
+issuer verification. It
 does not reproduce the execution input or output body.
 
 ## Production Receipt Signing

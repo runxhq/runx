@@ -3,21 +3,17 @@
 // receipt builder is split out.
 use std::collections::BTreeMap;
 
-use crate::adapter::{
-    CONTRACT_VERIFICATION_METADATA, CREDENTIAL_DELIVERY_OBSERVATIONS_METADATA,
-    EXECUTION_LIMITS_METADATA, InvocationOutput,
-};
-use crate::effects::effect_verification_refs;
+use crate::adapter::InvocationOutput;
+use crate::observations::{ContractChecks, Observations};
 use crate::{RuntimeError, StepRun};
-use runx_contracts::fingerprint::sha256_hex;
+use runx_contracts::connector::Digest;
 use runx_contracts::schema::NonEmptyString;
 use runx_contracts::{
-    AuthorityAttenuation, AuthoritySubsetResult, ClosureDisposition, CredentialDeliveryObservation,
-    CriterionBinding, CriterionStatus, Decision, DecisionChoice, DecisionInputs,
-    DecisionJustification, JsonObject, JsonValue, Lineage, RECEIPT_CANONICALIZATION, Receipt,
-    ReceiptAct, ReceiptAuthority, ReceiptClass, ReceiptEnforcement, ReceiptIdempotency,
+    ClosureDisposition, Criterion, CriterionBinding, CriterionStatus, Decision, DecisionChoice,
+    EXECUTION_LIMITS_METADATA, ExecutionBoundaryObservation, JsonObject, JsonValue, Lineage,
+    Receipt, ReceiptAct, ReceiptAuthority, ReceiptCanonicalization, ReceiptEnforcement,
     ReceiptIssuer, ReceiptSchema, Reference, ReferenceType, Seal, SignatureAlgorithm, Subject,
-    SuccessCriterion, canonical_stable_json, receipt_subject_kind,
+    canonical_stable_json, receipt_subject_kind,
 };
 use runx_receipts::{
     ReceiptProofContext, ReceiptProofContextProvider, ReceiptSignature, ReceiptTreeConfig,
@@ -66,33 +62,6 @@ pub fn step_receipt_with_signature_policy(
     )
 }
 
-pub fn step_receipt_with_authority_grant_refs(
-    scope: RunScope<'_>,
-    step_id: &str,
-    attempt: u32,
-    output: &InvocationOutput,
-    claim: &JsonObject,
-    authority_grant_refs: Vec<Reference>,
-    created_at: &str,
-) -> Result<Receipt, RuntimeError> {
-    step_receipt_with_disposition_projection_authority_and_policy(StepReceiptSeal {
-        params: StepReceiptWithDisposition::with_default_closure(
-            scope, step_id, attempt, output, created_at,
-        ),
-        claim,
-        approval_refs: Vec::new(),
-        child_receipts: &[],
-        descendant_receipts: &[],
-        authority: SealAuthority {
-            grant_refs: authority_grant_refs,
-            ..SealAuthority::default()
-        },
-        call: None,
-        receipt_metadata: None,
-        signature_policy: RuntimeReceiptSignaturePolicy::local_development(),
-    })
-}
-
 pub(crate) struct StepReceiptWithDisposition<'a> {
     pub(crate) scope: RunScope<'a>,
     pub(crate) step_id: &'a str,
@@ -101,7 +70,6 @@ pub(crate) struct StepReceiptWithDisposition<'a> {
     pub(crate) created_at: &'a str,
     pub(crate) disposition: ClosureDisposition,
     pub(crate) reason_code: String,
-    pub(crate) summary: String,
 }
 
 struct StepReceiptSeal<'a> {
@@ -118,9 +86,9 @@ struct StepReceiptSeal<'a> {
 
 impl<'a> StepReceiptWithDisposition<'a> {
     /// A step-receipt request whose closure is derived from the output (the
-    /// process-exit default): `Closed`/`Failed` by exit status, the matching
-    /// `process_*` reason code, and a generic completion summary. This is the
-    /// single source of that derivation for the process-exit step receipts.
+    /// process-exit default): `Closed`/`Failed` by exit status and the
+    /// matching reason code. This is the single source of that derivation for
+    /// the process-exit step receipts.
     pub(crate) fn with_default_closure(
         scope: RunScope<'a>,
         step_id: &'a str,
@@ -131,8 +99,7 @@ impl<'a> StepReceiptWithDisposition<'a> {
         let StepSealClosure {
             disposition,
             reason_code,
-            summary,
-        } = StepSealClosure::default_for(output, step_id);
+        } = StepSealClosure::default_for(output);
         Self {
             scope,
             step_id,
@@ -141,7 +108,6 @@ impl<'a> StepReceiptWithDisposition<'a> {
             created_at,
             disposition,
             reason_code,
-            summary,
         }
     }
 }
@@ -186,20 +152,16 @@ fn step_receipt_with_disposition_projection_authority_and_policy(
         created_at,
         disposition,
         reason_code,
-        summary,
     } = params;
-    let evidence = step_evidence(output, approval_refs)?;
-    let verification = contract_verification_criteria(&output.metadata)?;
+    let evidence = step_evidence(&output.observations, approval_refs);
+    let verification = contract_criteria(&output.observations.contract);
     // Only a governed call seals an act, and only a stated decision seals a
     // decision: a step's own outcome is its seal.
     let act = call.as_ref().map(|call| {
         RuntimeAct::for_call(step_id, call)
-            .with_verified_criteria(verification.criteria.clone(), verification.bindings.clone())
+            .with_verified_criteria(verification.clone())
             .close(ActOutcome {
-                disposition: disposition.clone(),
                 succeeded: output.succeeded(),
-                summary: output_summary(output),
-                performed_at: created_at,
                 evidence_refs: &evidence.evidence_refs,
                 verification_refs: &evidence.verification_refs,
             })
@@ -212,24 +174,32 @@ fn step_receipt_with_disposition_projection_authority_and_policy(
         .into_iter()
         .collect();
     let mut seal_criteria = vec![step_outcome_criterion(output, &evidence)];
-    seal_criteria.extend(verification.bindings);
-    let seal = seal(disposition, reason_code, summary, created_at, seal_criteria);
+    seal_criteria.extend(verification);
+    let seal = seal(disposition, reason_code, created_at, seal_criteria);
+    let children = child_receipts
+        .iter()
+        .map(child_receipt_reference)
+        .collect::<Vec<_>>();
+    let outcome = outcome_digest(output.succeeded(), claim, &children)?;
     let mut receipt = build_unsealed_receipt(BuildReceipt {
-        class: ReceiptClass::Executed,
         scope,
         node: Node::Step { step_id, attempt },
         kind: receipt_subject_kind::SKILL.into(),
+        outcome,
         created_at,
         decisions,
         acts: act.into_iter().collect(),
         seal,
-        children: child_receipts.iter().map(child_receipt_reference).collect(),
+        children,
         authority,
         previous: call.as_ref().and_then(SealedCall::previous),
     });
-    bind_step_identity(receipt.as_mut(), output, claim)?;
-    bind_execution_boundary(receipt.as_mut(), output)?;
-    receipt.as_mut().metadata = receipt_metadata_with_execution_limits(receipt_metadata, output)?;
+    receipt.as_mut().authority.enforcement.execution_boundary = output
+        .observations
+        .boundary
+        .map(|kind| ExecutionBoundaryObservation { kind });
+    receipt.as_mut().metadata =
+        receipt_metadata_with_execution_limits(receipt_metadata, &output.observations)?;
     let receipt = receipt.seal(signature_policy)?;
     if !child_receipts.is_empty() {
         validate_receipt_tree_with_policy(
@@ -241,39 +211,20 @@ fn step_receipt_with_disposition_projection_authority_and_policy(
     Ok(receipt)
 }
 
-fn bind_execution_boundary(
-    receipt: &mut Receipt,
-    output: &InvocationOutput,
-) -> Result<(), RuntimeError> {
-    let Some(value) = output
-        .metadata
-        .get(runx_contracts::EXECUTION_BOUNDARY_METADATA)
-    else {
-        return Ok(());
-    };
-    let observation = serde_json::to_value(value)
-        .and_then(serde_json::from_value)
-        .map_err(|source| RuntimeError::ReceiptInvalid {
-            message: format!("invalid execution boundary metadata: {source}"),
-        })?;
-    receipt.authority.enforcement.execution_boundary = Some(observation);
-    Ok(())
-}
-
+/// The runtime's ceilings for the invocation ride the receipt's unsigned
+/// metadata, beside whatever runtime-authored metadata the step carries.
 fn receipt_metadata_with_execution_limits(
     receipt_metadata: Option<JsonObject>,
-    output: &InvocationOutput,
+    observations: &Observations,
 ) -> Result<Option<JsonObject>, RuntimeError> {
-    let Some(limits) = output.metadata.get(EXECUTION_LIMITS_METADATA) else {
+    let Some(limits) = &observations.limits else {
         return Ok(receipt_metadata);
     };
-    if !matches!(limits, JsonValue::Object(_)) {
-        return Err(RuntimeError::ReceiptInvalid {
-            message: "execution_limits metadata must be an object".to_owned(),
-        });
-    }
+    let limits = serde_json::to_value(limits)
+        .and_then(serde_json::from_value)
+        .map_err(|source| RuntimeError::json("serializing execution limits", source))?;
     let mut metadata = receipt_metadata.unwrap_or_default();
-    metadata.insert(EXECUTION_LIMITS_METADATA.to_owned(), limits.clone());
+    metadata.insert(EXECUTION_LIMITS_METADATA.to_owned(), limits);
     Ok(Some(metadata))
 }
 
@@ -310,23 +261,21 @@ pub(crate) struct StepSeal<'a> {
     pub(crate) receipt_metadata: Option<JsonObject>,
 }
 
-/// A step's own disposition, reason, and summary when it does not derive them
+/// A step's own disposition and reason code when it does not derive them
 /// from a process exit.
 pub(crate) struct StepSealClosure {
     pub(crate) disposition: ClosureDisposition,
     pub(crate) reason_code: String,
-    pub(crate) summary: String,
 }
 
 impl StepSealClosure {
     /// The process-exit default closure derived from the output: `Closed`/`Failed`
-    /// by exit status, the matching `process_*` reason code, and a generic
-    /// completion summary. The single source of this derivation.
-    pub(crate) fn default_for(output: &InvocationOutput, step_id: &str) -> Self {
+    /// by exit status and the matching reason code. The single source of this
+    /// derivation.
+    pub(crate) fn default_for(output: &InvocationOutput) -> Self {
         let disposition = disposition(output);
         Self {
             reason_code: step_reason_code(&disposition),
-            summary: format!("step {step_id} completed"),
             disposition,
         }
     }
@@ -354,8 +303,7 @@ pub(crate) fn seal_step(
     let StepSealClosure {
         disposition,
         reason_code,
-        summary,
-    } = closure.unwrap_or_else(|| StepSealClosure::default_for(output, step_id));
+    } = closure.unwrap_or_else(|| StepSealClosure::default_for(output));
     step_receipt_with_disposition_projection_authority_and_policy(StepReceiptSeal {
         params: StepReceiptWithDisposition {
             scope,
@@ -365,7 +313,6 @@ pub(crate) fn seal_step(
             created_at,
             disposition,
             reason_code,
-            summary,
         },
         claim,
         approval_refs,
@@ -382,7 +329,7 @@ pub(crate) fn seal_step(
 /// of whether the producer was a process, native value, approval, or graph.
 fn step_outcome_criterion(output: &InvocationOutput, evidence: &StepEvidence) -> CriterionBinding {
     CriterionBinding {
-        criterion_id: "step_outcome".into(),
+        criterion_id: Criterion::StepOutcome,
         status: if output.succeeded() {
             CriterionStatus::Verified
         } else {
@@ -390,197 +337,66 @@ fn step_outcome_criterion(output: &InvocationOutput, evidence: &StepEvidence) ->
         },
         evidence_refs: evidence.evidence_refs.clone(),
         verification_refs: evidence.verification_refs.clone(),
-        summary: Some(output_summary(output).into()),
     }
 }
 
-#[derive(Clone, Debug, Default)]
-struct ContractVerificationCriteria {
-    criteria: Vec<SuccessCriterion>,
-    bindings: Vec<CriterionBinding>,
-}
-
-fn contract_verification_criteria(
-    metadata: &JsonObject,
-) -> Result<ContractVerificationCriteria, RuntimeError> {
-    let Some(value) = metadata.get(CONTRACT_VERIFICATION_METADATA) else {
-        return Ok(ContractVerificationCriteria::default());
-    };
-    let JsonValue::Object(verification) = value else {
-        return Err(invalid_contract_verification(
-            "contract_verification must be an object",
-        ));
-    };
-    const ALLOWED_FIELDS: &[&str] = &[
-        "output_contract_sha256",
-        "voice_profile_sha256",
-        "packet_schemas",
-    ];
-    if let Some(field) = verification
-        .keys()
-        .find(|field| !ALLOWED_FIELDS.contains(&field.as_str()))
-    {
-        return Err(invalid_contract_verification(format!(
-            "contract_verification contains undeclared field '{field}'"
-        )));
-    }
-
-    let mut result = ContractVerificationCriteria::default();
-    if let Some(output_digest) =
-        optional_verification_digest(verification, "output_contract_sha256")?
-    {
+/// One verified criterion for each contract check the runtime ran.
+fn contract_criteria(checks: &ContractChecks) -> Vec<CriterionBinding> {
+    let mut result = Vec::new();
+    if let Some(digest) = &checks.output_contract_sha256 {
         push_verified_criterion(
             &mut result,
-            "output_contract_verified",
-            "Runner result satisfies its declared output contract",
-            output_digest,
+            Criterion::OutputContractVerified,
+            vec![verification_ref(Criterion::OutputContractVerified, digest)],
         );
     }
-    if let Some(digest) = optional_verification_digest(verification, "voice_profile_sha256")? {
+    if let Some(digest) = &checks.voice_profile_sha256 {
         push_verified_criterion(
             &mut result,
-            "voice_profile_applied",
-            "Agent invocation used the resolved voice profile",
-            digest,
+            Criterion::VoiceProfileApplied,
+            vec![verification_ref(Criterion::VoiceProfileApplied, digest)],
         );
     }
-    append_packet_schema_criterion(&mut result, verification)?;
-    if result.criteria.is_empty() {
-        return Err(invalid_contract_verification(
-            "contract_verification must contain a verified output, voice, or packet contract",
-        ));
+    if !checks.packet_schemas.is_empty() {
+        push_verified_criterion(
+            &mut result,
+            Criterion::PacketSchemasVerified,
+            checks
+                .packet_schemas
+                .values()
+                .map(|check| {
+                    Reference::with_uri(
+                        ReferenceType::Verification,
+                        format!(
+                            "runx:verification:packet_schema_verified:{}:{}",
+                            check.packet, check.schema_sha256
+                        ),
+                    )
+                })
+                .collect(),
+        );
     }
-    Ok(result)
+    result
 }
 
-fn append_packet_schema_criterion(
-    result: &mut ContractVerificationCriteria,
-    verification: &JsonObject,
-) -> Result<(), RuntimeError> {
-    let Some(value) = verification.get("packet_schemas") else {
-        return Ok(());
-    };
-    let JsonValue::Object(entries) = value else {
-        return Err(invalid_contract_verification(
-            "contract_verification.packet_schemas must be an object",
-        ));
-    };
-    if entries.is_empty() {
-        return Err(invalid_contract_verification(
-            "contract_verification.packet_schemas must not be empty",
-        ));
-    }
-    let mut references = Vec::with_capacity(entries.len());
-    for (output, value) in entries {
-        let (packet, digest) = packet_schema_verification(output, value)?;
-        references.push(Reference::with_uri(
-            ReferenceType::Verification,
-            format!("runx:verification:packet_schema_verified:{packet}:{digest}"),
-        ));
-    }
-    let statement = "Packet outputs satisfy their declared packet schemas";
-    result.criteria.push(SuccessCriterion {
-        criterion_id: "packet_schemas_verified".into(),
-        statement: statement.into(),
-        required: true,
-    });
-    result.bindings.push(CriterionBinding {
-        criterion_id: "packet_schemas_verified".into(),
-        status: CriterionStatus::Verified,
-        evidence_refs: Vec::new(),
-        verification_refs: references,
-        summary: Some(statement.into()),
-    });
-    Ok(())
-}
-
-fn packet_schema_verification<'a>(
-    output: &str,
-    value: &'a JsonValue,
-) -> Result<(&'a str, &'a str), RuntimeError> {
-    let JsonValue::Object(entry) = value else {
-        return Err(invalid_contract_verification(format!(
-            "contract_verification.packet_schemas.{output} must be an object"
-        )));
-    };
-    const ALLOWED_FIELDS: &[&str] = &["packet", "schema_sha256"];
-    if let Some(field) = entry
-        .keys()
-        .find(|field| !ALLOWED_FIELDS.contains(&field.as_str()))
-    {
-        return Err(invalid_contract_verification(format!(
-            "contract_verification.packet_schemas.{output} contains undeclared field '{field}'"
-        )));
-    }
-    let packet = required_verification_string(entry, output, "packet")?;
-    let digest = required_verification_string(entry, output, "schema_sha256")?;
-    if !digest.starts_with("sha256:") {
-        return Err(invalid_contract_verification(format!(
-            "contract_verification.packet_schemas.{output}.schema_sha256 must be a sha256 digest"
-        )));
-    }
-    Ok((packet, digest))
-}
-
-fn required_verification_string<'a>(
-    entry: &'a JsonObject,
-    output: &str,
-    field: &str,
-) -> Result<&'a str, RuntimeError> {
-    entry
-        .get(field)
-        .and_then(JsonValue::as_str)
-        .filter(|value| !value.is_empty())
-        .ok_or_else(|| {
-            invalid_contract_verification(format!(
-                "contract_verification.packet_schemas.{output}.{field} must be a non-empty string"
-            ))
-        })
-}
-
-fn optional_verification_digest<'a>(
-    verification: &'a JsonObject,
-    field: &str,
-) -> Result<Option<&'a str>, RuntimeError> {
-    let Some(value) = verification.get(field) else {
-        return Ok(None);
-    };
-    let Some(digest) = value.as_str().filter(|value| value.starts_with("sha256:")) else {
-        return Err(invalid_contract_verification(format!(
-            "contract_verification.{field} must be a sha256 digest"
-        )));
-    };
-    Ok(Some(digest))
+fn verification_ref(criterion: Criterion, digest: &str) -> Reference {
+    Reference::with_uri(
+        ReferenceType::Verification,
+        format!("runx:verification:{}:{digest}", criterion.as_str()),
+    )
 }
 
 fn push_verified_criterion(
-    result: &mut ContractVerificationCriteria,
-    criterion_id: &str,
-    statement: &str,
-    digest: &str,
+    result: &mut Vec<CriterionBinding>,
+    criterion: Criterion,
+    verification_refs: Vec<Reference>,
 ) {
-    let reference = Reference::with_uri(
-        ReferenceType::Verification,
-        format!("runx:verification:{criterion_id}:{digest}"),
-    );
-    result.criteria.push(SuccessCriterion {
-        criterion_id: criterion_id.into(),
-        statement: statement.into(),
-        required: true,
-    });
-    result.bindings.push(CriterionBinding {
-        criterion_id: criterion_id.into(),
+    result.push(CriterionBinding {
+        criterion_id: criterion,
         status: CriterionStatus::Verified,
         evidence_refs: Vec::new(),
-        verification_refs: vec![reference],
-        summary: Some(statement.into()),
+        verification_refs,
     });
-}
-
-fn invalid_contract_verification(message: impl Into<String>) -> RuntimeError {
-    RuntimeError::ReceiptInvalid {
-        message: message.into(),
-    }
 }
 
 pub fn graph_receipt(
@@ -606,7 +422,7 @@ pub fn graph_receipt_with_signature_policy(
         scope,
         steps,
         created_at,
-        GraphClosure::completed(scope.graph_name),
+        GraphClosure::completed(),
         signature_policy,
     )
 }
@@ -614,15 +430,13 @@ pub fn graph_receipt_with_signature_policy(
 pub(crate) struct GraphClosure {
     pub(crate) disposition: ClosureDisposition,
     pub(crate) reason_code: String,
-    pub(crate) summary: String,
 }
 
 impl GraphClosure {
-    pub(crate) fn completed(graph_name: &str) -> Self {
+    pub(crate) fn completed() -> Self {
         Self {
             disposition: ClosureDisposition::Closed,
             reason_code: "graph_closed".to_owned(),
-            summary: format!("graph {graph_name} completed"),
         }
     }
 }
@@ -644,7 +458,7 @@ pub(crate) fn graph_receipt_with_closure(
     // id and signed-body digest. Children stay immutable and reusable instead
     // of acquiring one post-hoc parent link.
     let receipt =
-        build_graph_receipt(scope, child_refs, created_at, &closure).seal(signature_policy)?;
+        build_graph_receipt(scope, child_refs, created_at, &closure)?.seal(signature_policy)?;
 
     validate_receipt_tree_with_policy(
         &receipt,
@@ -664,77 +478,67 @@ fn build_graph_receipt(
     children: Vec<Reference>,
     created_at: &str,
     closure: &GraphClosure,
-) -> UnsealedReceipt {
-    let child_identity = graph_child_identity(&children);
-    let mut receipt = build_unsealed_receipt(BuildReceipt {
-        class: ReceiptClass::Executed,
+) -> Result<UnsealedReceipt, RuntimeError> {
+    let outcome = outcome_digest(
+        closure.disposition == ClosureDisposition::Closed,
+        &JsonObject::new(),
+        &children,
+    )?;
+    Ok(build_unsealed_receipt(BuildReceipt {
         scope,
         node: Node::Graph,
         kind: receipt_subject_kind::GRAPH.into(),
+        outcome,
         created_at,
         decisions: Vec::new(),
         acts: Vec::new(),
         seal: seal(
             closure.disposition.clone(),
             closure.reason_code.clone(),
-            closure.summary.clone(),
             created_at,
             Vec::new(),
         ),
         children,
         authority: SealAuthority::default(),
         previous: None,
-    });
-    let receipt_body = receipt.as_mut();
-    receipt_body.subject.reference.locator = Some(child_identity.clone().into());
-    receipt_body.idempotency.content_hash = child_identity.into();
-    receipt
+    }))
 }
 
-// Step identity binds the sealed contract claim and the semantic identities of
-// direct child receipts. Raw transport values, diagnostics, and child proof
-// envelopes remain excluded: a replay of the same declared claim and child
-// identities must retain its address, while a changed nested execution must
-// propagate to every ancestor.
-fn bind_step_identity(
-    receipt: &mut Receipt,
-    output: &InvocationOutput,
-    claim: &JsonObject,
-) -> Result<(), RuntimeError> {
-    let identity = step_identity_locator(receipt, output.succeeded(), claim)?;
-    receipt.subject.reference.locator = Some(identity.clone().into());
-    receipt.idempotency.content_hash = identity.into();
-    Ok(())
-}
-
-fn step_identity_locator(
-    receipt: &Receipt,
+// A subject's outcome binds whether it succeeded, the claim it sealed (the
+// outputs it declared; a graph declares none) and the ids of its direct child
+// receipts. Raw transport values, diagnostics, and child proof envelopes
+// remain excluded: a replay of the same declared claim and child identities
+// keeps its outcome, while a changed nested execution propagates to every
+// ancestor.
+fn outcome_digest(
     succeeded: bool,
     claim: &JsonObject,
-) -> Result<String, RuntimeError> {
-    let mut identity = JsonObject::from([
+    children: &[Reference],
+) -> Result<Digest, RuntimeError> {
+    let mut outcome = JsonObject::from([
         (
             "status".to_owned(),
             JsonValue::String(if succeeded { "success" } else { "failure" }.to_owned()),
         ),
         ("claim".to_owned(), JsonValue::Object(claim.clone())),
     ]);
-    let child_ids = receipt
-        .lineage
-        .as_ref()
-        .into_iter()
-        .flat_map(|lineage| &lineage.children)
-        .map(|reference| JsonValue::String(reference.uri.to_string()))
-        .collect::<Vec<_>>();
-    if !child_ids.is_empty() {
-        identity.insert("children".to_owned(), JsonValue::Array(child_ids));
+    if !children.is_empty() {
+        outcome.insert(
+            "children".to_owned(),
+            JsonValue::Array(
+                children
+                    .iter()
+                    .map(|reference| JsonValue::String(reference.uri.to_string()))
+                    .collect(),
+            ),
+        );
     }
-    let material = canonical_stable_json(&JsonValue::Object(identity)).map_err(|error| {
+    let material = canonical_stable_json(&JsonValue::Object(outcome)).map_err(|error| {
         RuntimeError::ReceiptInvalid {
             message: error.to_string(),
         }
     })?;
-    Ok(format!("sha256:{}", sha256_hex(material.as_bytes())))
+    Ok(Digest::of(material.as_bytes()))
 }
 
 pub(crate) fn validate_step_receipt_claim(
@@ -742,14 +546,7 @@ pub(crate) fn validate_step_receipt_claim(
     succeeded: bool,
     claim: &JsonObject,
 ) -> Result<(), RuntimeError> {
-    let expected = step_identity_locator(receipt, succeeded, claim)?;
-    if receipt
-        .subject
-        .reference
-        .locator
-        .as_ref()
-        .is_some_and(|locator| locator.as_str() == expected)
-    {
+    if receipt.subject.outcome == outcome_digest(succeeded, claim, &receipt.lineage.children)? {
         return Ok(());
     }
     Err(RuntimeError::ReceiptInvalid {
@@ -758,15 +555,6 @@ pub(crate) fn validate_step_receipt_claim(
             receipt.id
         ),
     })
-}
-
-fn graph_child_identity(children: &[Reference]) -> String {
-    let child_ids = children
-        .iter()
-        .map(|reference| reference.uri.as_str())
-        .collect::<Vec<_>>();
-    let canonical = serde_json::to_vec(&child_ids).unwrap_or_default();
-    format!("sha256:{}", sha256_hex(&canonical))
 }
 
 fn validate_receipt_tree_with_policy<'a>(
@@ -828,10 +616,11 @@ impl Node<'_> {
 }
 
 struct BuildReceipt<'a> {
-    class: ReceiptClass,
     scope: RunScope<'a>,
     node: Node<'a>,
     kind: NonEmptyString,
+    /// The digest of the subject's outcome.
+    outcome: Digest,
     created_at: &'a str,
     decisions: Vec<Decision>,
     acts: Vec<ReceiptAct>,
@@ -855,8 +644,7 @@ impl UnsealedReceipt {
         signature_policy: RuntimeReceiptSignaturePolicy<'_>,
     ) -> Result<Receipt, RuntimeError> {
         // Content-address the id over the canonical body (id = hash(canonical_body),
-        // excluding id/signature/digest/metadata/lineage) before the digest commits
-        // it. Lineage is excluded so parent<->child wiring does not perturb the id.
+        // excluding id/signature/digest/metadata) before the digest commits it.
         content_address_receipt(&mut self.0, signature_policy)?;
         let digest = canonical_receipt_body_digest(&self.0).map_err(|error| {
             RuntimeError::ReceiptInvalid {
@@ -871,10 +659,10 @@ impl UnsealedReceipt {
 
 fn build_unsealed_receipt(parts: BuildReceipt<'_>) -> UnsealedReceipt {
     let BuildReceipt {
-        class,
         scope,
         node,
         kind,
+        outcome,
         created_at,
         decisions,
         acts,
@@ -883,109 +671,62 @@ fn build_unsealed_receipt(parts: BuildReceipt<'_>) -> UnsealedReceipt {
         authority,
         previous,
     } = parts;
-    let lineage = Lineage {
-        parent: None,
-        previous,
-        children,
-        resume_ref: None,
-    };
+    let lineage = Lineage { previous, children };
     let subject_uri = node.uri(scope.run_id);
     UnsealedReceipt(Receipt {
         schema: ReceiptSchema::V1,
         // Replaced by the content address when the receipt is sealed.
         id: "rcpt_unsealed".into(),
         created_at: created_at.into(),
-        canonicalization: RECEIPT_CANONICALIZATION.into(),
+        canonicalization: ReceiptCanonicalization::C14nV1,
         issuer: local_runtime_issuer(),
         signature: placeholder_signature(),
         digest: "sha256:runtime-skeleton".into(),
-        idempotency: idempotency(&subject_uri),
-        class,
-        subject: subject(scope, subject_uri, kind),
+        subject: subject(scope, subject_uri, kind, outcome),
         authority: local_authority(authority),
-        signals: Vec::new(),
         decisions,
         acts,
-        evidence: Vec::new(),
         seal,
-        lineage: Some(lineage),
+        lineage,
         metadata: None,
     })
 }
 
 /// The decision a call's caller states, inline in `decisions[]` and carried
-/// out by the call's act. The `selected_act_id` integrity property is checked
-/// against the inline `acts[]` at verify time.
+/// out by the call's act, whose intent, target and artifacts it is. The
+/// `selected_act_id` integrity property is checked against the inline
+/// `acts[]` at verify time.
 fn decision(node_id: &str, choice: DecisionChoice, act: &ReceiptAct) -> Decision {
     Decision {
         decision_id: format!("dec_{node_id}").into(),
         choice,
-        inputs: DecisionInputs {
-            target_ref: act.target_refs.first().cloned(),
-            ..DecisionInputs::default()
-        },
-        proposed_intent: act.intent.clone(),
-        selected_act_id: Some(act.id.clone()),
-        selected_harness_ref: None,
-        justification: DecisionJustification {
-            summary: act.summary.clone(),
-            evidence_refs: Vec::new(),
-        },
-        closure: None,
-        artifact_refs: act.artifact_refs.clone(),
+        selected_act_id: act.id.clone(),
     }
 }
 
 fn seal(
     disposition: ClosureDisposition,
     reason_code: String,
-    summary: String,
     closed_at: &str,
     criteria: Vec<CriterionBinding>,
 ) -> Seal {
     Seal {
         disposition,
         reason_code: reason_code.into(),
-        summary: summary.into(),
         closed_at: closed_at.into(),
-        last_observed_at: closed_at.into(),
         criteria,
     }
 }
 
 /// The run node a receipt seals, labelled with the graph that ran.
-fn subject(scope: RunScope<'_>, uri: String, kind: NonEmptyString) -> Subject {
+fn subject(scope: RunScope<'_>, uri: String, kind: NonEmptyString, outcome: Digest) -> Subject {
     let mut reference = Reference::with_uri(ReferenceType::Run, uri);
     reference.label = Some(scope.graph_name.into());
     Subject {
         kind,
         reference,
-        input_context: None,
-        commitments: Vec::new(),
-        paid_invocation: None,
+        outcome,
     }
-}
-
-/// The stable identity of the local runtime's enforcement profile. The hash is
-/// derived over this id plus the profile's redaction/setup/teardown refs, never
-/// over [`ReceiptEnforcement`] itself (which carries the resulting hash).
-const RUNTIME_ENFORCEMENT_PROFILE_ID: &str = "runx.runtime.enforcement.profile.v1";
-
-/// Content-address an enforcement profile as `sha256:<digest>` over its stable
-/// id plus its redaction/setup/teardown ref inputs in deterministic order.
-fn enforcement_profile_hash(
-    redaction_refs: &[Reference],
-    setup_refs: &[Reference],
-    teardown_refs: &[Reference],
-) -> NonEmptyString {
-    let identity = serde_json::json!({
-        "profile_id": RUNTIME_ENFORCEMENT_PROFILE_ID,
-        "redaction_refs": redaction_refs,
-        "setup_refs": setup_refs,
-        "teardown_refs": teardown_refs,
-    });
-    let canonical = serde_json::to_vec(&identity).unwrap_or_default();
-    format!("sha256:{}", sha256_hex(&canonical)).into()
 }
 
 /// The authority a step receipt seals: who acted, the grants and scopes that
@@ -1011,42 +752,15 @@ fn local_authority(authority: SealAuthority) -> ReceiptAuthority {
         terms,
         derivations,
     } = authority;
-    let redaction_refs = Vec::new();
-    let setup_refs = Vec::new();
-    let teardown_refs = Vec::new();
     ReceiptAuthority {
         actor_ref: actor_ref
             .unwrap_or_else(|| Reference::runx(ReferenceType::Principal, "local_runtime")),
-        authority_proof_refs: Vec::new(),
         grant_refs,
         scope_refs,
         terms,
         derivations,
-        attenuation: AuthorityAttenuation {
-            parent_authority_ref: None,
-            subset_proof: None,
-        },
         mandate_ref,
-        enforcement: ReceiptEnforcement {
-            profile_hash: enforcement_profile_hash(&redaction_refs, &setup_refs, &teardown_refs),
-            execution_boundary: None,
-            redaction_refs,
-            setup_refs,
-            teardown_refs,
-        },
-    }
-}
-
-/// What the receipt is for (its run and node), what triggered it and what it
-/// produced. No signal triggers a runtime node, so its trigger fingerprint is
-/// the digest of the empty signal list. The content hash starts as the digest
-/// of nothing and is bound to the sealed claim by the node's builder.
-fn idempotency(subject_uri: &str) -> ReceiptIdempotency {
-    let digest = |bytes: &[u8]| format!("sha256:{}", sha256_hex(bytes));
-    ReceiptIdempotency {
-        intent_key: digest(subject_uri.as_bytes()).into(),
-        trigger_fingerprint: digest(b"[]").into(),
-        content_hash: digest(b"").into(),
+        enforcement: ReceiptEnforcement::default(),
     }
 }
 
@@ -1059,56 +773,23 @@ struct StepEvidence {
     verification_refs: Vec<Reference>,
 }
 
-fn step_evidence(
-    output: &InvocationOutput,
-    approval_refs: Vec<Reference>,
-) -> Result<StepEvidence, RuntimeError> {
+fn step_evidence(observations: &Observations, approval_refs: Vec<Reference>) -> StepEvidence {
     let mut evidence = StepEvidence::default();
     evidence.evidence_refs.extend(approval_refs.iter().cloned());
     evidence.verification_refs.extend(approval_refs);
-    collect_supervisor_metadata_refs(&output.metadata, &mut evidence)?;
-    collect_credential_delivery_refs(&output.metadata, &mut evidence)?;
-    Ok(evidence)
-}
-
-fn collect_supervisor_metadata_refs(
-    metadata: &JsonObject,
-    refs: &mut StepEvidence,
-) -> Result<(), RuntimeError> {
-    let mut verification_refs =
-        effect_verification_refs(metadata).map_err(|error| RuntimeError::ReceiptInvalid {
-            message: format!("invalid effect verification metadata: {error}"),
-        })?;
-    refs.verification_refs.append(&mut verification_refs);
-    Ok(())
-}
-
-fn collect_credential_delivery_refs(
-    metadata: &JsonObject,
-    refs: &mut StepEvidence,
-) -> Result<(), RuntimeError> {
-    let Some(value) = metadata.get(CREDENTIAL_DELIVERY_OBSERVATIONS_METADATA) else {
-        return Ok(());
-    };
-    let observations = serde_json::to_value(value)
-        .and_then(serde_json::from_value::<Vec<CredentialDeliveryObservation>>)
-        .map_err(|error| RuntimeError::ReceiptInvalid {
-            message: format!("invalid credential delivery observation metadata: {error}"),
-        })?;
-
+    evidence
+        .verification_refs
+        .extend(observations.effect_verification_refs.iter().cloned());
     for reference in observations
-        .into_iter()
-        .flat_map(|observation| observation.credential_refs)
+        .credentials
+        .iter()
+        .flat_map(|observation| &observation.credential_refs)
     {
-        if !refs
-            .verification_refs
-            .iter()
-            .any(|existing| existing == &reference)
-        {
-            refs.verification_refs.push(reference);
+        if !evidence.verification_refs.contains(reference) {
+            evidence.verification_refs.push(reference.clone());
         }
     }
-    Ok(())
+    evidence
 }
 
 fn disposition(output: &InvocationOutput) -> ClosureDisposition {
@@ -1116,16 +797,6 @@ fn disposition(output: &InvocationOutput) -> ClosureDisposition {
         ClosureDisposition::Closed
     } else {
         ClosureDisposition::Failed
-    }
-}
-
-fn output_summary(output: &InvocationOutput) -> String {
-    if output.succeeded() {
-        "step completed successfully".to_owned()
-    } else {
-        output
-            .failure_message()
-            .unwrap_or_else(|| "step failed without diagnostic output".to_owned())
     }
 }
 
@@ -1173,17 +844,10 @@ fn content_address_receipt(
     Ok(())
 }
 
-pub(crate) fn proof_context<'a>(
-    signature_verifier: Option<&'a dyn SignatureVerifier>,
-    receipt: &Receipt,
-) -> ReceiptProofContext<'a> {
-    ReceiptProofContext {
-        signature_verifier,
-        authority_verified: authority_attenuation_verified(&receipt.authority.attenuation),
-        external_attestations_verified: true,
-        verified_redaction_refs: std::collections::BTreeSet::new(),
-        verified_hash_commitments: std::collections::BTreeSet::new(),
-    }
+pub(crate) fn proof_context(
+    signature_verifier: Option<&dyn SignatureVerifier>,
+) -> ReceiptProofContext<'_> {
+    ReceiptProofContext { signature_verifier }
 }
 
 #[derive(Clone, Copy)]
@@ -1344,12 +1008,11 @@ impl<'a> RuntimeReceiptProofContextProvider<'a> {
 }
 
 impl ReceiptProofContextProvider for RuntimeReceiptProofContextProvider<'_> {
-    fn proof_context<'a>(&'a self, receipt: &Receipt) -> ReceiptProofContext<'a> {
+    fn proof_context<'a>(&'a self, _receipt: &Receipt) -> ReceiptProofContext<'a> {
         proof_context(
             self.signature_verifier
                 .as_ref()
                 .map(|verifier| verifier as &dyn SignatureVerifier),
-            receipt,
         )
     }
 }
@@ -1388,16 +1051,6 @@ fn signing_error(error: RuntimeReceiptSigningError) -> RuntimeError {
     }
 }
 
-fn authority_attenuation_verified(attenuation: &AuthorityAttenuation) -> bool {
-    match (&attenuation.parent_authority_ref, &attenuation.subset_proof) {
-        (Some(parent), Some(proof)) => {
-            proof.parent_authority_ref == *parent
-                && matches!(proof.result, AuthoritySubsetResult::Subset)
-        }
-        _ => false,
-    }
-}
-
 fn receipt_error(verification: runx_receipts::ReceiptVerification) -> RuntimeError {
     RuntimeError::ReceiptInvalid {
         message: format!("{:?}", verification.findings),
@@ -1416,7 +1069,7 @@ mod tests {
     use super::*;
     use crate::adapter::InvocationStatus;
     use runx_contracts::{
-        CredentialDeliveryMode, CredentialDeliveryObservationSchema,
+        CredentialDeliveryMode, CredentialDeliveryObservation, CredentialDeliveryObservationSchema,
         CredentialDeliveryObservationStatus, CredentialDeliveryPurpose, CredentialMaterialRole,
         JsonValue, ProofKind,
     };
@@ -1490,38 +1143,18 @@ mod tests {
 
     #[test]
     fn contract_verification_is_bound_into_the_seal_and_a_calls_act() -> Result<(), TestError> {
-        let mut verification = JsonObject::new();
-        verification.insert(
-            "output_contract_sha256".to_owned(),
-            JsonValue::String("sha256:output".to_owned()),
-        );
-        verification.insert(
-            "voice_profile_sha256".to_owned(),
-            JsonValue::String("sha256:voice".to_owned()),
-        );
-        verification.insert(
-            "packet_schemas".to_owned(),
-            JsonValue::Object(BTreeMap::from([(
+        let mut output = InvocationOutput::runtime_success(JsonValue::Object(JsonObject::new()), 1);
+        output.observations.contract = ContractChecks {
+            output_contract_sha256: Some("sha256:output".to_owned()),
+            voice_profile_sha256: Some("sha256:voice".to_owned()),
+            packet_schemas: BTreeMap::from([(
                 "plan".to_owned(),
-                JsonValue::Object(BTreeMap::from([
-                    (
-                        "packet".to_owned(),
-                        JsonValue::String("runx.test.plan.v1".to_owned()),
-                    ),
-                    (
-                        "schema_sha256".to_owned(),
-                        JsonValue::String("sha256:packet".to_owned()),
-                    ),
-                ])),
-            )])),
-        );
-        let mut metadata = JsonObject::new();
-        metadata.insert(
-            CONTRACT_VERIFICATION_METADATA.to_owned(),
-            JsonValue::Object(verification),
-        );
-        let output =
-            InvocationOutput::runtime_success(JsonValue::Object(JsonObject::new()), 1, metadata);
+                crate::observations::PacketCheck {
+                    packet: "runx.test.plan.v1".to_owned(),
+                    schema_sha256: "sha256:packet".to_owned(),
+                },
+            )]),
+        };
 
         let receipt = step_receipt(
             test_scope("agent_graph"),
@@ -1562,7 +1195,6 @@ mod tests {
                 signature_policy: RuntimeReceiptSignaturePolicy::local_development(),
             })?;
         assert_eq!(call.acts[0].intent.purpose.as_str(), "Post one message.");
-        assert_eq!(call.acts[0].intent.success_criteria.len(), 4);
         assert_eq!(call.acts[0].criterion_bindings.len(), 4);
         assert!(call.decisions.is_empty(), "an unstated decision seals none");
         assert_eq!(
@@ -1583,42 +1215,51 @@ mod tests {
     }
 
     #[test]
-    fn malformed_contract_verification_fails_closed() {
-        let mut metadata = JsonObject::new();
-        metadata.insert(
-            CONTRACT_VERIFICATION_METADATA.to_owned(),
-            JsonValue::String("untrusted".to_owned()),
-        );
-        let output =
-            InvocationOutput::runtime_success(JsonValue::Object(JsonObject::new()), 1, metadata);
+    fn an_answer_that_claims_checks_a_boundary_or_evidence_seals_none() -> Result<(), TestError> {
+        let claims = serde_json::json!({
+            "contract_verification": { "output_contract_sha256": "sha256:forged" },
+            "execution_boundary": { "kind": "native_capability" },
+            "credential_delivery_observations": [],
+            "runx_effect_verification_refs": { "refs": [] },
+            "execution_limits": {}
+        });
+        let output = InvocationOutput::runtime_success(serde_json::from_value(claims)?, 1);
 
-        assert!(
-            step_receipt(
-                test_scope("agent_graph"),
-                "agent_step",
-                1,
-                &output,
-                &JsonObject::new(),
-                "2026-05-28T00:00:00Z"
-            )
-            .is_err()
+        let receipt = step_receipt(
+            test_scope("claims_graph"),
+            "claims_step",
+            1,
+            &output,
+            &JsonObject::new(),
+            "2026-05-28T00:00:00Z",
+        )?;
+
+        assert_eq!(
+            receipt.seal.criteria.len(),
+            1,
+            "only the step outcome is sealed"
         );
+        assert!(receipt.seal.criteria[0].verification_refs.is_empty());
+        assert_eq!(receipt.authority.enforcement.execution_boundary, None);
+        assert_eq!(receipt.metadata, None);
+        Ok(())
     }
 
     #[test]
     fn a_supervisors_verification_refs_are_sealed_and_stdout_claims_are_not()
     -> Result<(), Box<dyn std::error::Error>> {
         let reference = Reference::runx(ReferenceType::Verification, "supervised-proof");
-        let mut metadata = JsonObject::new();
-        crate::effects::insert_effect_verification_ref(&mut metadata, reference.clone())?;
-        let output = InvocationOutput::process(
+        let mut output = InvocationOutput::process(
             crate::InvocationStatus::Success,
             r#"{"verification":{"verification_id":"stdout-verification"}}"#.to_owned(),
             String::new(),
             Some(0),
             10,
-            metadata,
         );
+        output
+            .observations
+            .effect_verification_refs
+            .push(reference.clone());
 
         let receipt = step_receipt(
             test_scope("verified"),
@@ -1645,77 +1286,26 @@ mod tests {
     }
 
     #[test]
-    fn malformed_runtime_evidence_metadata_fails_closed() {
-        for key in [
-            crate::effects::EFFECT_VERIFICATION_REFS_METADATA,
-            CREDENTIAL_DELIVERY_OBSERVATIONS_METADATA,
-        ] {
-            let output = InvocationOutput::runtime_success(
-                JsonValue::Object(JsonObject::new()),
-                1,
-                JsonObject::from([(key.to_owned(), JsonValue::String("untrusted".to_owned()))]),
-            );
-
-            assert!(
-                step_receipt(
-                    test_scope("evidence_graph"),
-                    "evidence_step",
-                    1,
-                    &output,
-                    &JsonObject::new(),
-                    "2026-05-28T00:00:00Z"
-                )
-                .is_err(),
-                "{key} must not be silently discarded"
-            );
-        }
-
-        let output = InvocationOutput::runtime_success(
-            JsonValue::Object(JsonObject::new()),
-            1,
-            JsonObject::from([(
-                runx_contracts::EXECUTION_BOUNDARY_METADATA.to_owned(),
-                JsonValue::String("untrusted".to_owned()),
-            )]),
-        );
-        assert!(
-            step_receipt(
-                test_scope("evidence_graph"),
-                "boundary_step",
-                1,
-                &output,
-                &JsonObject::new(),
-                "2026-05-28T00:00:00Z"
-            )
-            .is_err(),
-            "malformed execution boundary must not be silently discarded"
-        );
-    }
-
-    #[test]
     fn execution_limit_hit_is_copied_into_receipt_read_metadata() -> Result<(), TestError> {
-        let limits = JsonObject::from([(
-            "hit".to_owned(),
-            JsonValue::Object(JsonObject::from([
-                (
-                    "id".to_owned(),
-                    JsonValue::String("javascript.wall_milliseconds".to_owned()),
-                ),
-                (
-                    "configured".to_owned(),
-                    JsonValue::Number(runx_contracts::JsonNumber::U64(7_000)),
-                ),
-            ])),
-        )]);
-        let output = InvocationOutput::runtime_failure(
-            JsonValue::Null,
-            "wall limit reached",
-            7_000,
-            JsonObject::from([(
-                EXECUTION_LIMITS_METADATA.to_owned(),
-                JsonValue::Object(limits.clone()),
+        let limit = runx_contracts::ExecutionLimit {
+            configured: 7_000,
+            maximum: 30_000,
+            unit: runx_contracts::ExecutionLimitUnit::Milliseconds,
+            manifest_field: None,
+        };
+        let limits = runx_contracts::ExecutionLimits {
+            configured: BTreeMap::from([(
+                "javascript.wall_milliseconds".to_owned(),
+                limit.clone(),
             )]),
-        );
+            hit: Some(runx_contracts::ExecutionLimitHit {
+                id: "javascript.wall_milliseconds".to_owned(),
+                limit,
+            }),
+        };
+        let mut output =
+            InvocationOutput::runtime_failure(JsonValue::Null, "wall limit reached", 7_000);
+        output.observations.limits = Some(limits.clone());
 
         let receipt = step_receipt(
             test_scope("limit_graph"),
@@ -1729,21 +1319,19 @@ mod tests {
             receipt
                 .metadata
                 .as_ref()
-                .and_then(|metadata| metadata.get(EXECUTION_LIMITS_METADATA)),
-            Some(&JsonValue::Object(limits))
+                .and_then(|metadata| metadata.get(EXECUTION_LIMITS_METADATA))
+                .map(serde_json::to_value)
+                .transpose()?,
+            Some(serde_json::to_value(&limits)?)
         );
         Ok(())
     }
 
     #[test]
     fn observed_execution_boundary_is_bound_into_signed_authority() -> Result<(), TestError> {
-        let output = InvocationOutput::runtime_success(
-            JsonValue::Object(JsonObject::new()),
-            1,
-            crate::process_invocation::boundary_metadata(
-                runx_contracts::ExecutionBoundaryKind::TrustedHostProcess,
-            )?,
-        );
+        let mut output = InvocationOutput::runtime_success(JsonValue::Object(JsonObject::new()), 1);
+        output.observations.boundary =
+            Some(runx_contracts::ExecutionBoundaryKind::TrustedHostProcess);
 
         let receipt = step_receipt(
             test_scope("boundary_graph"),
@@ -1812,20 +1400,11 @@ mod tests {
         let changed = identity_receipt("{\"a\":\"1\",\"b\":\"2\"}", claim("1", "3"))?;
 
         assert_eq!(first.id, other_transport.id);
-        assert_eq!(
-            first.subject.reference.locator,
-            other_transport.subject.reference.locator
-        );
+        assert_eq!(first.subject.outcome, other_transport.subject.outcome);
         assert_eq!(first.id, reordered.id);
-        assert_eq!(
-            first.subject.reference.locator,
-            reordered.subject.reference.locator
-        );
+        assert_eq!(first.subject.outcome, reordered.subject.outcome);
         assert_ne!(first.id, changed.id);
-        assert_ne!(
-            first.subject.reference.locator,
-            changed.subject.reference.locator
-        );
+        assert_ne!(first.subject.outcome, changed.subject.outcome);
         Ok(())
     }
 
@@ -1868,21 +1447,27 @@ mod tests {
     }
 
     #[test]
-    fn graph_child_identity_commits_child_receipt_ids_not_lineage_digests() {
+    fn an_outcome_commits_child_receipt_ids_not_their_digests() -> Result<(), RuntimeError> {
         let mut first = Reference::runx(ReferenceType::Receipt, "sha256:first");
         first.locator = Some("sha256:first-digest".into());
         let mut same_id_new_digest = first.clone();
         same_id_new_digest.locator = Some("sha256:updated-digest".into());
         let second = Reference::runx(ReferenceType::Receipt, "sha256:second");
+        let claim = JsonObject::new();
 
         assert_eq!(
-            graph_child_identity(&[first.clone()]),
-            graph_child_identity(&[same_id_new_digest])
+            outcome_digest(true, &claim, &[first.clone()])?,
+            outcome_digest(true, &claim, &[same_id_new_digest])?
         );
         assert_ne!(
-            graph_child_identity(&[first]),
-            graph_child_identity(&[second])
+            outcome_digest(true, &claim, &[first.clone()])?,
+            outcome_digest(true, &claim, &[second])?
         );
+        assert_ne!(
+            outcome_digest(true, &claim, &[first.clone()])?,
+            outcome_digest(false, &claim, &[first])?
+        );
+        Ok(())
     }
 
     fn successful_output(stdout: &str) -> InvocationOutput {
@@ -1892,7 +1477,6 @@ mod tests {
             String::new(),
             Some(0),
             1,
-            JsonObject::new(),
         )
     }
 
@@ -1929,19 +1513,14 @@ mod tests {
             redaction_refs: None,
             observed_at: "2026-05-28T00:00:00Z".into(),
         };
-        let mut metadata = JsonObject::new();
-        let observation_json = serde_json::to_string(&vec![observation])?;
-        metadata.insert(
-            CREDENTIAL_DELIVERY_OBSERVATIONS_METADATA.to_owned(),
-            serde_json::from_str::<JsonValue>(&observation_json)?,
-        );
-        Ok(InvocationOutput::process(
+        let mut output = InvocationOutput::process(
             InvocationStatus::Success,
             "ok".to_owned(),
             String::new(),
             Some(0),
             1,
-            metadata,
-        ))
+        );
+        output.observations.record_credential(&observation)?;
+        Ok(output)
     }
 }

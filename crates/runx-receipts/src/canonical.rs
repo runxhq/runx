@@ -1,10 +1,10 @@
 use crate::ReceiptError;
 use runx_contracts::receipt::{
-    Lineage, ReceiptAct, ReceiptAuthority, ReceiptClass, ReceiptEvidence, ReceiptIdempotency,
-    ReceiptIssuer, ReceiptSchema, Seal, Subject,
+    Lineage, ReceiptAct, ReceiptAuthority, ReceiptCanonicalization, ReceiptIssuer, ReceiptSchema,
+    Seal, Subject,
 };
 use runx_contracts::schema::{IsoDateTime, NonEmptyString};
-use runx_contracts::{Decision, Receipt, Reference, sha256_prefixed, to_canonical_bytes};
+use runx_contracts::{Decision, Receipt, sha256_prefixed, to_canonical_bytes};
 use serde::Serialize;
 
 pub fn canonical_receipt_json(receipt: &Receipt) -> Result<String, ReceiptError> {
@@ -24,12 +24,10 @@ pub fn canonical_receipt_body_digest(receipt: &Receipt) -> Result<String, Receip
         .map(|bytes| sha256_prefixed(&bytes))
 }
 
-/// The canonical body that the content-addressed `id` commits: every intrinsic
-/// run field except the envelope's `id` (which it derives), `signature`,
-/// `digest`, the runtime-local `metadata` read aid, and `lineage`. `lineage` is
-/// post-hoc graph wiring (parent/children refs) attached after the children's
-/// own ids are known; excluding it breaks the parent<->child id circularity
-/// while keeping the address stable. The full `digest` still commits `lineage`.
+/// The canonical body that the content-addressed `id` commits: the signed
+/// body without the `id` it derives. A receipt names only receipts that exist
+/// before it (its children and the receipt it follows), so its lineage is part
+/// of its address: two receipts that differ anywhere have different ids.
 pub fn canonical_receipt_identity_json(receipt: &Receipt) -> Result<String, ReceiptError> {
     canonical_string(&ReceiptView::of(receipt, Commitment::Identity))
 }
@@ -58,7 +56,7 @@ enum Commitment {
     /// The signed body: every field except `signature`, `digest` and the
     /// runtime-local `metadata` read aid.
     Body,
-    /// The content address: the body without `id` and `lineage`.
+    /// The content address: the body without `id`.
     Identity,
 }
 
@@ -70,20 +68,14 @@ struct ReceiptView<'a> {
     #[serde(skip_serializing_if = "Option::is_none")]
     id: Option<&'a NonEmptyString>,
     created_at: &'a IsoDateTime,
-    canonicalization: &'a NonEmptyString,
+    canonicalization: &'a ReceiptCanonicalization,
     issuer: &'a ReceiptIssuer,
-    idempotency: &'a ReceiptIdempotency,
-    class: &'a ReceiptClass,
     subject: &'a Subject,
     authority: &'a ReceiptAuthority,
-    signals: &'a [Reference],
     decisions: &'a [Decision],
     acts: &'a [ReceiptAct],
-    #[serde(skip_serializing_if = "<[_]>::is_empty")]
-    evidence: &'a [ReceiptEvidence],
     seal: &'a Seal,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    lineage: Option<&'a Lineage>,
+    lineage: &'a Lineage,
 }
 
 impl<'a> ReceiptView<'a> {
@@ -98,14 +90,10 @@ impl<'a> ReceiptView<'a> {
             issuer,
             signature: _,
             digest: _,
-            idempotency,
-            class,
             subject,
             authority,
-            signals,
             decisions,
             acts,
-            evidence,
             seal,
             lineage,
             metadata: _,
@@ -117,16 +105,12 @@ impl<'a> ReceiptView<'a> {
             created_at,
             canonicalization,
             issuer,
-            idempotency,
-            class,
             subject,
             authority,
-            signals,
             decisions,
             acts,
-            evidence,
             seal,
-            lineage: lineage.as_ref().filter(|_| !identity),
+            lineage,
         }
     }
 }

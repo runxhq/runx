@@ -40,7 +40,6 @@ impl SkillAdapter for UnusedAdapter {
             JsonValue::Null,
             "agent context test unexpectedly invoked the adapter",
             0,
-            Default::default(),
         ))
     }
 }

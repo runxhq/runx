@@ -56,9 +56,11 @@ pub struct ReceiptRow {
     pub name: String,
     pub status: String,
     pub created_at: String,
-    pub summary: String,
+    /// Why the receipt's seal closed as it did.
+    pub reason_code: String,
     pub issuer_type: String,
-    pub actors: Vec<String>,
+    /// The actor the receipt's authority names.
+    pub actor: String,
     pub verification: ReceiptVerification,
 }
 
@@ -172,9 +174,9 @@ fn row(receipt: &Receipt, signature_policy: RuntimeReceiptSignaturePolicy<'_>) -
         name,
         status: closure_status(&receipt.seal.disposition),
         created_at: receipt.created_at.to_string(),
-        summary: receipt.seal.summary.to_string(),
+        reason_code: receipt.seal.reason_code.to_string(),
         issuer_type: identity.issuer_type,
-        actors: identity.actors,
+        actor: identity.actor,
         verification: ReceiptVerification {
             status: verification_status(receipt, signature_policy),
         },
@@ -184,8 +186,7 @@ fn row(receipt: &Receipt, signature_policy: RuntimeReceiptSignaturePolicy<'_>) -
 fn child_receipt_ids(receipts: &[Receipt]) -> BTreeSet<String> {
     receipts
         .iter()
-        .flat_map(|receipt| receipt.lineage.as_ref())
-        .flat_map(|lineage| lineage.children.iter())
+        .flat_map(|receipt| receipt.lineage.children.iter())
         .filter_map(|reference| reference.uri.strip_prefix(RECEIPT_REF_PREFIX))
         .map(str::to_owned)
         .collect()
@@ -227,10 +228,7 @@ impl ResolvedFilter {
                 || subject.contains(query)
                 || row.id.to_lowercase().contains(query)
                 || row.issuer_type.to_lowercase().contains(query)
-                || row
-                    .actors
-                    .iter()
-                    .any(|actor| actor.to_lowercase().contains(query))
+                || row.actor.to_lowercase().contains(query)
         }) && self.skill.as_ref().is_none_or(|skill| name.contains(skill))
             && self
                 .status
@@ -240,11 +238,10 @@ impl ResolvedFilter {
                 .issuer
                 .as_ref()
                 .is_none_or(|issuer| row.issuer_type.to_lowercase() == *issuer)
-            && self.actor.as_ref().is_none_or(|actor| {
-                row.actors
-                    .iter()
-                    .any(|candidate| candidate.to_lowercase() == *actor)
-            })
+            && self
+                .actor
+                .as_ref()
+                .is_none_or(|actor| row.actor.to_lowercase() == *actor)
             && self.within_window(&row.created_at)
     }
 

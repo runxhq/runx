@@ -16,7 +16,7 @@ use runx_contracts::connector::{
     ApprovalFloor, IdempotencyKeyFormat, Implementation, OperationAccess, Placement,
     ProviderIdempotency, StandingEligibility, implementation_digest,
 };
-use runx_contracts::schema::{IsoDateTime, NonEmptyString};
+use runx_contracts::schema::IsoDateTime;
 use runx_contracts::{
     AdmissionDisposition, ApprovalGate, AuthorityApproval, AuthorityVerb, ExecutionBoundaryKind,
     ExternalJobStageRequest, InstanceAuthority, JsonObject, JsonValue, ProofKind, Reference,
@@ -567,15 +567,13 @@ impl RuntimeEffect for OperationEffect {
         let mut refs = vec![verification(
             format!("runx:operation_intent:{intent_digest}"),
             provider,
-            "admitted operation intent",
             ProofKind::EffectEvidence,
         )];
         if let Some(plan) = &context.attempt {
             if let Some(record) = &plan.approval {
                 refs.push(verification(
-                    format!("runx:approval:{}", record.key),
+                    record.uri(),
                     provider,
-                    record.actor.label(),
                     ProofKind::EffectEvidence,
                 ));
             }
@@ -583,13 +581,11 @@ impl RuntimeEffect for OperationEffect {
                 refs.push(verification(
                     format!("runx:standing_approval:{}", cover.approval_id),
                     provider,
-                    "bounded standing approval",
                     ProofKind::EffectEvidence,
                 ));
                 refs.push(verification(
                     cover.usage.receipt_ref(),
                     provider,
-                    "standing approval use reserved",
                     ProofKind::EffectEvidence,
                 ));
             }
@@ -599,7 +595,6 @@ impl RuntimeEffect for OperationEffect {
             refs.push(verification(
                 cover.receipt_ref(),
                 provider,
-                "bounded authority use reserved",
                 ProofKind::EffectEvidence,
             ));
         }
@@ -609,7 +604,6 @@ impl RuntimeEffect for OperationEffect {
             refs.push(verification(
                 format!("runx:provider_ack:{operation_id}"),
                 provider,
-                "provider acknowledgement",
                 ProofKind::EffectEvidence,
             ));
         }
@@ -618,15 +612,13 @@ impl RuntimeEffect for OperationEffect {
         refs.push(verification(
             readback_ref.to_owned(),
             provider,
-            "independent provider readback",
             ProofKind::EffectFinality,
         ));
-        for reference in refs {
-            crate::effects::insert_effect_verification_ref(
-                &mut request.output.metadata,
-                reference,
-            )?;
-        }
+        request
+            .output
+            .observations
+            .effect_verification_refs
+            .extend(refs);
         Ok(())
     }
 
@@ -709,14 +701,33 @@ pub(crate) fn packet_artifacts() -> runx_parser::SkillArtifactContract {
     }
 }
 
-/// The step's output: the packet, the caller-only overlay, where it ran, and
-/// what the call produced.
+/// The step's output: the packet, the caller-only overlay, and what the call
+/// produced.
 #[derive(Debug)]
 pub(crate) struct OperationOutcome {
     pub value: JsonValue,
     pub ephemeral: Option<JsonValue>,
-    pub boundary: ExecutionBoundaryKind,
     pub effects: Vec<Reference>,
+}
+
+/// What the kernel handed an implementation it runs itself when it invoked
+/// it: where the call ran, and the credential an MCP server it started
+/// received. Recorded at invocation, so a call that then fails seals it too.
+/// A process tool is not here: the process layer observes its own run.
+#[derive(Debug)]
+pub(crate) struct Dispatched {
+    pub boundary: ExecutionBoundaryKind,
+    pub credential: Option<runx_contracts::CredentialDeliveryObservation>,
+}
+
+impl Dispatched {
+    /// The invocation of an implementation that received no credential.
+    fn of(context: &OperationAdmission) -> Self {
+        Self {
+            boundary: placement(context).1,
+            credential: None,
+        }
+    }
 }
 
 /// How a placement failed.
@@ -737,13 +748,15 @@ pub(crate) enum Failure {
     ReadbackPending(String),
 }
 
-/// Execute a prepared operation step.
+/// Execute a prepared operation step. `dispatched` records the invocation
+/// once the implementation is reached, whatever the call then returns.
 pub(crate) fn execute(
     context: &OperationAdmission,
     step_id: &str,
     env: &BTreeMap<String, String>,
     cwd: &Path,
     tools: &dyn ToolRunner,
+    dispatched: &mut Option<Dispatched>,
 ) -> Result<OperationOutcome, RuntimeError> {
     let admitted = &context.admitted;
     let plan = context
@@ -835,7 +848,7 @@ pub(crate) fn execute(
 
     // An answer the connector cannot describe as it declares, its effect
     // included, is not trusted: the call holds for reconciliation.
-    let outcome = dispatch(context, session, env, tools).and_then(|readback| {
+    let outcome = dispatch(context, session, env, tools, dispatched).and_then(|readback| {
         readback
             .verify(&Expected {
                 connector: admitted.connector.manifest.id.as_str(),
@@ -1029,6 +1042,7 @@ fn dispatch(
     session: Session,
     env: &BTreeMap<String, String>,
     tools: &dyn ToolRunner,
+    dispatched: &mut Option<Dispatched>,
 ) -> Result<Readback, Failure> {
     let admitted = &context.admitted;
     let operation = admitted.operation();
@@ -1038,7 +1052,10 @@ fn dispatch(
         Session::Local(secret) => (None, secret),
     };
     let implementation = match (&hosted, operation.hosted_http()) {
-        (Some(session), None) => return private_driver(context, session, provider_key),
+        (Some(session), None) => {
+            *dispatched = Some(Dispatched::of(context));
+            return private_driver(context, session, provider_key);
+        }
         _ => operation
             .implementation
             .as_ref()
@@ -1117,6 +1134,7 @@ fn dispatch(
                 },
             };
             let driver = crate::drivers::http::Http::new(egress, &call, spec);
+            *dispatched = Some(Dispatched::of(context));
             confirm::run(&driver, &call, &checks, recovery, &mut record)
         }
         Implementation::Web(_) => {
@@ -1140,9 +1158,10 @@ fn dispatch(
                 transport,
                 call: &call,
             };
+            *dispatched = Some(Dispatched::of(context));
             confirm::run(&driver, &call, &Checks::default(), recovery, &mut record)
         }
-        Implementation::Mcp(spec) => mcp(context, &call, spec, recovery, &mut record),
+        Implementation::Mcp(spec) => mcp(context, &call, spec, recovery, &mut record, dispatched),
         Implementation::Store(_) => {
             let checks = Checks {
                 preconditions: Vec::new(),
@@ -1152,6 +1171,7 @@ fn dispatch(
                 },
             };
             let driver = crate::drivers::store::Store { call: &call };
+            *dispatched = Some(Dispatched::of(context));
             confirm::run(&driver, &call, &checks, recovery, &mut record)
         }
         Implementation::Process(spec) => {
@@ -1233,6 +1253,40 @@ fn private_driver(
     )
 }
 
+/// The credential an MCP server the runtime starts receives, as its receipt
+/// records the delivery: the instance's declared credential, never the
+/// secret. None for any other implementation, an instance that delivers no
+/// credential, or a hosted operation.
+#[cfg(feature = "mcp")]
+fn stdio_server_delivery(
+    context: &OperationAdmission,
+) -> Option<runx_contracts::CredentialDeliveryObservation> {
+    let admitted = &context.admitted;
+    let instance = &admitted.instance.instance;
+    let manifest = &admitted.connector.manifest;
+    let stdio = matches!(
+        admitted.operation().implementation.as_ref()?,
+        Implementation::Mcp(_)
+    ) && matches!(
+        manifest
+            .placements
+            .local
+            .as_ref()
+            .and_then(|local| local.mcp_server.as_ref()),
+        Some(runx_contracts::connector::McpServer::Stdio { .. })
+    );
+    if !stdio || instance.placement != Placement::Local {
+        return None;
+    }
+    let declaration = super::instances::delivered_credential(manifest, &instance.authority)
+        .and_then(|credential| manifest.auth.credentials.get(credential))?;
+    Some(crate::credentials::build_local_provision_observation(
+        manifest.id.as_str(),
+        declaration.kind.as_str(),
+        instance.instance_id.as_str(),
+    ))
+}
+
 /// The credential a process tool receives: the instance's, in the variable
 /// its declaration names, redacted from everything the tool prints.
 fn process_delivery(
@@ -1288,6 +1342,7 @@ fn mcp(
     spec: &runx_contracts::connector::McpImplementation,
     recovery: confirm::Recovery,
     record: &mut dyn FnMut(&Acknowledgement) -> Result<(), String>,
+    dispatched: &mut Option<Dispatched>,
 ) -> Result<Readback, Failure> {
     let unsupported = |reason: &str| Failure::Rejected {
         status: 0,
@@ -1357,6 +1412,7 @@ fn mcp(
                 crate::hosted_private_network_allowed(false, call.env),
             )
             .map_err(|error| rejected("transport_unavailable", error.to_string()))?;
+            *dispatched = Some(Dispatched::of(context));
             context
                 .placements
                 .mcp
@@ -1364,10 +1420,21 @@ fn mcp(
         }
         runx_contracts::connector::McpServer::Stdio { command, args } => {
             let server = stdio_server(context, call, command.as_str(), args)?;
-            context
+            let opened = context
                 .placements
                 .mcp
-                .open_stdio(&server, crate::http::PROVIDER_OPERATION_REQUEST_TIMEOUT)
+                .open_stdio(&server, crate::http::PROVIDER_OPERATION_REQUEST_TIMEOUT);
+            // A server the runtime started received the instance's credential,
+            // whether or not its session then opened; a stand-in received none.
+            let started = match &opened {
+                Ok(session) => session.runs_process(),
+                Err(failure) => failure.started,
+            };
+            *dispatched = Some(Dispatched {
+                credential: started.then(|| stdio_server_delivery(context)).flatten(),
+                ..Dispatched::of(context)
+            });
+            opened.map_err(|failure| failure.reason)
         }
     }
     .map_err(|reason| rejected("mcp_unavailable", reason))?;
@@ -1471,6 +1538,7 @@ fn mcp(
     _spec: &runx_contracts::connector::McpImplementation,
     _recovery: confirm::Recovery,
     _record: &mut dyn FnMut(&Acknowledgement) -> Result<(), String>,
+    _dispatched: &mut Option<Dispatched>,
 ) -> Result<Readback, Failure> {
     Err(rejected(
         "operation_unsupported",
@@ -1616,22 +1684,7 @@ fn finish(
     let admitted = &context.admitted;
     let instance = &admitted.instance.instance;
     let operation = admitted.operation();
-    let (transport, boundary) = match (instance.placement, operation.implementation.as_ref()) {
-        (Placement::Hosted, _) => ("runx_connect", ExecutionBoundaryKind::RemoteProvider),
-        (Placement::Local, Some(Implementation::Process(_))) => {
-            ("local_process", ExecutionBoundaryKind::TrustedHostProcess)
-        }
-        (Placement::Local, Some(Implementation::Mcp(_))) => {
-            ("local_mcp", ExecutionBoundaryKind::NativeCapability)
-        }
-        (Placement::Local, Some(Implementation::Web(_))) => {
-            ("local_web", ExecutionBoundaryKind::NativeCapability)
-        }
-        (Placement::Local, Some(Implementation::Store(_))) => {
-            ("local_store", ExecutionBoundaryKind::NativeCapability)
-        }
-        (Placement::Local, _) => ("local_http", ExecutionBoundaryKind::NativeCapability),
-    };
+    let (transport, _) = placement(context);
     let mut packet = readback
         .into_packet(
             &context.shape,
@@ -1667,9 +1720,29 @@ fn finish(
                 )])),
             )]))
         }),
-        boundary,
         effects,
     })
+}
+
+/// The transport the operation's packet names and the boundary it runs in.
+fn placement(context: &OperationAdmission) -> (&'static str, ExecutionBoundaryKind) {
+    let implementation = context.admitted.operation().implementation.as_ref();
+    match (context.admitted.instance.instance.placement, implementation) {
+        (Placement::Hosted, _) => ("runx_connect", ExecutionBoundaryKind::RemoteProvider),
+        (Placement::Local, Some(Implementation::Process(_))) => {
+            ("local_process", ExecutionBoundaryKind::TrustedHostProcess)
+        }
+        (Placement::Local, Some(Implementation::Mcp(_))) => {
+            ("local_mcp", ExecutionBoundaryKind::NativeCapability)
+        }
+        (Placement::Local, Some(Implementation::Web(_))) => {
+            ("local_web", ExecutionBoundaryKind::NativeCapability)
+        }
+        (Placement::Local, Some(Implementation::Store(_))) => {
+            ("local_store", ExecutionBoundaryKind::NativeCapability)
+        }
+        (Placement::Local, _) => ("local_http", ExecutionBoundaryKind::NativeCapability),
+    }
 }
 
 enum Lane {
@@ -1690,14 +1763,10 @@ struct Approved {
 impl Approved {
     fn new(record: ApprovalRecord, standing: Option<StandingCover>, refs: Vec<Reference>) -> Self {
         let evidence = AuthorityApproval {
-            approval_ref: Reference::with_uri(
-                ReferenceType::Verification,
-                format!("runx:approval:{}", record.key),
-            ),
+            approval_ref: Reference::with_uri(ReferenceType::Verification, record.uri()),
             approved_by_ref: None,
             approved_at: (record.actor == ApprovalActor::Human)
                 .then(|| IsoDateTime::from(record.recorded_at.clone())),
-            criterion_ids: Vec::new(),
         };
         Self {
             record,
@@ -1857,14 +1926,12 @@ fn paid_authority(
             "the paid job authority belongs to another principal",
         ));
     }
-    let evidence = |reference: &Reference, label: &str| Reference {
+    let evidence = |reference: &Reference| Reference {
         provider: Some("runx".to_owned().into()),
-        label: Some(label.to_owned().into()),
         proof_kind: Some(ProofKind::EffectEvidence),
         ..reference.clone()
     };
     let continuation = Reference {
-        label: Some("paid external job continuation".to_owned().into()),
         provider: Some("runx".to_owned().into()),
         proof_kind: Some(ProofKind::EffectEvidence),
         ..Reference::with_uri(
@@ -1878,14 +1945,8 @@ fn paid_authority(
     Ok((
         authority.operation_key.as_str().to_owned(),
         vec![
-            evidence(
-                &authority.continuation.invocation_ref,
-                "paid invocation execution authority",
-            ),
-            evidence(
-                &authority.continuation.source_run_ref,
-                "external job source run",
-            ),
+            evidence(&authority.continuation.invocation_ref),
+            evidence(&authority.continuation.source_run_ref),
             continuation,
         ],
     ))
@@ -2056,10 +2117,9 @@ pub(crate) fn receipt_root(env: &BTreeMap<String, String>, cwd: &Path) -> std::p
     crate::paths::RunxPaths::resolve(env, cwd).receipts()
 }
 
-fn verification(uri: String, provider: &str, label: &str, proof_kind: ProofKind) -> Reference {
+fn verification(uri: String, provider: &str, proof_kind: ProofKind) -> Reference {
     Reference {
         provider: Some(provider.to_owned().into()),
-        label: Some(NonEmptyString::from(label)),
         proof_kind: Some(proof_kind),
         ..Reference::with_uri(ReferenceType::Verification, uri)
     }

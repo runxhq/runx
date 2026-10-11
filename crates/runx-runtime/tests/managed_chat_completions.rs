@@ -289,10 +289,7 @@ fn managed_agent_step_executes_governed_tool_round_trip() -> Result<(), Box<dyn 
     let graph = crate::support::read_test_signed_receipt(&receipts, receipt_id)?;
     let step = crate::support::read_test_first_step_receipt(&receipts, &graph)?;
     assert_eq!(
-        step.lineage
-            .as_ref()
-            .map(|lineage| lineage.children.len())
-            .unwrap_or_default(),
+        step.lineage.children.len(),
         1,
         "the managed agent's call is recorded and sealed under its turn"
     );
@@ -376,10 +373,7 @@ fn a_managed_turn_that_fails_still_names_the_calls_it_made()
     let graph = crate::support::read_test_signed_receipt(&receipts, receipt_id)?;
     let step = crate::support::read_test_first_step_receipt(&receipts, &graph)?;
     assert_eq!(
-        step.lineage
-            .as_ref()
-            .map(|lineage| lineage.children.len())
-            .unwrap_or_default(),
+        step.lineage.children.len(),
         1,
         "the failed turn's receipt names the call it made"
     );

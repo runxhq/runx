@@ -18,10 +18,9 @@ pub const CALL_ACT_TARGET_MAX: usize = 2048;
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub struct CallAct {
-    /// What kind of act the call is. Revision and verification acts carry
-    /// details a single call does not have, so a call is one of these.
-    #[serde(default, skip_serializing_if = "CallActForm::is_observation")]
-    pub form: CallActForm,
+    /// What kind of act the call is.
+    #[serde(default, skip_serializing_if = "crate::schema::is_default")]
+    pub form: ActForm,
     /// Why the call is made.
     pub purpose: NonEmptyString,
     /// What a reader is told about this particular call.
@@ -32,60 +31,10 @@ pub struct CallAct {
     pub target: Option<NonEmptyString>,
     /// The decision the call carries out.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub decision: Option<CallDecision>,
+    pub decision: Option<DecisionChoice>,
     /// The receipt of the act this one follows.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub previous: Option<Digest>,
-}
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum CallActForm {
-    #[default]
-    Observation,
-    Reply,
-    Review,
-}
-
-impl CallActForm {
-    fn is_observation(&self) -> bool {
-        *self == Self::Observation
-    }
-}
-
-impl From<CallActForm> for ActForm {
-    fn from(form: CallActForm) -> Self {
-        match form {
-            CallActForm::Observation => Self::Observation,
-            CallActForm::Reply => Self::Reply,
-            CallActForm::Review => Self::Review,
-        }
-    }
-}
-
-/// The decisions a call can carry out.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum CallDecision {
-    Continue,
-    Close,
-    Decline,
-    Defer,
-    Escalate,
-    Monitor,
-}
-
-impl From<CallDecision> for DecisionChoice {
-    fn from(decision: CallDecision) -> Self {
-        match decision {
-            CallDecision::Continue => Self::Continue,
-            CallDecision::Close => Self::Close,
-            CallDecision::Decline => Self::Decline,
-            CallDecision::Defer => Self::Defer,
-            CallDecision::Escalate => Self::Escalate,
-            CallDecision::Monitor => Self::Monitor,
-        }
-    }
 }
 
 impl CallAct {
@@ -125,13 +74,6 @@ impl CallAct {
         }
         Ok(())
     }
-
-    /// What a reader is told: the reason, or the purpose when no reason is
-    /// given.
-    #[must_use]
-    pub fn summary(&self) -> &NonEmptyString {
-        self.reason.as_ref().unwrap_or(&self.purpose)
-    }
 }
 
 fn text(value: &str, field: &str) -> Result<(), String> {
@@ -160,8 +102,9 @@ mod tests {
     #[test]
     fn an_act_needs_a_purpose_and_reads_only_its_own_fields() -> Result<(), String> {
         let act = parse(serde_json::json!({"purpose": "Close the request"}))?;
-        assert_eq!(act.form, CallActForm::Observation);
-        assert_eq!(act.summary().as_str(), "Close the request");
+        assert_eq!(act.form, ActForm::Observation);
+        assert_eq!(act.purpose.as_str(), "Close the request");
+        assert_eq!(act.reason, None);
         assert!(parse(serde_json::json!({"reason": "no purpose"})).is_err());
         assert!(parse(serde_json::json!({"purpose": "x", "legitimacy": "y"})).is_err());
         Ok(())

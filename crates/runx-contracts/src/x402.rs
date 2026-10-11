@@ -134,7 +134,8 @@ impl Serialize for X402PositiveNumber {
     where
         S: Serializer,
     {
-        if self.0.fract() == 0.0 && self.0 <= u64::MAX as f64 {
+        // `u64::MAX` rounds up to 2^64 as a float, so the bound is exclusive.
+        if self.0.fract() == 0.0 && self.0 < u64::MAX as f64 {
             serializer.serialize_u64(self.0 as u64)
         } else {
             serializer.serialize_f64(self.0)

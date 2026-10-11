@@ -362,10 +362,7 @@ impl Ed25519ReceiptVerifier {
         &self,
         issuer: &ReceiptIssuer,
     ) -> Result<&ProductionReceiptKey, SignatureVerificationFailure> {
-        if matches!(
-            issuer.issuer_type,
-            ReceiptIssuerType::Local | ReceiptIssuerType::Verifier
-        ) {
+        if issuer.issuer_type == ReceiptIssuerType::Local {
             return Err(SignatureVerificationFailure::UnsupportedIssuer);
         }
         if issuer.kid.trim().is_empty() {
@@ -405,10 +402,7 @@ impl SignatureVerifier for Ed25519ReceiptVerifier {
 pub(crate) fn validate_production_issuer(
     issuer: &ReceiptIssuer,
 ) -> Result<(), RuntimeReceiptSigningError> {
-    if matches!(
-        issuer.issuer_type,
-        ReceiptIssuerType::Local | ReceiptIssuerType::Verifier
-    ) {
+    if issuer.issuer_type == ReceiptIssuerType::Local {
         return Err(RuntimeReceiptSigningError::UnsupportedIssuerType);
     }
     if issuer.kid.trim().is_empty() {
@@ -429,7 +423,6 @@ fn parse_production_issuer_type(
     match value {
         "hosted" => Ok(ReceiptIssuerType::Hosted),
         "ci" => Ok(ReceiptIssuerType::Ci),
-        "local" | "verifier" => Err(RuntimeReceiptSigningError::UnsupportedIssuerType),
         _ => Err(RuntimeReceiptSigningError::UnsupportedIssuerType),
     }
 }

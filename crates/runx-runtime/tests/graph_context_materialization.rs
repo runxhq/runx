@@ -34,7 +34,6 @@ impl SkillAdapter for RecordingAdapter {
         Ok(InvocationOutput::runtime_success(
             JsonValue::Object(request.inputs),
             0,
-            JsonObject::new(),
         ))
     }
 }

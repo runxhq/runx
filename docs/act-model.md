@@ -4,22 +4,31 @@
 
 The act model lives in `crates/runx-contracts`:
 
-- **Act** (`src/act.rs`): a unit of governed work. Its kind is **`ActForm`**:
-  `revision`, `reply`, `review`, `observation`, `verification`. An Act carries
-  `criterion_bindings`, `change_request`/`change_plan` (`RevisionDetails`),
-  target/source/artifact refs, and a closure.
-- **Decision** (`src/decision.rs`): a governed choice, with a `Closure`
-  (`ClosureDisposition`: `closed`, `deferred`, `superseded`, `declined`,
-  `blocked`, `failed`, `killed`, `timed_out`).
-- **Signal** (`src/signal.rs`): an inbound trigger, with a `SignalSchema` and a
-  `SignalTrustLevel`.
-- **Receipt** (`src/receipt.rs`): the sealed, flat record of a run. It inlines
-  `signals: Vec<Reference>`, `decisions: Vec<Decision>`, `acts: Vec<ReceiptAct>`,
-  a `seal`, `authority`, `subject`, `idempotency`, and optional `lineage`.
-  Runtime receipts carry no signals: no signal triggers a runtime node. The
-  journal is a *projection* computed on demand from the receipt
-  (`runx-runtime/src/journal.rs::project_receipt_journal`), not a separately
-  persisted artifact.
+- **Act** (`src/act.rs`, `src/receipt.rs`): one governed call's act, inline in
+  its receipt. Its kind is **`ActForm`**: `observation`, `reply` or `review`.
+  It carries its intent (purpose and legitimacy), the caller's `reason` when
+  one was stated, `criterion_bindings`, target and artifact refs, and the
+  operator context it ran with. Its outcome is the receipt's seal.
+- **Criterion** (`src/act.rs`): a check the runtime runs and binds, from its
+  own closed vocabulary: `step_outcome`, `output_contract_verified`,
+  `voice_profile_applied` and `packet_schemas_verified`. A binding states the
+  check's status and the references that prove it; the runtime writes no
+  prose about it.
+- **Decision** (`src/decision.rs`): a governed choice a call's caller states,
+  naming the act that carries it out. A seal's **`ClosureDisposition`** is
+  `closed`, `deferred`, `superseded`, `declined`, `blocked`, `failed`,
+  `killed` or `timed_out`, with a `reason_code`.
+- **Signal** (`src/signal.rs`): an inbound observation, with a `SignalSchema`
+  and a `SignalTrustLevel`. Receipts do not carry signals.
+- **Receipt** (`src/receipt.rs`): the sealed, flat record of a run node. It
+  inlines `decisions: Vec<Decision>` and `acts: Vec<ReceiptAct>`, a `seal`,
+  `authority`, `subject` (what ran, and the digest of its outcome: whether it
+  succeeded, the outputs it declared and its direct children's ids) and
+  `lineage`. It holds only what its issuer observed or was given, each value
+  once, as typed facts. Its wire form is exact: every array is written, an
+  absent value is omitted rather than `null`, and readers refuse any other
+  form, so every verifier hashes the same bytes. Its `id` is the digest of its
+  body without the id.
 
 ## Calls and acts
 
@@ -54,11 +63,10 @@ states an intent nobody gave it.
   declared or admitted: effects, approvals, agent requests and credential
   deliveries. No output field is scanned for one.
 - **Acts chain.** An act chains by lineage: `lineage.previous` (the receipt of
-  the act this one follows, as the caller names it), `lineage.children` (a
+  the act this one follows, as the caller names it) and `lineage.children` (a
   graph receipt commits the identity and body digest of each immutable step
-  receipt), and `Intent.derived_from`. Runtime children do not carry a single
-  `lineage.parent`: the same content-addressed receipt may be reused by more
-  than one graph, so rebinding it would change its signed body.
+  receipt). A child never names its parent: the same content-addressed
+  receipt may be reused by more than one graph, so the edge is the parent's.
 - **A run is a composition of calls.** Nothing seals an act for a run as a
   whole. The operator context a run was prepared with is each act's
   `context_ref`. Pausing for the host is a `needs_agent` side channel, not an

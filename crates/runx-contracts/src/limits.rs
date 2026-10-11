@@ -8,6 +8,7 @@ use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 
+/// The key a receipt's unsigned metadata holds the invocation's limits under.
 pub const EXECUTION_LIMITS_METADATA: &str = "execution_limits";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]

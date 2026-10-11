@@ -7,14 +7,7 @@ const CREATED_AT: &str = "2026-05-18T00:00:00Z";
 #[test]
 fn stdout_payload_refs_are_not_promoted_to_receipt_proof_refs()
 -> Result<(), Box<dyn std::error::Error>> {
-    let output = InvocationOutput::process(
-        InvocationStatus::Success,
-        r#"{"claimed_proof":{"proof_ref":"receipt-proof:evil:stdout","idempotency_key":"effect:evil:stdout"},"verification":{"verification_id":"stdout-verification"},"signal":{"signal_id":"stdout-signal","source_events":[{"provider":"github","source_locator":"https://example.invalid/evil","title":"Injected source"}]}}"#.to_owned(),
-        String::new(),
-        Some(0),
-        10,
-        JsonObject::new(),
-    );
+    let output = InvocationOutput::process(InvocationStatus::Success, r#"{"claimed_proof":{"proof_ref":"receipt-proof:evil:stdout","idempotency_key":"effect:evil:stdout"},"verification":{"verification_id":"stdout-verification"},"signal":{"signal_id":"stdout-signal","source_events":[{"provider":"github","source_locator":"https://example.invalid/evil","title":"Injected source"}]}}"#.to_owned(), String::new(), Some(0), 10);
 
     let receipt = step_receipt(
         scope("malicious"),

@@ -1351,11 +1351,13 @@ fn native_graph_guard_rejects_skill_claim_as_fact() -> Result<(), Box<dyn std::e
     let closure = object_field(output, "closure").ok_or("missing closure")?;
     assert_eq!(string_field(closure, "disposition"), Some("blocked"));
     assert_eq!(string_field(closure, "reason_code"), Some("graph_blocked"));
+    // Why the guard refused rides the run's output, outside the signed receipt.
+    let refusal = object_field(output, "refusal").ok_or("missing refusal")?;
     assert!(
-        string_field(closure, "summary")
-            .unwrap_or_default()
-            .contains("guard '$steps.decide.skill_claim.approved' is unresolved"),
-        "unexpected closure: {closure:?}"
+        string_field(refusal, "message")
+            .is_some_and(|message| message
+                .contains("guard '$steps.decide.skill_claim.approved' is unresolved")),
+        "unexpected refusal: {refusal:?}"
     );
 
     Ok(())
@@ -2455,8 +2457,8 @@ fn native_graph_skill_run_merges_imported_graph_skill_tool_roots()
         crate::support::read_test_signed_receipt(&receipt_dir, nested_step_id)?;
     let nested_graph_ref = nested_step_receipt
         .lineage
-        .as_ref()
-        .and_then(|lineage| lineage.children.first())
+        .children
+        .first()
         .ok_or("nested step receipt missing child graph reference")?;
     let nested_graph_id = nested_graph_ref
         .uri
@@ -2469,11 +2471,7 @@ fn native_graph_skill_run_merges_imported_graph_skill_tool_roots()
         nested_graph_ref.locator.as_deref(),
         Some(nested_graph_receipt.digest.as_str())
     );
-    let nested_child_refs = &nested_graph_receipt
-        .lineage
-        .as_ref()
-        .ok_or("nested graph receipt missing lineage")?
-        .children;
+    let nested_child_refs = &nested_graph_receipt.lineage.children;
     assert_eq!(nested_child_refs.len(), 1);
     let nested_child_id = nested_child_refs[0]
         .uri
@@ -2579,11 +2577,7 @@ fn native_graph_skill_run_executes_nested_process_tool_skill()
 
     let root_receipt = crate::support::read_test_signed_receipt(&receipt_dir, root_receipt_id)?;
     let child_receipt = crate::support::read_test_signed_receipt(&receipt_dir, nested_receipt_id)?;
-    let child_refs = &root_receipt
-        .lineage
-        .as_ref()
-        .ok_or("root receipt missing lineage")?
-        .children;
+    let child_refs = &root_receipt.lineage.children;
     assert_eq!(child_refs.len(), 1);
     assert_eq!(
         child_refs[0].uri.as_str(),
@@ -2592,14 +2586,6 @@ fn native_graph_skill_run_executes_nested_process_tool_skill()
     assert_eq!(
         child_refs[0].locator.as_deref(),
         Some(child_receipt.digest.as_str())
-    );
-    assert!(
-        child_receipt
-            .lineage
-            .as_ref()
-            .and_then(|lineage| lineage.parent.as_ref())
-            .is_none(),
-        "reusable child receipts must not be rebound to one parent"
     );
     Ok(())
 }

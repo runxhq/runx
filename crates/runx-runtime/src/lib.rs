@@ -37,6 +37,7 @@ pub mod interrupt;
 pub mod kernel;
 mod lifecycle;
 pub mod list;
+mod observations;
 mod output_contract;
 mod packet_schemas;
 mod packet_validation;
@@ -151,6 +152,7 @@ pub use list::{
     RunxListItem, RunxListItemKind, RunxListOptions, RunxListRequestedKind, RunxListStatus,
     list_authoring_primitives, list_authoring_primitives_with_effects,
 };
+pub use observations::Observations;
 pub use orchestrator::{
     DEFAULT_MANAGED_AGENT_MAX_ROUNDS, HarnessRunRequest, LocalOrchestrator,
     MANAGED_AGENT_MAX_ROUNDS_LIMIT, ManagedAgentPolicy, OrchestratorError, PackageHarnessRequest,

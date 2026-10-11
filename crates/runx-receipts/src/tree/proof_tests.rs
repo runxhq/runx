@@ -8,37 +8,9 @@ use crate::ReceiptFindingCode;
 
 use super::test_support::{
     DuplicateIdResolver, FixtureProofContexts, HiddenChildResolver, ResolverErrorResolver,
-    assert_finding, child_refs_mut, link_child_digest, proof_child, proof_composition_pair,
-    proof_root, reference, refresh_proof_digest_and_signature,
+    assert_finding, child_refs_mut, link_child_digest, proof_child, proof_root, reference,
+    refresh_proof_digest_and_signature, sign_keeping_id,
 };
-
-#[test]
-fn strict_proof_accepts_digest_bound_composite() -> Result<(), serde_json::Error> {
-    let (outer, inner) = proof_composition_pair()?;
-    let proof_contexts = FixtureProofContexts::default();
-
-    let verification = verify_receipt_tree_proof(&outer, &[inner], &proof_contexts);
-
-    assert!(verification.valid, "{:?}", verification.findings);
-    Ok(())
-}
-
-#[test]
-fn strict_proof_rejects_swapped_inner_digest() -> Result<(), serde_json::Error> {
-    let (outer, mut inner) = proof_composition_pair()?;
-    inner.acts[0].summary = "alternate valid execution".into();
-    refresh_proof_digest_and_signature(&mut inner)?;
-    let proof_contexts = FixtureProofContexts::default();
-
-    let verification = verify_receipt_tree_proof(&outer, &[inner], &proof_contexts);
-
-    assert_finding(
-        &verification,
-        ReceiptFindingCode::ChildReceiptDigestMismatch,
-        "children[0].locator",
-    );
-    Ok(())
-}
 
 #[test]
 fn strict_tree_proof_accepts_root_and_child() -> Result<(), serde_json::Error> {
@@ -111,7 +83,7 @@ fn strict_tree_proof_rejects_structurally_valid_child_proof_mismatch()
     let mut root = proof_root()?;
     let mut child = proof_child("rcpt_child_1")?;
     link_child_digest(&mut root, 0, &child)?;
-    child.acts[0].summary = "tampered child proof body".into();
+    child.acts[0].intent.purpose = "tampered child proof body".into();
     let proof_contexts = FixtureProofContexts::default();
 
     assert!(verify_receipt_tree(&root, std::slice::from_ref(&child)).valid);
@@ -135,9 +107,9 @@ fn strict_tree_proof_rejects_valid_alternate_child_with_same_id() -> Result<(), 
     let mut root = proof_root()?;
     let original = proof_child("rcpt_child_1")?;
     link_child_digest(&mut root, 0, &original)?;
-    let mut alternate = proof_child("rcpt_child_1")?;
-    alternate.acts[0].summary = "valid alternate child body".into();
-    refresh_proof_digest_and_signature(&mut alternate)?;
+    let mut alternate = original.clone();
+    alternate.acts[0].intent.purpose = "valid alternate child body".into();
+    sign_keeping_id(&mut alternate)?;
     let proof_contexts = FixtureProofContexts::default();
 
     let verification = verify_receipt_tree_proof(&root, &[alternate], &proof_contexts);
@@ -146,6 +118,12 @@ fn strict_tree_proof_rejects_valid_alternate_child_with_same_id() -> Result<(), 
         &verification,
         ReceiptFindingCode::ChildReceiptDigestMismatch,
         "children[0].locator",
+    );
+    // A signed body under another receipt's id is not that receipt.
+    assert_finding(
+        &verification,
+        ReceiptFindingCode::ContentAddressMismatch,
+        "children[0].id",
     );
     Ok(())
 }
@@ -156,7 +134,7 @@ fn strict_tree_proof_rejects_custom_resolver_child_not_in_supplied_receipts()
     let mut root = proof_root()?;
     let mut child = proof_child("rcpt_child_1")?;
     link_child_digest(&mut root, 0, &child)?;
-    child.acts[0].summary = "hidden tampered child".into();
+    child.acts[0].intent.purpose = "hidden tampered child".into();
     let resolver = HiddenChildResolver { child: &child };
     let proof_contexts = FixtureProofContexts::default();
 
@@ -216,7 +194,7 @@ fn strict_tree_proof_rejects_custom_resolver_duplicate_id_child_after_reached()
     child_refs_mut(&mut root)[0].locator = Some(first.digest.clone());
     child_refs_mut(&mut root)[1].locator = Some(second.digest.clone());
     refresh_proof_digest_and_signature(&mut root)?;
-    second.acts[0].summary = "hidden duplicate-id tamper".into();
+    second.acts[0].intent.purpose = "hidden duplicate-id tamper".into();
     let resolver = DuplicateIdResolver {
         first: &first,
         second: &second,

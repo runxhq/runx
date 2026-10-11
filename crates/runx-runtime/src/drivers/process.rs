@@ -61,12 +61,16 @@ impl Driver for Process<'_> {
         write: &JsonValue,
         _confirmed: &[JsonValue],
     ) -> Result<(JsonValue, Option<String>), String> {
+        // A write is identified by the key it was sent with, which is stable
+        // for its intent. Its answer cannot identify it: two different writes
+        // may be answered alike.
         let operation_id = match self.call.mutation() {
-            true => Some(
-                stable_digest(write)
-                    .map(|digest| format!("process:{}", digest.as_str()))
-                    .map_err(|error| error.to_string())?,
-            ),
+            true => Some(format!(
+                "process:{}",
+                self.call
+                    .idempotency_key
+                    .ok_or("a write is sent with an idempotency key")?
+            )),
             false => None,
         };
         Ok((write.clone(), operation_id))
@@ -202,8 +206,21 @@ mod tests {
         };
 
         let (performed, read) = write("feature");
-        assert!(performed.is_ok());
         assert!(matches!(read, Some(Ok(_))));
+        // The write is identified by the key it was sent with, not by its
+        // answer: another write answered alike is another operation.
+        let feature = arguments("feature");
+        let call = AdmittedCall::for_tests(&feature, &parameters, &env, OperationAccess::Mutate);
+        let driver = Process {
+            tools: &tool,
+            call: &call,
+            spec: &spec,
+            scopes: &[],
+            delivery: &delivery,
+        };
+        let answer = performed.map_err(Unperformed::reason)?.value;
+        let (_, operation_id) = driver.result(&answer, &[])?;
+        assert_eq!(operation_id.as_deref(), Some("process:key-1"));
         let runs = tool.runs.borrow().clone();
         assert_eq!(
             runs[0].get("phase"),

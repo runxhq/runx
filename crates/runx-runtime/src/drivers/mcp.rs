@@ -17,6 +17,7 @@ mod stdio;
 use std::collections::{BTreeMap, HashMap};
 use std::future::Future;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
 
@@ -59,6 +60,14 @@ pub(crate) struct Session {
     deadline: Duration,
 }
 
+/// Why a stdio session did not open, and whether its server had started
+/// first, and so received its environment.
+#[derive(Debug)]
+pub(crate) struct StdioOpenFailure {
+    pub(crate) reason: String,
+    pub(crate) started: bool,
+}
+
 enum Peer {
     Served {
         service: Box<RunningService<RoleClient, ClientInfo>>,
@@ -84,13 +93,15 @@ pub(crate) struct StdioServer {
 
 impl StdioServer {
     /// Start the server and initialize a session on it within `deadline`.
-    async fn session(&self, deadline: Duration) -> Result<Session, String> {
+    /// `started` is set once the process runs.
+    async fn session(&self, deadline: Duration, started: &AtomicBool) -> Result<Session, String> {
         let (process, transport) = start_stdio_server(
             &self.command,
             &self.args,
             self.cwd.clone(),
             self.env.clone(),
         )?;
+        started.store(true, Ordering::SeqCst);
         Ok(Session {
             peer: Peer::Served {
                 service: Box::new(connect(transport).await?),
@@ -98,6 +109,19 @@ impl StdioServer {
             },
             deadline,
         })
+    }
+}
+
+impl Session {
+    /// Whether a server process the runtime started serves this session.
+    pub(crate) fn runs_process(&self) -> bool {
+        matches!(
+            self.peer,
+            Peer::Served {
+                _process: Some(_),
+                ..
+            }
+        )
     }
 }
 
@@ -149,13 +173,21 @@ impl Sessions {
         &self,
         server: &StdioServer,
         deadline: Duration,
-    ) -> Result<Arc<Session>, String> {
+    ) -> Result<Arc<Session>, StdioOpenFailure> {
         if let Some(stand_in) = self.stand_in(&BTreeMap::new(), deadline) {
             return Ok(stand_in);
         }
-        let identity = serde_json::to_vec(server).map_err(|error| error.to_string())?;
+        let identity = serde_json::to_vec(server).map_err(|error| StdioOpenFailure {
+            reason: error.to_string(),
+            started: false,
+        })?;
         let key = format!("stdio\0{}", sha256_prefixed(&identity));
-        self.reuse_or(key, deadline, server.session(deadline))
+        let started = AtomicBool::new(false);
+        self.reuse_or(key, deadline, server.session(deadline, &started))
+            .map_err(|reason| StdioOpenFailure {
+                reason,
+                started: started.load(Ordering::SeqCst),
+            })
     }
 
     fn stand_in(
@@ -753,6 +785,38 @@ mod tests {
         );
         Ok(())
     }
+    /// A stdio session reports whether a server process ran, so a receipt
+    /// records the credential only when a process received it: never for the
+    /// harness's stand-in or a server that failed to start, always for one
+    /// that started and then failed to open its session.
+    #[test]
+    fn a_stdio_session_says_whether_its_server_started() -> Result<(), String> {
+        let server = |command: &str, args: &[&str]| StdioServer {
+            command: command.to_owned(),
+            args: args.iter().map(|arg| (*arg).to_owned()).collect(),
+            cwd: std::env::temp_dir(),
+            env: BTreeMap::from([("PATH".to_owned(), std::env::var("PATH").unwrap_or_default())]),
+        };
+        let deadline = Duration::from_secs(20);
+
+        let stand_in = Sessions::standing_in(Vec::new())
+            .open_stdio(&server("node", &[]), deadline)
+            .map_err(|failure| failure.reason)?;
+        assert!(!stand_in.runs_process());
+
+        let missing = Sessions::default()
+            .open_stdio(&server("/nonexistent/runx-mcp-server", &[]), deadline)
+            .err()
+            .ok_or("a missing command opens no session")?;
+        assert!(!missing.started, "{}", missing.reason);
+
+        let exits = Sessions::default()
+            .open_stdio(&server("node", &["-e", "process.exit(3)"]), deadline)
+            .err()
+            .ok_or("a server that exits opens no session")?;
+        assert!(exits.started, "{}", exits.reason);
+        Ok(())
+    }
 
     /// A stdio server the runtime starts: pinned and called like any other,
     /// with exactly the environment it was started with.
@@ -771,11 +835,14 @@ mod tests {
         };
         let deadline = Duration::from_secs(20);
         let sessions = Sessions::default();
-        let session = sessions.open_stdio(&server, deadline)?;
-        assert!(Arc::ptr_eq(
-            &session,
-            &sessions.open_stdio(&server, deadline)?
-        ));
+        let open = || {
+            sessions
+                .open_stdio(&server, deadline)
+                .map_err(|failure| failure.reason)
+        };
+        let session = open()?;
+        assert!(session.runs_process());
+        assert!(Arc::ptr_eq(&session, &open()?));
         let served = served_stdio_tools(&server, deadline)?;
         assert_eq!(
             served

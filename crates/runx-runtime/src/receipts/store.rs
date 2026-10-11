@@ -849,7 +849,7 @@ fn parse_receipt_contents_without_proof(
             schema: schema.to_owned(),
         });
     }
-    let receipt = serde_json::from_value::<Receipt>(value).map_err(|source| {
+    let receipt = runx_receipts::decode_receipt_value(value).map_err(|source| {
         ReceiptStoreError::MalformedReceipt {
             path: path.to_path_buf(),
             message: source.to_string(),

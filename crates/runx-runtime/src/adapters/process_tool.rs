@@ -1,15 +1,16 @@
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
-use runx_contracts::JsonValue;
+use runx_contracts::ExecutionBoundaryKind;
 use runx_parser::ProcessTool;
 
 use crate::RuntimeError;
 use crate::adapter::{InvocationOutput, InvocationStatus, SkillAdapter, SkillInvocation};
 use crate::adapter_pipeline::AdapterProjection;
 use crate::credentials::CredentialDelivery;
+use crate::observations::Observations;
 use crate::process::{
-    CapturedOutput, ProcessOutcome, ProcessSpec, ProcessStdin, STANDARD_PROCESS_OUTPUT_BYTES,
-    run_process,
+    CapturedOutput, ProcessOutcome, ProcessSpec, ProcessStdin, ProcessSupervisorError,
+    STANDARD_PROCESS_OUTPUT_BYTES, run_process,
 };
 use crate::process_invocation::prepare_process_invocation;
 
@@ -54,7 +55,8 @@ impl ProcessToolAdapter {
         for (name, value) in credential_delivery.secret_env().iter() {
             process.env.insert(name.to_owned(), value.to_owned());
         }
-        let mut outcome = run_process(
+        let started = Instant::now();
+        let outcome = match run_process(
             ProcessSpec::new("process", process.command, output_limit_bytes)
                 .args(process.args)
                 .cwd(process.cwd)
@@ -62,26 +64,29 @@ impl ProcessToolAdapter {
                 .stdin(stdin)
                 .timeout(Some(process_timeout(tool.timeout_seconds)))
                 .cleanup_paths(process.cleanup_paths),
-        )
-        .map_err(|error| match error {
-            crate::process::ProcessSupervisorError::Io { context, source } => {
-                RuntimeError::io(context, source)
+        ) {
+            Ok(outcome) => outcome,
+            Err(ProcessSupervisorError::Spawn { context, source }) => {
+                return Err(RuntimeError::io(context, source));
             }
-        })?;
-        let cleanup_errors = std::mem::take(&mut outcome.cleanup_errors);
-        let mut output = process_output(
+            // The process ran with its environment: a failed invocation of
+            // it, observed where it ran.
+            Err(error @ ProcessSupervisorError::Supervise { .. }) => {
+                return Ok(AdapterProjection::from_started(started).failure(
+                    error.to_string(),
+                    Observations {
+                        boundary: Some(process.boundary),
+                        ..Observations::default()
+                    },
+                ));
+            }
+        };
+        Ok(process_output(
             outcome,
             &credential_delivery,
-            process.metadata,
+            process.boundary,
             output_limit_bytes,
-        );
-        if !cleanup_errors.is_empty() {
-            output.metadata.insert(
-                "cleanup_errors".to_owned(),
-                JsonValue::Array(cleanup_errors.into_iter().map(JsonValue::String).collect()),
-            );
-        }
-        Ok(output)
+        ))
     }
 }
 
@@ -138,7 +143,7 @@ fn redacted_capture(
 fn process_output(
     outcome: ProcessOutcome,
     credential_delivery: &CredentialDelivery,
-    metadata: runx_contracts::JsonObject,
+    boundary: ExecutionBoundaryKind,
     output_limit_bytes: usize,
 ) -> InvocationOutput {
     let stdout = redacted_capture(outcome.stdout, credential_delivery, output_limit_bytes);
@@ -164,7 +169,10 @@ fn process_output(
         stdout,
         stderr,
         outcome.status.code(),
-        metadata,
+        Observations {
+            boundary: Some(boundary),
+            ..Observations::default()
+        },
     )
 }
 

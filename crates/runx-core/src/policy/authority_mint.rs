@@ -450,10 +450,9 @@ mod tests {
 
     fn approval() -> AuthorityApproval {
         AuthorityApproval {
-            approval_ref: reference(ReferenceType::Decision, "runx:decision:approval"),
+            approval_ref: reference(ReferenceType::Verification, "runx:approval:approval"),
             approved_by_ref: None,
             approved_at: None,
-            criterion_ids: Vec::new(),
         }
     }
 

@@ -219,9 +219,15 @@ pub struct CredentialField {
     pub name: CredentialName,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub label: Option<NonEmptyString>,
-    #[serde(default = "default_true", skip_serializing_if = "is_true")]
+    #[serde(
+        default = "default_true",
+        skip_serializing_if = "crate::schema::is_true"
+    )]
     pub secret: bool,
-    #[serde(default = "default_true", skip_serializing_if = "is_true")]
+    #[serde(
+        default = "default_true",
+        skip_serializing_if = "crate::schema::is_true"
+    )]
     pub required: bool,
     /// Prefixes every value of this secret starts with, such as a provider's
     /// key prefix. Text that contains one carries the secret, and runx
@@ -333,7 +339,7 @@ pub struct HostedPlacement {
     /// The stored credential used under credential custody.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub credential: Option<CredentialName>,
-    #[serde(default, skip_serializing_if = "HostedCallers::is_public")]
+    #[serde(default, skip_serializing_if = "crate::schema::is_default")]
     pub callers: HostedCallers,
 }
 
@@ -351,12 +357,6 @@ pub enum HostedCallers {
     Public,
     /// Only the hosted runtime may call; the public route refuses.
     Runtime,
-}
-
-impl HostedCallers {
-    fn is_public(&self) -> bool {
-        *self == Self::Public
-    }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
@@ -496,16 +496,16 @@ pub struct ConnectorOperation {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub credentials: Vec<CredentialName>,
     pub target: OperationTarget,
-    #[serde(default, skip_serializing_if = "ApprovalFloor::is_none")]
+    #[serde(default, skip_serializing_if = "crate::schema::is_default")]
     pub approval: ApprovalFloor,
     /// Standing approval that may stand in for a per-call human approval.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub standing: Option<StandingEligibility>,
-    #[serde(default, skip_serializing_if = "IdempotencyKeyFormat::is_runx")]
+    #[serde(default, skip_serializing_if = "crate::schema::is_default")]
     pub idempotency_key_format: IdempotencyKeyFormat,
-    #[serde(default, skip_serializing_if = "OperationGuarantees::is_none")]
+    #[serde(default, skip_serializing_if = "crate::schema::is_default")]
     pub guarantees: OperationGuarantees,
-    #[serde(default, skip_serializing_if = "AmountRule::is_none")]
+    #[serde(default, skip_serializing_if = "crate::schema::is_default")]
     pub amount: AmountRule,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub input_schema: Option<JsonObject>,
@@ -619,12 +619,6 @@ pub enum ApprovalFloor {
     Required,
 }
 
-impl ApprovalFloor {
-    fn is_none(&self) -> bool {
-        *self == Self::None
-    }
-}
-
 /// The standing approval kinds that may stand in for a per-call approval, and
 /// the payload rule each enforces. A new kind is a contract change.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
@@ -648,27 +642,15 @@ pub enum IdempotencyKeyFormat {
     Uuid,
 }
 
-impl IdempotencyKeyFormat {
-    fn is_runx(&self) -> bool {
-        *self == Self::Runx
-    }
-}
-
 /// What the provider guarantees for this operation. Shared mechanics never
 /// assume more, and a use never tolerates more.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub struct OperationGuarantees {
-    #[serde(default, skip_serializing_if = "ProviderIdempotency::is_none")]
+    #[serde(default, skip_serializing_if = "crate::schema::is_default")]
     pub provider_idempotency: ProviderIdempotency,
-    #[serde(default, skip_serializing_if = "ReadbackGuarantee::is_none")]
+    #[serde(default, skip_serializing_if = "crate::schema::is_default")]
     pub readback: ReadbackGuarantee,
-}
-
-impl OperationGuarantees {
-    fn is_none(&self) -> bool {
-        *self == Self::default()
-    }
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
@@ -681,12 +663,6 @@ pub enum ProviderIdempotency {
     Enforced,
     /// The operation sets a state, so sending it again changes nothing.
     Inherent,
-}
-
-impl ProviderIdempotency {
-    fn is_none(&self) -> bool {
-        *self == Self::None
-    }
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
@@ -702,12 +678,6 @@ pub enum ReadbackGuarantee {
     Unavailable,
 }
 
-impl ReadbackGuarantee {
-    fn is_none(&self) -> bool {
-        *self == Self::None
-    }
-}
-
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum AmountRule {
@@ -715,12 +685,6 @@ pub enum AmountRule {
     None,
     /// Every call carries a typed amount.
     Required,
-}
-
-impl AmountRule {
-    fn is_none(&self) -> bool {
-        *self == Self::None
-    }
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
@@ -1066,11 +1030,6 @@ pub struct ProcessReadback {
 
 fn default_true() -> bool {
     true
-}
-
-#[allow(clippy::trivially_copy_pass_by_ref)]
-fn is_true(value: &bool) -> bool {
-    *value
 }
 
 fn default_token_field() -> CredentialName {

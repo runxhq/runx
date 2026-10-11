@@ -3,8 +3,7 @@
     {
       "config": {
         "max_breadth": 1024,
-        "max_depth": 64,
-        "require_parent_links": false
+        "max_depth": 64
       },
       "expected": {
         "findings": [],
@@ -21,8 +20,7 @@
     {
       "config": {
         "max_breadth": 1024,
-        "max_depth": 64,
-        "require_parent_links": false
+        "max_depth": 64
       },
       "expected": {
         "findings": [],
@@ -39,8 +37,7 @@
     {
       "config": {
         "max_breadth": 1024,
-        "max_depth": 64,
-        "require_parent_links": false
+        "max_depth": 64
       },
       "expected": {
         "findings": [
@@ -70,8 +67,7 @@
     {
       "config": {
         "max_breadth": 1024,
-        "max_depth": 64,
-        "require_parent_links": false
+        "max_depth": 64
       },
       "expected": {
         "findings": [
@@ -90,8 +86,7 @@
     {
       "config": {
         "max_breadth": 1024,
-        "max_depth": 64,
-        "require_parent_links": false
+        "max_depth": 64
       },
       "expected": {
         "findings": [
@@ -112,8 +107,7 @@
     {
       "config": {
         "max_breadth": 1024,
-        "max_depth": 64,
-        "require_parent_links": false
+        "max_depth": 64
       },
       "expected": {
         "findings": [
@@ -138,8 +132,7 @@
     {
       "config": {
         "max_breadth": 1024,
-        "max_depth": 64,
-        "require_parent_links": false
+        "max_depth": 64
       },
       "expected": {
         "findings": [
@@ -164,8 +157,7 @@
     {
       "config": {
         "max_breadth": 1024,
-        "max_depth": 64,
-        "require_parent_links": false
+        "max_depth": 64
       },
       "expected": {
         "findings": [
@@ -199,8 +191,7 @@
     {
       "config": {
         "max_breadth": 1024,
-        "max_depth": 64,
-        "require_parent_links": false
+        "max_depth": 64
       },
       "expected": {
         "findings": [
@@ -221,8 +212,7 @@
     {
       "config": {
         "max_breadth": 1024,
-        "max_depth": 64,
-        "require_parent_links": false
+        "max_depth": 64
       },
       "expected": {
         "findings": [
@@ -243,30 +233,7 @@
     {
       "config": {
         "max_breadth": 1024,
-        "max_depth": 64,
-        "require_parent_links": true
-      },
-      "expected": {
-        "findings": [
-          {
-            "code": "ChildReceiptParentMismatch",
-            "path": "lineage.children[0].lineage.parent"
-          }
-        ],
-        "valid": false
-      },
-      "name": "wrong-parent",
-      "resolver_error_receipt_ids": [],
-      "root_receipt": "root_to_a",
-      "supplied_child_receipts": [
-        "child_a_wrong_parent"
-      ]
-    },
-    {
-      "config": {
-        "max_breadth": 1024,
-        "max_depth": 1,
-        "require_parent_links": false
+        "max_depth": 1
       },
       "expected": {
         "findings": [
@@ -292,8 +259,7 @@
     {
       "config": {
         "max_breadth": 1,
-        "max_depth": 64,
-        "require_parent_links": false
+        "max_depth": 64
       },
       "expected": {
         "findings": [
@@ -325,32 +291,17 @@
           "type": "principal",
           "uri": "runx:principal:local_runtime"
         },
-        "attenuation": {
-          "parent_authority_ref": null,
-          "subset_proof": null
-        },
-        "authority_proof_refs": [],
-        "enforcement": {
-          "profile_hash": "sha256:5555555555555555555555555555555555555555555555555555555555555555",
-          "redaction_refs": [],
-          "setup_refs": [],
-          "teardown_refs": []
-        },
+        "derivations": [],
+        "enforcement": {},
         "grant_refs": [],
         "scope_refs": [],
         "terms": []
       },
       "canonicalization": "runx.receipt.c14n.v1",
-      "class": "executed",
       "created_at": "2026-05-22T00:00:00Z",
       "decisions": [],
       "digest": "sha256:9999999999999999999999999999999999999999999999999999999999999999",
       "id": "rcpt_child_a",
-      "idempotency": {
-        "content_hash": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
-        "intent_key": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
-        "trigger_fingerprint": "sha256:2222222222222222222222222222222222222222222222222222222222222222"
-      },
       "issuer": {
         "kid": "fixture-key",
         "public_key_sha256": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
@@ -364,18 +315,15 @@
         "closed_at": "2026-05-22T00:00:00Z",
         "criteria": [],
         "disposition": "closed",
-        "last_observed_at": "2026-05-22T00:00:00Z",
-        "reason_code": "closed",
-        "summary": "closed"
+        "reason_code": "closed"
       },
-      "signals": [],
       "signature": {
         "alg": "Ed25519",
         "value": "sig:pending"
       },
       "subject": {
-        "commitments": [],
         "kind": "skill",
+        "outcome": "sha256:fe0580554c4b4bc7db2c36a7a7eea592858a4c83ec2f7ebe93dcb4fada1b0bfd",
         "ref": {
           "type": "run",
           "uri": "runx:run:rcpt_child_a"
@@ -389,32 +337,17 @@
           "type": "principal",
           "uri": "runx:principal:local_runtime"
         },
-        "attenuation": {
-          "parent_authority_ref": null,
-          "subset_proof": null
-        },
-        "authority_proof_refs": [],
-        "enforcement": {
-          "profile_hash": "sha256:5555555555555555555555555555555555555555555555555555555555555555",
-          "redaction_refs": [],
-          "setup_refs": [],
-          "teardown_refs": []
-        },
+        "derivations": [],
+        "enforcement": {},
         "grant_refs": [],
         "scope_refs": [],
         "terms": []
       },
       "canonicalization": "runx.receipt.c14n.v1",
-      "class": "executed",
       "created_at": "2026-05-22T00:00:00Z",
       "decisions": [],
       "digest": "sha256:9999999999999999999999999999999999999999999999999999999999999999",
       "id": "rcpt_child_a",
-      "idempotency": {
-        "content_hash": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
-        "intent_key": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
-        "trigger_fingerprint": "sha256:2222222222222222222222222222222222222222222222222222222222222222"
-      },
       "issuer": {
         "kid": "fixture-key",
         "public_key_sha256": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
@@ -428,18 +361,15 @@
         "closed_at": "2026-05-22T00:00:00Z",
         "criteria": [],
         "disposition": "closed",
-        "last_observed_at": "2026-05-22T00:00:00Z",
-        "reason_code": "closed",
-        "summary": "closed"
+        "reason_code": "closed"
       },
-      "signals": [],
       "signature": {
         "alg": "Ed25519",
         "value": "sig:pending"
       },
       "subject": {
-        "commitments": [],
         "kind": "skill",
+        "outcome": "sha256:fe0580554c4b4bc7db2c36a7a7eea592858a4c83ec2f7ebe93dcb4fada1b0bfd",
         "ref": {
           "type": "run",
           "uri": "runx:run:rcpt_child_a"
@@ -453,32 +383,17 @@
           "type": "principal",
           "uri": "runx:principal:local_runtime"
         },
-        "attenuation": {
-          "parent_authority_ref": null,
-          "subset_proof": null
-        },
-        "authority_proof_refs": [],
-        "enforcement": {
-          "profile_hash": "sha256:5555555555555555555555555555555555555555555555555555555555555555",
-          "redaction_refs": [],
-          "setup_refs": [],
-          "teardown_refs": []
-        },
+        "derivations": [],
+        "enforcement": {},
         "grant_refs": [],
         "scope_refs": [],
         "terms": []
       },
       "canonicalization": "runx.receipt.c14n.v1",
-      "class": "executed",
       "created_at": "2026-05-22T00:00:00Z",
       "decisions": [],
       "digest": "sha256:9999999999999999999999999999999999999999999999999999999999999999",
       "id": "rcpt_child_a",
-      "idempotency": {
-        "content_hash": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
-        "intent_key": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
-        "trigger_fingerprint": "sha256:2222222222222222222222222222222222222222222222222222222222222222"
-      },
       "issuer": {
         "kid": "fixture-key",
         "public_key_sha256": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
@@ -497,18 +412,15 @@
         "closed_at": "2026-05-22T00:00:00Z",
         "criteria": [],
         "disposition": "closed",
-        "last_observed_at": "2026-05-22T00:00:00Z",
-        "reason_code": "closed",
-        "summary": "closed"
+        "reason_code": "closed"
       },
-      "signals": [],
       "signature": {
         "alg": "Ed25519",
         "value": "sig:pending"
       },
       "subject": {
-        "commitments": [],
         "kind": "skill",
+        "outcome": "sha256:fe0580554c4b4bc7db2c36a7a7eea592858a4c83ec2f7ebe93dcb4fada1b0bfd",
         "ref": {
           "type": "run",
           "uri": "runx:run:rcpt_child_a"
@@ -522,32 +434,17 @@
           "type": "principal",
           "uri": "runx:principal:local_runtime"
         },
-        "attenuation": {
-          "parent_authority_ref": null,
-          "subset_proof": null
-        },
-        "authority_proof_refs": [],
-        "enforcement": {
-          "profile_hash": "sha256:5555555555555555555555555555555555555555555555555555555555555555",
-          "redaction_refs": [],
-          "setup_refs": [],
-          "teardown_refs": []
-        },
+        "derivations": [],
+        "enforcement": {},
         "grant_refs": [],
         "scope_refs": [],
         "terms": []
       },
       "canonicalization": "runx.receipt.c14n.v1",
-      "class": "executed",
       "created_at": "2026-05-22T00:00:00Z",
       "decisions": [],
       "digest": "sha256:9999999999999999999999999999999999999999999999999999999999999999",
       "id": "rcpt_child_a",
-      "idempotency": {
-        "content_hash": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
-        "intent_key": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
-        "trigger_fingerprint": "sha256:2222222222222222222222222222222222222222222222222222222222222222"
-      },
       "issuer": {
         "kid": "fixture-key",
         "public_key_sha256": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
@@ -566,86 +463,15 @@
         "closed_at": "2026-05-22T00:00:00Z",
         "criteria": [],
         "disposition": "closed",
-        "last_observed_at": "2026-05-22T00:00:00Z",
-        "reason_code": "closed",
-        "summary": "closed"
+        "reason_code": "closed"
       },
-      "signals": [],
       "signature": {
         "alg": "Ed25519",
         "value": "sig:pending"
       },
       "subject": {
-        "commitments": [],
         "kind": "skill",
-        "ref": {
-          "type": "run",
-          "uri": "runx:run:rcpt_child_a"
-        }
-      }
-    },
-    "child_a_wrong_parent": {
-      "acts": [],
-      "authority": {
-        "actor_ref": {
-          "type": "principal",
-          "uri": "runx:principal:local_runtime"
-        },
-        "attenuation": {
-          "parent_authority_ref": null,
-          "subset_proof": null
-        },
-        "authority_proof_refs": [],
-        "enforcement": {
-          "profile_hash": "sha256:5555555555555555555555555555555555555555555555555555555555555555",
-          "redaction_refs": [],
-          "setup_refs": [],
-          "teardown_refs": []
-        },
-        "grant_refs": [],
-        "scope_refs": [],
-        "terms": []
-      },
-      "canonicalization": "runx.receipt.c14n.v1",
-      "class": "executed",
-      "created_at": "2026-05-22T00:00:00Z",
-      "decisions": [],
-      "digest": "sha256:9999999999999999999999999999999999999999999999999999999999999999",
-      "id": "rcpt_child_a",
-      "idempotency": {
-        "content_hash": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
-        "intent_key": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
-        "trigger_fingerprint": "sha256:2222222222222222222222222222222222222222222222222222222222222222"
-      },
-      "issuer": {
-        "kid": "fixture-key",
-        "public_key_sha256": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
-        "type": "local"
-      },
-      "lineage": {
-        "children": [],
-        "parent": {
-          "type": "receipt",
-          "uri": "runx:receipt:other"
-        }
-      },
-      "schema": "runx.receipt.v1",
-      "seal": {
-        "closed_at": "2026-05-22T00:00:00Z",
-        "criteria": [],
-        "disposition": "closed",
-        "last_observed_at": "2026-05-22T00:00:00Z",
-        "reason_code": "closed",
-        "summary": "closed"
-      },
-      "signals": [],
-      "signature": {
-        "alg": "Ed25519",
-        "value": "sig:pending"
-      },
-      "subject": {
-        "commitments": [],
-        "kind": "skill",
+        "outcome": "sha256:fe0580554c4b4bc7db2c36a7a7eea592858a4c83ec2f7ebe93dcb4fada1b0bfd",
         "ref": {
           "type": "run",
           "uri": "runx:run:rcpt_child_a"
@@ -659,32 +485,17 @@
           "type": "principal",
           "uri": "runx:principal:local_runtime"
         },
-        "attenuation": {
-          "parent_authority_ref": null,
-          "subset_proof": null
-        },
-        "authority_proof_refs": [],
-        "enforcement": {
-          "profile_hash": "sha256:5555555555555555555555555555555555555555555555555555555555555555",
-          "redaction_refs": [],
-          "setup_refs": [],
-          "teardown_refs": []
-        },
+        "derivations": [],
+        "enforcement": {},
         "grant_refs": [],
         "scope_refs": [],
         "terms": []
       },
       "canonicalization": "runx.receipt.c14n.v1",
-      "class": "executed",
       "created_at": "2026-05-22T00:00:00Z",
       "decisions": [],
       "digest": "sha256:9999999999999999999999999999999999999999999999999999999999999999",
       "id": "rcpt_child_b",
-      "idempotency": {
-        "content_hash": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
-        "intent_key": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
-        "trigger_fingerprint": "sha256:2222222222222222222222222222222222222222222222222222222222222222"
-      },
       "issuer": {
         "kid": "fixture-key",
         "public_key_sha256": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
@@ -698,18 +509,15 @@
         "closed_at": "2026-05-22T00:00:00Z",
         "criteria": [],
         "disposition": "closed",
-        "last_observed_at": "2026-05-22T00:00:00Z",
-        "reason_code": "closed",
-        "summary": "closed"
+        "reason_code": "closed"
       },
-      "signals": [],
       "signature": {
         "alg": "Ed25519",
         "value": "sig:pending"
       },
       "subject": {
-        "commitments": [],
         "kind": "skill",
+        "outcome": "sha256:14644dbfff3e029d8732c55b513d67563fec83a1dfb3b1c707a0511a0bebe0f3",
         "ref": {
           "type": "run",
           "uri": "runx:run:rcpt_child_b"
@@ -723,32 +531,17 @@
           "type": "principal",
           "uri": "runx:principal:local_runtime"
         },
-        "attenuation": {
-          "parent_authority_ref": null,
-          "subset_proof": null
-        },
-        "authority_proof_refs": [],
-        "enforcement": {
-          "profile_hash": "sha256:5555555555555555555555555555555555555555555555555555555555555555",
-          "redaction_refs": [],
-          "setup_refs": [],
-          "teardown_refs": []
-        },
+        "derivations": [],
+        "enforcement": {},
         "grant_refs": [],
         "scope_refs": [],
         "terms": []
       },
       "canonicalization": "runx.receipt.c14n.v1",
-      "class": "executed",
       "created_at": "2026-05-22T00:00:00Z",
       "decisions": [],
       "digest": "sha256:9999999999999999999999999999999999999999999999999999999999999999",
       "id": "rcpt_root",
-      "idempotency": {
-        "content_hash": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
-        "intent_key": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
-        "trigger_fingerprint": "sha256:2222222222222222222222222222222222222222222222222222222222222222"
-      },
       "issuer": {
         "kid": "fixture-key",
         "public_key_sha256": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
@@ -762,18 +555,15 @@
         "closed_at": "2026-05-22T00:00:00Z",
         "criteria": [],
         "disposition": "closed",
-        "last_observed_at": "2026-05-22T00:00:00Z",
-        "reason_code": "closed",
-        "summary": "closed"
+        "reason_code": "closed"
       },
-      "signals": [],
       "signature": {
         "alg": "Ed25519",
         "value": "sig:pending"
       },
       "subject": {
-        "commitments": [],
         "kind": "skill",
+        "outcome": "sha256:b214b615d26287a286876edceb5dca4917e46b9a0a6621a08be21952d4219b60",
         "ref": {
           "type": "run",
           "uri": "runx:run:rcpt_root"
@@ -787,32 +577,17 @@
           "type": "principal",
           "uri": "runx:principal:local_runtime"
         },
-        "attenuation": {
-          "parent_authority_ref": null,
-          "subset_proof": null
-        },
-        "authority_proof_refs": [],
-        "enforcement": {
-          "profile_hash": "sha256:5555555555555555555555555555555555555555555555555555555555555555",
-          "redaction_refs": [],
-          "setup_refs": [],
-          "teardown_refs": []
-        },
+        "derivations": [],
+        "enforcement": {},
         "grant_refs": [],
         "scope_refs": [],
         "terms": []
       },
       "canonicalization": "runx.receipt.c14n.v1",
-      "class": "executed",
       "created_at": "2026-05-22T00:00:00Z",
       "decisions": [],
       "digest": "sha256:9999999999999999999999999999999999999999999999999999999999999999",
       "id": "rcpt_root",
-      "idempotency": {
-        "content_hash": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
-        "intent_key": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
-        "trigger_fingerprint": "sha256:2222222222222222222222222222222222222222222222222222222222222222"
-      },
       "issuer": {
         "kid": "fixture-key",
         "public_key_sha256": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
@@ -831,18 +606,15 @@
         "closed_at": "2026-05-22T00:00:00Z",
         "criteria": [],
         "disposition": "closed",
-        "last_observed_at": "2026-05-22T00:00:00Z",
-        "reason_code": "closed",
-        "summary": "closed"
+        "reason_code": "closed"
       },
-      "signals": [],
       "signature": {
         "alg": "Ed25519",
         "value": "sig:pending"
       },
       "subject": {
-        "commitments": [],
         "kind": "skill",
+        "outcome": "sha256:b214b615d26287a286876edceb5dca4917e46b9a0a6621a08be21952d4219b60",
         "ref": {
           "type": "run",
           "uri": "runx:run:rcpt_root"
@@ -856,32 +628,17 @@
           "type": "principal",
           "uri": "runx:principal:local_runtime"
         },
-        "attenuation": {
-          "parent_authority_ref": null,
-          "subset_proof": null
-        },
-        "authority_proof_refs": [],
-        "enforcement": {
-          "profile_hash": "sha256:5555555555555555555555555555555555555555555555555555555555555555",
-          "redaction_refs": [],
-          "setup_refs": [],
-          "teardown_refs": []
-        },
+        "derivations": [],
+        "enforcement": {},
         "grant_refs": [],
         "scope_refs": [],
         "terms": []
       },
       "canonicalization": "runx.receipt.c14n.v1",
-      "class": "executed",
       "created_at": "2026-05-22T00:00:00Z",
       "decisions": [],
       "digest": "sha256:9999999999999999999999999999999999999999999999999999999999999999",
       "id": "rcpt_root",
-      "idempotency": {
-        "content_hash": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
-        "intent_key": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
-        "trigger_fingerprint": "sha256:2222222222222222222222222222222222222222222222222222222222222222"
-      },
       "issuer": {
         "kid": "fixture-key",
         "public_key_sha256": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
@@ -900,18 +657,15 @@
         "closed_at": "2026-05-22T00:00:00Z",
         "criteria": [],
         "disposition": "closed",
-        "last_observed_at": "2026-05-22T00:00:00Z",
-        "reason_code": "closed",
-        "summary": "closed"
+        "reason_code": "closed"
       },
-      "signals": [],
       "signature": {
         "alg": "Ed25519",
         "value": "sig:pending"
       },
       "subject": {
-        "commitments": [],
         "kind": "skill",
+        "outcome": "sha256:b214b615d26287a286876edceb5dca4917e46b9a0a6621a08be21952d4219b60",
         "ref": {
           "type": "run",
           "uri": "runx:run:rcpt_root"
@@ -925,32 +679,17 @@
           "type": "principal",
           "uri": "runx:principal:local_runtime"
         },
-        "attenuation": {
-          "parent_authority_ref": null,
-          "subset_proof": null
-        },
-        "authority_proof_refs": [],
-        "enforcement": {
-          "profile_hash": "sha256:5555555555555555555555555555555555555555555555555555555555555555",
-          "redaction_refs": [],
-          "setup_refs": [],
-          "teardown_refs": []
-        },
+        "derivations": [],
+        "enforcement": {},
         "grant_refs": [],
         "scope_refs": [],
         "terms": []
       },
       "canonicalization": "runx.receipt.c14n.v1",
-      "class": "executed",
       "created_at": "2026-05-22T00:00:00Z",
       "decisions": [],
       "digest": "sha256:9999999999999999999999999999999999999999999999999999999999999999",
       "id": "rcpt_root",
-      "idempotency": {
-        "content_hash": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
-        "intent_key": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
-        "trigger_fingerprint": "sha256:2222222222222222222222222222222222222222222222222222222222222222"
-      },
       "issuer": {
         "kid": "fixture-key",
         "public_key_sha256": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
@@ -973,18 +712,15 @@
         "closed_at": "2026-05-22T00:00:00Z",
         "criteria": [],
         "disposition": "closed",
-        "last_observed_at": "2026-05-22T00:00:00Z",
-        "reason_code": "closed",
-        "summary": "closed"
+        "reason_code": "closed"
       },
-      "signals": [],
       "signature": {
         "alg": "Ed25519",
         "value": "sig:pending"
       },
       "subject": {
-        "commitments": [],
         "kind": "skill",
+        "outcome": "sha256:b214b615d26287a286876edceb5dca4917e46b9a0a6621a08be21952d4219b60",
         "ref": {
           "type": "run",
           "uri": "runx:run:rcpt_root"
@@ -998,32 +734,17 @@
           "type": "principal",
           "uri": "runx:principal:local_runtime"
         },
-        "attenuation": {
-          "parent_authority_ref": null,
-          "subset_proof": null
-        },
-        "authority_proof_refs": [],
-        "enforcement": {
-          "profile_hash": "sha256:5555555555555555555555555555555555555555555555555555555555555555",
-          "redaction_refs": [],
-          "setup_refs": [],
-          "teardown_refs": []
-        },
+        "derivations": [],
+        "enforcement": {},
         "grant_refs": [],
         "scope_refs": [],
         "terms": []
       },
       "canonicalization": "runx.receipt.c14n.v1",
-      "class": "executed",
       "created_at": "2026-05-22T00:00:00Z",
       "decisions": [],
       "digest": "sha256:9999999999999999999999999999999999999999999999999999999999999999",
       "id": "rcpt_root",
-      "idempotency": {
-        "content_hash": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
-        "intent_key": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
-        "trigger_fingerprint": "sha256:2222222222222222222222222222222222222222222222222222222222222222"
-      },
       "issuer": {
         "kid": "fixture-key",
         "public_key_sha256": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
@@ -1033,7 +754,7 @@
         "children": [
           {
             "type": "receipt",
-            "uri": "runx:graph_receipt:rcpt_child_a"
+            "uri": "runx:run:rcpt_child_a"
           }
         ]
       },
@@ -1042,18 +763,15 @@
         "closed_at": "2026-05-22T00:00:00Z",
         "criteria": [],
         "disposition": "closed",
-        "last_observed_at": "2026-05-22T00:00:00Z",
-        "reason_code": "closed",
-        "summary": "closed"
+        "reason_code": "closed"
       },
-      "signals": [],
       "signature": {
         "alg": "Ed25519",
         "value": "sig:pending"
       },
       "subject": {
-        "commitments": [],
         "kind": "skill",
+        "outcome": "sha256:b214b615d26287a286876edceb5dca4917e46b9a0a6621a08be21952d4219b60",
         "ref": {
           "type": "run",
           "uri": "runx:run:rcpt_root"

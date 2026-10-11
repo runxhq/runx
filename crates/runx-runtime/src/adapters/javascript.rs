@@ -13,6 +13,7 @@ use self::supervisor::JavaScriptWorkerSupervisor;
 use crate::RuntimeError;
 use crate::adapter::{InvocationOutput, InvocationStatus, SkillAdapter, SkillInvocation};
 use crate::adapter_pipeline::AdapterProjection;
+use crate::observations::Observations;
 
 const WORKER_PATH_ENV: &str = "RUNX_JS_WORKER_PATH";
 
@@ -165,21 +166,16 @@ fn project_worker_outcome(
                     InvocationStatus::Success,
                     value,
                     None,
-                    javascript_metadata("completed", outcome.execution_boundary, limits, None)?,
+                    worker_observations(outcome.execution_boundary, limits, None),
                 ),
             )
         }
-        supervisor::WorkerInvocationResult::Failure {
-            code,
-            limit,
-            message,
-            ..
-        } => Ok(
+        supervisor::WorkerInvocationResult::Failure { limit, message, .. } => Ok(
             AdapterProjection::from_duration_ms(elapsed_ms(started)).runtime_output(
                 InvocationStatus::Failure,
                 JsonValue::Null,
                 Some(message),
-                javascript_failure_metadata(&code, limit, outcome.execution_boundary, limits)?,
+                worker_observations(outcome.execution_boundary, limits, limit),
             ),
         ),
     }
@@ -206,48 +202,17 @@ fn validate_pure_javascript_boundary(request: &SkillInvocation) -> Result<(), Ru
     Ok(())
 }
 
-fn javascript_metadata(
-    state: &str,
-    execution_boundary: JsonObject,
+/// Where a worker invocation ran and the ceilings that bounded it.
+fn worker_observations(
+    boundary: runx_contracts::ExecutionBoundaryKind,
     limits: runx_contracts::javascript_worker::InvocationLimits,
     hit: Option<runx_contracts::javascript_worker::WorkerLimit>,
-) -> Result<JsonObject, RuntimeError> {
-    let execution_limits = javascript_execution_limits(limits, hit);
-    let execution_limits = serde_json::to_value(execution_limits)
-        .and_then(serde_json::from_value)
-        .map_err(|source| RuntimeError::json("serializing execution limits", source))?;
-    let mut metadata: JsonObject = [
-        (
-            "javascript_runtime".to_owned(),
-            JsonValue::String("runx-js-worker".to_owned()),
-        ),
-        (
-            "javascript_state".to_owned(),
-            JsonValue::String(state.to_owned()),
-        ),
-        (
-            crate::adapter::EXECUTION_LIMITS_METADATA.to_owned(),
-            execution_limits,
-        ),
-    ]
-    .into_iter()
-    .collect();
-    metadata.extend(execution_boundary);
-    Ok(metadata)
-}
-
-fn javascript_failure_metadata(
-    code: &runx_contracts::javascript_worker::WorkerFailureCode,
-    limit: Option<runx_contracts::javascript_worker::WorkerLimit>,
-    execution_boundary: JsonObject,
-    limits: runx_contracts::javascript_worker::InvocationLimits,
-) -> Result<JsonObject, RuntimeError> {
-    let mut metadata = javascript_metadata("failed", execution_boundary, limits, limit)?;
-    metadata.insert(
-        "javascript_failure_code".to_owned(),
-        JsonValue::String(code.as_str().to_owned()),
-    );
-    Ok(metadata)
+) -> Observations {
+    Observations {
+        boundary: Some(boundary),
+        limits: Some(javascript_execution_limits(limits, hit)),
+        ..Observations::default()
+    }
 }
 
 fn javascript_execution_limits(

@@ -1,11 +1,10 @@
-use std::fs;
 use std::io::Write;
 use std::path::PathBuf;
 use std::process::{Command, ExitStatus, Stdio};
-use std::thread;
+use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
-use super::capture::{CaptureHandle, capture_pipe, join_capture};
+use super::capture::{CaptureHandle, CapturedOutput, capture_pipe, join_capture};
 use super::owned_process::OwnedProcess;
 #[cfg(unix)]
 use super::resource_limits::{resource_limit_shell, resource_limit_shell_args};
@@ -18,7 +17,7 @@ const DEFAULT_FORCE_KILL_GRACE: Duration = Duration::from_millis(100);
 const PROCESS_POLL_INTERVAL: Duration = Duration::from_millis(25);
 const PROCESS_REAP_TIMEOUT: Duration = Duration::from_secs(5);
 
-pub(crate) fn run_process(spec: ProcessSpec) -> Result<ProcessOutcome, ProcessSupervisorError> {
+pub(crate) fn run_process(mut spec: ProcessSpec) -> Result<ProcessOutcome, ProcessSupervisorError> {
     let started = Instant::now();
     let mut child = match spawn_process(&spec) {
         Ok(child) => child,
@@ -51,10 +50,9 @@ pub(crate) fn run_process(spec: ProcessSpec) -> Result<ProcessOutcome, ProcessSu
         }
     };
 
-    if let Err(error) = write_stdin(&mut child, spec.stdin.as_ref()) {
-        cleanup_child_after_startup_error(&mut child, &spec, Some(stdout), Some(stderr));
-        return Err(error);
-    }
+    // The input is written beside the wait, so a process that never reads it
+    // is still bounded by its timeout.
+    let stdin = write_stdin(&mut child, spec.stdin.take());
 
     let (status, timed_out) = match wait_for_exit(&mut child, &spec) {
         Ok(outcome) => outcome,
@@ -63,16 +61,19 @@ pub(crate) fn run_process(spec: ProcessSpec) -> Result<ProcessOutcome, ProcessSu
             return Err(error);
         }
     };
-    let stdout = join_capture(stdout, collect_context(spec.label, "stdout"))?;
-    let stderr = join_capture(stderr, collect_context(spec.label, "stderr"))?;
-    let cleanup_errors = cleanup_paths(&spec.cleanup_paths);
+    let joined = join_streams(stdin, stdout, stderr, spec.label);
+    // The inputs the runtime wrote for the process are removed whatever the
+    // streams did; a removal that fails leaves them on disk, so it fails the
+    // invocation rather than passing unseen.
+    let cleaned = cleanup_paths(&spec.cleanup_paths);
+    let (stdout, stderr) = joined?;
+    cleaned?;
     Ok(ProcessOutcome {
         status,
         timed_out,
         stdout,
         stderr,
         duration_ms: duration_ms(started),
-        cleanup_errors,
     })
 }
 
@@ -95,7 +96,7 @@ fn spawn_process(spec: &ProcessSpec) -> Result<OwnedProcess, ProcessSupervisorEr
         command.current_dir(cwd.as_ref());
     }
     OwnedProcess::spawn(command)
-        .map_err(|source| ProcessSupervisorError::io(spawn_context(spec), source))
+        .map_err(|source| ProcessSupervisorError::spawn(spawn_context(spec), source))
 }
 
 #[cfg(unix)]
@@ -115,7 +116,7 @@ fn ensure_explicit_command_path_exists(spec: &ProcessSpec) -> Result<(), Process
     if exists {
         return Ok(());
     }
-    Err(ProcessSupervisorError::io(
+    Err(ProcessSupervisorError::spawn(
         spawn_context(spec),
         std::io::Error::new(std::io::ErrorKind::NotFound, "command path not found"),
     ))
@@ -153,16 +154,57 @@ fn env_shimmed_process_parts(spec: &ProcessSpec) -> (&str, &[String]) {
 
 fn write_stdin(
     child: &mut OwnedProcess,
-    stdin: Option<&ProcessStdin>,
+    stdin: Option<ProcessStdin>,
+) -> Option<(JoinHandle<std::io::Result<()>>, &'static str)> {
+    let ProcessStdin {
+        bytes,
+        write_context,
+    } = stdin?;
+    let mut pipe = child.take_stdin()?;
+    Some((thread::spawn(move || pipe.write_all(&bytes)), write_context))
+}
+
+fn join_streams(
+    stdin: Option<(JoinHandle<std::io::Result<()>>, &'static str)>,
+    stdout: CaptureHandle,
+    stderr: CaptureHandle,
+    label: &str,
+) -> Result<(CapturedOutput, CapturedOutput), ProcessSupervisorError> {
+    let stdin = stdin.map_or(Ok(()), |(handle, context)| join_stdin(handle, context));
+    let stdout = join_capture(stdout, collect_context(label, "stdout"));
+    let stderr = join_capture(stderr, collect_context(label, "stderr"));
+    stdin?;
+    Ok((stdout?, stderr?))
+}
+
+/// Remove every path, reporting the first that could not be removed.
+fn cleanup_paths(paths: &[PathBuf]) -> Result<(), ProcessSupervisorError> {
+    let mut first = None;
+    for path in paths {
+        if let Err(source) = std::fs::remove_dir_all(path) {
+            first.get_or_insert_with(|| {
+                ProcessSupervisorError::supervise(format!("removing {}", path.display()), source)
+            });
+        }
+    }
+    first.map_or(Ok(()), Err)
+}
+
+/// A process that exits without reading all of its input closes the pipe:
+/// its exit status is its outcome, not a supervisor failure.
+fn join_stdin(
+    handle: JoinHandle<std::io::Result<()>>,
+    context: &'static str,
 ) -> Result<(), ProcessSupervisorError> {
-    let Some(stdin) = stdin else {
-        return Ok(());
-    };
-    let Some(mut pipe) = child.take_stdin() else {
-        return Ok(());
-    };
-    pipe.write_all(&stdin.bytes)
-        .map_err(|source| ProcessSupervisorError::io(stdin.write_context, source))
+    match handle.join() {
+        Ok(Ok(())) => Ok(()),
+        Ok(Err(source)) if source.kind() == std::io::ErrorKind::BrokenPipe => Ok(()),
+        Ok(Err(source)) => Err(ProcessSupervisorError::supervise(context, source)),
+        Err(_) => Err(ProcessSupervisorError::supervise(
+            context,
+            std::io::Error::other("input writer thread failed"),
+        )),
+    }
 }
 
 fn wait_for_exit(
@@ -176,7 +218,7 @@ fn wait_for_exit(
             let status = child
                 .reap_with_timeout(PROCESS_REAP_TIMEOUT)
                 .map_err(|source| {
-                    ProcessSupervisorError::io(wait_interrupted_context(spec.label), source)
+                    ProcessSupervisorError::supervise(wait_interrupted_context(spec.label), source)
                 })?;
             return Ok((status, false));
         }
@@ -192,13 +234,13 @@ fn wait_for_exit(
             let status = child
                 .reap_with_timeout(PROCESS_REAP_TIMEOUT)
                 .map_err(|source| {
-                    ProcessSupervisorError::io(wait_timed_out_context(spec.label), source)
+                    ProcessSupervisorError::supervise(wait_timed_out_context(spec.label), source)
                 })?;
             return Ok((status, true));
         }
 
         if let Some(status) = child.wait_timeout(wait_for).map_err(|source| {
-            ProcessSupervisorError::io(wait_timeout_context(spec.label), source)
+            ProcessSupervisorError::supervise(wait_timeout_context(spec.label), source)
         })? {
             // The root process owns the execution result. Any descendant still
             // alive after it exits is execution residue, so terminate the owned
@@ -231,19 +273,9 @@ fn signal_process(
     signal: ProcessSignal,
     spec: &ProcessSpec,
 ) -> Result<(), ProcessSupervisorError> {
-    child
-        .signal(signal)
-        .map_err(|source| ProcessSupervisorError::io(kill_timed_out_context(spec.label), source))
-}
-
-fn cleanup_paths(paths: &[PathBuf]) -> Vec<String> {
-    let mut errors = Vec::new();
-    for path in paths {
-        if let Err(error) = fs::remove_dir_all(path) {
-            errors.push(format!("{}: {error}", path.display()));
-        }
-    }
-    errors
+    child.signal(signal).map_err(|source| {
+        ProcessSupervisorError::supervise(kill_timed_out_context(spec.label), source)
+    })
 }
 
 fn duration_ms(started: Instant) -> u64 {
@@ -322,6 +354,63 @@ mod tests {
             .collect::<Vec<_>>();
         let expected = vec![expected_nofile.to_string(), expected_cpu.to_string()];
         assert_eq!(actual, expected);
+        Ok(())
+    }
+
+    /// A process that exits without reading its input is judged by its exit
+    /// status, and one that never reads it is still bounded by its timeout:
+    /// the input outgrows a pipe buffer in both.
+    #[cfg(unix)]
+    #[test]
+    fn unread_input_neither_fails_nor_outlasts_the_timeout() -> Result<(), String> {
+        let input = || Some(ProcessStdin::new(vec![b'x'; 1 << 20], "writing test stdin"));
+        let exits = run_process(
+            ProcessSpec::new("unread-input-test", "/bin/sh", 4096)
+                .args(vec!["-c".to_owned(), "exit 0".to_owned()])
+                .stdin(input())
+                .timeout(Some(Duration::from_secs(5))),
+        )
+        .map_err(|error| error.to_string())?;
+        assert!(exits.status.success());
+        assert!(!exits.timed_out);
+
+        let holds = run_process(
+            ProcessSpec::new("unread-input-test", "/bin/sh", 4096)
+                .args(vec!["-c".to_owned(), "sleep 30".to_owned()])
+                .stdin(input())
+                .timeout(Some(Duration::from_millis(300))),
+        )
+        .map_err(|error| error.to_string())?;
+        assert!(holds.timed_out);
+        Ok(())
+    }
+
+    /// A process that leaves its inputs unremovable and exits successfully
+    /// fails its invocation: the runtime does not pass over inputs it wrote
+    /// and could not remove.
+    #[cfg(unix)]
+    #[test]
+    fn inputs_left_on_disk_fail_the_invocation() -> Result<(), String> {
+        let root = tempfile::tempdir().map_err(|error| error.to_string())?;
+        let inputs = root.path().join("inputs");
+        std::fs::create_dir(&inputs).map_err(|error| error.to_string())?;
+        std::fs::write(inputs.join("input.json"), "{}").map_err(|error| error.to_string())?;
+        let result = run_process(
+            ProcessSpec::new("cleanup-test", "/bin/sh", 4096)
+                .args(vec![
+                    "-c".to_owned(),
+                    format!("chmod 000 '{}'", inputs.display()),
+                ])
+                .timeout(Some(Duration::from_secs(5)))
+                .cleanup_paths(vec![inputs.clone()]),
+        );
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&inputs, std::fs::Permissions::from_mode(0o700))
+            .map_err(|error| error.to_string())?;
+        assert!(
+            matches!(result, Err(ProcessSupervisorError::Supervise { .. })),
+            "{result:?}"
+        );
         Ok(())
     }
 

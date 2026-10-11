@@ -2,33 +2,33 @@
 //!
 //! The model sees the schema emitted by `runx-contracts`; this module enforces
 //! the same declaration before a result can become a successful runtime output.
-//! Successful evidence is carried as structured output metadata for the generic
-//! receipt sealer to bind into the signed act and seal.
+//! The checks it ran are the runtime's observations, which the receipt sealer
+//! binds into the signed act and seal.
 
-use runx_contracts::{JsonObject, JsonValue, ResolutionRequest};
+use runx_contracts::{JsonValue, ResolutionRequest};
 use runx_parser::SkillArtifactContract;
 use std::collections::BTreeMap;
 use std::path::Path;
 
 use crate::RuntimeError;
-use crate::agent_invocation::agent_profile_metadata;
-use crate::output_contract::verified_output_metadata_with_artifacts;
+use crate::observations::ContractChecks;
+use crate::output_contract::output_contract_checks;
 
 #[cfg(test)]
-pub(crate) fn verified_agent_metadata(
+pub(crate) fn agent_contract_checks(
     request: &ResolutionRequest,
     payload: &JsonValue,
-) -> Result<JsonObject, RuntimeError> {
-    verified_agent_metadata_with_artifacts(request, payload, None, Path::new("."), &BTreeMap::new())
+) -> Result<ContractChecks, RuntimeError> {
+    agent_contract_checks_with_artifacts(request, payload, None, Path::new("."), &BTreeMap::new())
 }
 
-pub(crate) fn verified_agent_metadata_with_artifacts(
+pub(crate) fn agent_contract_checks_with_artifacts(
     request: &ResolutionRequest,
     payload: &JsonValue,
     artifacts: Option<&SkillArtifactContract>,
     skill_directory: &Path,
     env: &BTreeMap<String, String>,
-) -> Result<JsonObject, RuntimeError> {
+) -> Result<ContractChecks, RuntimeError> {
     let ResolutionRequest::AgentAct { invocation, .. } = request else {
         return Err(RuntimeError::SkillFailed {
             skill_name: "agent".to_owned(),
@@ -38,7 +38,7 @@ pub(crate) fn verified_agent_metadata_with_artifacts(
     let contract_payload = agent_output_contract_payload(payload);
     let open_output = BTreeMap::new();
     let output = invocation.envelope.output.as_ref().unwrap_or(&open_output);
-    let mut metadata = verified_output_metadata_with_artifacts(
+    let mut checks = output_contract_checks(
         invocation.envelope.skill.as_ref(),
         &contract_payload,
         Some(output),
@@ -46,22 +46,12 @@ pub(crate) fn verified_agent_metadata_with_artifacts(
         skill_directory,
         env,
     )?;
-    let verification = match metadata.get_mut(crate::adapter::CONTRACT_VERIFICATION_METADATA) {
-        Some(JsonValue::Object(verification)) => verification,
-        _ => {
-            return Err(RuntimeError::ReceiptInvalid {
-                message: "agent output verification produced no contract metadata".to_owned(),
-            });
-        }
-    };
-    if let Some(profile) = &invocation.envelope.voice_profile {
-        verification.insert(
-            "voice_profile_sha256".to_owned(),
-            JsonValue::String(profile.sha256.as_ref().to_owned()),
-        );
-    }
-    metadata.extend(agent_profile_metadata(request));
-    Ok(metadata)
+    checks.voice_profile_sha256 = invocation
+        .envelope
+        .voice_profile
+        .as_ref()
+        .map(|profile| profile.sha256.as_ref().to_owned());
+    Ok(checks)
 }
 
 pub(crate) fn agent_output_contract_payload(payload: &JsonValue) -> JsonValue {
@@ -84,8 +74,7 @@ mod tests {
         ResolutionRequest,
     };
 
-    use super::verified_agent_metadata;
-    use crate::adapter::CONTRACT_VERIFICATION_METADATA;
+    use super::agent_contract_checks;
 
     fn request() -> Result<ResolutionRequest, serde_json::Error> {
         let envelope: AgentContextEnvelope = serde_json::from_value(serde_json::json!({
@@ -117,16 +106,21 @@ mod tests {
     }
 
     #[test]
-    fn verified_metadata_records_contract_digest() -> Result<(), Box<dyn std::error::Error>> {
+    fn an_agent_answer_is_checked_against_its_contract_digest()
+    -> Result<(), Box<dyn std::error::Error>> {
         let answer = JsonValue::Object(
             [("notify_plan".to_owned(), JsonValue::Object(BTreeMap::new()))]
                 .into_iter()
                 .collect(),
         );
 
-        let metadata = verified_agent_metadata(&request()?, &answer)?;
+        let checks = agent_contract_checks(&request()?, &answer)?;
 
-        assert!(metadata.contains_key(CONTRACT_VERIFICATION_METADATA));
+        assert!(
+            checks
+                .output_contract_sha256
+                .is_some_and(|digest| digest.starts_with("sha256:"))
+        );
         Ok(())
     }
 
@@ -144,7 +138,7 @@ mod tests {
             .collect(),
         );
 
-        assert!(verified_agent_metadata(&request()?, &answer).is_err());
+        assert!(agent_contract_checks(&request()?, &answer).is_err());
         Ok(())
     }
 
@@ -164,7 +158,7 @@ mod tests {
             .collect(),
         );
 
-        assert!(verified_agent_metadata(&request()?, &answer).is_err());
+        assert!(agent_contract_checks(&request()?, &answer).is_err());
         Ok(())
     }
 
@@ -200,7 +194,7 @@ mod tests {
             .collect(),
         );
 
-        assert!(verified_agent_metadata(&request()?, &answer).is_ok());
+        assert!(agent_contract_checks(&request()?, &answer).is_ok());
         Ok(())
     }
 

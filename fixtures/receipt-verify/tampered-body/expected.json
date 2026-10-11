@@ -1,12 +1,12 @@
 {
   "content_address": {
-    "actual": "sha256:506aaa7c9cddc809af5d524d83cfafcec1920fe10f24d640a38e150bbd666136",
-    "expected": "sha256:56c50fe4d3fb522f61a552c0dd4e1b8ad588f94a35b024dd58592d2a167c3aa3",
+    "actual": "sha256:68f8c14aa2b052721737caf789fe5fcc1ed6e95f35af8df19d06bee3c56867f2",
+    "expected": "sha256:512dffc42bfa4705b3f8ac0cc63f6b6bf99f87acc9e5b7e634c5e967067a0849",
     "status": "invalid"
   },
   "digest": {
-    "actual": "sha256:19051cf6887457a891f37509170ecd471e63f2072018f1061f2d58d8aa7fc4e3",
-    "expected": "sha256:781574991b863e7f217de7366f0f04382a7a0b4954cca8a1ba0ef66ab766e70d",
+    "actual": "sha256:328f4e6f798f2fdcb8d18faec972e2cc88d256ec40c2604fd775ac90d103253f",
+    "expected": "sha256:4c2ec2b313cb34cd84f446f27f7b467ba29591b64260bc54c1af4953165d686d",
     "status": "invalid"
   },
   "findings": [
@@ -14,6 +14,11 @@
       "code": "seal_digest_mismatch",
       "message": "receipt digest must match the canonical receipt body commitment",
       "path": "digest"
+    },
+    {
+      "code": "content_address_mismatch",
+      "message": "receipt id must be the content address of its canonical body",
+      "path": "id"
     },
     {
       "code": "signature_invalid",
@@ -25,7 +30,7 @@
     "message": "single receipt verification cannot prove receipt-tree lineage",
     "status": "unverified"
   },
-  "receipt_id": "sha256:506aaa7c9cddc809af5d524d83cfafcec1920fe10f24d640a38e150bbd666136",
+  "receipt_id": "sha256:68f8c14aa2b052721737caf789fe5fcc1ed6e95f35af8df19d06bee3c56867f2",
   "schema": "runx.verify_verdict.v1",
   "signature": {
     "kid": "runx-cli-verify-fixture-key",

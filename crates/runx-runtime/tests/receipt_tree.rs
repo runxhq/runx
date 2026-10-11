@@ -26,13 +26,6 @@ fn runtime_resolver_verifies_graph_receipt_with_children() -> Result<(), Box<dyn
     let resolver = RuntimeReceiptResolver::new(children.clone());
 
     assert_eq!(resolver.receipts().len(), 2);
-    assert!(children.iter().all(|child| {
-        child
-            .lineage
-            .as_ref()
-            .and_then(|lineage| lineage.parent.as_ref())
-            .is_none()
-    }));
     assert!(
         runx_receipts::validate_receipt_tree_with_resolver(
             &root,
@@ -48,7 +41,7 @@ fn runtime_resolver_verifies_graph_receipt_with_children() -> Result<(), Box<dyn
 #[test]
 fn runtime_tree_rejects_bare_id_child_ref() -> Result<(), Box<dyn std::error::Error>> {
     let (mut root, children) = graph_with_steps("tree_runtime_exact", &["child"])?;
-    root.lineage.as_mut().unwrap().children[0].uri = children[0].id.clone();
+    root.lineage.children[0].uri = children[0].id.clone();
     refresh_local_digest_and_signature(&mut root)?;
 
     let verification = verify_runtime_receipt_tree(&root, children, ReceiptTreeConfig::default());
@@ -80,7 +73,7 @@ fn runtime_resolver_reports_conflicting_same_id_children() -> Result<(), Box<dyn
 {
     let (root, mut children) = graph_with_steps("tree_runtime_ambiguous", &["child"])?;
     let mut conflicting = children[0].clone();
-    conflicting.seal.summary = "different signed body under the same id".into();
+    conflicting.seal.reason_code = "different_signed_body".into();
     children.push(conflicting);
 
     let verification = verify_runtime_receipt_tree(&root, children, ReceiptTreeConfig::default());
@@ -138,7 +131,7 @@ fn runtime_tree_rejects_extra_child_receipt() -> Result<(), Box<dyn std::error::
 fn runtime_tree_rejects_structurally_valid_child_proof_tamper()
 -> Result<(), Box<dyn std::error::Error>> {
     let (root, mut children) = graph_with_steps("tree_runtime_child_tamper", &["child"])?;
-    children[0].seal.summary = "tampered child proof body".into();
+    children[0].seal.reason_code = "tampered_child_body".into();
 
     assert!(runx_receipts::verify_receipt_tree(&root, &children).valid);
     let verification = verify_runtime_receipt_tree(&root, children, ReceiptTreeConfig::default());
@@ -161,7 +154,7 @@ fn runtime_tree_rejects_valid_alternate_child_with_same_id()
 -> Result<(), Box<dyn std::error::Error>> {
     let (root, children) = graph_with_steps("tree_runtime_child_digest", &["child"])?;
     let mut alternate = children[0].clone();
-    alternate.seal.summary = "valid alternate child body".into();
+    alternate.seal.reason_code = "alternate_child_body".into();
     refresh_local_digest_and_signature(&mut alternate)?;
 
     let verification =
@@ -179,7 +172,7 @@ fn runtime_tree_rejects_valid_alternate_child_with_same_id()
 fn runtime_tree_rejects_child_ref_without_digest_locator() -> Result<(), Box<dyn std::error::Error>>
 {
     let (mut root, children) = graph_with_steps("tree_runtime_missing_child_digest", &["child"])?;
-    root.lineage.as_mut().unwrap().children[0].locator = None;
+    root.lineage.children[0].locator = None;
     refresh_local_digest_and_signature(&mut root)?;
 
     assert!(runx_receipts::verify_receipt_tree(&root, &children).valid);
@@ -320,7 +313,7 @@ fn skill_output(status: InvocationStatus) -> InvocationOutput {
         InvocationStatus::Success => ("ok".to_owned(), String::new(), Some(0)),
         InvocationStatus::Failure => (String::new(), "failed".to_owned(), Some(1)),
     };
-    InvocationOutput::process(status, stdout, stderr, exit_code, 1, JsonObject::new())
+    InvocationOutput::process(status, stdout, stderr, exit_code, 1)
 }
 
 fn resign_for_test_verifier(receipt: &mut Receipt) -> Result<(), Box<dyn std::error::Error>> {

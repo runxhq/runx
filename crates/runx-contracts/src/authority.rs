@@ -90,17 +90,17 @@ pub struct AuthorityEffectLimit {
     pub approval_threshold_units: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub authorization_form: Option<AuthorityEffectCredentialForm>,
-    #[serde(default, skip_serializing_if = "is_false")]
+    #[serde(default, skip_serializing_if = "crate::schema::is_default")]
     pub preflight_required: bool,
-    #[serde(default, skip_serializing_if = "is_false")]
+    #[serde(default, skip_serializing_if = "crate::schema::is_default")]
     pub commitment_required: bool,
-    #[serde(default, skip_serializing_if = "is_false")]
+    #[serde(default, skip_serializing_if = "crate::schema::is_default")]
     pub idempotency_required: bool,
-    #[serde(default, skip_serializing_if = "is_false")]
+    #[serde(default, skip_serializing_if = "crate::schema::is_default")]
     pub recovery_required: bool,
-    #[serde(default, skip_serializing_if = "is_false")]
+    #[serde(default, skip_serializing_if = "crate::schema::is_default")]
     pub receipt_before_success: bool,
-    #[serde(default, skip_serializing_if = "is_false")]
+    #[serde(default, skip_serializing_if = "crate::schema::is_default")]
     pub single_use_capability: bool,
 }
 
@@ -186,10 +186,6 @@ pub enum AuthorityConditionPredicate {
     EffectRecoveryAvailable,
 }
 
-fn is_false(value: &bool) -> bool {
-    !*value
-}
-
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub struct AuthorityCondition {
@@ -209,8 +205,6 @@ pub struct AuthorityApproval {
     pub approved_by_ref: Option<Reference>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub approved_at: Option<IsoDateTime>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub criterion_ids: Vec<NonEmptyString>,
 }
 
 /// How an act's legitimacy names the execution term it acts under.
@@ -292,13 +286,6 @@ pub struct AuthoritySubsetProof {
     pub checked_at: IsoDateTime,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
-#[serde(deny_unknown_fields)]
-pub struct AuthorityAttenuation {
-    pub parent_authority_ref: Option<Reference>,
-    pub subset_proof: Option<AuthoritySubsetProof>,
-}
-
 /// The three kinds of evidence admission proves. Each has one job.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(rename_all = "snake_case")]
@@ -337,32 +324,4 @@ pub struct AuthorityDerivation {
     pub evidence: Vec<AuthorityEvidence>,
     pub proofs: Vec<AuthoritySubsetProof>,
     pub derived_at: IsoDateTime,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
-pub enum AuthoritySchema {
-    #[serde(rename = "runx.authority.v1")]
-    V1,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
-#[serde(deny_unknown_fields)]
-#[runx_schema(id = "runx.authority.v1")]
-pub struct Authority {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub schema: Option<AuthoritySchema>,
-    pub actor_ref: Reference,
-    #[serde(default)]
-    pub authority_proof_refs: Vec<Reference>,
-    #[serde(default)]
-    pub grant_refs: Vec<Reference>,
-    #[serde(default)]
-    pub scope_refs: Vec<Reference>,
-    #[serde(default)]
-    pub policy_refs: Vec<Reference>,
-    #[serde(default)]
-    pub terms: Vec<AuthorityTerm>,
-    pub attenuation: AuthorityAttenuation,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub mandate_ref: Option<Reference>,
 }

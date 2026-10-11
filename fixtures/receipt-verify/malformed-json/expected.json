@@ -12,7 +12,7 @@
   "findings": [
     {
       "code": "receipt_parse_error",
-      "message": "EOF while parsing a value at line 1 column 28",
+      "message": "receipt is not JSON: EOF while parsing a value at line 1 column 28",
       "path": "$"
     }
   ],

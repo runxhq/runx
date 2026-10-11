@@ -73,25 +73,14 @@
                       "run",
                       "act",
                       "receipt",
-                      "graph_receipt",
                       "artifact",
                       "verification",
                       "harness",
                       "host",
-                      "deployment",
                       "surface",
                       "target",
-                      "opportunity",
-                      "thesis_assessment",
-                      "selection",
                       "skill_binding",
-                      "target_transition_entry",
-                      "selection_cycle",
-                      "decision",
-                      "reflection_entry",
-                      "feed_entry",
                       "principal",
-                      "authority_proof",
                       "scope_admission",
                       "grant",
                       "mandate",
@@ -171,25 +160,14 @@
                                 "run",
                                 "act",
                                 "receipt",
-                                "graph_receipt",
                                 "artifact",
                                 "verification",
                                 "harness",
                                 "host",
-                                "deployment",
                                 "surface",
                                 "target",
-                                "opportunity",
-                                "thesis_assessment",
-                                "selection",
                                 "skill_binding",
-                                "target_transition_entry",
-                                "selection_cycle",
-                                "decision",
-                                "reflection_entry",
-                                "feed_entry",
                                 "principal",
-                                "authority_proof",
                                 "scope_admission",
                                 "grant",
                                 "mandate",
@@ -265,25 +243,14 @@
                                 "run",
                                 "act",
                                 "receipt",
-                                "graph_receipt",
                                 "artifact",
                                 "verification",
                                 "harness",
                                 "host",
-                                "deployment",
                                 "surface",
                                 "target",
-                                "opportunity",
-                                "thesis_assessment",
-                                "selection",
                                 "skill_binding",
-                                "target_transition_entry",
-                                "selection_cycle",
-                                "decision",
-                                "reflection_entry",
-                                "feed_entry",
                                 "principal",
-                                "authority_proof",
                                 "scope_admission",
                                 "grant",
                                 "mandate",
@@ -307,13 +274,6 @@
                           ],
                           "type": "object",
                           "x-runx-schema": "runx.reference.v1"
-                        },
-                        "criterion_ids": {
-                          "items": {
-                            "minLength": 1,
-                            "type": "string"
-                          },
-                          "type": "array"
                         }
                       },
                       "required": [
@@ -331,6 +291,7 @@
                           "minLength": 1,
                           "type": "string"
                         },
+                        "minItems": 1,
                         "type": "array"
                       },
                       "deployment_environments": {
@@ -338,6 +299,7 @@
                           "minLength": 1,
                           "type": "string"
                         },
+                        "minItems": 1,
                         "type": "array"
                       },
                       "effect_limits": {
@@ -362,6 +324,7 @@
                               "type": "array"
                             },
                             "commitment_required": {
+                              "const": true,
                               "type": "boolean"
                             },
                             "family": {
@@ -369,6 +332,7 @@
                               "type": "string"
                             },
                             "idempotency_required": {
+                              "const": true,
                               "type": "boolean"
                             },
                             "max_per_call_units": {
@@ -393,6 +357,7 @@
                               "type": "string"
                             },
                             "preflight_required": {
+                              "const": true,
                               "type": "boolean"
                             },
                             "preflight_ttl_ms": {
@@ -403,12 +368,15 @@
                               "type": "string"
                             },
                             "receipt_before_success": {
+                              "const": true,
                               "type": "boolean"
                             },
                             "recovery_required": {
+                              "const": true,
                               "type": "boolean"
                             },
                             "single_use_capability": {
+                              "const": true,
                               "type": "boolean"
                             },
                             "unit": {
@@ -423,6 +391,7 @@
                           ],
                           "type": "object"
                         },
+                        "minItems": 1,
                         "type": "array"
                       },
                       "effects": {
@@ -441,6 +410,7 @@
                                 ],
                                 "type": "string"
                               },
+                              "minItems": 1,
                               "type": "array"
                             },
                             "proof_kinds": {
@@ -452,6 +422,7 @@
                                 ],
                                 "type": "string"
                               },
+                              "minItems": 1,
                               "type": "array"
                             }
                           },
@@ -460,6 +431,7 @@
                           ],
                           "type": "object"
                         },
+                        "minItems": 1,
                         "type": "array"
                       },
                       "filesystem_roots": {
@@ -467,6 +439,7 @@
                           "minLength": 1,
                           "type": "string"
                         },
+                        "minItems": 1,
                         "type": "array"
                       },
                       "max_child_depth": {
@@ -486,6 +459,7 @@
                           "minLength": 1,
                           "type": "string"
                         },
+                        "minItems": 1,
                         "type": "array"
                       },
                       "operations": {
@@ -493,6 +467,7 @@
                           "minLength": 1,
                           "type": "string"
                         },
+                        "minItems": 1,
                         "type": "array"
                       },
                       "repo_path_globs": {
@@ -500,6 +475,7 @@
                           "minLength": 1,
                           "type": "string"
                         },
+                        "minItems": 1,
                         "type": "array"
                       },
                       "scopes": {
@@ -507,6 +483,7 @@
                           "minLength": 1,
                           "type": "string"
                         },
+                        "minItems": 1,
                         "type": "array"
                       },
                       "targets": {
@@ -514,6 +491,7 @@
                           "minLength": 1,
                           "type": "string"
                         },
+                        "minItems": 1,
                         "type": "array"
                       },
                       "token_audiences": {
@@ -521,6 +499,7 @@
                           "minLength": 1,
                           "type": "string"
                         },
+                        "minItems": 1,
                         "type": "array"
                       },
                       "uses": {
@@ -627,25 +606,14 @@
                                   "run",
                                   "act",
                                   "receipt",
-                                  "graph_receipt",
                                   "artifact",
                                   "verification",
                                   "harness",
                                   "host",
-                                  "deployment",
                                   "surface",
                                   "target",
-                                  "opportunity",
-                                  "thesis_assessment",
-                                  "selection",
                                   "skill_binding",
-                                  "target_transition_entry",
-                                  "selection_cycle",
-                                  "decision",
-                                  "reflection_entry",
-                                  "feed_entry",
                                   "principal",
-                                  "authority_proof",
                                   "scope_admission",
                                   "grant",
                                   "mandate",
@@ -670,6 +638,7 @@
                             "type": "object",
                             "x-runx-schema": "runx.reference.v1"
                           },
+                          "minItems": 1,
                           "type": "array"
                         }
                       },
@@ -727,25 +696,14 @@
                           "run",
                           "act",
                           "receipt",
-                          "graph_receipt",
                           "artifact",
                           "verification",
                           "harness",
                           "host",
-                          "deployment",
                           "surface",
                           "target",
-                          "opportunity",
-                          "thesis_assessment",
-                          "selection",
                           "skill_binding",
-                          "target_transition_entry",
-                          "selection_cycle",
-                          "decision",
-                          "reflection_entry",
-                          "feed_entry",
                           "principal",
-                          "authority_proof",
                           "scope_admission",
                           "grant",
                           "mandate",
@@ -821,25 +779,14 @@
                           "run",
                           "act",
                           "receipt",
-                          "graph_receipt",
                           "artifact",
                           "verification",
                           "harness",
                           "host",
-                          "deployment",
                           "surface",
                           "target",
-                          "opportunity",
-                          "thesis_assessment",
-                          "selection",
                           "skill_binding",
-                          "target_transition_entry",
-                          "selection_cycle",
-                          "decision",
-                          "reflection_entry",
-                          "feed_entry",
                           "principal",
-                          "authority_proof",
                           "scope_admission",
                           "grant",
                           "mandate",
@@ -910,25 +857,14 @@
                           "run",
                           "act",
                           "receipt",
-                          "graph_receipt",
                           "artifact",
                           "verification",
                           "harness",
                           "host",
-                          "deployment",
                           "surface",
                           "target",
-                          "opportunity",
-                          "thesis_assessment",
-                          "selection",
                           "skill_binding",
-                          "target_transition_entry",
-                          "selection_cycle",
-                          "decision",
-                          "reflection_entry",
-                          "feed_entry",
                           "principal",
-                          "authority_proof",
                           "scope_admission",
                           "grant",
                           "mandate",
@@ -1014,25 +950,14 @@
                           "run",
                           "act",
                           "receipt",
-                          "graph_receipt",
                           "artifact",
                           "verification",
                           "harness",
                           "host",
-                          "deployment",
                           "surface",
                           "target",
-                          "opportunity",
-                          "thesis_assessment",
-                          "selection",
                           "skill_binding",
-                          "target_transition_entry",
-                          "selection_cycle",
-                          "decision",
-                          "reflection_entry",
-                          "feed_entry",
                           "principal",
-                          "authority_proof",
                           "scope_admission",
                           "grant",
                           "mandate",
@@ -1207,25 +1132,14 @@
                       "run",
                       "act",
                       "receipt",
-                      "graph_receipt",
                       "artifact",
                       "verification",
                       "harness",
                       "host",
-                      "deployment",
                       "surface",
                       "target",
-                      "opportunity",
-                      "thesis_assessment",
-                      "selection",
                       "skill_binding",
-                      "target_transition_entry",
-                      "selection_cycle",
-                      "decision",
-                      "reflection_entry",
-                      "feed_entry",
                       "principal",
-                      "authority_proof",
                       "scope_admission",
                       "grant",
                       "mandate",
@@ -1296,25 +1210,14 @@
                       "run",
                       "act",
                       "receipt",
-                      "graph_receipt",
                       "artifact",
                       "verification",
                       "harness",
                       "host",
-                      "deployment",
                       "surface",
                       "target",
-                      "opportunity",
-                      "thesis_assessment",
-                      "selection",
                       "skill_binding",
-                      "target_transition_entry",
-                      "selection_cycle",
-                      "decision",
-                      "reflection_entry",
-                      "feed_entry",
                       "principal",
-                      "authority_proof",
                       "scope_admission",
                       "grant",
                       "mandate",
@@ -1444,25 +1347,14 @@
                       "run",
                       "act",
                       "receipt",
-                      "graph_receipt",
                       "artifact",
                       "verification",
                       "harness",
                       "host",
-                      "deployment",
                       "surface",
                       "target",
-                      "opportunity",
-                      "thesis_assessment",
-                      "selection",
                       "skill_binding",
-                      "target_transition_entry",
-                      "selection_cycle",
-                      "decision",
-                      "reflection_entry",
-                      "feed_entry",
                       "principal",
-                      "authority_proof",
                       "scope_admission",
                       "grant",
                       "mandate",
@@ -1538,25 +1430,14 @@
                       "run",
                       "act",
                       "receipt",
-                      "graph_receipt",
                       "artifact",
                       "verification",
                       "harness",
                       "host",
-                      "deployment",
                       "surface",
                       "target",
-                      "opportunity",
-                      "thesis_assessment",
-                      "selection",
                       "skill_binding",
-                      "target_transition_entry",
-                      "selection_cycle",
-                      "decision",
-                      "reflection_entry",
-                      "feed_entry",
                       "principal",
-                      "authority_proof",
                       "scope_admission",
                       "grant",
                       "mandate",
@@ -1580,13 +1461,6 @@
                 ],
                 "type": "object",
                 "x-runx-schema": "runx.reference.v1"
-              },
-              "criterion_ids": {
-                "items": {
-                  "minLength": 1,
-                  "type": "string"
-                },
-                "type": "array"
               }
             },
             "required": [
@@ -1604,6 +1478,7 @@
                 "minLength": 1,
                 "type": "string"
               },
+              "minItems": 1,
               "type": "array"
             },
             "deployment_environments": {
@@ -1611,6 +1486,7 @@
                 "minLength": 1,
                 "type": "string"
               },
+              "minItems": 1,
               "type": "array"
             },
             "effect_limits": {
@@ -1635,6 +1511,7 @@
                     "type": "array"
                   },
                   "commitment_required": {
+                    "const": true,
                     "type": "boolean"
                   },
                   "family": {
@@ -1642,6 +1519,7 @@
                     "type": "string"
                   },
                   "idempotency_required": {
+                    "const": true,
                     "type": "boolean"
                   },
                   "max_per_call_units": {
@@ -1666,6 +1544,7 @@
                     "type": "string"
                   },
                   "preflight_required": {
+                    "const": true,
                     "type": "boolean"
                   },
                   "preflight_ttl_ms": {
@@ -1676,12 +1555,15 @@
                     "type": "string"
                   },
                   "receipt_before_success": {
+                    "const": true,
                     "type": "boolean"
                   },
                   "recovery_required": {
+                    "const": true,
                     "type": "boolean"
                   },
                   "single_use_capability": {
+                    "const": true,
                     "type": "boolean"
                   },
                   "unit": {
@@ -1696,6 +1578,7 @@
                 ],
                 "type": "object"
               },
+              "minItems": 1,
               "type": "array"
             },
             "effects": {
@@ -1714,6 +1597,7 @@
                       ],
                       "type": "string"
                     },
+                    "minItems": 1,
                     "type": "array"
                   },
                   "proof_kinds": {
@@ -1725,6 +1609,7 @@
                       ],
                       "type": "string"
                     },
+                    "minItems": 1,
                     "type": "array"
                   }
                 },
@@ -1733,6 +1618,7 @@
                 ],
                 "type": "object"
               },
+              "minItems": 1,
               "type": "array"
             },
             "filesystem_roots": {
@@ -1740,6 +1626,7 @@
                 "minLength": 1,
                 "type": "string"
               },
+              "minItems": 1,
               "type": "array"
             },
             "max_child_depth": {
@@ -1759,6 +1646,7 @@
                 "minLength": 1,
                 "type": "string"
               },
+              "minItems": 1,
               "type": "array"
             },
             "operations": {
@@ -1766,6 +1654,7 @@
                 "minLength": 1,
                 "type": "string"
               },
+              "minItems": 1,
               "type": "array"
             },
             "repo_path_globs": {
@@ -1773,6 +1662,7 @@
                 "minLength": 1,
                 "type": "string"
               },
+              "minItems": 1,
               "type": "array"
             },
             "scopes": {
@@ -1780,6 +1670,7 @@
                 "minLength": 1,
                 "type": "string"
               },
+              "minItems": 1,
               "type": "array"
             },
             "targets": {
@@ -1787,6 +1678,7 @@
                 "minLength": 1,
                 "type": "string"
               },
+              "minItems": 1,
               "type": "array"
             },
             "token_audiences": {
@@ -1794,6 +1686,7 @@
                 "minLength": 1,
                 "type": "string"
               },
+              "minItems": 1,
               "type": "array"
             },
             "uses": {
@@ -1900,25 +1793,14 @@
                         "run",
                         "act",
                         "receipt",
-                        "graph_receipt",
                         "artifact",
                         "verification",
                         "harness",
                         "host",
-                        "deployment",
                         "surface",
                         "target",
-                        "opportunity",
-                        "thesis_assessment",
-                        "selection",
                         "skill_binding",
-                        "target_transition_entry",
-                        "selection_cycle",
-                        "decision",
-                        "reflection_entry",
-                        "feed_entry",
                         "principal",
-                        "authority_proof",
                         "scope_admission",
                         "grant",
                         "mandate",
@@ -1943,6 +1825,7 @@
                   "type": "object",
                   "x-runx-schema": "runx.reference.v1"
                 },
+                "minItems": 1,
                 "type": "array"
               }
             },
@@ -2000,25 +1883,14 @@
                 "run",
                 "act",
                 "receipt",
-                "graph_receipt",
                 "artifact",
                 "verification",
                 "harness",
                 "host",
-                "deployment",
                 "surface",
                 "target",
-                "opportunity",
-                "thesis_assessment",
-                "selection",
                 "skill_binding",
-                "target_transition_entry",
-                "selection_cycle",
-                "decision",
-                "reflection_entry",
-                "feed_entry",
                 "principal",
-                "authority_proof",
                 "scope_admission",
                 "grant",
                 "mandate",
@@ -2094,25 +1966,14 @@
                 "run",
                 "act",
                 "receipt",
-                "graph_receipt",
                 "artifact",
                 "verification",
                 "harness",
                 "host",
-                "deployment",
                 "surface",
                 "target",
-                "opportunity",
-                "thesis_assessment",
-                "selection",
                 "skill_binding",
-                "target_transition_entry",
-                "selection_cycle",
-                "decision",
-                "reflection_entry",
-                "feed_entry",
                 "principal",
-                "authority_proof",
                 "scope_admission",
                 "grant",
                 "mandate",
@@ -2183,25 +2044,14 @@
                 "run",
                 "act",
                 "receipt",
-                "graph_receipt",
                 "artifact",
                 "verification",
                 "harness",
                 "host",
-                "deployment",
                 "surface",
                 "target",
-                "opportunity",
-                "thesis_assessment",
-                "selection",
                 "skill_binding",
-                "target_transition_entry",
-                "selection_cycle",
-                "decision",
-                "reflection_entry",
-                "feed_entry",
                 "principal",
-                "authority_proof",
                 "scope_admission",
                 "grant",
                 "mandate",
@@ -2287,25 +2137,14 @@
                 "run",
                 "act",
                 "receipt",
-                "graph_receipt",
                 "artifact",
                 "verification",
                 "harness",
                 "host",
-                "deployment",
                 "surface",
                 "target",
-                "opportunity",
-                "thesis_assessment",
-                "selection",
                 "skill_binding",
-                "target_transition_entry",
-                "selection_cycle",
-                "decision",
-                "reflection_entry",
-                "feed_entry",
                 "principal",
-                "authority_proof",
                 "scope_admission",
                 "grant",
                 "mandate",
@@ -2533,25 +2372,14 @@
                     "run",
                     "act",
                     "receipt",
-                    "graph_receipt",
                     "artifact",
                     "verification",
                     "harness",
                     "host",
-                    "deployment",
                     "surface",
                     "target",
-                    "opportunity",
-                    "thesis_assessment",
-                    "selection",
                     "skill_binding",
-                    "target_transition_entry",
-                    "selection_cycle",
-                    "decision",
-                    "reflection_entry",
-                    "feed_entry",
                     "principal",
-                    "authority_proof",
                     "scope_admission",
                     "grant",
                     "mandate",
@@ -2576,6 +2404,7 @@
               "type": "object",
               "x-runx-schema": "runx.reference.v1"
             },
+            "minItems": 1,
             "type": "array"
           }
         },

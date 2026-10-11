@@ -35,24 +35,18 @@ inputs:
             source: scope_ref
             term_id: null
             resource_ref: runx:scope_admission:repo.write
-        authority_proof_refs: []
         approval_refs: []
         term_count: 0
-        parent_authority_ref: null
-        subset_proof_present: false
-        enforcement_profile_hash: sha256:profile
-        redaction_refs: []
         credential_ref_count: 0
       decisions: []
       acts:
         - id: act_push
-          form: revision
+          form: observation
           purpose: Push a commit.
           legitimacy: Claimed repository authority.
           summary: Pushed a commit.
           disposition: closed
           reason_code: process_closed
-          source_refs: []
           target_refs:
             - runx:repository:docs
           artifact_refs: []

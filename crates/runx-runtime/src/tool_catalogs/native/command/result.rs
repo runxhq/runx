@@ -210,7 +210,6 @@ mod tests {
                 sha256: runx_contracts::sha256_prefixed(&[]),
             },
             duration_ms: 1,
-            cleanup_errors: Vec::new(),
         };
 
         let observation = observe_command(

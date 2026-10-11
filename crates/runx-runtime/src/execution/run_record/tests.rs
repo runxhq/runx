@@ -49,7 +49,6 @@ fn step(run_id: &str, step_id: &str) -> StepRun {
             JsonValue::String("ok".to_owned()),
         )])),
         0,
-        JsonObject::new(),
     );
     let claim = output.value.as_object().cloned().expect("object");
     let receipt = step_receipt(

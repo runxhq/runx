@@ -17,10 +17,10 @@ identity and `pageInfo`. A null team/issue is unavailable evidence, not an empty
 verified resource. A first page is not a complete conversation. Pagination does
 not include archived issues by default; no broader inventory is claimed.
 
-These operations do not mirror tickets into Fieldwork or add a second queue.
-The caller keeps provider resource references alongside Work. Creation, updates,
-comments, links, states/project discovery and activity history remain later
-connector operations under native effects and readback.
+These operations do not mirror tickets into another tracker or add a second
+queue. The caller keeps provider resource references with its own records.
+Creation, updates, comments, links, states/project discovery and activity
+history remain later connector operations under native effects and readback.
 
 Source contracts: [GraphQL and authentication](https://linear.app/developers/graphql),
 [pagination](https://linear.app/developers/pagination),

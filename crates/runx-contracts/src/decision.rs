@@ -1,39 +1,18 @@
-//! Decision contracts: choices, justifications, and closure dispositions.
+//! Decision contracts: choices and closure dispositions.
 use serde::{Deserialize, Serialize};
 
-use crate::schema::{IsoDateTime, NonEmptyString, RunxSchema};
-use crate::{Intent, Reference};
+use crate::schema::{NonEmptyString, RunxSchema};
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
+/// The decisions a governed call can carry out.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum DecisionChoice {
-    Open,
     Continue,
-    SpawnChild,
     Escalate,
     Defer,
     Close,
     Decline,
     Monitor,
-}
-
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
-#[serde(deny_unknown_fields)]
-pub struct DecisionInputs {
-    #[serde(default)]
-    pub signal_refs: Vec<Reference>,
-    pub target_ref: Option<Reference>,
-    #[serde(default)]
-    pub opportunity_refs: Vec<Reference>,
-    pub selection_ref: Option<Reference>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
-#[serde(deny_unknown_fields)]
-pub struct DecisionJustification {
-    pub summary: NonEmptyString,
-    #[serde(default)]
-    pub evidence_refs: Vec<Reference>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
@@ -68,25 +47,11 @@ impl ClosureDisposition {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
-pub struct Closure {
-    pub disposition: ClosureDisposition,
-    pub reason_code: NonEmptyString,
-    pub summary: NonEmptyString,
-    pub closed_at: IsoDateTime,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
-#[serde(deny_unknown_fields)]
 #[runx_schema(id = "runx.decision.v1")]
 pub struct Decision {
     pub decision_id: NonEmptyString,
     pub choice: DecisionChoice,
-    pub inputs: DecisionInputs,
-    pub proposed_intent: Intent,
-    pub selected_act_id: Option<NonEmptyString>,
-    pub selected_harness_ref: Option<Reference>,
-    pub justification: DecisionJustification,
-    pub closure: Option<Closure>,
-    #[serde(default)]
-    pub artifact_refs: Vec<Reference>,
+    /// The act the decision is carried out by. Its intent, target and
+    /// artifacts are that act's.
+    pub selected_act_id: NonEmptyString,
 }

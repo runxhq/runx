@@ -1,9 +1,8 @@
-use runx_contracts::act::Act;
 use runx_contracts::act::assignment::ActAssignment;
 use runx_contracts::act::result::ActResultEnvelope;
 use runx_contracts::agent_context::AgentContextEnvelope;
 use runx_contracts::artifact::Artifact;
-use runx_contracts::authority::{Authority, AuthoritySubsetProof, AuthorityTerm};
+use runx_contracts::authority::{AuthoritySubsetProof, AuthorityTerm};
 use runx_contracts::credential_delivery::CredentialDeliveryObservation;
 use runx_contracts::decision::Decision;
 use runx_contracts::dev::DevReport;
@@ -34,7 +33,6 @@ use runx_contracts::signal::Signal;
 use runx_contracts::source_packet::SourcePacket;
 use runx_contracts::suppression::SuppressionRecord;
 use runx_contracts::tools::ToolManifest;
-use runx_contracts::verification::Verification;
 
 use serde_json::Value;
 
@@ -72,11 +70,6 @@ pub(super) fn covered() -> Vec<Covered> {
             file_name: "artifact.schema.json",
             emitted: Artifact::json_schema(),
             corpus: artifact_corpus(),
-        },
-        Covered {
-            file_name: "verification.schema.json",
-            emitted: Verification::json_schema(),
-            corpus: verification_corpus(),
         },
         Covered {
             file_name: "signal.schema.json",
@@ -129,11 +122,6 @@ pub(super) fn covered() -> Vec<Covered> {
             corpus: authority_subset_proof_corpus(),
         },
         Covered {
-            file_name: "authority.schema.json",
-            emitted: Authority::json_schema(),
-            corpus: authority_corpus(),
-        },
-        Covered {
             file_name: "authority-term.schema.json",
             emitted: AuthorityTerm::json_schema(),
             corpus: authority_term_corpus(),
@@ -157,11 +145,6 @@ pub(super) fn covered() -> Vec<Covered> {
             file_name: "orchestrator-handoff-context.schema.json",
             emitted: OrchestratorHandoffContext::json_schema(),
             corpus: orchestrator_handoff_context_corpus(),
-        },
-        Covered {
-            file_name: "act.schema.json",
-            emitted: Act::json_schema(),
-            corpus: act_corpus(),
         },
         Covered {
             file_name: "receipt.schema.json",

@@ -133,6 +133,7 @@
     },
     "parameters": {
       "additionalProperties": {},
+      "minProperties": 1,
       "type": "object"
     },
     "placement": {

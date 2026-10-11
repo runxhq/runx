@@ -553,7 +553,7 @@ pub(crate) fn prepared_context_ref(env: &BTreeMap<String, String>) -> Option<Ref
         uri: format!("runx:artifact:operator_context:{digest}").into(),
         provider: Some("runx".to_owned().into()),
         locator: Some(digest.clone().into()),
-        label: Some("prepared operator context".to_owned().into()),
+        label: None,
         observed_at: None,
         proof_kind: None,
     })
@@ -1361,10 +1361,13 @@ runners:
         let context = prepared_context_ref(&prepared.request().env)
             .ok_or("a bound prepared run has an operator context")?;
         assert_eq!(context.reference_type, ReferenceType::Artifact);
-        assert_eq!(
-            context.label.as_ref().map(AsRef::as_ref),
-            Some("prepared operator context")
+        assert!(
+            context
+                .uri
+                .as_str()
+                .starts_with("runx:artifact:operator_context:")
         );
+        assert_eq!(context.label, None);
         assert_eq!(
             orchestrator.run_prepared_skill(&prepared)?.status,
             RunStatus::NeedsAgent
@@ -1427,11 +1430,7 @@ runners:
             PREPARED_CONTEXT_DIGEST_ENV.to_owned(),
             "sha256:abc123".to_owned(),
         );
-        let output = InvocationOutput::runtime_success(
-            JsonValue::Object(BTreeMap::new()),
-            0,
-            BTreeMap::new(),
-        );
+        let output = InvocationOutput::runtime_success(JsonValue::Object(BTreeMap::new()), 0);
         let projection =
             crate::execution::output_projection::project_step_claim(BTreeMap::new(), None);
         let seal = |call: Option<SealedCall>| {
@@ -1454,7 +1453,6 @@ runners:
                     closure: Some(StepSealClosure {
                         disposition: ClosureDisposition::Closed,
                         reason_code: "prepared_complete".to_owned(),
-                        summary: "prepared run completed".to_owned(),
                     }),
                     receipt_metadata: None,
                 },

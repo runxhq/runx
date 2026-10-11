@@ -189,11 +189,7 @@ impl Paused {
         let receipt_id = text(output, "receipt_id").ok_or("missing receipt_id")?;
         let graph = crate::support::read_test_signed_receipt(&self.receipts, receipt_id)?;
         let step = crate::support::read_test_first_step_receipt(&self.receipts, &graph)?;
-        Ok(step
-            .lineage
-            .as_ref()
-            .map(|lineage| lineage.children.len())
-            .unwrap_or_default())
+        Ok(step.lineage.children.len())
     }
 }
 
@@ -900,16 +896,15 @@ fn a_delegation_bounds_how_deep_child_runs_nest() -> TestResult {
     let other = tempdir()?;
     let parent = write_parent_skill(other.path())?;
     let sealed = start_bounded(other.path(), parent, bounded(None, Some(0)))?;
-    let closure = object(
-        object(&sealed.output)?
-            .get("closure")
-            .ok_or("missing closure")?,
-    )?;
+    let output = object(&sealed.output)?;
+    let closure = object(output.get("closure").ok_or("missing closure")?)?;
     assert_eq!(text(closure, "disposition"), Some("blocked"));
     assert_eq!(text(closure, "reason_code"), Some("authority_denied"));
+    // Why authority refused rides the run's output, outside the signed receipt.
+    let refusal = object(output.get("refusal").ok_or("missing refusal")?)?;
     assert!(
-        text(closure, "summary").is_some_and(|summary| summary.contains("nest at most 0 deep")),
-        "{closure:?}"
+        text(refusal, "message").is_some_and(|message| message.contains("nest at most 0 deep")),
+        "{refusal:?}"
     );
     Ok(())
 }

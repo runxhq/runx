@@ -176,7 +176,8 @@ pub fn optional_number(
 }
 
 pub fn number_to_non_negative_integer(value: f64, field: &str) -> Result<u64, ValidationError> {
-    if value.fract() == 0.0 && value >= 0.0 && value <= u64::MAX as f64 {
+    // `u64::MAX` rounds up to 2^64 as a float, so the bound is exclusive.
+    if value.fract() == 0.0 && value >= 0.0 && value < u64::MAX as f64 {
         Ok(value as u64)
     } else {
         Err(validation_error(format!(

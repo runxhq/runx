@@ -12,9 +12,7 @@ mod template;
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
-use runx_contracts::{
-    EXECUTION_BOUNDARY_METADATA, ExecutionBoundaryKind, ExecutionBoundaryObservation, JsonObject,
-};
+use runx_contracts::{ExecutionBoundaryKind, JsonObject};
 use runx_parser::ProcessTool;
 
 use crate::RuntimeError;
@@ -33,7 +31,8 @@ pub struct PreparedProcessInvocation {
     pub args: Vec<String>,
     pub cwd: PathBuf,
     pub env: BTreeMap<String, String>,
-    pub metadata: JsonObject,
+    /// Where the prepared process will run.
+    pub boundary: ExecutionBoundaryKind,
     pub cleanup_paths: Vec<PathBuf>,
 }
 
@@ -45,7 +44,7 @@ impl std::fmt::Debug for PreparedProcessInvocation {
             .field("args", &self.args)
             .field("cwd", &self.cwd)
             .field("env_names", &self.env.keys().collect::<Vec<_>>())
-            .field("metadata", &self.metadata)
+            .field("boundary", &self.boundary)
             .field("cleanup_paths", &self.cleanup_paths)
             .finish()
     }
@@ -56,7 +55,7 @@ pub(crate) struct ProcessExecutionPlan {
     pub(crate) args: Vec<String>,
     pub(crate) cwd: PathBuf,
     pub(crate) env: BTreeMap<String, String>,
-    pub(crate) metadata: JsonObject,
+    pub(crate) boundary: ExecutionBoundaryKind,
     pub(crate) cleanup_paths: Vec<PathBuf>,
 }
 
@@ -76,7 +75,7 @@ impl PreparedProcessInvocation {
             args: std::mem::take(&mut self.args),
             cwd: std::mem::take(&mut self.cwd),
             env: std::mem::take(&mut self.env),
-            metadata: std::mem::take(&mut self.metadata),
+            boundary: self.boundary,
             cleanup_paths: std::mem::take(&mut self.cleanup_paths),
         }
     }
@@ -217,27 +216,16 @@ pub(crate) fn prepare_exact_process_invocation(
         args,
         cwd,
         env,
-        metadata: boundary_metadata(boundary)?,
+        boundary,
         cleanup_paths,
     })
-}
-
-pub(crate) fn boundary_metadata(kind: ExecutionBoundaryKind) -> Result<JsonObject, RuntimeError> {
-    let observation = ExecutionBoundaryObservation { kind };
-    let value = serde_json::to_value(observation)
-        .and_then(serde_json::from_value)
-        .map_err(|source| RuntimeError::json("serializing execution boundary", source))?;
-    Ok(JsonObject::from([(
-        EXECUTION_BOUNDARY_METADATA.to_owned(),
-        value,
-    )]))
 }
 
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeMap;
 
-    use runx_contracts::{EnvironmentRequirements, JsonObject, JsonValue};
+    use runx_contracts::{EnvironmentRequirements, ExecutionBoundaryKind, JsonObject, JsonValue};
 
     use super::prepare_process_invocation;
 
@@ -280,14 +268,7 @@ mod tests {
         assert!(debug.contains("REGION"));
         assert!(!debug.contains("ap-southeast-2"));
         assert!(!debug.contains("blocked"));
-        assert_eq!(
-            plan.metadata
-                .get(runx_contracts::EXECUTION_BOUNDARY_METADATA)
-                .and_then(JsonValue::as_object)
-                .and_then(|value| value.get("kind"))
-                .and_then(JsonValue::as_str),
-            Some("trusted_host_process")
-        );
+        assert_eq!(plan.boundary, ExecutionBoundaryKind::TrustedHostProcess);
         Ok(())
     }
 }

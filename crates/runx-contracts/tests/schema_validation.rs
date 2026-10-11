@@ -48,11 +48,6 @@ const CONTRACT_FIXTURE_SCHEMA_MAPPINGS: &[FixtureSchemaMapping] = &[
         "signal.schema.json",
     ),
     FixtureSchemaMapping::new(
-        "fixtures/contracts/harness-spine/verification-act.json",
-        "/expected",
-        "act.schema.json",
-    ),
-    FixtureSchemaMapping::new(
         "fixtures/contracts/host-protocol/resolution-agent-act-request.json",
         "/expected",
         "resolution-request.schema.json",
@@ -74,8 +69,7 @@ const CONTRACT_FIXTURE_SCHEMA_MAPPINGS: &[FixtureSchemaMapping] = &[
     ),
 ];
 
-const CONTRACT_FIXTURE_EXEMPT_KINDS: &[&str] =
-    &["event", "governed_act_ref", "run_result", "run_state"];
+const CONTRACT_FIXTURE_EXEMPT_KINDS: &[&str] = &["event", "run_result", "run_state"];
 
 #[test]
 fn mapped_contract_fixtures_validate_against_generated_schemas()

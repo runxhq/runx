@@ -214,6 +214,10 @@ fn volume_independent_artifacts_drive_one_worker_across_bounded_pages()
         .map(|value| format!("{{\"value\":{value},\"padding\":\"{}\"}}", "x".repeat(32)))
         .collect::<Vec<_>>();
     let archive = format!("window.YTD.items.part0 = [{}]", records.join(","));
+    assert!(
+        archive.len() > 64 * 1024,
+        "the archive spans more than one page"
+    );
 
     let output = package.invoke_paged("archive.data", &archive, 64 * 1024, JsonObject::new())?;
 
@@ -227,12 +231,6 @@ fn volume_independent_artifacts_drive_one_worker_across_bounded_pages()
         }))
     );
     assert_eq!(package.session_stats().spawned_process_count, 1);
-    let page_count = output
-        .metadata
-        .get("local_artifact_pages")
-        .and_then(JsonValue::as_object)
-        .and_then(|metadata| metadata.get("page_count"));
-    assert!(matches!(page_count, Some(JsonValue::Number(JsonNumber::U64(count))) if *count > 1));
     assert!(!output.rendered_value().contains("archive.data"));
     Ok(())
 }

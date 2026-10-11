@@ -10,15 +10,15 @@
 use std::fs;
 use std::path::Path;
 
+use runx_contracts::connector::Digest;
 use runx_contracts::schema::NonEmptyString;
 use runx_contracts::{
-    ActForm, AuthorityAttenuation, AuthorityBounds, AuthorityResourceFamily, AuthorityTerm,
-    AuthorityVerb, Closure, ClosureDisposition, CriterionBinding, CriterionStatus, Decision,
-    DecisionChoice, DecisionInputs, DecisionJustification, HashAlgorithm, Intent, JsonValue,
-    Lineage, RECEIPT_CANONICALIZATION, Receipt, ReceiptAct, ReceiptAuthority, ReceiptCommitment,
-    ReceiptCommitmentScope, ReceiptEnforcement, ReceiptIdempotency, ReceiptInputContext,
-    ReceiptIssuer, ReceiptIssuerType, ReceiptSchema, ReceiptSignature, Reference, ReferenceType,
-    Seal, SignatureAlgorithm, Subject, SuccessCriterion, authority_term_legitimacy,
+    ActForm, AuthorityBounds, AuthorityResourceFamily, AuthorityTerm, AuthorityVerb,
+    ClosureDisposition, Criterion, CriterionBinding, CriterionStatus, Decision, DecisionChoice,
+    ExecutionBoundaryKind, ExecutionBoundaryObservation, Intent, JsonValue, Lineage,
+    RECEIPT_CANONICALIZATION, Receipt, ReceiptAct, ReceiptAuthority, ReceiptCanonicalization,
+    ReceiptEnforcement, ReceiptIssuer, ReceiptIssuerType, ReceiptSchema, ReceiptSignature,
+    Reference, ReferenceType, Seal, SignatureAlgorithm, Subject, authority_term_legitimacy,
     canonical_stable_json, receipt_subject_kind,
 };
 use runx_receipts::{
@@ -110,7 +110,7 @@ fn base(id: &str, kind: NonEmptyString, subject_id: &str) -> Receipt {
         schema: ReceiptSchema::V1,
         id: id.into(),
         created_at: "2026-05-22T00:00:00Z".into(),
-        canonicalization: RECEIPT_CANONICALIZATION.into(),
+        canonicalization: ReceiptCanonicalization::C14nV1,
         issuer: ReceiptIssuer {
             issuer_type: ReceiptIssuerType::Local,
             kid: "fixture-key".into(),
@@ -121,77 +121,46 @@ fn base(id: &str, kind: NonEmptyString, subject_id: &str) -> Receipt {
             value: "sig:pending".into(),
         },
         digest: "sha256:pending".into(),
-        idempotency: ReceiptIdempotency {
-            intent_key: format!("sha256:{}", "1".repeat(64)).into(),
-            trigger_fingerprint: format!("sha256:{}", "2".repeat(64)).into(),
-            content_hash: format!("sha256:{}", "3".repeat(64)).into(),
-        },
-        class: runx_contracts::ReceiptClass::Executed,
         subject: Subject {
             kind,
             reference: Reference::runx(ReferenceType::Run, subject_id),
-            input_context: Some(ReceiptInputContext {
-                source: format!("runx:signal:{subject_id}").into(),
-                preview: format!("Run {subject_id}"),
-                value_hash: format!("sha256:{}", "6".repeat(64)).into(),
-            }),
-            commitments: vec![ReceiptCommitment {
-                scope: ReceiptCommitmentScope::Output,
-                algorithm: HashAlgorithm::Sha256,
-                value: format!("sha256:{}", "4".repeat(64)).into(),
-                canonicalization: "runx.stable-json.v1".into(),
-            }],
-            paid_invocation: None,
+            // The digest of the subject's outcome: its status, declared
+            // outputs and direct children.
+            outcome: Digest::of(subject_id.as_bytes()),
         },
         authority: ReceiptAuthority {
             actor_ref: Reference::runx(ReferenceType::Principal, "local_runtime"),
-            authority_proof_refs: Vec::new(),
             grant_refs: Vec::new(),
             scope_refs: Vec::new(),
             terms: Vec::new(),
             derivations: Vec::new(),
-            attenuation: AuthorityAttenuation {
-                parent_authority_ref: None,
-                subset_proof: None,
-            },
             mandate_ref: None,
-            enforcement: ReceiptEnforcement {
-                profile_hash: format!("sha256:{}", "5".repeat(64)).into(),
-                execution_boundary: None,
-                redaction_refs: Vec::new(),
-                setup_refs: Vec::new(),
-                teardown_refs: Vec::new(),
-            },
+            enforcement: ReceiptEnforcement::default(),
         },
-        signals: Vec::new(),
         decisions: Vec::new(),
         acts: Vec::new(),
-        evidence: Vec::new(),
         seal: Seal {
             disposition: ClosureDisposition::Closed,
             reason_code: "step_closed".into(),
-            summary: "step completed successfully".into(),
             closed_at: "2026-05-22T00:00:00Z".into(),
-            last_observed_at: "2026-05-22T00:00:00Z".into(),
             criteria: Vec::new(),
         },
-        lineage: Some(Lineage::default()),
+        lineage: Lineage::default(),
         metadata: None,
     }
 }
 
-const CREATED_AT: &str = "2026-05-22T00:00:00Z";
-
-/// The criterion every governed call's outcome is judged by.
-const OUTCOME_CRITERION: &str = "step_outcome";
-
 /// The execution term admission derived for the call.
 const TERM_ID: &str = "term_echo";
 
-/// The authority a governed call is admitted under: its grant, and the
-/// execution term its act's legitimacy names.
+/// The authority a governed call is admitted under: its grant, the
+/// execution term its act's legitimacy names, and the provider boundary the
+/// call ran across.
 fn call_authority(receipt: &mut Receipt) {
     let principal = Reference::runx(ReferenceType::Principal, "operator");
+    receipt.authority.enforcement.execution_boundary = Some(ExecutionBoundaryObservation {
+        kind: ExecutionBoundaryKind::RemoteProvider,
+    });
     receipt.authority.actor_ref = principal.clone();
     receipt.authority.grant_refs = vec![Reference::runx(ReferenceType::Grant, "grant_echo")];
     receipt.authority.terms = vec![AuthorityTerm {
@@ -215,43 +184,33 @@ fn call_authority(receipt: &mut Receipt) {
     }];
 }
 
-/// A governed call's intent: its purpose, the execution term admission
-/// derived for it, and the outcome criterion.
+/// A governed call's intent: its purpose and the execution term admission
+/// derived for it.
 fn call_intent(purpose: &str) -> Intent {
     Intent {
         purpose: purpose.into(),
         legitimacy: authority_term_legitimacy(TERM_ID).into(),
-        success_criteria: vec![SuccessCriterion {
-            criterion_id: OUTCOME_CRITERION.into(),
-            statement: "runtime step completes successfully".into(),
-            required: true,
-        }],
-        constraints: Vec::new(),
-        derived_from: Vec::new(),
     }
 }
 
-fn outcome_binding(status: CriterionStatus, outcome: &str) -> CriterionBinding {
+fn outcome_binding(status: CriterionStatus) -> CriterionBinding {
     CriterionBinding {
-        criterion_id: OUTCOME_CRITERION.into(),
+        criterion_id: Criterion::StepOutcome,
         status,
         evidence_refs: Vec::new(),
         verification_refs: Vec::new(),
-        summary: Some(outcome.into()),
     }
 }
 
-/// The act a governed call seals, closed with its outcome.
+/// The act a governed call seals, with the outcome check bound to it.
 struct CallOutcome<'a> {
     form: ActForm,
     purpose: &'a str,
-    summary: &'a str,
+    reason: Option<&'a str>,
     target_refs: Vec<Reference>,
     artifact_refs: Vec<Reference>,
     context_ref: Option<Reference>,
     status: CriterionStatus,
-    disposition: ClosureDisposition,
-    outcome: &'a str,
 }
 
 fn call_act(call: CallOutcome<'_>) -> ReceiptAct {
@@ -259,21 +218,11 @@ fn call_act(call: CallOutcome<'_>) -> ReceiptAct {
         id: "act_echo".into(),
         form: call.form,
         intent: call_intent(call.purpose),
-        summary: call.summary.into(),
-        criterion_bindings: vec![outcome_binding(call.status, call.outcome)],
-        by: None,
-        source_refs: Vec::new(),
+        reason: call.reason.map(Into::into),
+        criterion_bindings: vec![outcome_binding(call.status)],
         target_refs: call.target_refs,
         artifact_refs: call.artifact_refs,
         context_ref: call.context_ref,
-        closure: Closure {
-            disposition: call.disposition,
-            reason_code: OUTCOME_CRITERION.into(),
-            summary: call.outcome.into(),
-            closed_at: CREATED_AT.into(),
-        },
-        revision: None,
-        verification: None,
     }
 }
 
@@ -282,19 +231,7 @@ fn stated_decision(choice: DecisionChoice, act: &ReceiptAct) -> Decision {
     Decision {
         decision_id: "dec_echo".into(),
         choice,
-        inputs: DecisionInputs {
-            target_ref: act.target_refs.first().cloned(),
-            ..DecisionInputs::default()
-        },
-        proposed_intent: act.intent.clone(),
-        selected_act_id: Some(act.id.clone()),
-        selected_harness_ref: None,
-        justification: DecisionJustification {
-            summary: act.summary.clone(),
-            evidence_refs: Vec::new(),
-        },
-        closure: None,
-        artifact_refs: act.artifact_refs.clone(),
+        selected_act_id: act.id.clone(),
     }
 }
 
@@ -322,7 +259,7 @@ fn success_receipt() -> Receipt {
     let act = call_act(CallOutcome {
         form: ActForm::Reply,
         purpose: "Answer the question on the thread.",
-        summary: "The reply names the release that fixes the crash.",
+        reason: Some("The reply names the release that fixes the crash."),
         target_refs: vec![Reference::with_uri(
             ReferenceType::Thread,
             "github://acme/app/issues/7".to_owned(),
@@ -336,16 +273,11 @@ fn success_receipt() -> Receipt {
         }],
         context_ref: Some(operator_context_ref()),
         status: CriterionStatus::Verified,
-        disposition: ClosureDisposition::Closed,
-        outcome: "step completed successfully",
     });
     call_authority(&mut receipt);
     receipt.decisions = vec![stated_decision(DecisionChoice::Continue, &act)];
     receipt.acts = vec![act];
-    receipt.seal.criteria = vec![outcome_binding(
-        CriterionStatus::Verified,
-        "step completed successfully",
-    )];
+    receipt.seal.criteria = vec![outcome_binding(CriterionStatus::Verified)];
     receipt
 }
 
@@ -361,20 +293,14 @@ fn abnormal_receipt() -> Receipt {
     receipt.acts = vec![call_act(CallOutcome {
         form: ActForm::Observation,
         purpose: "Echo the message back.",
-        summary: "Echo the message back.",
+        reason: None,
         target_refs: Vec::new(),
         artifact_refs: Vec::new(),
         context_ref: None,
         status: CriterionStatus::Failed,
-        disposition: ClosureDisposition::Failed,
-        outcome: "echo exited with status 1",
     })];
     receipt.seal.disposition = ClosureDisposition::Failed;
     receipt.seal.reason_code = "step_failed".into();
-    receipt.seal.summary = "echo exited with status 1".into();
-    receipt.seal.criteria = vec![outcome_binding(
-        CriterionStatus::Failed,
-        "echo exited with status 1",
-    )];
+    receipt.seal.criteria = vec![outcome_binding(CriterionStatus::Failed)];
     receipt
 }

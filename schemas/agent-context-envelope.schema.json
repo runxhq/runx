@@ -587,17 +587,20 @@
           "properties": {
             "environment": {
               "additionalProperties": false,
+              "minProperties": 1,
               "properties": {
                 "optional": {
                   "items": {
                     "type": "string"
                   },
+                  "minItems": 1,
                   "type": "array"
                 },
                 "required": {
                   "items": {
                     "type": "string"
                   },
+                  "minItems": 1,
                   "type": "array"
                 }
               },
@@ -607,6 +610,7 @@
               "items": {
                 "type": "string"
               },
+              "minItems": 1,
               "type": "array"
             }
           },
@@ -633,6 +637,7 @@
             ],
             "type": "object"
           },
+          "minItems": 1,
           "type": "array"
         },
         "execution_boundary": {

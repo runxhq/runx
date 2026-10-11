@@ -35,42 +35,25 @@ fn wall_limit_failure_records_exact_receipt_metadata() -> Result<(), Box<dyn std
         Instant::now(),
         supervisor::WorkerInvocationOutcome {
             result: supervisor::WorkerInvocationResult::Failure {
-                code: runx_contracts::javascript_worker::WorkerFailureCode::ResourceLimit,
                 limit: Some(runx_contracts::javascript_worker::WorkerLimit::WallMilliseconds),
                 message: "wall limit reached".to_owned(),
                 disposition: runx_contracts::javascript_worker::WorkerDisposition::Discard,
             },
-            execution_boundary: crate::process_invocation::boundary_metadata(
-                runx_contracts::ExecutionBoundaryKind::DeterministicWorker,
-            )?,
+            execution_boundary: runx_contracts::ExecutionBoundaryKind::DeterministicWorker,
         },
         limits,
     )?;
 
     let hit = output
-        .metadata
-        .get(crate::adapter::EXECUTION_LIMITS_METADATA)
-        .and_then(JsonValue::as_object)
-        .and_then(|limits| limits.get("hit"))
-        .and_then(JsonValue::as_object)
+        .observations()
+        .limits()
+        .and_then(|limits| limits.hit.as_ref())
         .ok_or("structured limit hit is missing")?;
+    assert_eq!(hit.id, "javascript.wall_milliseconds");
+    assert_eq!(hit.limit.configured, 7000);
     assert_eq!(
-        hit.get("id"),
-        Some(&JsonValue::String(
-            "javascript.wall_milliseconds".to_owned()
-        ))
-    );
-    // Compare canonical JSON, not the JsonNumber variant: the serde bridge
-    // stores in-range integers as I64 and the wire encoding is identical.
-    assert_eq!(
-        hit.get("configured")
-            .map(serde_json::to_string)
-            .transpose()?,
-        Some("7000".to_owned())
-    );
-    assert_eq!(
-        hit.get("manifest_field"),
-        Some(&JsonValue::String("tool.timeout_seconds".to_owned()))
+        hit.limit.manifest_field.as_deref(),
+        Some("tool.timeout_seconds")
     );
     Ok(())
 }

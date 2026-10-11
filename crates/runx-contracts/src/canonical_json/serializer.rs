@@ -41,27 +41,59 @@ fn write_str(output: &mut Vec<u8>, value: &str) -> Result<(), CanonicalJsonError
     })
 }
 
-/// Finite whole floats encode as integers, as `JSON.stringify` does; other
-/// finite floats use serde_json's shortest round-trip form.
 fn write_f64(output: &mut Vec<u8>, value: f64) -> Result<(), CanonicalJsonError> {
+    let text =
+        ecmascript_number(value).ok_or_else(|| error("non-finite numbers are not valid JSON"))?;
+    output.extend_from_slice(text.as_bytes());
+    Ok(())
+}
+
+/// A float as ECMAScript's `Number.prototype.toString` writes it, the form
+/// `JSON.stringify` uses: the shortest round-trip digits, positional from
+/// 1e-6 up to 1e21, exponential with an explicit sign outside that. `None`
+/// for a non-finite value, which JSON cannot carry.
+#[must_use]
+pub fn ecmascript_number(value: f64) -> Option<String> {
     if !value.is_finite() {
-        return Err(error("non-finite numbers are not valid JSON"));
+        return None;
     }
-    if value.fract() == 0.0 {
-        if value >= i64::MIN as f64 && value <= i64::MAX as f64 {
-            output.extend_from_slice((value as i64).to_string().as_bytes());
-            return Ok(());
-        }
-        if value >= 0.0 && value <= u64::MAX as f64 {
-            output.extend_from_slice((value as u64).to_string().as_bytes());
-            return Ok(());
-        }
+    if value == 0.0 {
+        return Some("0".to_owned());
     }
-    serde_json::to_writer(&mut *output, &value).map_err(|source| {
-        CanonicalJsonError::Serialization {
-            message: source.to_string(),
+    // Rust's `{:e}` writes the shortest round-trip digits: `d[.ddd]e<exp>`.
+    let shortest = format!("{:e}", value.abs());
+    let (mantissa, exponent) = shortest.split_once('e')?;
+    let digits = mantissa.replace('.', "");
+    let length = digits.len();
+    // The decimal point sits after `point` digits: value = 0.digits * 10^point.
+    let point = exponent.parse::<i32>().ok()? + 1;
+    let sign = if value < 0.0 { "-" } else { "" };
+    let unsigned = match usize::try_from(point) {
+        Ok(whole) if length <= whole && whole <= 21 => {
+            format!("{digits}{}", "0".repeat(whole - length))
         }
-    })
+        Ok(whole) if whole > 0 && whole <= 21 => {
+            let (integer, fraction) = digits.split_at(whole);
+            format!("{integer}.{fraction}")
+        }
+        Err(_) | Ok(0) if point > -6 => {
+            format!("0.{}{digits}", "0".repeat(point.unsigned_abs() as usize))
+        }
+        _ => {
+            let (first, rest) = digits.split_at(1);
+            let fraction = if rest.is_empty() {
+                String::new()
+            } else {
+                format!(".{rest}")
+            };
+            let exponent_sign = if point > 0 { '+' } else { '-' };
+            format!(
+                "{first}{fraction}e{exponent_sign}{}",
+                (point - 1).unsigned_abs()
+            )
+        }
+    };
+    Some(format!("{sign}{unsigned}"))
 }
 
 struct Canonical<'a> {

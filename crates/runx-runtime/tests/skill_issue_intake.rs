@@ -31,21 +31,17 @@ fn issue_intake_generated_fixtures_replay_to_receipts() -> Result<(), Box<dyn st
         assert_object_field(&payload, "signal", case_name)?;
 
         // The signal and change set are the agent's declared outputs, which
-        // the step receipt commits by its claim; it lifts nothing out of
-        // them, and the agent step makes no governed call to seal an act.
+        // the step receipt commits in its subject's outcome; it lifts nothing
+        // out of them, and the agent step makes no governed call to seal an
+        // act.
         let [intake] = output.step_receipts.as_slice() else {
             return Err(format!("{case_name}: expected one step receipt").into());
         };
         validate_receipt(intake)
             .map_err(|verification| format!("{case_name}: {:?}", verification.findings))?;
-        assert!(intake.signals.is_empty(), "{case_name}");
         assert!(
             intake.acts.is_empty() && intake.decisions.is_empty(),
             "{case_name}"
-        );
-        assert!(
-            intake.subject.reference.locator.is_some(),
-            "{case_name}: the receipt commits the step's claim"
         );
     }
     Ok(())

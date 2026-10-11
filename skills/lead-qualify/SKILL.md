@@ -42,7 +42,8 @@ No message, CRM update, enrollment or durable suppression change occurs.
 A qualified result is context for `cold-outreach#prepare`, not send authority.
 That skill requires its own exact recipient-bound eligibility/suppression
 input. The selected sending capability performs native approval and delivery.
-Fieldwork owns task assignment, refresh, follow-up timing and continuing Work.
+The calling application owns task assignment, refresh, follow-up timing and
+continuing work.
 
 ## Agent task contract
 

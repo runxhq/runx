@@ -3,7 +3,7 @@ use std::fs;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
-use runx_contracts::{JsonObject, JsonValue, ProfileFile, ResolutionRequest, sha256_prefixed};
+use runx_contracts::{ProfileFile, sha256_prefixed};
 
 use crate::{RuntimeError, SkillInvocation};
 
@@ -138,18 +138,4 @@ pub(super) fn bundled_profile(file_name: &str, content: &str) -> ProfileFile {
         sha256: sha256_prefixed(content.as_bytes()).into(),
         content: content.to_owned(),
     }
-}
-
-pub(crate) fn agent_profile_metadata(request: &ResolutionRequest) -> JsonObject {
-    let ResolutionRequest::AgentAct { invocation, .. } = request else {
-        return JsonObject::new();
-    };
-    let mut metadata = JsonObject::new();
-    if let Some(profile) = &invocation.envelope.voice_profile {
-        metadata.insert(
-            "voice_profile".to_owned(),
-            JsonValue::String(profile.sha256.as_ref().to_owned()),
-        );
-    }
-    metadata
 }

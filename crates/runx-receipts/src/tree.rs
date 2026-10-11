@@ -12,7 +12,7 @@ mod test_support;
 
 use std::collections::BTreeSet;
 
-use runx_contracts::{Receipt, ReceiptEvidence, Reference};
+use runx_contracts::{Receipt, Reference};
 
 use crate::{
     ReceiptFinding, ReceiptProofContext, ReceiptVerification, verify_receipt, verify_receipt_proof,
@@ -26,7 +26,6 @@ use traversal::TreeTraversal;
 pub struct ReceiptTreeConfig {
     pub max_depth: usize,
     pub max_breadth: usize,
-    pub require_parent_links: bool,
 }
 
 impl Default for ReceiptTreeConfig {
@@ -34,23 +33,14 @@ impl Default for ReceiptTreeConfig {
         Self {
             max_depth: 64,
             max_breadth: 1024,
-            require_parent_links: false,
         }
     }
 }
 
 /// Every signed receipt-to-receipt edge that a storage adapter must resolve
-/// before invoking the shared tree verifier.
+/// before invoking the shared tree verifier: the receipt's children.
 pub fn receipt_edge_references(receipt: &Receipt) -> impl Iterator<Item = &Reference> {
-    let lineage = receipt
-        .lineage
-        .as_ref()
-        .into_iter()
-        .flat_map(|lineage| lineage.children.iter());
-    let evidence = receipt.evidence.iter().map(|evidence| match evidence {
-        ReceiptEvidence::InnerReceipt { receipt_ref, .. } => receipt_ref,
-    });
-    lineage.chain(evidence)
+    receipt.lineage.children.iter()
 }
 
 pub trait ReceiptResolver {

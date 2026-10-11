@@ -179,7 +179,7 @@ pub enum HarnessReplayError {
     #[error("invalid harness setup receipt {path}: {source}")]
     SetupReceiptInvalid {
         path: PathBuf,
-        source: serde_json::Error,
+        source: runx_receipts::ReceiptDecodeError,
     },
     #[error(transparent)]
     ReceiptStore(#[from] crate::receipts::store::ReceiptStoreError),
@@ -187,14 +187,13 @@ pub enum HarnessReplayError {
 
 #[derive(Debug, Error)]
 #[error(
-    "{message}; receipt={receipt_id}; disposition={disposition}; reason={reason_code}; summary={summary}; skill_value={skill_value}; skill_failure={skill_failure}"
+    "{message}; receipt={receipt_id}; disposition={disposition}; reason={reason_code}; skill_value={skill_value}; skill_failure={skill_failure}"
 )]
 pub struct HarnessExpectationFailure {
     pub message: String,
     pub receipt_id: String,
     pub disposition: String,
     pub reason_code: String,
-    pub summary: String,
     pub skill_value: String,
     pub skill_failure: String,
 }
@@ -306,14 +305,12 @@ fn seed_harness_receipts(
             path: path.clone(),
             source,
         })?;
-        receipts.push(
-            serde_json::from_slice::<Receipt>(&contents).map_err(|source| {
-                HarnessReplayError::SetupReceiptInvalid {
-                    path: path.clone(),
-                    source,
-                }
-            })?,
-        );
+        receipts.push(runx_receipts::decode_receipt(&contents).map_err(|source| {
+            HarnessReplayError::SetupReceiptInvalid {
+                path: path.clone(),
+                source,
+            }
+        })?);
     }
 
     let mut env = options.env.clone();
@@ -452,7 +449,6 @@ fn expectation_error_with_output(
         receipt_id: output.receipt.id.to_string(),
         disposition: format!("{:?}", output.receipt.seal.disposition),
         reason_code: output.receipt.seal.reason_code.to_string(),
-        summary: truncate_diagnostic(&output.receipt.seal.summary),
         skill_value: output
             .skill_output
             .as_ref()
@@ -515,7 +511,6 @@ fn seal_admission_failure(
         JsonValue::Object(error.public_failure_projection()),
         error.to_string(),
         0,
-        JsonObject::new(),
     );
     let projection = project_step_claim(JsonObject::new(), None);
     let run_id = harness_run_id(&fixture.name);
@@ -531,7 +526,6 @@ fn seal_admission_failure(
             created_at: &options.created_at,
             disposition: ClosureDisposition::Failed,
             reason_code: "input_contract_invalid".to_owned(),
-            summary: "runner input contract rejected the harness case".to_owned(),
         },
         &projection.outputs,
         options.signature_policy(),
@@ -589,11 +583,7 @@ where
             .or_else(|| output.steps.last())
             .map(|run| {
                 if run.outcome.succeeded() {
-                    InvocationOutput::runtime_success(
-                        JsonValue::Object(run.contract.clone()),
-                        0,
-                        run.outcome.metadata.clone(),
-                    )
+                    InvocationOutput::runtime_success(JsonValue::Object(run.contract.clone()), 0)
                 } else {
                     InvocationOutput::runtime_failure(
                         JsonValue::Object(run.contract.clone()),
@@ -601,7 +591,6 @@ where
                             .failure_message()
                             .unwrap_or_else(|| "graph harness step failed".to_owned()),
                         0,
-                        run.outcome.metadata.clone(),
                     )
                 }
             });
@@ -830,13 +819,12 @@ fn replay_output_from_graph(
     let result = crate::execution::runner::graph_terminal_result(&graph_run).ok();
     let skill_output = result.map(|result| {
         if graph_run.state.status == runx_core::state_machine::GraphStatus::Succeeded {
-            InvocationOutput::runtime_success(result, 0, JsonObject::new())
+            InvocationOutput::runtime_success(result, 0)
         } else {
             InvocationOutput::runtime_failure(
                 result,
                 crate::execution::runner::graph_failure(&graph_run),
                 0,
-                JsonObject::new(),
             )
         }
     });

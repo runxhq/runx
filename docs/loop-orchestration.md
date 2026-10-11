@@ -124,7 +124,7 @@ projection operation.
 - No hidden prompt-to-prompt continuation outside receipts.
 - No implicit remote skill fetching during loop execution.
 - No unbounded revise/improve loop.
-- No Frantic, Sourcey, or product-specific backend lever in the kernel.
+- No product-specific backend lever in the kernel.
 
 ## Example
 

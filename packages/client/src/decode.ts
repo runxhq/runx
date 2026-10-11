@@ -51,7 +51,7 @@ export async function decodeSkill(result: ProcessResult, config: { projectDir: s
       output = validateSkillOutputContract({ ...full, status: compact.status, outcome: compact.outcome });
     } else if (compact.diagnostics_ref) {
       const diagnostics = await artifact(compact.diagnostics_ref);
-      if (!record(diagnostics) || Object.keys(diagnostics).some((key) => !["context", "trace", "execution", "receipt", "credential_delivery_observations"].includes(key))) throw new Error("Invalid native diagnostics artifact.");
+      if (!record(diagnostics) || Object.keys(diagnostics).some((key) => !["context", "trace", "execution", "receipt"].includes(key))) throw new Error("Invalid native diagnostics artifact.");
       output = { ...compact, ...diagnostics };
     }
     let requests: readonly unknown[] = output.requests ?? [];

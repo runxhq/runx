@@ -153,10 +153,9 @@ pub(crate) fn invoke(request: NativeToolInvocation<'_>) -> Option<NativeToolInvo
             execution_boundary: runx_contracts::ExecutionBoundaryKind::NativeCapability,
         });
     }
-    let execution_boundary = request
-        .effects
-        .capability_execution_boundary(request.tool_ref)
-        .unwrap_or(runx_contracts::ExecutionBoundaryKind::NativeCapability);
+    // An effect capability runs in the runtime's process, behind its native
+    // capability boundary; the effect does not say where it ran.
+    let execution_boundary = runx_contracts::ExecutionBoundaryKind::NativeCapability;
     request
         .effects
         .invoke_tool(EffectToolRequest {
@@ -205,7 +204,11 @@ pub(crate) fn execution_boundary(
 ) -> Option<runx_contracts::ExecutionBoundaryKind> {
     definition(tool_ref)
         .map(NativeCapability::execution_boundary)
-        .or_else(|| effects.capability_execution_boundary(tool_ref))
+        .or_else(|| {
+            effects
+                .capability(tool_ref)
+                .map(|_| runx_contracts::ExecutionBoundaryKind::NativeCapability)
+        })
 }
 
 #[cfg(test)]
