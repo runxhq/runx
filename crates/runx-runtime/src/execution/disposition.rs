@@ -47,7 +47,9 @@ pub(crate) fn agent_answer_disposition_or_closed(
 
 /// How an agent says its act closed. A kill or a timeout is observed by the
 /// runtime that ran the act, never claimed by the agent's answer.
-fn agent_disposition(disposition: &str) -> Result<ClosureDisposition, ClosureDispositionParseError> {
+fn agent_disposition(
+    disposition: &str,
+) -> Result<ClosureDisposition, ClosureDispositionParseError> {
     match disposition {
         "closed" => Ok(ClosureDisposition::Closed),
         "deferred" => Ok(ClosureDisposition::Deferred),

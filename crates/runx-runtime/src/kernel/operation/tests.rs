@@ -867,9 +867,7 @@ fn an_unknown_write_is_held_when_its_instance_was_rebound() {
         "grant_other_account".to_owned(),
     );
     fixture.provider.answer(Answer::Succeed);
-    let error = fixture
-        .run("transcribe", &start, None)
-        .expect_err("held");
+    let error = fixture.run("transcribe", &start, None).expect_err("held");
     assert!(error.contains("reconcile it before resuming"), "{error}");
     assert_eq!(fixture.provider.calls(), 1, "nothing was sent again");
 }

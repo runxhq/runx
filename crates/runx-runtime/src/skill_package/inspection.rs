@@ -651,8 +651,11 @@ runners:
             Some(2),
             "the child the turn may call is bound by its package digest"
         );
-        fs::write(child.join("SKILL.md"), format!("{CHILD_MANUAL}\nChanged.\n"))
-            .expect("changed child manual");
+        fs::write(
+            child.join("SKILL.md"),
+            format!("{CHILD_MANUAL}\nChanged.\n"),
+        )
+        .expect("changed child manual");
         assert_ne!(
             closure(&root)?.get("closure_digest"),
             first.get("closure_digest"),

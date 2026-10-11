@@ -836,7 +836,10 @@ runners:
             None,
             SkillOperatorContextOptions::new(BTreeMap::new(), temp.path().to_path_buf()),
         )?;
-        let child = chain.entry.steps[0].children.first().ok_or("missing child")?;
+        let child = chain.entry.steps[0]
+            .children
+            .first()
+            .ok_or("missing child")?;
         assert_eq!(child.node_path, "entry.review");
         assert_eq!(child.runner.name, "review");
         assert!(child.skill_markdown.content.contains("# Child contract"));
@@ -904,7 +907,10 @@ runners:
             None,
             SkillOperatorContextOptions::new(BTreeMap::new(), temp.path().to_path_buf()),
         )?;
-        let child = chain.entry.steps[0].children.first().ok_or("missing child")?;
+        let child = chain.entry.steps[0]
+            .children
+            .first()
+            .ok_or("missing child")?;
         let context = &child.steps[0].context_skills[0];
         assert_eq!(context.reference, "./context/rubric");
         assert_eq!(
@@ -1116,7 +1122,13 @@ runners:
             SkillOperatorContextOptions::new(BTreeMap::new(), temp.path().to_path_buf()),
         )?;
         assert_eq!(chain.node_count, 3);
-        assert!(chain.entry.steps.iter().all(|step| step.children.len() == 1));
+        assert!(
+            chain
+                .entry
+                .steps
+                .iter()
+                .all(|step| step.children.len() == 1)
+        );
 
         let mut options =
             SkillOperatorContextOptions::new(BTreeMap::new(), temp.path().to_path_buf());

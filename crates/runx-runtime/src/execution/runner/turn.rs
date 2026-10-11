@@ -805,14 +805,10 @@ where
             tools.push(self.catalog_tool(tool)?);
         }
         if !allowance.operations.is_empty() {
-            let connectors =
-                crate::kernel::connectors::ConnectorScope::at(self.scope.graph_dir)
-                    .map_err(|error| {
-                        RuntimeError::effect_state(
-                            "reading the skill's connectors",
-                            error.to_string(),
-                        )
-                    })?;
+            let connectors = crate::kernel::connectors::ConnectorScope::at(self.scope.graph_dir)
+                .map_err(|error| {
+                    RuntimeError::effect_state("reading the skill's connectors", error.to_string())
+                })?;
             for allowed in &allowance.operations {
                 tools.push(self.operation_tool(&connectors, allowed)?);
             }

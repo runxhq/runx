@@ -662,8 +662,14 @@ fn a_step_settles_its_effect_in_the_same_transaction() {
         stale.record_step(&run, &[]),
         Err(RunRecordError::Contended { .. })
     ));
-    assert!(custody.pending().unwrap().is_some(), "a refused step settles nothing");
+    assert!(
+        custody.pending().unwrap().is_some(),
+        "a refused step settles nothing"
+    );
 
     first.record_step(&run, &[]).unwrap();
-    assert!(custody.pending().unwrap().is_none(), "the recorded step settled its act");
+    assert!(
+        custody.pending().unwrap().is_none(),
+        "the recorded step settled its act"
+    );
 }

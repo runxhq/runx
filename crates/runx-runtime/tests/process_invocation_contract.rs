@@ -61,7 +61,10 @@ fn a_process_argument_is_filled_once_from_declared_values() -> Result<(), Box<dy
     fs::create_dir_all(&skill)?;
     let env = environment(
         workspace.path(),
-        [("REGION", "ap-southeast-2"), ("UNDECLARED_SECRET", "blocked")],
+        [
+            ("REGION", "ap-southeast-2"),
+            ("UNDECLARED_SECRET", "blocked"),
+        ],
     );
     let declared = EnvironmentRequirements {
         required: vec!["REGION".to_owned()],

@@ -474,8 +474,8 @@ impl RuntimeEffect for OperationEffect {
         ))
         .map_err(state)?;
         let lanes = LaneInputs::read(request.env, request.run_id);
-        let scope = ConnectorScope::at(request.graph_dir)
-            .map_err(|error| invalid(error.to_string()))?;
+        let scope =
+            ConnectorScope::at(request.graph_dir).map_err(|error| invalid(error.to_string()))?;
         let instances = Instances::new(Arc::clone(&store));
         let admitted = admission::admit(&Evaluation {
             step: target,
@@ -685,14 +685,16 @@ impl RuntimeEffect for OperationEffect {
         ))
         .write_receipt(request.receipt, request.signature_policy)
         .map_err(|error| state(error.to_string()))?;
-        Ok(Some(custody.settlement(
-            request.receipt.id.as_str().to_owned(),
-            context
-                .attempt
-                .as_ref()
-                .and_then(|plan| plan.standing.as_ref()),
-            &context.admitted.usage_covers,
-        )))
+        Ok(Some(
+            custody.settlement(
+                request.receipt.id.as_str().to_owned(),
+                context
+                    .attempt
+                    .as_ref()
+                    .and_then(|plan| plan.standing.as_ref()),
+                &context.admitted.usage_covers,
+            ),
+        ))
     }
 
     fn authority(
