@@ -1,7 +1,8 @@
 import path from "node:path";
-import { validateReceiptContract, validateResolutionRequestContract, validateSkillOutputContract, type SkillOutputContract } from "@runxhq/contracts";
-import { readBoundedJson, readProjectArtifact } from "./artifacts.js";
+import { validateResolutionRequestContract, validateSkillOutputContract, type SkillOutputContract } from "@runxhq/contracts";
+import { readProjectArtifact } from "./artifacts.js";
 import { RunxClientError, type ProcessResult } from "./process.js";
+import { readReceiptTree } from "./receipt-tree.js";
 import type { SkillRunOutput } from "./types.js";
 
 export function record(value: unknown): value is Record<string, unknown> {
@@ -51,7 +52,7 @@ export async function decodeSkill(result: ProcessResult, config: { projectDir: s
       output = validateSkillOutputContract({ ...full, status: compact.status, outcome: compact.outcome });
     } else if (compact.diagnostics_ref) {
       const diagnostics = await artifact(compact.diagnostics_ref);
-      if (!record(diagnostics) || Object.keys(diagnostics).some((key) => !["context", "trace", "execution", "receipt"].includes(key))) throw new Error("Invalid native diagnostics artifact.");
+      if (!record(diagnostics) || Object.keys(diagnostics).some((key) => !["context", "trace", "execution"].includes(key))) throw new Error("Invalid native diagnostics artifact.");
       output = { ...compact, ...diagnostics };
     }
     let requests: readonly unknown[] = output.requests ?? [];
@@ -79,15 +80,11 @@ export async function decodeSkill(result: ProcessResult, config: { projectDir: s
       && Object.keys(value).every((key) => key === "schema" || key === "artifact_ref")) {
       value = await artifact(value.artifact_ref);
     }
-    let receipt = output.receipt === undefined ? undefined : validateReceiptContract(output.receipt);
-    if (output.receipt_id !== undefined) {
-      if (!/^sha256:[0-9a-f]{64}$/u.test(output.receipt_id)) throw new Error("Receipt id is not a content address.");
-      const file = path.join(config.receiptDir, `${output.receipt_id.replace(":", "-")}.json`);
-      const stored = await readBoundedJson(file, config.receiptDir, Math.min(budget, 8 * 1024 * 1024));
-      receipt = validateReceiptContract(stored.value);
-      if (receipt.id !== output.receipt_id) throw new Error("Receipt id differs from native output.");
-    }
-    return { ...output, ...(value === undefined ? {} : { result: value }), requests: hydrated, ...(receipt ? { receipt } : {}) };
+    // The run's signed record is the receipt tree in its receipt directory.
+    const receiptTree = output.receipt_id === undefined
+      ? undefined
+      : await readReceiptTree(output.receipt_id, config.receiptDir, budget);
+    return { ...output, ...(value === undefined ? {} : { result: value }), requests: hydrated, ...(receiptTree ? { receiptTree } : {}) };
   } catch (error) {
     if (error instanceof RunxClientError) throw error;
     throw new RunxClientError("contract", `Invalid native skill output: ${error instanceof Error ? error.message : String(error)}`, { cause: error });

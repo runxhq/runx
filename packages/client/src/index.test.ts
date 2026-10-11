@@ -29,7 +29,6 @@ async function artifact(projectDir: string, value: unknown, label = "request") {
   return { schema: "runx.project_artifact_ref.v1", ref: `runx:project-artifact:${digest}`, digest, bytes: bytes.byteLength, media_type: "application/json", path: file };
 }
 const receiptFixture = JSON.parse(await readFile(new URL("../../../fixtures/receipt-verify/valid-production/receipt.json", import.meta.url), "utf8"));
-delete receiptFixture.lineage.sync;
 async function storeReceipt(receiptDir: string) {
   await writeFile(path.join(receiptDir, receiptFixture.id.replace(":", "-") + ".json"), JSON.stringify(receiptFixture));
 }
@@ -47,14 +46,13 @@ describe("native invocation and decoding", () => {
     const { root, config, receiptDir } = await setup();
     const capture = path.join(root, "resume.json");
     await writeFile(config.command, `#!${process.execPath}\nimport { readFileSync, writeFileSync } from 'node:fs';
-      writeFileSync(${JSON.stringify(capture)}, JSON.stringify({ args: process.argv.slice(2), packet: JSON.parse(readFileSync(process.argv[4], 'utf8')) }));
+      writeFileSync(${JSON.stringify(capture)}, JSON.stringify({ args: process.argv.slice(2), packet: JSON.parse(readFileSync(0, 'utf8')) }));
       process.stdout.write(JSON.stringify({ status: 'failure', error: { code: 'stale_resolution' } })); process.exitCode = 1;`);
     const packet = { answers: { task: { actor: "agent", value: "answer" } }, approvals: { gate: { actor: "human", approved: true } } };
     await expect(createRunxClient(config).runs.resume({ runId: "run_test", receiptDir, resolutions: packet })).resolves.toMatchObject({ status: "failure", error: { code: "stale_resolution" } });
     const captured = JSON.parse(await readFile(capture, "utf8"));
     expect(captured.packet).toEqual(packet);
-    expect(captured.args.slice(0, 2)).toEqual(["resume", "run_test"]);
-    await expect(readFile(captured.args[2])).rejects.toMatchObject({ code: "ENOENT" });
+    expect(captured.args.slice(0, 3)).toEqual(["resume", "run_test", "-"]);
   });
   it("names the turn server an MCP client starts, with the trusted environment", async () => {
     const { root, config, receiptDir } = await setup();
@@ -76,25 +74,45 @@ describe("native invocation and decoding", () => {
     await expect(client.receipts.verify({ receipt: '{"receipt":"exact"}' })).resolves.toMatchObject({ valid: false });
     expect(await readFile(capture, "utf8")).toBe('{"receipt":"exact"}');
   });
-  it("keeps input keys out of argv and removes private payloads", async () => {
+  it("sends inputs on stdin, never in argv or a file", async () => {
     const { root, config, receiptDir } = await setup();
     const capture = path.join(root, "capture.json");
     await writeFile(config.command, `#!${process.execPath}\nimport { readFileSync, writeFileSync } from 'node:fs';
-      const file = process.argv[process.argv.indexOf('--inputs') + 1];
-      writeFileSync(${JSON.stringify(capture)}, JSON.stringify({ args: process.argv.slice(2), file, inputs: JSON.parse(readFileSync(file, 'utf8')), home: process.env.HOME }));
+      writeFileSync(${JSON.stringify(capture)}, JSON.stringify({ args: process.argv.slice(2), inputs: JSON.parse(readFileSync(0, 'utf8')), home: process.env.HOME }));
       process.stdout.write(JSON.stringify(${JSON.stringify(output("sealed", "completed", { closure: { disposition: "closed" } }))}));`);
     await createRunxClient(config).skills.run({ skillPath: "/skill", receiptDir, inputs: { "receipt-dir": "untrusted", nested: { value: 1 } } });
     const captured = JSON.parse(await readFile(capture, "utf8"));
     expect(captured.args.filter((arg: string) => arg === "--receipt-dir")).toHaveLength(1);
+    expect(captured.args[captured.args.indexOf("--inputs") + 1]).toBe("-");
     expect(captured.inputs).toEqual({ "receipt-dir": "untrusted", nested: { value: 1 } });
     expect(captured.home).toBe(config.home);
-    await expect(readFile(captured.file)).rejects.toMatchObject({ code: "ENOENT" });
   });
   it("accepts sealed failure on exit 1 and rejects inconsistent exits", async () => {
     const { config, receiptDir } = await setup();
     const result = { exitCode: 1, stdout: JSON.stringify(output("sealed", "failed", { closure: { disposition: "failed" } })), stderr: "" };
     await expect(decodeSkill(result, { projectDir: config.projectDir, receiptDir, maxArtifactBytes: 10000 })).resolves.toMatchObject({ status: "sealed", outcome: "failed" });
     await expect(decodeSkill({ ...result, exitCode: 0 }, { projectDir: config.projectDir, receiptDir, maxArtifactBytes: 10000 })).rejects.toThrow("exit code disagrees");
+  });
+  it("reads the sealed run's receipt tree, each child the one its parent signed", async () => {
+    const { config, receiptDir } = await setup();
+    const address = (fill: string) => `sha256:${fill.repeat(64)}`;
+    const child = { ...receiptFixture, id: address("c"), digest: address("d") };
+    const tree = (children: readonly unknown[]) => ({ ...receiptFixture, id: address("a"), digest: address("b"), lineage: { children } });
+    const link = { type: "receipt", uri: `runx:receipt:${child.id}`, locator: child.digest };
+    const store = async (receipt: { id: string }) => writeFile(path.join(receiptDir, `${receipt.id.replace(":", "-")}.json`), JSON.stringify(receipt));
+    const settings = { projectDir: config.projectDir, receiptDir, maxArtifactBytes: 100000 };
+    const sealed = { exitCode: 0, stdout: JSON.stringify(output("sealed", "completed", { closure: { disposition: "closed" }, result: {}, receipt_id: address("a") })), stderr: "" };
+
+    await store(tree([link]));
+    await expect(decodeSkill(sealed, settings)).rejects.toThrow(/ENOENT|no such file/u);
+    await store(child);
+    await expect(decodeSkill(sealed, settings)).resolves.toMatchObject({
+      receiptTree: { root: { id: address("a") }, descendants: [{ id: child.id }] },
+    });
+    await store(tree([{ ...link, locator: address("e") }]));
+    await expect(decodeSkill(sealed, settings)).rejects.toThrow("differs from the one");
+    await store(tree([link, link]));
+    await expect(decodeSkill(sealed, settings)).rejects.toThrow("appears twice");
   });
   it("hydrates spilled requests and rejects digest drift", async () => {
     const { config, receiptDir } = await setup();

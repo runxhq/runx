@@ -1,5 +1,3 @@
-import { randomBytes } from "node:crypto";
-import { writeFile, rm } from "node:fs/promises";
 import path from "node:path";
 import { decodeSkill, parseJson, record } from "./decode.js";
 import { invoke, RunxClientError } from "./process.js";
@@ -30,12 +28,12 @@ export function createRunxClient(configuration: RunxClientConfig): RunxClient {
     command: config.command, args, cwd: config.cwd, env: { ...skillEnvironment(options.environment), ...trustedEnv },
     timeoutMs, terminationGraceMs, maxOutputBytes, maxInputBytes, input, signal: options.signal,
   });
-  const payload = async <T>(value: unknown, action: (file: string) => Promise<T>): Promise<T> => {
+  // A run's inputs and a resume's resolutions travel on stdin: never in
+  // argv, and never in a file another process could read.
+  const payload = (value: unknown): string => {
     const text = JSON.stringify(value);
-    if (text === undefined || Buffer.byteLength(text) > maxInputBytes) throw new RunxClientError("input_limit", `Runx input exceeds ${maxInputBytes} bytes or is not JSON.`);
-    const file = path.join(config.cwd, `.runx-client-${randomBytes(16).toString("hex")}.json`);
-    await writeFile(file, text, { mode: 0o600, flag: "wx" });
-    try { return await action(file); } finally { await rm(file, { force: true }); }
+    if (text === undefined) throw new RunxClientError("input_limit", "Runx input is not JSON.");
+    return text;
   };
   return {
     skills: {
@@ -44,19 +42,19 @@ export function createRunxClient(configuration: RunxClientConfig): RunxClient {
         if (output.schema !== "runx.skill.inspect.v1" || output.status !== "ok" || typeof output.name !== "string" || !output.name.trim() || typeof output.package_digest !== "string" || !output.package_digest.trim() || (output.runner !== undefined && !record(output.runner))) throw new RunxClientError("contract", "Invalid native skill inspection.");
         return output as SkillInspection;
       },
-      run: async (options) => await payload(options.inputs ?? {}, async (file) => {
+      run: async (options) => {
         const receiptDir = absolute(options.receiptDir);
         if (options.binding && options.runner && options.runner !== options.binding.runner) throw new TypeError("Selected runner differs from the execution binding.");
-        const result = await execute(["skill", argument(options.skillPath), ...runnerArgs(options.binding?.runner ?? options.runner), ...bindingArgs(options.binding), "--inputs", file, "--receipt-dir", receiptDir, "--json"], options);
+        const result = await execute(["skill", argument(options.skillPath), ...runnerArgs(options.binding?.runner ?? options.runner), ...bindingArgs(options.binding), "--inputs", "-", "--receipt-dir", receiptDir, "--json"], options, payload(options.inputs ?? {}));
         return await decodeSkill(result, { projectDir: config.projectDir, receiptDir, maxArtifactBytes });
-      }),
+      },
     },
     runs: {
-      resume: async (options) => await payload(options.resolutions, async (file) => {
+      resume: async (options) => {
         const receiptDir = absolute(options.receiptDir);
-        const result = await execute(["resume", argument(options.runId), file, ...bindingArgs(options.binding), "--receipt-dir", receiptDir, "--json"], options);
+        const result = await execute(["resume", argument(options.runId), "-", ...bindingArgs(options.binding), "--receipt-dir", receiptDir, "--json"], options, payload(options.resolutions));
         return await decodeSkill(result, { projectDir: config.projectDir, receiptDir, maxArtifactBytes });
-      }),
+      },
     },
     turns: {
       server: (options) => ({

@@ -128,7 +128,7 @@ fn project_json_output_value(
         .unwrap_or("unbound-run")
         .to_owned();
     let mut diagnostic_payload = JsonObject::new();
-    for key in ["context", "trace", "execution", "receipt"] {
+    for key in ["context", "trace", "execution"] {
         if let Some(value) = object.remove(key) {
             diagnostic_payload.insert(key.to_owned(), value);
         }

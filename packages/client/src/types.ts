@@ -71,9 +71,18 @@ export interface TurnServer {
   readonly cwd: string;
 }
 
+/**
+ * A run's signed receipt tree: the root, then every receipt its lineage
+ * commits, each the one its parent names by id and signed digest.
+ */
+export interface ReceiptTree {
+  readonly root: ReceiptContract;
+  readonly descendants: readonly ReceiptContract[];
+}
+
 export interface SkillRunOutput extends SkillOutputContract {
   readonly requests?: readonly ResolutionRequestContract[];
-  readonly receipt?: ReceiptContract;
+  readonly receiptTree?: ReceiptTree;
 }
 
 export interface NativePackageOutput extends Readonly<Record<string, unknown>> {
