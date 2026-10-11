@@ -28,13 +28,13 @@ deny = [
   { name = "axum", reason = "No HTTP server framework exception is approved for the Rust parity workspace." },
   { name = "clap", wrappers = ["criterion"], reason = "CLI parsing remains hand-rolled for the cargo-installed launcher boundary; criterion may use clap in dev-only benchmark tooling." },
   { name = "hyper", wrappers = ["reqwest", "hyper-rustls", "hyper-util", "runx-runtime"], reason = "Allowed as reqwest transport internals, and (runx-runtime, mcp-http-server feature) as the reviewed inbound server runtime driving rmcp's StreamableHttpService for the governed MCP-over-HTTP surface." },
-  { name = "reqwest", wrappers = ["runx-runtime"], reason = "Approved only inside runx-runtime async-http; pure crates must not depend on the HTTP client." },
+  { name = "reqwest", wrappers = ["runx-runtime", "rmcp"], reason = "Approved only inside runx-runtime async-http, and as rmcp's streamable HTTP client transport for the governed MCP connector driver; pure crates must not depend on the HTTP client." },
   # rmcp is intentionally not banned: it is the canonical protocol engine for
   # runx-runtime's MCP server and connector driver. scripts/check-rust-crate-graph.mjs
   # keeps rmcp out of pure crates and the CLI.
   { name = "serde_yaml", reason = "Unapproved YAML backend; the parser backend is serde_norway." },
   { name = "serde_yml", reason = "Retired YAML backend candidate; the parser backend is serde_norway." },
-  { name = "tokio", wrappers = ["runx-runtime", "process-wrap", "reqwest", "rmcp", "async-compression", "h2", "hyper", "hyper-rustls", "hyper-util", "tokio-rustls", "tokio-stream", "tokio-util", "tower", "tower-http"], reason = "Approved only inside runx-runtime async-http/MCP and Windows owned-process boundaries and their reviewed transport/process wrappers; pure crates must not depend on tokio." },
+  { name = "tokio", wrappers = ["runx-runtime", "process-wrap", "reqwest", "rmcp", "async-compression", "h2", "hyper", "hyper-rustls", "hyper-util", "tokio-rustls", "tokio-stream", "tokio-util", "tower", "tower-http", "postgres", "tokio-postgres", "tokio-postgres-rustls"], reason = "Approved only inside runx-runtime async-http/MCP, the store connector's PostgreSQL backend (postgres over tokio-postgres) and Windows owned-process boundaries, and their reviewed transport/process wrappers; pure crates must not depend on tokio." },
   { name = "ureq", reason = "No HTTP client exception is approved; adapter-side HTTP needs a scoped spec first." },
 ]
 
@@ -53,6 +53,9 @@ exceptions = [
   { name = "rustls-webpki", version = "=0.103.15", allow = ["ISC"] },
   { name = "untrusted", version = "=0.9.0", allow = ["ISC"] },
   { name = "webpki-root-certs", version = "=1.0.9", allow = ["CDLA-Permissive-2.0"] },
+  # The store connector's Redis backend: redis hashes cluster slots with
+  # xxhash-rust, under the OSI-approved, permissive Boost license.
+  { name = "xxhash-rust", version = "=0.8.19", allow = ["BSL-1.0"] },
 ]
 
 [sources]
