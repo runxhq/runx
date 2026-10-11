@@ -38,7 +38,7 @@ pub(crate) fn isolate_harness_environment(
 pub(crate) fn credential_variables(
     skill_dir: &std::path::Path,
 ) -> Result<BTreeSet<String>, crate::RuntimeError> {
-    crate::ConnectorScope::for_skill(skill_dir)
+    crate::ConnectorScope::at(skill_dir)
         .and_then(|scope| scope.credential_variables())
         .map_err(|error| {
             crate::RuntimeError::effect_state("reading connector credentials", error.to_string())

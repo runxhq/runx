@@ -2,11 +2,13 @@
 //!
 //! Official connectors are embedded in the binary and validated once per
 //! process. A skill also sees the connectors of the plugin that holds it,
-//! `<plugin root>/connectors/<id>/connector.yaml`, where the plugin root is the
-//! directory whose `skills/` contains the skill. Within one resolution an id
-//! names exactly one manifest: a plugin connector with an official id is
-//! refused unless it is the same manifest, and a composed skill never sees
-//! its composer's plugin connectors.
+//! `<plugin root>/connectors/<id>/connector.yaml`. A bundled package, one under
+//! a registry package bundle descriptor, is its own plugin root; in a source
+//! tree the plugin root is the nearest directory at or above the skill holding
+//! `connectors/`. Within one resolution an id names exactly one manifest, in
+//! the directory named by its id: a plugin connector with an official id is
+//! refused unless it is the same manifest, and a bundled skill never sees its
+//! composer's plugin connectors.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
@@ -237,31 +239,12 @@ struct PluginConnectors {
 }
 
 impl ConnectorScope {
-    /// The scope of the skill in `skill_dir`.
-    pub fn for_skill(skill_dir: &Path) -> Result<Self, ConnectorRegistryError> {
-        official()?;
-        let skill_dir = inspected(skill_dir)?;
-        let plugin = match plugin_root(&skill_dir) {
-            Some(root) => Some(plugin_connectors(&root)?),
-            None => None,
-        };
-        Ok(Self {
-            plugin,
-            searched: Some(skill_dir),
-        })
-    }
-
-    /// The scope of an operator working in `dir`: official, plus the
-    /// connectors of the plugin `dir` is in, the nearest directory at or
-    /// above it holding a `connectors` directory.
-    pub fn for_workspace(dir: &Path) -> Result<Self, ConnectorRegistryError> {
+    /// The connectors usable from `dir`, a skill's directory or an operator's
+    /// workspace: official, plus those of the plugin `dir` is in.
+    pub fn at(dir: &Path) -> Result<Self, ConnectorRegistryError> {
         official()?;
         let dir = inspected(dir)?;
-        let root = dir
-            .ancestors()
-            .find(|ancestor| ancestor.join("connectors").is_dir())
-            .map(Path::to_path_buf);
-        let plugin = match root {
+        let plugin = match plugin_root(&dir)? {
             Some(root) => Some(plugin_connectors(&root)?),
             None => None,
         };
@@ -349,14 +332,27 @@ fn inspected(dir: &Path) -> Result<PathBuf, ConnectorRegistryError> {
         })
 }
 
-/// The nearest ancestor of a resolved `skill_dir` named `skills`, whose
-/// parent is the plugin.
-fn plugin_root(skill_dir: &Path) -> Option<PathBuf> {
-    skill_dir
+/// The plugin a resolved `dir` is in. A bundled package is its own plugin, so
+/// a dependency never sees its composer's connectors nor anything above the
+/// bundle; in a source tree it is the nearest directory at or above `dir`
+/// holding `connectors/`.
+fn plugin_root(dir: &Path) -> Result<Option<PathBuf>, ConnectorRegistryError> {
+    let uninspectable = |message: String| ConnectorRegistryError::Uninspectable {
+        dir: dir.to_path_buf(),
+        message,
+    };
+    if crate::registry::package_bundle::package_bundle_root(dir)
+        .map_err(uninspectable)?
+        .is_some()
+    {
+        return crate::skill_package::find_owning_package_root(dir)
+            .map(Some)
+            .ok_or_else(|| uninspectable("a bundled directory with no owning SKILL.md".to_owned()));
+    }
+    Ok(dir
         .ancestors()
-        .find(|ancestor| ancestor.file_name().is_some_and(|name| name == "skills"))
-        .and_then(Path::parent)
-        .map(Path::to_path_buf)
+        .find(|ancestor| ancestor.join("connectors").is_dir())
+        .map(Path::to_path_buf))
 }
 
 fn plugin_connectors(root: &Path) -> Result<Arc<PluginConnectors>, ConnectorRegistryError> {
@@ -399,13 +395,14 @@ fn load_plugin(root: &Path) -> Result<PluginConnectors, ConnectorRegistryError> 
     };
     let mut paths = Vec::new();
     for entry in entries {
-        let path = entry.map_err(uninspectable)?.path().join("connector.yaml");
+        let entry = entry.map_err(uninspectable)?;
+        let path = entry.path().join("connector.yaml");
         if path.try_exists().map_err(uninspectable)? {
-            paths.push(path);
+            paths.push((entry.file_name(), path));
         }
     }
     paths.sort();
-    for path in paths {
+    for (named, path) in paths {
         let invalid = |message: String| ConnectorRegistryError::InvalidManifest {
             path: path.clone(),
             message,
@@ -415,6 +412,12 @@ fn load_plugin(root: &Path) -> Result<PluginConnectors, ConnectorRegistryError> 
             parse_connector_manifest(&source).map_err(|error| invalid(error.to_string()))?;
         let validated = validate_connector_manifest(manifest)
             .map_err(|errors| invalid(format!("{errors:?}")))?;
+        if named.to_str() != Some(validated.manifest.id.as_str()) {
+            return Err(invalid(format!(
+                "connector {} lives in connectors/{}/, named by its id",
+                validated.manifest.id, validated.manifest.id
+            )));
+        }
         if let Some(official) = official.connectors.get(&validated.manifest.id) {
             // The official plugin's own source tree is the same manifest.
             if official.manifest_digest == validated.manifest_digest {

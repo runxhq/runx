@@ -1186,7 +1186,7 @@ runners:
             "run-1".to_owned(),
         ),
     ]);
-    let connector = crate::ConnectorScope::for_skill(&skill_dir)
+    let connector = crate::ConnectorScope::at(&skill_dir)
         .unwrap()
         .connector("probe-mcp")
         .unwrap();

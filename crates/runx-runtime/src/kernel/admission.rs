@@ -579,7 +579,7 @@ pub fn skill_readiness(
     env: &BTreeMap<String, String>,
     cwd: &Path,
 ) -> Result<Vec<Readiness>, String> {
-    let scope = ConnectorScope::for_skill(skill_dir).map_err(|error| error.to_string())?;
+    let scope = ConnectorScope::at(skill_dir).map_err(|error| error.to_string())?;
     project(&scope, requirements, env, cwd)
 }
 
@@ -590,7 +590,7 @@ pub fn connector_readiness(
     env: &BTreeMap<String, String>,
     cwd: &Path,
 ) -> Result<Vec<Readiness>, String> {
-    let scope = ConnectorScope::for_workspace(cwd).map_err(|error| error.to_string())?;
+    let scope = ConnectorScope::at(cwd).map_err(|error| error.to_string())?;
     let requirement = ConnectorRequirement {
         operations: connector.manifest.operations.keys().cloned().collect(),
         connector_from: None,
@@ -1182,7 +1182,7 @@ operations:
                 r#"{"schema": "runx.tool.manifest.v1", "name": "acme.records", "version": "0.1.0", "description": "Reads records.", "source": {"command": "node", "args": ["./records.mjs"]}}"#,
             )
             .unwrap();
-            let loaded = ConnectorScope::for_skill(&skill)
+            let loaded = ConnectorScope::at(&skill)
                 .unwrap()
                 .connector("acme")
                 .unwrap();

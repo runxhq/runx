@@ -43,7 +43,7 @@ operations:
     )
     .unwrap();
     assert!(matches!(
-        ConnectorScope::for_skill(&skill),
+        ConnectorScope::at(&skill),
         Err(ConnectorRegistryError::Shadowed { .. })
     ));
 }
@@ -72,7 +72,7 @@ operations:
 "#,
     )
     .unwrap();
-    let scope = ConnectorScope::for_skill(&skill).unwrap();
+    let scope = ConnectorScope::at(&skill).unwrap();
     let loaded = scope.connector("acme-weather").unwrap();
     assert!(matches!(loaded.origin, ConnectorOrigin::Plugin { .. }));
     assert!(
@@ -110,7 +110,7 @@ operations:
     )
     .unwrap();
     assert!(matches!(
-        ConnectorScope::for_skill(&skill),
+        ConnectorScope::at(&skill),
         Err(ConnectorRegistryError::InvalidManifest { message, .. })
             if message.contains("declares no references")
     ));
@@ -123,7 +123,7 @@ fn a_missing_connector_says_where_it_was_looked_for() {
     let outside = root.join("elsewhere");
     std::fs::create_dir_all(&outside).unwrap();
     assert!(matches!(
-        ConnectorScope::for_workspace(&outside).unwrap().connector("acme"),
+        ConnectorScope::at(&outside).unwrap().connector("acme"),
         Err(ConnectorRegistryError::NoPlugin { dir, .. }) if dir == outside
     ));
 
@@ -132,12 +132,12 @@ fn a_missing_connector_says_where_it_was_looked_for() {
     let inside = plugin.join("skills/work");
     std::fs::create_dir_all(&inside).unwrap();
     assert!(matches!(
-        ConnectorScope::for_workspace(&inside).unwrap().connector("acme"),
+        ConnectorScope::at(&inside).unwrap().connector("acme"),
         Err(ConnectorRegistryError::NotInPlugin { root, .. }) if root == plugin
     ));
 
     assert!(matches!(
-        ConnectorScope::for_workspace(&root.join("gone")),
+        ConnectorScope::at(&root.join("gone")),
         Err(ConnectorRegistryError::Uninspectable { .. })
     ));
 }
@@ -153,11 +153,66 @@ fn a_plugin_whose_connectors_cannot_be_read_is_an_error_not_an_empty_plugin() {
     let connectors = root.path().join("connectors");
     std::fs::create_dir_all(&connectors).unwrap();
     std::fs::set_permissions(&connectors, std::fs::Permissions::from_mode(0o000)).unwrap();
-    let result = ConnectorScope::for_skill(&skill);
+    let result = ConnectorScope::at(&skill);
     std::fs::set_permissions(&connectors, std::fs::Permissions::from_mode(0o755)).unwrap();
     assert!(
         matches!(result, Err(ConnectorRegistryError::Uninspectable { .. })),
         "{:?}",
         result.err()
     );
+}
+
+fn write_plugin_connector(connectors: &Path, directory: &str, id: &str) {
+    let dir = connectors.join(directory);
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(
+        dir.join("connector.yaml"),
+        format!(
+            "schema: runx.connector.v1\nid: {id}\nname: Acme\ndescription: Records.\nruntime_capability: false\nauth: {{none: {{}}}}\nplacements: {{local: {{auth: [none]}}}}\noperations:\n  record.read:\n    description: Read a record.\n    verb: read\n    scopes: [record.read]\n    target: {{template: \"acme://records\"}}\n"
+        ),
+    )
+    .unwrap();
+}
+
+#[test]
+fn a_bundled_package_is_its_own_plugin() {
+    let root = tempfile::tempdir().unwrap();
+    let root = root.path().canonicalize().unwrap();
+    // A source plugin above the bundle is never reached from inside it.
+    write_plugin_connector(&root.join("connectors"), "acme-above", "acme-above");
+    let package = root.join("installed");
+    let dependency = package.join("dependencies/beta");
+    std::fs::create_dir_all(&dependency).unwrap();
+    std::fs::write(
+        package.join("runx.package.json"),
+        "{\"schema\": \"runx.registry.package_bundle.v1\", \"dependencies\": []}\n",
+    )
+    .unwrap();
+    std::fs::write(package.join("SKILL.md"), "# Root\n").unwrap();
+    std::fs::write(dependency.join("SKILL.md"), "# Beta\n").unwrap();
+    write_plugin_connector(&package.join("connectors"), "acme", "acme");
+
+    let own = ConnectorScope::at(&package).unwrap();
+    assert!(own.connector("acme").is_ok());
+    assert!(matches!(
+        own.connector("acme-above"),
+        Err(ConnectorRegistryError::NotInPlugin { root, .. }) if root == package
+    ));
+    assert!(matches!(
+        ConnectorScope::at(&dependency).unwrap().connector("acme"),
+        Err(ConnectorRegistryError::NotInPlugin { root, .. }) if root == dependency
+    ));
+}
+
+#[test]
+fn a_plugin_connector_lives_in_the_directory_its_id_names() {
+    let root = tempfile::tempdir().unwrap();
+    let skill = root.path().join("skills/records");
+    std::fs::create_dir_all(&skill).unwrap();
+    write_plugin_connector(&root.path().join("connectors"), "acme", "acme-records");
+    assert!(matches!(
+        ConnectorScope::at(&skill),
+        Err(ConnectorRegistryError::InvalidManifest { message, .. })
+            if message.contains("lives in connectors/acme-records/")
+    ));
 }

@@ -474,7 +474,7 @@ impl RuntimeEffect for OperationEffect {
         ))
         .map_err(state)?;
         let lanes = LaneInputs::read(request.env, request.run_id);
-        let scope = ConnectorScope::for_skill(request.graph_dir)
+        let scope = ConnectorScope::at(request.graph_dir)
             .map_err(|error| invalid(error.to_string()))?;
         let instances = Instances::new(Arc::clone(&store));
         let admitted = admission::admit(&Evaluation {

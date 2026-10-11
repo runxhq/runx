@@ -351,7 +351,7 @@ fn seed_harness_sessions(
             .map_err(|error| setup(error.to_string()))?,
     );
     let scope =
-        crate::ConnectorScope::for_skill(target_path).map_err(|error| setup(error.to_string()))?;
+        crate::ConnectorScope::at(target_path).map_err(|error| setup(error.to_string()))?;
     for connector in &fixture.setup.sessions {
         let connector = scope
             .connector(connector.as_str())
@@ -389,7 +389,7 @@ fn seed_harness_credentials(
             .map_err(|error| setup(error.to_string()))?,
     );
     let scope =
-        crate::ConnectorScope::for_skill(target_path).map_err(|error| setup(error.to_string()))?;
+        crate::ConnectorScope::at(target_path).map_err(|error| setup(error.to_string()))?;
     for connector in &fixture.setup.credentials {
         let connector = scope
             .connector(connector.as_str())

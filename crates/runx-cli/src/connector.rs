@@ -263,7 +263,7 @@ fn execute(plan: &ConnectorPlan, workspace: &WorkspaceEnv) -> Result<String, Str
     let records = |instances: &Instances| instances.list().map_err(|error| error.to_string());
     match &plan.action {
         ConnectorAction::List => {
-            let connectors = ConnectorScope::for_workspace(workspace.paths().cwd())
+            let connectors = ConnectorScope::at(workspace.paths().cwd())
                 .and_then(|scope| scope.connectors())
                 .map_err(|error| error.to_string())?;
             let records = records(&instances)?;
@@ -426,7 +426,7 @@ fn execute(plan: &ConnectorPlan, workspace: &WorkspaceEnv) -> Result<String, Str
 
 /// An official connector, or one of the plugin runx was invoked in.
 fn in_workspace(workspace: &WorkspaceEnv, connector: &str) -> Result<Arc<LoadedConnector>, String> {
-    ConnectorScope::for_workspace(workspace.paths().cwd())
+    ConnectorScope::at(workspace.paths().cwd())
         .and_then(|scope| scope.connector(connector))
         .map_err(|error| error.to_string())
 }

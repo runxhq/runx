@@ -806,7 +806,7 @@ where
         }
         if !allowance.operations.is_empty() {
             let connectors =
-                crate::kernel::connectors::ConnectorScope::for_skill(self.scope.graph_dir)
+                crate::kernel::connectors::ConnectorScope::at(self.scope.graph_dir)
                     .map_err(|error| {
                         RuntimeError::effect_state(
                             "reading the skill's connectors",
